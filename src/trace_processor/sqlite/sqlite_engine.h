@@ -117,7 +117,21 @@ class SqliteEngine {
     base::Status status_ = base::OkStatus();
   };
 
+  // Default ctor: mints a fresh memdb URI (see |BuildMemdbUri|) and opens a
+  // new SQLite handle against it. Use this for a brand-new in-memory database.
   SqliteEngine();
+
+  // Phase 2 ctor: opens a new SQLite handle against an existing memdb URI.
+  // Pass the |filename()| of an already-constructed |SqliteEngine|; the
+  // resulting engine attaches to the same shared in-memory database via
+  // |cache=shared|, so its connections see DDL committed on the main schema
+  // by other engines pointing at the same URI.
+  //
+  // Other per-engine state (function/aggregate/window registrations, vtab
+  // module registrations, commit/rollback callbacks) is fresh per engine —
+  // sharing only happens at the storage/schema layer.
+  explicit SqliteEngine(const std::string& shared_filename);
+
   ~SqliteEngine();
 
   SqliteEngine(SqliteEngine&&) noexcept = delete;
@@ -186,6 +200,12 @@ class SqliteEngine {
   void* SetRollbackCallback(RollbackCallback callback, void* ctx);
 
   sqlite3* db() const { return connection_.db(); }
+
+  // The URI-style filename this engine's connection was opened against. In
+  // Phase 2 callers can pass this to the |shared_filename| ctor of another
+  // |SqliteEngine| to mint a second handle against the same shared in-memory
+  // database (cross-connection schema visibility via |cache=shared|).
+  const std::string& filename() const { return filename_; }
 
  private:
   std::optional<uint32_t> GetErrorOffset() const;

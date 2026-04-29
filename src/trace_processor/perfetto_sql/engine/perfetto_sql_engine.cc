@@ -396,6 +396,18 @@ GetTypesFromSelectStatement(
 
 }  // namespace
 
+PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
+                                     bool enable_extra_checks,
+                                     const std::string& shared_filename)
+    : pool_(pool),
+      enable_extra_checks_(enable_extra_checks),
+      engine_(new SqliteEngine(shared_filename)) {
+  // Intentionally minimal: secondary engines piggyback on storage created by
+  // the primary. See the header doc-comment on this ctor for the full list
+  // of intentional omissions (vtab modules, function registrations,
+  // perfetto_tables creation, commit/rollback hooks).
+}
+
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
     : pool_(pool),
       enable_extra_checks_(enable_extra_checks),

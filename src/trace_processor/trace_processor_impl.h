@@ -145,11 +145,12 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  // Phase 2 iter 1 scaffolding: a `Connection` impl that forwards to
-  // connection-0 (i.e. `TraceProcessorImpl::ExecuteQuery`). The next
-  // chunk (`perfetto-sql-engine-per-conn`) will replace this with a
-  // per-connection `PerfettoSqlEngine` + `SqliteConnection` that
-  // attaches to the same `cache=shared` memdb URI.
+  // Phase 2 iter 2: a `Connection` impl that owns its own
+  // `PerfettoSqlEngine` (with a fresh `SqliteEngine` /
+  // `SqliteConnection`) attached to the primary engine's memdb URI via
+  // `cache=shared`. See the doc-comment in `trace_processor_impl.cc`
+  // and the shared-filename ctor on `PerfettoSqlEngine` for the
+  // intentional limitations (no vtab/function replication yet).
   class ConnectionImpl;
   friend class ConnectionImpl;
 

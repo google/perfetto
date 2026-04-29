@@ -69,6 +69,31 @@ class PerfettoSqlEngine {
   };
   PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
 
+  // Phase 2 ctor: mints a secondary engine sharing storage with a primary
+  // engine via |cache=shared|. |shared_filename| should come from
+  // |SqliteEngine::filename()| of the primary engine; the resulting engine
+  // attaches to the same in-memory database, so plain SQL/DDL committed on
+  // the main schema by the primary is visible here.
+  //
+  // Caveats (intentional limitations of this chunk):
+  //  - Vtab modules are NOT registered. Queries that resolve to a vtab
+  //    (runtime_table_function, __intrinsic_dataframe, etc.) will fail.
+  //    Replicating vtab modules + per-vtab state is the work of the next
+  //    chunks (vtab-state-staging-publish).
+  //  - PerfettoSQL functions are NOT registered. The function pool will be
+  //    diff-and-registered per connection in function-pool-per-conn-diff.
+  //  - The |perfetto_tables| housekeeping table is NOT created here; it
+  //    already exists in the shared cache (the primary engine created it).
+  //  - Commit/rollback callbacks are NOT installed: this engine has no
+  //    state managers to notify.
+  //
+  // For this chunk the secondary engine supports only basic SQL against
+  // tables/views visible via |cache=shared| (e.g. |SELECT 1|,
+  // |SELECT name FROM sqlite_master|).
+  PerfettoSqlEngine(StringPool* pool,
+                    bool enable_extra_checks,
+                    const std::string& shared_filename);
+
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
       const std::vector<StaticTable>& tables,

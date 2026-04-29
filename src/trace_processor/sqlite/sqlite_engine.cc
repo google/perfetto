@@ -224,6 +224,9 @@ SqliteConnection::~SqliteConnection() {
 SqliteEngine::SqliteEngine()
     : filename_(BuildMemdbUri()), connection_(filename_) {}
 
+SqliteEngine::SqliteEngine(const std::string& shared_filename)
+    : filename_(shared_filename), connection_(filename_) {}
+
 SqliteEngine::~SqliteEngine() = default;
 
 SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {

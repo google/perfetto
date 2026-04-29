@@ -23,6 +23,66 @@ Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 2 iter 2]: perfetto-sql-engine-per-conn done.
+  Each non-default `Connection` now owns its own `PerfettoSqlEngine`
+  (with a fresh `SqliteEngine` / `SqliteConnection`) opened against
+  the primary engine's memdb URI so `cache=shared` ties them together
+  at the storage layer. The filename-sharing mechanism is **option A**
+  from the chunk plan: a public read-only `SqliteEngine::filename()`
+  accessor (`src/trace_processor/sqlite/sqlite_engine.h`) plus a new
+  alternate ctor `SqliteEngine(const std::string& shared_filename)`
+  (and a matching `PerfettoSqlEngine(StringPool*, bool, const
+  std::string& shared_filename)`) that reuses the URI passed in
+  instead of generating a new one. `TraceProcessorImpl::CreateConnection`
+  now mints `auto engine = std::make_unique<PerfettoSqlEngine>(
+  context()->storage->mutable_string_pool(),
+  config_.enable_extra_checks,
+  engine_->sqlite_engine()->filename());` and hands it to
+  `ConnectionImpl`. `ConnectionImpl::ExecuteQuery` dispatches through
+  its own engine: it calls `RecordQueryBegin` on the parent's
+  `sql_stats` (so non-default connections show up alongside
+  connection-0 in the diagnostic table), runs
+  `engine_->ExecuteUntilLastStatement(SqlSource::FromExecuteQuery(...))`,
+  and wraps the result in an `IteratorImpl` that points at the parent
+  for end-of-query bookkeeping.
+  Smoke test: `src/trace_processor/trace_processor_connection_unittest.cc`
+  with three tests under `TraceProcessorConnectionTest.*` —
+  `SecondaryConnectionExecutesTrivialQuery` (`SELECT 1`),
+  `SecondaryConnectionSeesPrimarySchema` (CREATE TABLE +
+  INSERT on conn-0, then SELECT on a freshly-minted conn that sees
+  rows via `cache=shared`), and `MultipleConnectionsCoexist` (two
+  live connections each running `SELECT N`). New BUILD.gn target
+  `:trace_processor_unittests` (gated on
+  `enable_perfetto_trace_processor_sqlite`) wires these into
+  `perfetto_unittests` via `:unittests`.
+  Intentional limits documented on the secondary-engine ctor and
+  the `ConnectionImpl` class doc-comment: vtab modules are NOT
+  registered on non-default connections (no
+  `runtime_table_function`, no `__intrinsic_dataframe`, no
+  `__intrinsic_static_table_function`); PerfettoSQL functions are
+  NOT registered; the `perfetto_tables` housekeeping table is NOT
+  re-created (already in the shared cache); commit/rollback hooks
+  are NOT installed (no state managers to notify). Queries that
+  resolve to a vtab module or a SQL-defined function will fail on
+  non-default connections — vtab replication lands in
+  `vtab-state-staging-publish` and function replication lands in
+  `function-pool-per-conn-diff`.
+  One subtle pothole worth recording: an early version passed
+  `nullptr` for the `TraceProcessorImpl*` back-pointer to
+  `IteratorImpl`. `IteratorImpl::~IteratorImpl()` guards against
+  null, but `RecordFirstNextInSqlStats()` does *not* — it
+  unconditionally dereferences. The first call to `Iterator::Next()`
+  on a secondary-connection iterator hung (effectively) due to
+  cascaded UB. Fix: pass the parent through and use it for sql_stats
+  bookkeeping. Future cleanup option: gate `RecordFirstNextInSqlStats`
+  on a non-null check, but no current call-site needs that.
+  Build/test results on `out/mac_release`: gn check clean, full
+  unittests pass (3219 + 1 pre-existing skip
+  `HttpServerTest.Websocket`; the new 3 connection tests are
+  included), 122 TP integrationtests pass
+  (`TraceProcessor*:*Sqlite*:ReadTrace*` filter), 1355 diff tests
+  pass + 9 pre-existing skips. No behaviour change for existing
+  callers.
 - 2026-04-29 [Phase 2 iter 1]: tp-public-api-create-conn done.
   Public API surface added in
   `include/perfetto/trace_processor/trace_processor.h`:
@@ -265,11 +325,14 @@ and the temp-then-promote breakthrough above before sequencing them.
       (forwards `ExecuteQuery` to `TraceProcessorImpl::ExecuteQuery`).
       Replacing the stub with a real per-conn engine is the next
       chunk. See Phase 2 iter 1 activity entry.
-- [ ] perfetto-sql-engine-per-conn — the second connection mints a
-      fresh `PerfettoSqlEngine` (and its own `SqliteEngine` /
-      `SqliteConnection`) but reuses the existing `filename_` so
-      `cache=shared` ties them together. Verify trivial query on
-      conn 1 sees tables created on conn 0.
+- [x] perfetto-sql-engine-per-conn — done Phase 2 iter 2. Each
+      non-default `Connection` mints a fresh `PerfettoSqlEngine`
+      sharing the primary's memdb URI via `cache=shared`. Three
+      smoke tests under `TraceProcessorConnectionTest.*` verify
+      basic SELECT, cross-conn schema visibility, and multiple
+      live connections. Vtab/function registry on the secondary
+      engine is intentionally empty — addressed by the next two
+      chunks. See Phase 2 iter 2 activity entry.
 - [ ] include-temp-then-promote — implement the include
       breakthrough. Hijack the include execution to write CREATE
       DDL into `temp.<symbol>` first, then on success drop the temp

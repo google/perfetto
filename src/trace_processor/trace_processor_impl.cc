@@ -690,28 +690,51 @@ TraceProcessorImpl::~TraceProcessorImpl() {
   PERFETTO_CHECK(non_default_connection_count_ == 0);
 }
 
-// Phase 2 iter 1 scaffolding: this `Connection` impl forwards every
-// `ExecuteQuery` call back to `TraceProcessorImpl::ExecuteQuery`, i.e.
-// onto connection-0. The next chunk (`perfetto-sql-engine-per-conn`)
-// will give each non-default `Connection` its own `PerfettoSqlEngine`
-// + `sqlite3*` against the same `cache=shared` memdb URI, at which
-// point this class will forward to its own engine instead.
+// Phase 2 iter 2: each non-default `Connection` owns its own
+// `PerfettoSqlEngine` (and a fresh `SqliteEngine` / `SqliteConnection`),
+// opened against the primary engine's memdb URI so `cache=shared` ties
+// them together at the storage layer.
+//
+// Limits of this scaffold (see `PerfettoSqlEngine` shared-filename ctor
+// for the full list): the secondary engine has an empty vtab/function
+// registry, so queries that resolve to a vtab module
+// (`runtime_table_function`, `__intrinsic_dataframe`, ...) or a
+// PerfettoSQL-registered function will fail. Plain SQL against tables
+// and views visible via `cache=shared` works.
 class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
  public:
-  explicit ConnectionImpl(TraceProcessorImpl* parent) : parent_(parent) {}
+  ConnectionImpl(TraceProcessorImpl* parent,
+                 std::unique_ptr<PerfettoSqlEngine> engine)
+      : parent_(parent), engine_(std::move(engine)) {}
   ~ConnectionImpl() override {
+    // Drop the engine before notifying the parent so that all per-conn
+    // sqlite resources are torn down while the parent is still alive.
+    engine_.reset();
     if (parent_ != nullptr) {
       parent_->ReleaseConnection(this);
     }
   }
 
   Iterator ExecuteQuery(const std::string& sql) override {
+    PERFETTO_DCHECK(engine_ != nullptr);
     PERFETTO_DCHECK(parent_ != nullptr);
-    return parent_->ExecuteQuery(sql);
+    std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
+    // Record query begin in the parent's `sql_stats` so non-default
+    // connections show up in the same diagnostic table as connection-0.
+    uint32_t sql_stats_row =
+        parent_->context()->storage->mutable_sql_stats()->RecordQueryBegin(
+            sql, base::GetWallTimeNs().count());
+    base::StatusOr<PerfettoSqlEngine::ExecutionResult> result =
+        engine_->ExecuteUntilLastStatement(
+            SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
+    std::unique_ptr<IteratorImpl> impl(
+        new IteratorImpl(parent_, std::move(result), sql_stats_row));
+    return Iterator(std::move(impl));
   }
 
  private:
   TraceProcessorImpl* parent_;
+  std::unique_ptr<PerfettoSqlEngine> engine_;
 };
 
 std::unique_ptr<TraceProcessor::Connection>
@@ -719,8 +742,14 @@ TraceProcessorImpl::CreateConnection() {
   // Strict-v1: connections are only legal post-NotifyEndOfFile. Concurrent
   // ingestion is out of scope.
   PERFETTO_CHECK(notify_eof_called_);
+  // Mint a fresh engine pointing at the same memdb URI as the primary so
+  // `cache=shared` propagates DDL across handles. See `PerfettoSqlEngine`
+  // shared-filename ctor for the (intentionally minimal) per-engine setup.
+  auto engine = std::make_unique<PerfettoSqlEngine>(
+      context()->storage->mutable_string_pool(), config_.enable_extra_checks,
+      engine_->sqlite_engine()->filename());
   ++non_default_connection_count_;
-  return std::make_unique<ConnectionImpl>(this);
+  return std::make_unique<ConnectionImpl>(this, std::move(engine));
 }
 
 void TraceProcessorImpl::ReleaseConnection(ConnectionImpl*) {
