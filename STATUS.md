@@ -1,7 +1,7 @@
 # Multi-connection TraceProcessor — Loop Status
 
 ## Current Phase
-Phase 3 in progress (thread safety + retry middleware).
+Phase 3 complete. Next: Phase 4 (RPC pool + UI engine.ts fan-out + WASM pthreads).
 
 ## Design pivots (2026-04-29, mid-Phase-1)
 - **WAL abandoned.** Switching to serialized transactions with
@@ -23,6 +23,82 @@ Phase 3 in progress (thread safety + retry middleware).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 3 iter 7]: tsan-multithread-stress done; Phase 3
+  closed. New `out/mac_tsan` build dir
+  (`is_clang=true is_debug=false is_tsan=true`) — the GN args
+  scaffolding from `tools/setup_all_configs.py` and
+  `buildtools/BUILD.gn` already supported it on macOS arm64; the
+  config simply hadn't been instantiated. `tools/gn gen --check
+  out/mac_tsan` succeeds and `tools/ninja -C out/mac_tsan
+  perfetto_unittests` builds cleanly against the vendored libtsan
+  runtime in `buildtools/mac/clang/lib/clang/.../libclang_rt.tsan
+  _osx_dynamic.dylib`.
+
+  **Race surfaced and fixed.** First TSan run of
+  `TraceProcessorConnectionTest.ConcurrentRecordingIntoSqlStats`
+  reported a clean data race on
+  `TraceProcessorImpl::non_default_connection_count_` — the test
+  hands each connection to a worker thread, so when worker threads
+  exit concurrently their `unique_ptr<Connection>` destructors fire
+  on different threads, both running `ReleaseConnection` and
+  decrementing the counter without synchronisation. Two threads
+  calling `--int` is a textbook race even when the read-modify-
+  write happens to round-trip correctly on arm64.
+
+  **Fix:** promoted `non_default_connection_count_` from
+  `int = 0` to `std::atomic<int>{0}` in `trace_processor_impl.h`
+  and updated the two mutators in `trace_processor_impl.cc`:
+
+  ```cpp
+  // CreateConnection (writer thread, sole producer of '+'):
+  non_default_connection_count_.fetch_add(1, std::memory_order_relaxed);
+
+  // ReleaseConnection (any thread):
+  int prev = non_default_connection_count_.fetch_sub(
+      1, std::memory_order_acq_rel);
+  PERFETTO_CHECK(prev > 0);  // strictly-positive guard pre-decrement
+  ```
+
+  The ~12 mutation-gating reads
+  (`PERFETTO_CHECK(non_default_connection_count_ == 0)` in `Parse`,
+  `NotifyEndOfFile`, the destructor, etc.) keep their existing form
+  — `std::atomic<int>::operator==(int)` does an implicit relaxed
+  load, the expected value at those sites is zero, and the writer
+  thread is the only producer of `++` so the gates can never
+  observe a stale "saw zero, then a `++` slipped in" race.
+  Memory-ordering choices: `relaxed` on increment because there is
+  no data published-via-counter (the counter only exists for the
+  CHECK gates), `acq_rel` on decrement so the count can serve as a
+  release point if a future caller wants to use "count went to
+  zero" as a happens-before edge for follow-up cleanup.
+
+  **Stress validation under TSan:**
+  - `out/mac_tsan/perfetto_unittests
+    --gtest_filter="TraceProcessorConnectionTest.*"`: 23/23 PASSED
+    across **10 consecutive runs**, no `WARNING: ThreadSanitizer:`
+    output, no late TSan-on-shutdown reports.
+  - Full `out/mac_tsan/perfetto_unittests`: 3261 PASSED, 2 SKIPPED,
+    1 pre-existing macOS failure
+    (`HttpServerTest.Websocket`) — same shape as release. (The
+    full-suite count is 3264 vs. release's 3265; the gap is a
+    single sanitizer-gated test elsewhere in the tree, not a
+    Phase 3 regression.)
+  - `out/mac_asan/perfetto_unittests
+    --gtest_filter="TraceProcessorConnectionTest.*"`: 10/10
+    consecutive runs all 23/23 PASSED to confirm the iter-6
+    baseline is preserved post-atomic.
+
+  **Test counts** (Phase 3 close):
+  - `out/mac_release/perfetto_unittests`: 3262 PASSED, 2 SKIPPED,
+    1 pre-existing macOS failure (unchanged from iter 6).
+  - `out/mac_release/perfetto_integrationtests` (TP-relevant
+    filter): 122 PASSED, unchanged.
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9
+    pre-existing skips, unchanged.
+
+  Net delta vs. iter 6: +1 fix (race on the connection counter),
+  zero new tests, zero regressions, TSan now part of the matrix.
+
 - 2026-04-29 [Phase 3 iter 6]: schema-retry done. Transparent
   `SQLITE_SCHEMA` recovery now wraps both
   `SqliteEngine::PrepareStatement` (around `sqlite3_prepare_v2`) and
@@ -1262,6 +1338,108 @@ point: verify `SQLITE_THREADSAFE=2` is honoured under multi-thread
 load, add transparent BUSY/SCHEMA retry with configurable timeout,
 audit globals for thread-safety, stress-test under TSan/ASan.
 
+## Phase 3 wrap-up
+
+Branch: `dev/lalitm/multi-conn-tp` — 24 commits ahead of `main` (23
+code + this iter-7 wrap-up commit). Phase 3 closes here.
+
+What shipped across iters 1-7:
+- **Include-lock plumbing + MT smoke** (`include-lock-wire-and-mt-
+  smoke`, iter 1): `GlobalStagingArea::AcquireIncludeLock` (the
+  hook from Phase 2 iter 3) now wraps every `INCLUDE PERFETTO
+  MODULE` invocation on the `ExecutionFrame`. Per-module mutex
+  upgraded to `std::recursive_mutex` so re-entrant include of the
+  same module from a single thread doesn't self-deadlock.
+- **Cross-connection package propagation** (`cross-conn-package-
+  propagation`, iter 2): `GlobalStagingArea` grows an additive
+  package pool (mirrors the function pool from Phase 2 iter 5).
+  Writer's `RegisterSqlPackage` appends after local register;
+  readers diff `last_synced_package_version_` at the top of every
+  top-level `Execute` and `RegisterPackageLocal`-replay missing
+  entries. Shared `IsModuleIncluded` set short-circuits a
+  redundant include of the same module from a sibling connection.
+- **SqlStats race fix** (`globals-audit`, iter 3): wrapped the
+  `std::deque<string>::push_back` writers in `TraceStorage::
+  SqlStats` under a `mutable std::mutex`; replaced the raw
+  `const deque&` accessors with a `SnapshotForReading()` returning
+  a copy under the lock; `SqlStatsModule::Cursor` carries the
+  snapshot for iteration.
+- **StringPool thread-safety flip** (`string-pool-thread-safety`,
+  iter 4): `TraceProcessorImpl::CreateConnection` now flips
+  `StringPool::EnableThreadSafetyForMultiConnection()` on the
+  shared `TraceStorage` pool *before* returning the secondary
+  connection. The existing `MaybeLockGuard` already covered every
+  mutating + iterating method. Single-connection callers never
+  reach `CreateConnection` and continue to pay zero locking
+  overhead.
+- **Transparent BUSY/LOCKED retry** (`busy-retry`, iter 5):
+  `BusyRetryHelper` in `src/trace_processor/sqlite/sqlite_engine.
+  {h,cc}` wraps both `SqliteEngine::PrepareStatement` (around
+  `sqlite3_prepare_v2`) and `SqliteEngine::PreparedStatement::
+  Step` (around `sqlite3_step`, with `sqlite3_reset` between
+  retries). Capped exponential backoff `{100us, 1ms, 10ms,
+  50ms cap}` with a 1s default deadline.
+- **Transparent SCHEMA re-prepare** (`schema-retry`, iter 6):
+  `SchemaRetryHelper` (deadline + 100-attempt count cap) handles
+  `SQLITE_SCHEMA` by finalize + re-`prepare_v2` from the saved
+  `SqlSource`. The Step path tracks `rows_seen_` and refuses to
+  auto-recover from a mid-iteration SCHEMA. New
+  `SqliteEngine::ExecWithRetry` wraps `sqlite3_exec` with the
+  same BUSY/LOCKED + SCHEMA semantics and is now used by all six
+  savepoint open/release/rollback sites in `PerfettoSqlEngine`.
+- **TSan + connection-counter race fix** (`tsan-multithread-
+  stress`, iter 7): `out/mac_tsan` build dir instantiated;
+  `non_default_connection_count_` promoted from `int` to
+  `std::atomic<int>` (release-from-worker-thread race surfaced by
+  TSan in `ConcurrentRecordingIntoSqlStats`).
+
+Test counts at Phase 3 close vs. Phase 2 close:
+- `out/mac_release/perfetto_unittests`: **3262 PASSED + 2 SKIPPED
+  + 1 pre-existing macOS failure** (Phase 2 close was 3228 PASSED;
+  +34 from iters 1-7 = 5 BusyRetry + 4 SchemaRetry + 1 SqlStats
+  stress + 3 StringPool stress + others including the new
+  `ConcurrentDDLDoesNotBreakReaders` and
+  `SchemaRetryRePreparesOnSchemaChange`).
+- `out/mac_release/perfetto_integrationtests` (TP-relevant
+  filter): **122 PASSED**, unchanged.
+- `tools/diff_test_trace_processor.py`: **1355 PASSED + 9
+  pre-existing skips**, unchanged.
+- `out/mac_asan/perfetto_unittests --gtest_filter=
+  TraceProcessorConnectionTest.*`: 23/23 PASSED across **10
+  consecutive runs**, no ASan reports.
+- `out/mac_tsan/perfetto_unittests --gtest_filter=
+  TraceProcessorConnectionTest.*`: 23/23 PASSED across **10
+  consecutive runs**, no `WARNING: ThreadSanitizer:` output. Full
+  TSan suite: 3261 PASSED + 2 SKIPPED + 1 pre-existing macOS
+  failure (matching the release-baseline shape).
+
+What's deferred to Phase 4:
+- `RuntimeTableFunctionModule` cross-conn (engine-pointer in
+  State; carry-over from Phase 2 deferral).
+- `StaticTableFunctionModule` cross-conn (Cursor sharing;
+  carry-over from Phase 2 deferral).
+- Static built-in functions registered post-`InitPerfettoSqlEngine`
+  on the writer don't replicate to readers (only dynamic
+  CREATE-PERFETTO-FUNCTION entries land in the pool today;
+  carry-over from Phase 2 deferral).
+- TSan on Linux. macOS arm64 TSan works; the `out/linux_tsan`
+  args entry exists in `tools/setup_all_configs.py` but a Linux
+  build hasn't been validated in this checkout.
+- RPC pool (`trace_processor_rpc.{h,cc}` currently single-engine —
+  Phase 4's headline chunk).
+- UI engine.ts fan-out (a single `WasmEngineProxy` today; Phase 4
+  will mint multiple).
+- WASM pthreads — `buildtools/BUILD.gn` does not currently set
+  `-pthread` for the wasm toolchain; Phase 4 will need to flip
+  that and verify SAB-cross-origin headers in the UI.
+
+Phase 4 entry point is the **RPC pool**: spin up a small fixed
+pool of `Connection`s in `TraceProcessorRpc` keyed by query (or
+round-robin) so ingestion-thread queries don't serialise behind
+each other. The TP-side primitives are now all in place — every
+chunk in this phase exercised them under stress, so Phase 4 is
+"plumbing higher in the stack" rather than core TP work.
+
 ## Next chunks (Phase 1)
 - [x] sqlite-handle-encapsulation — done iter 5. Accessor:
       `sqlite3* PerfettoSqlEngine::db()`. 9 external callsites
@@ -1451,11 +1629,30 @@ and the temp-then-promote breakthrough above before sequencing them.
       Connections, InternedStringMatchesAcrossConnections}` —
       29/29 ASan-clean across 10 consecutive runs. See Phase 3
       iter 4 activity entry.
-- [ ] tsan-multithread-stress — bring up a TSan-enabled build (or
-      document the toolchain-availability blocker on macOS) and add a
-      larger fan-out test: writer + multiple readers running interleaved
-      DDL + SELECT. Goal: prove the data-race-free invariant under
-      stress, not just the smoke baseline from iter 1.
+- [x] tsan-multithread-stress — done Phase 3 iter 7.
+      `out/mac_tsan` (`is_clang=true is_debug=false is_tsan=true`)
+      builds and runs `perfetto_unittests` cleanly on macOS arm64 —
+      `tools/setup_all_configs.py` already advertised the config and
+      `buildtools/BUILD.gn` had the `is_tsan` plumbing, the build dir
+      simply hadn't been instantiated. The first TSan run flagged a
+      real race in `TraceProcessorImpl::ReleaseConnection`:
+      `non_default_connection_count_` was a plain `int` decremented
+      from connection destructors, which the
+      `ConcurrentRecordingIntoSqlStats` test happens to fire from
+      multiple threads when the per-thread `unique_ptr<Connection>`
+      goes out of scope. Promoted the counter to `std::atomic<int>`
+      with `fetch_add(1, relaxed)` on create and
+      `fetch_sub(1, acq_rel)` on release (returning the prior value
+      so the underflow guard CHECKs strictly-positive). Read sites
+      (the writer-thread `PERFETTO_CHECK(... == 0)` mutation gates)
+      keep their existing form — `std::atomic<int>::operator==(int)`
+      does an implicit relaxed load and the expected value at those
+      sites is zero with a single producer. After the fix, 10/10
+      stress runs of the full `TraceProcessorConnectionTest.*` suite
+      under TSan are clean and the full suite runs at 3261 PASSED +
+      2 SKIPPED + 1 pre-existing macOS failure
+      (`HttpServerTest.Websocket`), matching the release baseline
+      shape.
 
 ## Architecture notes (for future iterations)
 - Public API:

@@ -239,10 +239,15 @@ class TraceProcessorImpl : public TraceProcessor,
 
   // Number of currently-alive non-default `Connection`s minted by
   // `CreateConnection`. While > 0, mutating TP-level methods are
-  // illegal (strict-v1 — see design rules). Maintained on a single
-  // thread: `CreateConnection` + connection destructors are required
-  // to be called on the thread that owns this `TraceProcessor`.
-  int non_default_connection_count_ = 0;
+  // illegal (strict-v1 — see design rules). `CreateConnection` runs
+  // on the writer thread, but a `Connection` may be handed off and
+  // destroyed on a different thread, so multiple destructors can
+  // race on the decrement. Atomic to keep the count race-free; the
+  // mutation-gating reads issued from writer-thread methods can
+  // observe the count under relaxed ordering since the expected
+  // value at those sites is zero (no live secondaries) and the
+  // writer thread is the only producer of `++`.
+  std::atomic<int> non_default_connection_count_{0};
 };
 
 }  // namespace perfetto::trace_processor

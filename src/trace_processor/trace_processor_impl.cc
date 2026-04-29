@@ -762,13 +762,17 @@ TraceProcessorImpl::CreateConnection() {
   auto engine = std::make_unique<PerfettoSqlEngine>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
       engine_->sqlite_engine()->filename(), staging_area_.get());
-  ++non_default_connection_count_;
+  non_default_connection_count_.fetch_add(1, std::memory_order_relaxed);
   return std::make_unique<ConnectionImpl>(this, std::move(engine));
 }
 
 void TraceProcessorImpl::ReleaseConnection(ConnectionImpl*) {
-  PERFETTO_CHECK(non_default_connection_count_ > 0);
-  --non_default_connection_count_;
+  // `fetch_sub` returns the value *before* the decrement; assert it was
+  // strictly positive so an unbalanced release surfaces a CHECK rather
+  // than wrapping past zero.
+  int prev =
+      non_default_connection_count_.fetch_sub(1, std::memory_order_acq_rel);
+  PERFETTO_CHECK(prev > 0);
 }
 
 // =================================================================
