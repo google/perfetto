@@ -218,6 +218,10 @@ type QueryCapable = {
 // SQL query building
 // =============================================================================
 
+function sqlAlias(id: string): string {
+  return id.replace(/\./g, '_');
+}
+
 // Launch metrics required for display and toolbar regardless of which
 // section plugins are loaded.
 const INFRASTRUCTURE_LAUNCH_METRICS = [
@@ -245,8 +249,9 @@ function kernelQueryBody(ctx: GpuComputeContext): string {
   ]);
 
   // Build EXTRACT_ARG lines for each launch metric.
+  // Dots in metric IDs are replaced with underscores for SQL aliases.
   const extractArgs = Array.from(allLaunchMetrics)
-    .map((id) => `EXTRACT_ARG(s.arg_set_id, '${id}') as ${id}`)
+    .map((id) => `EXTRACT_ARG(s.arg_set_id, '${id}') as ${sqlAlias(id)}`)
     .join(',\n      ');
 
   return `
@@ -328,7 +333,7 @@ function reduceKernelRows(
       // First row for this kernel — read all launch-arg columns
       const metricsKV: Record<string, number | string> = {};
       for (const col of launchArgColumns) {
-        const v = iter.get(col);
+        const v = iter.get(sqlAlias(col));
         metricsKV[col] = v != null ? (v as number | string) : 'n/a';
       }
 

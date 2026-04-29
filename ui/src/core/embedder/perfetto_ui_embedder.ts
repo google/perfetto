@@ -19,7 +19,7 @@ import {defaultPlugins} from './default_plugins';
 export class PerfettoUiEmbedder implements Embedder {
   readonly analyticsId = 'G-BD89KT2P3C';
   readonly extensionServer = {
-    url: 'https://perfetto-gae-internal.googleplex.com/',
+    url: 'https://perfetto-gae-internal.googleplex.com/extension_server_assets',
     authType: 'https_sso' as const,
   };
   readonly brandingBadge = undefined;

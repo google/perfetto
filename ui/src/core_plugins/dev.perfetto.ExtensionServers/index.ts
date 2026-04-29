@@ -47,6 +47,10 @@ import {
   utf8Encode,
 } from '../../base/string_utils';
 import {Result} from '../../base/result';
+import {
+  loadLegacyUserscript,
+  registerLegacyMacroStubs,
+} from './legacy_userscript';
 
 export default class ExtensionServersPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExtensionServers';
@@ -85,6 +89,11 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
       );
     }
 
+    // Kick off the legacy userscript fetch in parallel with the extension
+    // server fetches; the result is consumed below once the extension server
+    // macros have settled.
+    const legacyGlobals = loadLegacyUserscript();
+
     maybeAddExtServerFromUrl(setting, args).then(async () => {
       const nonEmbedderServers = setting
         .get()
@@ -93,6 +102,11 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
         maybeAddEmbedderExtServer(ctx, setting, embedder),
         initializeServers(ctx, nonEmbedderServers),
       ]);
+      // All extension server macros have been resolved into AppImpl at this
+      // point. Apply the legacy-macro backcompat shim now: it suppresses any
+      // legacy macro that's superseded by an extension server macro and
+      // turns the rest into deprecation stubs.
+      await registerLegacyMacroStubs(ctx, await legacyGlobals);
       showErrorsOnCompletion([...embedderResults, ...serverResults]);
     });
   }

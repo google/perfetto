@@ -9799,6 +9799,18 @@ message DpuDispFrameStartTimeoutFtraceEvent {
   optional int32 frames_pending = 3;
   optional int32 te_count = 4;
 }
+message DpuDispFrameDoneMissingFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+}
+message DpuDispFrameStartMissingFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -14021,6 +14033,8 @@ message FtraceEvent {
     DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 606;
     MmVmscanMemcgReclaimBeginFtraceEvent mm_vmscan_memcg_reclaim_begin = 607;
     MmVmscanMemcgReclaimEndFtraceEvent mm_vmscan_memcg_reclaim_end = 608;
+    DpuDispFrameDoneMissingFtraceEvent dpu_disp_frame_done_missing = 609;
+    DpuDispFrameStartMissingFtraceEvent dpu_disp_frame_start_missing = 610;
   }
 }
 
@@ -14523,7 +14537,7 @@ message GpuLog {
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
-// next id: 19
+// next id: 22
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -14590,11 +14604,59 @@ message GpuRenderStageEvent {
   // optional. Custom name for this render stage event. When set, this
   // provides a name for the stage instead of using the name from the stage
   // specification.
-  optional string name = 17;
+  oneof name_field {
+    string name = 17;
+    // Interned event name. Refers to EventName in InternedData.
+    uint64 name_iid = 20;
+  }
 
   // Event IDs of other GpuRenderStageEvents that this event
   // had to wait on before it could run.
   repeated uint64 event_wait_ids = 18;
+
+  // optional. ID to a compute kernel description in the interned data.
+  // InternedComputeKernel
+  optional uint64 kernel_iid = 19;
+
+  // 3D unsigned integer vector for grid and workgroup dimensions.
+  message Dim3 {
+    optional uint32 x = 1;
+    optional uint32 y = 2;
+    optional uint32 z = 3;
+  }
+
+  // Typed key/value argument for extending compute kernel descriptions
+  // and launch parameters with custom data.
+  message ExtraComputeArg {
+    oneof name_field {
+      // Interned InternedComputeArgName.
+      uint64 name_iid = 1;
+      // Non-interned variant.
+      string name = 2;
+    }
+    oneof value {
+      int64 int_value = 3;
+      uint64 uint_value = 4;
+      double double_value = 5;
+      string string_value = 6;
+      // Interned InternedString via debug_annotation_string_values.
+      uint64 string_value_iid = 7;
+    }
+  }
+
+  // Compute kernel launch parameters for a single dispatch.
+  message ComputeKernelLaunch {
+    // Grid dimensions (number of workgroups in each dimension).
+    optional Dim3 grid_size = 1;
+    // Workgroup dimensions (number of threads per workgroup in each dimension).
+    optional Dim3 workgroup_size = 2;
+    // Additional typed launch parameters (e.g. registers_per_thread,
+    // shared_mem_dynamic, shared_mem_static).
+    repeated ExtraComputeArg args = 3;
+  }
+
+  // optional. Compute kernel launch parameters for this event.
+  optional ComputeKernelLaunch launch = 21;
 
   // DEPRECATED
 
@@ -14664,6 +14726,20 @@ message InternedGpuRenderStageSpecification {
     COMPUTE = 2;
   }
   optional RenderStageCategory category = 4;
+}
+
+message InternedComputeKernel {
+  optional uint64 iid = 1;
+  optional string name = 2;
+  optional string demangled_name = 3;
+  optional string arch = 4;
+  // Additional typed kernel attributes (e.g. static resource limits).
+  repeated GpuRenderStageEvent.ExtraComputeArg args = 5;
+}
+
+message InternedComputeArgName {
+  optional uint64 iid = 1;
+  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
@@ -16475,6 +16551,10 @@ message InternedData {
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
+
+  // Extension range for domain-specific interned data. See
+  // interned_data_extensions.json for the allocation registry.
+  extensions 1000 to 9999;
 }
 
 message AndroidJobName {
