@@ -1,7 +1,7 @@
 # Multi-connection TraceProcessor — Loop Status
 
 ## Current Phase
-Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
+Phase 2 complete. Next: Phase 3 (thread safety + retry middleware).
 
 ## Design pivots (2026-04-29, mid-Phase-1)
 - **WAL abandoned.** Switching to serialized transactions with
@@ -23,6 +23,53 @@ Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 2 iter 6]: execute-savepoint-wrap done. Every
+  top-level (non-re-entrant) `PerfettoSqlEngine::ExecuteUntilLastStatement`
+  now opens `SAVEPOINT perfetto_execute_<n>` (counter
+  `execute_savepoint_counter_`, mirroring the iter-3 include-savepoint
+  pattern) immediately after `SyncFunctionsFromPool` and either
+  `RELEASE`s it (success path, after the unwind back to `stack_base`) or
+  `ROLLBACK TO ...; RELEASE ...`s it (error path) before returning. The
+  per-include savepoints from iter 3 nest cleanly inside this outer
+  wrap (SQLite supports arbitrary savepoint nesting). Re-entrant
+  `Execute` calls from statement handlers (e.g. `ExecuteCreateFunction`
+  issuing a generated CREATE VIRTUAL TABLE) skip the wrap entirely —
+  their work is already inside the outer one — by gating on
+  `stack_base == 0`, exactly the same gate the existing function-pool
+  sync uses. Three new helpers in `perfetto_sql_engine.{h,cc}`:
+  `OpenExecuteSavepoint` (returns the generated name + status),
+  `ReleaseExecuteSavepoint` (status-returning), and
+  `RollbackExecuteSavepoint` (best-effort, logs on failure). Mirrors
+  the `ReleaseIncludeSavepoint` / `RollbackIncludeSavepoint` shape
+  from iter 3 rather than introducing a new abstraction. RELEASE
+  failures on the success path are promoted to the user-visible error
+  and the outer savepoint is rolled back best-effort, so callers always
+  see clean state.
+  All callers funnel through `ExecuteUntilLastStatement` — that's the
+  only entry point that needs wrapping (`Execute(sql)` is a thin
+  wrapper that delegates to `ExecuteUntilLastStatement` and steps the
+  final statement).
+  Tests added under `TraceProcessorConnectionTest.*` in
+  `src/trace_processor/trace_processor_connection_unittest.cc`:
+  - `MultiStatementExecuteRollsBackOnFailure`: issues
+    `CREATE TABLE multistmt_t (x INT); CREATE TABLE multistmt_t (y INT);`
+    in one Execute; the second statement fails with "table already
+    exists". Verifies (a) the iterator surfaces the error, (b) the
+    table is absent from `sqlite_master` on the issuing connection, and
+    (c) absent on a freshly-minted secondary connection (rules out the
+    pathological case where the rollback only affects the primary's
+    view but leaks via `cache=shared`).
+  - `MultiStatementExecuteCommitsOnSuccess`: positive control —
+    two CREATEs + two INSERTs in a single Execute land normally and a
+    secondary connection observes the rows.
+  Build/test results on `out/mac_release`: gn check clean (no BUILD.gn
+  changes — pure header+impl edit). 3228 unittests pass + 1
+  pre-existing skip (`HttpServerTest.Websocket`); +2 new tests vs.
+  iter 5. 122 TP integrationtests pass. 1355 diff tests pass + 9
+  pre-existing skips. No regressions and no behaviour change for
+  single-statement queries: a single CREATE/SELECT now runs inside an
+  outer savepoint that is RELEASEd at the end, which is observably
+  identical to today's "implicit commit at statement end" semantics.
 - 2026-04-29 [Phase 2 iter 5]: function-pool-per-conn-diff done.
   `GlobalStagingArea` now owns an additive function pool keyed by
   insertion order: a `std::vector<FunctionPoolEntry>` guarded by
@@ -532,6 +579,77 @@ files passes ASan.
 Phase 2 starts at the existing "Next chunks (Phase 2 — first cut...)"
 section below: `tp-public-api-create-conn` is the first chunk.
 
+## Phase 2 wrap-up
+
+Branch: `dev/lalitm/multi-conn-tp` — 16 commits ahead of `main` (15 code
++ this iter-6 commit). Phase 2 closes here.
+
+What shipped across iters 1-6:
+- **Public API** (`tp-public-api-create-conn`, iter 1): nested
+  `TraceProcessor::Connection` abstract class + virtual
+  `CreateConnection()` on `TraceProcessor`. Mutating TP-level methods
+  (`Parse`, `NotifyEndOfFile`, `RegisterSqlPackage`,
+  `RegisterFileContent`, `RestoreInitialTables`, `RegisterMetric`,
+  `ExtendMetricsProto`, `CreateSummarizer`) gated via
+  `PERFETTO_CHECK(non_default_connection_count_ == 0)`.
+- **Per-connection engine** (`perfetto-sql-engine-per-conn`, iter 2):
+  each non-default `Connection` mints a fresh `PerfettoSqlEngine`
+  sharing the primary's memdb URI via `cache=shared`. Filename-sharing
+  via `SqliteEngine::filename()` accessor + alternate ctor.
+- **Atomic includes** (`include-temp-then-promote`, iter 3):
+  `SAVEPOINT perfetto_include_<n>` per `INCLUDE PERFETTO MODULE`
+  (one per wildcard expansion too). Successful includes RELEASE so
+  `cache=shared` propagates; failed includes ROLLBACK TO so partial
+  installation does not leak. `GlobalStagingArea::AcquireIncludeLock`
+  API added (not yet plumbed — Phase 3 hook).
+- **Cross-connection vtab state** (`vtab-state-staging-publish`,
+  iter 4): `GlobalStagingArea` owns a vtab-state map keyed by
+  `(module + "\0" + vtab_name)`. `DataframeModule::Context` publishes
+  on `OnCommit` and resolves on cold xConnect /
+  `BestIndex` / `Filter` re-resolution. Static `thread`/`process`
+  tables and `CREATE PERFETTO TABLE`-defined dataframes are now
+  queryable from secondary connections.
+  `RuntimeTableFunctionModule` and `StaticTableFunctionModule`
+  remain deferred (engine-pointer-in-State and Cursor-sharing
+  concerns).
+- **Function pool diff** (`function-pool-per-conn-diff`, iter 5):
+  `GlobalStagingArea` carries an additive
+  `vector<FunctionPoolEntry>`. Writer appends after local register
+  succeeds; readers replay via `SyncFunctionsFromPool` at the top of
+  every top-level `Execute`. Stateless functions only — replays
+  from prototype + return type + SqlSource.
+- **Multi-statement atomicity** (`execute-savepoint-wrap`, iter 6):
+  every top-level `ExecuteUntilLastStatement` opens
+  `SAVEPOINT perfetto_execute_<n>` (RELEASE on success, ROLLBACK TO
+  on error). Per-include savepoints from iter 3 nest cleanly inside.
+
+Test counts at Phase 2 close vs. Phase 1: 3228 unittests (was 3216,
++12 new across iters 1-6) + 1 pre-existing skip
+(`HttpServerTest.Websocket`); 122 TP integrationtests (unchanged);
+1355 diff tests (unchanged) + 9 pre-existing skips (etm +
+llvm_symbolizer modules absent). No regressions and no behaviour
+change for single-connection callers — the public API surface is
+additive-only.
+
+What's deferred to Phase 3 (or beyond):
+- Static built-in functions registered post-`InitPerfettoSqlEngine`
+  on the writer don't replicate to readers (only dynamic
+  CREATE-PERFETTO-FUNCTION entries land in the pool today). Out of
+  scope until a real workload needs it.
+- `RuntimeTableFunctionModule` cross-conn (engine pointer in State).
+- `StaticTableFunctionModule` cross-conn (Cursor sharing).
+- `GlobalStagingArea::AcquireIncludeLock` not yet plumbed into
+  `PerfettoSqlEngine::IncludeModuleImpl`. Single-threaded today, so
+  contention is impossible; the lock is the Phase 3 thread-safety
+  hook.
+- SQLITE_BUSY / SQLITE_SCHEMA retry middleware (Phase 3).
+- TSan / multi-thread fan-out audit (Phase 3).
+
+Phase 3 (`thread safety + retry middleware`) is the next loop entry
+point: verify `SQLITE_THREADSAFE=2` is honoured under multi-thread
+load, add transparent BUSY/SCHEMA retry with configurable timeout,
+audit globals for thread-safety, stress-test under TSan/ASan.
+
 ## Next chunks (Phase 1)
 - [x] sqlite-handle-encapsulation — done iter 5. Accessor:
       `sqlite3* PerfettoSqlEngine::db()`. 9 external callsites
@@ -621,10 +739,16 @@ and the temp-then-promote breakthrough above before sequencing them.
       rebuilding the writer engine. Two tests cover propagation and
       incremental pickup. See Phase 2 iter 5 activity entry for
       deferred follow-ons (static built-ins, runtime table functions).
-- [ ] execute-savepoint-wrap — every top-level
-      `Execute(sql)` wraps in a savepoint for multi-statement
-      atomicity. Fits naturally with the temp-then-promote include
-      pattern.
+- [x] execute-savepoint-wrap — done Phase 2 iter 6. Every top-level
+      `ExecuteUntilLastStatement` (the funnel point all `Execute`
+      callers and `IteratorImpl` go through) opens
+      `SAVEPOINT perfetto_execute_<n>` immediately after the
+      function-pool sync and either RELEASEs (success) or ROLLBACK TOs
+      (error) before returning. Gated on `stack_base == 0` so
+      re-entrant `Execute` calls from statement handlers don't double-
+      wrap. Two tests verify rollback-on-failure (including
+      cross-connection visibility check) and commit-on-success. See
+      Phase 2 iter 6 activity entry.
 
 ## Architecture notes (for future iterations)
 - Public API:

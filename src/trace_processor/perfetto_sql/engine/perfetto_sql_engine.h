@@ -463,6 +463,24 @@ class PerfettoSqlEngine {
   // the basis that the caller already has an error to report.
   void RollbackIncludeSavepoint(const ExecutionFrame& frame);
 
+  // Opens a uniquely-named SAVEPOINT (`perfetto_execute_<n>`) wrapping a
+  // top-level (non-re-entrant) `ExecuteUntilLastStatement` call so that
+  // multi-statement SQL is atomic: if a later statement fails, earlier
+  // side-effects are rolled back. On success the caller `RELEASE`s the
+  // savepoint via `ReleaseExecuteSavepoint`; on error
+  // `RollbackExecuteSavepoint` performs a `ROLLBACK TO ...; RELEASE ...`.
+  // The returned name is empty if opening the savepoint failed (in which
+  // case the returned status is non-OK).
+  base::StatusOr<std::string> OpenExecuteSavepoint();
+
+  // RELEASEs the savepoint named `name`. No-op if `name` is empty. Returns
+  // the status of the RELEASE.
+  base::Status ReleaseExecuteSavepoint(const std::string& name);
+
+  // ROLLBACK TO + RELEASE the savepoint named `name`. No-op if `name` is
+  // empty. Best-effort: failures are logged.
+  void RollbackExecuteSavepoint(const std::string& name);
+
   // Called when a transaction is committed by SQLite; that is, the result of
   // running some SQL is considered "perm".
   //
@@ -517,6 +535,11 @@ class PerfettoSqlEngine {
   // Monotonically increasing counter used to generate unique SAVEPOINT names
   // for the temp-then-promote include pattern.
   uint64_t include_savepoint_counter_ = 0;
+
+  // Monotonically increasing counter used to generate unique SAVEPOINT names
+  // wrapping every top-level `ExecuteUntilLastStatement` invocation for
+  // multi-statement atomicity.
+  uint64_t execute_savepoint_counter_ = 0;
 
   // Contains the pointers for all registered virtual table modules where the
   // context class of the module inherits from ModuleStateManagerBase.

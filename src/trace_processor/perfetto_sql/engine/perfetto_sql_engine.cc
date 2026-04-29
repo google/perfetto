@@ -586,10 +586,22 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   // CREATE VIRTUAL TABLE) skip the sync — the writer is the only one that
   // appends and a newly-appended entry is always installed locally before
   // we get here, so the writer's own re-entrant calls don't need a sync.
+  std::string execute_savepoint;
   if (stack_base == 0) {
     if (auto sync_status = SyncFunctionsFromPool(); !sync_status.ok()) {
       return sync_status;
     }
+
+    // Open a savepoint wrapping the entire top-level call so that if any
+    // statement after the first fails the partial state is rolled back.
+    // Re-entrant `Execute` calls skip this — their work is already inside
+    // the outer wrap. Per-include savepoints from `IncludeModuleImpl` nest
+    // cleanly inside this outer one.
+    auto sp = OpenExecuteSavepoint();
+    if (!sp.ok()) {
+      return sp.status();
+    }
+    execute_savepoint = std::move(*sp);
   }
 
   auto result = ExecuteUntilLastStatementImpl(std::move(sql_source));
@@ -611,6 +623,27 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
       }
     }
     execution_stack_.pop_back();
+  }
+
+  // Close out the top-level savepoint if we opened one. On success RELEASE
+  // (which commits the savepoint's effects up into the parent transaction —
+  // for the outermost savepoint this is an effective COMMIT, propagating
+  // committed objects via `cache=shared` to sibling connections). On error
+  // ROLLBACK TO + RELEASE so any partially-applied multi-statement state
+  // is undone. RELEASE failures on the success path are propagated up so
+  // callers see a clean error.
+  if (!execute_savepoint.empty()) {
+    if (result.ok()) {
+      auto release_status = ReleaseExecuteSavepoint(execute_savepoint);
+      if (!release_status.ok()) {
+        // Promote the RELEASE failure to the user-visible error and undo
+        // the savepoint's effects best-effort.
+        RollbackExecuteSavepoint(execute_savepoint);
+        return release_status;
+      }
+    } else {
+      RollbackExecuteSavepoint(execute_savepoint);
+    }
   }
   return result;
 }
@@ -652,6 +685,58 @@ void PerfettoSqlEngine::RollbackIncludeSavepoint(const ExecutionFrame& frame) {
         "INCLUDE: failed to rollback savepoint '%s': %s",
         frame.include_savepoint.c_str(),
         errmsg_raw ? errmsg_raw : "unknown");
+  }
+}
+
+base::StatusOr<std::string> PerfettoSqlEngine::OpenExecuteSavepoint() {
+  std::string name =
+      "perfetto_execute_" + std::to_string(execute_savepoint_counter_++);
+  base::StackString<256> sql("SAVEPOINT %s", name.c_str());
+  char* errmsg_raw = nullptr;
+  int err =
+      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    return base::ErrStatus("EXECUTE: failed to open savepoint '%s': %s",
+                           name.c_str(),
+                           errmsg_raw ? errmsg_raw : "unknown");
+  }
+  return name;
+}
+
+base::Status PerfettoSqlEngine::ReleaseExecuteSavepoint(
+    const std::string& name) {
+  if (name.empty()) {
+    return base::OkStatus();
+  }
+  base::StackString<256> sql("RELEASE %s", name.c_str());
+  char* errmsg_raw = nullptr;
+  int err =
+      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    return base::ErrStatus("EXECUTE: failed to release savepoint '%s': %s",
+                           name.c_str(),
+                           errmsg_raw ? errmsg_raw : "unknown");
+  }
+  return base::OkStatus();
+}
+
+void PerfettoSqlEngine::RollbackExecuteSavepoint(const std::string& name) {
+  if (name.empty()) {
+    return;
+  }
+  base::StackString<512> sql("ROLLBACK TO %s; RELEASE %s;", name.c_str(),
+                             name.c_str());
+  char* errmsg_raw = nullptr;
+  int err =
+      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    // Best-effort cleanup: a failure here is non-recoverable but we already
+    // have a primary error to surface, so just log.
+    PERFETTO_ELOG("EXECUTE: failed to rollback savepoint '%s': %s",
+                  name.c_str(), errmsg_raw ? errmsg_raw : "unknown");
   }
 }
 

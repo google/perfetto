@@ -238,6 +238,78 @@ TEST(TraceProcessorConnectionTest, SequentialIncludesPromoteToOtherConnection) {
   ASSERT_OK(it.Status());
 }
 
+// Phase 2 iter 6: every top-level `Execute(sql)` opens a SAVEPOINT
+// (`perfetto_execute_<n>`) so that if a later statement in a multi-statement
+// SQL string fails, earlier side-effects are rolled back. Verifies the
+// rollback path is observed (a) on the issuing connection and (b) on a
+// freshly-minted secondary connection (which would otherwise see the
+// orphaned table via `cache=shared`).
+TEST(TraceProcessorConnectionTest, MultiStatementExecuteRollsBackOnFailure) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  // Two CREATE TABLEs in a single Execute. The second targets the same name
+  // as the first and must fail with "table multistmt_t already exists".
+  {
+    auto it = tp->ExecuteQuery(
+        "CREATE TABLE multistmt_t (x INT); "
+        "CREATE TABLE multistmt_t (y INT);");
+    while (it.Next()) {
+    }
+    ASSERT_FALSE(it.Status().ok());
+  }
+
+  // The first CREATE must have been rolled back by the outer execute
+  // savepoint: the table must NOT be present in `sqlite_master` on the
+  // primary connection.
+  {
+    auto it = tp->ExecuteQuery(
+        "SELECT count(*) FROM sqlite_master WHERE name = 'multistmt_t';");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 0);
+  }
+
+  // A freshly-minted secondary connection must also not see the table.
+  // This rules out the case where the rollback only affects the primary
+  // engine's view but leaks via `cache=shared` to a secondary.
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+  auto it = conn->ExecuteQuery(
+      "SELECT count(*) FROM sqlite_master WHERE name = 'multistmt_t';");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 0);
+}
+
+// Positive control for the execute-savepoint wrap: two successful CREATE
+// statements in a single `Execute` land normally and are visible to a
+// secondary connection. Together with `MultiStatementExecuteRollsBackOnFailure`
+// this asserts the savepoint behaves as RELEASE-on-success / ROLLBACK-on-error.
+TEST(TraceProcessorConnectionTest, MultiStatementExecuteCommitsOnSuccess) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  {
+    auto it = tp->ExecuteQuery(
+        "CREATE TABLE multistmt_ok_a (x INT); "
+        "CREATE TABLE multistmt_ok_b (y INT); "
+        "INSERT INTO multistmt_ok_a VALUES (7); "
+        "INSERT INTO multistmt_ok_b VALUES (11);");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+  auto it = conn->ExecuteQuery(
+      "SELECT (SELECT x FROM multistmt_ok_a) + "
+      "(SELECT y FROM multistmt_ok_b);");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 18);
+  ASSERT_FALSE(it.Next());
+  ASSERT_OK(it.Status());
+}
+
 // Phase 2 iter 4 smoke test: a `CREATE PERFETTO TABLE` on connection-0
 // installs a dataframe-backed virtual table. The secondary connection must
 // be able to `SELECT` from it and observe the same rows, which exercises:
