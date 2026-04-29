@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -62,12 +63,23 @@ class Httpd : public base::HttpRequestHandler {
   // HttpRequestHandler implementation.
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
+  void OnHttpConnectionClosed(base::HttpServerConnection*) override;
 
   static void ServeHelpPage(const base::HttpRequest&);
+
+  // Returns (or lazily creates) the per-connection liveness flag.
+  // The shared_ptr<bool> is captured by the Rpc-bound response function
+  // so that async streaming dispatches issued before a websocket
+  // disconnects observe a `false` flag instead of touching a freed
+  // HttpServerConnection.
+  std::shared_ptr<bool> AliveFlagForConn(base::HttpServerConnection*);
 
   Rpc& global_trace_processor_rpc_;
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
+  // All accesses run on the task-runner thread; no locking needed.
+  std::unordered_map<base::HttpServerConnection*, std::shared_ptr<bool>>
+      conn_alive_flags_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -96,7 +108,18 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 }
 
 Httpd::Httpd(Rpc& rpc)
-    : global_trace_processor_rpc_(rpc), http_srv_(&task_runner_, this) {}
+    : global_trace_processor_rpc_(rpc), http_srv_(&task_runner_, this) {
+  // Post-EOF streaming queries dispatch onto the iter-1 worker pool.
+  // The dispatcher below carries the "send all chunks for this query"
+  // closure from the worker thread back onto the task-runner thread,
+  // where `rpc_response_fn_` (a SendRpcChunk over the websocket) is
+  // safe to call. Without this, `OnRpcRequest` returning before the
+  // worker finishes would leave concurrent websocket messages
+  // serialised on the single task-runner thread.
+  rpc.SetResponseDispatcher([this](std::function<void()> task) {
+    task_runner_.PostTask(std::move(task));
+  });
+}
 Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
@@ -173,8 +196,19 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
         [&](const void* data, uint32_t len) {
           SendRpcChunk(&conn, data, len);
         });
-    // OnRpcRequest() will call SendRpcChunk() one or more times.
+    // The /rpc chunked HTTP endpoint (Python API, legacy clients)
+    // requires fully synchronous request handling: the trailer
+    // "0\r\n\r\n" is appended below the moment OnRpcRequest returns,
+    // and there's no per-request "completion" callback. Disable the
+    // async streaming dispatch around this call so streaming queries
+    // run inline. We're on the task-runner thread, so the swap is
+    // race-free.
+    global_trace_processor_rpc_.SetResponseDispatcher(nullptr);
     global_trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
+    global_trace_processor_rpc_.SetResponseDispatcher(
+        [this](std::function<void()> task) {
+          task_runner_.PostTask(std::move(task));
+        });
     global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
 
     // Terminate chunked stream.
@@ -259,13 +293,46 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
+  // Capture conn + alive flag by value: this fn outlives
+  // OnWebsocketMessage if Rpc dispatches the streaming query async (the
+  // worker pool runs sqlite, then PostTasks the "send chunks" closure
+  // back here; that closure invokes the snapshotted response_fn).
+  // The alive flag is flipped to false in OnHttpConnectionClosed so a
+  // late chunk send becomes a no-op rather than a UAF on the conn.
+  base::HttpServerConnection* conn = msg.conn;
+  auto alive = AliveFlagForConn(conn);
   global_trace_processor_rpc_.SetRpcResponseFunction(
-      [&](const void* data, uint32_t len) {
-        SendRpcChunk(msg.conn, data, len);
+      [conn, alive](const void* data, uint32_t len) {
+        if (!*alive) {
+          return;
+        }
+        SendRpcChunk(conn, data, len);
       });
-  // OnRpcRequest() will call SendRpcChunk() one or more times.
+  // OnRpcRequest() will call SendRpcChunk() one or more times. For
+  // post-EOF streaming queries it may *also* return before all chunks
+  // have been sent: those land on the worker pool and post back to
+  // this task runner via Rpc::SetResponseDispatcher's closure.
   global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-  global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+  // Deliberately do NOT clear the response fn: the snapshot inside Rpc
+  // captures a copy at dispatch time, so leaving it set is harmless
+  // for sync paths and required for the async streaming path.
+}
+
+void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
+  auto it = conn_alive_flags_.find(conn);
+  if (it != conn_alive_flags_.end()) {
+    *it->second = false;
+    conn_alive_flags_.erase(it);
+  }
+}
+
+std::shared_ptr<bool> Httpd::AliveFlagForConn(
+    base::HttpServerConnection* conn) {
+  auto& slot = conn_alive_flags_[conn];
+  if (!slot) {
+    slot = std::make_shared<bool>(true);
+  }
+  return slot;
 }
 
 }  // namespace

@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -101,6 +102,26 @@ class Rpc {
     rpc_response_fn_ = std::move(f);
   }
 
+  // Optional. When set, `TPM_QUERY_STREAMING` requests received post-EOF
+  // are dispatched to the worker pool: a worker thread acquires a
+  // `Connection`, executes the query, materialises the chunks, and then
+  // hands them back to the transport thread by invoking the dispatcher
+  // with a "send all chunks for this query" closure. The dispatcher's
+  // job is to schedule that closure on whichever thread owns
+  // `rpc_response_fn_` (typically the http task runner). The closure
+  // calls `rpc_response_fn_` directly and is responsible for assigning
+  // the trailing `tx_seq_id_`s — which it does in dispatcher (== task
+  // runner) order so per-query chunks stay contiguous and the
+  // request->response ordering observed by the UI is preserved across
+  // concurrent streaming queries (workers run sqlite in parallel; the
+  // `Send` step is serialised on the transport thread).
+  // Calling `OnRpcRequest` from a thread other than the dispatcher's
+  // target thread is unsupported once a dispatcher is set.
+  using ResponseDispatcher = std::function<void(std::function<void()>)>;
+  void SetResponseDispatcher(ResponseDispatcher d) {
+    response_dispatcher_ = std::move(d);
+  }
+
   // 2. TraceProcessor legacy RPC endpoints.
   // The methods below are exposed for the old RPC interfaces, where each RPC
   // implementation deals with the method demuxing: (i) wasm_bridge.cc has one
@@ -152,6 +173,10 @@ class Rpc {
     std::lock_guard<std::mutex> g(pool_mu_);
     return distinct_connections_minted_;
   }
+  uint32_t streaming_async_dispatches_for_testing() const {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    return streaming_async_dispatches_;
+  }
 
  private:
   void ParseRpcRequest(const uint8_t*, size_t);
@@ -183,6 +208,19 @@ class Rpc {
   void RunQueryOnPoolWorker(std::string sql,
                             base::TimeNanos t_start,
                             const QueryResultBatchCallback& result_callback);
+  // Mints worker-pool threads + pre-mints connections on the caller's
+  // thread, idempotently. Shared between the sync `Rpc::Query` path and
+  // the async streaming dispatch.
+  void EnsureWorkerPoolPrimed();
+  // Async streaming dispatch entry point used from `ParseRpcRequest` when
+  // `response_dispatcher_` is set and the trace has hit EOF. Posts a
+  // worker-pool task that materialises chunks then dispatches the "send
+  // chunks" closure back on the transport thread; ordering of concurrent
+  // streaming queries is preserved by the in-order `streaming_send_*`
+  // queue (see private members below).
+  void DispatchStreamingQueryAsync(std::string sql,
+                                   base::TimeNanos t_start,
+                                   int req_type);
 
   Config default_config_;
   std::function<void(TraceProcessor*)> on_trace_processor_created_;
@@ -223,6 +261,33 @@ class Rpc {
   // calls from multiple Query callers would otherwise race.
   std::mutex pool_mint_mu_;
   std::unique_ptr<base::ThreadPool> worker_pool_;
+
+  // Async streaming dispatch state. `response_dispatcher_` is the
+  // transport-supplied PostTask; the streaming path uses it to send
+  // chunks back on the transport thread. The two `streaming_send_*`
+  // counters serialise concurrent streaming queries' *sends* so the UI
+  // pendingQueries[0]-FIFO invariant holds: each dispatched query
+  // increments `streaming_send_next_seq_` to claim a slot; a worker
+  // signals completion by inserting into `streaming_send_ready_` which
+  // is drained in slot order on the transport thread.
+  ResponseDispatcher response_dispatcher_;
+  uint64_t streaming_send_next_seq_ = 0;       // claimed under pool_mu_
+  uint64_t streaming_send_drain_cursor_ = 0;   // accessed only on dispatcher
+  // Worker-deposited results, keyed by claimed slot. Drained in slot
+  // order on the transport thread. The chunks are pre-serialised
+  // QueryResult bytes; the transport-thread closure wraps each one in a
+  // RpcProto with a freshly-assigned `tx_seq_id_` and ships it via the
+  // `response_fn` snapshot taken at dispatch time. Snapshotting per
+  // dispatch lets each query route back to its originating transport
+  // even if `rpc_response_fn_` has since been overwritten by a later
+  // OnRpcRequest from a different connection.
+  struct StreamingResult {
+    int req_type;
+    std::vector<std::vector<uint8_t>> chunks;
+    RpcResponseFunction response_fn;
+  };
+  base::FlatHashMap<uint64_t, StreamingResult> streaming_send_ready_;
+  uint32_t streaming_async_dispatches_ = 0;
 };
 
 }  // namespace trace_processor

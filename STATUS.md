@@ -23,6 +23,166 @@ Phase 4 in progress (RPC pool + UI fan-out + WASM pthreads).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 4 iter 3]: httpd-pool-dispatch done. The websocket
+  / `OnRpcRequest` `TPM_QUERY_STREAMING` path now (a) dispatches
+  query execution to the iter-1 worker pool and (b) returns from
+  `OnRpcRequest` synchronously without blocking on results, so the
+  http task runner is free to handle the next websocket message.
+
+  **Piece A — async streaming dispatch.**
+  `Rpc::ParseRpcRequest` previously serialised the entire query
+  inline at `rpc.cc:298` (`trace_processor_->ExecuteQuery(sql)`)
+  on whatever thread called `OnRpcRequest`. Now, post-EOF and when
+  a `ResponseDispatcher` is set:
+  1. The transport thread snapshots `rpc_response_fn_`, claims a
+     monotonic slot in `streaming_send_next_seq_`, and posts a job
+     to the worker pool.
+  2. The worker thread acquires a `Connection`, runs the query,
+     and materialises chunks (one per `QueryResultSerializer::Serialize`
+     call) into a `StreamingResult` buffered against the slot.
+  3. Connection is released and the worker invokes
+     `response_dispatcher_(closure)` to schedule a "drain" task on
+     the transport thread.
+  4. The drain pops `streaming_send_ready_[streaming_send_drain_cursor_]`,
+     wraps each chunk into a `Response` with a freshly-assigned
+     `tx_seq_id_`, and sends. It loops to keep draining
+     contiguous slots that finished out of order. **This preserves
+     send-order to the UI even when workers complete in arbitrary
+     order**, satisfying the `pendingQueries[0]` FIFO invariant
+     identified in iter 2's `engine.ts` audit.
+
+  Crucial ordering guarantee: workers may complete in *any* order,
+  but the drain on the transport thread services slots in
+  `streaming_send_drain_cursor_` order — out-of-order completions
+  park in `streaming_send_ready_` until their predecessor lands.
+  Net: query execution overlaps across cores; the on-wire
+  responses still march out in the same order the requests came
+  in. The UI's pendingQueries[0]-FIFO match is preserved
+  byte-perfect.
+
+  Per-chunk callbacks (option A2 in the chunk plan) were
+  considered and rejected: the UI's `pendingQueries[0]` decoder
+  *requires* contiguous chunks per query, and per-chunk PostTask
+  back from concurrent workers would interleave them.
+  Materialising a query's chunks fully on the worker and shipping
+  them as a *single* drain step (per slot) gives the same wall-
+  time UX (sqlite execution still parallelises) without the
+  interleaving hazard.
+
+  **Piece B — task-runner unblock.** The `Rpc::ParseRpcRequest`
+  case used to loop on `serializer.Serialize` inline, blocking
+  the http task runner for the lifetime of the query. After this
+  iter, the `case TPM_QUERY_STREAMING` body in
+  `rpc.cc:278-340` returns immediately after the worker dispatch
+  (or runs the legacy inline path when the dispatcher is null).
+  Concurrent websocket messages from the same UI session now
+  fan out across pool workers — previously they queued on the
+  single task-runner thread.
+
+  **`/rpc` and wasm preserved.** The `/rpc` chunked HTTP endpoint
+  (Python API) sends its `0\r\n\r\n` trailer immediately after
+  `OnRpcRequest` returns, so it requires synchronous response.
+  Httpd disables the async path around the `/rpc` call by
+  swapping the dispatcher to nullptr and back (both calls run on
+  the task-runner thread, race-free). The wasm bridge never
+  installs a dispatcher, so it also stays synchronous — which
+  is what wasm without pthreads needs anyway (single threaded
+  by definition; this iter doesn't change that).
+
+  **Conn lifetime.** `Httpd` now tracks a per-`HttpServerConnection`
+  `shared_ptr<bool>` "alive" flag. The websocket response fn
+  captures it; if a chunk send arrives after the conn closed
+  (via `OnHttpConnectionClosed`), the alive check no-ops the
+  send instead of touching freed memory. The flag is created
+  lazily on first `OnWebsocketMessage` for a conn and cleared
+  on `OnHttpConnectionClosed`. The map is accessed only from
+  the task-runner thread, so no locking is needed.
+
+  **Files touched.**
+  - `src/trace_processor/rpc/rpc.{h,cc}` — async streaming
+    dispatch state, `SetResponseDispatcher`, send-order
+    sequencing.
+  - `src/trace_processor/rpc/httpd.cc` — wires the dispatcher
+    to `task_runner_.PostTask`, tracks per-conn alive flags,
+    bypasses async for `/rpc`, keeps the websocket response fn
+    set across `OnRpcRequest` so the snapshot taken inside
+    `Rpc` remains valid.
+  - `src/trace_processor/rpc/rpc_unittest.cc` — 3 new tests
+    (see below).
+  - `STATUS.md` — this entry, ticking `httpd-pool-dispatch`.
+
+  **New tests** (all green; clang/release):
+  - `RpcTest.StreamingQueryDispatchesAsyncAndUnblocksTransport`
+    — drives one `OnRpcRequest` with a `TPM_QUERY_STREAMING`
+    payload through a wired-up dispatcher; asserts
+    `OnRpcRequest` returns *before* any wire bytes are emitted
+    and that the response decodes correctly after task-queue
+    drain.
+  - `RpcTest.StreamingQueryFansOutAcrossWorkers` — issues 8
+    concurrent `OnRpcRequest`s, drains, asserts (i) all 8
+    decode correctly with their dispatch-order integer
+    literal `100+i`, (ii) responses come back in send-order
+    (the FIFO invariant), (iii) `pool_workers_used_for_testing()
+    >= 2` on multicore hosts.
+  - `RpcTest.StreamingQueryAsyncMatchesInlineSemantically` —
+    runs the same recursive CTE under both paths and compares
+    everything except `elapsed_time_ms` (wall-time-derived).
+    Same column names, same statement counts, same row values,
+    same batch counts, same `is_last_batch` markers. Caveat:
+    byte-for-byte parity is *not* possible because
+    `QueryResultSerializer::Serialize` writes
+    `set_elapsed_time_ms` from `base::GetWallTimeNs()` —
+    documented in the test rationale.
+
+  **Validation.**
+  - `tools/gn check out/mac_release` — clean.
+  - `tools/ninja -C out/mac_release perfetto_unittests
+    trace_processor_shell` — clean.
+  - `out/mac_release/perfetto_unittests --gtest_brief=1` — 3269
+    PASSED, 2 SKIPPED, 1 pre-existing failure
+    (`HttpServerTest.Websocket`, also fails on iter 2's tip
+    175c8375e6, unrelated to this change). Iter 1's baseline
+    was 3266 + 3 new RpcTests = 3269. Matches.
+  - `out/mac_release/perfetto_integrationtests --gtest_brief=1
+    --gtest_filter="TraceProcessor*:*Sqlite*:ReadTrace*"` —
+    122 PASSED. Iter 1 reported 118; the discrepancy is
+    reconciled here — the figure now matches Phase 3's 122.
+    Suspected cause: iter 1's `-k 10000` swallowed test
+    failures or skipped builds; the actual count is stable.
+  - `tools/diff_test_trace_processor.py
+    out/mac_release/trace_processor_shell --keep-input
+    --quiet` — 1355 PASSED, 9 SKIPPED (etm + symbolize, env
+    deps). Matches Phase 3 baseline.
+  - **TSan stress (5 runs)** on `*Rpc*` filter: clean.
+  - **ASan stress (10 runs)** on
+    `*Rpc*:TraceProcessorConnectionTest.*`: clean (30 tests
+    each run).
+
+  **Caveats / out-of-scope for this iter.**
+  - Backpressure: a slow transport could let
+    `streaming_send_ready_` grow without bound if workers race
+    far ahead. Out of scope for v1; the natural rate limit is
+    the worker pool size (capped at 8), so the queue is bounded
+    by `≤8 * max_chunks_per_query` in steady state.
+  - The fan-out test asserts `>=2 workers` only when
+    `hardware_concurrency >= 2`. Single-core hosts (CI) still
+    pass but exercise no parallelism.
+  - On wasm without pthreads, `worker_pool_` runs all tasks
+    inline-equivalent (degenerate ThreadPool with 1 thread).
+    Async dispatch *still works* (chunks come back via the
+    pool callback) but no parallelism — same as today's
+    behaviour for the wasm transport, which doesn't install
+    a dispatcher anyway.
+
+  **Recommendation.** Next chunk should be `e2e-perf-validation`,
+  not `wasm-pthreads`: the headline `httpd-pool-dispatch` win
+  is now landable end-to-end on the http-rpc transport (the
+  UI's "Trace Processor native acceleration" path, which is the
+  dominant power-user transport for large traces). Measure that
+  before adding wasm-pthreads complexity. `wasm-pthreads`
+  remains valuable but is a separate axis — bundle COOP+COEP
+  detection, GN flag, and runtime fallback into its own iter.
+
 - 2026-04-29 [Phase 4 iter 2]: ui-engine-fan-out closed as audit-only.
   Set out to lift client-side serialisation in `engine.ts`; the audit
   found there is no client-side serialisation to lift. `streamingQuery`
@@ -1888,17 +2048,22 @@ and the temp-then-promote breakthrough above before sequencing them.
       emitted contiguously on the wire, which `Rpc::Query` already
       honours per-call). No functional change. See the Phase 4
       iter 2 activity entry for the full audit.
-- [ ] httpd-pool-dispatch — **new chunk**, surfaced by ui-engine-fan-out
-      audit. Route the websocket `TPM_QUERY_STREAMING` path through
-      `Rpc::Query` (or extract `RunQueryOnPoolWorker` so both paths
-      share it), and either (a) make `httpd.cc`'s task_runner
-      multi-threaded so concurrent websocket messages can dispatch
-      in parallel, or (b) rework `Rpc::Query` to be fully async
-      (post the task and don't block; let the callback run on the
-      pool thread directly into `SendWebsocketMessage`). Without
-      this the rpc-thread-pool from iter 1 is dormant for the
-      UI's primary transport (websocket). Strict prerequisite for
-      any HTTP-RPC speedup measurement in `e2e-perf-validation`.
+- [x] httpd-pool-dispatch — done Phase 4 iter 3. `Rpc` now exposes
+      `SetResponseDispatcher`; when wired (httpd does so at
+      construction), `ParseRpcRequest`'s `TPM_QUERY_STREAMING` case
+      dispatches post-EOF queries onto the iter-1 worker pool.
+      A worker materialises chunks and posts a single
+      "send-all-chunks-for-this-slot" closure back via the
+      dispatcher. The closure runs on the task-runner thread, drains
+      ready slots in dispatch order (preserving the UI's
+      `pendingQueries[0]` FIFO invariant), and assigns
+      `tx_seq_id_`s in send-order. `OnRpcRequest` returns
+      immediately, so concurrent websocket messages no longer
+      serialise behind one in-flight query. The wasm bridge and
+      `/rpc` HTTP endpoint deliberately bypass the async path
+      (wasm doesn't set a dispatcher; `/rpc` swaps the dispatcher
+      out around its `OnRpcRequest` because its chunked-transfer
+      trailer is sent immediately after `OnRpcRequest` returns).
 - [ ] wasm-pthreads — flip the WASM build to use pthreads when
       COOP+COEP is available; fallback to single-thread. The
       wasm bridge currently funnels all `Rpc` calls onto the main
