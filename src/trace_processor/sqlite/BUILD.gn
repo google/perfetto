@@ -56,6 +56,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "sql_source_unittest.cc",
+    "sqlite_engine_unittest.cc",
     "sqlite_utils_unittest.cc",
   ]
   deps = [

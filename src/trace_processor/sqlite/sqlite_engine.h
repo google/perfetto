@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
@@ -32,6 +33,47 @@
 #include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor {
+
+// Helper that converts SQLite's |SQLITE_BUSY| / |SQLITE_LOCKED| into a
+// transparent retry loop with capped exponential backoff. Either error means
+// "the underlying b-tree page or the shared schema lock is held by another
+// connection; try again later" and is the expected signal under multi-
+// connection contention.
+//
+// Usage pattern:
+//
+//   BusyRetryHelper retry;
+//   int err;
+//   do {
+//     err = sqlite3_prepare_v2(...);
+//   } while (err != SQLITE_OK && retry.ShouldRetry(err));
+//
+// Retries are bounded by |timeout|: |ShouldRetry| sleeps for a backoff
+// interval and returns true while the deadline has not elapsed. Once the
+// deadline passes (or the status is not BUSY/LOCKED), it returns false and
+// the caller should surface the SQLite error to the user.
+class BusyRetryHelper {
+ public:
+  static constexpr base::TimeMillis kDefaultTimeout = base::TimeMillis(1000);
+
+  explicit BusyRetryHelper(base::TimeMillis timeout = kDefaultTimeout);
+
+  // Returns true if |sqlite_status| is |SQLITE_BUSY| or |SQLITE_LOCKED| and
+  // the deadline has not elapsed; in that case |ShouldRetry| also sleeps for
+  // a small backoff interval before returning. Returns false otherwise (the
+  // caller should stop retrying and surface the original error).
+  bool ShouldRetry(int sqlite_status);
+
+  // Test-only: allow injection of a custom sleep function so unit tests can
+  // verify the timeout/retry behaviour deterministically without real sleeps.
+  using SleepFn = void(unsigned interval_us);
+  void set_sleep_fn_for_testing(SleepFn* fn) { sleep_fn_ = fn; }
+
+ private:
+  base::TimeMillis deadline_;
+  uint32_t attempt_ = 0;
+  SleepFn* sleep_fn_;
+};
 
 // A single open handle into a SQLite database, plus the per-handle bookkeeping
 // that has to live alongside it (the function-context map). One
@@ -109,12 +151,13 @@ class SqliteEngine {
    private:
     friend class SqliteEngine;
 
-    explicit PreparedStatement(ScopedStmt, SqlSource);
+    PreparedStatement(ScopedStmt, SqlSource, base::TimeMillis busy_timeout);
 
     ScopedStmt stmt_;
     ScopedSqliteString expanded_sql_;
     SqlSource sql_source_;
     base::Status status_ = base::OkStatus();
+    base::TimeMillis busy_timeout_;
   };
 
   // Default ctor: mints a fresh memdb URI (see |BuildMemdbUri|) and opens a
@@ -207,6 +250,15 @@ class SqliteEngine {
   // database (cross-connection schema visibility via |cache=shared|).
   const std::string& filename() const { return filename_; }
 
+  // Configures the timeout used to retry transient |SQLITE_BUSY| /
+  // |SQLITE_LOCKED| errors in |PrepareStatement| and |PreparedStatement::Step|.
+  // The default is |BusyRetryHelper::kDefaultTimeout| (1000 ms). Newly-prepared
+  // statements pick up the current value at prepare time.
+  // TODO: thread this through |TraceProcessor::Config| once a knob exists.
+  void set_busy_retry_timeout_for_testing(base::TimeMillis timeout) {
+    busy_retry_timeout_ = timeout;
+  }
+
  private:
   std::optional<uint32_t> GetErrorOffset() const;
 
@@ -217,6 +269,9 @@ class SqliteEngine {
   // The single connection owned by this engine today. Phase 2 will introduce
   // additional connections sharing the same |filename_|.
   SqliteConnection connection_;
+  // Per-engine timeout for transparent BUSY/LOCKED retries inside
+  // |PrepareStatement| and |PreparedStatement::Step|.
+  base::TimeMillis busy_retry_timeout_ = BusyRetryHelper::kDefaultTimeout;
 };
 
 }  // namespace perfetto::trace_processor

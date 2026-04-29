@@ -857,6 +857,81 @@ TEST(TraceProcessorConnectionTest, ConcurrentIncludesOfSameModuleSerialise) {
   ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
 }
 
+// Phase 3 iter 5 (lifts the iter-2 workaround above): two secondary
+// connections concurrently INCLUDE the *same* module that has *not* been
+// pre-included by any other connection. Both racers run the body
+// (CREATE TABLE + INSERT) inside per-connection temp schemas, then
+// re-issue them as DDL on shared `main`. The shared-cache schema lock
+// will return SQLITE_LOCKED to whichever transaction is second; the
+// transparent BUSY/LOCKED retry middleware (this iter) makes that
+// invisible — the second writer waits, retries, and eventually either
+// (a) acquires the lock and re-issues its own DDL (which the per-module
+// `IsModuleIncluded` short-circuit already prevents from re-creating),
+// or (b) finds the module already promoted under the include lock and
+// short-circuits the body entirely.
+TEST(TraceProcessorConnectionTest,
+     ConcurrentIncludesUnderSharedCacheNowSucceeds) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  SqlPackage pkg;
+  pkg.name = "concurrent_include_lift_test";
+  pkg.modules.emplace_back(
+      "concurrent_include_lift_test.tables",
+      "CREATE TABLE concurrent_include_lift_t(id INTEGER, val TEXT);\n"
+      "INSERT INTO concurrent_include_lift_t VALUES (1, 'a'), (2, 'b');\n");
+  ASSERT_OK(tp->RegisterSqlPackage(pkg));
+
+  // No writer pre-include: both threads race on the include body.
+  auto conn_a = tp->CreateConnection();
+  auto conn_b = tp->CreateConnection();
+  ASSERT_NE(conn_a, nullptr);
+  ASSERT_NE(conn_b, nullptr);
+
+  std::atomic<int> errors{0};
+  std::mutex log_mu;
+  std::vector<std::string> log;
+  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn) {
+    {
+      auto it = conn->ExecuteQuery(
+          "INCLUDE PERFETTO MODULE concurrent_include_lift_test.tables;");
+      while (it.Next()) {
+      }
+      if (!it.Status().ok()) {
+        std::lock_guard<std::mutex> g(log_mu);
+        log.emplace_back(std::string("INCLUDE failed: ") +
+                         it.Status().c_message());
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+    auto it = conn->ExecuteQuery(
+        "SELECT count(*) FROM concurrent_include_lift_t;");
+    if (!it.Next()) {
+      errors.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+    if (it.Get(0).long_value != 2) {
+      errors.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+    if (!it.Status().ok()) {
+      errors.fetch_add(1, std::memory_order_relaxed);
+    }
+  };
+
+  std::thread t1(worker, std::move(conn_a));
+  std::thread t2(worker, std::move(conn_b));
+  t1.join();
+  t2.join();
+
+  std::string log_dump;
+  for (const auto& msg : log) {
+    log_dump += msg + "\n";
+  }
+  ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
+}
+
 // Phase 3 iter 3 stress test for the SqlStats recording path. Each
 // `ExecuteQuery` records `RecordQueryBegin` (from
 // `TraceProcessorImpl::ExecuteQuery` or `ConnectionImpl::ExecuteQuery`),

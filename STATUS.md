@@ -23,6 +23,110 @@ Phase 3 in progress (thread safety + retry middleware).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 3 iter 5]: busy-retry done. Transparent
+  `SQLITE_BUSY` / `SQLITE_LOCKED` retry middleware now wraps both
+  `SqliteEngine::PrepareStatement` (around `sqlite3_prepare_v2`) and
+  `SqliteEngine::PreparedStatement::Step` (around `sqlite3_step`) in
+  `src/trace_processor/sqlite/sqlite_engine.{h,cc}`. The helper:
+
+  ```cpp
+  class BusyRetryHelper {
+   public:
+    static constexpr base::TimeMillis kDefaultTimeout = base::TimeMillis(1000);
+    explicit BusyRetryHelper(base::TimeMillis timeout = kDefaultTimeout);
+    bool ShouldRetry(int sqlite_status);  // sleeps + bumps attempt
+    void set_sleep_fn_for_testing(SleepFn* fn);
+  };
+  ```
+
+  Backoff: capped exponential schedule `{100us, 1ms, 10ms, 50ms}` —
+  the helper indexes the schedule by attempt and clamps at the cap.
+  Deadline is computed at construction (`base::GetWallTimeMs() +
+  timeout`). On a non-BUSY/LOCKED status `ShouldRetry` returns false
+  immediately so real SQLite errors propagate without delay. Sleep
+  uses `base::SleepMicroseconds` (overridable via
+  `set_sleep_fn_for_testing` for deterministic unit tests). Per-engine
+  timeout member `busy_retry_timeout_` (defaults to 1s, with
+  `set_busy_retry_timeout_for_testing` setter) — TODO threaded through
+  `Config` in a follow-up; default is fine for v1. The timeout is
+  captured into each `PreparedStatement` at prepare time so the same
+  retry budget covers both prepare and subsequent steps.
+
+  **Wrap pattern at PrepareStatement (sqlite_engine.cc:240-247):**
+  plain `do { sqlite3_prepare_v2; } while (err != OK &&
+  retry.ShouldRetry(err))` — no statement state to roll back, the
+  prepare hasn't touched the b-tree yet.
+
+  **Wrap pattern at Step (sqlite_engine.cc:380-394):** the for-loop
+  pattern from the chunk doc:
+  ```cpp
+  for (;;) {
+    err = sqlite3_step(stmt_.get());
+    if (err != SQLITE_BUSY && err != SQLITE_LOCKED) break;
+    sqlite3_reset(stmt_.get());
+    if (!retry.ShouldRetry(err)) break;
+  }
+  ```
+  The `sqlite3_reset` is essential — `sqlite3_step` returning
+  BUSY/LOCKED leaves the statement in an indeterminate state per
+  the SQLite docs, so a naive retry would yield SQLITE_MISUSE or
+  worse. Reset propagates the deferred error (BUSY/LOCKED) but the
+  loop ignores it and re-issues `sqlite3_step` on the next iter.
+
+  **Lift of the iter-2 workaround**: `ConcurrentIncludesOfSameModule
+  Serialise` (Phase 3 iter 2) needed the writer to pre-include the
+  module before the two secondaries raced their re-includes — a
+  naive concurrent include would crash with "database schema is
+  locked: main" on the shared-cache schema lock. New test
+  `TraceProcessorConnectionTest.ConcurrentIncludesUnderSharedCache
+  NowSucceeds` removes the pre-include: two secondaries from two
+  threads concurrently `INCLUDE PERFETTO MODULE
+  concurrent_include_lift_test.tables;` (no other connection has
+  ever included it). The shared-cache schema lock returns
+  SQLITE_LOCKED to whichever transaction is second; the retry
+  middleware makes that invisible — the loser waits, retries, and
+  either acquires the lock to re-issue its own DDL (the per-module
+  `IsModuleIncluded` short-circuit then prevents double-creation
+  once one side commits) or finds the module already promoted and
+  short-circuits the body. Both threads succeed and both can
+  `SELECT count(*)`, returning 2.
+
+  **Direct unit tests for the helper** under
+  `src/trace_processor/sqlite/sqlite_engine_unittest.cc`
+  (new file, added to `sqlite/BUILD.gn:unittests`):
+  - `BusyRetryHelperTest.RetriesUntilSuccess`: feed BUSY, BUSY, OK
+    — verify two retries, then stop.
+  - `BusyRetryHelperTest.RetriesOnLocked`: same as above for
+    `SQLITE_LOCKED` (proves both codes map to the same retry).
+  - `BusyRetryHelperTest.GivesUpAtTimeout`: 50ms timeout, no real
+    sleep — feed BUSY in a loop, verify the wall-clock delta is
+    in `[50ms, 5s)` and the loop terminates.
+  - `BusyRetryHelperTest.PassesThroughOtherErrors`: feed
+    `SQLITE_ERROR` / `SQLITE_CONSTRAINT` / `SQLITE_MISUSE` and
+    verify `ShouldRetry` returns false immediately.
+
+  **SQLITE_SCHEMA recovery is intentionally not part of this iter**
+  — it requires re-preparing the statement (the schema cookie has
+  changed, the bytecode is stale), not retrying the same prepared
+  statement. That's the next chunk (`schema-retry`).
+
+  **Test counts:**
+  - `out/mac_release/perfetto_unittests`: 3256 PASSED + 2 SKIPPED
+    + 1 pre-existing macOS failure (`HttpServerTest.Websocket`).
+    +5 new tests vs. iter 4 (4 `BusyRetryHelperTest.*` + 1
+    `TraceProcessorConnectionTest.ConcurrentIncludesUnderSharedCache
+    NowSucceeds`).
+  - `out/mac_release/perfetto_integrationtests` (TP-relevant
+    filter): 122 PASSED, unchanged.
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9
+    pre-existing skips, unchanged.
+  - `out/mac_asan/perfetto_unittests` filtered to
+    `TraceProcessorConnectionTest.*:BusyRetry*`: 25/25 PASSED
+    across **10 consecutive runs**, no ASan reports.
+    The lifted concurrent-include test is in this set and is
+    clean — proves both the BUSY/LOCKED retry semantics and the
+    `sqlite3_reset`-before-retry invariant under real contention.
+
 - 2026-04-29 [Phase 3 iter 4]: string-pool-thread-safety done.
   `StringPool` already had a `MaybeLockGuard` mechanism guarded by
   `should_acquire_mutex_` (default `false`) and a public
@@ -1129,11 +1233,23 @@ and the temp-then-promote breakthrough above before sequencing them.
       Three new tests; the naive concurrent-include variant (without
       pre-include) fails on SQLITE_LOCKED — that's busy-retry
       territory.
-- [ ] busy-retry — transparent `SQLITE_BUSY` retry middleware with
-      bounded retry count + configurable timeout (default 1s). Wraps
-      `PrepareStatement` / `Step`. Required once concurrent writers
-      become possible (today's secondary connections are read-only in
-      practice).
+- [x] busy-retry — done Phase 3 iter 5. `BusyRetryHelper` lives in
+      `src/trace_processor/sqlite/sqlite_engine.{h,cc}` and wraps
+      both `SqliteEngine::PrepareStatement` (around
+      `sqlite3_prepare_v2`) and `SqliteEngine::PreparedStatement::Step`
+      (around `sqlite3_step`, with `sqlite3_reset` between retries
+      because step leaves the statement indeterminate on BUSY/LOCKED).
+      Capped exponential backoff (`100us → 1ms → 10ms → 50ms cap`)
+      with default timeout 1s; deadline computed from
+      `base::GetWallTimeMs()` at construction. `set_busy_retry_
+      timeout_for_testing` exposes a knob; threading through
+      `Config` is a follow-up. New `ConcurrentIncludesUnderSharedCache
+      NowSucceeds` test lifts the iter-2 pre-include workaround:
+      two secondaries from two threads concurrently INCLUDE the
+      same never-promoted module and both succeed without
+      orchestration. 4 direct `BusyRetryHelperTest.*` unit tests
+      cover the helper. 25/25 ASan-clean across 10 consecutive runs.
+      See Phase 3 iter 5 activity entry.
 - [ ] schema-retry — transparent `SQLITE_SCHEMA` retry: re-prepare the
       statement when the schema cookie changes underneath an in-flight
       query. Drops in alongside busy-retry on the same wrapper.

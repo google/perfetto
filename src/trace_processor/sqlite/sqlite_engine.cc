@@ -17,8 +17,10 @@
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
 #include <sqlite3.h>
+#include <algorithm>
 #include <atomic>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <initializer_list>
@@ -29,6 +31,8 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -233,9 +237,16 @@ SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "QUERY_PREPARE");
   sqlite3* db = connection_.db();
   sqlite3_stmt* raw_stmt = nullptr;
-  int err =
-      sqlite3_prepare_v2(db, sql.sql().c_str(), -1, &raw_stmt, nullptr);
-  PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql)};
+  // Transparent retry for shared-cache schema-lock contention
+  // (SQLITE_BUSY / SQLITE_LOCKED). At the prepare boundary we have not
+  // touched the b-tree yet, so a plain retry is safe — no rollback needed.
+  int err = SQLITE_OK;
+  BusyRetryHelper retry(busy_retry_timeout_);
+  do {
+    err = sqlite3_prepare_v2(db, sql.sql().c_str(), -1, &raw_stmt, nullptr);
+  } while (err != SQLITE_OK && retry.ShouldRetry(err));
+  PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql),
+                              busy_retry_timeout_};
   if (err != SQLITE_OK) {
     const char* errmsg = sqlite3_errmsg(db);
     std::string frame =
@@ -359,11 +370,14 @@ void* SqliteEngine::SetRollbackCallback(RollbackCallback callback, void* ctx) {
   return sqlite3_rollback_hook(connection_.db(), callback, ctx);
 }
 
-SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
-                                                   SqlSource source)
+SqliteEngine::PreparedStatement::PreparedStatement(
+    ScopedStmt stmt,
+    SqlSource source,
+    base::TimeMillis busy_timeout)
     : stmt_(std::move(stmt)),
       expanded_sql_(sqlite3_expanded_sql(stmt_.get())),
-      sql_source_(std::move(source)) {}
+      sql_source_(std::move(source)),
+      busy_timeout_(busy_timeout) {}
 
 bool SqliteEngine::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",
@@ -374,7 +388,25 @@ bool SqliteEngine::PreparedStatement::Step() {
 
   // Now step once into |cur_stmt| so that when we prepare the next statment
   // we will have executed any dependent bytecode in this one.
-  int err = sqlite3_step(stmt_.get());
+  //
+  // Transparent retry for SQLITE_BUSY / SQLITE_LOCKED: when the statement is
+  // contended on the shared cache, |sqlite3_step| leaves the statement in an
+  // indeterminate state, so we must |sqlite3_reset| it before retrying. The
+  // reset propagates the same BUSY/LOCKED return as a deferred error — that
+  // is fine, the loop simply retries until either |ShouldRetry| gives up
+  // (deadline elapsed) or the next |sqlite3_step| produces a real status.
+  int err = SQLITE_OK;
+  BusyRetryHelper retry(busy_timeout_);
+  for (;;) {
+    err = sqlite3_step(stmt_.get());
+    if (err != SQLITE_BUSY && err != SQLITE_LOCKED) {
+      break;
+    }
+    sqlite3_reset(stmt_.get());
+    if (!retry.ShouldRetry(err)) {
+      break;
+    }
+  }
   if (err == SQLITE_ROW) {
     return true;
   }
@@ -387,6 +419,34 @@ bool SqliteEngine::PreparedStatement::Step() {
   const char* errmsg = sqlite3_errmsg(db);
   status_ = base::ErrStatus("%s%s", frame.c_str(), errmsg);
   return false;
+}
+
+// =====================
+// BusyRetryHelper impl.
+// =====================
+
+BusyRetryHelper::BusyRetryHelper(base::TimeMillis timeout)
+    : deadline_(base::GetWallTimeMs() + timeout),
+      sleep_fn_(&base::SleepMicroseconds) {}
+
+bool BusyRetryHelper::ShouldRetry(int sqlite_status) {
+  if (sqlite_status != SQLITE_BUSY && sqlite_status != SQLITE_LOCKED) {
+    return false;
+  }
+  if (base::GetWallTimeMs() >= deadline_) {
+    return false;
+  }
+  // Capped exponential backoff: 100us, 1ms, 10ms, then 50ms thereafter.
+  // The exact schedule is not load-bearing; the goal is to yield the
+  // thread for a bounded number of microseconds so the contending writer
+  // can make progress, without busy-spinning.
+  static constexpr unsigned kBackoffSchedule[] = {100, 1000, 10000, 50000};
+  unsigned interval_us =
+      kBackoffSchedule[std::min<size_t>(attempt_,
+                                        base::ArraySize(kBackoffSchedule) - 1)];
+  attempt_++;
+  sleep_fn_(interval_us);
+  return true;
 }
 
 bool SqliteEngine::PreparedStatement::IsDone() const {
