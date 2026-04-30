@@ -14,20 +14,24 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {sqliteString} from '../../base/string_utils';
 import {TimeSpan} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Engine} from '../../trace_processor/engine';
-import {LONG_NULL} from '../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
-import {Tree, TreeNode} from '../../widgets/tree';
+import {Tree} from '../../widgets/tree';
 import {FlowPoint} from '../../core/flow_types';
 import {hasArgs} from './args';
-import {renderDetails} from './slice_details';
+import {
+  DistributionScope,
+  findSliceTrackDataset,
+  findWholeTraceSliceDataset,
+  renderDetails,
+  sliceDistributionConfig,
+} from './slice_details';
 import {getSlice, SliceDetails} from '../sql_utils/slice';
 import {
   BreakdownByThreadState,
@@ -45,6 +49,16 @@ import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
 import {SLICE_TABLE} from '../widgets/sql/table_definitions';
 import {TrackEventRef} from '../widgets/track_event_ref';
+import {
+  DistributionSummary,
+  HISTOGRAM_HELP,
+  SCOPE_HELP,
+  helpIcon,
+  openDistributionTab,
+  renderDistributionPlaceholder,
+  titleWithHelp,
+} from '../distribution_panel';
+import {Dataset} from '../../trace_processor/dataset';
 
 interface ContextMenuItem {
   name: string;
@@ -207,8 +221,9 @@ export interface ThreadSliceDetailsPanelAttrs {
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
-  private statsLoaded = false;
-  private avgDur?: bigint;
+  private distributionLoaded = false;
+  private distributionScope: DistributionScope = 'track';
+  private cachedWholeTraceDataset?: {dataset: Dataset | undefined};
   private readonly trace: TraceImpl;
   private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
@@ -277,7 +292,6 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         m(
           GridLayoutColumn,
           renderDetails(this.trace, slice, this.breakdownByThreadState),
-          this.renderStatistics(slice),
           additionalLeft,
         ),
         this.renderRhs(this.trace, slice, additionalRight),
@@ -290,6 +304,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     slice: SliceDetails,
     additionalSections?: m.Children,
   ): m.Children {
+    const distribution = this.renderDistribution(slice);
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
     const args =
@@ -300,6 +315,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         m(Tree, renderSliceArguments(trace, slice.args)),
       );
     if (
+      distribution !== undefined ||
       precFlows !== undefined ||
       followingFlows !== undefined ||
       args !== undefined ||
@@ -310,6 +326,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         precFlows,
         followingFlows,
         args,
+        distribution,
         additionalSections,
       );
     } else {
@@ -414,44 +431,117 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       : flow.threadName;
   }
 
-  private renderStatistics(slice: SliceDetails): m.Children {
-    if (slice.name === undefined) return undefined;
+  private renderDistribution(slice: SliceDetails): m.Children {
+    const sliceName = slice.name;
+    if (sliceName === undefined) return undefined;
+    const trackDataset = findSliceTrackDataset(this.trace, slice.trackId);
+    if (trackDataset === undefined) return undefined;
 
-    if (!this.statsLoaded) {
-      return m(
-        Section,
-        {title: 'Statistics'},
-        m(Button, {
-          label: 'Load statistics',
-          variant: ButtonVariant.Filled,
-          onclick: () => {
-            this.statsLoaded = true;
-            this.trace.engine
-              .query(
-                `SELECT CAST(AVG(dur) AS INTEGER) AS avg_dur FROM slice WHERE name = ${sqliteString(slice.name!)}`,
-              )
-              .then((result) => {
-                this.avgDur =
-                  result.firstRow({avg_dur: LONG_NULL}).avg_dur ?? undefined;
-                this.trace.raf.scheduleFullRedraw();
-              });
-          },
-        }),
-      );
-    }
-
-    if (this.avgDur === undefined) {
-      return m(Section, {title: 'Statistics'}, 'Loading...');
-    }
-
+    const body = this.distributionLoaded
+      ? this.renderLoadedBody(sliceName, trackDataset)
+      : this.renderGatedPlaceholder();
     return m(
       Section,
-      {title: 'Statistics'},
+      {title: titleWithHelp(`Histogram for '${sliceName}'`, HISTOGRAM_HELP)},
+      this.renderScopePicker(),
+      body,
+    );
+  }
+
+  private renderGatedPlaceholder(): m.Children {
+    return m(
+      '.pf-distribution-summary-gate',
+      renderDistributionPlaceholder(),
       m(
-        Tree,
-        m(TreeNode, {
-          left: `Avg duration (all '${slice.name}' slices)`,
-          right: m(DurationWidget, {trace: this.trace, dur: this.avgDur}),
+        '.pf-distribution-summary-gate__overlay',
+        m(Button, {
+          label: 'Load distribution',
+          variant: ButtonVariant.Filled,
+          onclick: () => {
+            this.distributionLoaded = true;
+          },
+        }),
+      ),
+    );
+  }
+
+  private renderLoadedBody(
+    sliceName: string,
+    trackDataset: Dataset,
+  ): m.Children {
+    const dataset = this.activeDataset(trackDataset);
+    if (dataset === undefined) return renderDistributionPlaceholder();
+    return [
+      m(DistributionSummary, {
+        trace: this.trace,
+        dataset,
+        filter: {col: 'name', eq: sliceName},
+        valueColumn: 'dur',
+      }),
+      m(
+        '.pf-thread-slice-distribution-link',
+        m(Button, {
+          label: 'View matching slices',
+          icon: Icons.ExternalLink,
+          onclick: () =>
+            openDistributionTab(
+              this.trace,
+              sliceDistributionConfig(
+                this.trace,
+                sliceName,
+                dataset,
+                this.distributionScope,
+              ),
+            ),
+        }),
+      ),
+    ];
+  }
+
+  private activeDataset(trackDataset: Dataset): Dataset | undefined {
+    return this.distributionScope === 'track'
+      ? trackDataset
+      : this.getWholeTraceDataset();
+  }
+
+  private getWholeTraceDataset(): Dataset | undefined {
+    if (this.cachedWholeTraceDataset === undefined) {
+      this.cachedWholeTraceDataset = {
+        dataset: findWholeTraceSliceDataset(this.trace),
+      };
+    }
+    return this.cachedWholeTraceDataset.dataset;
+  }
+
+  private renderScopePicker(): m.Children {
+    const scope = this.distributionScope;
+    const label = scope === 'track' ? 'This track' : 'Across whole trace';
+    return m(
+      '.pf-thread-slice-distribution-scope',
+      'Scope: ',
+      helpIcon(SCOPE_HELP),
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label,
+            rightIcon: Icons.ContextMenu,
+            compact: true,
+          }),
+        },
+        m(MenuItem, {
+          label: 'This track',
+          active: scope === 'track',
+          onclick: () => {
+            this.distributionScope = 'track';
+          },
+        }),
+        m(MenuItem, {
+          label: 'Across whole trace',
+          active: scope === 'all',
+          onclick: () => {
+            this.distributionScope = 'all';
+          },
         }),
       ),
     );
