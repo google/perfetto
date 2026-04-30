@@ -31,6 +31,7 @@ import {Section} from '../widgets/section';
 import {Spinner} from '../widgets/spinner';
 import {Tooltip} from '../widgets/tooltip';
 import {Tree, TreeNode} from '../widgets/tree';
+import {extensions} from './extensions';
 import {DurationWidget} from './widgets/duration';
 import {Histogram} from './widgets/charts/histogram';
 import {
@@ -370,6 +371,7 @@ export class DistributionPanel
         title: panelTitle(attrs),
         description: attrs.sqlTable,
         fillHeight: true,
+        buttons: this.renderAddDebugTrackButton(attrs),
       },
       m(
         '.pf-distribution-panel',
@@ -377,6 +379,26 @@ export class DistributionPanel
         this.renderHistogramPane(attrs, tableEntity),
       ),
     );
+  }
+
+  private renderAddDebugTrackButton(attrs: DistributionPanelAttrs): m.Children {
+    // One-click: pin the panel's source query (dataset + optional filter)
+    // as a debug slice track on the workspace, named after the panel.
+    return m(Button, {
+      label: 'Add debug track',
+      onclick: () =>
+        extensions.addDebugSliceTrack({
+          trace: attrs.trace,
+          data: {
+            sqlSource: buildSourceQuery(attrs, [
+              attrs.idColumn,
+              attrs.valueColumn,
+              ...attrs.displayColumns,
+            ]),
+          },
+          title: panelTitle(attrs),
+        }),
+    });
   }
 
   onremove(): void {
