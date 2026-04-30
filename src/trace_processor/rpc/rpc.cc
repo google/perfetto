@@ -767,53 +767,46 @@ void Rpc::RunQueryOnPoolWorker(
       distinct_worker_thread_ids_.insert(std::this_thread::get_id());
     }
     // Sync `Query` callers (wasm bridge, `/rpc` HTTP, Python API) don't
-    // carry tags. Use the same empty-string "untagged stream" tag as
-    // the streaming async path: all untagged work shares one slot and
-    // serialises on one connection.
+    // carry tags. The empty-string "untagged stream" tag funnels them
+    // through one connection, matching the streaming async path.
     auto pooled = AcquireConnectionForQuery(/*tag=*/"");
-    auto& conn = pooled.conn;
-    // Drain the iterator fully into a vector of buffered slices before
-    // releasing the connection. Strategy (a) from the design memo:
-    // "bulk-materialise rows, release connection, stream buffer back".
-    struct Chunk {
-      std::vector<uint8_t> bytes;
-      bool has_more_after;
-    };
-    std::vector<Chunk> chunks;
+    // Drain the iterator into a vector of (bytes, has_more) before
+    // releasing the connection. The prepared statement owned by the
+    // iterator must be finalised on this worker before another worker
+    // picks the connection up — TSan otherwise catches a
+    // sqlite3ErrorClear vs sqlite3VdbeReset race on the shared
+    // `sqlite3*` handle.
+    std::vector<std::pair<std::vector<uint8_t>, bool>> emitted;
     {
-      // Iterator + serializer scoped tightly so the prepared statement
-      // (`sqlite3_stmt*` owned by the IteratorImpl) is finalised on the
-      // worker thread *before* the connection goes back to the pool.
-      // Otherwise a peer worker could pick the connection up mid-
-      // finalize and race on the underlying `sqlite3*` handle (TSan
-      // catches this as a sqlite3ErrorClear vs. sqlite3VdbeReset race).
-      auto it = conn->ExecuteQuery(sql);
+      auto it = pooled.conn->ExecuteQuery(sql);
       QueryResultSerializer serializer(std::move(it), t_start);
       protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
                                                                     kSliceSize);
       for (bool has_more = true; has_more;) {
         has_more = serializer.Serialize(buffered.get());
-        const auto& res = buffered.GetSlices();
-        for (uint32_t i = 0; i < res.size(); ++i) {
-          auto used = res[i].GetUsedRange();
-          Chunk c;
-          c.bytes.assign(used.begin, used.begin + used.size());
-          c.has_more_after = has_more || i < res.size() - 1;
-          chunks.push_back(std::move(c));
-        }
-        if (res.size() == 0 && !has_more) {
-          chunks.push_back(Chunk{{}, false});
+        const auto& slices = buffered.GetSlices();
+        for (uint32_t i = 0; i < slices.size(); ++i) {
+          auto used = slices[i].GetUsedRange();
+          emitted.emplace_back(
+              std::vector<uint8_t>(used.begin, used.begin + used.size()),
+              has_more || i + 1 < slices.size());
         }
         buffered.Reset();
       }
     }
     ReleaseConnectionToPool(std::move(pooled));
-    // Connection is back in the pool; emit the buffered chunks back to
-    // the transport. The caller is still parked on `done_fut`, so
-    // `result_callback` is safe to invoke from this thread.
-    for (const auto& c : chunks) {
-      result_callback(c.bytes.empty() ? nullptr : c.bytes.data(),
-                      c.bytes.size(), c.has_more_after);
+    // The caller is still parked on `done_fut`, so `result_callback`
+    // is safe to invoke here. The callback contract requires exactly
+    // one terminal call with `has_more=false`: append one if the
+    // serializer didn't already emit a final-slice that ended the
+    // stream (no rows, or the trailing Serialize() call produced 0
+    // slices).
+    if (emitted.empty() || emitted.back().second) {
+      emitted.emplace_back(std::vector<uint8_t>{}, /*has_more=*/false);
+    }
+    for (const auto& [bytes, has_more] : emitted) {
+      result_callback(bytes.empty() ? nullptr : bytes.data(),
+                      bytes.size(), has_more);
     }
     done.set_value();
   });
@@ -847,7 +840,6 @@ void Rpc::DispatchStreamingQueryAsync(std::string sql,
   {
     std::lock_guard<std::mutex> g(pool_mu_);
     my_slot = streaming_send_next_seq_++;
-    streaming_async_dispatches_++;
   }
 
   PendingTaggedQuery q{std::move(sql), t_start, req_type,

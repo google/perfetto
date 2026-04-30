@@ -515,26 +515,13 @@ void BM_RpcStreamingQueryBurst_Balanced_PoolOff(benchmark::State& bstate) {
 // independently. The headline reading is "what's the dispatch ceiling
 // when SQL execution itself doesn't touch any shared state".
 const std::vector<std::string>& CpuOnlyQueries() {
-  static const std::vector<std::string> kQueries = {
-      // 50K-row recursive CTE summed with a hash-style transform.
-      // Each query is independent and touches no trace tables.
+  // 8 copies of a 50K-row recursive CTE. Each query is independent
+  // and touches no trace tables; running them all gives the dispatch
+  // layer 8 distinct-tag tasks to fan out across the worker pool.
+  static const std::vector<std::string> kQueries(
+      8,
       "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c",
-  };
+      "WHERE x<50000) SELECT sum(x*x*x) FROM c");
   return kQueries;
 }
 
@@ -550,44 +537,7 @@ void BM_RpcCpuOnlyBurst_PoolOn_DistinctTags(benchmark::State& bstate) {
 }
 
 void BM_RpcCpuOnlyBurst_PoolOff(benchmark::State& bstate) {
-  Rpc rpc;
-  if (!LoadTraceInto(&rpc, bstate)) {
-    return;
-  }
-  const auto& queries = CpuOnlyQueries();
-  const size_t kN = queries.size();
-
-  std::vector<uint8_t> wire_bytes;
-  rpc.SetRpcResponseFunction([&](const void* data, uint32_t len) {
-    auto* p = static_cast<const uint8_t*>(data);
-    wire_bytes.insert(wire_bytes.end(), p, p + len);
-  });
-  // Pre-warm.
-  {
-    auto msg = EncodeStreamingQueryRpcMessage(0, queries[0]);
-    rpc.OnRpcRequest(msg.data(), msg.size());
-    wire_bytes.clear();
-  }
-
-  int64_t seq = 1000;
-  for (auto _ : bstate) {
-    wire_bytes.clear();
-    auto t0 = std::chrono::steady_clock::now();
-    for (size_t i = 0; i < kN; ++i) {
-      auto msg = EncodeStreamingQueryRpcMessage(seq++, queries[i]);
-      rpc.OnRpcRequest(msg.data(), msg.size());
-    }
-    auto t1 = std::chrono::steady_clock::now();
-    if (CountQueriesCompleted(wire_bytes) < kN) {
-      bstate.SkipWithError("CpuOnly pool-off: incomplete");
-      return;
-    }
-    bstate.SetIterationTime(
-        std::chrono::duration<double>(t1 - t0).count());
-  }
-  bstate.counters["queries"] =
-      benchmark::Counter(static_cast<double>(kN),
-                         benchmark::Counter::kIsIterationInvariant);
+  RunStreamingBurstPoolOff(bstate, CpuOnlyQueries());
 }
 
 BENCHMARK(BM_RpcStreamingQueryBurst_PoolOff)

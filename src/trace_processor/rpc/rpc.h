@@ -175,10 +175,6 @@ class Rpc {
     std::lock_guard<std::mutex> g(pool_mu_);
     return distinct_connections_minted_;
   }
-  uint32_t streaming_async_dispatches_for_testing() const {
-    std::lock_guard<std::mutex> g(pool_mu_);
-    return streaming_async_dispatches_;
-  }
   size_t tag_slots_size_for_testing() const {
     std::lock_guard<std::mutex> g(tag_mu_);
     return tag_slots_.size();
@@ -187,11 +183,9 @@ class Rpc {
     std::lock_guard<std::mutex> g(pool_mu_);
     return tag_to_conn_.size();
   }
-  // Returns the conn id currently affined to `tag`, or -1 if none.
-  int64_t affinity_for_tag_for_testing(const std::string& tag) const {
+  bool has_affinity_for_testing(const std::string& tag) const {
     std::lock_guard<std::mutex> g(pool_mu_);
-    auto* e = tag_to_conn_.Find(tag);
-    return e ? static_cast<int64_t>(e->conn_id) : -1;
+    return tag_to_conn_.Find(tag) != nullptr;
   }
   // Per-phase wall-time accumulators (ns). Workers add to
   // `sql_exec` for the inclusive Acquire→Release span (the actual
@@ -360,7 +354,6 @@ class Rpc {
     RpcResponseFunction response_fn;
   };
   base::FlatHashMap<uint64_t, StreamingResult> streaming_send_ready_;
-  uint32_t streaming_async_dispatches_ = 0;
 
   // Tag-affine dispatch state. Each streaming query carries a
   // `QueryArgs.tag` (forwarded by the UI's `EngineProxy`); same-tag

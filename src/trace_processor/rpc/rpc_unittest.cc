@@ -358,7 +358,6 @@ TEST(RpcTest, StreamingQueryDispatchesAsyncAndUnblocksTransport) {
   EXPECT_TRUE(wire_bytes.empty())
       << "Async dispatch leaked wire bytes onto OnRpcRequest's stack; "
       << "task runner would be blocked.";
-  EXPECT_EQ(rpc.streaming_async_dispatches_for_testing(), 1u);
 
   // Drain the queue: the worker's PostTask will run here.
   task_queue.DrainUntilQuiescent(/*expected_count=*/1);
@@ -417,10 +416,8 @@ TEST(RpcTest, StreamingQueryFansOutAcrossWorkers) {
     rpc.OnRpcRequest(msg.data(), msg.size());
   }
 
-  // OnRpcRequest never blocked: all 8 dispatches counted, and no
-  // response bytes have been emitted yet (no task drained).
-  EXPECT_GE(rpc.streaming_async_dispatches_for_testing(),
-            static_cast<uint32_t>(kQueries));
+  // OnRpcRequest never blocked: no response bytes emitted yet because
+  // the dispatcher's tasks haven't been drained.
   {
     std::lock_guard<std::mutex> g(wire_mu);
     EXPECT_TRUE(wire_bytes.empty())
@@ -613,8 +610,7 @@ TEST(RpcTest, SameTagSerialisesDifferentTagsFanOut) {
   EXPECT_EQ(rpc.tag_slots_size_for_testing(), 0u);
   EXPECT_EQ(rpc.affinity_size_for_testing(), 1u)
       << "expected exactly one affinity entry for tag A";
-  int64_t a_conn_id = rpc.affinity_for_tag_for_testing("A");
-  EXPECT_GE(a_conn_id, 0);
+  EXPECT_TRUE(rpc.has_affinity_for_testing("A"));
   EXPECT_EQ(rpc.pool_distinct_connections_for_testing(), 1u)
       << "same-tag burst should not have grown the pool";
 
@@ -666,7 +662,7 @@ TEST(RpcTest, UntaggedQueriesShareOneConnection) {
 
   // Exactly one affinity entry — the empty-string "untagged" slot.
   EXPECT_EQ(rpc.affinity_size_for_testing(), 1u);
-  EXPECT_GE(rpc.affinity_for_tag_for_testing(""), 0);
+  EXPECT_TRUE(rpc.has_affinity_for_testing(""));
   // tag_slots_ is empty after drain (entry erased on last release).
   EXPECT_EQ(rpc.tag_slots_size_for_testing(), 0u);
 }
@@ -702,12 +698,11 @@ TEST(RpcTest, AffinityLRUEvictsAtCap) {
   EXPECT_EQ(rpc.affinity_size_for_testing(), 64u)
       << "expected LRU to fill exactly to the cap (kMaxAffinityEntries)";
   // Tag inserted first ("unique_tag_0") should have been evicted.
-  EXPECT_EQ(rpc.affinity_for_tag_for_testing("unique_tag_0"), -1)
+  EXPECT_FALSE(rpc.has_affinity_for_testing("unique_tag_0"))
       << "oldest tag should have been LRU-evicted";
   // Most recently inserted tag should still be there.
-  EXPECT_GE(rpc.affinity_for_tag_for_testing(
-                "unique_tag_" + std::to_string(kTagsToInsert - 1)),
-            0);
+  EXPECT_TRUE(rpc.has_affinity_for_testing(
+      "unique_tag_" + std::to_string(kTagsToInsert - 1)));
 }
 
 }  // namespace
