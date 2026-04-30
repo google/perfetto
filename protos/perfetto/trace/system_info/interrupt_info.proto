@@ -24,7 +24,7 @@ package perfetto.protos;
 message InterruptInfo {
   message InterruptMapping {
     // Numeric IRQ identifier.
-    optional int32 irq_id = 1;
+    optional uint32 irq_id = 1;
     // Human-readable name for the IRQ (e.g. "arch_timer", "arm-pmu").
     optional string name = 2;
   }

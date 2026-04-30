@@ -25,22 +25,14 @@ namespace perfetto::trace_processor {
 IrqTracker::IrqTracker(TraceProcessorContext* context) : context_(context) {}
 
 void IrqTracker::SetIrqName(uint32_t irq_id, StringId name) {
-  auto it = irq_ids_.find(irq_id);
-  if (it != irq_ids_.end()) {
-    auto row = context_->storage->mutable_interrupt_mapping_table()->FindById(
-        it->second);
-    if (row) {
-      row->set_name(name);
-    }
+  if (!irq_ids_.Insert(irq_id, true).second)
     return;
-  }
 
   tables::InterruptMappingTable::Row row;
   row.irq_id = irq_id;
   row.name = name;
   row.machine_id = context_->machine_tracker->machine_id();
-  irq_ids_[irq_id] =
-      context_->storage->mutable_interrupt_mapping_table()->Insert(row).id;
+  context_->storage->mutable_interrupt_mapping_table()->Insert(row);
 }
 
 }  // namespace perfetto::trace_processor

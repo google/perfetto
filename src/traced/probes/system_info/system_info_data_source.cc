@@ -36,108 +36,87 @@ namespace perfetto {
 namespace {
 
 struct InterruptMapping {
-  int32_t irq_id;
+  uint32_t irq_id;
   std::string name;
 };
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-std::vector<InterruptMapping> ReadInterruptMappings() {
+std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
   std::vector<InterruptMapping> mappings;
-  std::string content;
-  if (!base::ReadFile("/proc/interrupts", &content))
-    return mappings;
 
   base::StringSplitter lines(std::move(content), '\n');
   if (!lines.Next())
     return mappings;
 
-  // 1. Determine number of CPUs from the header line.
+  // Count CPUs from the header line (tokens starting with "CPU").
   size_t num_cpus = 0;
   {
-    std::string header = lines.cur_token();
-    std::string current_token;
-    for (char c : header) {
-      if (c == ' ' || c == '\t') {
-        if (!current_token.empty()) {
-          if (base::StartsWith(current_token, "CPU"))
-            num_cpus++;
-          current_token.clear();
-        }
-      } else {
-        current_token += c;
-      }
-    }
-    if (!current_token.empty() && base::StartsWith(current_token, "CPU")) {
-      num_cpus++;
+    base::StringSplitter header_tok(&lines, ' ');
+    while (header_tok.Next()) {
+      if (base::StartsWith(header_tok.cur_token(), "CPU"))
+        num_cpus++;
     }
   }
 
   if (num_cpus == 0)
     return mappings;
 
-  // 2. Parse data lines.
   while (lines.Next()) {
-    std::string line = lines.cur_token();
     std::vector<std::string> tokens;
-    std::string current_token;
-    for (char c : line) {
-      if (c == ' ' || c == '\t') {
-        if (!current_token.empty()) {
-          tokens.push_back(std::move(current_token));
-          current_token.clear();
-        }
-      } else {
-        current_token += c;
-      }
-    }
-    if (!current_token.empty()) {
-      tokens.push_back(std::move(current_token));
+    {
+      base::StringSplitter tok(&lines, ' ');
+      while (tok.Next())
+        tokens.emplace_back(tok.cur_token(), tok.cur_token_size());
     }
 
     if (tokens.size() <= num_cpus)
       continue;
 
-    // The first token must be "IRQ_NUM:".
+    // First token must be "IRQ_NUM:".
     const std::string& id_token = tokens[0];
     char* endptr;
-    int32_t irq_id =
-        static_cast<int32_t>(strtoll(id_token.c_str(), &endptr, 10));
+    uint32_t irq_id =
+        static_cast<uint32_t>(strtoul(id_token.c_str(), &endptr, 10));
     if (endptr == id_token.c_str() || *endptr != ':')
       continue;
 
-    // Search for "Level" or "Edge" as an anchor for the name.
-    ssize_t trigger_index = -1;
+    // Find the trigger token to anchor the name. ARM GIC uses standalone
+    // "Level"/"Edge"; x86 IO-APIC embeds the trigger in the hw-irq field
+    // (e.g. "16-fasteoi", "2-edge"). Searching rather than using a fixed
+    // offset handles multi-word chip names (e.g. "cs40l26 IRQ1 Controller").
+    // Falls back to num_cpus+3 for any unrecognised format.
+    auto is_trigger = [](const std::string& t) {
+      return t == "Level" || t == "Edge" || base::EndsWith(t, "-edge") ||
+             base::EndsWith(t, "-fasteoi") || base::EndsWith(t, "-level") ||
+             base::EndsWith(t, "-fasteoi-level");
+    };
+
+    ssize_t trigger_idx = -1;
     for (size_t i = num_cpus + 1; i < tokens.size(); ++i) {
-      if (tokens[i] == "Level" || tokens[i] == "Edge") {
-        trigger_index = static_cast<ssize_t>(i);
+      if (is_trigger(tokens[i])) {
+        trigger_idx = static_cast<ssize_t>(i);
         break;
       }
     }
 
-    size_t name_start_index;
-    if (trigger_index != -1) {
-      // Name starts immediately after the trigger.
-      name_start_index = static_cast<size_t>(trigger_index + 1);
-    } else {
-      // Fallback: Skip IRQ ID (1), CPU counts, and 2 metadata fields.
-      name_start_index = num_cpus + 3;
-    }
+    size_t name_start = (trigger_idx != -1)
+                            ? static_cast<size_t>(trigger_idx + 1)
+                            : num_cpus + 3;
 
-    if (name_start_index >= tokens.size())
+    if (name_start >= tokens.size())
       continue;
 
     InterruptMapping mapping;
     mapping.irq_id = irq_id;
-    for (size_t j = name_start_index; j < tokens.size(); ++j) {
+    for (size_t j = name_start; j < tokens.size(); ++j) {
       if (!mapping.name.empty())
         mapping.name += " ";
       mapping.name += tokens[j];
     }
 
-    if (!mapping.name.empty()) {
+    if (!mapping.name.empty())
       mappings.push_back(std::move(mapping));
-    }
   }
 
   return mappings;
@@ -160,9 +139,8 @@ SystemInfoDataSource::SystemInfoDataSource(
     const DataSourceConfig& config)
     : ProbesDataSource(session_id, &descriptor),
       writer_(std::move(writer)),
-      cpu_freq_info_(std::move(cpu_freq_info)) {
-  include_irq_mapping_ = config.system_info_config().irq_names();
-}
+      cpu_freq_info_(std::move(cpu_freq_info)),
+      include_irq_mapping_(config.system_info_config().irq_names()) {}
 
 void SystemInfoDataSource::Start() {
   auto packet = writer_->NewTracePacket();
@@ -212,7 +190,7 @@ void SystemInfoDataSource::Start() {
   if (include_irq_mapping_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    auto mappings = ReadInterruptMappings();
+    auto mappings = ReadInterruptMappings(ReadFile("/proc/interrupts"));
     if (!mappings.empty()) {
       auto irq_packet = writer_->NewTracePacket();
       irq_packet->set_timestamp(

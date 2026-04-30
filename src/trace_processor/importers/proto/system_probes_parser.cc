@@ -1205,8 +1205,7 @@ void SystemProbesParser::ParseInterruptInfo(ConstBytes blob) {
     protos::pbzero::InterruptInfo::InterruptMapping::Decoder mapping(*it);
     if (mapping.has_irq_id() && mapping.has_name()) {
       auto name_id = context_->storage->InternString(mapping.name());
-      context_->irq_tracker->SetIrqName(static_cast<uint32_t>(mapping.irq_id()),
-                                        name_id);
+      context_->irq_tracker->SetIrqName(mapping.irq_id(), name_id);
     }
   }
 }

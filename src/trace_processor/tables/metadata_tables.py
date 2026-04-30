@@ -529,10 +529,9 @@ INTERRUPT_MAPPING_TABLE = Table(
     sql_name='__intrinsic_interrupt_mapping',
     columns=[
         C('irq_id', CppUint32()),
-        C('name', CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('name', CppString()),
         C('machine_id', CppTableId(MACHINE_TABLE)),
     ],
-    wrapping_sql_view=WrappingSqlView('interrupt_mapping'),
     tabledoc=TableDoc(
         doc='''
           Contains information for IRQ mappings seen during the trace.

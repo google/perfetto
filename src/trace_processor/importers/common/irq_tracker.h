@@ -18,8 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_IRQ_TRACKER_H_
 
 #include <cstdint>
-#include <map>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 
@@ -35,7 +35,7 @@ class IrqTracker {
 
  private:
   TraceProcessorContext* const context_;
-  std::map<uint32_t, tables::InterruptMappingTable::Id> irq_ids_;
+  base::FlatHashMap<uint32_t, bool> irq_ids_;
 };
 
 }  // namespace perfetto::trace_processor
