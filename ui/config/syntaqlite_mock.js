@@ -1,4 +1,4 @@
-// Copyright (C) 2019 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module.exports = {
-  transform: {},
-  testRegex: '_(unittest|jsdomtest)[.]js$',
-  testEnvironment: __dirname + '/JestJsdomEnv.js',
-  setupFiles: [
-    'jest-canvas-mock',
-    'jest-localstorage-mock',
-  ],
-  moduleNameMapper: {
-    '^syntaqlite$': __dirname + '/syntaqlite_mock.js',
-  },
-};
+// syntaqlite is shipped as ESM and cannot be loaded by jest's CommonJS
+// runtime. Unit tests don't exercise the formatter, so this stub is enough
+// to satisfy `import {Engine} from 'syntaqlite'`.
+class Engine {}
+module.exports = {Engine};
