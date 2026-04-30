@@ -127,7 +127,7 @@ def run_native(args):
       return 1
     cmd += ['--ui']
   elif args.rebaseline:
-    cmd += ['--update-snapshots']
+    cmd += ['--update-snapshots=all']
 
   if args.workers:
     cmd += ['--workers', args.workers]
@@ -165,7 +165,7 @@ def run_in_docker(args):
       './pnpm', 'exec', 'playwright', 'test'
   ]
   if args.rebaseline:
-    playwright_cmd_parts += ['--update-snapshots']
+    playwright_cmd_parts += ['--update-snapshots=all']
   if args.workers:
     playwright_cmd_parts += ['--workers', args.workers]
   playwright_cmd_parts += args.filters
