@@ -252,26 +252,15 @@ class PerfettoSqlEngine {
 
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
-  // Returns the raw |sqlite3*| handle backing this engine. This is the
-  // canonical accessor for callers outside the engine internals; prefer it
-  // over `sqlite_engine()->db()`.
+  // Canonical accessor for the underlying sqlite3 handle.
   sqlite3* db() { return engine_->db(); }
 
-  // Makes new SQL package available to include. On the writer engine the
-  // package is also appended to the staging-area package pool so that
-  // sibling reader connections can replicate it locally on their next
-  // top-level `Execute` (via `SyncPackagesFromPool`). `pool_modules`, if
-  // non-null, supplies the original (module-name, sql) pairs the writer
-  // consumed to build `package`; readers replay these to construct an
-  // equivalent local `RegisteredPackage`. Pass null for callers that have
-  // no need for cross-connection propagation (e.g. tests using the legacy
-  // single-engine setup); the pool is touched only when the engine is the
-  // writer *and* `pool_modules` is provided.
-  //
-  // `allow_replace` is propagated verbatim into the pool entry so readers
-  // can mirror the writer's intent. The local (writer-side) state is
-  // unconditionally replaced — this matches the existing pre-multi-conn
-  // semantics.
+  // Makes a new SQL package available to include. On the writer engine
+  // the package is also appended to the database's package pool so
+  // sibling reader connections replicate it locally on their next
+  // top-level `Execute` (via `SyncPackagesFromPool`). `pool_modules`,
+  // if non-null, are the raw (module-name, sql) pairs readers replay
+  // to rebuild an equivalent `RegisteredPackage` on their own engine.
   void RegisterPackage(
       const std::string& name,
       sql_modules::RegisteredPackage package,
@@ -360,20 +349,13 @@ class PerfettoSqlEngine {
     size_t wildcard_index = 0;
     SqlSource wildcard_traceback_sql;
 
-    // For include frames: the savepoint name created when the frame was
-    // pushed. Empty if no savepoint was opened (e.g. nested-include savepoint
-    // creation failed). On successful completion the savepoint is RELEASEd
-    // so its DDL becomes visible on `main` (and propagates to other
-    // connections via `cache=shared`); on failure the savepoint is rolled
-    // back so partially-installed objects do not leak.
+    // For include frames: the savepoint name created when the frame
+    // was pushed (empty if open failed). RELEASEd on success so the
+    // DDL becomes visible on `main`; rolled back on failure.
     std::string include_savepoint;
-
     // For include frames: the cross-connection include claim acquired
-    // before the savepoint was opened. Two connections importing the
-    // same module name serialise on the staging-area condvar. The
-    // claim is `Release(true)`'d after RELEASE succeeds; the destructor
-    // is the rollback path (treated as failure). Empty on root /
-    // wildcard frames and legacy single-connection callers.
+    // before the savepoint was opened. Released on successful RELEASE;
+    // destructor is the rollback path (treated as failure).
     PerfettoSqlDatabase::IncludeClaim include_claim;
   };
 
@@ -440,89 +422,45 @@ class PerfettoSqlEngine {
   // re-entrant Execute() calls from statement handlers.
   base::StatusOr<ExecutionResult> ExecuteUntilLastStatementImpl(SqlSource);
 
-  // Internal helper: registers a CREATE-PERFETTO-FUNCTION-style runtime
-  // function on this engine's own `sqlite3*` handle without publishing to
-  // the staging-area function pool. Used both by the public
-  // `RegisterLegacyRuntimeFunction` (which then publishes on success on the
-  // writer) and by `SyncFunctionsFromPool` (which only consumes from the
-  // pool — readers must never publish).
+  // Local-only helpers: register on this engine's own state without
+  // touching the cross-conn pools. Used by both the public registration
+  // entry points (writer side; the public method then publishes) and by
+  // the `Sync*FromPool` consumers (reader side; readers only consume).
   base::Status RegisterLegacyRuntimeFunctionLocal(
       bool replace,
       const FunctionPrototype& prototype,
       sql_argument::Type return_type,
       SqlSource sql);
-
-  // Internal helper: registers a SQL package on this engine's local
-  // `packages_` map without publishing to the staging-area package pool.
-  // Used both by the public `RegisterPackage` (which then publishes on the
-  // writer) and by `SyncPackagesFromPool` (which only consumes from the
-  // pool — readers must never publish).
   void RegisterPackageLocal(const std::string& name,
                             sql_modules::RegisteredPackage package);
 
-  // Diffs `last_synced_function_version_` against the staging-area function
-  // pool and registers any missing entries on this engine's own `sqlite3*`
-  // handle. Cheap fast-path: if the version already matches the pool's
-  // latest version, returns immediately without taking the pool's mutex.
-  // Called at the top of `ExecuteUntilLastStatement` for top-level
-  // (non-re-entrant) invocations only.
+  // Pool diff at the top of every top-level `Execute`. Cheap fast-path
+  // when `last_synced_*_version_` already matches the pool's latest.
+  // Writer engines short-circuit — they're the source of truth and
+  // bump the version when they Append.
   base::Status SyncFunctionsFromPool();
-
-  // Diffs `last_synced_package_version_` against the staging-area package
-  // pool and registers any missing entries on this engine's own `packages_`
-  // map. Cheap fast-path: if the version already matches the pool's latest
-  // version, returns immediately without taking the pool's mutex. Called at
-  // the top of `ExecuteUntilLastStatement` for top-level (non-re-entrant)
-  // invocations only. Writer engines short-circuit (they're the source of
-  // truth and append directly via `RegisterSqlPackage`).
   base::Status SyncPackagesFromPool();
 
-  // Processes a single iteration of the frame at the given index.
-  // May push new frames onto the stack (for includes/wildcards).
+  // One iteration of the frame at `frame_idx`. May push new frames
+  // onto the stack (for includes / wildcards).
   base::StatusOr<FrameResult> ProcessFrame(size_t frame_idx);
 
-  // Releases the savepoint opened by `IncludeModuleImpl` for the given
-  // include frame on success. No-op if the frame did not open a savepoint
-  // (e.g. wildcard / root frames). Returns the status of the RELEASE.
+  // Per-include savepoint open/release/rollback. Rollback is best-
+  // effort: failures are logged because the caller already has the
+  // primary error to report.
   base::Status ReleaseIncludeSavepoint(const ExecutionFrame& frame);
-
-  // Rolls back and releases the savepoint opened by `IncludeModuleImpl` on
-  // failure. Best-effort: failures here are logged but not propagated, on
-  // the basis that the caller already has an error to report.
   void RollbackIncludeSavepoint(const ExecutionFrame& frame);
 
-  // Opens a uniquely-named SAVEPOINT (`perfetto_execute_<n>`) wrapping a
-  // top-level (non-re-entrant) `ExecuteUntilLastStatement` call so that
-  // multi-statement SQL is atomic: if a later statement fails, earlier
-  // side-effects are rolled back. On success the caller `RELEASE`s the
-  // savepoint via `ReleaseExecuteSavepoint`; on error
-  // `RollbackExecuteSavepoint` performs a `ROLLBACK TO ...; RELEASE ...`.
-  // The returned name is empty if opening the savepoint failed (in which
-  // case the returned status is non-OK).
+  // Top-level `Execute` is wrapped in a uniquely-named SAVEPOINT
+  // (`perfetto_execute_<n>`) so multi-statement SQL is atomic: if a
+  // later statement fails, earlier side-effects are rolled back.
   base::StatusOr<std::string> OpenExecuteSavepoint();
-
-  // RELEASEs the savepoint named `name`. No-op if `name` is empty. Returns
-  // the status of the RELEASE.
   base::Status ReleaseExecuteSavepoint(const std::string& name);
-
-  // ROLLBACK TO + RELEASE the savepoint named `name`. No-op if `name` is
-  // empty. Best-effort: failures are logged.
   void RollbackExecuteSavepoint(const std::string& name);
 
-  // Called when a transaction is committed by SQLite; that is, the result of
-  // running some SQL is considered "perm".
-  //
-  // See https://www.sqlite.org/lang_transaction.html for an explanation of
-  // transactions in SQLite.
+  // SQLite transaction hooks. See
+  // https://www.sqlite.org/lang_transaction.html.
   int OnCommit();
-
-  // Called when a transaction is rolled back by SQLite; that is, the result of
-  // of running some SQL should be discarded and the state of the database
-  // should be restored to the state it was in before the transaction was
-  // started.
-  //
-  // See https://www.sqlite.org/lang_transaction.html for an explanation of
-  // transactions in SQLite.
   void OnRollback();
 
   StringPool* pool_ = nullptr;
@@ -531,31 +469,17 @@ class PerfettoSqlEngine {
   // creating tables and views.
   const bool enable_extra_checks_;
 
-  // Cross-connection staging area shared with the parent
-  // `TraceProcessorImpl` and any sibling engines. Null for legacy
-  // single-connection setups (the default-arg ctor with no staging
-  // area). Owned by the parent `TraceProcessorImpl`.
+  // Cross-connection database, owned by the parent `TraceProcessorImpl`.
   PerfettoSqlDatabase* database_ = nullptr;
 
-  // True if this engine is the canonical writer for the parent
-  // `TraceProcessorImpl` (i.e. the default/connection-0 engine). The
-  // writer publishes vtab state to staging on `OnCommit` and appends
-  // dynamically-created functions (CREATE PERFETTO FUNCTION) to the
-  // staging area's function pool. Reader engines (secondary connections)
-  // never publish or append; they only consume.
+  // True if this is the parent's writer (connection-0) engine. Writers
+  // publish vtab state on commit and Append to the function/package
+  // pools; readers only consume.
   bool is_writer_ = false;
 
-  // Function-pool version of the most recent successful sync against
-  // `database_->SnapshotSince`. 0 == "no sync yet"; the writer engine
-  // also bumps this each time it appends so it doesn't pointlessly try to
-  // re-register its own functions on its own handle.
+  // Pool versions last synced. The writer also bumps these on Append
+  // so it doesn't re-register its own entries on its own handle.
   uint64_t last_synced_function_version_ = 0;
-
-  // Package-pool version of the most recent successful sync against
-  // `database_->SnapshotPackagesSince`. Same shape as
-  // `last_synced_function_version_`; the writer bumps this eagerly inside
-  // `RegisterSqlPackage` to avoid re-registering its own packages back into
-  // its own engine.
   uint64_t last_synced_package_version_ = 0;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
