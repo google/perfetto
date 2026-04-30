@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -196,9 +197,21 @@ class Rpc {
 
   // Worker-pool plumbing for `Query` fan-out. The pool is only used after
   // `NotifyEndOfFile` (strict-v1: secondary connections are illegal pre-EOF).
-  std::unique_ptr<TraceProcessor::Connection> AcquireConnectionForQuery();
-  void ReleaseConnectionToPool(
-      std::unique_ptr<TraceProcessor::Connection> conn);
+  // A `PooledConnection` is the connection plus its mint-time id; the id
+  // is the key of the soft tag-affinity map so a tag's queries can prefer
+  // the same underlying connection when it's free.
+  struct PooledConnection {
+    uint32_t id = 0;
+    std::unique_ptr<TraceProcessor::Connection> conn;
+    PooledConnection() = default;
+    PooledConnection(uint32_t i,
+                     std::unique_ptr<TraceProcessor::Connection> c)
+        : id(i), conn(std::move(c)) {}
+    PooledConnection(PooledConnection&&) noexcept = default;
+    PooledConnection& operator=(PooledConnection&&) noexcept = default;
+  };
+  PooledConnection AcquireConnectionForQuery(const std::string& tag);
+  void ReleaseConnectionToPool(PooledConnection pooled);
   void RunQueryOnPoolWorker(std::string sql,
                             base::TimeNanos t_start,
                             const QueryResultBatchCallback& result_callback);
@@ -258,9 +271,24 @@ class Rpc {
   // itself (so callers don't need to know) is a pending refactor.
   mutable std::mutex pool_mu_;
   std::condition_variable pool_cv_;
-  std::vector<std::unique_ptr<TraceProcessor::Connection>> pool_free_;
+  std::vector<PooledConnection> pool_free_;
   uint32_t pool_in_use_ = 0;
   uint32_t distinct_connections_minted_ = 0;
+  // Soft tag-affinity: tag -> conn id (last connection a given tag
+  // ran on). On Acquire, prefer the affined connection if it's in the
+  // free list; otherwise fall back to any free connection and update
+  // the affinity. Bounded by `kMaxAffinityEntries` via LRU eviction
+  // so the map can't grow without bound when tags are short-lived.
+  // Stale affinities (the affined conn no longer in `pool_free_`,
+  // either in use or evicted) are silently ignored — the design is
+  // intentionally cheap-best-effort.
+  static constexpr size_t kMaxAffinityEntries = 64;
+  struct AffinityEntry {
+    uint32_t conn_id;
+    std::list<std::string>::iterator lru_iter;
+  };
+  std::list<std::string> affinity_lru_;  // MRU at front
+  base::FlatHashMap<std::string, AffinityEntry> tag_to_conn_;
   std::unordered_set<std::thread::id> distinct_worker_thread_ids_;
   // Serialises calls to `TraceProcessor::CreateConnection`. Any thread
   // can post a Query, but only one of them at a time may mint

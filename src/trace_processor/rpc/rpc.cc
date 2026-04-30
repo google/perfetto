@@ -637,28 +637,56 @@ void Rpc::MaybePrintProgress() {
   }
 }
 
-std::unique_ptr<TraceProcessor::Connection>
-Rpc::AcquireConnectionForQuery() {
+Rpc::PooledConnection Rpc::AcquireConnectionForQuery(const std::string& tag) {
   std::unique_lock<std::mutex> lock(pool_mu_);
-  // Wait until a connection is available. The pool is pre-populated to
-  // `worker_pool_`'s thread count, so a worker that finds the free list
-  // empty just parks until a peer releases. CreateConnection is *never*
-  // invoked from a worker thread: the StringPool's first
-  // `EnableThreadSafetyForMultiConnection` write must observe a
-  // single-producer happens-before with all reads.
+  // Wait until a connection is available. The pool grows lazily up to
+  // hardware_concurrency via `MaybeGrowConnectionPool` on the writer
+  // thread. CreateConnection is *never* invoked from a worker thread:
+  // the StringPool's first `EnableThreadSafetyForMultiConnection`
+  // write must observe a single-producer happens-before with all reads.
   pool_cv_.wait(lock, [&] { return !pool_free_.empty(); });
-  std::unique_ptr<TraceProcessor::Connection> conn = std::move(pool_free_.back());
-  pool_free_.pop_back();
+
+  // Soft affinity: if this tag has a previous connection and it's
+  // currently free, prefer it. Connections retain page-cache /
+  // prepared-statement / schema-cache locality across same-tag
+  // queries, so this is the main payoff of tag-affine dispatch.
+  size_t pick = pool_free_.size() - 1;  // default: most recently released
+  auto* aff = tag_to_conn_.Find(tag);
+  if (aff) {
+    for (size_t i = 0; i < pool_free_.size(); ++i) {
+      if (pool_free_[i].id == aff->conn_id) {
+        pick = i;
+        break;
+      }
+    }
+  }
+  PooledConnection chosen = std::move(pool_free_[pick]);
+  pool_free_.erase(pool_free_.begin() + static_cast<ptrdiff_t>(pick));
   pool_in_use_++;
-  return conn;
+
+  // Update / install the affinity entry. Touching an existing entry
+  // moves it to the LRU front; a fresh entry pushes onto the front
+  // and may evict the LRU tail when the cap is hit.
+  if (aff) {
+    aff->conn_id = chosen.id;
+    affinity_lru_.splice(affinity_lru_.begin(), affinity_lru_, aff->lru_iter);
+  } else {
+    affinity_lru_.push_front(tag);
+    tag_to_conn_.Insert(tag, AffinityEntry{chosen.id, affinity_lru_.begin()});
+    if (tag_to_conn_.size() > kMaxAffinityEntries) {
+      const std::string evicted = std::move(affinity_lru_.back());
+      affinity_lru_.pop_back();
+      tag_to_conn_.Erase(evicted);
+    }
+  }
+  return chosen;
 }
 
-void Rpc::ReleaseConnectionToPool(
-    std::unique_ptr<TraceProcessor::Connection> conn) {
+void Rpc::ReleaseConnectionToPool(PooledConnection pooled) {
   std::lock_guard<std::mutex> lock(pool_mu_);
   PERFETTO_DCHECK(pool_in_use_ > 0);
   pool_in_use_--;
-  pool_free_.push_back(std::move(conn));
+  pool_free_.push_back(std::move(pooled));
   pool_cv_.notify_all();
 }
 
@@ -692,7 +720,7 @@ void Rpc::EnsureWorkerPoolPrimed() {
   uint32_t pool_size = hw == 0 ? 1u : hw;
   std::lock_guard<std::mutex> g(pool_mu_);
   worker_pool_ = std::make_unique<base::ThreadPool>(pool_size);
-  pool_free_.push_back(std::move(first));
+  pool_free_.emplace_back(distinct_connections_minted_, std::move(first));
   distinct_connections_minted_++;
   pool_cv_.notify_all();
 }
@@ -719,7 +747,7 @@ void Rpc::MaybeGrowConnectionPool() {
   }
   auto fresh = trace_processor_->CreateConnection();
   std::lock_guard<std::mutex> g(pool_mu_);
-  pool_free_.push_back(std::move(fresh));
+  pool_free_.emplace_back(distinct_connections_minted_, std::move(fresh));
   distinct_connections_minted_++;
   pool_cv_.notify_one();
 }
@@ -744,7 +772,12 @@ void Rpc::RunQueryOnPoolWorker(
       std::lock_guard<std::mutex> g(pool_mu_);
       distinct_worker_thread_ids_.insert(std::this_thread::get_id());
     }
-    auto conn = AcquireConnectionForQuery();
+    // Sync `Query` callers (wasm bridge, `/rpc` HTTP, Python API) don't
+    // carry tags. Use the same empty-string "untagged stream" tag as
+    // the streaming async path: all untagged work shares one slot and
+    // serialises on one connection.
+    auto pooled = AcquireConnectionForQuery(/*tag=*/"");
+    auto& conn = pooled.conn;
     // Drain the iterator fully into a vector of buffered slices before
     // releasing the connection. Strategy (a) from the design memo:
     // "bulk-materialise rows, release connection, stream buffer back".
@@ -780,7 +813,7 @@ void Rpc::RunQueryOnPoolWorker(
         buffered.Reset();
       }
     }
-    ReleaseConnectionToPool(std::move(conn));
+    ReleaseConnectionToPool(std::move(pooled));
     // Connection is back in the pool; emit the buffered chunks back to
     // the transport. The caller is still parked on `done_fut`, so
     // `result_callback` is safe to invoke from this thread.
@@ -801,18 +834,11 @@ void Rpc::DispatchStreamingQueryAsync(std::string sql,
   // thread for the same reason as `RunQueryOnPoolWorker`: workers may
   // not call `CreateConnection`.
   EnsureWorkerPoolPrimed();
-
-  // An empty tag means the caller did not opt into tag-affine dispatch
-  // (e.g. `trace_processor_shell`, the Python API, or any RPC client
-  // that doesn't go through the UI's `EngineProxy`). Synthesise a fresh
-  // anonymous tag per query so untagged queries fan out across the pool
-  // exactly as they did before tag-serialisation landed. Tagged queries
-  // (UI `EngineProxy.tag`) keep the same-tag-serialises semantics.
-  if (tag.empty()) {
-    static std::atomic<uint64_t> anon_counter{0};
-    tag = "__anon_" +
-          std::to_string(anon_counter.fetch_add(1, std::memory_order_relaxed));
-  }
+  // An empty tag is the "untagged stream": all callers that did not
+  // opt into tag-affine dispatch share one tag-slot and serialise on
+  // a single connection (the one the empty-tag slot affines to). This
+  // is by design — untagged callers don't tell us which queries are
+  // logically related, so we treat them as one logical session.
 
   // Claim a slot in the request->response ordering at *arrival* time
   // (not dispatch time) so the UI's `pendingQueries[0]`-FIFO contract
@@ -863,7 +889,8 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
       std::lock_guard<std::mutex> g(pool_mu_);
       distinct_worker_thread_ids_.insert(std::this_thread::get_id());
     }
-    auto conn = AcquireConnectionForQuery();
+    auto pooled = AcquireConnectionForQuery(tag);
+    auto& conn = pooled.conn;
     StreamingResult sr;
     sr.req_type = q.req_type;
     sr.response_fn = std::move(q.response_fn);
@@ -891,7 +918,7 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
         buffered.Reset();
       }
     }
-    ReleaseConnectionToPool(std::move(conn));
+    ReleaseConnectionToPool(std::move(pooled));
 
     // Tag bookkeeping: hand off the next same-tag query (if any) to a
     // fresh worker task. We do this BEFORE posting the send closure so
