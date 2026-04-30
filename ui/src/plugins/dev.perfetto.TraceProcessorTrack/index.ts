@@ -20,6 +20,8 @@ import {
   createAggregationTab,
   createIITable,
 } from '../../components/aggregation_adapter';
+import {sliceDistributionCellRenderers} from '../../components/details/slice_details';
+import {openDistributionTab} from '../../components/distribution_panel';
 import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
@@ -631,6 +633,17 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       on: `${iiTable.name}(parent_id)`,
     });
 
+    // Reuse the flamegraph's source dataset and add a time-window filter so
+    // "Find matching slices" reflects the same events the user is looking at.
+    const distributionDataset = new SourceDataset({
+      src: `
+        select * from (${dataset.query()})
+        where ts < ${currentSelection.end}
+          and ts + dur > ${currentSelection.start}
+      `,
+      schema: dataset.schema,
+    });
+
     const metrics = metricsFromTableOrSubquery({
       tableOrSubquery: `(
         select *
@@ -663,6 +676,24 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           displayName: 'Slice Count',
           mergeAggregation: 'SUM',
           isVisible: (_) => true,
+        },
+      ],
+      optionalActions: [
+        {
+          name: 'Find matching slices',
+          execute: ({node}) => {
+            if (node === undefined) return;
+            openDistributionTab(trace, {
+              title: `${node.name} (in selection)`,
+              dataset: distributionDataset,
+              filter: {col: 'name', eq: node.name},
+              valueColumn: 'dur',
+              idColumn: 'id',
+              sqlTable: 'slice',
+              displayColumns: ['ts', 'dur'],
+              cellRenderers: sliceDistributionCellRenderers(trace),
+            });
+          },
         },
       ],
       nameColumnLabel: 'Slice Name',
