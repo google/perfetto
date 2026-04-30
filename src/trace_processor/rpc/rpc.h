@@ -202,10 +202,15 @@ class Rpc {
   void RunQueryOnPoolWorker(std::string sql,
                             base::TimeNanos t_start,
                             const QueryResultBatchCallback& result_callback);
-  // Mints worker-pool threads + pre-mints connections on the caller's
-  // thread, idempotently. Shared between the sync `Rpc::Query` path and
-  // the async streaming dispatch.
+  // Mints worker-pool threads + the very first connection on the
+  // caller's thread, idempotently. Shared between the sync `Rpc::Query`
+  // path and the async streaming dispatch.
   void EnsureWorkerPoolPrimed();
+  // Lazy-growth helper: if all pooled connections are in use and we
+  // haven't hit hardware_concurrency, mint one more. Called on the
+  // writer thread before dispatching to keep CreateConnection
+  // single-producer.
+  void MaybeGrowConnectionPool();
   // Async streaming dispatch entry point used from `ParseRpcRequest` when
   // `response_dispatcher_` is set and the trace has hit EOF. Posts a
   // worker-pool task that materialises chunks then dispatches the "send

@@ -661,40 +661,65 @@ void Rpc::ReleaseConnectionToPool(
 }
 
 void Rpc::EnsureWorkerPoolPrimed() {
-  // Both the creation of the pool and the minting of connections happen
-  // on the caller's (writer) thread: `TraceProcessor::CreateConnection`
-  // is the single writer of `StringPool::should_acquire_mutex_`, and
-  // minting from worker threads would produce a TSan-flaggable race on
-  // that flag with peer workers. Worker-thread `Acquire` is read-only
-  // (consumes from the free list) and is fed by `Release` only.
-  // `pool_mint_mu_` serialises CreateConnection across all Rpc callers.
-  // Held only on the (rare) refill path, so contention is negligible.
+  // First call: create the worker pool (sized to hardware_concurrency())
+  // and mint a single connection. Subsequent calls go through the lazy-
+  // growth path in `MaybeGrowConnectionPool` so the pool only ever holds
+  // as many connections as concurrent demand has actually required.
+  // Both pool setup and connection minting run on the caller's (writer)
+  // thread: `TraceProcessor::CreateConnection` is the single writer of
+  // `StringPool::should_acquire_mutex_`, and minting from worker threads
+  // would race that flag with peer workers' lock-free reads.
   std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
-  uint32_t threads_to_mint = 0;
+  bool need_first_mint = false;
   {
     std::lock_guard<std::mutex> g(pool_mu_);
     if (!worker_pool_) {
-      uint32_t hw = std::thread::hardware_concurrency();
-      threads_to_mint = std::min<uint32_t>(hw == 0 ? 1u : hw, 8u);
+      need_first_mint = true;
     }
   }
-  if (threads_to_mint == 0) {
+  if (!need_first_mint) {
     return;
   }
-  std::vector<std::unique_ptr<TraceProcessor::Connection>> fresh;
-  fresh.reserve(threads_to_mint);
-  for (uint32_t i = 0; i < threads_to_mint; ++i) {
-    fresh.push_back(trace_processor_->CreateConnection());
-  }
+  // Mint a single connection eagerly so the very first query has
+  // somewhere to land without waiting on the writer thread to grow the
+  // pool. The thread pool is sized to hardware_concurrency() so it can
+  // host up to that many concurrent workers; the connection pool grows
+  // lazily up to the same ceiling via `MaybeGrowConnectionPool`.
+  auto first = trace_processor_->CreateConnection();
+  uint32_t hw = std::thread::hardware_concurrency();
+  uint32_t pool_size = hw == 0 ? 1u : hw;
   std::lock_guard<std::mutex> g(pool_mu_);
-  if (!worker_pool_) {
-    worker_pool_ = std::make_unique<base::ThreadPool>(threads_to_mint);
-  }
-  for (auto& c : fresh) {
-    pool_free_.push_back(std::move(c));
-    distinct_connections_minted_++;
-  }
+  worker_pool_ = std::make_unique<base::ThreadPool>(pool_size);
+  pool_free_.push_back(std::move(first));
+  distinct_connections_minted_++;
   pool_cv_.notify_all();
+}
+
+void Rpc::MaybeGrowConnectionPool() {
+  // Called on the writer (transport) thread before dispatching a query
+  // onto the worker pool. Decides whether to mint another connection
+  // based on current contention: if there are no free connections AND
+  // we haven't yet hit the hardware-concurrency ceiling, mint one.
+  // Minting on the writer thread keeps the StringPool flag-flip
+  // single-producer (see `EnsureWorkerPoolPrimed`).
+  std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
+  uint32_t hw = std::thread::hardware_concurrency();
+  uint32_t ceiling = hw == 0 ? 1u : hw;
+  bool should_mint = false;
+  {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    if (pool_free_.empty() && distinct_connections_minted_ < ceiling) {
+      should_mint = true;
+    }
+  }
+  if (!should_mint) {
+    return;
+  }
+  auto fresh = trace_processor_->CreateConnection();
+  std::lock_guard<std::mutex> g(pool_mu_);
+  pool_free_.push_back(std::move(fresh));
+  distinct_connections_minted_++;
+  pool_cv_.notify_one();
 }
 
 void Rpc::RunQueryOnPoolWorker(
@@ -702,6 +727,7 @@ void Rpc::RunQueryOnPoolWorker(
     base::TimeNanos t_start,
     const QueryResultBatchCallback& result_callback) {
   EnsureWorkerPoolPrimed();
+  MaybeGrowConnectionPool();
 
   // Run the work on a pool thread; block the caller on a promise so the
   // synchronous `Query` callback contract (responses delivered before
@@ -768,10 +794,11 @@ void Rpc::RunQueryOnPoolWorker(
 void Rpc::DispatchStreamingQueryAsync(std::string sql,
                                       base::TimeNanos t_start,
                                       int req_type) {
-  // Pool + connections are pre-minted on the caller's (transport) thread
-  // for the same reason as `RunQueryOnPoolWorker`: workers may not call
-  // `CreateConnection`.
+  // Pool setup + connection minting both run on the caller's (transport)
+  // thread for the same reason as `RunQueryOnPoolWorker`: workers may
+  // not call `CreateConnection`.
   EnsureWorkerPoolPrimed();
+  MaybeGrowConnectionPool();
 
   // Claim a slot in the request->response ordering. Concurrent
   // streaming queries dispatch in `tx_seq_id_` order on the transport
