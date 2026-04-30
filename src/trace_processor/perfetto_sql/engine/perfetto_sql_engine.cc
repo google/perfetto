@@ -1051,7 +1051,7 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
   // entry.
   if (is_writer_) {
     last_synced_function_version_ =
-        database_->AppendFunction(PerfettoSqlDatabase::FunctionPoolEntry{
+        database_->functions.Append(PerfettoSqlDatabase::FunctionPoolEntry{
             replace, prototype, return_type, std::move(sql_for_pool)});
   }
   return base::OkStatus();
@@ -1077,7 +1077,7 @@ void PerfettoSqlEngine::RegisterPackage(
   // sequence the writer did. Skip if the caller did not provide the
   // raw modules — they don't need cross-connection propagation.
   if (is_writer_ && pool_modules) {
-    last_synced_package_version_ = database_->AppendPackage(
+    last_synced_package_version_ = database_->packages.Append(
         PerfettoSqlDatabase::PackagePoolEntry{name, allow_replace,
                                             std::move(pool_modules)});
   }
@@ -1105,15 +1105,15 @@ base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
   // Snap `last_synced_package_version_` to the latest version so the
   // version-equality short-circuit stays cheap on subsequent calls.
   if (is_writer_) {
-    last_synced_package_version_ = database_->LatestPackageVersion();
+    last_synced_package_version_ = database_->packages.LatestVersion();
     return base::OkStatus();
   }
-  if (database_->LatestPackageVersion() == last_synced_package_version_) {
+  if (database_->packages.LatestVersion() == last_synced_package_version_) {
     return base::OkStatus();
   }
 
   auto snapshot =
-      database_->SnapshotPackagesSince(last_synced_package_version_);
+      database_->packages.SnapshotSince(last_synced_package_version_);
   for (const auto& entry : snapshot.entries) {
     // Use the *local* path so we don't re-publish back into the pool. Each
     // reader gets its own copy of the converted `RegisteredPackage`: the
@@ -1134,15 +1134,15 @@ base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
   // (e.g. `_trace_bounds`) that haven't been recreated yet by the new
   // engine's prelude include.
   if (is_writer_) {
-    last_synced_function_version_ = database_->LatestFunctionVersion();
+    last_synced_function_version_ = database_->functions.LatestVersion();
     return base::OkStatus();
   }
-  if (database_->LatestFunctionVersion() ==
+  if (database_->functions.LatestVersion() ==
       last_synced_function_version_) {
     return base::OkStatus();
   }
 
-  auto snapshot = database_->SnapshotSince(last_synced_function_version_);
+  auto snapshot = database_->functions.SnapshotSince(last_synced_function_version_);
   for (auto& entry : snapshot.entries) {
     // Use the *local* path so we don't re-publish back into the pool. On the
     // writer this loop never runs because `RegisterLegacyRuntimeFunction`

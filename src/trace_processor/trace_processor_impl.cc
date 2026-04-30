@@ -685,45 +685,29 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {
-  // All connections must have been destroyed before the parent
-  // TraceProcessor — releasing a connection later would dereference a
-  // destroyed `TraceProcessorImpl`.
   PERFETTO_CHECK(non_default_connection_count_ == 0);
 }
 
-// Each non-default `Connection` owns its own `PerfettoSqlEngine` opened
-// against the primary engine's memdb URI; the named-MemStore feature
-// shares the storage layer between handles. See the
-// `PerfettoSqlEngine` shared-filename ctor for intentional limitations.
 class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
  public:
   ConnectionImpl(TraceProcessorImpl* parent,
                  std::unique_ptr<PerfettoSqlEngine> engine)
       : parent_(parent), engine_(std::move(engine)) {}
   ~ConnectionImpl() override {
-    // Drop the engine before notifying the parent so that all per-conn
-    // sqlite resources are torn down while the parent is still alive.
+    // Tear down the engine while the parent is still alive.
     engine_.reset();
-    if (parent_ != nullptr) {
-      parent_->ReleaseConnection(this);
-    }
+    parent_->ReleaseConnection(this);
   }
 
   Iterator ExecuteQuery(const std::string& sql) override {
-    PERFETTO_DCHECK(engine_ != nullptr);
-    PERFETTO_DCHECK(parent_ != nullptr);
     std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
-    // Record query begin in the parent's `sql_stats` so non-default
-    // connections show up in the same diagnostic table as connection-0.
     uint32_t sql_stats_row =
         parent_->context()->storage->mutable_sql_stats()->RecordQueryBegin(
             sql, base::GetWallTimeNs().count());
-    base::StatusOr<PerfettoSqlEngine::ExecutionResult> result =
-        engine_->ExecuteUntilLastStatement(
-            SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
-    std::unique_ptr<IteratorImpl> impl(
-        new IteratorImpl(parent_, std::move(result), sql_stats_row));
-    return Iterator(std::move(impl));
+    auto result = engine_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
+    return Iterator(std::make_unique<IteratorImpl>(
+        parent_, std::move(result), sql_stats_row));
   }
 
  private:
@@ -733,15 +717,13 @@ class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
 
 std::unique_ptr<TraceProcessor::Connection>
 TraceProcessorImpl::CreateConnection() {
-  // Strict-v1: connections are only legal post-NotifyEndOfFile. Concurrent
-  // ingestion is out of scope.
+  // Strict-v1: connections are only legal post-NotifyEndOfFile.
   PERFETTO_CHECK(notify_eof_called_);
-  // Once a secondary connection exists, `TraceStorage`'s singletons (most
-  // importantly `StringPool`) are reachable from multiple threads. Flip
-  // the pool's internal locking on before returning the new engine; the
-  // engine has no way to intern strings until this function returns so
-  // no extra barrier is needed.
-  context()->storage->mutable_string_pool()->EnableThreadSafetyForMultiConnection();
+  // Flip the StringPool to MT-safe mode before the secondary engine
+  // can intern (it has no way to until this function returns, so no
+  // extra barrier is needed).
+  context()->storage->mutable_string_pool()
+      ->EnableThreadSafetyForMultiConnection();
   auto engine = std::make_unique<PerfettoSqlEngine>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
       engine_->sqlite_engine()->filename(), database_.get());
@@ -750,9 +732,6 @@ TraceProcessorImpl::CreateConnection() {
 }
 
 void TraceProcessorImpl::ReleaseConnection(ConnectionImpl*) {
-  // `fetch_sub` returns the value *before* the decrement; assert it was
-  // strictly positive so an unbalanced release surfaces a CHECK rather
-  // than wrapping past zero.
   int prev =
       non_default_connection_count_.fetch_sub(1, std::memory_order_acq_rel);
   PERFETTO_CHECK(prev > 0);
@@ -1065,8 +1044,8 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   // short-circuited by stale entries from the previous engine. Safe
   // because `non_default_connection_count_ == 0` is CHECK'd above so no
   // reader engine is observing any of these.
-  database_->ResetFunctionPool();
-  database_->ResetPackagePool();
+  database_->functions.Reset();
+  database_->packages.Reset();
   database_->ResetIncludedModules();
 
   // Reset the engine to its initial state. Pass cached bounds to avoid
