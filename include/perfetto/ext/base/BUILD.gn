@@ -91,6 +91,7 @@ source_set("base") {
 
 source_set("regex") {
   sources = [ "regex.h" ]
+  public_deps = [ ":base" ]
 }
 
 source_set("version") {

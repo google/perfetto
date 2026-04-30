@@ -24,6 +24,7 @@ import("../../../gn/perfetto_cc_proto_descriptor.gni")
 
 source_set("stdlib") {
   sources = [ "sql_modules.h" ]
+  public_deps = [ "../../../include/perfetto/ext/base" ]
 }
 
 source_set("sql_bundle") {

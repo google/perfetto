@@ -487,6 +487,42 @@ class GnParser(object):
     def transitive_source_set_deps(self):
       return set(d for d in self.transitive_deps if d.type == 'source_set')
 
+    def header_visible_deps(self):
+      """Returns deps visible to consumers for header-include purposes.
+
+      GN's `public_deps` propagate header visibility transitively even
+      across linker_unit boundaries: if A → B (static_lib) and B has a
+      public_dep on a header-only source_set S, then A can `#include`
+      S's headers in GN.
+
+      get_target() bubbles source_set deps via Target.update(), but
+      stops at linker_unit boundaries (intentionally — we don't want
+      cflags/defines/private deps leaking across a static lib). That
+      leaves consumers of a linker_unit unable to see its public_dep
+      source_sets, which Bazel's layering_check requires as *direct*
+      deps on the consumer's cc_library.
+
+      This helper restores the GN-equivalent header-visibility set by
+      walking linker_unit deps and pulling in any source_sets reachable
+      through them. We can't distinguish public_deps from private deps
+      from `gn desc` JSON, so this is mildly over-inclusive, but only
+      for source_sets — non-source_set internals stay opaque.
+      """
+      result = set(self.deps)
+      seen_linker_units = set()
+      stack = [d for d in self.deps if d.type in LINKER_UNIT_TYPES]
+      while stack:
+        cur = stack.pop()
+        if cur in seen_linker_units:
+          continue
+        seen_linker_units.add(cur)
+        for sub in cur.deps:
+          if sub.type == 'source_set':
+            result.add(sub)
+          elif sub.type in LINKER_UNIT_TYPES:
+            stack.append(sub)
+      return result
+
     def custom_target_type(self) -> Optional[str]:
       custom_bazel_type = self.metadata.get('perfetto_custom_target_type')
       return custom_bazel_type[0] if custom_bazel_type else None

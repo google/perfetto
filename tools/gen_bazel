@@ -952,10 +952,11 @@ def gen_target_helper(gn_target: GnParser.Target,
 
   if (gn_target.type in gn_utils.LINKER_UNIT_TYPES or
       gn_target.type == 'source_set'):
-    # source_sets are now cc_library targets, so each cc_library only needs
-    # to declare its immediate GN deps and let Bazel resolve the graph
-    # transitively.
-    for dep in sorted(gn_target.immediate_deps):
+    # Bazel's layering_check requires every #include to be satisfied by a
+    # *direct* dep, so we list every target whose headers GN's public_deps
+    # chain makes visible to this target. See header_visible_deps() for
+    # how that set is computed.
+    for dep in sorted(gn_target.header_visible_deps()):
       dep_name = dep.name
       # source_set / descriptor proto plugins don't emit cc artifacts; they
       # are pure proto aggregators, so cc consumers must skip them.
@@ -974,7 +975,7 @@ def gen_target_helper(gn_target: GnParser.Target,
       if dep.custom_action_type == 'tp_tables':
         label_name = ':' + get_bazel_label_name(dep_name)
         if win_target:
-          win_target_names = [t.name for t in win_target.immediate_deps]
+          win_target_names = [t.name for t in win_target.header_visible_deps()]
           if dep_name in win_target_names:
             label.win_srcs += [label_name]
         label.srcs += [label_name]
