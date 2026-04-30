@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_RPC_H_
 #define SRC_TRACE_PROCESSOR_RPC_RPC_H_
 
+#include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -192,6 +193,27 @@ class Rpc {
     auto* e = tag_to_conn_.Find(tag);
     return e ? static_cast<int64_t>(e->conn_id) : -1;
   }
+  // Per-phase wall-time accumulators (ns). Workers add to
+  // `sql_exec` for the inclusive Acquire→Release span (the actual
+  // ExecuteQuery + Serialize work) and the transport thread adds to
+  // `dispatcher` for the inclusive drain-closure span. Comparing
+  // their sums against the burst's wall-time is how the benchmark
+  // diagnoses "is the worker pool bottlenecked or is dispatch?":
+  //   worker_parallelism = sql_exec_ns / wall_ns   (caps at #workers)
+  //   dispatcher_fraction = dispatcher_ns / wall_ns (≈1.0 means the
+  //                                                  transport
+  //                                                  thread is busy
+  //                                                  the whole time)
+  void reset_phase_timers_for_testing() {
+    sql_exec_ns_.store(0, std::memory_order_relaxed);
+    dispatcher_ns_.store(0, std::memory_order_relaxed);
+  }
+  int64_t sql_exec_ns_for_testing() const {
+    return sql_exec_ns_.load(std::memory_order_relaxed);
+  }
+  int64_t dispatcher_ns_for_testing() const {
+    return dispatcher_ns_.load(std::memory_order_relaxed);
+  }
 
  private:
   void ParseRpcRequest(const uint8_t*, size_t);
@@ -360,6 +382,10 @@ class Rpc {
   };
   mutable std::mutex tag_mu_;
   base::FlatHashMap<std::string, TagSlot> tag_slots_;
+
+  // See `reset_phase_timers_for_testing` for usage.
+  std::atomic<int64_t> sql_exec_ns_{0};
+  std::atomic<int64_t> dispatcher_ns_{0};
 };
 
 }  // namespace trace_processor

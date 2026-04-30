@@ -894,6 +894,7 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
     StreamingResult sr;
     sr.req_type = q.req_type;
     sr.response_fn = std::move(q.response_fn);
+    const auto t_exec_start = base::GetWallTimeNs();
     {
       // Tightly scoped iterator + serializer so the prepared statement
       // is finalised before the connection returns to the pool. Same
@@ -918,6 +919,9 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
         buffered.Reset();
       }
     }
+    sql_exec_ns_.fetch_add(
+        (base::GetWallTimeNs() - t_exec_start).count(),
+        std::memory_order_relaxed);
     ReleaseConnectionToPool(std::move(pooled));
 
     // Tag bookkeeping: hand off the next same-tag query (if any) to a
@@ -955,12 +959,16 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
       // Runs on the transport thread. Drain in slot order; out-of-order
       // results park in `streaming_send_ready_` until their predecessor
       // arrives.
+      const auto t_drain_start = base::GetWallTimeNs();
       for (;;) {
         StreamingResult sr;
         {
           std::lock_guard<std::mutex> g(pool_mu_);
           auto* found = streaming_send_ready_.Find(streaming_send_drain_cursor_);
           if (!found) {
+            dispatcher_ns_.fetch_add(
+                (base::GetWallTimeNs() - t_drain_start).count(),
+                std::memory_order_relaxed);
             return;
           }
           sr = std::move(*found);
