@@ -68,36 +68,24 @@ class PerfettoSqlEngine {
     dataframe::Dataframe* dataframe;
     std::string name;
   };
+  // Primary (writer) ctor: opens a fresh sqlite3 handle and registers the
+  // full set of tables, functions, and vtab modules.
   PerfettoSqlEngine(StringPool* pool,
                     bool enable_extra_checks,
-                    PerfettoSqlDatabase* database = nullptr);
+                    PerfettoSqlDatabase* database);
 
-  // Phase 2 ctor: mints a secondary engine sharing storage with a primary
-  // engine via |cache=shared|. |shared_filename| should come from
-  // |SqliteEngine::filename()| of the primary engine; the resulting engine
-  // attaches to the same in-memory database, so plain SQL/DDL committed on
-  // the main schema by the primary is visible here.
+  // Secondary (reader) ctor: opens a sqlite3 handle against
+  // `shared_filename` (use `SqliteEngine::filename()` of the primary).
+  // The two handles share the in-memory storage via the named-MemStore
+  // feature, so plain SQL / DDL committed on `main` by the primary is
+  // visible here. Per-engine state (function/aggregate/window
+  // registrations, vtab modules, commit/rollback callbacks) is fresh.
   //
-  // |database| is the same `PerfettoSqlDatabase*` passed to the primary
-  // engine. The secondary engine reads vtab state from staging on cold
-  // xConnect for tables it has never seen before; the primary engine
-  // continues to be the sole writer.
-  //
-  // Caveats (intentional limitations of this chunk):
-  //  - Only the dataframe vtab module is registered on secondary engines.
-  //    Tables backed by `runtime_table_function` (CREATE PERFETTO FUNCTION
-  //    returning a TABLE) or `__intrinsic_static_table_function` (e.g.
-  //    `experimental_*` tables) are NOT yet visible to secondary
-  //    connections. Adding those is straightforward (mirror what's done
-  //    for DataframeModule) but deferred to keep this chunk focused.
-  //  - PerfettoSQL functions are NOT registered. The function pool will be
-  //    diff-and-registered per connection in function-pool-per-conn-diff.
-  //  - The |perfetto_tables| housekeeping table is NOT created here; it
-  //    already exists in the shared cache (the primary engine created it).
-  //  - Commit/rollback callbacks ARE installed for the dataframe module
-  //    so the secondary's local PerVtabState bookkeeping stays consistent
-  //    on rollbacks (publish-to-staging only happens on the writer/primary
-  //    engine; readers never publish).
+  // Intentional limitations: only the dataframe vtab module is
+  // registered on secondaries; runtime-table-function / static-table-
+  // function vtabs are not yet replicated across connections. PerfettoSQL
+  // functions and packages flow in via the additive pool diff at the
+  // top of every `Execute`.
   PerfettoSqlEngine(StringPool* pool,
                     bool enable_extra_checks,
                     const std::string& shared_filename,

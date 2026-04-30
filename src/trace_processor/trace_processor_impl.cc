@@ -691,17 +691,10 @@ TraceProcessorImpl::~TraceProcessorImpl() {
   PERFETTO_CHECK(non_default_connection_count_ == 0);
 }
 
-// Phase 2 iter 2: each non-default `Connection` owns its own
-// `PerfettoSqlEngine` (and a fresh `SqliteEngine` / `SqliteConnection`),
-// opened against the primary engine's memdb URI so `cache=shared` ties
-// them together at the storage layer.
-//
-// Limits of this scaffold (see `PerfettoSqlEngine` shared-filename ctor
-// for the full list): the secondary engine has an empty vtab/function
-// registry, so queries that resolve to a vtab module
-// (`runtime_table_function`, `__intrinsic_dataframe`, ...) or a
-// PerfettoSQL-registered function will fail. Plain SQL against tables
-// and views visible via `cache=shared` works.
+// Each non-default `Connection` owns its own `PerfettoSqlEngine` opened
+// against the primary engine's memdb URI; the named-MemStore feature
+// shares the storage layer between handles. See the
+// `PerfettoSqlEngine` shared-filename ctor for intentional limitations.
 class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
  public:
   ConnectionImpl(TraceProcessorImpl* parent,
@@ -743,22 +736,12 @@ TraceProcessorImpl::CreateConnection() {
   // Strict-v1: connections are only legal post-NotifyEndOfFile. Concurrent
   // ingestion is out of scope.
   PERFETTO_CHECK(notify_eof_called_);
-  // Once a secondary connection exists, the shared `StringPool` (and any
-  // other singleton in `TraceStorage`) becomes reachable from multiple
-  // threads. Flip the pool's internal locking on *before* the secondary's
-  // engine can be returned to the caller — `CreateConnection` runs
-  // synchronously on the writer thread, and the new engine has no way to
-  // intern strings until this function returns, so this ordering is safe
-  // without an additional barrier. Single-connection callers never reach
-  // here and continue to pay zero locking overhead.
+  // Once a secondary connection exists, `TraceStorage`'s singletons (most
+  // importantly `StringPool`) are reachable from multiple threads. Flip
+  // the pool's internal locking on before returning the new engine; the
+  // engine has no way to intern strings until this function returns so
+  // no extra barrier is needed.
   context()->storage->mutable_string_pool()->EnableThreadSafetyForMultiConnection();
-  // Mint a fresh engine pointing at the same memdb URI as the primary so
-  // `cache=shared` propagates DDL across handles. The shared
-  // `PerfettoSqlDatabase` is what wires cross-connection vtab-state
-  // resolution: the primary engine published its committed dataframe
-  // states there on every OnCommit, and this fresh secondary engine
-  // looks them up on cold xConnect. See `PerfettoSqlEngine`
-  // shared-filename ctor for the (intentionally minimal) per-engine setup.
   auto engine = std::make_unique<PerfettoSqlEngine>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
       engine_->sqlite_engine()->filename(), database_.get());

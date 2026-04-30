@@ -153,15 +153,13 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
                       : std::make_optional(static_cast<uint32_t>(offset));
 }
 
-// Build a unique URI-style filename pointing at the in-tree |memdb| VFS.
-// The leading slash on the name engages memdb's named-MemStore feature:
-// multiple connections opening the same URI share the underlying byte
-// buffer (the MemStore) but each gets its own BtShared / page cache.
-// Sharing the BtShared via |cache=shared| would serialise sqlite3_step
-// across connections on the BtShared mutex, defeating multi-connection
-// parallelism. The atomic counter guarantees that two independent
-// SqliteEngine instances in the same process do not collide on the
-// MemStore name.
+// Build a unique URI for the in-tree memdb VFS. The leading slash engages
+// memdb's named-MemStore feature: multiple sqlite3 handles opened against
+// the same URI share the byte buffer (the MemStore) but each gets its own
+// BtShared / page cache. Sharing BtShared (via `cache=shared`) would
+// serialise sqlite3_step across handles on the BtShared mutex, defeating
+// multi-connection parallelism. The atomic counter prevents two
+// `SqliteEngine` instances in the same process from colliding.
 std::string BuildMemdbUri() {
   static std::atomic<uint64_t> kUniqueIdCounter{0};
   uint64_t unique_id = kUniqueIdCounter.fetch_add(1, std::memory_order_relaxed);
@@ -171,16 +169,11 @@ std::string BuildMemdbUri() {
   return filename_buf;
 }
 
-}  // namespace
-
-SqliteConnection::SqliteConnection(const std::string& filename) {
+ScopedDb OpenDb(const std::string& filename) {
   EnsureSqliteInitialized();
-
-  // Ensure that we open the database with mutexes disabled: this is because
-  // trace processor as a whole cannot be used from multiple threads so there
-  // is no point paying the (potentially significant) cost of mutexes at the
-  // SQLite level. SQLITE_OPEN_URI is required because URI parsing is not
-  // enabled globally.
+  // SQLITE_OPEN_NOMUTEX: trace_processor uses one sqlite3 per thread, so
+  // SQLite's per-handle mutex is unnecessary overhead.
+  // SQLITE_OPEN_URI: URI parsing isn't enabled globally.
   static constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE |
                                           SQLITE_OPEN_CREATE |
                                           SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI;
@@ -189,35 +182,36 @@ SqliteConnection::SqliteConnection(const std::string& filename) {
                                  nullptr) == SQLITE_OK);
   InitializeSqlite(db);
 
-  // Pragmas required for the multi-connection design:
-  //  - journal_mode=MEMORY: keep rollback journal in memory (we never want
-  //    disk I/O for the in-memory database, and the |memdb| VFS lacks SHM
-  //    hooks so WAL is not an option anyway).
-  //  - temp_store=MEMORY: keep all temp tables/indices in memory. This is
-  //    a per-connection setting and is the substrate for the Phase 2
-  //    temp-then-promote include pattern. SQLite stores this as an integer,
-  //    so the read-back returns "2", not "memory".
-  //  - locking_mode=NORMAL: explicitly set so it can't drift to EXCLUSIVE,
-  //    which would prevent additional connections from opening the same
-  //    memdb name (and so break the named-MemStore sharing).
-  // Each pragma is applied and then verified by re-reading: SQLite silently
-  // falls back when a pragma can't be honoured, and we want that to crash
-  // loudly rather than corrupt the multi-conn invariants.
+  // Multi-conn pragmas. Each is applied and verified — SQLite silently
+  // falls back when a pragma can't be honoured and we want to crash
+  // loudly rather than corrupt multi-conn invariants.
+  // - journal_mode=MEMORY: rollback journal in memory (memdb VFS has no
+  //   SHM hooks so WAL isn't an option anyway).
+  // - temp_store=MEMORY: temp tables/indices in memory; substrate for
+  //   the temp-then-promote include pattern. Stored as an int so the
+  //   read-back is "2", not "memory".
+  // - locking_mode=NORMAL: keep it from drifting to EXCLUSIVE which
+  //   would break named-MemStore sharing.
   ApplyAndVerifyPragma(db, "PRAGMA journal_mode=MEMORY", "journal_mode",
                        {"memory"});
   ApplyAndVerifyPragma(db, "PRAGMA temp_store=MEMORY", "temp_store",
                        {"2", "memory"});
   ApplyAndVerifyPragma(db, "PRAGMA locking_mode=NORMAL", "locking_mode",
                        {"normal"});
-
-  db_.reset(db);
+  return ScopedDb(db);
 }
 
-SqliteConnection::~SqliteConnection() {
-  // It is important to unregister any functions that have been registered
-  // with the database before destroying it. This is because functions can
-  // hold onto prepared statements, which must be finalized before database
-  // destruction.
+}  // namespace
+
+SqliteEngine::SqliteEngine()
+    : filename_(BuildMemdbUri()), db_(OpenDb(filename_)) {}
+
+SqliteEngine::SqliteEngine(const std::string& shared_filename)
+    : filename_(shared_filename), db_(OpenDb(filename_)) {}
+
+SqliteEngine::~SqliteEngine() {
+  // Unregister functions before db close so any prepared statements they
+  // hold get finalised first.
   for (auto it = fn_ctx_.GetIterator(); it; ++it) {
     int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
                                          it.key().second, SQLITE_UTF8, nullptr,
@@ -226,20 +220,11 @@ SqliteConnection::~SqliteConnection() {
       PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
     }
   }
-  fn_ctx_.Clear();
 }
-
-SqliteEngine::SqliteEngine()
-    : filename_(BuildMemdbUri()), connection_(filename_) {}
-
-SqliteEngine::SqliteEngine(const std::string& shared_filename)
-    : filename_(shared_filename), connection_(filename_) {}
-
-SqliteEngine::~SqliteEngine() = default;
 
 SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "QUERY_PREPARE");
-  sqlite3* db = connection_.db();
+  sqlite3* db = db_.get();
   sqlite3_stmt* raw_stmt = nullptr;
   // Transparent retry for shared-cache schema-lock contention
   // (SQLITE_BUSY / SQLITE_LOCKED) and for schema-cookie bumps
@@ -288,7 +273,7 @@ SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
 }
 
 base::Status SqliteEngine::ExecWithRetry(const char* sql) {
-  sqlite3* db = connection_.db();
+  sqlite3* db = db_.get();
   // Same retry shape as |PrepareStatement|: BUSY/LOCKED triggers a sleep+
   // retry under the busy budget; SCHEMA triggers a re-issue under the
   // schema budget (sqlite3_exec re-prepares internally each call so
@@ -337,7 +322,7 @@ base::Status SqliteEngine::RegisterFunction(const char* name,
                                             void* ctx,
                                             FnCtxDestructor* destructor,
                                             bool deterministic) {
-  sqlite3* db = connection_.db();
+  sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
   int ret =
       sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
@@ -347,7 +332,7 @@ base::Status SqliteEngine::RegisterFunction(const char* name,
         "Unable to register function with name %s: %s (SQLite error code: %d)",
         name, sqlite3_errmsg(db), ret);
   }
-  *connection_.fn_ctx().Insert(std::make_pair(name, argc), ctx).first = ctx;
+  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
   return base::OkStatus();
 }
 
@@ -359,7 +344,7 @@ base::Status SqliteEngine::RegisterAggregateFunction(
     void* ctx,
     FnCtxDestructor* destructor,
     bool deterministic) {
-  sqlite3* db = connection_.db();
+  sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
   int ret =
       sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
@@ -382,7 +367,7 @@ base::Status SqliteEngine::RegisterWindowFunction(const char* name,
                                                   void* ctx,
                                                   FnCtxDestructor* destructor,
                                                   bool deterministic) {
-  sqlite3* db = connection_.db();
+  sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
   int ret = sqlite3_create_window_function(
       db, name, static_cast<int>(argc), flags, ctx, step, final, value,
@@ -397,7 +382,7 @@ base::Status SqliteEngine::RegisterWindowFunction(const char* name,
 }
 
 base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
-  sqlite3* db = connection_.db();
+  sqlite3* db = db_.get();
   int ret = sqlite3_create_function_v2(db, name, static_cast<int>(argc),
                                        SQLITE_UTF8, nullptr, nullptr, nullptr,
                                        nullptr, nullptr);
@@ -407,7 +392,7 @@ base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
         "%d)",
         name, sqlite3_errmsg(db), ret);
   }
-  connection_.fn_ctx().Erase({name, argc});
+  fn_ctx_.Erase({name, argc});
   return base::OkStatus();
 }
 
@@ -416,26 +401,26 @@ void SqliteEngine::RegisterVirtualTableModule(
     const sqlite3_module* module,
     void* ctx,
     ModuleContextDestructor destructor) {
-  int res = sqlite3_create_module_v2(connection_.db(), module_name.c_str(),
+  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(),
                                      module, ctx, destructor);
   PERFETTO_CHECK(res == SQLITE_OK);
 }
 
 void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {
-  auto* res = connection_.fn_ctx().Find(std::make_pair(name, argc));
+  auto* res = fn_ctx_.Find(std::make_pair(name, argc));
   return res ? *res : nullptr;
 }
 
 std::optional<uint32_t> SqliteEngine::GetErrorOffset() const {
-  return GetErrorOffsetDb(connection_.db());
+  return GetErrorOffsetDb(db_.get());
 }
 
 void* SqliteEngine::SetCommitCallback(CommitCallback callback, void* ctx) {
-  return sqlite3_commit_hook(connection_.db(), callback, ctx);
+  return sqlite3_commit_hook(db_.get(), callback, ctx);
 }
 
 void* SqliteEngine::SetRollbackCallback(RollbackCallback callback, void* ctx) {
-  return sqlite3_rollback_hook(connection_.db(), callback, ctx);
+  return sqlite3_rollback_hook(db_.get(), callback, ctx);
 }
 
 SqliteEngine::PreparedStatement::PreparedStatement(

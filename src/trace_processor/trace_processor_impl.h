@@ -145,12 +145,9 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  // Phase 2 iter 2: a `Connection` impl that owns its own
-  // `PerfettoSqlEngine` (with a fresh `SqliteEngine` /
-  // `SqliteConnection`) attached to the primary engine's memdb URI via
-  // `cache=shared`. See the doc-comment in `trace_processor_impl.cc`
-  // and the shared-filename ctor on `PerfettoSqlEngine` for the
-  // intentional limitations (no vtab/function replication yet).
+  // A `Connection` impl owning a fresh `PerfettoSqlEngine` attached to
+  // the primary engine's memdb URI. See the doc-comment in
+  // `trace_processor_impl.cc` for the intentional limitations.
   class ConnectionImpl;
   friend class ConnectionImpl;
 
@@ -196,9 +193,8 @@ class TraceProcessorImpl : public TraceProcessor,
   // Registered plugins, topologically sorted by dependency order.
   std::vector<std::unique_ptr<PluginBase>> plugins_;
 
-  // Cross-connection state (vtab-state map, function pool, per-module
-  // include locks). Phase 1 skeleton: empty. Phase 2 fills it in and
-  // wires it through `PerfettoSqlEngine`.
+  // Cross-connection state (vtab-state map, function/package pools,
+  // per-module include locks). Shared by every connection's engine.
   std::unique_ptr<PerfettoSqlDatabase> database_;
 
   std::unique_ptr<PerfettoSqlEngine> engine_;

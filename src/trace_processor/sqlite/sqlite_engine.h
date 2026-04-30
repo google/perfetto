@@ -34,38 +34,19 @@
 
 namespace perfetto::trace_processor {
 
-// Helper that converts SQLite's |SQLITE_BUSY| / |SQLITE_LOCKED| into a
-// transparent retry loop with capped exponential backoff. Either error means
-// "the underlying b-tree page or the shared schema lock is held by another
-// connection; try again later" and is the expected signal under multi-
-// connection contention.
-//
-// Usage pattern:
-//
-//   BusyRetryHelper retry;
-//   int err;
-//   do {
-//     err = sqlite3_prepare_v2(...);
-//   } while (err != SQLITE_OK && retry.ShouldRetry(err));
-//
-// Retries are bounded by |timeout|: |ShouldRetry| sleeps for a backoff
-// interval and returns true while the deadline has not elapsed. Once the
-// deadline passes (or the status is not BUSY/LOCKED), it returns false and
-// the caller should surface the SQLite error to the user.
+// Transparent retry for SQLite's |SQLITE_BUSY| / |SQLITE_LOCKED|: another
+// connection holds the page or schema lock; sleep with exponential backoff
+// and try again until |timeout| elapses.
 class BusyRetryHelper {
  public:
   static constexpr base::TimeMillis kDefaultTimeout = base::TimeMillis(1000);
-
   explicit BusyRetryHelper(base::TimeMillis timeout = kDefaultTimeout);
 
-  // Returns true if |sqlite_status| is |SQLITE_BUSY| or |SQLITE_LOCKED| and
-  // the deadline has not elapsed; in that case |ShouldRetry| also sleeps for
-  // a small backoff interval before returning. Returns false otherwise (the
-  // caller should stop retrying and surface the original error).
+  // Returns true if `sqlite_status` is BUSY/LOCKED and the deadline has
+  // not elapsed (sleeps for a backoff interval before returning); false
+  // otherwise.
   bool ShouldRetry(int sqlite_status);
 
-  // Test-only: allow injection of a custom sleep function so unit tests can
-  // verify the timeout/retry behaviour deterministically without real sleeps.
   using SleepFn = void(unsigned interval_us);
   void set_sleep_fn_for_testing(SleepFn* fn) { sleep_fn_ = fn; }
 
@@ -75,80 +56,23 @@ class BusyRetryHelper {
   SleepFn* sleep_fn_;
 };
 
-// Helper that converts SQLite's |SQLITE_SCHEMA| into a transparent
-// re-prepare loop. SQLite returns |SQLITE_SCHEMA| from |sqlite3_step| (and
-// occasionally |sqlite3_prepare_v2|) when the database schema cookie has
-// been bumped since the statement was prepared (some other connection
-// committed a CREATE/DROP/ALTER). The compiled bytecode is stale; the only
-// safe recovery is to finalize the statement and re-prepare it from its
-// |SqlSource|.
-//
-// Distinct from |BusyRetryHelper| because the recovery shape differs:
-// BUSY/LOCKED retries the same statement after |sqlite3_reset|; SCHEMA
-// invalidates the prepared statement and re-prepares from source. The
-// caller is responsible for issuing the re-prepare; this helper just
-// administers the budget.
-//
-// Budget: deadline-based (matches BUSY's 1s default) plus a hard count
-// cap (|kMaxAttempts|, default 100) to guard against pathological
-// "schema bumps every prepare" loops. In practice schema storms are
-// short-lived; either bound usually fires first depending on whether
-// the system is contended (deadline) or churning (count).
+// Transparent retry for SQLite's |SQLITE_SCHEMA|: the schema cookie has
+// been bumped since the statement was prepared. The bytecode is stale and
+// the caller must re-prepare from `SqlSource`; this helper only
+// administers the budget. Bounded by deadline + a hard attempt count
+// cap to guard against pathological "schema bumps every prepare" loops.
 class SchemaRetryHelper {
  public:
   static constexpr base::TimeMillis kDefaultTimeout = base::TimeMillis(1000);
   static constexpr uint32_t kMaxAttempts = 100;
-
   explicit SchemaRetryHelper(base::TimeMillis timeout = kDefaultTimeout);
 
-  // Returns true if |sqlite_status| is |SQLITE_SCHEMA|, the deadline has
-  // not elapsed, and the attempt count has not exceeded |kMaxAttempts|.
-  // Unlike |BusyRetryHelper|, does not sleep — schema bumps are typically
-  // serialised by the prior writer's commit so the next |sqlite3_prepare_v2|
-  // will see a stable cookie immediately.
   bool ShouldRetry(int sqlite_status);
-
   uint32_t attempt() const { return attempt_; }
 
  private:
   base::TimeMillis deadline_;
   uint32_t attempt_ = 0;
-};
-
-// A single open handle into a SQLite database, plus the per-handle bookkeeping
-// that has to live alongside it (the function-context map). One
-// |SqliteConnection| corresponds to one |sqlite3*|.
-//
-// In Phase 1 there is exactly one |SqliteConnection| owned by the
-// |SqliteEngine|. In Phase 2 the same VFS-level in-memory database may back
-// multiple |SqliteConnection|s, each with its own function registrations.
-class SqliteConnection {
- public:
-  using FnCtxMap = base::FlatHashMap<std::pair<std::string, int>,
-                                     void*,
-                                     base::MurmurHash<std::pair<std::string,
-                                                                int>>>;
-
-  // Opens a new SQLite handle against |filename|. |filename| is expected to be
-  // a URI-form name pointing at the in-tree |memdb| VFS (see |SqliteEngine|).
-  // Crashes (PERFETTO_CHECK) if the open fails.
-  explicit SqliteConnection(const std::string& filename);
-  ~SqliteConnection();
-
-  SqliteConnection(SqliteConnection&&) noexcept = delete;
-  SqliteConnection& operator=(SqliteConnection&&) = delete;
-  SqliteConnection(const SqliteConnection&) = delete;
-  SqliteConnection& operator=(const SqliteConnection&) = delete;
-
-  sqlite3* db() const { return db_.get(); }
-  FnCtxMap& fn_ctx() { return fn_ctx_; }
-  const FnCtxMap& fn_ctx() const { return fn_ctx_; }
-
- private:
-  // Per-handle map: function registrations are scoped to a single |sqlite3*|,
-  // so this lives next to |db_|.
-  FnCtxMap fn_ctx_;
-  ScopedDb db_;
 };
 
 // Wrapper class around SQLite C API.
@@ -176,64 +100,45 @@ class SqliteEngine {
   using WindowFnFinal = void(sqlite3_context* ctx);
   using FnCtxDestructor = void(void*);
 
-  // Wrapper class for SQLite's |sqlite3_stmt| struct and associated functions.
   struct PreparedStatement {
    public:
     bool Step();
     bool IsDone() const;
-
     const char* original_sql() const;
     const char* sql() const;
-
     const base::Status& status() const { return status_; }
     sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }
 
    private:
     friend class SqliteEngine;
-
     PreparedStatement(ScopedStmt,
                       SqlSource,
                       sqlite3* db,
                       base::TimeMillis retry_timeout);
-
-    // Re-prepares |stmt_| from |sql_source_| against |db_|, replacing the
-    // current |sqlite3_stmt*| and |expanded_sql_|. Used by |Step| as the
-    // recovery path for |SQLITE_SCHEMA|: the schema cookie has changed and
-    // the bytecode is stale. Returns the SQLite return code from
-    // |sqlite3_prepare_v2|.
+    // Recovery path for SQLITE_SCHEMA: re-prepare `stmt_` from
+    // `sql_source_` against `db_`. Returns the SQLite return code.
     int ReprepareFromSource();
 
     ScopedStmt stmt_;
     ScopedSqliteString expanded_sql_;
     SqlSource sql_source_;
     base::Status status_ = base::OkStatus();
-    // The SQLite handle this statement was prepared against. Stored so that
-    // |ReprepareFromSource| can re-issue |sqlite3_prepare_v2| against the
-    // same connection. Not owning — outlives the |PreparedStatement|.
-    sqlite3* db_ = nullptr;
+    sqlite3* db_ = nullptr;  // Non-owning; outlives PreparedStatement.
     base::TimeMillis retry_timeout_;
-    // Whether |sqlite3_step| has ever returned |SQLITE_ROW| for the current
-    // prepared statement. If true, a subsequent |SQLITE_SCHEMA| cannot be
-    // safely auto-recovered (re-preparing would lose the cursor position),
-    // and the error is surfaced to the caller instead.
+    // True once `sqlite3_step` has returned `SQLITE_ROW` at least once;
+    // a SCHEMA error after that point is unrecoverable (re-preparing
+    // would lose the cursor position) and is surfaced to the caller.
     bool rows_seen_ = false;
   };
 
-  // Default ctor: mints a fresh memdb URI (see |BuildMemdbUri|) and opens a
-  // new SQLite handle against it. Use this for a brand-new in-memory database.
+  // Mints a fresh memdb URI and opens a new sqlite3 handle.
   SqliteEngine();
-
-  // Phase 2 ctor: opens a new SQLite handle against an existing memdb URI.
-  // Pass the |filename()| of an already-constructed |SqliteEngine|; the
-  // resulting engine attaches to the same shared in-memory database via
-  // |cache=shared|, so its connections see DDL committed on the main schema
-  // by other engines pointing at the same URI.
-  //
-  // Other per-engine state (function/aggregate/window registrations, vtab
-  // module registrations, commit/rollback callbacks) is fresh per engine —
-  // sharing only happens at the storage/schema layer.
+  // Opens a new sqlite3 handle against an existing memdb URI (use
+  // `filename()` of another `SqliteEngine`). The two handles share the
+  // same in-memory storage via the named-MemStore feature; per-engine
+  // state (functions, vtab modules, commit/rollback callbacks) is
+  // fresh per engine.
   explicit SqliteEngine(const std::string& shared_filename);
-
   ~SqliteEngine();
 
   SqliteEngine(SqliteEngine&&) noexcept = delete;
@@ -242,13 +147,9 @@ class SqliteEngine {
   // Prepares a SQLite statement for the given SQL.
   PreparedStatement PrepareStatement(SqlSource);
 
-  // Runs |sql| via |sqlite3_exec| with the same transparent BUSY/LOCKED and
-  // SCHEMA retry semantics as |PrepareStatement|. |sql| should not contain
-  // bound parameters; it is intended for short literal statements like
-  // |SAVEPOINT name|, |RELEASE name|, |ROLLBACK TO name; RELEASE name|.
-  // On failure, returns an error containing the SQLite errmsg. Used by
-  // engine-level transactional plumbing (savepoint open/release/rollback)
-  // that goes around |PreparedStatement|.
+  // Runs `sql` via `sqlite3_exec` with the same BUSY/LOCKED/SCHEMA retry
+  // semantics as `PrepareStatement`. Intended for short literal statements
+  // like SAVEPOINT/RELEASE/ROLLBACK TO that go around `PreparedStatement`.
   base::Status ExecWithRetry(const char* sql);
 
   // Registers a C++ function to be runnable from SQL.
@@ -310,35 +211,26 @@ class SqliteEngine {
   using RollbackCallback = void(void*);
   void* SetRollbackCallback(RollbackCallback callback, void* ctx);
 
-  sqlite3* db() const { return connection_.db(); }
-
-  // The URI-style filename this engine's connection was opened against. In
-  // Phase 2 callers can pass this to the |shared_filename| ctor of another
-  // |SqliteEngine| to mint a second handle against the same shared in-memory
-  // database (cross-connection schema visibility via |cache=shared|).
+  sqlite3* db() const { return db_.get(); }
   const std::string& filename() const { return filename_; }
 
-  // Configures the timeout used to retry transient |SQLITE_BUSY| /
-  // |SQLITE_LOCKED| errors in |PrepareStatement| and |PreparedStatement::Step|.
-  // The default is |BusyRetryHelper::kDefaultTimeout| (1000 ms). Newly-prepared
-  // statements pick up the current value at prepare time.
-  // TODO: thread this through |TraceProcessor::Config| once a knob exists.
+  // TODO: thread this through `TraceProcessor::Config` once a knob exists.
   void set_busy_retry_timeout_for_testing(base::TimeMillis timeout) {
     busy_retry_timeout_ = timeout;
   }
 
  private:
+  using FnCtxMap =
+      base::FlatHashMap<std::pair<std::string, int>, void*,
+                        base::MurmurHash<std::pair<std::string, int>>>;
   std::optional<uint32_t> GetErrorOffset() const;
 
-  // URI-style filename used to open all connections against this engine. Stored
-  // so that future code can mint additional |SqliteConnection|s pointing at
-  // the same shared in-memory database.
   std::string filename_;
-  // The single connection owned by this engine today. Phase 2 will introduce
-  // additional connections sharing the same |filename_|.
-  SqliteConnection connection_;
-  // Per-engine timeout for transparent BUSY/LOCKED retries inside
-  // |PrepareStatement| and |PreparedStatement::Step|.
+  ScopedDb db_;
+  // Function registrations live alongside the handle: the SQLite handle
+  // owns the function pointers, but our destructor needs to drop them
+  // explicitly so prepared statements get finalised before db close.
+  FnCtxMap fn_ctx_;
   base::TimeMillis busy_retry_timeout_ = BusyRetryHelper::kDefaultTimeout;
 };
 

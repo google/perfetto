@@ -109,13 +109,11 @@ void SendRpcChunk(base::HttpServerConnection* conn,
 
 Httpd::Httpd(Rpc& rpc)
     : global_trace_processor_rpc_(rpc), http_srv_(&task_runner_, this) {
-  // Post-EOF streaming queries dispatch onto the iter-1 worker pool.
-  // The dispatcher below carries the "send all chunks for this query"
-  // closure from the worker thread back onto the task-runner thread,
-  // where `rpc_response_fn_` (a SendRpcChunk over the websocket) is
-  // safe to call. Without this, `OnRpcRequest` returning before the
-  // worker finishes would leave concurrent websocket messages
-  // serialised on the single task-runner thread.
+  // Post-EOF streaming queries dispatch onto the RPC worker pool. The
+  // dispatcher carries the "send all chunks for this query" closure
+  // from the worker thread back to the task-runner thread, where
+  // `rpc_response_fn_` (`SendRpcChunk` over the websocket) is safe to
+  // call.
   rpc.SetResponseDispatcher([this](std::function<void()> task) {
     task_runner_.PostTask(std::move(task));
   });

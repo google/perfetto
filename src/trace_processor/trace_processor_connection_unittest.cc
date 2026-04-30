@@ -125,11 +125,8 @@ class TraceProcessorConnectionTest : public ::testing::Test {
   std::unique_ptr<TraceProcessor> tp_;
 };
 
-// Smoke tests for `TraceProcessor::CreateConnection` and the secondary
-// `Connection` it returns. Phase 2 iter 2 wires the secondary
-// connection to its own `PerfettoSqlEngine` opened against the primary
-// engine's memdb URI; these tests verify that scaffold end-to-end on a
-// fresh (empty) trace.
+// Smoke test for `TraceProcessor::CreateConnection` and the secondary
+// `Connection` it returns.
 TEST_F(TraceProcessorConnectionTest, SecondaryConnectionExecutesTrivialQuery) {
   auto conn = MintConn();
   // Trivial query that touches no tables: exercises the per-connection
@@ -235,7 +232,7 @@ TEST_F(TraceProcessorConnectionTest,
             3);
 }
 
-// Phase 2 iter 6: every top-level `Execute(sql)` opens a SAVEPOINT
+// Every top-level `Execute(sql)` opens a SAVEPOINT
 // (`perfetto_execute_<n>`) so that if a later statement in a multi-
 // statement SQL string fails, earlier side-effects are rolled back.
 TEST_F(TraceProcessorConnectionTest,
