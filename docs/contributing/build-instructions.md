@@ -31,7 +31,7 @@ git clone https://github.com/google/perfetto
 #### Pull dependent libraries and toolchains
 
 ```bash
-tools/install-build-deps [--android] [--ui] [--linux-arm]
+tools/install-build-deps [--android] [--ui] [--linux-arm] [--rust]
 ```
 
 `--android` will pull the Android NDK, emulator and other deps required
@@ -41,6 +41,11 @@ to build for `target_os = "android"`.
 Web UI. See the [UI Development](/docs/contributing/ui-getting-started.md) section below for more.
 
 `--linux-arm` will pull the sysroots for cross-compiling for Linux ARM/64.
+
+`--rust` will pull the Rust toolchain required to build the
+[Rust SDK](/docs/getting-started/rust-sdk.md). The Rust SDK can also
+be built using a system Rust toolchain (1.85+) via Cargo without this
+flag.
 
 WARNING: Note that if you're using an M1 or any later ARM Mac, your Python
 version should be at least 3.9.1 to work around
