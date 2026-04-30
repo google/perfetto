@@ -160,6 +160,11 @@ const FLAMEGRAPH_VIEW_SCHEMA = z
     z.object({
       kind: z.literal('PIVOT').readonly(),
       pivot: z.string().readonly(),
+      // Optional human-readable label for the pivot chip. The SQL match
+      // is always on `pivot`; `displayLabel` only changes how the chip
+      // renders. Useful when pivoting on a synthetic value (e.g. a path
+      // hash) that would otherwise be opaque to the user.
+      displayLabel: z.string().optional().readonly(),
     }),
   ])
   .readonly();
@@ -1497,7 +1502,9 @@ function toTags(state: FlamegraphState): ReadonlyArray<string> {
   };
   const filters = state.filters.map((x) => toString(x));
   return filters.concat(
-    state.view.kind === 'PIVOT' ? ['Pivot: ' + state.view.pivot] : [],
+    state.view.kind === 'PIVOT'
+      ? ['Pivot: ' + (state.view.displayLabel ?? state.view.pivot)]
+      : [],
   );
 }
 

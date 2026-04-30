@@ -26,11 +26,12 @@ import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import m from 'mithril';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraph,
-  QueryFlamegraphWithMetrics,
+  QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {
   Flamegraph,
   FLAMEGRAPH_STATE_SCHEMA,
@@ -178,7 +179,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
 
   private createAreaSelectionTab(trace: Trace) {
     let previousSelection: undefined | AreaSelection;
-    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+    let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
     return {
       id: 'instruments_sample_flamegraph',
       name: 'Instruments Sample Flamegraph',
@@ -187,21 +188,19 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
         if (changed) {
-          flamegraphWithMetrics = this.computeInstrumentsSampleFlamegraph(
-            trace,
-            selection,
-          );
+          flamegraphMetrics =
+            this.computeInstrumentsSampleFlamegraph(selection);
           previousSelection = selection;
         }
-        if (flamegraphWithMetrics === undefined) {
+        if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const {flamegraph, metrics} = flamegraphWithMetrics;
         const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render({
-            metrics,
+          content: m(FlamegraphPanel, {
+            trace,
+            metrics: flamegraphMetrics,
             state: store.state.areaSelectionFlamegraphState,
             onStateChange: (state) => {
               store.edit((draft) => {
@@ -215,9 +214,8 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
   }
 
   private computeInstrumentsSampleFlamegraph(
-    trace: Trace,
     currentSelection: AreaSelection,
-  ): QueryFlamegraphWithMetrics | undefined {
+  ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
     const upids = getUpidsFromInstrumentsSampleAreaSelection(currentSelection);
     const utids = getUtidsFromInstrumentsSampleAreaSelection(currentSelection);
     if (utids.length === 0 && upids.length === 0) {
@@ -257,7 +255,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return {flamegraph: new QueryFlamegraph(trace), metrics};
+    return metrics;
   }
 }
 

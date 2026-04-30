@@ -22,11 +22,12 @@ import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import m from 'mithril';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraph,
-  QueryFlamegraphWithMetrics,
+  QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 import {Store} from '../../base/store';
 import {z} from 'zod';
@@ -140,7 +141,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
 
   private createDayExplorerFlameGraphPanel(trace: Trace) {
     let previousSelection: AreaSelection | undefined;
-    let flameagraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+    let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
     return {
       id: 'day_explorer_flamegraph_selection',
       name: 'Day Explorer Flamegraph',
@@ -150,20 +151,17 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
           !areaSelectionsEqual(previousSelection, selection);
         previousSelection = selection;
         if (selectionChanged) {
-          flameagraphWithMetrics = this.computeDayExplorerFlameGraph(
-            trace,
-            selection,
-          );
+          flamegraphMetrics = this.computeDayExplorerFlameGraph(selection);
         }
-        if (flameagraphWithMetrics === undefined) {
+        if (flamegraphMetrics === undefined) {
           return undefined;
         }
         const store = assertExists(this.store);
-        const {flamegraph, metrics} = flameagraphWithMetrics;
         return {
           isLoading: false,
-          content: flamegraph.render({
-            metrics,
+          content: m(FlamegraphPanel, {
+            trace,
+            metrics: flamegraphMetrics,
             state: store.state.areaSelectionFlamegraphState,
             onStateChange: (state) => {
               store.edit((draft) => {
@@ -177,9 +175,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
   }
 
   private computeDayExplorerFlameGraph(
-    trace: Trace,
     currentSelection: AreaSelection,
-  ): QueryFlamegraphWithMetrics | undefined {
+  ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
     // The flame graph will be shown when any day explorer track is in the area
     // selection. The selection is used to filter by time, but not by track. All
     // day explorer tracks are considered for the graph.
@@ -238,7 +235,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return {flamegraph: new QueryFlamegraph(trace), metrics};
+    return metrics;
   }
 
   async addDayExplorerUsage(
