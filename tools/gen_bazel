@@ -445,6 +445,7 @@ class BazelLabel(object):
     self.testonly: Optional[bool] = None
     self.script: Optional[str] = None
     self.args: List[str] = []
+    self.target_compatible_with: List[str] = []
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -847,7 +848,8 @@ def gen_protozero_descriptor_diff(target: GnParser.Target):
 
 
 def gen_target_helper(gn_target: GnParser.Target,
-                      win_target: GnParser.Target = None):
+                      win_target: GnParser.Target = None,
+                      android_only: bool = False):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
@@ -941,6 +943,13 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.binary_name = gn_target.binary_name()
     label.linkopts = gn_target.linkopts()
 
+  # Targets that only exist in the Android GN description (e.g. JNI source
+  # sets behind enable_perfetto_android_java_sdk) need to be marked as
+  # Android-only in Bazel; otherwise `bazel build //...` on a Linux host
+  # tries to compile them and fails on missing `<jni.h>` / `<android/log.h>`.
+  if android_only and bazel_type == 'perfetto_cc_library':
+    label.target_compatible_with = ['@platforms//os:android']
+
   if (gn_target.type in gn_utils.LINKER_UNIT_TYPES or
       gn_target.type == 'source_set'):
     # source_sets are now cc_library targets, so each cc_library only needs
@@ -1011,8 +1020,10 @@ def gen_protozero_group_target(gn: GnParser):
   return [label]
 
 
-def gen_target(gn_target: GnParser.Target, win_target: GnParser.Target = None):
-  targets = gen_target_helper(gn_target, win_target)
+def gen_target(gn_target: GnParser.Target,
+               win_target: GnParser.Target = None,
+               android_only: bool = False):
+  targets = gen_target_helper(gn_target, win_target, android_only)
   if gn_target.name not in target_overrides:
     return targets
   for target in targets:
@@ -1021,8 +1032,11 @@ def gen_target(gn_target: GnParser.Target, win_target: GnParser.Target = None):
   return targets
 
 
-def gen_target_str(gn_target, win_target: GnParser.Target = None):
-  return ''.join(str(x) for x in gen_target(gn_target, win_target))
+def gen_target_str(gn_target,
+                   win_target: GnParser.Target = None,
+                   android_only: bool = False):
+  return ''.join(
+      str(x) for x in gen_target(gn_target, win_target, android_only))
 
 
 def generate_build(gn_desc, gn_desc_win, gn_desc_android, targets, extras):
@@ -1134,7 +1148,7 @@ exports_files(["NOTICE"])
   android_str = ''
   for target_name in sorted(android_only_targets):
     target = gn_android.get_target(target_name)
-    android_str += gen_target_str(target)
+    android_str += gen_target_str(target, android_only=True)
 
   res += android_str
 

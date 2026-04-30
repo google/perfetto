@@ -7143,6 +7143,9 @@ perfetto_cc_library(
     ],
     linkstatic = True,
     alwayslink = True,
+    target_compatible_with = [
+        "@platforms//os:android",
+    ],
 )
 
 # GN target: //src/android_sdk/nativehelper:nativehelper
@@ -7159,6 +7162,9 @@ perfetto_cc_library(
         "src/android_sdk/nativehelper/utils.h",
     ],
     linkstatic = True,
+    target_compatible_with = [
+        "@platforms//os:android",
+    ],
 )
 
 # GN target: //src/android_sdk/perfetto_sdk_for_jni:perfetto_sdk_for_jni
@@ -7173,6 +7179,9 @@ perfetto_cc_library(
         ":src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
     ],
     linkstatic = True,
+    target_compatible_with = [
+        "@platforms//os:android",
+    ],
 )
 
 # GN target: //src/android_sdk/perfetto_sdk_for_jni:perfetto_sdk_for_jni_public
@@ -7182,6 +7191,9 @@ perfetto_cc_library(
         "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h",
     ],
     linkstatic = True,
+    target_compatible_with = [
+        "@platforms//os:android",
+    ],
 )
 
 # GN target: //src/java_sdk/main/cpp:perfetto_example_jni_lib
