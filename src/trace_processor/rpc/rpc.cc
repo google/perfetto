@@ -633,18 +633,13 @@ void Rpc::MaybePrintProgress() {
 
 Rpc::PooledConnection Rpc::AcquireConnectionForQuery(const std::string& tag) {
   std::unique_lock<std::mutex> lock(pool_mu_);
-  // Wait until a connection is available. The pool grows lazily up to
-  // hardware_concurrency via `MaybeGrowConnectionPool` on the writer
-  // thread. CreateConnection is *never* invoked from a worker thread:
-  // the StringPool's first `EnableThreadSafetyForMultiConnection`
-  // write must observe a single-producer happens-before with all reads.
   pool_cv_.wait(lock, [&] { return !pool_free_.empty(); });
 
-  // Soft affinity: if this tag has a previous connection and it's
-  // currently free, prefer it. Connections retain page-cache /
-  // prepared-statement / schema-cache locality across same-tag
-  // queries, so this is the main payoff of tag-affine dispatch.
-  size_t pick = pool_free_.size() - 1;  // default: most recently released
+  // Prefer the tag's previously-affined connection if it's free —
+  // same-tag queries benefit from warm per-conn page cache /
+  // prepared-statement reuse / schema cache. Otherwise take the most
+  // recently released conn and (re)affine the tag to it.
+  size_t pick = pool_free_.size() - 1;
   auto* aff = tag_to_conn_.Find(tag);
   if (aff) {
     for (size_t i = 0; i < pool_free_.size(); ++i) {
@@ -658,9 +653,6 @@ Rpc::PooledConnection Rpc::AcquireConnectionForQuery(const std::string& tag) {
   pool_free_.erase(pool_free_.begin() + static_cast<ptrdiff_t>(pick));
   pool_in_use_++;
 
-  // Update / install the affinity entry. Touching an existing entry
-  // moves it to the LRU front; a fresh entry pushes onto the front
-  // and may evict the LRU tail when the cap is hit.
   if (aff) {
     aff->conn_id = chosen.id;
     affinity_lru_.splice(affinity_lru_.begin(), affinity_lru_, aff->lru_iter);
@@ -685,30 +677,16 @@ void Rpc::ReleaseConnectionToPool(PooledConnection pooled) {
 }
 
 void Rpc::EnsureWorkerPoolPrimed() {
-  // First call: create the worker pool (sized to hardware_concurrency())
-  // and mint a single connection. Subsequent calls go through the lazy-
-  // growth path in `MaybeGrowConnectionPool` so the pool only ever holds
-  // as many connections as concurrent demand has actually required.
-  // Both pool setup and connection minting run on the caller's (writer)
-  // thread: `TraceProcessor::CreateConnection` is the single writer of
-  // `StringPool::should_acquire_mutex_`, and minting from worker threads
-  // would race that flag with peer workers' lock-free reads.
   std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
-  bool need_first_mint = false;
   {
     std::lock_guard<std::mutex> g(pool_mu_);
-    if (!worker_pool_) {
-      need_first_mint = true;
+    if (worker_pool_) {
+      return;
     }
   }
-  if (!need_first_mint) {
-    return;
-  }
-  // Mint a single connection eagerly so the very first query has
-  // somewhere to land without waiting on the writer thread to grow the
-  // pool. The thread pool is sized to hardware_concurrency() so it can
-  // host up to that many concurrent workers; the connection pool grows
-  // lazily up to the same ceiling via `MaybeGrowConnectionPool`.
+  // Eagerly mint one connection so the first query has somewhere to
+  // land without waiting on the writer to grow the pool. Subsequent
+  // dispatches go through `MaybeGrowConnectionPool`.
   auto first = trace_processor_->CreateConnection();
   uint32_t hw = std::thread::hardware_concurrency();
   uint32_t pool_size = hw == 0 ? 1u : hw;
@@ -720,12 +698,6 @@ void Rpc::EnsureWorkerPoolPrimed() {
 }
 
 void Rpc::MaybeGrowConnectionPool() {
-  // Called on the writer (transport) thread before dispatching a query
-  // onto the worker pool. Decides whether to mint another connection
-  // based on current contention: if there are no free connections AND
-  // we haven't yet hit the hardware-concurrency ceiling, mint one.
-  // Minting on the writer thread keeps the StringPool flag-flip
-  // single-producer (see `EnsureWorkerPoolPrimed`).
   std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
   uint32_t hw = std::thread::hardware_concurrency();
   uint32_t ceiling = hw == 0 ? 1u : hw;
@@ -817,37 +789,26 @@ void Rpc::DispatchStreamingQueryAsync(std::string sql,
                                       base::TimeNanos t_start,
                                       int req_type,
                                       std::string tag) {
-  // Pool setup + connection minting both run on the caller's (transport)
-  // thread for the same reason as `RunQueryOnPoolWorker`: workers may
-  // not call `CreateConnection`.
   EnsureWorkerPoolPrimed();
-  // An empty tag is the "untagged stream": all callers that did not
-  // opt into tag-affine dispatch share one tag-slot and serialise on
-  // a single connection (the one the empty-tag slot affines to). This
-  // is by design — untagged callers don't tell us which queries are
-  // logically related, so we treat them as one logical session.
-
-  // Claim a slot in the request->response ordering at *arrival* time
-  // (not dispatch time) so the UI's `pendingQueries[0]`-FIFO contract
-  // holds: send order = request order across all tags, even though
-  // queries within a tag may be queued behind earlier same-tag work.
-  // Snapshot `rpc_response_fn_` now: subsequent OnRpcRequest calls (on
-  // the same task runner thread, FIFO with this dispatch) may swap it
-  // for a different transport connection's send fn before the worker
-  // posts back.
+  // Snapshot `rpc_response_fn_` now: a later OnRpcRequest from a
+  // different transport connection may overwrite it before this query's
+  // worker posts back, but the snapshot still routes our chunks to the
+  // originating transport.
+  // Claim the request->response ordering slot at arrival time (not
+  // dispatch time) so the UI's pendingQueries[0]-FIFO holds across
+  // tags, even though within a tag queries may queue behind earlier
+  // same-tag work.
   RpcResponseFunction response_fn_snapshot = rpc_response_fn_;
   uint64_t my_slot;
   {
     std::lock_guard<std::mutex> g(pool_mu_);
     my_slot = streaming_send_next_seq_++;
   }
-
   PendingTaggedQuery q{std::move(sql), t_start, req_type,
                        std::move(response_fn_snapshot), my_slot};
 
-  // Tag-slot check: if a same-tag query is in flight, queue this one
-  // and let the worker pick it up after its predecessor releases. If
-  // free, mark the slot in-flight and dispatch immediately.
+  // Same-tag in flight → queue and let the running worker hand off on
+  // release. Slot free → mark in-flight and dispatch now.
   bool dispatch_now = false;
   {
     std::lock_guard<std::mutex> lk(tag_mu_);
@@ -882,9 +843,10 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
     sr.response_fn = std::move(q.response_fn);
     const auto t_exec_start = base::GetWallTimeNs();
     {
-      // Tightly scoped iterator + serializer so the prepared statement
-      // is finalised before the connection returns to the pool. Same
-      // reason as `RunQueryOnPoolWorker`.
+      // Iterator + serializer scoped tightly so the prepared statement
+      // is finalised before the connection returns to the pool — TSan
+      // otherwise catches a sqlite3ErrorClear vs sqlite3VdbeReset race
+      // when a peer worker picks up the connection mid-finalize.
       auto it = conn->ExecuteQuery(q.sql);
       QueryResultSerializer serializer(std::move(it), q.t_start);
       protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
@@ -892,10 +854,8 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
       for (bool has_more = true; has_more;) {
         has_more = serializer.Serialize(buffered.get());
         const auto& slices = buffered.GetSlices();
-        // Concatenate slices for this Serialize() call into a single
-        // chunk: the caller of QueryResult::Send wraps each chunk into
-        // its own RpcProto, and a single QueryResult shouldn't be
-        // fragmented across multiple RpcProtos.
+        // Concatenate this Serialize() call's slices into one chunk;
+        // the transport closure wraps each chunk in its own RpcProto.
         std::vector<uint8_t> chunk;
         for (uint32_t i = 0; i < slices.size(); ++i) {
           auto used = slices[i].GetUsedRange();
@@ -910,11 +870,9 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
         std::memory_order_relaxed);
     ReleaseConnectionToPool(std::move(pooled));
 
-    // Tag bookkeeping: hand off the next same-tag query (if any) to a
-    // fresh worker task. We do this BEFORE posting the send closure so
-    // the next query can start running in parallel with this one's
-    // result delivery. If the queue is empty, the slot is freed and
-    // the tag's entry erased to bound `tag_slots_`.
+    // Hand off the next same-tag query (if any) BEFORE posting the
+    // send closure so it can start running in parallel with this
+    // query's chunk delivery.
     PendingTaggedQuery next;
     bool dispatch_next = false;
     {
@@ -933,18 +891,14 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
       PostTaggedQueryToWorker(tag, std::move(next));
     }
 
-    // Hand the result to the transport thread. The dispatcher posts the
-    // closure; the closure walks `streaming_send_ready_` in
-    // `streaming_send_drain_cursor_` order so concurrent queries'
-    // chunks are sent in send-order, never interleaved.
     {
       std::lock_guard<std::mutex> g(pool_mu_);
       streaming_send_ready_.Insert(q.slot, std::move(sr));
     }
+    // Drain on the transport thread in slot order; out-of-order
+    // results park in `streaming_send_ready_` until their predecessor
+    // arrives.
     response_dispatcher_([this]() {
-      // Runs on the transport thread. Drain in slot order; out-of-order
-      // results park in `streaming_send_ready_` until their predecessor
-      // arrives.
       const auto t_drain_start = base::GetWallTimeNs();
       for (;;) {
         StreamingResult sr;

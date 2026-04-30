@@ -104,19 +104,16 @@ class Rpc {
     rpc_response_fn_ = std::move(f);
   }
 
-  // Optional. When set, `TPM_QUERY_STREAMING` requests received post-EOF
-  // are dispatched to the worker pool: a worker thread acquires a
-  // `Connection`, executes the query, materialises the chunks, and then
-  // hands them back to the transport thread by invoking the dispatcher
-  // with a "send all chunks for this query" closure. The dispatcher's
-  // job is to schedule that closure on whichever thread owns
-  // `rpc_response_fn_` (typically the http task runner). The closure
-  // calls `rpc_response_fn_` directly and is responsible for assigning
-  // the trailing `tx_seq_id_`s — which it does in dispatcher (== task
-  // runner) order so per-query chunks stay contiguous and the
-  // request->response ordering observed by the UI is preserved across
-  // concurrent streaming queries (workers run sqlite in parallel; the
-  // `Send` step is serialised on the transport thread).
+  // Optional. When set, post-EOF `TPM_QUERY_STREAMING` requests
+  // dispatch to the worker pool: a worker acquires a `Connection`,
+  // runs the query, then hands the materialised chunks back to the
+  // transport thread by invoking this dispatcher with a "send all
+  // chunks for this query" closure. The dispatcher schedules the
+  // closure on whichever thread owns `rpc_response_fn_` (typically
+  // the http task runner); the closure assigns trailing `tx_seq_id_`s
+  // in dispatcher order so per-query chunks stay contiguous and the
+  // request->response ordering observed by the UI is preserved
+  // across concurrent streaming queries.
   // Calling `OnRpcRequest` from a thread other than the dispatcher's
   // target thread is unsupported once a dispatcher is set.
   using ResponseDispatcher = std::function<void(std::function<void()>)>;
@@ -187,17 +184,10 @@ class Rpc {
     std::lock_guard<std::mutex> g(pool_mu_);
     return tag_to_conn_.Find(tag) != nullptr;
   }
-  // Per-phase wall-time accumulators (ns). Workers add to
-  // `sql_exec` for the inclusive Acquire→Release span (the actual
-  // ExecuteQuery + Serialize work) and the transport thread adds to
-  // `dispatcher` for the inclusive drain-closure span. Comparing
-  // their sums against the burst's wall-time is how the benchmark
-  // diagnoses "is the worker pool bottlenecked or is dispatch?":
-  //   worker_parallelism = sql_exec_ns / wall_ns   (caps at #workers)
-  //   dispatcher_fraction = dispatcher_ns / wall_ns (≈1.0 means the
-  //                                                  transport
-  //                                                  thread is busy
-  //                                                  the whole time)
+  // Per-phase wall-time accumulators. The benchmark uses these to tell
+  // worker-busy time (`sql_exec_ns_`, inclusive Acquire→Release on the
+  // worker) apart from transport-busy time (`dispatcher_ns_`, inclusive
+  // drain-closure on the transport thread).
   void reset_phase_timers_for_testing() {
     sql_exec_ns_.store(0, std::memory_order_relaxed);
     dispatcher_ns_.store(0, std::memory_order_relaxed);
@@ -245,29 +235,24 @@ class Rpc {
   void RunQueryOnPoolWorker(std::string sql,
                             base::TimeNanos t_start,
                             const QueryResultBatchCallback& result_callback);
-  // Mints worker-pool threads + the very first connection on the
-  // caller's thread, idempotently. Shared between the sync `Rpc::Query`
-  // path and the async streaming dispatch.
+  // Idempotently mints the worker pool + the first connection on the
+  // caller's thread.
   void EnsureWorkerPoolPrimed();
-  // Lazy-growth helper: if all pooled connections are in use and we
-  // haven't hit hardware_concurrency, mint one more. Called on the
-  // writer thread before dispatching to keep CreateConnection
+  // If `pool_free_` is empty and we haven't hit `hardware_concurrency`,
+  // mint one more connection. Always runs on the writer thread to keep
+  // `CreateConnection` (and the StringPool MT-safety flip it triggers)
   // single-producer.
   void MaybeGrowConnectionPool();
-  // Async streaming dispatch entry point used from `ParseRpcRequest` when
-  // `response_dispatcher_` is set and the trace has hit EOF. Posts a
-  // worker-pool task that materialises chunks then dispatches the "send
-  // chunks" closure back on the transport thread; ordering of concurrent
-  // streaming queries is preserved by the in-order `streaming_send_*`
-  // queue (see private members below).
+  // Entry point for the async streaming path. Claims a send-order
+  // slot, then posts a worker task that runs the query and routes the
+  // chunks back through `response_dispatcher_` in slot order.
   void DispatchStreamingQueryAsync(std::string sql,
                                    base::TimeNanos t_start,
                                    int req_type,
                                    std::string tag);
-  // Worker-pool-task body shared between the initial dispatch and
-  // same-tag dequeue dispatch. Takes a snapshot of `response_fn_`,
-  // already-claimed slot, sql, and tag.
   struct PendingTaggedQuery;
+  // Worker-pool-task body shared between the initial dispatch and
+  // same-tag dequeue dispatch.
   void PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q);
 
   Config default_config_;
@@ -304,14 +289,10 @@ class Rpc {
   std::vector<PooledConnection> pool_free_;
   uint32_t pool_in_use_ = 0;
   uint32_t distinct_connections_minted_ = 0;
-  // Soft tag-affinity: tag -> conn id (last connection a given tag
-  // ran on). On Acquire, prefer the affined connection if it's in the
-  // free list; otherwise fall back to any free connection and update
-  // the affinity. Bounded by `kMaxAffinityEntries` via LRU eviction
-  // so the map can't grow without bound when tags are short-lived.
-  // Stale affinities (the affined conn no longer in `pool_free_`,
-  // either in use or evicted) are silently ignored — the design is
-  // intentionally cheap-best-effort.
+  // Soft tag-affinity: tag -> conn id of the connection a tag last
+  // ran on. On Acquire we prefer the affined connection if it's free,
+  // else fall back to any free connection and update the affinity.
+  // Bounded via LRU eviction so the map can't grow without bound.
   static constexpr size_t kMaxAffinityEntries = 64;
   struct AffinityEntry {
     uint32_t conn_id;
@@ -320,34 +301,26 @@ class Rpc {
   std::list<std::string> affinity_lru_;  // MRU at front
   base::FlatHashMap<std::string, AffinityEntry> tag_to_conn_;
   std::unordered_set<std::thread::id> distinct_worker_thread_ids_;
-  // Serialises calls to `TraceProcessor::CreateConnection`. Any thread
-  // can post a Query, but only one of them at a time may mint
-  // connections (and only ever from outside the worker pool's threads),
-  // because `CreateConnection` is the single writer of
-  // `StringPool::should_acquire_mutex_`. Concurrent `CreateConnection`
-  // calls from multiple Query callers would otherwise race.
+  // Serialises `TraceProcessor::CreateConnection`: it's the single
+  // writer of `StringPool::should_acquire_mutex_` and must never run
+  // from a worker thread (peer workers would race on the lock-free
+  // reads of that flag).
   std::mutex pool_mint_mu_;
   std::unique_ptr<base::ThreadPool> worker_pool_;
 
   // Async streaming dispatch state. `response_dispatcher_` is the
-  // transport-supplied PostTask; the streaming path uses it to send
-  // chunks back on the transport thread. The two `streaming_send_*`
-  // counters serialise concurrent streaming queries' *sends* so the UI
-  // pendingQueries[0]-FIFO invariant holds: each dispatched query
-  // increments `streaming_send_next_seq_` to claim a slot; a worker
-  // signals completion by inserting into `streaming_send_ready_` which
-  // is drained in slot order on the transport thread.
+  // transport-supplied PostTask; concurrent streaming queries claim
+  // monotonically-increasing slots in `streaming_send_next_seq_` and
+  // workers deposit results in `streaming_send_ready_`. The transport
+  // thread drains in slot order so the UI's pendingQueries[0]-FIFO
+  // invariant holds across out-of-order worker completions.
   ResponseDispatcher response_dispatcher_;
   uint64_t streaming_send_next_seq_ = 0;       // claimed under pool_mu_
   uint64_t streaming_send_drain_cursor_ = 0;   // accessed only on dispatcher
-  // Worker-deposited results, keyed by claimed slot. Drained in slot
-  // order on the transport thread. The chunks are pre-serialised
-  // QueryResult bytes; the transport-thread closure wraps each one in a
-  // RpcProto with a freshly-assigned `tx_seq_id_` and ships it via the
-  // `response_fn` snapshot taken at dispatch time. Snapshotting per
-  // dispatch lets each query route back to its originating transport
-  // even if `rpc_response_fn_` has since been overwritten by a later
-  // OnRpcRequest from a different connection.
+  // `response_fn` is snapshotted at dispatch time so each query routes
+  // back to its originating transport even if `rpc_response_fn_` has
+  // since been overwritten by a later OnRpcRequest from a different
+  // connection.
   struct StreamingResult {
     int req_type;
     std::vector<std::vector<uint8_t>> chunks;
@@ -355,13 +328,13 @@ class Rpc {
   };
   base::FlatHashMap<uint64_t, StreamingResult> streaming_send_ready_;
 
-  // Tag-affine dispatch state. Each streaming query carries a
-  // `QueryArgs.tag` (forwarded by the UI's `EngineProxy`); same-tag
-  // queries serialise so plugin/track sessions get connection-affinity
-  // benefits (warm per-conn page cache, prepared-statement reuse) at
-  // the cost of intra-tag concurrency. Different-tag queries fan out
-  // across the pool. A tag's slot stays in the map only while a query
-  // is in flight or queued; idle tags are erased to bound the map.
+  // Tag-affine dispatch. Each streaming query carries a `QueryArgs.tag`
+  // (forwarded by the UI's `EngineProxy`); same-tag queries serialise
+  // so plugin/track sessions get connection-affinity benefits (warm
+  // per-conn page cache, prepared-statement reuse) at the cost of
+  // intra-tag concurrency. Different-tag queries fan out across the
+  // pool. A tag's slot lives in the map only while a query is in
+  // flight or queued; idle tags are erased to bound the map.
   struct PendingTaggedQuery {
     std::string sql;
     base::TimeNanos t_start;

@@ -744,19 +744,16 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
         SqlSource traceback = frame.wildcard_traceback_sql;
 
         // Cross-connection claim: serialise with any peer importing
-        // the same key. Returns `already_included=true` if some other
-        // engine has already promoted the module's CREATE statements
-        // onto shared `main` — re-running the body would conflict
-        // with the shared schema, so short-circuit.
-        PerfettoSqlDatabase::IncludeClaim include_claim;
-        if (database_) {
-          auto res = database_->TryClaimInclude(key);
-          if (res.already_included) {
-            file_ptr->included = true;
-            continue;
-          }
-          include_claim = std::move(res.claim);
+        // the same key. `already_included=true` means another engine
+        // already promoted the module's CREATE statements onto shared
+        // `main`, so re-running the body would conflict.
+        auto res = database_->TryClaimInclude(key);
+        if (res.already_included) {
+          file_ptr->included = true;
+          continue;
         }
+        PerfettoSqlDatabase::IncludeClaim include_claim =
+            std::move(res.claim);
 
         // Open a savepoint so the wildcard-expanded include is atomic at
         // module granularity (see IncludeModuleImpl for the design rationale).
