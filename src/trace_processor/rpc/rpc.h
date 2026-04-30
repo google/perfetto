@@ -293,18 +293,18 @@ class Rpc {
   // Manages Summarizer instances keyed by caller-provided ID.
   base::FlatHashMap<std::string, std::unique_ptr<Summarizer>> summarizers_;
 
-  // Connection pool + worker pool. The worker pool is sized to
-  // `min(hardware_concurrency, 8)` (or 1 if `hardware_concurrency` is 0)
-  // and is created lazily on first post-EOF `Query`. The connection pool
-  // is unbounded; idle connections live on `pool_free_`.
+  // Connection pool + worker pool. Both are sized to
+  // `hardware_concurrency` (or 1 if it reports 0) and created lazily on
+  // the first post-EOF query. The connection pool grows on demand via
+  // `MaybeGrowConnectionPool` and never shrinks; idle connections live
+  // on `pool_free_`.
   //
   // TP-level mutating RPCs (RegisterSqlPackage, RestoreInitialTables,
-  // ResetTraceProcessor, etc.) are NOT drain-coordinated by this layer;
-  // the underlying `TraceProcessor` enforces its own
-  // `non_default_connection_count_ == 0` precondition with a
-  // PERFETTO_CHECK and will crash if a caller invokes a mutation while
-  // pooled connections are alive. Folding the precondition into TP
-  // itself (so callers don't need to know) is a pending refactor.
+  // ResetTraceProcessor, etc.) are NOT drain-coordinated by this layer.
+  // `TraceProcessor` enforces its own `non_default_connection_count_ ==
+  // 0` precondition with a PERFETTO_CHECK and crashes if a caller
+  // invokes a mutation while pooled connections are alive. TODO: fold
+  // the precondition into TP itself so callers don't need to know.
   mutable std::mutex pool_mu_;
   std::condition_variable pool_cv_;
   std::vector<PooledConnection> pool_free_;

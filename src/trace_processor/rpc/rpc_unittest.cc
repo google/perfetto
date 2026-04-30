@@ -202,7 +202,8 @@ TEST(RpcTest, PostEofQueryRunsThroughWorkerPool) {
 }
 
 // Pre-EOF queries must bypass the worker pool because secondary
-// connections aren't legal yet (the Phase 2 mutation gate would CHECK).
+// connections aren't legal yet (TraceProcessor's mutation precondition
+// would CHECK-fail).
 TEST(RpcTest, PreEofQueryBypassesWorkerPool) {
   Rpc rpc;
 
@@ -219,9 +220,9 @@ TEST(RpcTest, PreEofQueryBypassesWorkerPool) {
 
 // Fans 8 queries out across N threads concurrently and verifies (a) all
 // of them get the right answer back and (b) the pool actually engaged
-// more than one worker thread. With `min(hardware_concurrency, 8)`
-// workers, at least 2 threads should service the burst on any
-// reasonable test machine.
+// more than one worker thread. The pool is sized to
+// `hardware_concurrency` so at least 2 threads should service the
+// burst on any reasonable test machine.
 TEST(RpcTest, QueryFansOutAcrossWorkers) {
   Rpc rpc;
   ASSERT_OK(rpc.NotifyEndOfFile());

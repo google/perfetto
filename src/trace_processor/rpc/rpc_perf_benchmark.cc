@@ -16,20 +16,33 @@
 
 // End-to-end perf benchmark for the multi-connection RPC worker pool.
 //
-// Two BENCHMARKS pair up to give a vs-without-pool A/B:
+// `*_PoolOff` runs the synchronous inline path (no dispatcher; queries
+// execute on the caller thread one at a time). `*_PoolOn_*` variants
+// wire a dispatcher and route post-EOF streaming queries through the
+// worker pool. The three pool-on variants — `Untagged`, `SameTag`,
+// `DistinctTags` — exercise the tag-affine dispatch contract: empty
+// and same tag funnel through one connection (untagged-stream
+// semantics), distinct tags fan out across the pool. Speedup =
+// PoolOff / PoolOn_DistinctTags.
 //
-// - BM_RpcStreamingQueryBurst_PoolOn:  the iter-3 async-streaming
-//   dispatch path (a `ResponseDispatcher` is wired and queries fan
-//   out across the iter-1 worker pool).
-// - BM_RpcStreamingQueryBurst_PoolOff: the synchronous inline path
-//   (no dispatcher; queries run on the caller thread one at a time —
-//   what the websocket transport did before iter 3).
+// Each iteration measures wall-time from "first query dispatched" to
+// "last response delivered" plus three diagnostic counters:
+//   worker_parallelism  — sum_per_query_sql_exec_ns / wall_ns,
+//                         caps at #pool_workers.
+//   dispatcher_fraction — time the transport thread spent in the
+//                         drain closure / wall_ns; ≈1.0 means the
+//                         single-threaded dispatcher is the bottleneck.
+//   parallel_ceiling    — (PoolOff only) sum_per_query / max_per_query;
+//                         the Amdahl-bound speedup the pool can ever
+//                         hit on this workload.
 //
-// Both run the same workload — a burst of N independent SELECTs over
-// a real loaded trace, mimicking the post-EOF query flurry the UI
-// issues on trace-load. Each iteration measures wall-time from "first
-// query dispatched" to "last response delivered". The ratio of the
-// two reports is the headline pool speedup number.
+// Two workloads:
+//   `WorkloadQueries`         — UI-style burst (uneven costs; the
+//                               JOIN+GROUP BY query dominates wall).
+//   `BalancedWorkloadQueries` — same shape, even costs; isolates
+//                               dispatch fan-out from query variance.
+//   `CpuOnlyQueries`          — recursive-CTE only, no shared trace
+//                               state.
 //
 // Trace fixture: `test/data/android_postboot_unlock.pftrace` (~18 MB
 // — moderately large; small enough that the load step doesn't dwarf
@@ -163,21 +176,6 @@ std::vector<uint8_t> EncodeStreamingQueryRpcMessage(int64_t seq,
     args->set_tag(tag);
   }
   return stream.SerializeAsArray();
-}
-
-// Decodes a wire byte stream into TraceProcessorRpc messages and
-// returns the number of distinct seq IDs observed (== number of
-// completed query responses). One TPM_QUERY_STREAMING request can
-// yield multiple responses (one per chunk); each response carries
-// its own seq.
-size_t CountRpcMessages(const std::vector<uint8_t>& wire_bytes) {
-  protos::pbzero::TraceProcessorRpcStream::Decoder stream(wire_bytes.data(),
-                                                          wire_bytes.size());
-  size_t count = 0;
-  for (auto it = stream.msg(); it; ++it) {
-    count++;
-  }
-  return count;
 }
 
 // Counts the number of TPM_QUERY_STREAMING responses where
@@ -512,16 +510,10 @@ void BM_RpcStreamingQueryBurst_Balanced_PoolOff(benchmark::State& bstate) {
   RunStreamingBurstPoolOff(bstate, BalancedWorkloadQueries());
 }
 
-// Suppress unused-warning on the message-counter helper; keep it
-// defined for future drill-down benchmarks.
-[[maybe_unused]] auto kKeepHelperLive = &CountRpcMessages;
-
 // Parallelism diagnostic: a workload that touches no shared trace
 // tables. Uses a recursive CTE to do pure CPU work on each connection
-// independently. If this shows a clean Nx speedup but the
-// table-touching workload above doesn't, the bottleneck is in shared
-// table access (sqlite shared-cache `BtShared` mutex), not in the
-// pool dispatch path.
+// independently. The headline reading is "what's the dispatch ceiling
+// when SQL execution itself doesn't touch any shared state".
 const std::vector<std::string>& CpuOnlyQueries() {
   static const std::vector<std::string> kQueries = {
       // 50K-row recursive CTE summed with a hash-style transform.

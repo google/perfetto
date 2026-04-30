@@ -122,13 +122,8 @@ Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
-  // TODO: TP-level mutations require `non_default_connection_count_ == 0`
-  // (enforced by a PERFETTO_CHECK in TraceProcessorImpl). Today the only
-  // legal call site is from the writer thread before any post-EOF query
-  // has primed the pool. If a caller invokes this with secondary
-  // connections still alive (in `pool_free_` or held by a worker), the
-  // TP-side CHECK fires. Folding this invariant into TP itself (so the
-  // RPC layer doesn't have to know) is a pending refactor.
+  // TP-level mutation; precondition enforced by TraceProcessorImpl. See
+  // `Rpc` class doc.
   current_config_ = config;
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
@@ -609,9 +604,8 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
 }
 
 base::Status Rpc::RegisterSqlPackage(protozero::ConstBytes bytes) {
-  // TODO: TP-level mutations require `non_default_connection_count_ == 0`.
-  // See ResetTraceProcessorInternal for the same caveat. Folding this
-  // invariant into TP itself is a pending refactor.
+  // TP-level mutation; precondition enforced by TraceProcessorImpl. See
+  // `Rpc` class doc.
   protos::pbzero::RegisterSqlPackageArgs::Decoder args(bytes);
   SqlPackage package;
   package.name = args.package_name().ToStdString();
@@ -1053,9 +1047,8 @@ void Rpc::Query(const uint8_t* args,
 }
 
 void Rpc::RestoreInitialTables() {
-  // TODO: TP-level mutations require `non_default_connection_count_ == 0`.
-  // See ResetTraceProcessorInternal for the same caveat. Folding this
-  // invariant into TP itself is a pending refactor.
+  // TP-level mutation; precondition enforced by TraceProcessorImpl. See
+  // `Rpc` class doc.
   trace_processor_->RestoreInitialTables();
 }
 
