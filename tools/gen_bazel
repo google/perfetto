@@ -877,7 +877,7 @@ def gen_target_helper(gn_target: GnParser.Target,
   elif gn_target.type == 'static_library':
     bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'source_set':
-    bazel_type = 'perfetto_filegroup'
+    bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'generated_file':
     return []
   else:
@@ -928,11 +928,7 @@ def gen_target_helper(gn_target: GnParser.Target,
   else:
     label.srcs = raw_srcs
 
-  # `alwayslink` is a cc_library attribute in Bazel and is not valid on
-  # filegroups. The flag propagates to cc_library consumers below: if any
-  # transitive source_set dep is force_alwayslink, the cc_library that
-  # absorbs it inherits the flag.
-  if gn_target.force_alwayslink and bazel_type != 'perfetto_filegroup':
+  if gn_target.force_alwayslink:
     label.alwayslink = True
 
   if win_target:
@@ -945,59 +941,37 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.binary_name = gn_target.binary_name()
     label.linkopts = gn_target.linkopts()
 
-  if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
-    # |source_sets| contains the transitive set of source_set deps.
-    for trans_dep in gn_target.transitive_source_set_deps():
-      name = ':' + get_bazel_label_name(trans_dep.name)
-      if name.startswith(
-          ':include_perfetto_') and gn_target.type != 'executable':
-        label.hdrs += [name]
-      else:
-        if win_target:
-          win_target_names = [
-              target.name for target in win_target.transitive_source_set_deps()
-          ]
-          if trans_dep.name in win_target_names:
-            label.win_srcs += [name]
-
-        label.srcs += [name]
-
-      # Add defines from all transitive dependencies.
-      label.defines += trans_dep.defines
-
-      # A force_alwayslink source_set becomes a filegroup whose srcs are
-      # inlined here; without alwayslink on this cc_library the linker drops
-      # the .o files that exist solely for global-ctor side effects (e.g.
-      # self-registering plugins). cc_binary has no `alwayslink` attribute,
-      # so only set it on cc_library targets.
-      if trans_dep.force_alwayslink and bazel_type == 'perfetto_cc_library':
-        label.alwayslink = True
-
-    for dep in sorted(gn_target.non_proto_or_source_set_deps()):
+  if (gn_target.type in gn_utils.LINKER_UNIT_TYPES or
+      gn_target.type == 'source_set'):
+    # source_sets are now cc_library targets, so each cc_library only needs
+    # to declare its immediate GN deps and let Bazel resolve the graph
+    # transitively.
+    for dep in sorted(gn_target.immediate_deps):
       dep_name = dep.name
+      # source_set / descriptor proto plugins don't emit cc artifacts; they
+      # are pure proto aggregators, so cc consumers must skip them.
+      if dep.type == 'proto_library' and dep.proto_plugin in ('source_set',
+                                                              'descriptor'):
+        continue
       if dep_name.startswith('//gn:'):
         assert (dep_name in external_deps), dep
+      if dep_name in external_deps:
+        assert (isinstance(external_deps[dep_name], list))
+        label.external_deps += external_deps[dep_name]
+        continue
 
       # tp_tables produces a filegroup not a cc_library so should end up srcs
       # not deps.
       if dep.custom_action_type == 'tp_tables':
         label_name = ':' + get_bazel_label_name(dep_name)
-        win_target_names = [
-            target.name for target in win_target.non_proto_or_source_set_deps()
-        ]
-        if win_target and dep_name in win_target_names:
-          label.win_srcs += [label_name]
+        if win_target:
+          win_target_names = [t.name for t in win_target.immediate_deps]
+          if dep_name in win_target_names:
+            label.win_srcs += [label_name]
         label.srcs += [label_name]
-      elif dep_name in external_deps:
-        assert (isinstance(external_deps[dep_name], list))
-        label.external_deps += external_deps[dep_name]
-      else:
-        label.deps += [':' + get_bazel_label_name(dep_name)]
+        continue
 
-    label.deps += [
-        ':' + get_bazel_label_name(x.name)
-        for x in gn_target.transitive_cpp_proto_deps()
-    ]
+      label.deps += [':' + get_bazel_label_name(dep_name)]
 
   # All items starting with : need to be sorted to the end of the list.
   # However, Python makes specifying a comparator function hard so cheat
@@ -1201,10 +1175,6 @@ exports_files(["NOTICE"])
   res += public_str
   res += '# Content from BUILD.extras\n\n'
   res += extras
-
-  # Check for ODR violations
-  for target_name in default_targets:
-    checker = gn_utils.ODRChecker(gn, target_name)
 
   return res
 

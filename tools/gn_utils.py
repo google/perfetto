@@ -453,6 +453,11 @@ class GnParser(object):
       self.defines = set()
       self.deps: Set[GnParser.Target] = set()
       self.transitive_deps: Set[GnParser.Target] = set()
+      # Direct GN deps as written in BUILD.gn, before any bubbling-up from
+      # source_set or group deps. Generators that emit cc_library-style
+      # rules (where the build system resolves transitivity) should prefer
+      # these over `deps`.
+      self.immediate_deps: Set[GnParser.Target] = set()
       self.libs = set()
       self.include_dirs = set()
       self.ldflags = set()
@@ -668,10 +673,14 @@ class GnParser(object):
         continue
 
       # Non-third party groups are only used for bubbling cflags etc so don't
-      # add a dep.
+      # add a dep. Their direct deps surface to consumers as if they were
+      # direct deps of the consumer.
       if dep.type == 'group' and not dep.is_third_party_dep_:
         target.update(dep)  # Bubble up groups's cflags/ldflags etc.
+        target.immediate_deps.update(dep.immediate_deps)
         continue
+
+      target.immediate_deps.add(dep)
 
       # Linker units act as a hard boundary making all their internal deps
       # opaque to the outside world. For this reason, do not propogate deps
