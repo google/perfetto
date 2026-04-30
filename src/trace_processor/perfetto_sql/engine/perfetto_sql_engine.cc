@@ -399,19 +399,18 @@ GetTypesFromSelectStatement(
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
                                      bool enable_extra_checks,
                                      const std::string& shared_filename,
-                                     GlobalStagingArea* staging_area)
+                                     PerfettoSqlDatabase* database)
     : pool_(pool),
       enable_extra_checks_(enable_extra_checks),
-      staging_area_(staging_area),
+      database_(database),
       is_writer_(false),
       engine_(new SqliteEngine(shared_filename)) {
-  // Secondary engines: minimal setup, piggybacking on storage created by the
-  // primary via `cache=shared`. We register only the dataframe vtab module
-  // here so reader connections can resolve `__intrinsic_dataframe`-backed
-  // tables (the dominant table type). See header doc-comment for the full
-  // list of intentional omissions.
-  PERFETTO_CHECK(staging_area_);
-
+  PERFETTO_CHECK(database_);
+  // Secondary engines: minimal setup, piggybacking on storage created by
+  // the primary via the shared memdb store. We register only the
+  // dataframe vtab module here so reader connections can resolve
+  // `__intrinsic_dataframe`-backed tables (the dominant table type). See
+  // the header doc-comment for the full list of intentional omissions.
   engine_->SetCommitCallback(
       [](void* ctx) {
         return static_cast<PerfettoSqlEngine*>(ctx)->OnCommit();
@@ -422,7 +421,7 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
       this);
 
   auto ctx = std::make_unique<DataframeModule::Context>();
-  ctx->staging_area = staging_area_;
+  ctx->database = database_;
   ctx->is_writer = false;
   ctx->module_name = "__intrinsic_dataframe";
   dataframe_context_ = ctx.get();
@@ -432,12 +431,13 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
                                      bool enable_extra_checks,
-                                     GlobalStagingArea* staging_area)
+                                     PerfettoSqlDatabase* database)
     : pool_(pool),
       enable_extra_checks_(enable_extra_checks),
-      staging_area_(staging_area),
-      is_writer_(staging_area != nullptr),
+      database_(database),
+      is_writer_(true),
       engine_(new SqliteEngine()) {
+  PERFETTO_CHECK(database_);
   // Initialize `perfetto_tables` table, which will contain the names of all of
   // the registered tables.
   char* errmsg_raw = nullptr;
@@ -473,12 +473,12 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
   }
   {
     auto ctx = std::make_unique<DataframeModule::Context>();
-    // The dataframe module on the primary engine acts as the writer for
-    // cross-connection vtab-state publishing. Readers (secondary engines)
-    // consult the same `staging_area`; the writer publishes its committed
-    // state on every `OnCommit`.
-    ctx->staging_area = staging_area_;
-    ctx->is_writer = staging_area_ != nullptr;
+    // The primary engine's dataframe module is the writer for the
+    // cross-connection vtab-state map. Readers (secondary engines)
+    // consult the same staging area; the writer publishes its
+    // committed state on every `OnCommit`.
+    ctx->database = database_;
+    ctx->is_writer = true;
     ctx->module_name = "__intrinsic_dataframe";
     dataframe_context_ = ctx.get();
     RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
@@ -743,21 +743,19 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
         // Copy traceback before push_back which may invalidate frame ref
         SqlSource traceback = frame.wildcard_traceback_sql;
 
-        // Acquire the per-module include lock for this individual wildcard
-        // expansion (one lock per module, dropped when the frame is popped).
-        // See IncludeModuleImpl for design rationale.
-        std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
-        if (staging_area_) {
-          include_lock = staging_area_->AcquireIncludeLock(key);
-          // Cross-connection short-circuit: if the module body has already
-          // been promoted by some other engine, mark our local copy
-          // included and continue with the next wildcard slot — re-running
-          // the body would conflict with the shared schema. See
-          // IncludeModuleImpl for the same check on the single-key path.
-          if (staging_area_->IsModuleIncluded(key)) {
+        // Cross-connection claim: serialise with any peer importing
+        // the same key. Returns `already_included=true` if some other
+        // engine has already promoted the module's CREATE statements
+        // onto shared `main` — re-running the body would conflict
+        // with the shared schema, so short-circuit.
+        PerfettoSqlDatabase::IncludeClaim include_claim;
+        if (database_) {
+          auto res = database_->TryClaimInclude(key);
+          if (res.already_included) {
             file_ptr->included = true;
             continue;
           }
+          include_claim = std::move(res.claim);
         }
 
         // Open a savepoint so the wildcard-expanded include is atomic at
@@ -784,7 +782,7 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
              /*wildcard_traceback_sql=*/
              SqlSource::FromTraceProcessorImplementation(""),
              /*include_savepoint=*/std::move(savepoint_name),
-             /*include_lock=*/std::move(include_lock)});
+             /*include_claim=*/std::move(include_claim)});
         return FrameResult::kContinue;
       }
     }
@@ -930,16 +928,9 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
   // exists if a later frame errors out.
   frame.include_savepoint.clear();
   frame.file_ptr->included = true;
-  // Publish the per-module "included" bit cross-connection: any other
-  // engine that subsequently tries to include the same module name will
-  // see this and short-circuit before re-running the body (whose CREATE
-  // statements would conflict with the now-promoted shared schema).
-  // We're still holding the per-module include lock at this point (the
-  // guard lives on `frame.include_lock` and is dropped at frame pop) so
-  // mark+release is one atomic step from the perspective of any waiter.
-  if (staging_area_) {
-    staging_area_->MarkModuleIncluded(frame.include_key);
-  }
+  // Release the cross-connection claim with success=true so any waiter
+  // on this module key sees `already_included` and short-circuits.
+  frame.include_claim.Release(/*success=*/true);
   return FrameResult::kFrameDone;
 }
 
@@ -978,7 +969,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
        /*wildcard_traceback_sql=*/
        SqlSource::FromTraceProcessorImplementation(""),
        /*include_savepoint=*/{},
-       /*include_lock=*/std::nullopt});
+       /*include_claim=*/{}});
 
   // Main loop - process frames from the stack.
   while (!execution_stack_.empty()) {
@@ -1058,11 +1049,12 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
                                                     return_type, std::move(sql)));
 
   // Append-after-success: only land in the pool once we've actually
-  // registered + prepared on the writer's own handle. This guarantees a
-  // reader catching up via `SnapshotSince` will not see a half-baked entry.
-  if (is_writer_ && staging_area_) {
+  // registered + prepared on the writer's own handle. This guarantees
+  // a reader catching up via `SnapshotSince` will not see a half-baked
+  // entry.
+  if (is_writer_) {
     last_synced_function_version_ =
-        staging_area_->AppendFunction(GlobalStagingArea::FunctionPoolEntry{
+        database_->AppendFunction(PerfettoSqlDatabase::FunctionPoolEntry{
             replace, prototype, return_type, std::move(sql_for_pool)});
   }
   return base::OkStatus();
@@ -1087,9 +1079,9 @@ void PerfettoSqlEngine::RegisterPackage(
   // still order the publication after it so readers observe the same
   // sequence the writer did. Skip if the caller did not provide the
   // raw modules — they don't need cross-connection propagation.
-  if (is_writer_ && staging_area_ && pool_modules) {
-    last_synced_package_version_ = staging_area_->AppendPackage(
-        GlobalStagingArea::PackagePoolEntry{name, allow_replace,
+  if (is_writer_ && pool_modules) {
+    last_synced_package_version_ = database_->AppendPackage(
+        PerfettoSqlDatabase::PackagePoolEntry{name, allow_replace,
                                             std::move(pool_modules)});
   }
 }
@@ -1112,22 +1104,19 @@ sql_modules::RegisteredPackage RegisteredPackageFromModules(
 }  // namespace
 
 base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
-  if (!staging_area_) {
-    return base::OkStatus();
-  }
   // Writer engines never need to sync — they are the source of truth.
   // Snap `last_synced_package_version_` to the latest version so the
   // version-equality short-circuit stays cheap on subsequent calls.
   if (is_writer_) {
-    last_synced_package_version_ = staging_area_->LatestPackageVersion();
+    last_synced_package_version_ = database_->LatestPackageVersion();
     return base::OkStatus();
   }
-  if (staging_area_->LatestPackageVersion() == last_synced_package_version_) {
+  if (database_->LatestPackageVersion() == last_synced_package_version_) {
     return base::OkStatus();
   }
 
   auto snapshot =
-      staging_area_->SnapshotPackagesSince(last_synced_package_version_);
+      database_->SnapshotPackagesSince(last_synced_package_version_);
   for (const auto& entry : snapshot.entries) {
     // Use the *local* path so we don't re-publish back into the pool. Each
     // reader gets its own copy of the converted `RegisteredPackage`: the
@@ -1141,10 +1130,6 @@ base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
 }
 
 base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
-  // Fast-path: no staging area (legacy single-conn) or no new entries.
-  if (!staging_area_) {
-    return base::OkStatus();
-  }
   // Writer engines never need to sync — they are the source of truth and
   // append directly via `RegisterLegacyRuntimeFunction`. Importantly, the
   // writer must *not* re-register pool entries on a fresh engine handle
@@ -1152,15 +1137,15 @@ base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
   // (e.g. `_trace_bounds`) that haven't been recreated yet by the new
   // engine's prelude include.
   if (is_writer_) {
-    last_synced_function_version_ = staging_area_->LatestFunctionVersion();
+    last_synced_function_version_ = database_->LatestFunctionVersion();
     return base::OkStatus();
   }
-  if (staging_area_->LatestFunctionVersion() ==
+  if (database_->LatestFunctionVersion() ==
       last_synced_function_version_) {
     return base::OkStatus();
   }
 
-  auto snapshot = staging_area_->SnapshotSince(last_synced_function_version_);
+  auto snapshot = database_->SnapshotSince(last_synced_function_version_);
   for (auto& entry : snapshot.entries) {
     // Use the *local* path so we don't re-publish back into the pool. On the
     // writer this loop never runs because `RegisterLegacyRuntimeFunction`
@@ -1459,7 +1444,7 @@ base::Status PerfettoSqlEngine::IncludePackageImpl(
          std::move(matching_modules), /*wildcard_index=*/0,
          /*wildcard_traceback_sql=*/parser.statement_sql(),
          /*include_savepoint=*/{},
-         /*include_lock=*/std::nullopt});
+         /*include_claim=*/{}});
     return base::OkStatus();
   }
   auto* module_file = package.modules.Find(include_key);
@@ -1478,43 +1463,24 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
     return base::OkStatus();
   }
 
-  // Acquire the per-module include lock *before* opening the savepoint so
-  // two connections importing the same module name serialise on this lock
-  // for the duration of the SAVEPOINT/RELEASE cycle. The guard rides on the
-  // ExecutionFrame and is released automatically when the frame is popped
-  // (success or error). Different modules don't contend; legacy
-  // single-connection callers (no staging area) skip the lock entirely.
-  std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
-  if (staging_area_) {
-    include_lock = staging_area_->AcquireIncludeLock(key);
-    // While holding the lock, consult the cross-connection "already
-    // included" set: if some other connection has run this module's body
-    // to RELEASE already, the module's CREATE statements are on shared
-    // `main`. Re-running the body would conflict with `cache=shared`-
-    // visible objects, so short-circuit. Update the local
-    // RegisteredPackage's `included` flag too so subsequent calls on
-    // this engine don't re-acquire the lock.
-    if (staging_area_->IsModuleIncluded(key)) {
-      file.included = true;
-      return base::OkStatus();
-    }
+  // Cross-connection claim: blocks until no peer is mid-import for the
+  // same key. If another connection has already RELEASEd the body onto
+  // shared `main`, short-circuit — re-running the body would conflict
+  // with the now-promoted shared schema.
+  auto res = database_->TryClaimInclude(key);
+  if (res.already_included) {
+    file.included = true;
+    return base::OkStatus();
   }
+  PerfettoSqlDatabase::IncludeClaim include_claim = std::move(res.claim);
 
-  // Open a SAVEPOINT before pushing the include frame so the entire body of
-  // the include runs against a sandbox: on success we RELEASE so the DDL
-  // promotes to `main` (and `cache=shared` propagates the new objects to
-  // sibling connections); on failure we ROLLBACK TO so half-installed
-  // objects do not leak.
-  //
-  // Note: this is the temp-then-promote include pattern documented in the
-  // multi-connection design memo. We use SAVEPOINT (rather than literally
-  // rewriting CREATE statements to `temp.<name>`) because savepoint
-  // rollback already drops uncommitted DDL, and `cache=shared` already
-  // propagates committed DDL on `main` to other connections — so the
-  // explicit "temp schema" buffer adds no observable behaviour for plain
-  // SQL. Vtab DDL inside an include is partially handled here: the
-  // ROLLBACK callback is invoked which lets `ModuleStateManagerBase`
-  // discard staged state.
+  // Open a SAVEPOINT before pushing the include frame so the entire
+  // body of the include runs against a sandbox: on success we RELEASE
+  // so the DDL promotes to `main` (and the shared memdb propagates the
+  // new objects to sibling connections); on failure we ROLLBACK TO so
+  // half-installed objects do not leak. Vtab DDL inside an include is
+  // partially handled by the ROLLBACK callback, which lets
+  // `ModuleStateManagerBase` discard staged state.
   std::string savepoint_name = "perfetto_include_" +
                                std::to_string(include_savepoint_counter_++);
   base::StackString<256> savepoint_sql("SAVEPOINT %s", savepoint_name.c_str());
@@ -1523,7 +1489,6 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
                            key.c_str(), st.c_message());
   }
 
-  // Push include frame onto execution stack. The main loop will process it.
   ExecutionFrame frame{FrameType::kInclude,
                        SqlSource::FromModuleInclude(file.sql, key),
                        /*parser=*/nullptr, /*accumulated_stats=*/{},
@@ -1533,7 +1498,7 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
                        /*wildcard_traceback_sql=*/
                        SqlSource::FromTraceProcessorImplementation(""),
                        /*include_savepoint=*/std::move(savepoint_name),
-                       /*include_lock=*/std::move(include_lock)};
+                       /*include_claim=*/std::move(include_claim)};
   execution_stack_.push_back(std::move(frame));
   return base::OkStatus();
 }

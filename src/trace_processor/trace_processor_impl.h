@@ -37,7 +37,7 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/global_staging_area.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
@@ -174,7 +174,7 @@ class TraceProcessorImpl : public TraceProcessor,
     bool notify_eof_called;
     std::pair<int64_t, int64_t> cached_trace_bounds;
     std::vector<std::unique_ptr<PluginBase>>& plugins;
-    GlobalStagingArea* staging_area;
+    PerfettoSqlDatabase* database;
   };
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
@@ -199,7 +199,7 @@ class TraceProcessorImpl : public TraceProcessor,
   // Cross-connection state (vtab-state map, function pool, per-module
   // include locks). Phase 1 skeleton: empty. Phase 2 fills it in and
   // wires it through `PerfettoSqlEngine`.
-  std::unique_ptr<GlobalStagingArea> staging_area_;
+  std::unique_ptr<PerfettoSqlDatabase> database_;
 
   std::unique_ptr<PerfettoSqlEngine> engine_;
 

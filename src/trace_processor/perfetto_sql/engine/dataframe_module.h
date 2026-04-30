@@ -37,7 +37,7 @@
 
 namespace perfetto::trace_processor {
 
-class GlobalStagingArea;
+class PerfettoSqlDatabase;
 
 // Adapter class between SQLite and the Dataframe API. Allows SQLite to query
 // and iterate over the results of a dataframe query.
@@ -63,7 +63,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     // in multi-connection sharing (both the writer and any reader). Null for
     // legacy single-connection setups; in that case `OnCommit`/`OnRollback`
     // behave exactly as the base class.
-    GlobalStagingArea* staging_area = nullptr;
+    PerfettoSqlDatabase* database = nullptr;  // Set in PerfettoSqlEngine ctor.
 
     // True for the writer engine (i.e. `TraceProcessorImpl`'s primary
     // engine): publishes its committed `PerVtabState::committed_state` into

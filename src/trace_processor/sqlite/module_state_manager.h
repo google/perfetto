@@ -100,7 +100,7 @@ class ModuleStateManagerBase {
   // `OnConnect` to `PERFETTO_CHECK`-crash on the missing entry).
   //
   // Subclasses can override this to consult cross-connection state (e.g.
-  // `GlobalStagingArea::LookupVtabState`). Returning a non-null shared_ptr
+  // `PerfettoSqlDatabase::LookupVtabState`). Returning a non-null shared_ptr
   // causes `OnConnect` to materialise a fresh `PerVtabState` locally
   // populated from the returned state and treat the connection as cold-
   // attached to a vtab created on another connection.

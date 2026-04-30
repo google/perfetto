@@ -51,20 +51,16 @@
 
 #include <benchmark/benchmark.h>
 
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
-#include <cstdio>
 #include <deque>
 #include <functional>
-#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -80,16 +76,10 @@ constexpr const char* kTraceFixture =
 
 // The SELECTs below approximate the post-EOF query flurry the UI
 // issues on trace load: a mix of GROUP-BYs and ORDER-BY-LIMIT scans
-// over the busiest tables (slice, thread_state, sched, counter, args).
-// Each query touches enough rows that the per-query cost dominates
-// dispatch overhead — count(*) probes alone run sub-millisecond on
-// the fixture trace, well below the worker pool's PostTask + drain
-// cost, and so don't show the pool's parallelism win. Group-bys with
-// modest result sets are a closer match to what the UI's track-
-// summarisation queries look like at trace-load time.
-//
-// All queries are deliberately independent (no inter-query state) so
-// the pool can fan them out trivially.
+// over the busiest tables. Group-bys with modest result sets are a
+// closer match to what UI track-summarisation queries look like at
+// trace-load time than count(*) probes (which run sub-millisecond and
+// don't show the pool's parallelism win).
 const std::vector<std::string>& WorkloadQueries() {
   static const std::vector<std::string> kQueries = {
       "SELECT name, count(*) c, sum(dur) s FROM slice "
@@ -121,16 +111,10 @@ const std::vector<std::string>& WorkloadQueries() {
   return kQueries;
 }
 
-// Same shape as `WorkloadQueries` but every query has approximately
-// the same cost: 10 copies of `SELECT name, count(*), sum(dur) FROM
-// slice GROUP BY name ORDER BY s DESC LIMIT 100`. This factors
-// Amdahl's-law variance out of the speedup measurement: under the
-// uneven `WorkloadQueries`, wall-time is bounded by the slowest
-// single query (sum/max ≈ 1.7), and so the pool can never beat that
-// regardless of fan-out. With balanced costs, sum/max ≈ N and the
-// achieved speedup is a clean read of how well the dispatch path
-// fans out across worker connections. Distinct GROUP BY columns give
-// each query its own work without sharing per-table sort buffers.
+// 10 same-shape slice GROUP BYs. With every query about the same cost
+// (sum/max ≈ 5), the achieved speedup is a clean read of how well
+// dispatch fans out across worker connections — the Amdahl variance
+// in `WorkloadQueries` is factored out.
 const std::vector<std::string>& BalancedWorkloadQueries() {
   static const std::vector<std::string> kQueries = {
       "SELECT name, count(*) c, sum(dur) s FROM slice "
@@ -157,15 +141,23 @@ const std::vector<std::string>& BalancedWorkloadQueries() {
   return kQueries;
 }
 
-// Encodes a `TraceProcessorRpc` framing-prefixed wire message that
-// asks the server to run a streaming query for the given SQL. Mirrors
-// `EncodeStreamingQueryRpcMessage` in `rpc_unittest.cc`. If `tag` is
-// non-empty it is set on the QueryArgs, opting the request into the
-// tag-affine dispatch path (distinct tags fan out across connections,
-// same-tag queries serialise on one connection).
-std::vector<uint8_t> EncodeStreamingQueryRpcMessage(int64_t seq,
-                                                    const std::string& sql,
-                                                    const std::string& tag = {}) {
+// 8 copies of a 50K-row recursive CTE. Each query is independent and
+// touches no trace tables; running them all gives the dispatch layer
+// 8 distinct-tag tasks to fan out across the worker pool. The
+// headline reading is "what's the dispatch ceiling when SQL execution
+// itself touches no shared state".
+const std::vector<std::string>& CpuOnlyQueries() {
+  static const std::vector<std::string> kQueries(
+      8,
+      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
+      "WHERE x<50000) SELECT sum(x*x*x) FROM c");
+  return kQueries;
+}
+
+// Encodes a `TraceProcessorRpcStream`-framed `TPM_QUERY_STREAMING`
+// request. Empty `tag` exercises the untagged-stream path.
+std::vector<uint8_t> EncodeStreamingQueryRpcMessage(
+    int64_t seq, const std::string& sql, const std::string& tag = {}) {
   protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream> stream;
   auto* msg = stream->add_msg();
   msg->set_seq(seq);
@@ -178,13 +170,12 @@ std::vector<uint8_t> EncodeStreamingQueryRpcMessage(int64_t seq,
   return stream.SerializeAsArray();
 }
 
-// Counts the number of TPM_QUERY_STREAMING responses where
-// `is_last_batch=true`, i.e. the number of *queries* that completed
-// (not the number of chunks).
+// Counts `TPM_QUERY_STREAMING` responses where `is_last_batch=true`
+// — the number of *queries* that completed (not chunks).
 size_t CountQueriesCompleted(const std::vector<uint8_t>& wire_bytes) {
+  size_t completed = 0;
   protos::pbzero::TraceProcessorRpcStream::Decoder stream(wire_bytes.data(),
                                                           wire_bytes.size());
-  size_t completed = 0;
   for (auto it = stream.msg(); it; ++it) {
     auto bytes = it->as_bytes();
     protos::pbzero::TraceProcessorRpc::Decoder rpc(bytes.data, bytes.size);
@@ -205,9 +196,7 @@ size_t CountQueriesCompleted(const std::vector<uint8_t>& wire_bytes) {
   return completed;
 }
 
-// A trivial multi-producer single-consumer task queue used to stand
-// in for `MaybeLockFreeTaskRunner`. Workers post completion closures
-// here; the driver thread drains them.
+// Trivial MPSC task queue standing in for `MaybeLockFreeTaskRunner`.
 class TaskQueue {
  public:
   void Post(std::function<void()> task) {
@@ -216,9 +205,6 @@ class TaskQueue {
     cv_.notify_all();
   }
 
-  // Drains tasks until `predicate()` returns true OR the deadline is
-  // reached. Returns true if the predicate was satisfied. Tasks that
-  // arrive while we hold the lock are processed in FIFO order.
   bool DrainUntil(std::function<bool()> predicate,
                   std::chrono::milliseconds timeout) {
     auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -250,26 +236,22 @@ class TaskQueue {
   std::deque<std::function<void()>> q_;
 };
 
-// Loads the fixture trace into a freshly-constructed `Rpc` instance
-// and returns true on success. On failure, `bstate.SkipWithError` is
-// called so the benchmark report flags the missing fixture.
+// Loads the fixture trace into `rpc`. Skips the benchmark with a
+// readable error when the fixture is missing.
 bool LoadTraceInto(Rpc* rpc, benchmark::State& bstate) {
   std::string contents;
   if (!base::ReadFile(kTraceFixture, &contents)) {
-    bstate.SkipWithError(
-        "Test data missing. Please ensure "
-        "test/data/android_postboot_unlock.pftrace exists.");
+    bstate.SkipWithError("Test data missing. Please ensure "
+                         "test/data/android_postboot_unlock.pftrace exists.");
     return false;
   }
-  base::Status s = rpc->Parse(reinterpret_cast<const uint8_t*>(contents.data()),
-                              contents.size());
-  if (!s.ok()) {
-    bstate.SkipWithError(
-        ("Rpc::Parse failed: " + s.message()).c_str());
+  if (auto s = rpc->Parse(reinterpret_cast<const uint8_t*>(contents.data()),
+                          contents.size());
+      !s.ok()) {
+    bstate.SkipWithError(("Rpc::Parse failed: " + s.message()).c_str());
     return false;
   }
-  s = rpc->NotifyEndOfFile();
-  if (!s.ok()) {
+  if (auto s = rpc->NotifyEndOfFile(); !s.ok()) {
     bstate.SkipWithError(
         ("Rpc::NotifyEndOfFile failed: " + s.message()).c_str());
     return false;
@@ -277,43 +259,34 @@ bool LoadTraceInto(Rpc* rpc, benchmark::State& bstate) {
   return true;
 }
 
-// How a burst's queries should be tagged. `kEmpty` and `kSameTag`
-// both route to a single connection (same logical session); they
-// differ only in whether the request opts into the tag-affine
-// dispatch path explicitly. `kDistinctTags` gives each query its own
-// tag so different-tag requests fan out across the pool.
 enum class TagStrategy { kEmpty, kSameTag, kDistinctTags };
 
 std::string TagFor(TagStrategy s, size_t i) {
   switch (s) {
-    case TagStrategy::kEmpty: return {};
-    case TagStrategy::kSameTag: return "shared";
-    case TagStrategy::kDistinctTags: return "tag_" + std::to_string(i);
+    case TagStrategy::kEmpty:
+      return {};
+    case TagStrategy::kSameTag:
+      return "shared";
+    case TagStrategy::kDistinctTags:
+      return "tag_" + std::to_string(i);
   }
   return {};
 }
 
 // Pool ON: queries dispatch async through a wired-up dispatcher.
-// Mirrors what `httpd.cc` does at construction.
-//
-// Each iteration: fire all N queries via OnRpcRequest, then drain the
-// task queue until N is_last_batch markers have been observed. Wall
-// time = elapsed from first dispatch to last drained completion.
-//
 // `tag_strategy` controls how the burst maps to RPC tags, which in
 // turn controls how queries map to pool connections. Distinct tags is
-// the only configuration that exercises pool fan-out — the empty and
-// same-tag configurations serialise on one connection by design and
-// exist as the lower-bound control for the speedup ratio.
-void RunStreamingBurstPoolOn(benchmark::State& bstate,
-                             const std::vector<std::string>& queries,
-                             TagStrategy tag_strategy) {
+// the only configuration that exercises pool fan-out — empty and
+// same-tag serialise on one connection by design and exist as the
+// lower-bound control for the speedup ratio.
+void RunBurstPoolOn(benchmark::State& bstate,
+                    const std::vector<std::string>& queries,
+                    TagStrategy tag_strategy) {
   Rpc rpc;
   if (!LoadTraceInto(&rpc, bstate)) {
     return;
   }
   const size_t kN = queries.size();
-
   TaskQueue task_queue;
   std::vector<uint8_t> wire_bytes;
   std::mutex wire_mu;
@@ -322,29 +295,29 @@ void RunStreamingBurstPoolOn(benchmark::State& bstate,
     auto* p = static_cast<const uint8_t*>(data);
     wire_bytes.insert(wire_bytes.end(), p, p + len);
   });
-  rpc.SetResponseDispatcher([&](std::function<void()> task) {
-    task_queue.Post(std::move(task));
-  });
+  rpc.SetResponseDispatcher(
+      [&](std::function<void()> task) { task_queue.Post(std::move(task)); });
 
-  // Pre-warm: one query so the worker pool + connection pool are
-  // primed. This pulls the lazy ThreadPool / Connection minting cost
-  // out of the measured loop.
-  {
-    auto msg = EncodeStreamingQueryRpcMessage(/*seq=*/0,
-                                              "SELECT count(*) FROM slice");
-    rpc.OnRpcRequest(msg.data(), msg.size());
-    task_queue.DrainUntil(
-        [&]() {
+  auto await_n = [&](size_t n) {
+    return task_queue.DrainUntil(
+        [&] {
           std::lock_guard<std::mutex> g(wire_mu);
-          return CountQueriesCompleted(wire_bytes) >= 1;
+          return CountQueriesCompleted(wire_bytes) >= n;
         },
         std::chrono::seconds(60));
+  };
+
+  // Pre-warm: pull the lazy ThreadPool / Connection minting out of the
+  // measured loop.
+  {
+    auto msg = EncodeStreamingQueryRpcMessage(0, "SELECT count(*) FROM slice");
+    rpc.OnRpcRequest(msg.data(), msg.size());
+    await_n(1);
     std::lock_guard<std::mutex> g(wire_mu);
     wire_bytes.clear();
   }
 
   int64_t seq = 1000;
-  // Per-iteration phase totals; convert to averages at end.
   int64_t total_wall_ns = 0;
   int64_t total_sql_exec_ns = 0;
   int64_t total_dispatcher_ns = 0;
@@ -360,39 +333,30 @@ void RunStreamingBurstPoolOn(benchmark::State& bstate,
                                                 TagFor(tag_strategy, i));
       rpc.OnRpcRequest(msg.data(), msg.size());
     }
-    bool done = task_queue.DrainUntil(
-        [&]() {
-          std::lock_guard<std::mutex> g(wire_mu);
-          return CountQueriesCompleted(wire_bytes) >= kN;
-        },
-        std::chrono::seconds(60));
-    auto t1 = std::chrono::steady_clock::now();
-    if (!done) {
+    if (!await_n(kN)) {
       bstate.SkipWithError("Pool-on: drain timed out before kN completions");
       return;
     }
-    const auto wall_ns =
+    auto t1 = std::chrono::steady_clock::now();
+    total_wall_ns +=
         std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
-    total_wall_ns += wall_ns;
     total_sql_exec_ns += rpc.sql_exec_ns_for_testing();
     total_dispatcher_ns += rpc.dispatcher_ns_for_testing();
-    bstate.SetIterationTime(
-        std::chrono::duration<double>(t1 - t0).count());
+    bstate.SetIterationTime(std::chrono::duration<double>(t1 - t0).count());
   }
-  bstate.counters["queries"] =
-      benchmark::Counter(static_cast<double>(kN),
-                         benchmark::Counter::kIsIterationInvariant);
-  bstate.counters["workers_used"] = benchmark::Counter(
+  using Ctr = benchmark::Counter;
+  bstate.counters["queries"] = Ctr(static_cast<double>(kN), Ctr::kIsIterationInvariant);
+  bstate.counters["workers_used"] = Ctr(
       static_cast<double>(rpc.pool_workers_used_for_testing()),
-      benchmark::Counter::kIsIterationInvariant);
-  bstate.counters["distinct_connections"] = benchmark::Counter(
+      Ctr::kIsIterationInvariant);
+  bstate.counters["distinct_connections"] = Ctr(
       static_cast<double>(rpc.pool_distinct_connections_for_testing()),
-      benchmark::Counter::kIsIterationInvariant);
-  bstate.counters["hardware_concurrency"] = benchmark::Counter(
+      Ctr::kIsIterationInvariant);
+  bstate.counters["hardware_concurrency"] = Ctr(
       static_cast<double>(std::thread::hardware_concurrency()),
-      benchmark::Counter::kIsIterationInvariant);
-  // Diagnostic counters: how busy was the worker pool vs the
-  // single-threaded transport dispatcher? Ideal speedup needs
+      Ctr::kIsIterationInvariant);
+  // Diagnostic counters: how busy was the worker pool vs the single-
+  // threaded transport dispatcher? Ideal speedup needs
   // worker_parallelism ≈ #pool_workers AND dispatcher_fraction << 1.
   if (total_wall_ns > 0) {
     bstate.counters["worker_parallelism"] =
@@ -404,55 +368,32 @@ void RunStreamingBurstPoolOn(benchmark::State& bstate,
   }
 }
 
-void BM_RpcStreamingQueryBurst_PoolOn_Untagged(benchmark::State& bstate) {
-  RunStreamingBurstPoolOn(bstate, WorkloadQueries(), TagStrategy::kEmpty);
-}
-void BM_RpcStreamingQueryBurst_PoolOn_SameTag(benchmark::State& bstate) {
-  RunStreamingBurstPoolOn(bstate, WorkloadQueries(), TagStrategy::kSameTag);
-}
-void BM_RpcStreamingQueryBurst_PoolOn_DistinctTags(benchmark::State& bstate) {
-  RunStreamingBurstPoolOn(bstate, WorkloadQueries(),
-                          TagStrategy::kDistinctTags);
-}
-void BM_RpcStreamingQueryBurst_Balanced_PoolOn_DistinctTags(
-    benchmark::State& bstate) {
-  RunStreamingBurstPoolOn(bstate, BalancedWorkloadQueries(),
-                          TagStrategy::kDistinctTags);
-}
-
 // Pool OFF: no dispatcher. `OnRpcRequest` runs the streaming query
-// inline on the calling thread (the legacy synchronous path). All N
-// queries run sequentially. Reports per-query times so we can see
+// inline on the calling thread (legacy synchronous path). All N
+// queries run sequentially. Reports per-query times so we can compute
 // `parallel_ceiling = sum / max` — the upper bound on the speedup
 // the pool-on path could ever achieve on this workload.
-void RunStreamingBurstPoolOff(benchmark::State& bstate,
-                              const std::vector<std::string>& queries) {
+void RunBurstPoolOff(benchmark::State& bstate,
+                     const std::vector<std::string>& queries) {
   Rpc rpc;
   if (!LoadTraceInto(&rpc, bstate)) {
     return;
   }
   const size_t kN = queries.size();
-
   std::vector<uint8_t> wire_bytes;
   rpc.SetRpcResponseFunction([&](const void* data, uint32_t len) {
     auto* p = static_cast<const uint8_t*>(data);
     wire_bytes.insert(wire_bytes.end(), p, p + len);
   });
-  // No SetResponseDispatcher -> sync inline path.
 
-  // Pre-warm: same as pool-on, to amortise any first-query JIT/cache.
+  // Pre-warm.
   {
-    auto msg = EncodeStreamingQueryRpcMessage(/*seq=*/0,
-                                              "SELECT count(*) FROM slice");
+    auto msg = EncodeStreamingQueryRpcMessage(0, "SELECT count(*) FROM slice");
     rpc.OnRpcRequest(msg.data(), msg.size());
     wire_bytes.clear();
   }
 
   int64_t seq = 1000;
-  // Per-query wall times (ns) summed across iterations. Reported as
-  // diagnostic counters so we can see if pool-on speedup is bounded
-  // by the slowest single query (Amdahl's law: wall_pool_on can't
-  // drop below max(per_query_time)).
   std::vector<int64_t> per_query_ns(kN, 0);
   int64_t iters = 0;
   for (auto _ : bstate) {
@@ -467,119 +408,68 @@ void RunStreamingBurstPoolOff(benchmark::State& bstate,
           std::chrono::duration_cast<std::chrono::nanoseconds>(q1 - q0).count();
     }
     auto t1 = std::chrono::steady_clock::now();
-    size_t completed = CountQueriesCompleted(wire_bytes);
-    if (completed < kN) {
-      bstate.SkipWithError(
-          ("Pool-off: only " + std::to_string(completed) + "/" +
-           std::to_string(kN) + " queries completed").c_str());
+    if (CountQueriesCompleted(wire_bytes) < kN) {
+      bstate.SkipWithError("Pool-off: incomplete burst");
       return;
     }
-    bstate.SetIterationTime(
-        std::chrono::duration<double>(t1 - t0).count());
+    bstate.SetIterationTime(std::chrono::duration<double>(t1 - t0).count());
     iters++;
   }
   if (iters > 0) {
-    int64_t max_avg_ns = 0;
-    int64_t sum_avg_ns = 0;
+    int64_t max_ns = 0, sum_ns = 0;
     for (size_t i = 0; i < kN; ++i) {
       int64_t avg = per_query_ns[i] / iters;
-      sum_avg_ns += avg;
-      if (avg > max_avg_ns) max_avg_ns = avg;
-      bstate.counters["q" + std::to_string(i) + "_us"] = static_cast<double>(avg) / 1e3;
+      sum_ns += avg;
+      max_ns = std::max(max_ns, avg);
+      bstate.counters["q" + std::to_string(i) + "_us"] =
+          static_cast<double>(avg) / 1e3;
     }
-    bstate.counters["max_q_us"] = static_cast<double>(max_avg_ns) / 1e3;
-    bstate.counters["sum_q_us"] = static_cast<double>(sum_avg_ns) / 1e3;
-    // Parallelism ceiling under perfect 10-way fan-out: sum / max.
+    bstate.counters["max_q_us"] = static_cast<double>(max_ns) / 1e3;
+    bstate.counters["sum_q_us"] = static_cast<double>(sum_ns) / 1e3;
     bstate.counters["parallel_ceiling"] =
-        max_avg_ns > 0
-            ? static_cast<double>(sum_avg_ns) / static_cast<double>(max_avg_ns)
-            : 0.0;
+        max_ns > 0 ? static_cast<double>(sum_ns) / static_cast<double>(max_ns)
+                   : 0.0;
   }
-  bstate.counters["queries"] =
-      benchmark::Counter(static_cast<double>(kN),
-                         benchmark::Counter::kIsIterationInvariant);
-  bstate.counters["hardware_concurrency"] = benchmark::Counter(
+  using Ctr = benchmark::Counter;
+  bstate.counters["queries"] = Ctr(static_cast<double>(kN), Ctr::kIsIterationInvariant);
+  bstate.counters["hardware_concurrency"] = Ctr(
       static_cast<double>(std::thread::hardware_concurrency()),
-      benchmark::Counter::kIsIterationInvariant);
+      Ctr::kIsIterationInvariant);
 }
 
-void BM_RpcStreamingQueryBurst_PoolOff(benchmark::State& bstate) {
-  RunStreamingBurstPoolOff(bstate, WorkloadQueries());
-}
-void BM_RpcStreamingQueryBurst_Balanced_PoolOff(benchmark::State& bstate) {
-  RunStreamingBurstPoolOff(bstate, BalancedWorkloadQueries());
-}
+#define BURST_POOL_OFF(name, queries)                       \
+  static void BM_RpcBurst_##name##_PoolOff(                 \
+      benchmark::State& bstate) {                           \
+    RunBurstPoolOff(bstate, queries());                     \
+  }                                                         \
+  BENCHMARK(BM_RpcBurst_##name##_PoolOff)                   \
+      ->UseManualTime()                                     \
+      ->Unit(benchmark::kMillisecond)                       \
+      ->MinTime(2.0)
 
-// Parallelism diagnostic: a workload that touches no shared trace
-// tables. Uses a recursive CTE to do pure CPU work on each connection
-// independently. The headline reading is "what's the dispatch ceiling
-// when SQL execution itself doesn't touch any shared state".
-const std::vector<std::string>& CpuOnlyQueries() {
-  // 8 copies of a 50K-row recursive CTE. Each query is independent
-  // and touches no trace tables; running them all gives the dispatch
-  // layer 8 distinct-tag tasks to fan out across the worker pool.
-  static const std::vector<std::string> kQueries(
-      8,
-      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
-      "WHERE x<50000) SELECT sum(x*x*x) FROM c");
-  return kQueries;
-}
+#define BURST_POOL_ON(name, queries, strategy)              \
+  static void BM_RpcBurst_##name##_PoolOn_##strategy(       \
+      benchmark::State& bstate) {                           \
+    RunBurstPoolOn(bstate, queries(), TagStrategy::k##strategy); \
+  }                                                         \
+  BENCHMARK(BM_RpcBurst_##name##_PoolOn_##strategy)         \
+      ->UseManualTime()                                     \
+      ->Unit(benchmark::kMillisecond)                       \
+      ->MinTime(2.0)
 
-void BM_RpcCpuOnlyBurst_PoolOn_Untagged(benchmark::State& bstate) {
-  RunStreamingBurstPoolOn(bstate, CpuOnlyQueries(), TagStrategy::kEmpty);
-}
-void BM_RpcCpuOnlyBurst_PoolOn_SameTag(benchmark::State& bstate) {
-  RunStreamingBurstPoolOn(bstate, CpuOnlyQueries(), TagStrategy::kSameTag);
-}
-void BM_RpcCpuOnlyBurst_PoolOn_DistinctTags(benchmark::State& bstate) {
-  RunStreamingBurstPoolOn(bstate, CpuOnlyQueries(),
-                          TagStrategy::kDistinctTags);
-}
+BURST_POOL_OFF(Workload, WorkloadQueries);
+BURST_POOL_ON(Workload, WorkloadQueries, Empty);
+BURST_POOL_ON(Workload, WorkloadQueries, SameTag);
+BURST_POOL_ON(Workload, WorkloadQueries, DistinctTags);
+BURST_POOL_OFF(Balanced, BalancedWorkloadQueries);
+BURST_POOL_ON(Balanced, BalancedWorkloadQueries, DistinctTags);
+BURST_POOL_OFF(CpuOnly, CpuOnlyQueries);
+BURST_POOL_ON(CpuOnly, CpuOnlyQueries, Empty);
+BURST_POOL_ON(CpuOnly, CpuOnlyQueries, SameTag);
+BURST_POOL_ON(CpuOnly, CpuOnlyQueries, DistinctTags);
 
-void BM_RpcCpuOnlyBurst_PoolOff(benchmark::State& bstate) {
-  RunStreamingBurstPoolOff(bstate, CpuOnlyQueries());
-}
-
-BENCHMARK(BM_RpcStreamingQueryBurst_PoolOff)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcStreamingQueryBurst_PoolOn_Untagged)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcStreamingQueryBurst_PoolOn_SameTag)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcStreamingQueryBurst_PoolOn_DistinctTags)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcStreamingQueryBurst_Balanced_PoolOff)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcStreamingQueryBurst_Balanced_PoolOn_DistinctTags)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcCpuOnlyBurst_PoolOff)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcCpuOnlyBurst_PoolOn_Untagged)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcCpuOnlyBurst_PoolOn_SameTag)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
-BENCHMARK(BM_RpcCpuOnlyBurst_PoolOn_DistinctTags)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
+#undef BURST_POOL_OFF
+#undef BURST_POOL_ON
 
 }  // namespace
 }  // namespace perfetto::trace_processor

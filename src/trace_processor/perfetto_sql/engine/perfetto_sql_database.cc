@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/engine/global_staging_area.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 
 #include <memory>
 #include <mutex>
@@ -23,27 +23,40 @@
 
 namespace perfetto::trace_processor {
 
-GlobalStagingArea::GlobalStagingArea() = default;
-GlobalStagingArea::~GlobalStagingArea() = default;
+PerfettoSqlDatabase::PerfettoSqlDatabase() = default;
+PerfettoSqlDatabase::~PerfettoSqlDatabase() = default;
 
-GlobalStagingArea::IncludeLockGuard GlobalStagingArea::AcquireIncludeLock(
-    const std::string& module_name) {
-  std::recursive_mutex* module_mutex;
-  {
-    std::lock_guard<std::mutex> guard(map_mutex_);
-    auto it = module_locks_.find(module_name);
-    if (it == module_locks_.end()) {
-      auto inserted = module_locks_.emplace(
-          module_name, std::make_unique<std::recursive_mutex>());
-      it = inserted.first;
-    }
-    module_mutex = it->second.get();
+PerfettoSqlDatabase::IncludeClaimResult PerfettoSqlDatabase::TryClaimInclude(
+    const std::string& key) {
+  std::unique_lock<std::mutex> lock(include_mu_);
+  include_cv_.wait(lock, [&] { return in_progress_.count(key) == 0; });
+  if (included_modules_.count(key)) {
+    return {{}, /*already_included=*/true};
   }
-  return IncludeLockGuard(
-      std::unique_lock<std::recursive_mutex>(*module_mutex));
+  in_progress_.insert(key);
+  return {IncludeClaim(this, key), /*already_included=*/false};
 }
 
-std::string GlobalStagingArea::MakeVtabKey(const std::string& module_name,
+void PerfettoSqlDatabase::ReleaseClaim(const std::string& key, bool success) {
+  {
+    std::lock_guard<std::mutex> lock(include_mu_);
+    in_progress_.erase(key);
+    if (success) {
+      included_modules_.insert(key);
+    }
+  }
+  include_cv_.notify_all();
+}
+
+void PerfettoSqlDatabase::IncludeClaim::Reset(bool success) {
+  if (area_) {
+    area_->ReleaseClaim(key_, success);
+    area_ = nullptr;
+    key_.clear();
+  }
+}
+
+std::string PerfettoSqlDatabase::MakeVtabKey(const std::string& module_name,
                                            const std::string& vtab_name) {
   std::string key;
   key.reserve(module_name.size() + 1 + vtab_name.size());
@@ -53,7 +66,7 @@ std::string GlobalStagingArea::MakeVtabKey(const std::string& module_name,
   return key;
 }
 
-void GlobalStagingArea::PublishVtabState(const std::string& module_name,
+void PerfettoSqlDatabase::PublishVtabState(const std::string& module_name,
                                          const std::string& vtab_name,
                                          std::shared_ptr<void> state) {
   std::lock_guard<std::mutex> guard(vtab_state_mutex_);
@@ -62,13 +75,13 @@ void GlobalStagingArea::PublishVtabState(const std::string& module_name,
   vtab_state_.Insert(std::move(key), std::move(state));
 }
 
-void GlobalStagingArea::RemoveVtabState(const std::string& module_name,
+void PerfettoSqlDatabase::RemoveVtabState(const std::string& module_name,
                                         const std::string& vtab_name) {
   std::lock_guard<std::mutex> guard(vtab_state_mutex_);
   vtab_state_.Erase(MakeVtabKey(module_name, vtab_name));
 }
 
-std::shared_ptr<void> GlobalStagingArea::LookupVtabState(
+std::shared_ptr<void> PerfettoSqlDatabase::LookupVtabState(
     const std::string& module_name,
     const std::string& vtab_name) const {
   std::lock_guard<std::mutex> guard(vtab_state_mutex_);
@@ -79,7 +92,7 @@ std::shared_ptr<void> GlobalStagingArea::LookupVtabState(
   return *found;
 }
 
-uint64_t GlobalStagingArea::AppendFunction(FunctionPoolEntry entry) {
+uint64_t PerfettoSqlDatabase::AppendFunction(FunctionPoolEntry entry) {
   std::lock_guard<std::mutex> guard(function_pool_mutex_);
   function_pool_.push_back(std::move(entry));
   uint64_t new_version = function_pool_.size();
@@ -90,7 +103,7 @@ uint64_t GlobalStagingArea::AppendFunction(FunctionPoolEntry entry) {
   return new_version;
 }
 
-GlobalStagingArea::FunctionPoolSnapshot GlobalStagingArea::SnapshotSince(
+PerfettoSqlDatabase::FunctionPoolSnapshot PerfettoSqlDatabase::SnapshotSince(
     uint64_t since_version) const {
   // Fast-path: peek the atomic; if the caller is already up-to-date we
   // don't even need to take the lock. This makes `Execute` start cheap on
@@ -116,17 +129,17 @@ GlobalStagingArea::FunctionPoolSnapshot GlobalStagingArea::SnapshotSince(
   return snapshot;
 }
 
-uint64_t GlobalStagingArea::LatestFunctionVersion() const {
+uint64_t PerfettoSqlDatabase::LatestFunctionVersion() const {
   return function_pool_version_.load(std::memory_order_acquire);
 }
 
-void GlobalStagingArea::ResetFunctionPool() {
+void PerfettoSqlDatabase::ResetFunctionPool() {
   std::lock_guard<std::mutex> guard(function_pool_mutex_);
   function_pool_.clear();
   function_pool_version_.store(0, std::memory_order_release);
 }
 
-uint64_t GlobalStagingArea::AppendPackage(PackagePoolEntry entry) {
+uint64_t PerfettoSqlDatabase::AppendPackage(PackagePoolEntry entry) {
   std::lock_guard<std::mutex> guard(package_pool_mutex_);
   package_pool_.push_back(std::move(entry));
   uint64_t new_version = package_pool_.size();
@@ -136,7 +149,7 @@ uint64_t GlobalStagingArea::AppendPackage(PackagePoolEntry entry) {
   return new_version;
 }
 
-GlobalStagingArea::PackagePoolSnapshot GlobalStagingArea::SnapshotPackagesSince(
+PerfettoSqlDatabase::PackagePoolSnapshot PerfettoSqlDatabase::SnapshotPackagesSince(
     uint64_t since_version) const {
   // Fast-path peek of the atomic; no lock needed if the caller is already
   // up-to-date.
@@ -160,30 +173,19 @@ GlobalStagingArea::PackagePoolSnapshot GlobalStagingArea::SnapshotPackagesSince(
   return snapshot;
 }
 
-uint64_t GlobalStagingArea::LatestPackageVersion() const {
+uint64_t PerfettoSqlDatabase::LatestPackageVersion() const {
   return package_pool_version_.load(std::memory_order_acquire);
 }
 
-void GlobalStagingArea::ResetPackagePool() {
+void PerfettoSqlDatabase::ResetPackagePool() {
   std::lock_guard<std::mutex> guard(package_pool_mutex_);
   package_pool_.clear();
   package_pool_version_.store(0, std::memory_order_release);
 }
 
-void GlobalStagingArea::MarkModuleIncluded(const std::string& key) {
-  std::lock_guard<std::mutex> guard(included_modules_mutex_);
-  included_modules_.Erase(key);
-  included_modules_.Insert(key, true);
-}
-
-bool GlobalStagingArea::IsModuleIncluded(const std::string& key) const {
-  std::lock_guard<std::mutex> guard(included_modules_mutex_);
-  return included_modules_.Find(key) != nullptr;
-}
-
-void GlobalStagingArea::ResetIncludedModules() {
-  std::lock_guard<std::mutex> guard(included_modules_mutex_);
-  included_modules_.Clear();
+void PerfettoSqlDatabase::ResetIncludedModules() {
+  std::lock_guard<std::mutex> guard(include_mu_);
+  included_modules_.clear();
 }
 
 }  // namespace perfetto::trace_processor

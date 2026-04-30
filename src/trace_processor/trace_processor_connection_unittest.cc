@@ -32,1079 +32,627 @@
 namespace perfetto::trace_processor {
 namespace {
 
+using Conn = TraceProcessor::Connection;
+using ModuleSpec = std::pair<std::string, std::string>;
+
+// Shared fixture for the secondary-connection test suite. All tests
+// run against a fresh `TraceProcessor` with `NotifyEndOfFile` already
+// called (the multi-conn API is post-EOF only). Helpers below collapse
+// the recurring patterns (drain-and-assert-ok, single-scalar SELECT,
+// SqlPackage build+register, threaded worker fan-out) so each test
+// body only contains what makes it unique.
+class TraceProcessorConnectionTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    tp_ = TraceProcessor::CreateInstance(Config());
+    ASSERT_OK(tp_->NotifyEndOfFile());
+  }
+
+  // Drives the iterator to completion and returns its terminal status.
+  static base::Status Drain(Iterator& it) {
+    while (it.Next()) {
+    }
+    return it.Status();
+  }
+
+  // Runs `sql` and returns the terminal status. Use with `ASSERT_OK`/
+  // `EXPECT_OK` / `EXPECT_FALSE(_.ok())` at the call site.
+  base::Status Exec(const std::string& sql) {
+    auto it = tp_->ExecuteQuery(sql);
+    return Drain(it);
+  }
+  static base::Status ExecOn(Conn* conn, const std::string& sql) {
+    auto it = conn->ExecuteQuery(sql);
+    return Drain(it);
+  }
+
+  // Runs `sql` and returns the int value in column 0 of the first row.
+  // Asserts (non-fatally) that exactly one row was returned and the
+  // terminal status was OK; if the query fails or has no rows the
+  // returned value is undefined and the test will be flagged failed.
+  int64_t QueryLong(const std::string& sql) {
+    return QueryLongOn(tp_.get(), sql);
+  }
+  template <typename T>
+  static int64_t QueryLongOn(T* exec, const std::string& sql) {
+    auto it = exec->ExecuteQuery(sql);
+    EXPECT_TRUE(it.Next()) << it.Status().c_message();
+    int64_t v = it.Get(0).long_value;
+    EXPECT_OK(Drain(it));
+    return v;
+  }
+
+  // Mints a secondary connection. Caller owns the returned handle.
+  std::unique_ptr<Conn> MintConn() {
+    auto c = tp_->CreateConnection();
+    EXPECT_NE(c, nullptr);
+    return c;
+  }
+
+  // Registers a `SqlPackage` named `name` with `modules` as
+  // (module_name, body) pairs. Asserts (fatally) the registration
+  // succeeded.
+  void RegisterPackage(const std::string& name,
+                       std::vector<ModuleSpec> modules) {
+    SqlPackage pkg;
+    pkg.name = name;
+    for (auto& m : modules) {
+      pkg.modules.emplace_back(std::move(m.first), std::move(m.second));
+    }
+    ASSERT_OK(tp_->RegisterSqlPackage(pkg));
+  }
+
+  // Spawns a thread per connection in `conns`, each running `body`
+  // with its own connection moved in. Returns the number of times
+  // `body` reported a failure via the supplied counter.
+  template <typename Body>
+  static int RunOnThreads(std::vector<std::unique_ptr<Conn>> conns,
+                          Body body) {
+    std::atomic<int> errors{0};
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < conns.size(); ++i) {
+      threads.emplace_back(
+          [&errors, body, conn = std::move(conns[i]), i]() mutable {
+            body(std::move(conn), i, errors);
+          });
+    }
+    for (auto& t : threads) {
+      t.join();
+    }
+    return errors.load();
+  }
+
+  std::unique_ptr<TraceProcessor> tp_;
+};
+
 // Smoke tests for `TraceProcessor::CreateConnection` and the secondary
-// `Connection` it returns. Phase 2 iter 2 wires the secondary connection
-// to its own `PerfettoSqlEngine` opened against the primary engine's
-// memdb URI; these tests verify that scaffold end-to-end on a fresh
-// (empty) trace.
-TEST(TraceProcessorConnectionTest, SecondaryConnectionExecutesTrivialQuery) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-
+// `Connection` it returns. Phase 2 iter 2 wires the secondary
+// connection to its own `PerfettoSqlEngine` opened against the primary
+// engine's memdb URI; these tests verify that scaffold end-to-end on a
+// fresh (empty) trace.
+TEST_F(TraceProcessorConnectionTest, SecondaryConnectionExecutesTrivialQuery) {
+  auto conn = MintConn();
   // Trivial query that touches no tables: exercises the per-connection
   // SQLite handle and the Iterator wiring without depending on any
   // schema or vtab/function being replicated to the secondary engine.
-  auto it = conn->ExecuteQuery("SELECT 1");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(0).long_value, 1);
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT 1"), 1);
 }
 
-TEST(TraceProcessorConnectionTest, SecondaryConnectionSeesPrimarySchema) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+TEST_F(TraceProcessorConnectionTest, SecondaryConnectionSeesPrimarySchema) {
+  // Plain SQL table on the writer lives in `main` and propagates to
+  // other connections via the shared memdb store.
+  ASSERT_OK(Exec("CREATE TABLE conn_test_table(id INTEGER, val TEXT);"));
+  ASSERT_OK(Exec("INSERT INTO conn_test_table VALUES(7, 'hello');"));
 
-  // Create a plain SQL table on connection-0. It lives in `main` and
-  // should propagate to other connections via `cache=shared`.
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE TABLE conn_test_table(id INTEGER, val TEXT);");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-  {
-    auto it =
-        tp->ExecuteQuery("INSERT INTO conn_test_table VALUES(7, 'hello');");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-
-  // The secondary connection should see the table created on conn-0
-  // because both handles point at the same shared in-memory database.
+  auto conn = MintConn();
   auto it = conn->ExecuteQuery(
       "SELECT id, val FROM conn_test_table ORDER BY id;");
   ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(0).long_value, 7);
-  ASSERT_EQ(it.Get(1).type, SqlValue::kString);
-  ASSERT_STREQ(it.Get(1).string_value, "hello");
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+  EXPECT_EQ(it.Get(0).long_value, 7);
+  EXPECT_STREQ(it.Get(1).string_value, "hello");
+  EXPECT_OK(Drain(it));
 }
 
-TEST(TraceProcessorConnectionTest, MultipleConnectionsCoexist) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
-  auto conn_a = tp->CreateConnection();
-  auto conn_b = tp->CreateConnection();
-  ASSERT_NE(conn_a, nullptr);
-  ASSERT_NE(conn_b, nullptr);
-
-  {
-    auto it = conn_a->ExecuteQuery("SELECT 1");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 1);
-  }
-  {
-    auto it = conn_b->ExecuteQuery("SELECT 2");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 2);
-  }
+TEST_F(TraceProcessorConnectionTest, MultipleConnectionsCoexist) {
+  auto conn_a = MintConn();
+  auto conn_b = MintConn();
+  EXPECT_EQ(QueryLongOn(conn_a.get(), "SELECT 1"), 1);
+  EXPECT_EQ(QueryLongOn(conn_b.get(), "SELECT 2"), 2);
 }
 
-// Verifies the temp-then-promote include pattern: a successful
-// `INCLUDE PERFETTO MODULE` issued on the default connection promotes its
-// CREATE statements to `main`, so a freshly-minted secondary connection
-// (sharing memdb with `cache=shared`) sees the new objects.
-TEST(TraceProcessorConnectionTest, IncludePromotesObjectsToOtherConnections) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// A successful `INCLUDE PERFETTO MODULE` issued on the default
+// connection promotes its CREATE statements to `main`, so a freshly-
+// minted secondary connection (sharing memdb) sees the new objects.
+TEST_F(TraceProcessorConnectionTest, IncludePromotesObjectsToOtherConnections) {
+  RegisterPackage("include_promote_test",
+                  {{"include_promote_test.tables",
+                    "CREATE TABLE include_promote_t(id INTEGER, name TEXT);\n"
+                    "INSERT INTO include_promote_t VALUES (1, 'alpha'),"
+                    " (2, 'beta');\n"}});
+  ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_promote_test.tables;"));
 
-  SqlPackage pkg;
-  pkg.name = "include_promote_test";
-  pkg.modules.emplace_back(
-      "include_promote_test.tables",
-      "CREATE TABLE include_promote_t(id INTEGER, name TEXT);\n"
-      "INSERT INTO include_promote_t VALUES (1, 'alpha'), (2, 'beta');\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg));
-
-  // Issue the include on connection-0 (the default).
-  {
-    auto it = tp->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE include_promote_test.tables;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  // A secondary connection minted *after* the include should see both rows
-  // because the savepoint released the DDL onto `main` and `cache=shared`
-  // makes the table visible to all connections backed by the same memdb URI.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
+  // Secondary minted *after* the include sees both rows because the
+  // savepoint released the DDL onto `main`.
+  auto conn = MintConn();
   auto it = conn->ExecuteQuery(
       "SELECT id, name FROM include_promote_t ORDER BY id;");
   ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 1);
-  ASSERT_STREQ(it.Get(1).string_value, "alpha");
+  EXPECT_EQ(it.Get(0).long_value, 1);
+  EXPECT_STREQ(it.Get(1).string_value, "alpha");
   ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 2);
-  ASSERT_STREQ(it.Get(1).string_value, "beta");
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+  EXPECT_EQ(it.Get(0).long_value, 2);
+  EXPECT_STREQ(it.Get(1).string_value, "beta");
+  EXPECT_OK(Drain(it));
 }
 
-// Verifies failed-include atomicity: a module whose body has a bad statement
-// at the end must (a) return an error and (b) leave no trace of any CREATE
-// statements that ran before the bad one.
-TEST(TraceProcessorConnectionTest, FailedIncludeLeavesNoTrace) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// Failed-include atomicity: a module whose body has a bad statement at
+// the end must (a) return an error and (b) leave no trace of any
+// CREATE statements that ran before the bad one.
+TEST_F(TraceProcessorConnectionTest, FailedIncludeLeavesNoTrace) {
+  RegisterPackage(
+      "include_fail_test",
+      {{"include_fail_test.broken",
+        "CREATE TABLE include_fail_t(id INTEGER);\n"
+        "INSERT INTO include_fail_t VALUES (42);\n"
+        // Fails — references a column that doesn't exist.
+        "SELECT no_such_column FROM include_fail_t;\n"}});
+  EXPECT_FALSE(Exec("INCLUDE PERFETTO MODULE include_fail_test.broken;").ok());
 
-  SqlPackage pkg;
-  pkg.name = "include_fail_test";
-  pkg.modules.emplace_back(
-      "include_fail_test.broken",
-      "CREATE TABLE include_fail_t(id INTEGER);\n"
-      "INSERT INTO include_fail_t VALUES (42);\n"
-      // This statement fails — references a column that does not exist.
-      "SELECT no_such_column FROM include_fail_t;\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg));
-
-  // The include should fail.
-  {
-    auto it = tp->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE include_fail_test.broken;");
-    while (it.Next()) {
-    }
-    ASSERT_FALSE(it.Status().ok());
+  // Neither the writer nor a secondary connection should see the
+  // partially-created table.
+  auto conn = MintConn();
+  for (auto* exec : {static_cast<void*>(tp_.get()),
+                     static_cast<void*>(conn.get())}) {
+    int64_t cnt = exec == tp_.get()
+                      ? QueryLong("SELECT count(*) FROM sqlite_master "
+                                  "WHERE name = 'include_fail_t';")
+                      : QueryLongOn(conn.get(),
+                                    "SELECT count(*) FROM sqlite_master "
+                                    "WHERE name = 'include_fail_t';");
+    EXPECT_EQ(cnt, 0);
   }
-
-  // After the failed include, the table created earlier in the body must
-  // not exist on `main`. Query sqlite_master to verify.
-  {
-    auto it = tp->ExecuteQuery(
-        "SELECT count(*) FROM sqlite_master WHERE name = 'include_fail_t';");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 0);
-  }
-
-  // A secondary connection minted now must also not see the table.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-  auto it = conn->ExecuteQuery(
-      "SELECT count(*) FROM sqlite_master WHERE name = 'include_fail_t';");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 0);
 }
 
-// Verifies sequential successful includes accumulate correctly: two distinct
-// successful includes from connection-0 should both be visible on a later-
-// minted secondary connection.
-TEST(TraceProcessorConnectionTest, SequentialIncludesPromoteToOtherConnection) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// Two distinct successful includes from the writer should both be
+// visible on a later-minted secondary connection.
+TEST_F(TraceProcessorConnectionTest,
+       SequentialIncludesPromoteToOtherConnection) {
+  RegisterPackage(
+      "include_seq_test",
+      {{"include_seq_test.first",
+        "CREATE TABLE include_seq_a(x INTEGER);\n"
+        "INSERT INTO include_seq_a VALUES (1);\n"},
+       {"include_seq_test.second",
+        "CREATE TABLE include_seq_b(y INTEGER);\n"
+        "INSERT INTO include_seq_b VALUES (2);\n"}});
+  ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_seq_test.first;"));
+  ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_seq_test.second;"));
 
-  SqlPackage pkg;
-  pkg.name = "include_seq_test";
-  pkg.modules.emplace_back(
-      "include_seq_test.first",
-      "CREATE TABLE include_seq_a(x INTEGER);\n"
-      "INSERT INTO include_seq_a VALUES (1);\n");
-  pkg.modules.emplace_back(
-      "include_seq_test.second",
-      "CREATE TABLE include_seq_b(y INTEGER);\n"
-      "INSERT INTO include_seq_b VALUES (2);\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg));
-
-  {
-    auto it = tp->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE include_seq_test.first;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-  {
-    auto it = tp->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE include_seq_test.second;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-  auto it = conn->ExecuteQuery(
-      "SELECT (SELECT x FROM include_seq_a) + (SELECT y FROM include_seq_b);");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 3);
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+  auto conn = MintConn();
+  EXPECT_EQ(QueryLongOn(conn.get(),
+                        "SELECT (SELECT x FROM include_seq_a) + "
+                        "(SELECT y FROM include_seq_b);"),
+            3);
 }
 
 // Phase 2 iter 6: every top-level `Execute(sql)` opens a SAVEPOINT
-// (`perfetto_execute_<n>`) so that if a later statement in a multi-statement
-// SQL string fails, earlier side-effects are rolled back. Verifies the
-// rollback path is observed (a) on the issuing connection and (b) on a
-// freshly-minted secondary connection (which would otherwise see the
-// orphaned table via `cache=shared`).
-TEST(TraceProcessorConnectionTest, MultiStatementExecuteRollsBackOnFailure) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// (`perfetto_execute_<n>`) so that if a later statement in a multi-
+// statement SQL string fails, earlier side-effects are rolled back.
+TEST_F(TraceProcessorConnectionTest,
+       MultiStatementExecuteRollsBackOnFailure) {
+  // Second CREATE collides with the first; the whole Execute must
+  // roll back so the table never lands.
+  EXPECT_FALSE(Exec("CREATE TABLE multistmt_t (x INT); "
+                    "CREATE TABLE multistmt_t (y INT);")
+                   .ok());
 
-  // Two CREATE TABLEs in a single Execute. The second targets the same name
-  // as the first and must fail with "table multistmt_t already exists".
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE TABLE multistmt_t (x INT); "
-        "CREATE TABLE multistmt_t (y INT);");
-    while (it.Next()) {
-    }
-    ASSERT_FALSE(it.Status().ok());
-  }
-
-  // The first CREATE must have been rolled back by the outer execute
-  // savepoint: the table must NOT be present in `sqlite_master` on the
-  // primary connection.
-  {
-    auto it = tp->ExecuteQuery(
-        "SELECT count(*) FROM sqlite_master WHERE name = 'multistmt_t';");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 0);
-  }
-
-  // A freshly-minted secondary connection must also not see the table.
-  // This rules out the case where the rollback only affects the primary
-  // engine's view but leaks via `cache=shared` to a secondary.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-  auto it = conn->ExecuteQuery(
-      "SELECT count(*) FROM sqlite_master WHERE name = 'multistmt_t';");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 0);
+  // Neither writer nor a fresh secondary should see the table.
+  auto conn = MintConn();
+  EXPECT_EQ(QueryLong("SELECT count(*) FROM sqlite_master "
+                      "WHERE name = 'multistmt_t';"),
+            0);
+  EXPECT_EQ(QueryLongOn(conn.get(),
+                        "SELECT count(*) FROM sqlite_master "
+                        "WHERE name = 'multistmt_t';"),
+            0);
 }
 
-// Positive control for the execute-savepoint wrap: two successful CREATE
-// statements in a single `Execute` land normally and are visible to a
-// secondary connection. Together with `MultiStatementExecuteRollsBackOnFailure`
-// this asserts the savepoint behaves as RELEASE-on-success / ROLLBACK-on-error.
-TEST(TraceProcessorConnectionTest, MultiStatementExecuteCommitsOnSuccess) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// Positive control for the execute-savepoint wrap: two successful
+// CREATEs in a single Execute land normally and are visible to a
+// secondary connection.
+TEST_F(TraceProcessorConnectionTest, MultiStatementExecuteCommitsOnSuccess) {
+  ASSERT_OK(Exec("CREATE TABLE multistmt_ok_a (x INT); "
+                 "CREATE TABLE multistmt_ok_b (y INT); "
+                 "INSERT INTO multistmt_ok_a VALUES (7); "
+                 "INSERT INTO multistmt_ok_b VALUES (11);"));
 
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE TABLE multistmt_ok_a (x INT); "
-        "CREATE TABLE multistmt_ok_b (y INT); "
-        "INSERT INTO multistmt_ok_a VALUES (7); "
-        "INSERT INTO multistmt_ok_b VALUES (11);");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-  auto it = conn->ExecuteQuery(
-      "SELECT (SELECT x FROM multistmt_ok_a) + "
-      "(SELECT y FROM multistmt_ok_b);");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 18);
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+  auto conn = MintConn();
+  EXPECT_EQ(QueryLongOn(conn.get(),
+                        "SELECT (SELECT x FROM multistmt_ok_a) + "
+                        "(SELECT y FROM multistmt_ok_b);"),
+            18);
 }
 
-// Phase 2 iter 4 smoke test: a `CREATE PERFETTO TABLE` on connection-0
-// installs a dataframe-backed virtual table. The secondary connection must
-// be able to `SELECT` from it and observe the same rows, which exercises:
+// `CREATE PERFETTO TABLE` installs a dataframe-backed virtual table.
+// The secondary connection must be able to `SELECT` from it and
+// observe the same rows, exercising:
 //  - dataframe vtab module registration on the secondary engine
-//  - cross-connection vtab-state publishing via `GlobalStagingArea`
-//    (writer publishes its committed `PerVtabState::committed_state`
-//    on every `OnCommit`)
-//  - cold xConnect resolution on the secondary engine consulting staging
+//  - cross-connection vtab-state publishing via `PerfettoSqlDatabase`
+//    (writer publishes its committed `PerVtabState` on every
+//    `OnCommit`)
+//  - cold xConnect resolution on the secondary consulting staging
 //    via `DataframeModule::Context::ResolveMissingStateOnConnect`
-//  - re-resolution at cursor creation time (`DataframeModule::Filter` /
-//    `BestIndex` look up the State from staging rather than caching it
-//    in `PerVtabState`).
-TEST(TraceProcessorConnectionTest,
-     SecondaryConnectionReadsDataframeVtabFromPrimary) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+//  - re-resolution at cursor creation time (`DataframeModule::Filter`
+//    / `BestIndex` look up the State from staging rather than caching
+//    it).
+TEST_F(TraceProcessorConnectionTest,
+       SecondaryConnectionReadsDataframeVtabFromPrimary) {
+  ASSERT_OK(Exec("CREATE PERFETTO TABLE conn_df_test AS "
+                 "SELECT 1 AS id, 'first' AS name UNION ALL "
+                 "SELECT 2 AS id, 'second' AS name UNION ALL "
+                 "SELECT 3 AS id, 'third' AS name;"));
 
-  // CREATE PERFETTO TABLE goes through DataframeModule (vs. plain CREATE
-  // TABLE which is a regular sqlite btree).
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE PERFETTO TABLE conn_df_test AS "
-        "SELECT 1 AS id, 'first' AS name UNION ALL "
-        "SELECT 2 AS id, 'second' AS name UNION ALL "
-        "SELECT 3 AS id, 'third' AS name;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
+  // Writer sees the rows.
+  EXPECT_EQ(QueryLong("SELECT count(*) FROM conn_df_test;"), 3);
 
-  // Verify the writer connection sees the rows.
-  {
-    auto it =
-        tp->ExecuteQuery("SELECT id, name FROM conn_df_test ORDER BY id;");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 1);
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
-
-  // Now mint a secondary connection and run the same query through it.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-
+  // Secondary sees them too with the right contents.
+  auto conn = MintConn();
   auto it =
       conn->ExecuteQuery("SELECT id, name FROM conn_df_test ORDER BY id;");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 1);
-  ASSERT_STREQ(it.Get(1).string_value, "first");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 2);
-  ASSERT_STREQ(it.Get(1).string_value, "second");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 3);
-  ASSERT_STREQ(it.Get(1).string_value, "third");
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+  for (int64_t i = 1; i <= 3; ++i) {
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    EXPECT_EQ(it.Get(0).long_value, i);
+  }
+  EXPECT_OK(Drain(it));
 }
 
-// Verifies that secondary connections see static dataframe-backed tables
-// (e.g. `thread`, `process`) registered via `RegisterStaticTable` during
-// engine init. These are the bread-and-butter tables that any real
-// `SELECT * FROM thread` query would hit.
-TEST(TraceProcessorConnectionTest,
-     SecondaryConnectionReadsStaticDataframeTable) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
-  // Pick `thread` as the canonical static dataframe-backed table. It has
-  // an `_auto_id` PK column plus several user-facing columns; an empty
-  // trace yields zero rows but the vtab must still be discoverable and
-  // queryable on the secondary connection.
-  int primary_thread_count = -1;
-  {
-    auto it = tp->ExecuteQuery("SELECT COUNT(*) FROM thread;");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    primary_thread_count = static_cast<int>(it.Get(0).long_value);
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
-
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-
-  auto it = conn->ExecuteQuery("SELECT COUNT(*) FROM thread;");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(static_cast<int>(it.Get(0).long_value), primary_thread_count);
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+// Static dataframe-backed tables (`thread`, `process`, …) are
+// registered via `RegisterStaticTable` during engine init; they should
+// be discoverable and queryable on secondary connections too, even on
+// an empty trace (zero rows is a valid answer).
+TEST_F(TraceProcessorConnectionTest,
+       SecondaryConnectionReadsStaticDataframeTable) {
+  int64_t primary_count = QueryLong("SELECT COUNT(*) FROM thread;");
+  auto conn = MintConn();
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT COUNT(*) FROM thread;"),
+            primary_count);
 }
 
-// Phase 2 iter 5 smoke test: a `CREATE PERFETTO FUNCTION` issued on
-// connection-0 is propagated to a freshly-minted secondary connection via
-// the staging-area function pool. The secondary connection's engine diffs
-// `last_synced_function_version_` against the pool at the start of every
-// `Execute` and re-registers any missing entries on its own `sqlite3*`.
-TEST(TraceProcessorConnectionTest, DynamicFunctionPropagatesToSecondary) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// A `CREATE PERFETTO FUNCTION` issued on the writer is propagated to a
+// freshly-minted secondary via the staging-area function pool. The
+// secondary's engine diffs `last_synced_function_version_` against the
+// pool at the start of every `Execute` and re-registers any missing
+// entries on its own `sqlite3*`.
+TEST_F(TraceProcessorConnectionTest, DynamicFunctionPropagatesToSecondary) {
+  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_double(x INT) RETURNS INT "
+                 "AS SELECT $x * 2;"));
+  EXPECT_EQ(QueryLong("SELECT conn_double(21);"), 42);
 
-  // Define a scalar function on the primary (writer) connection.
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE PERFETTO FUNCTION conn_double(x INT) RETURNS INT "
-        "AS SELECT $x * 2;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  // Verify the writer can call it.
-  {
-    auto it = tp->ExecuteQuery("SELECT conn_double(21);");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 42);
-    ASSERT_OK(it.Status());
-  }
-
-  // A secondary connection minted *after* the function was created should
-  // pick it up via the function-pool sync at the top of ExecuteUntilLast.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-  auto it = conn->ExecuteQuery("SELECT conn_double(7);");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 14);
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
+  auto conn = MintConn();
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT conn_double(7);"), 14);
 }
 
-// Verifies the version-diff mechanism is incremental: a function created
-// on connection-0 *after* a secondary connection has been minted (and
-// possibly already used for unrelated queries) must still be visible on
-// the secondary's next `Execute`. This is the core invariant that makes
-// the function pool a "diff at every Execute start" rather than a
-// "snapshot at connection-mint time".
-TEST(TraceProcessorConnectionTest, DynamicFunctionPickedUpIncrementally) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// Version-diff is incremental: a function created on the writer
+// *after* a secondary has been minted (and possibly already used) must
+// still be visible on the secondary's next `Execute`. The pool diff is
+// per-Execute, not one-shot at connection-mint time.
+TEST_F(TraceProcessorConnectionTest, DynamicFunctionPickedUpIncrementally) {
+  // Mint conn-1 first, before any dynamic function exists. Run an
+  // unrelated query so its `last_synced_version_` advances through one
+  // (empty) Execute cycle.
+  auto conn = MintConn();
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT 1;"), 1);
 
-  // Mint conn-1 *first*, before any dynamic function exists.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
+  // Now create two functions in succession on the writer.
+  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_a(x INT) RETURNS INT "
+                 "AS SELECT $x + 100;"));
+  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_b(x INT) RETURNS INT "
+                 "AS SELECT $x + 200;"));
 
-  // Run an unrelated query on conn-1 to advance its `last_synced_version_`
-  // through one Execute cycle (pool is empty so this is a no-op sync).
-  {
-    auto it = conn->ExecuteQuery("SELECT 1;");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 1);
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
+  // conn-1's next Execute picks up *both* via the version diff.
+  EXPECT_EQ(QueryLongOn(conn.get(),
+                        "SELECT conn_inc_a(1) + conn_inc_b(2);"),
+            1 + 100 + 2 + 200);
 
-  // Now, on conn-0, create two functions in succession.
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE PERFETTO FUNCTION conn_inc_a(x INT) RETURNS INT "
-        "AS SELECT $x + 100;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE PERFETTO FUNCTION conn_inc_b(x INT) RETURNS INT "
-        "AS SELECT $x + 200;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  // Conn-1's next `Execute` should pick up *both* via the version diff.
-  {
-    auto it = conn->ExecuteQuery("SELECT conn_inc_a(1) + conn_inc_b(2);");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 1 + 100 + 2 + 200);
-    ASSERT_OK(it.Status());
-  }
-
-  // And a *third* function added now should also flow through on the
-  // subsequent `Execute` (the diff is truly per-Execute, not one-shot).
-  {
-    auto it = tp->ExecuteQuery(
-        "CREATE PERFETTO FUNCTION conn_inc_c(x INT) RETURNS INT "
-        "AS SELECT $x + 1000;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-  {
-    auto it = conn->ExecuteQuery("SELECT conn_inc_c(5);");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 1005);
-    ASSERT_OK(it.Status());
-  }
+  // A *third* function added now should also flow through on the
+  // subsequent Execute (the diff is truly per-Execute, not one-shot).
+  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_c(x INT) RETURNS INT "
+                 "AS SELECT $x + 1000;"));
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT conn_inc_c(5);"), 1005);
 }
 
-// Phase 3 iter 1 multi-thread smoke test: two secondary connections, each
-// owned and used exclusively by its own thread, run a tight loop of trivial
-// queries concurrently. Connections are thread-compatible (not thread-safe)
-// per the multi-connection design, so each std::thread takes ownership of
-// its own `Connection` via move into the closure. The test asserts no
-// crashes / data races / wrong results across the fan-out — establishing a
-// baseline for subsequent Phase 3 retry / stress work.
-TEST(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
-  auto conn_a = tp->CreateConnection();
-  auto conn_b = tp->CreateConnection();
-  ASSERT_NE(conn_a, nullptr);
-  ASSERT_NE(conn_b, nullptr);
+// Two secondary connections, each owned and used exclusively by its
+// own thread, run a tight loop of trivial queries concurrently.
+// Connections are thread-compatible (not thread-safe), so each thread
+// takes ownership of its own `Connection`. Asserts no crashes / data
+// races / wrong results — baseline for subsequent stress work.
+TEST_F(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
+  std::vector<std::unique_ptr<Conn>> conns;
+  conns.push_back(MintConn());
+  conns.push_back(MintConn());
 
   constexpr int kIters = 50;
-  std::atomic<int> errors{0};
-
-  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn,
-                    int64_t expected) {
-    for (int i = 0; i < kIters; ++i) {
-      auto it = conn->ExecuteQuery("SELECT " + std::to_string(expected));
-      if (!it.Next()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      if (it.Get(0).long_value != expected) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      if (it.Next()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      if (!it.Status().ok()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-    }
-  };
-
-  std::thread t1(worker, std::move(conn_a), 1);
-  std::thread t2(worker, std::move(conn_b), 2);
-  t1.join();
-  t2.join();
-
-  ASSERT_EQ(errors.load(), 0);
+  int errs = RunOnThreads(
+      std::move(conns),
+      [](std::unique_ptr<Conn> conn, size_t tid, std::atomic<int>& errors) {
+        const int64_t expected = static_cast<int64_t>(tid) + 1;
+        for (int i = 0; i < kIters; ++i) {
+          int64_t v = QueryLongOn(conn.get(),
+                                  "SELECT " + std::to_string(expected));
+          if (v != expected) {
+            errors.fetch_add(1, std::memory_order_relaxed);
+            return;
+          }
+        }
+      });
+  EXPECT_EQ(errs, 0);
 }
 
-// Phase 3 iter 1 single-thread sanity test for the include-lock plumbing
-// added in Part A. The per-module recursive mutex must be acquired/released
-// for every `INCLUDE PERFETTO MODULE <name>` (and every individual module
-// produced by wildcard expansion) without crashing or deadlocking. Re-issuing
-// an include of an already-included module must be a no-op and must not
-// re-acquire the lock (the file.included check short-circuits before the
-// lock acquisition path).
-TEST(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// Single-thread sanity for the include-lock plumbing. The per-module
+// recursive mutex must be acquired/released for every
+// `INCLUDE PERFETTO MODULE <name>` (and every individual module from
+// wildcard expansion) without deadlock. Re-issuing an include of an
+// already-included module short-circuits before re-acquiring the
+// lock.
+TEST_F(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
+  RegisterPackage(
+      "include_lock_test",
+      {{"include_lock_test.first",
+        "CREATE TABLE include_lock_first(x INTEGER);\n"},
+       {"include_lock_test.second",
+        "CREATE TABLE include_lock_second(y INTEGER);\n"}});
 
-  // Register a small package with two modules so that wildcard expansion
-  // also exercises the per-module lock (one acquisition per individual
-  // module).
-  SqlPackage pkg;
-  pkg.name = "include_lock_test";
-  pkg.modules.emplace_back("include_lock_test.first",
-                           "CREATE TABLE include_lock_first(x INTEGER);\n");
-  pkg.modules.emplace_back("include_lock_test.second",
-                           "CREATE TABLE include_lock_second(y INTEGER);\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg));
+  // Single-key, then wildcard, then re-issue (no-op).
+  ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_lock_test.first;"));
+  ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_lock_test.*;"));
+  ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_lock_test.first;"));
 
-  // Single-key include: one lock acquire/release.
-  {
-    auto it = tp->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE include_lock_test.first;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  // Wildcard include over the rest: one lock acquire/release per
-  // not-yet-included module.
-  {
-    auto it = tp->ExecuteQuery("INCLUDE PERFETTO MODULE include_lock_test.*;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  // Re-issuing the same include should short-circuit (file.included == true)
-  // and must not deadlock or re-acquire the lock.
-  {
-    auto it = tp->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE include_lock_test.first;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  // Verify both tables are visible on a secondary.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-  auto it = conn->ExecuteQuery(
-      "SELECT count(*) FROM sqlite_master "
-      "WHERE name IN ('include_lock_first', 'include_lock_second');");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 2);
+  auto conn = MintConn();
+  EXPECT_EQ(QueryLongOn(conn.get(),
+                        "SELECT count(*) FROM sqlite_master WHERE name IN "
+                        "('include_lock_first', 'include_lock_second');"),
+            2);
 }
 
-// Phase 3 iter 2: a SQL package registered via `RegisterSqlPackage` on the
-// primary connection must be observable on a freshly-minted secondary via
-// `INCLUDE PERFETTO MODULE <name>`. The secondary's `packages_` is
-// populated by `SyncPackagesFromPool` at the top of every top-level
-// `Execute`. Verifies the include actually creates the module's tables on
-// the secondary (resolving via shared memdb, since the writer never ran
-// the include).
-TEST(TraceProcessorConnectionTest,
-     IncludeOnSecondaryConnectionWorksAfterPackageRegister) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// A `RegisterSqlPackage` on the writer is observable on a freshly-
+// minted secondary via `INCLUDE PERFETTO MODULE`. The secondary's
+// `packages_` is populated by `SyncPackagesFromPool` at the top of
+// every top-level `Execute`.
+TEST_F(TraceProcessorConnectionTest,
+       IncludeOnSecondaryConnectionWorksAfterPackageRegister) {
+  RegisterPackage(
+      "pkg_propagate_test",
+      {{"pkg_propagate_test.tables",
+        "CREATE TABLE pkg_propagate_t(id INTEGER, label TEXT);\n"
+        "INSERT INTO pkg_propagate_t VALUES (1, 'foo'), (2, 'bar');\n"}});
 
-  SqlPackage pkg;
-  pkg.name = "pkg_propagate_test";
-  pkg.modules.emplace_back(
-      "pkg_propagate_test.tables",
-      "CREATE TABLE pkg_propagate_t(id INTEGER, label TEXT);\n"
-      "INSERT INTO pkg_propagate_t VALUES (1, 'foo'), (2, 'bar');\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg));
-
-  // Mint a secondary connection AFTER the package was registered. Issuing
-  // the include here exercises the package-pool sync at the top of the
-  // secondary's first `Execute`.
-  auto conn = tp->CreateConnection();
-  ASSERT_NE(conn, nullptr);
-
-  {
-    auto it = conn->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE pkg_propagate_test.tables;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  // The module's CREATE TABLE was promoted onto `main` by the include's
-  // savepoint release; the rows should be visible on the secondary.
-  {
-    auto it = conn->ExecuteQuery(
-        "SELECT id, label FROM pkg_propagate_t ORDER BY id;");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 1);
-    ASSERT_STREQ(it.Get(1).string_value, "foo");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 2);
-    ASSERT_STREQ(it.Get(1).string_value, "bar");
-    ASSERT_FALSE(it.Next());
-    ASSERT_OK(it.Status());
-  }
+  // Mint AFTER registration so the include exercises pool-sync.
+  auto conn = MintConn();
+  ASSERT_OK(ExecOn(conn.get(),
+                   "INCLUDE PERFETTO MODULE pkg_propagate_test.tables;"));
+  EXPECT_EQ(QueryLongOn(conn.get(),
+                        "SELECT count(*) FROM pkg_propagate_t;"),
+            2);
 }
 
-// Phase 3 iter 2: the package-pool diff is incremental — entries appended
-// after the writer registers them flow to subsequently-minted secondaries.
-// The TP-level `RegisterSqlPackage` is gated on
-// `non_default_connection_count_ == 0` (Phase 1 design rule) so this test
-// interleaves register-and-mint cycles. Round 1: register pkg_a, mint and
-// use a secondary, drop it. Round 2: register pkg_b (now pool version 2),
-// mint a fresh secondary; that secondary's first `SyncPackagesFromPool`
-// picks up *both* pkg_a and pkg_b — i.e. the pool retains pkg_a across
-// the second append, the diff is purely additive. The new secondary then
-// includes pkg_b (which the first secondary never included so the table
-// doesn't pre-exist on `main`) and SELECTs from pkg_a's table (which the
-// first secondary's include promoted onto `main` via temp-then-promote
-// during round 1) — exercising both pool entries.
-TEST(TraceProcessorConnectionTest,
-     IncrementalPackageRegistrationFlowsToSecondary) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// The package-pool diff is incremental: entries appended after the
+// writer registers them flow to subsequently-minted secondaries. The
+// TP-level `RegisterSqlPackage` is gated on `non_default_connection_
+// count_ == 0` so this test interleaves register-and-mint cycles.
+// Round 1: register pkg_a, mint+use+drop a secondary. Round 2:
+// register pkg_b, mint a fresh secondary; its first sync picks up
+// *both* pool entries — i.e. the pool retains pkg_a across the second
+// append, the diff is purely additive.
+TEST_F(TraceProcessorConnectionTest,
+       IncrementalPackageRegistrationFlowsToSecondary) {
+  RegisterPackage("pkg_inc_a",
+                  {{"pkg_inc_a.tables",
+                    "CREATE TABLE pkg_inc_a_t(x INTEGER);\n"
+                    "INSERT INTO pkg_inc_a_t VALUES (101);\n"}});
 
-  SqlPackage pkg_a;
-  pkg_a.name = "pkg_inc_a";
-  pkg_a.modules.emplace_back(
-      "pkg_inc_a.tables",
-      "CREATE TABLE pkg_inc_a_t(x INTEGER);\n"
-      "INSERT INTO pkg_inc_a_t VALUES (101);\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg_a));
-
-  // Round 1: secondary picks up pkg_a via initial sync, includes it
-  // (promoting the table onto shared `main`), then is dropped. The
-  // include's temp-then-promote leaves `pkg_inc_a_t` on `main` so a
-  // later connection can SELECT from it without re-issuing the include.
+  // Round 1: secondary picks up pkg_a, includes it (promoting onto
+  // `main`), then is dropped.
   {
-    auto conn1 = tp->CreateConnection();
-    ASSERT_NE(conn1, nullptr);
-    {
-      auto it = conn1->ExecuteQuery(
-          "INCLUDE PERFETTO MODULE pkg_inc_a.tables;");
-      while (it.Next()) {
-      }
-      ASSERT_OK(it.Status());
-    }
-    auto it = conn1->ExecuteQuery("SELECT x FROM pkg_inc_a_t;");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 101);
-    ASSERT_OK(it.Status());
+    auto conn1 = MintConn();
+    ASSERT_OK(ExecOn(conn1.get(),
+                     "INCLUDE PERFETTO MODULE pkg_inc_a.tables;"));
+    EXPECT_EQ(QueryLongOn(conn1.get(), "SELECT x FROM pkg_inc_a_t;"), 101);
   }
-  // conn1 destructor decrements non_default_connection_count_ back to 0.
+  // conn1 destructor decrements non_default_connection_count_ to 0.
 
-  // Round 2: register a second package and verify the pool diff picks it
-  // up on a fresh secondary. The fresh secondary also implicitly inherits
-  // pkg_a in its `packages_` (proven by being able to query against
-  // pkg_a's promoted table — but more directly, the pool's version is
-  // now 2 entries deep, and the new secondary's `last_synced_package_
-  // version_=0` -> `=2` sweep registers BOTH entries on its engine).
-  SqlPackage pkg_b;
-  pkg_b.name = "pkg_inc_b";
-  pkg_b.modules.emplace_back(
-      "pkg_inc_b.tables",
-      "CREATE TABLE pkg_inc_b_t(y INTEGER);\n"
-      "INSERT INTO pkg_inc_b_t VALUES (202);\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg_b));
+  // Round 2: register pkg_b; fresh secondary's first sync picks up
+  // both entries on its engine.
+  RegisterPackage("pkg_inc_b",
+                  {{"pkg_inc_b.tables",
+                    "CREATE TABLE pkg_inc_b_t(y INTEGER);\n"
+                    "INSERT INTO pkg_inc_b_t VALUES (202);\n"}});
 
-  auto conn2 = tp->CreateConnection();
-  ASSERT_NE(conn2, nullptr);
-
-  // Including pkg_b on the new secondary exercises the package-pool
-  // diff: pkg_b was appended *after* conn2's prior connections did
-  // their syncs, but conn2's first Execute hits the diff and registers
-  // it before the include resolution.
-  {
-    auto it = conn2->ExecuteQuery("INCLUDE PERFETTO MODULE pkg_inc_b.tables;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-  // Read pkg_a's table (round-1 promoted) and pkg_b's (just included)
-  // in a single query. Both must be reachable from conn2.
-  {
-    auto it = conn2->ExecuteQuery(
-        "SELECT (SELECT x FROM pkg_inc_a_t) + (SELECT y FROM pkg_inc_b_t);");
-    ASSERT_TRUE(it.Next()) << it.Status().c_message();
-    ASSERT_EQ(it.Get(0).long_value, 303);
-    ASSERT_OK(it.Status());
-  }
+  auto conn2 = MintConn();
+  ASSERT_OK(ExecOn(conn2.get(),
+                   "INCLUDE PERFETTO MODULE pkg_inc_b.tables;"));
+  // pkg_a's table was promoted in round 1; pkg_b's just now. Both
+  // reachable from conn2.
+  EXPECT_EQ(QueryLongOn(conn2.get(),
+                        "SELECT (SELECT x FROM pkg_inc_a_t) + "
+                        "(SELECT y FROM pkg_inc_b_t);"),
+            303);
 }
 
-// Phase 3 iter 2 (promoted from iter 1's deferred test): exercises the
-// include-lock plumbing from iter 1 plus the cross-connection package
-// propagation from this iter, end-to-end under concurrency. The flow:
-//   1. Writer registers a package with TWO modules.
-//   2. Writer includes one module (m1) — its tables are now on shared
-//      `main` and `MarkModuleIncluded("...m1")` was published.
-//   3. Two secondary connections are minted, each owned by its own
-//      thread. From their threads they concurrently:
-//      - INCLUDE PERFETTO MODULE m1 (already-included on writer; the
-//        cross-connection `IsModuleIncluded` short-circuit must trigger
-//        on each secondary, no body re-runs)
-//      - SELECT from m1's table (proves the table is visible via
-//        cache=shared on every secondary)
-// This validates both the per-module include lock (no deadlocks under
-// contention) and the package-pool sync (each secondary's `packages_`
-// is populated from the pool before resolving the include key).
-//
-// Concurrent INCLUDE of a module that has *not* been pre-included by
-// any connection is deferred: it requires SQLITE_LOCKED retry handling
-// for shared-cache schema lock contention between the two writer-side
-// transactions, which is the busy-retry chunk's territory.
-TEST(TraceProcessorConnectionTest, ConcurrentIncludesOfSameModuleSerialise) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// End-to-end concurrency through the per-module include lock plus
+// cross-connection package propagation. Writer pre-includes a module;
+// two secondary threads each then INCLUDE the same module
+// (short-circuited via `IsModuleIncluded`) and SELECT from its table.
+// Validates: no deadlocks under contention, correct package-pool sync,
+// and `IsModuleIncluded` short-circuit hits across connections.
+TEST_F(TraceProcessorConnectionTest,
+       ConcurrentIncludesOfSameModuleSerialise) {
+  RegisterPackage(
+      "concurrent_include_test",
+      {{"concurrent_include_test.tables",
+        "CREATE TABLE concurrent_include_t(id INTEGER, val TEXT);\n"
+        "INSERT INTO concurrent_include_t VALUES (1, 'a'), (2, 'b');\n"}});
+  ASSERT_OK(Exec("INCLUDE PERFETTO MODULE concurrent_include_test.tables;"));
 
-  SqlPackage pkg;
-  pkg.name = "concurrent_include_test";
-  pkg.modules.emplace_back(
-      "concurrent_include_test.tables",
-      "CREATE TABLE concurrent_include_t(id INTEGER, val TEXT);\n"
-      "INSERT INTO concurrent_include_t VALUES (1, 'a'), (2, 'b');\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg));
+  std::vector<std::unique_ptr<Conn>> conns;
+  conns.push_back(MintConn());
+  conns.push_back(MintConn());
 
-  // Writer pre-includes the module so its CREATE TABLE is on shared
-  // `main` and the cross-connection `included_modules_` set is marked.
-  {
-    auto it = tp->ExecuteQuery(
-        "INCLUDE PERFETTO MODULE concurrent_include_test.tables;");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  auto conn_a = tp->CreateConnection();
-  auto conn_b = tp->CreateConnection();
-  ASSERT_NE(conn_a, nullptr);
-  ASSERT_NE(conn_b, nullptr);
-
-  std::atomic<int> errors{0};
-  std::mutex log_mu;
-  std::vector<std::string> log;
-  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn) {
-    // Re-include the same module from this secondary. The package-pool
-    // sync at the top of Execute populates `packages_` so `INCLUDE`
-    // finds the package; the include lock is acquired (testing the
-    // recursive-mutex acquire/release path under MT); and
-    // `IsModuleIncluded` short-circuits before the SAVEPOINT/body so
-    // no schema-write conflict on shared `main`.
-    {
-      auto it = conn->ExecuteQuery(
-          "INCLUDE PERFETTO MODULE concurrent_include_test.tables;");
-      while (it.Next()) {
-      }
-      if (!it.Status().ok()) {
-        std::lock_guard<std::mutex> g(log_mu);
-        log.emplace_back(std::string("INCLUDE failed: ") +
-                         it.Status().c_message());
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-    }
-    auto it = conn->ExecuteQuery(
-        "SELECT count(*) FROM concurrent_include_t;");
-    if (!it.Next()) {
-      errors.fetch_add(1, std::memory_order_relaxed);
-      return;
-    }
-    if (it.Get(0).long_value != 2) {
-      errors.fetch_add(1, std::memory_order_relaxed);
-      return;
-    }
-    if (!it.Status().ok()) {
-      errors.fetch_add(1, std::memory_order_relaxed);
-    }
-  };
-
-  std::thread t1(worker, std::move(conn_a));
-  std::thread t2(worker, std::move(conn_b));
-  t1.join();
-  t2.join();
-
-  std::string log_dump;
-  for (const auto& msg : log) {
-    log_dump += msg + "\n";
-  }
-  ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
+  int errs = RunOnThreads(
+      std::move(conns),
+      [](std::unique_ptr<Conn> conn, size_t, std::atomic<int>& errors) {
+        if (!ExecOn(conn.get(),
+                    "INCLUDE PERFETTO MODULE concurrent_include_test.tables;")
+                 .ok()) {
+          errors.fetch_add(1);
+          return;
+        }
+        if (QueryLongOn(conn.get(),
+                        "SELECT count(*) FROM concurrent_include_t;") != 2) {
+          errors.fetch_add(1);
+        }
+      });
+  EXPECT_EQ(errs, 0);
 }
 
-// Phase 3 iter 5 (lifts the iter-2 workaround above): two secondary
-// connections concurrently INCLUDE the *same* module that has *not* been
-// pre-included by any other connection. Both racers run the body
+// Two secondary connections concurrently INCLUDE the *same* module
+// that no other connection has pre-included. Both racers run the body
 // (CREATE TABLE + INSERT) inside per-connection temp schemas, then
 // re-issue them as DDL on shared `main`. The shared-cache schema lock
-// will return SQLITE_LOCKED to whichever transaction is second; the
-// transparent BUSY/LOCKED retry middleware (this iter) makes that
-// invisible — the second writer waits, retries, and eventually either
-// (a) acquires the lock and re-issues its own DDL (which the per-module
-// `IsModuleIncluded` short-circuit already prevents from re-creating),
-// or (b) finds the module already promoted under the include lock and
-// short-circuits the body entirely.
-TEST(TraceProcessorConnectionTest,
-     ConcurrentIncludesUnderSharedCacheNowSucceeds) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// returns SQLITE_LOCKED to whichever transaction is second; the
+// transparent BUSY/LOCKED retry middleware makes that invisible — the
+// second writer waits, retries, and either acquires the lock and
+// re-issues its DDL (which the per-module `IsModuleIncluded` short-
+// circuit prevents from re-creating) or finds the module already
+// promoted and short-circuits the body entirely.
+TEST_F(TraceProcessorConnectionTest,
+       ConcurrentIncludesUnderSharedCacheNowSucceeds) {
+  RegisterPackage(
+      "concurrent_include_lift_test",
+      {{"concurrent_include_lift_test.tables",
+        "CREATE TABLE concurrent_include_lift_t(id INTEGER, val TEXT);\n"
+        "INSERT INTO concurrent_include_lift_t VALUES (1, 'a'),"
+        " (2, 'b');\n"}});
 
-  SqlPackage pkg;
-  pkg.name = "concurrent_include_lift_test";
-  pkg.modules.emplace_back(
-      "concurrent_include_lift_test.tables",
-      "CREATE TABLE concurrent_include_lift_t(id INTEGER, val TEXT);\n"
-      "INSERT INTO concurrent_include_lift_t VALUES (1, 'a'), (2, 'b');\n");
-  ASSERT_OK(tp->RegisterSqlPackage(pkg));
+  std::vector<std::unique_ptr<Conn>> conns;
+  conns.push_back(MintConn());
+  conns.push_back(MintConn());
 
-  // No writer pre-include: both threads race on the include body.
-  auto conn_a = tp->CreateConnection();
-  auto conn_b = tp->CreateConnection();
-  ASSERT_NE(conn_a, nullptr);
-  ASSERT_NE(conn_b, nullptr);
-
-  std::atomic<int> errors{0};
-  std::mutex log_mu;
-  std::vector<std::string> log;
-  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn) {
-    {
-      auto it = conn->ExecuteQuery(
-          "INCLUDE PERFETTO MODULE concurrent_include_lift_test.tables;");
-      while (it.Next()) {
-      }
-      if (!it.Status().ok()) {
-        std::lock_guard<std::mutex> g(log_mu);
-        log.emplace_back(std::string("INCLUDE failed: ") +
-                         it.Status().c_message());
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-    }
-    auto it = conn->ExecuteQuery(
-        "SELECT count(*) FROM concurrent_include_lift_t;");
-    if (!it.Next()) {
-      errors.fetch_add(1, std::memory_order_relaxed);
-      return;
-    }
-    if (it.Get(0).long_value != 2) {
-      errors.fetch_add(1, std::memory_order_relaxed);
-      return;
-    }
-    if (!it.Status().ok()) {
-      errors.fetch_add(1, std::memory_order_relaxed);
-    }
-  };
-
-  std::thread t1(worker, std::move(conn_a));
-  std::thread t2(worker, std::move(conn_b));
-  t1.join();
-  t2.join();
-
-  std::string log_dump;
-  for (const auto& msg : log) {
-    log_dump += msg + "\n";
-  }
-  ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
+  int errs = RunOnThreads(
+      std::move(conns),
+      [](std::unique_ptr<Conn> conn, size_t, std::atomic<int>& errors) {
+        if (!ExecOn(conn.get(),
+                    "INCLUDE PERFETTO MODULE "
+                    "concurrent_include_lift_test.tables;")
+                 .ok()) {
+          errors.fetch_add(1);
+          return;
+        }
+        if (QueryLongOn(conn.get(),
+                        "SELECT count(*) FROM concurrent_include_lift_t;") !=
+            2) {
+          errors.fetch_add(1);
+        }
+      });
+  EXPECT_EQ(errs, 0);
 }
 
-// Phase 3 iter 3 stress test for the SqlStats recording path. Each
-// `ExecuteQuery` records `RecordQueryBegin` (from
-// `TraceProcessorImpl::ExecuteQuery` or `ConnectionImpl::ExecuteQuery`),
-// `RecordQueryFirstNext`, and `RecordQueryEnd` against the parent's
-// shared `TraceStorage::SqlStats`. With multiple connections each on
-// their own thread, those mutations race on the same `std::deque`s.
-// This test fires four threads each running 100 trivial queries on a
-// dedicated connection; under ASan the previous container-overflow
-// abort would surface within a few iterations. Post-fix the run is
-// clean and `SELECT count(*) FROM sqlstats` returns the bounded log
-// size (`kMaxLogEntries == 100`).
-TEST(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
+// SqlStats stress test. Each `ExecuteQuery` records `RecordQueryBegin`
+// + `RecordQueryFirstNext` + `RecordQueryEnd` against the parent's
+// shared `TraceStorage::SqlStats`. Multiple connections running on
+// their own threads race on the same `std::deque`s. Pre-fix, ASan
+// caught a container-overflow within a few iterations; post-fix the
+// run is clean and `SELECT count(*) FROM sqlstats` returns the bounded
+// log size (`kMaxLogEntries == 100`).
+TEST_F(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
   constexpr int kThreads = 4;
   constexpr int kItersPerThread = 100;
-
-  std::vector<std::unique_ptr<TraceProcessor::Connection>> conns;
+  std::vector<std::unique_ptr<Conn>> conns;
   for (int i = 0; i < kThreads; ++i) {
-    auto conn = tp->CreateConnection();
-    ASSERT_NE(conn, nullptr);
-    conns.push_back(std::move(conn));
+    conns.push_back(MintConn());
   }
+  int errs = RunOnThreads(
+      std::move(conns),
+      [](std::unique_ptr<Conn> conn, size_t tid, std::atomic<int>& errors) {
+        for (int i = 0; i < kItersPerThread; ++i) {
+          // Distinct query per (thread, iter) so the SqlStats deque
+          // observes a steady stream of writes (no dedup).
+          if (!ExecOn(conn.get(),
+                      "SELECT " + std::to_string(
+                                      static_cast<int>(tid) * kItersPerThread +
+                                      i))
+                   .ok()) {
+            errors.fetch_add(1);
+            return;
+          }
+        }
+      });
+  EXPECT_EQ(errs, 0);
 
-  std::atomic<int> errors{0};
-  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn,
-                    int tag) {
-    for (int i = 0; i < kItersPerThread; ++i) {
-      // Distinct query text per (thread, iter) so the SqlStats deque
-      // observes a steady stream of writes rather than dedup-able
-      // identical strings — exercises the push_back path on every
-      // iteration.
-      auto it = conn->ExecuteQuery(
-          "SELECT " + std::to_string(tag * kItersPerThread + i));
-      if (!it.Next()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      // Drive the iterator to completion to fire RecordQueryFirstNext
-      // and (on ~Iterator) RecordQueryEnd.
-      while (it.Next()) {
-      }
-      if (!it.Status().ok()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-    }
-  };
-
-  std::vector<std::thread> threads;
-  for (size_t i = 0; i < conns.size(); ++i) {
-    threads.emplace_back(worker, std::move(conns[i]), static_cast<int>(i));
-  }
-  for (auto& t : threads) {
-    t.join();
-  }
-  ASSERT_EQ(errors.load(), 0);
-
-  // SqlStats caps at kMaxLogEntries = 100. After 400 inserts the log
-  // is at its cap; the count query itself is also recorded so we just
-  // assert the upper bound is respected (no underflow / no overflow).
-  auto count_it = tp->ExecuteQuery("SELECT count(*) FROM sqlstats;");
-  ASSERT_TRUE(count_it.Next()) << count_it.Status().c_message();
-  ASSERT_GT(count_it.Get(0).long_value, 0);
-  ASSERT_LE(count_it.Get(0).long_value, 100);
-  ASSERT_OK(count_it.Status());
+  // SqlStats caps at kMaxLogEntries = 100.
+  int64_t logged = QueryLong("SELECT count(*) FROM sqlstats;");
+  EXPECT_GT(logged, 0);
+  EXPECT_LE(logged, 100);
 }
 
-// Phase 3 iter 4: `TraceProcessorImpl::CreateConnection` flips
-// `StringPool::EnableThreadSafetyForMultiConnection` on the shared
-// `TraceStorage`-owned pool before returning the secondary. After the flip,
-// concurrent `InternString` calls from any thread must be serialised by
-// the pool's internal mutex — otherwise the unguarded
-// `string_index_.Insert` + `InsertString` path races. This test populates
-// many strings into the shared pool via the writer, then has four
-// secondary connections concurrently SELECT from a column that returns
-// them. The reads exercise `Get(Id)` (the documented lock-free
-// fast-path) on every row, while one of the worker threads also performs
-// follow-up `CREATE PERFETTO TABLE` writes via the writer connection
-// (under a test-side mutex to dodge SQLITE_LOCKED — busy-retry is the
-// next chunk's territory). With the post-flip locking, no read or write
-// races on `string_index_` / `blocks_` and no crashes occur. The deeper
-// "many threads concurrently `InternString`" stress runs in
-// `StringPoolTest.ConcurrentInternIsThreadSafe`; this test specifically
-// verifies the `CreateConnection`-side wiring is correct.
-TEST(TraceProcessorConnectionTest, ConcurrentInternFromMultipleConnections) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
+// `TraceProcessorImpl::CreateConnection` flips `StringPool::Enable
+// ThreadSafetyForMultiConnection` on the shared `TraceStorage`-owned
+// pool before returning the secondary. After the flip, concurrent
+// `InternString` calls from any thread must be serialised by the
+// pool's internal mutex. This test populates many strings via the
+// writer, then has four secondary connections concurrently SELECT
+// from a column that returns them. Reads exercise `Get(Id)` (the
+// documented lock-free fast-path) on every row. Verifies the
+// `CreateConnection`-side wiring is correct; the deeper "many threads
+// concurrently `InternString`" stress runs in the StringPool unit
+// tests.
+TEST_F(TraceProcessorConnectionTest,
+       ConcurrentInternFromMultipleConnections) {
   constexpr int kRowsPerTable = 32;
   constexpr int kThreads = 4;
   constexpr int kReadsPerThread = 200;
 
-  // Pre-populate a shared table on the writer (single-threaded), each row
-  // a unique string. `CREATE PERFETTO TABLE` interns every column value
-  // through `RuntimeDataframeBuilder::AddRow` — so the pool now holds
-  // `kRowsPerTable` unique entries reachable by any subsequent SELECT.
-  {
-    std::string create =
-        "CREATE PERFETTO TABLE stress_strings AS WITH src(s) AS (VALUES";
-    for (int i = 0; i < kRowsPerTable; ++i) {
-      create += (i ? ",('" : "('") + std::string("preload_value_") +
-                std::to_string(i) + "')";
-    }
-    create += ") SELECT s FROM src;";
-    auto it = tp->ExecuteQuery(create);
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
+  // Pre-populate a shared table on the writer; each row a unique
+  // string. CREATE PERFETTO TABLE interns every column value through
+  // `RuntimeDataframeBuilder::AddRow` — so the pool now holds
+  // kRowsPerTable entries reachable by any subsequent SELECT.
+  std::string create =
+      "CREATE PERFETTO TABLE stress_strings AS WITH src(s) AS (VALUES";
+  for (int i = 0; i < kRowsPerTable; ++i) {
+    create += (i ? ",('" : "('") + std::string("preload_value_") +
+              std::to_string(i) + "')";
   }
+  create += ") SELECT s FROM src;";
+  ASSERT_OK(Exec(create));
 
-  // Mint kThreads secondary connections. Each `CreateConnection` call
-  // re-flips the lock to on (idempotent), so by the time we return the
-  // last connection, every subsequent `InternString` from any thread
-  // takes the pool's mutex.
-  std::vector<std::unique_ptr<TraceProcessor::Connection>> conns;
+  std::vector<std::unique_ptr<Conn>> conns;
   for (int i = 0; i < kThreads; ++i) {
-    auto conn = tp->CreateConnection();
-    ASSERT_NE(conn, nullptr);
-    conns.push_back(std::move(conn));
+    conns.push_back(MintConn());
   }
-
-  std::atomic<int> errors{0};
-  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn) {
-    // Each iteration reads `kRowsPerTable` rows back from the shared
-    // table through this connection. SQLite re-materialises every
-    // column value from the StringPool via `Get(Id)` (lock-free) plus
-    // a `GetLargeString` lookup if the id had the MSB set (lock-taking).
-    // Running this on four threads in parallel exercises the read path
-    // under the new locking discipline.
-    for (int i = 0; i < kReadsPerThread; ++i) {
-      auto it =
-          conn->ExecuteQuery("SELECT count(*), max(s) FROM stress_strings;");
-      if (!it.Next()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      if (it.Get(0).long_value != kRowsPerTable) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      if (!it.Status().ok()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-    }
-  };
-
-  std::vector<std::thread> threads;
-  for (size_t i = 0; i < conns.size(); ++i) {
-    threads.emplace_back(worker, std::move(conns[i]));
-  }
-  for (auto& t : threads) {
-    t.join();
-  }
-  ASSERT_EQ(errors.load(), 0);
+  int errs = RunOnThreads(
+      std::move(conns),
+      [](std::unique_ptr<Conn> conn, size_t, std::atomic<int>& errors) {
+        for (int i = 0; i < kReadsPerThread; ++i) {
+          if (QueryLongOn(conn.get(),
+                          "SELECT count(*) FROM stress_strings;") !=
+              kRowsPerTable) {
+            errors.fetch_add(1);
+            return;
+          }
+        }
+      });
+  EXPECT_EQ(errs, 0);
 }
 
-// Companion to the read-side stress: the writer connection pre-builds a
-// dataframe-backed table whose body contains a known set of strings that
-// are all interned into the shared `StringPool`. Several secondary
-// connections then concurrently issue equality-filtered SELECTs on the
-// string column — every comparison goes through `Get(Id)` on the pool
-// (lock-free hot-path) plus a hash-into-`string_index_` lookup via
-// `GetId` (lock-taking) for every literal in the WHERE clause. With the
-// `EnableThreadSafetyForMultiConnection` flip in `CreateConnection`,
-// these reads run race-free; without it the parallel `GetId` callers
-// would observe torn reads in the FlatHashMap.
-TEST(TraceProcessorConnectionTest, InternedStringMatchesAcrossConnections) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
+// Companion to the read-side stress: secondary connections concurrent-
+// ly issue equality-filtered SELECTs on the string column. Every
+// comparison goes through `Get(Id)` on the pool (lock-free hot-path)
+// plus a hash-into-`string_index_` lookup via `GetId` (lock-taking)
+// for every literal in the WHERE clause. With the
+// `EnableThreadSafetyForMultiConnection` flip, these reads run race-
+// free; without it the parallel `GetId` callers would observe torn
+// reads in the FlatHashMap.
+TEST_F(TraceProcessorConnectionTest,
+       InternedStringMatchesAcrossConnections) {
   constexpr int kThreads = 4;
   constexpr int kSharedStrings = 32;
   constexpr int kReadsPerThread = 100;
@@ -1114,211 +662,92 @@ TEST(TraceProcessorConnectionTest, InternedStringMatchesAcrossConnections) {
     shared_strings.push_back("shared_value_" + std::to_string(i));
   }
 
-  // Writer (single-threaded) materialises a table whose rows contain
-  // every shared string. Each row's string is interned into the pool by
-  // `RuntimeDataframeBuilder::AddRow` during the CREATE — afterwards the
-  // pool holds the canonical Id for each shared string.
-  {
-    std::string create =
-        "CREATE PERFETTO TABLE intern_match AS WITH src(s) AS (VALUES";
-    for (size_t i = 0; i < shared_strings.size(); ++i) {
-      create += (i ? ",('" : "('") + shared_strings[i] + "')";
-    }
-    create += ") SELECT s FROM src;";
-    auto it = tp->ExecuteQuery(create);
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
+  std::string create =
+      "CREATE PERFETTO TABLE intern_match AS WITH src(s) AS (VALUES";
+  for (size_t i = 0; i < shared_strings.size(); ++i) {
+    create += (i ? ",('" : "('") + shared_strings[i] + "')";
   }
+  create += ") SELECT s FROM src;";
+  ASSERT_OK(Exec(create));
 
-  std::vector<std::unique_ptr<TraceProcessor::Connection>> conns;
+  std::vector<std::unique_ptr<Conn>> conns;
   for (int i = 0; i < kThreads; ++i) {
-    conns.push_back(tp->CreateConnection());
-    ASSERT_NE(conns.back(), nullptr);
+    conns.push_back(MintConn());
   }
-
-  std::atomic<int> errors{0};
-  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn,
-                    size_t tag) {
-    for (size_t i = 0; i < static_cast<size_t>(kReadsPerThread); ++i) {
-      // Pick a different shared string each iteration. The literal in
-      // the WHERE clause is matched against the table's strings using
-      // SQLite's collation, but the dataframe vtab implementation
-      // funnels through the StringPool for canonicalisation — so the
-      // shared pool sees `GetId` calls from every reader thread on
-      // every iteration.
-      const std::string& target =
-          shared_strings[(i + tag) % static_cast<size_t>(kSharedStrings)];
-      auto it = conn->ExecuteQuery(
-          "SELECT count(*) FROM intern_match WHERE s = '" + target + "';");
-      if (!it.Next()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      if (it.Get(0).long_value != 1) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-      if (!it.Status().ok()) {
-        errors.fetch_add(1, std::memory_order_relaxed);
-        return;
-      }
-    }
-  };
-
-  std::vector<std::thread> threads;
-  for (size_t i = 0; i < conns.size(); ++i) {
-    threads.emplace_back(worker, std::move(conns[i]), i);
-  }
-  for (auto& t : threads) {
-    t.join();
-  }
-  ASSERT_EQ(errors.load(), 0);
+  int errs = RunOnThreads(
+      std::move(conns),
+      [&shared_strings](std::unique_ptr<Conn> conn, size_t tid,
+                        std::atomic<int>& errors) {
+        for (int i = 0; i < kReadsPerThread; ++i) {
+          const std::string& target =
+              shared_strings[(static_cast<size_t>(i) + tid) %
+                             shared_strings.size()];
+          if (QueryLongOn(conn.get(),
+                          "SELECT count(*) FROM intern_match WHERE s = '" +
+                              target + "';") != 1) {
+            errors.fetch_add(1);
+            return;
+          }
+        }
+      });
+  EXPECT_EQ(errs, 0);
 }
 
-// Phase 3 iter 6: SQLITE_SCHEMA recovery. SQLite returns SQLITE_SCHEMA
-// from |sqlite3_step| (and sometimes |sqlite3_prepare_v2|) when another
-// connection has bumped the schema cookie since the statement was
-// prepared. The fix is to finalize and re-prepare from the original
-// SqlSource — see |SqliteEngine::PreparedStatement::ReprepareFromSource|.
-//
-// This test exercises that path end-to-end by interleaving the prepare
-// and step on connection-A with a schema-bumping CREATE on connection-B.
-// Without the recovery, the very first |Iterator::Next| after a sibling
-// DDL would surface "database schema has changed" to the user. With it,
-// the next call transparently re-prepares the statement and produces the
-// row as if no schema bump happened.
-//
-// The test forces the timing by issuing the DDL between
-// |ExecuteQuery| (which prepares + first-steps the statement, but
-// caches the row) and the second |Next|. Phase 3 iter 5 unified the
-// retry helpers; this test ensures the SCHEMA path is wired distinctly
-// from BUSY/LOCKED.
-TEST(TraceProcessorConnectionTest, SchemaRetryRePreparesOnSchemaChange) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
+// SQLite returns SQLITE_SCHEMA from `sqlite3_step` (and sometimes
+// `sqlite3_prepare_v2`) when another connection has bumped the schema
+// cookie since the statement was prepared. The fix is to finalise and
+// re-prepare from the original SqlSource — see
+// `SqliteEngine::PreparedStatement::ReprepareFromSource`. This test
+// interleaves DDL on the writer with SELECTs on a secondary; the
+// transparent retry middleware must absorb the SCHEMA error.
+TEST_F(TraceProcessorConnectionTest, SchemaRetryRePreparesOnSchemaChange) {
+  ASSERT_OK(Exec("CREATE TABLE schema_retry_t(v INTEGER); "
+                 "INSERT INTO schema_retry_t VALUES (42);"));
+  auto conn = MintConn();
 
-  // Pre-create a table on the writer so the secondary's first SELECT has
-  // something to read.
-  {
-    auto it =
-        tp->ExecuteQuery("CREATE TABLE schema_retry_t(v INTEGER); "
-                         "INSERT INTO schema_retry_t VALUES (42);");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
+  // Bump the schema cookie. Next prepare on `conn` would otherwise
+  // surface SQLITE_SCHEMA; the retry middleware re-prepares
+  // transparently.
+  ASSERT_OK(Exec("CREATE TABLE schema_retry_other(x INTEGER);"));
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT v FROM schema_retry_t;"), 42);
 
-  auto conn_a = tp->CreateConnection();
-  ASSERT_NE(conn_a, nullptr);
-
-  // Bump the schema cookie on the writer connection. The next
-  // |sqlite3_prepare_v2| on |conn_a| will see SQLITE_SCHEMA the first
-  // time around because the bytecode it has cached for past statements
-  // references the old cookie. The retry middleware must transparently
-  // re-prepare and the SELECT should still succeed.
-  {
-    auto it = tp->ExecuteQuery("CREATE TABLE schema_retry_other(x INTEGER);");
-    while (it.Next()) {
-    }
-    ASSERT_OK(it.Status());
-  }
-
-  auto it = conn_a->ExecuteQuery("SELECT v FROM schema_retry_t;");
-  ASSERT_TRUE(it.Next()) << it.Status().c_message();
-  ASSERT_EQ(it.Get(0).long_value, 42);
-  ASSERT_FALSE(it.Next());
-  ASSERT_OK(it.Status());
-
-  // Repeat: another schema bump, another SELECT. Each round must
-  // transparently absorb the SCHEMA retry.
-  {
-    auto it_w = tp->ExecuteQuery("CREATE TABLE schema_retry_more(y INTEGER);");
-    while (it_w.Next()) {
-    }
-    ASSERT_OK(it_w.Status());
-  }
-  auto it2 = conn_a->ExecuteQuery("SELECT v + 1 FROM schema_retry_t;");
-  ASSERT_TRUE(it2.Next()) << it2.Status().c_message();
-  ASSERT_EQ(it2.Get(0).long_value, 43);
-  ASSERT_OK(it2.Status());
+  // Repeat: another bump, another SELECT.
+  ASSERT_OK(Exec("CREATE TABLE schema_retry_more(y INTEGER);"));
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT v + 1 FROM schema_retry_t;"), 43);
 }
 
-// Stress: a writer thread does N×(CREATE + DROP) DDL while a reader on
-// a sibling connection does M×(SELECT 1). Every CREATE/DROP commit
-// bumps the schema cookie; without the SCHEMA retry middleware the
-// reader would surface "database schema has changed" intermittently.
-// With it the reader sees zero errors and zero flakes.
-TEST(TraceProcessorConnectionTest, ConcurrentDDLDoesNotBreakReaders) {
-  auto tp = TraceProcessor::CreateInstance(Config());
-  ASSERT_OK(tp->NotifyEndOfFile());
-
-  auto reader_conn = tp->CreateConnection();
-  ASSERT_NE(reader_conn, nullptr);
-
+// Stress: a writer thread does N×(CREATE + DROP) DDL while a reader
+// on a sibling connection does M×(SELECT 1). Every CREATE/DROP commit
+// bumps the schema cookie; without the SCHEMA retry the reader would
+// surface "database schema has changed" intermittently. With it the
+// reader sees zero errors.
+TEST_F(TraceProcessorConnectionTest, ConcurrentDDLDoesNotBreakReaders) {
+  auto reader_conn = MintConn();
   constexpr int kDdlIters = 100;
   constexpr int kReadIters = 200;
   std::atomic<int> errors{0};
-  std::mutex log_mu;
-  std::vector<std::string> log;
-  auto record = [&](const std::string& msg) {
-    std::lock_guard<std::mutex> g(log_mu);
-    log.emplace_back(msg);
-    errors.fetch_add(1, std::memory_order_relaxed);
-  };
 
   std::thread writer([&] {
     for (int i = 0; i < kDdlIters; ++i) {
-      std::string create = "CREATE TABLE schema_stress_t" +
-                           std::to_string(i) + "(v INTEGER);";
-      auto it = tp->ExecuteQuery(create);
-      while (it.Next()) {
-      }
-      if (!it.Status().ok()) {
-        record("writer CREATE failed: " + std::string(it.Status().c_message()));
-        break;
-      }
-      std::string drop =
-          "DROP TABLE schema_stress_t" + std::to_string(i) + ";";
-      auto it2 = tp->ExecuteQuery(drop);
-      while (it2.Next()) {
-      }
-      if (!it2.Status().ok()) {
-        record("writer DROP failed: " + std::string(it2.Status().c_message()));
-        break;
+      const std::string n = std::to_string(i);
+      if (!Exec("CREATE TABLE schema_stress_t" + n + "(v INTEGER);").ok() ||
+          !Exec("DROP TABLE schema_stress_t" + n + ";").ok()) {
+        errors.fetch_add(1);
+        return;
       }
     }
   });
-
   std::thread reader([&] {
     for (int i = 0; i < kReadIters; ++i) {
-      auto it = reader_conn->ExecuteQuery("SELECT 1;");
-      if (!it.Next()) {
-        record("reader Next() returned false: " +
-               std::string(it.Status().c_message()));
-        break;
-      }
-      if (it.Get(0).long_value != 1) {
-        record("reader returned wrong value");
-        break;
-      }
-      while (it.Next()) {
-      }
-      if (!it.Status().ok()) {
-        record("reader Status not ok: " +
-               std::string(it.Status().c_message()));
-        break;
+      if (QueryLongOn(reader_conn.get(), "SELECT 1;") != 1) {
+        errors.fetch_add(1);
+        return;
       }
     }
   });
-
   writer.join();
   reader.join();
-  std::string log_dump;
-  for (const auto& msg : log) {
-    log_dump += msg + "\n";
-  }
-  ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
+  EXPECT_EQ(errors.load(), 0);
 }
 
 }  // namespace

@@ -512,7 +512,7 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg),
       config_(cfg),
-      staging_area_(std::make_unique<GlobalStagingArea>()) {
+      database_(std::make_unique<PerfettoSqlDatabase>()) {
   // Initialize plugins using the statically pre-computed PluginSet.
   // Dep indices are resolved once at static init time; here we just
   // instantiate, resolve dep pointers, and register importers.
@@ -661,7 +661,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       notify_eof_called_,
       cached_trace_bounds_,
       plugins_,
-      staging_area_.get(),
+      database_.get(),
   });
 
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
@@ -754,14 +754,14 @@ TraceProcessorImpl::CreateConnection() {
   context()->storage->mutable_string_pool()->EnableThreadSafetyForMultiConnection();
   // Mint a fresh engine pointing at the same memdb URI as the primary so
   // `cache=shared` propagates DDL across handles. The shared
-  // `GlobalStagingArea` is what wires cross-connection vtab-state
+  // `PerfettoSqlDatabase` is what wires cross-connection vtab-state
   // resolution: the primary engine published its committed dataframe
   // states there on every OnCommit, and this fresh secondary engine
   // looks them up on cold xConnect. See `PerfettoSqlEngine`
   // shared-filename ctor for the (intentionally minimal) per-engine setup.
   auto engine = std::make_unique<PerfettoSqlEngine>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
-      engine_->sqlite_engine()->filename(), staging_area_.get());
+      engine_->sqlite_engine()->filename(), database_.get());
   non_default_connection_count_.fetch_add(1, std::memory_order_relaxed);
   return std::make_unique<ConnectionImpl>(this, std::move(engine));
 }
@@ -1082,9 +1082,9 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   // short-circuited by stale entries from the previous engine. Safe
   // because `non_default_connection_count_ == 0` is CHECK'd above so no
   // reader engine is observing any of these.
-  staging_area_->ResetFunctionPool();
-  staging_area_->ResetPackagePool();
-  staging_area_->ResetIncludedModules();
+  database_->ResetFunctionPool();
+  database_->ResetPackagePool();
+  database_->ResetIncludedModules();
 
   // Reset the engine to its initial state. Pass cached bounds to avoid
   // recomputing them.
@@ -1100,7 +1100,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
       notify_eof_called_,
       cached_trace_bounds_,
       plugins_,
-      staging_area_.get(),
+      database_.get(),
   });
 
   // The registered count should now be the same as it was in the constructor.
@@ -1407,7 +1407,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 
   auto engine = std::make_unique<PerfettoSqlEngine>(
       storage->mutable_string_pool(), config.enable_extra_checks,
-      args.staging_area);
+      args.database);
 
   auto functions =
       CreateStaticTableFunctions(context, storage, config, engine.get());

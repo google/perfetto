@@ -34,7 +34,7 @@
 #include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/perfetto_sql/engine/global_staging_area.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
@@ -153,11 +153,10 @@ void DataframeModule::Context::OnCommit() {
   // Run the base bookkeeping first (commit active_state, drop empties).
   sqlite::ModuleStateManager<DataframeModule>::OnCommit();
 
-  // Then publish each committed state to the cross-connection staging
-  // area so reader connections can resolve them on cold xConnect. Only
-  // the writer engine publishes; readers must never write here. Skipped
-  // entirely when no staging area is configured (legacy single-conn).
-  if (!is_writer || staging_area == nullptr) {
+  // Publish each committed state to the cross-connection staging area
+  // so reader connections can resolve them on cold xConnect. Only the
+  // writer engine publishes; readers must never write here.
+  if (!is_writer) {
     return;
   }
   // GetAllStates() walks the local state_by_name_ map post-commit.
@@ -171,7 +170,7 @@ void DataframeModule::Context::OnCommit() {
       // Pre-commit-only entry; skip.
       continue;
     }
-    staging_area->PublishVtabState(module_name, name, std::move(shared));
+    database->PublishVtabState(module_name, name, std::move(shared));
   }
 }
 
@@ -185,16 +184,16 @@ void DataframeModule::Context::OnRollback() {
 std::shared_ptr<void>
 DataframeModule::Context::ResolveMissingStateOnConnect(
     const std::string& vtab_name) {
-  // Reader connections (is_writer == false) consult the staging area on
-  // cold xConnect. Writer connections never see a missing local state in
-  // the OnConnect path (the writer is the one that called OnCreate); a
-  // miss there is a real bug, so fall through to the base default
-  // (returns null, triggering the PERFETTO_CHECK in OnConnect).
-  if (is_writer || staging_area == nullptr) {
+  // Reader connections (is_writer == false) consult the staging area
+  // on cold xConnect. Writer connections never see a missing local
+  // state in the OnConnect path (the writer is the one that called
+  // OnCreate); a miss there is a real bug, so fall through to the base
+  // default (returns null, triggering the PERFETTO_CHECK in OnConnect).
+  if (is_writer) {
     return sqlite::ModuleStateManager<DataframeModule>::
         ResolveMissingStateOnConnect(vtab_name);
   }
-  return staging_area->LookupVtabState(module_name, vtab_name);
+  return database->LookupVtabState(module_name, vtab_name);
 }
 
 int DataframeModule::Create(sqlite3* db,
@@ -265,12 +264,9 @@ int DataframeModule::Disconnect(sqlite3_vtab* vtab) {
 // observe new dataframes published after CREATE INDEX (or other writer-side
 // mutations that swap the dataframe shared_ptr in place).
 //
-// When the context has no staging_area (legacy single-connection mode), we
-// fall back to the local PerVtabState pointer for behavioural parity with
-// pre-multi-connection code.
 static DataframeModule::State* ResolveState(DataframeModule::Vtab* v) {
-  if (v->context && v->context->staging_area) {
-    auto staged = v->context->staging_area->LookupVtabState(
+  if (v->context) {
+    auto staged = v->context->database->LookupVtabState(
         v->context->module_name, v->name);
     if (staged) {
       return static_cast<DataframeModule::State*>(staged.get());

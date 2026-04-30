@@ -33,7 +33,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
-#include "src/trace_processor/perfetto_sql/engine/global_staging_area.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -70,7 +70,7 @@ class PerfettoSqlEngine {
   };
   PerfettoSqlEngine(StringPool* pool,
                     bool enable_extra_checks,
-                    GlobalStagingArea* staging_area = nullptr);
+                    PerfettoSqlDatabase* database = nullptr);
 
   // Phase 2 ctor: mints a secondary engine sharing storage with a primary
   // engine via |cache=shared|. |shared_filename| should come from
@@ -78,7 +78,7 @@ class PerfettoSqlEngine {
   // attaches to the same in-memory database, so plain SQL/DDL committed on
   // the main schema by the primary is visible here.
   //
-  // |staging_area| is the same `GlobalStagingArea*` passed to the primary
+  // |database| is the same `PerfettoSqlDatabase*` passed to the primary
   // engine. The secondary engine reads vtab state from staging on cold
   // xConnect for tables it has never seen before; the primary engine
   // continues to be the sole writer.
@@ -101,7 +101,7 @@ class PerfettoSqlEngine {
   PerfettoSqlEngine(StringPool* pool,
                     bool enable_extra_checks,
                     const std::string& shared_filename,
-                    GlobalStagingArea* staging_area);
+                    PerfettoSqlDatabase* database);
 
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
@@ -380,13 +380,13 @@ class PerfettoSqlEngine {
     // back so partially-installed objects do not leak.
     std::string include_savepoint;
 
-    // For include frames: the per-module include lock acquired before the
-    // savepoint was opened. Held for the entire SAVEPOINT/RELEASE cycle so
-    // two connections importing the same module name serialise here.
-    // Released automatically when the frame is popped (success path) or
-    // unwound on error. Empty on root/wildcard frames and on legacy
-    // single-connection callers where `staging_area_` is null.
-    std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
+    // For include frames: the cross-connection include claim acquired
+    // before the savepoint was opened. Two connections importing the
+    // same module name serialise on the staging-area condvar. The
+    // claim is `Release(true)`'d after RELEASE succeeds; the destructor
+    // is the rollback path (treated as failure). Empty on root /
+    // wildcard frames and legacy single-connection callers.
+    PerfettoSqlDatabase::IncludeClaim include_claim;
   };
 
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
@@ -547,7 +547,7 @@ class PerfettoSqlEngine {
   // `TraceProcessorImpl` and any sibling engines. Null for legacy
   // single-connection setups (the default-arg ctor with no staging
   // area). Owned by the parent `TraceProcessorImpl`.
-  GlobalStagingArea* staging_area_ = nullptr;
+  PerfettoSqlDatabase* database_ = nullptr;
 
   // True if this engine is the canonical writer for the parent
   // `TraceProcessorImpl` (i.e. the default/connection-0 engine). The
@@ -558,13 +558,13 @@ class PerfettoSqlEngine {
   bool is_writer_ = false;
 
   // Function-pool version of the most recent successful sync against
-  // `staging_area_->SnapshotSince`. 0 == "no sync yet"; the writer engine
+  // `database_->SnapshotSince`. 0 == "no sync yet"; the writer engine
   // also bumps this each time it appends so it doesn't pointlessly try to
   // re-register its own functions on its own handle.
   uint64_t last_synced_function_version_ = 0;
 
   // Package-pool version of the most recent successful sync against
-  // `staging_area_->SnapshotPackagesSince`. Same shape as
+  // `database_->SnapshotPackagesSince`. Same shape as
   // `last_synced_function_version_`; the writer bumps this eagerly inside
   // `RegisterSqlPackage` to avoid re-registering its own packages back into
   // its own engine.
