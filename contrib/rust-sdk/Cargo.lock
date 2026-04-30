@@ -350,7 +350,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "perfetto-sdk"
-version = "0.3.3"
+version = "1.0.0"
 dependencies = [
  "bitflags",
  "paste",
@@ -360,7 +360,7 @@ dependencies = [
 
 [[package]]
 name = "perfetto-sdk-derive"
-version = "0.3.1"
+version = "1.0.0"
 dependencies = [
  "perfetto-sdk",
  "proc-macro2",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "perfetto-sdk-protos-gpu"
-version = "0.3.10"
+version = "1.0.0"
 dependencies = [
  "paste",
  "perfetto-sdk",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "perfetto-sdk-protos-trace-processor"
-version = "0.3.1"
+version = "1.0.0"
 dependencies = [
  "paste",
  "perfetto-sdk",
@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "perfetto-sdk-sys"
-version = "0.3.1"
+version = "1.0.0"
 dependencies = [
  "bindgen",
  "cc",
@@ -670,7 +670,7 @@ dependencies = [
 
 [[package]]
 name = "tracing-perfetto-sdk"
-version = "0.3.0"
+version = "1.0.0"
 dependencies = [
  "perfetto-sdk",
  "tracing",
