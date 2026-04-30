@@ -239,6 +239,8 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
         menuItems,
       );
 
+    const cellActions = [actionButtons, cellMenu];
+
     return m(
       '.pf-grid-cell',
       {
@@ -255,7 +257,8 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       renderIndent(),
       renderChevron(),
       m('.pf-grid-cell__content', children),
-      m('.pf-grid-cell__actions.pf-visible-on-hover', actionButtons, cellMenu),
+      !isEmptyVnodes(cellActions) &&
+        m('.pf-grid-cell__actions.pf-visible-on-hover', cellActions),
     );
   }
 }
