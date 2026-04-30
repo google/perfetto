@@ -528,7 +528,7 @@ SELECT
   ${min} AS _min,
   ${max} AS _max,
   (SELECT COUNT(*) FROM _data) AS _total,
-  MIN(${bucketCount - 1}, MAX(0, CAST((_value - ${min}) / ${size}.0 AS INT))) AS _bucket_idx,
+  MIN(${bucketCount - 1}, MAX(0, CAST((_value - ${min}) / CAST(${size} AS REAL) AS INT))) AS _bucket_idx,
   COUNT(*) AS _count
 FROM _data
 GROUP BY _bucket_idx
