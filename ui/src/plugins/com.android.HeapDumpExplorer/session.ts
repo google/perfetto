@@ -28,6 +28,10 @@ import {
 } from './nav_state';
 import type {OverviewData} from './types';
 import type {FlamegraphState} from '../../widgets/flamegraph';
+import {
+  METRIC_DOMINATED_OBJECT_SIZE,
+  METRIC_OBJECT_SIZE,
+} from './views/flamegraph_view';
 
 interface FlamegraphSelection {
   readonly pathHashes: string;
@@ -302,6 +306,33 @@ export class HeapDumpExplorerSession {
   // Arrow property: passed by reference into Mithril attrs.
   readonly setFlamegraphPanelState = (s: FlamegraphState): void => {
     this._flamegraphPanelState = s;
+  };
+
+  // Arrow property: passed by reference into Mithril attrs.
+  //
+  // Open the flamegraph tab pivoted at the given path_hash_stable. The
+  // metric is selected to match the tree the hash was resolved against
+  // (BFS → "Object Size", dominator → "Dominated Object Size") so the
+  // PIVOT regex hits a row. The chip's `displayLabel` reads
+  // "<label> (this instance)"; the caller passes the object's class
+  // name so the chip is readable instead of showing the raw hash regex.
+  readonly openFlamegraphPivotedAt = (
+    pathHash: string,
+    label: string,
+    isDominator: boolean,
+  ): void => {
+    this._flamegraphPanelState = {
+      selectedMetricName: isDominator
+        ? METRIC_DOMINATED_OBJECT_SIZE
+        : METRIC_OBJECT_SIZE,
+      filters: [],
+      view: {
+        kind: 'PIVOT',
+        pivot: `^${pathHash}$`,
+        displayLabel: `${label} (this instance)`,
+      },
+    };
+    this.navigate('flamegraph');
   };
 
   // Pins the dump at fetch start; if the user switches dumps before

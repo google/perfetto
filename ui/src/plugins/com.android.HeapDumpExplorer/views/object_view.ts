@@ -15,7 +15,7 @@
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
-import type {Row} from '../../../trace_processor/query_result';
+import {STR, type Row} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {
@@ -42,11 +42,21 @@ export interface ObjectParams {
   readonly id: number;
 }
 
+// Open the flamegraph tab pivoted at the given path. Owned by the
+// session so the page-level Flamegraph state is mutated through a
+// single entry point.
+export type OpenFlamegraphPivotedAt = (
+  pathHash: string,
+  label: string,
+  isDominator: boolean,
+) => void;
+
 interface ObjectViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
+  readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
 }
 
@@ -556,6 +566,28 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
       const {row} = detail;
 
+      const flamegraphAction = (isDominator: boolean) =>
+        row.className
+          ? m(
+              'button',
+              {
+                class: 'ah-link',
+                title: isDominator
+                  ? 'Open in Flamegraph pivoted on this dominator path'
+                  : 'Open in Flamegraph pivoted on this shortest path',
+                onclick: () =>
+                  openInFlamegraph(
+                    vnode.attrs.engine,
+                    row.id,
+                    row.className,
+                    isDominator,
+                    vnode.attrs.openFlamegraphPivotedAt,
+                  ),
+              },
+              'View in Flamegraph',
+            )
+          : null;
+
       return m('div', {class: 'ah-view-scroll ah-view-stack'}, [
         m('div', [
           m(
@@ -613,7 +645,10 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
         m(
           Section,
-          {title: 'Shortest Path from GC Root'},
+          {
+            title: 'Shortest Path from GC Root',
+            actions: detail.shortestPath ? flamegraphAction(false) : null,
+          },
           detail.shortestPath
             ? m(
                 'div',
@@ -647,6 +682,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
           Section,
           {
             title: 'Dominator Tree Path',
+            actions: detail.dominatorPath ? flamegraphAction(true) : null,
           },
           detail.dominatorPath
             ? m(
@@ -961,6 +997,39 @@ function renderArrayGrid(
       showExportButton: true,
     }),
   ]);
+}
+
+// Look up the object's path_hash_stable in the requested tree (BFS class
+// tree if !isDominator, dominator class tree otherwise) and open the
+// Flamegraph tab pivoted at that node with the matching metric selected.
+// The path_hash is tree-specific, so the chosen tree determines both the
+// SQL table and which metric the flamegraph switches to. The dependency
+// module is included on demand. If the object has no entry in the chosen
+// tree (e.g. unreachable garbage), the call is a no-op.
+async function openInFlamegraph(
+  engine: Engine,
+  id: number,
+  cls: string,
+  isDominator: boolean,
+  openFlamegraphPivotedAt: OpenFlamegraphPivotedAt,
+): Promise<void> {
+  const moduleName = isDominator
+    ? 'android.memory.heap_graph.dominator_class_tree'
+    : 'android.memory.heap_graph.class_tree';
+  const table = isDominator
+    ? '_heap_graph_dominator_path_hashes'
+    : '_heap_graph_path_hashes';
+  await engine.query(`INCLUDE PERFETTO MODULE ${moduleName};`);
+  // CAST to TEXT: path_hash is INT64 in the stdlib but FlamegraphView
+  // matches on path_hash_stable as a string, so a string round-trip is
+  // sufficient and avoids the JS Number 2^53 precision cliff.
+  const res = await engine.query(
+    `SELECT CAST(path_hash AS TEXT) AS path_hash
+       FROM ${table} WHERE id = ${id} LIMIT 1`,
+  );
+  const it = res.iter({path_hash: STR});
+  if (!it.valid()) return;
+  openFlamegraphPivotedAt(it.path_hash, shortClassName(cls), isDominator);
 }
 
 // `java.lang.Class<Foo>` has no useful subclasses in heap_graph_class; the

@@ -23,6 +23,12 @@ import {
   FlamegraphOptionalAction,
 } from '../../../widgets/flamegraph';
 
+// Metric names exposed to callers (e.g. session.openFlamegraphPivotedAt)
+// that want to seed `selectedMetricName` directly. Keeping them here keeps
+// the source of truth next to the metric definitions below.
+export const METRIC_OBJECT_SIZE = 'Object Size';
+export const METRIC_DOMINATED_OBJECT_SIZE = 'Dominated Object Size';
+
 export interface FlamegraphViewAttrs {
   trace: Trace;
   upid: number;
@@ -34,21 +40,20 @@ export interface FlamegraphViewAttrs {
   onShowObjects: (pathHashes: string, isDominator: boolean) => void;
 }
 
+// path_hash_stable is exposed unaggregatable (and CAST to TEXT in SQL,
+// since the stdlib emits it as INT64 and the flamegraph reads
+// unaggregatable columns as STR_NULL) so it lands in `matchingColumns`
+// — that's what lets a PIVOT filter target a specific node by its hash.
+// Hidden from the tooltip via `isVisible: false`.
 const UNAGG_PROPS = [
   {name: 'root_type', displayName: 'Root Type'},
   {name: 'heap_type', displayName: 'Heap Type'},
+  {
+    name: 'path_hash_stable',
+    displayName: 'Path Hash',
+    isVisible: () => false,
+  },
 ];
-
-// path_hash_stable rides along on every metric so action handlers can read
-// it from `kv` to identify the clicked node. CONCAT_WITH_COMMA matches the
-// timeline-side flamegraph's convention; isVisible: false hides it from the
-// tooltip — it's only useful programmatically.
-const PATH_HASH_AGG_PROP = {
-  name: 'path_hash_stable',
-  displayName: 'Path Hash',
-  mergeAggregation: 'CONCAT_WITH_COMMA' as const,
-  isVisible: () => false,
-};
 
 const SELF_COUNT_AGG_PROP = {
   name: 'self_count',
@@ -57,15 +62,13 @@ const SELF_COUNT_AGG_PROP = {
 };
 
 // Build a JAVA_HEAP_GRAPH metric for one of the two trees (BFS class tree
-// or dominator class tree) selecting a numeric column as the flamegraph
-// `value`. Other columns ride along for tooltips and action `kv` lookups.
+// or dominator class tree), projecting either self_size or self_count as
+// the flamegraph's `value`. The other column rides along for the tooltip.
 function buildMetric(
   upid: number,
   ts: time,
   name: string,
   unit: string,
-  // The column projected as the flamegraph's `value`. The other one is
-  // selected as-is (so it appears in the tooltip but isn't the size).
   valueColumn: 'self_size' | 'self_count',
   isDominator: boolean,
   showObjectsAction: FlamegraphOptionalAction,
@@ -76,7 +79,6 @@ function buildMetric(
   const dependencyModule = isDominator
     ? 'android.memory.heap_graph.dominator_class_tree'
     : 'android.memory.heap_graph.class_tree';
-  const valueAlias = `${valueColumn} as value`;
   const otherCol = valueColumn === 'self_size' ? 'self_count' : 'self_size';
   return {
     name,
@@ -89,17 +91,15 @@ function buildMetric(
         ifnull(name, '[Unknown]') as name,
         root_type,
         heap_type,
-        ${valueAlias},
+        ${valueColumn} as value,
         ${otherCol},
-        path_hash_stable
+        CAST(path_hash_stable AS TEXT) AS path_hash_stable
       from ${tree}
       where graph_sample_ts = ${ts} and upid = ${upid}
     `,
     unaggregatableProperties: UNAGG_PROPS,
     aggregatableProperties:
-      valueColumn === 'self_size'
-        ? [SELF_COUNT_AGG_PROP, PATH_HASH_AGG_PROP]
-        : [PATH_HASH_AGG_PROP],
+      valueColumn === 'self_size' ? [SELF_COUNT_AGG_PROP] : [],
     optionalNodeActions: [showObjectsAction],
   };
 }
@@ -124,7 +124,7 @@ function buildHeapGraphMetrics(
     buildMetric(
       upid,
       ts,
-      'Object Size',
+      METRIC_OBJECT_SIZE,
       'B',
       'self_size',
       false,
@@ -142,7 +142,7 @@ function buildHeapGraphMetrics(
     buildMetric(
       upid,
       ts,
-      'Dominated Object Size',
+      METRIC_DOMINATED_OBJECT_SIZE,
       'B',
       'self_size',
       true,
@@ -177,17 +177,19 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       }
       const metrics = cachedMetrics!;
 
-      // Initialize state on first render or rebase to new metrics if dump
-      // changed without the parent reseting state.
+      // First render or new dump without a parent reset: rebase the
+      // state onto the current metrics. If the parent already seeded a
+      // valid state (e.g. via openFlamegraphPivotedAt), it's preserved.
+      let state = attrs.state;
       if (
-        attrs.state === undefined ||
-        !metrics.some((mt) => mt.name === attrs.state!.selectedMetricName)
+        state === undefined ||
+        !metrics.some((mt) => mt.name === state!.selectedMetricName)
       ) {
-        attrs.onStateChange(
-          attrs.state === undefined
+        state =
+          state === undefined
             ? Flamegraph.createDefaultState(metrics)
-            : Flamegraph.updateState(attrs.state, metrics),
-        );
+            : Flamegraph.updateState(state, metrics);
+        attrs.onStateChange(state);
       }
 
       return m(
@@ -196,7 +198,7 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
         m(FlamegraphPanel, {
           trace: attrs.trace,
           metrics,
-          state: attrs.state,
+          state,
           onStateChange: attrs.onStateChange,
         }),
       );
