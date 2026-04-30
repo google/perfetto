@@ -60,10 +60,10 @@ export class FuzzyFinder<T> {
   find(searchTerm: string): FuzzyResult<T>[] {
     if (searchTerm === '') {
       return this.items.map((item) => {
-        const text = this.keyLookup(item);
+        const normalisedTerm = this.keyLookup(item);
         return {
           item,
-          segments: [{matching: false, value: text}],
+          segments: [{matching: false, value: normalisedTerm}],
         };
       });
     }
@@ -96,10 +96,7 @@ function camelCaseTokenize(text: string): string[] {
 // Given a query (possibly multi-word) and candidate text, compute highlight
 // segments. Each query token is first tried as a substring match, then falls
 // back to sequential character matching.
-export function computeHighlightSegments(
-  query: string,
-  text: string,
-): FuzzySegment[] {
+function computeHighlightSegments(query: string, text: string): FuzzySegment[] {
   const tokens = query.split(/\s+/).filter(Boolean);
   const lowerText = text.toLowerCase();
   const highlightedIndices: number[] = [];
