@@ -119,7 +119,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 130.
+// Next id: 131.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -235,7 +235,7 @@ message TracePacket {
     TraceAttributes trace_attributes = 126;
     AndroidAflags android_aflags = 127;
     GpuInfo gpu_info = 128;
-    InterruptInfo interrupt_info = 129;
+    InterruptInfo interrupt_info = 130;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;
