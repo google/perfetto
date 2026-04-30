@@ -323,9 +323,9 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     ) {
       return m(
         GridLayoutColumn,
+        args,
         precFlows,
         followingFlows,
-        args,
         distribution,
         additionalSections,
       );
