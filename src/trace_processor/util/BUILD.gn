@@ -26,6 +26,14 @@ source_set("stdlib") {
   sources = [ "sql_modules.h" ]
 }
 
+source_set("sql_bundle") {
+  sources = [ "sql_bundle.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("bump_allocator") {
   sources = [
     "bump_allocator.cc",
@@ -158,8 +166,6 @@ source_set("descriptors") {
 
 source_set("proto_to_args_parser") {
   sources = [
-    "debug_annotation_parser.cc",
-    "debug_annotation_parser.h",
     "proto_to_args_parser.cc",
     "proto_to_args_parser.h",
   ]
@@ -418,7 +424,6 @@ source_set("winscope_proto_mapping") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
-    "debug_annotation_parser_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",

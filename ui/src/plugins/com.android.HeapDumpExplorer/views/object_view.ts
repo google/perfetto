@@ -611,16 +611,46 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
         m(
           Section,
-          {
-            title: detail.isUnreachablePath
-              ? 'Sample Path'
-              : 'Sample Path from GC Root',
-          },
-          detail.pathFromRoot
+          {title: 'Shortest Path from GC Root'},
+          detail.shortestPath
             ? m(
                 'div',
                 {class: 'ah-view-stack--tight'},
-                detail.pathFromRoot.map((pe, i) =>
+                detail.shortestPath.map((pe, i) =>
+                  m(
+                    'div',
+                    {
+                      key: i,
+                      class: 'ah-path-entry',
+                      style: {'--ah-depth': String(i)},
+                    },
+                    [
+                      m(
+                        'span',
+                        {class: 'ah-path-arrow'},
+                        i === 0 ? '' : '\u2192',
+                      ),
+                      m(InstanceLink, {row: pe.row, navigate}),
+                      pe.field
+                        ? m('span', {class: 'ah-path-field'}, pe.field)
+                        : null,
+                    ],
+                  ),
+                ),
+              )
+            : m('p', {class: 'ah-muted'}, 'No path to GC root.'),
+        ),
+
+        m(
+          Section,
+          {
+            title: 'Dominator Tree Path',
+          },
+          detail.dominatorPath
+            ? m(
+                'div',
+                {class: 'ah-view-stack--tight'},
+                detail.dominatorPath.map((pe, i) =>
                   m(
                     'div',
                     {

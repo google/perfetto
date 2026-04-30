@@ -212,6 +212,9 @@ const PluginSet& GetPluginSet();
 #define PERFETTO_END_ALLOW_GLOBAL_CTORS_FOR_TP_PLUGIN_REGISTER
 #endif
 
+// Trailing `static_assert(true, "")` consumes the macro call site's `;`, so
+// `PERFETTO_TP_REGISTER_PLUGIN(Foo);` reads like a normal statement and won't
+// trigger -Wpedantic / -Wextra-semi on compilers that flag stray semicolons.
 #define PERFETTO_TP_REGISTER_PLUGIN(ClassName)                                \
   PERFETTO_ALLOW_GLOBAL_CTORS_FOR_TP_PLUGIN_REGISTER                          \
   static ::perfetto::trace_processor::PluginRegistration g_##ClassName##_reg( \
@@ -220,7 +223,8 @@ const PluginSet& GetPluginSet();
       },                                                                      \
       ClassName::kPluginId, ClassName::kDepIds.data(),                        \
       ClassName::kDepIds.size());                                             \
-  PERFETTO_END_ALLOW_GLOBAL_CTORS_FOR_TP_PLUGIN_REGISTER
+  PERFETTO_END_ALLOW_GLOBAL_CTORS_FOR_TP_PLUGIN_REGISTER                      \
+  static_assert(true, "")
 
 }  // namespace perfetto::trace_processor
 

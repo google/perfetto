@@ -440,6 +440,13 @@ class GnParser(object):
       self.minuend_descriptor: Optional[str] = None
       self.subtrahend_descriptor: Optional[str] = None
 
+      # When True, generators emit linker hints that prevent stripping of
+      # objects whose only entry points are global-ctor-driven side effects
+      # (e.g. self-registering plugins). Maps to Bazel's `alwayslink = True`
+      # on the cc_library that absorbs this source_set, and Soong's
+      # `whole_static_libs` on consumers.
+      self.force_alwayslink = False
+
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
       self.cflags = set()
@@ -567,6 +574,8 @@ class GnParser(object):
       self.source_sets[gn_target_name] = target
       target.sources.update(desc.get('sources', []))
       target.inputs.update(desc.get('inputs', []))
+      target.force_alwayslink = bool(
+          target.metadata.get('perfetto_force_alwayslink', [False])[0])
     elif target.type in LINKER_UNIT_TYPES:
       self.linker_units[gn_target_name] = target
       target.sources.update(desc.get('sources', []))

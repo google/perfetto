@@ -28,6 +28,43 @@ import {Switch} from '../../widgets/switch';
 import type {GpuComputeContext} from './index';
 import {Select} from '../../widgets/select';
 
+// Memoized kernel selector that skips vdom diffing when the options
+// list and selected value haven't changed. Without this, mithril
+// rebuilds and diffs thousands of <option> vnodes on every redraw.
+interface KernelSelectAttrs {
+  readonly options: readonly KernelLaunchOption[];
+  readonly value: string;
+  onChange: (id: number | undefined) => void;
+}
+
+class KernelSelect implements m.ClassComponent<KernelSelectAttrs> {
+  onbeforeupdate(
+    {attrs}: m.CVnode<KernelSelectAttrs>,
+    old: m.CVnode<KernelSelectAttrs>,
+  ): boolean {
+    return (
+      attrs.value !== old.attrs.value || attrs.options !== old.attrs.options
+    );
+  }
+
+  view({attrs}: m.CVnode<KernelSelectAttrs>): m.Children {
+    return m(
+      Select,
+      {
+        value: attrs.value,
+        className: 'pf-gpu-compute__toolbar-kernel-select',
+        onchange: (e: Event) => {
+          const v = (e.target as HTMLSelectElement).value;
+          attrs.onChange(v === '' ? undefined : Number(v));
+        },
+      },
+      attrs.options.map((o, i) =>
+        m('option', {value: String(o.id)}, `${i} - ${trunc(o.label)}`),
+      ),
+    );
+  }
+}
+
 // Maximum label length before truncation.
 const MAX_LABEL_LENGTH = 50;
 
@@ -145,26 +182,11 @@ export function renderToolbar(opts: {
           ),
           m('span', 'Current'),
         ]),
-        m(
-          Select,
-          {
-            value,
-            className: 'pf-gpu-compute__toolbar-kernel-select',
-            onchange: (e: Event) => {
-              const value = (e.target as HTMLSelectElement).value;
-              opts.onChange(value === '' ? undefined : Number(value));
-            },
-          },
-          [
-            ...opts.options.map((o) =>
-              m(
-                'option',
-                {value: String(o.id)},
-                `${opts.options.indexOf(o)} - ${trunc(o.label)}`,
-              ),
-            ),
-          ],
-        ),
+        m(KernelSelect, {
+          options: opts.options,
+          value,
+          onChange: opts.onChange,
+        }),
         m(
           'span.pf-gpu-compute__toolbar-size',
           opts.toolbarInfo?.sizeText ?? '—',
@@ -213,7 +235,6 @@ export function renderToolbar(opts: {
         currentTabKey: ctx.activeInfoTab,
         onTabChange: (key: string) => {
           ctx.activeInfoTab = key as InfoTab;
-          m.redraw();
         },
       }),
 
@@ -230,7 +251,6 @@ export function renderToolbar(opts: {
           // Auto focusing to 'Details' tab
           if (enable) {
             ctx.activeInfoTab = 'details';
-            m.redraw();
           }
         },
       }),
@@ -257,7 +277,6 @@ export function renderToolbar(opts: {
               checked: ctx.humanizeMetrics,
               onchange: (e: Event) => {
                 ctx.humanizeMetrics = (e.target as HTMLInputElement).checked;
-                m.redraw();
                 opts.onHumanizeChanged?.();
               },
             }),
@@ -274,7 +293,6 @@ export function renderToolbar(opts: {
                 onchange: (e: Event) => {
                   ctx.terminologyId = (e.target as HTMLSelectElement).value;
                   opts.onTerminologyChanged?.();
-                  m.redraw();
                 },
                 className: 'pf-gpu-compute__toolbar-terminology-select',
               },

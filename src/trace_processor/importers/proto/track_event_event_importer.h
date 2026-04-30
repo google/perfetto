@@ -66,7 +66,6 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "perfetto/ext/base/base64.h"
@@ -325,6 +324,7 @@ class TrackEventEventImporter {
 
   base::Status ParseInitialTrackAssociation() {
     ProcessTracker* procs = context_->process_tracker.get();
+    const auto& thread = sequence_state_->thread_descriptor();
 
     // Consider track_uuid from the packet and TrackEventDefaults, fall back to
     // the default descriptor track (uuid 0).
@@ -358,9 +358,9 @@ class TrackEventEventImporter {
           upid_ = resolved->upid();
           // TODO: b/175152326 - Should pid namespace translation also be done
           // here?
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          if (thread.valid()) {
+            auto pid = static_cast<uint32_t>(thread.pid());
+            auto tid = static_cast<uint32_t>(thread.tid());
             UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
             if (storage_->thread_table()[utid_candidate].upid() == upid_) {
               legacy_passthrough_utid_ = utid_candidate;
@@ -370,15 +370,15 @@ class TrackEventEventImporter {
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGlobal:
           // TODO: b/175152326 - Should pid namespace translation also be done
           // here?
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          if (thread.valid()) {
+            auto pid = static_cast<uint32_t>(thread.pid());
+            auto tid = static_cast<uint32_t>(thread.tid());
             legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
           }
           break;
       }
     } else {
-      bool pid_tid_state_valid = sequence_state_->pid_and_tid_valid();
+      bool pid_tid_state_valid = thread.valid();
 
       // We have a 0-value |track_uuid|. Nevertheless, we should only fall back
       // if we have either no |track_uuid| specified at all or |track_uuid| was
@@ -399,8 +399,8 @@ class TrackEventEventImporter {
       if (fallback_to_legacy_pid_tid_tracks_) {
         // TODO: b/175152326 - Should pid namespace translation also be done
         // here?
-        auto pid = static_cast<uint32_t>(sequence_state_->pid());
-        auto tid = sequence_state_->tid();
+        auto pid = static_cast<uint32_t>(thread.pid());
+        auto tid = thread.tid();
         if (legacy_event_.has_pid_override()) {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
           // Create a synthetic tid while avoiding using the exact same tid in
@@ -409,7 +409,7 @@ class TrackEventEventImporter {
         }
         if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
-          if (IsSyntheticTid(sequence_state_->tid())) {
+          if (IsSyntheticTid(thread.tid())) {
             tid = CreateSyntheticTid(tid, pid);
           }
         }
@@ -1350,9 +1350,9 @@ class TrackEventEventImporter {
 
     {
       auto key = parser_->args_parser_.EnterDictionary("debug");
-      util::DebugAnnotationParser parser(parser_->args_parser_);
       for (auto it = event_.debug_annotations(); it; ++it) {
-        log_errors(parser.Parse(*it, args_writer));
+        log_errors(
+            parser_->args_parser_.ParseDebugAnnotation(*it, args_writer));
       }
     }
 
@@ -1539,7 +1539,7 @@ class TrackEventEventImporter {
       }
       // Pass upid as optional - will work with or without process association
       auto callsite_id = stack_profile_state->FindOrInsertCallstack(
-          upid_, event_.callstack_iid());
+          sequence_state_, upid_, event_.callstack_iid());
       if (!callsite_id) {
         return base::ErrStatus("Failed to intern callstack");
       }

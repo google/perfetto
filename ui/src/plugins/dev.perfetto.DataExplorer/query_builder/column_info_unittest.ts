@@ -15,7 +15,6 @@
 import {
   ColumnInfo,
   columnInfoFromSqlColumn,
-  legacyDeserializeType,
   newColumnInfo,
 } from './column_info';
 import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
@@ -161,85 +160,6 @@ describe('column_info utilities', () => {
       const result = newColumnInfo(original);
 
       expect(result.alias).toBeUndefined();
-    });
-  });
-
-  describe('legacyDeserializeType', () => {
-    it('should return undefined for undefined input', () => {
-      expect(legacyDeserializeType(undefined)).toBeUndefined();
-    });
-
-    it('should pass through valid PerfettoSqlType objects', () => {
-      expect(legacyDeserializeType(intType)).toEqual(intType);
-      expect(legacyDeserializeType(stringType)).toEqual(stringType);
-      expect(legacyDeserializeType(timestampType)).toEqual(timestampType);
-    });
-
-    it('should pass through ID types', () => {
-      const idType: PerfettoSqlType = {
-        kind: 'id',
-        source: {table: 'thread', column: 'id'},
-      };
-      expect(legacyDeserializeType(idType)).toEqual(idType);
-    });
-
-    it('should pass through JOINID types', () => {
-      const joinidType: PerfettoSqlType = {
-        kind: 'joinid',
-        source: {table: 'thread', column: 'id'},
-      };
-      expect(legacyDeserializeType(joinidType)).toEqual(joinidType);
-    });
-
-    it('should convert legacy string types to PerfettoSqlType', () => {
-      expect(
-        legacyDeserializeType('INT' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'int'});
-      expect(
-        legacyDeserializeType('STRING' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'string'});
-      expect(
-        legacyDeserializeType('TIMESTAMP' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'timestamp'});
-      expect(
-        legacyDeserializeType('DURATION' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'duration'});
-      expect(
-        legacyDeserializeType('DOUBLE' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'double'});
-      expect(
-        legacyDeserializeType('BOOLEAN' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'boolean'});
-      expect(
-        legacyDeserializeType('BYTES' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'bytes'});
-      expect(
-        legacyDeserializeType('ARG_SET_ID' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'arg_set_id'});
-    });
-
-    it('should handle lowercase legacy string types', () => {
-      expect(
-        legacyDeserializeType('int' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'int'});
-      expect(
-        legacyDeserializeType('string' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'string'});
-    });
-
-    it('should return undefined for unrecognized legacy strings', () => {
-      expect(
-        legacyDeserializeType('UNKNOWN' as unknown as PerfettoSqlType),
-      ).toBeUndefined();
-      expect(
-        legacyDeserializeType('NA' as unknown as PerfettoSqlType),
-      ).toBeUndefined();
-    });
-
-    it('should return undefined for objects without kind', () => {
-      expect(
-        legacyDeserializeType({} as unknown as PerfettoSqlType),
-      ).toBeUndefined();
     });
   });
 });

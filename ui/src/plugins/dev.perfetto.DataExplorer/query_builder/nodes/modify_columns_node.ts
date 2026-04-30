@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
 import {TextInput} from '../../../../widgets/text_input';
-import {ColumnInfo, legacyDeserializeType} from '../column_info';
+import {ColumnInfo} from '../column_info';
 import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
@@ -91,20 +91,6 @@ export class ModifyColumnsNode implements QueryNode {
 
     this.attrs.selectedColumns = newSelectedColumns;
     this.context.onchange?.();
-  }
-
-  static deserializeState(
-    state: ModifyColumnsNodeAttrs,
-  ): ModifyColumnsNodeAttrs {
-    return {
-      selectedColumns: state.selectedColumns.map((c) => ({
-        ...c,
-        // Handle legacy string types (e.g. 'INT' → {kind: 'int'})
-        type: legacyDeserializeType(
-          c.type as unknown as PerfettoSqlType | string | undefined,
-        ),
-      })),
-    };
   }
 
   validate(): boolean {

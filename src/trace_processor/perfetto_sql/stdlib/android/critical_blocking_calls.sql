@@ -48,6 +48,7 @@ SELECT
   OR $name GLOB 'Recomposer:*'
   OR $name GLOB 'Compose:*'
   OR $name GLOB 'draw-VRI*'
+  OR $name = 'CreateGraphicsPipeline'
   OR (
     NOT $name GLOB '*Choreographer*'
     AND NOT $name GLOB '*Input*'

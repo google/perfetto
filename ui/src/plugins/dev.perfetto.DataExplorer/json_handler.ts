@@ -19,6 +19,11 @@ import {Trace} from '../../public/trace';
 import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {nodeRegistry} from './query_builder/node_registry';
 import {restoreLegacySecondaryInputs} from './query_builder/legacy_connections';
+import {
+  PerfettoSqlType,
+  parsePerfettoSqlTypeFromString,
+} from '../../trace_processor/perfetto_sql_type';
+import {ColumnInfo} from './query_builder/column_info';
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -213,6 +218,105 @@ export function exportStateAsJson(
   downloadJsonFile(json, `${traceName}-graph-${date}.json`);
 }
 
+// Translate a legacy string type (e.g. 'INT') to the current PerfettoSqlType
+// object form (e.g. {kind: 'int'}). Returns undefined for unrecognised strings.
+function legacyDeserializeType(
+  type: PerfettoSqlType | string | undefined,
+): PerfettoSqlType | undefined {
+  if (type === undefined) return undefined;
+  if (typeof type === 'string') {
+    const parsed = parsePerfettoSqlTypeFromString({type});
+    return parsed.ok ? parsed.value : undefined;
+  }
+  if (type.kind !== undefined) return type;
+  return undefined;
+}
+
+function migrateColumnList(
+  cols: unknown[] | undefined,
+): ColumnInfo[] | undefined {
+  if (!cols) return undefined;
+  return cols.map((c) => {
+    const col = c as {
+      columnName?: string;
+      name?: string;
+      type?: PerfettoSqlType | string;
+      checked?: boolean;
+      alias?: string;
+      typeUserModified?: boolean;
+    };
+    return {
+      name: col.columnName ?? col.name ?? '',
+      type: legacyDeserializeType(col.type),
+      checked: col.checked ?? false,
+      alias: col.alias,
+      typeUserModified: col.typeUserModified,
+    };
+  });
+}
+
+// Apply legacy type migrations to a node's raw serialized state before it
+// reaches the node constructor. Each node type only handles what it needs.
+function migrateNodeState(type: NodeType, state: unknown): unknown {
+  const s = state as Record<string, unknown>;
+  switch (type) {
+    case NodeType.kJoin:
+      return {
+        ...s,
+        conditionType: (s.conditionType as string | undefined) ?? 'equality',
+        joinType: (s.joinType as string | undefined) ?? 'INNER',
+        leftColumn: (s.leftColumn as string | undefined) ?? '',
+        rightColumn: (s.rightColumn as string | undefined) ?? '',
+        sqlExpression: (s.sqlExpression as string | undefined) ?? '',
+        leftColumns: migrateColumnList(s.leftColumns as unknown[]),
+        rightColumns: migrateColumnList(s.rightColumns as unknown[]),
+      };
+    case NodeType.kModifyColumns:
+      return {
+        ...s,
+        selectedColumns:
+          migrateColumnList(s.selectedColumns as unknown[]) ?? [],
+      };
+    case NodeType.kUnion:
+      return {
+        ...s,
+        selectedColumns:
+          migrateColumnList(s.selectedColumns as unknown[]) ?? [],
+      };
+    case NodeType.kAggregation: {
+      type RawAgg = {column?: {name?: string; type?: PerfettoSqlType | string}};
+      const aggregations = s.aggregations as RawAgg[] | undefined;
+      return {
+        ...s,
+        groupByColumns: migrateColumnList(s.groupByColumns as unknown[]) ?? [],
+        aggregations: aggregations?.map((agg) => ({
+          ...agg,
+          column: agg.column
+            ? {...agg.column, type: legacyDeserializeType(agg.column.type)}
+            : undefined,
+        })),
+      };
+    }
+    case NodeType.kAddColumns: {
+      const columnTypes = s.columnTypes as
+        | Record<string, PerfettoSqlType | string>
+        | undefined;
+      if (!columnTypes) return s;
+      return {
+        ...s,
+        columnTypes: Object.fromEntries(
+          Object.entries(columnTypes)
+            .map(([k, v]) => [k, legacyDeserializeType(v)] as const)
+            .filter((e): e is [string, PerfettoSqlType] => e[1] !== undefined),
+        ),
+      };
+    }
+    default:
+      // Unknown node types pass through unchanged for forward-compatibility.
+      return state;
+  }
+}
+
 function createNodeInstance(
   serializedNode: SerializedNode,
   trace: Trace,
@@ -222,7 +326,11 @@ function createNodeInstance(
   if (!descriptor) {
     throw new Error(`Unknown node type: ${serializedNode.type}`);
   }
-  return descriptor.deserialize(serializedNode.state, trace, sqlModules);
+  const migratedState = migrateNodeState(
+    serializedNode.type,
+    serializedNode.state,
+  );
+  return descriptor.deserialize(migratedState as object, trace, sqlModules);
 }
 
 export function deserializeState(

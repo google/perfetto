@@ -21,7 +21,6 @@
 // optional baseline comparison and per-section analysis.
 //
 // Key exports:
-// - {@link fetchKernelLaunchList} — populates the toolbar's Results dropdown
 // - {@link fetchSelectedKernelMetricData} — loads full metric data for a slice
 // - {@link KernelMetricsSection} — top-level Mithril component for the tab
 // - {@link renderPercentBar}, {@link renderMetricResultTable},
@@ -219,22 +218,21 @@ type QueryCapable = {
 // SQL query building
 // =============================================================================
 
+function sqlAlias(id: string): string {
+  return id.replace(/\./g, '_');
+}
+
 // Launch metrics required for display and toolbar regardless of which
 // section plugins are loaded.
-//
-// TODO: These arg names are hardcoded to the current trace format. Consider
-// adding generic protobuf fields for kernel name, grid/block dimensions, etc.
-// or extending the well-known metric registry to cover launch args so plugins
-// can provide alternative argument names for different vendors.
 const INFRASTRUCTURE_LAUNCH_METRICS = [
   'kernel_name',
   'kernel_demangled_name',
-  'launch__block_size_x',
-  'launch__block_size_y',
-  'launch__block_size_z',
-  'launch__grid_size_x',
-  'launch__grid_size_y',
-  'launch__grid_size_z',
+  'launch.workgroup_size.x',
+  'launch.workgroup_size.y',
+  'launch.workgroup_size.z',
+  'launch.grid_size.x',
+  'launch.grid_size.y',
+  'launch.grid_size.z',
   'arch',
   'process_name',
   'process_id',
@@ -251,8 +249,9 @@ function kernelQueryBody(ctx: GpuComputeContext): string {
   ]);
 
   // Build EXTRACT_ARG lines for each launch metric.
+  // Dots in metric IDs are replaced with underscores for SQL aliases.
   const extractArgs = Array.from(allLaunchMetrics)
-    .map((id) => `EXTRACT_ARG(s.arg_set_id, '${id}') as ${id}`)
+    .map((id) => `EXTRACT_ARG(s.arg_set_id, '${id}') as ${sqlAlias(id)}`)
     .join(',\n      ');
 
   return `
@@ -262,8 +261,12 @@ function kernelQueryBody(ctx: GpuComputeContext): string {
     FROM gpu_slice s
     INNER JOIN gpu_track tr ON tr.id = s.track_id
     LEFT JOIN counter c ON c.ts >= s.ts AND c.ts < s.ts + s.dur
+      AND c.track_id IN (
+        SELECT gc_tc.id FROM gpu_counter_track gc_tc
+        INNER JOIN gpu_counter_group gc ON gc.track_id = gc_tc.id
+          AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
+      )
     LEFT JOIN gpu_counter_track tc ON tc.id = c.track_id
-    LEFT JOIN gpu_counter_group gc ON gc.track_id = tc.id AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
   `;
 }
 
@@ -275,7 +278,6 @@ export function buildKernelQuery(
   const whereFilter = `
     WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
       AND s.id = ${sliceIdFilter}
-      AND (gc.group_id IS NOT NULL OR c.id IS NULL)
     GROUP BY kernel_id, metric_label
   `;
 
@@ -289,37 +291,6 @@ export function buildKernelQuery(
 // =============================================================================
 // Data fetching
 // =============================================================================
-
-// Fetches the list of compute kernel launches for the Results dropdown.
-// Returns one entry per launch, ordered by timestamp.
-export async function fetchKernelLaunchList(
-  engine: QueryCapable,
-): Promise<KernelLaunchOption[]> {
-  const sql = `
-    SELECT
-      s.id AS id,
-      COALESCE(
-        EXTRACT_ARG(s.arg_set_id, 'kernel_demangled_name'),
-        EXTRACT_ARG(s.arg_set_id, 'kernel_name'),
-        s.name
-      ) AS kname
-    FROM gpu_slice s
-    INNER JOIN gpu_track tr ON tr.id = s.track_id
-    WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
-    ORDER BY s.ts ASC;
-  `;
-  const result = await engine.query(sql);
-  const iter = result.iter({});
-  const list: KernelLaunchOption[] = [];
-  while (iter.valid()) {
-    list.push({
-      id: Number(iter.get('id')),
-      label: String(iter.get('kname')),
-    });
-    iter.next();
-  }
-  return list;
-}
 
 // =============================================================================
 // Row reduction — SQL iterator → KernelGroup map
@@ -362,7 +333,7 @@ function reduceKernelRows(
       // First row for this kernel — read all launch-arg columns
       const metricsKV: Record<string, number | string> = {};
       for (const col of launchArgColumns) {
-        const v = iter.get(col);
+        const v = iter.get(sqlAlias(col));
         metricsKV[col] = v != null ? (v as number | string) : 'n/a';
       }
 
@@ -432,8 +403,8 @@ function buildMetricSectionData(
     getMetric('kernel_demangled_name') !== 'n/a'
       ? getMetric('kernel_demangled_name')
       : kernelFallbackName;
-  const gridSize = `(${getMetric('launch__grid_size_x')}, ${getMetric('launch__grid_size_y')}, ${getMetric('launch__grid_size_z')})`;
-  const blockSize = `(${getMetric('launch__block_size_x')}, ${getMetric('launch__block_size_y')}, ${getMetric('launch__block_size_z')})`;
+  const gridSize = `(${getMetric('launch.grid_size.x')}, ${getMetric('launch.grid_size.y')}, ${getMetric('launch.grid_size.z')})`;
+  const blockSize = `(${getMetric('launch.workgroup_size.x')}, ${getMetric('launch.workgroup_size.y')}, ${getMetric('launch.workgroup_size.z')})`;
   const launchConfig = `${gridSize}x${blockSize}`;
 
   // Build the set of available (non-n/a) metric IDs for visibility checks.
@@ -810,8 +781,11 @@ function loadMetricData(
       FROM gpu_slice s
       INNER JOIN gpu_track tr ON tr.id = s.track_id
       INNER JOIN counter c ON c.ts >= s.ts AND c.ts < s.ts + s.dur
-      INNER JOIN gpu_counter_track tc ON tc.id = c.track_id
-      INNER JOIN gpu_counter_group gc ON gc.track_id = tc.id AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
+        AND c.track_id IN (
+          SELECT gc_tc.id FROM gpu_counter_track gc_tc
+          INNER JOIN gpu_counter_group gc ON gc.track_id = gc_tc.id
+            AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
+        )
       WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
       LIMIT 1;
     `;
@@ -899,10 +873,11 @@ export const KernelMetricsSection: m.Component<
           baselineLookup,
         });
 
-      // Built-in sections are always registered, so this should never
-      // be empty. Assert rather than showing a placeholder.
       if (kernel.sections.length === 0) {
-        throw new Error('GpuCompute: no sections registered');
+        return m(
+          '.pf-gpu-compute__pad',
+          m('p', 'No detailed metrics available for this kernel.'),
+        );
       }
 
       return (

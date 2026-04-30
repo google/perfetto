@@ -12,31 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {JoinNode, JoinNodeAttrs} from './join_node';
-import {QueryNode, NodeType} from '../../query_node';
+import {JoinNode} from './join_node';
+import {QueryNode} from '../../query_node';
 import {ColumnInfo} from '../column_info';
-import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
+import {
+  createMockNode,
+  expectValidationError,
+  expectValidationSuccess,
+} from '../testing/test_utils';
 
 describe('JoinNode', () => {
-  function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
-      nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      attrs: {},
-      context: {},
-      validate: () => true,
-      getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockPrevNode(id, columns),
-      getStructuredQuery: () => undefined,
-    } as QueryNode;
-  }
-
   function createColumnInfo(
     name: string,
     _type: string,
@@ -105,14 +91,20 @@ describe('JoinNode', () => {
 
   describe('constructor', () => {
     it('should initialize with default values', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('value', 'INT'),
+        ],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -140,8 +132,8 @@ describe('JoinNode', () => {
     });
 
     it('should use default aliases when not provided', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -167,9 +159,10 @@ describe('JoinNode', () => {
 
   describe('finalCols', () => {
     it('should return empty array when only one node is provided', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [createColumnInfo('id', 'INT')],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -192,14 +185,20 @@ describe('JoinNode', () => {
     });
 
     it('should return empty when no columns are checked', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('value', 'INT'),
+        ],
+      });
 
       // When leftColumns/rightColumns are undefined, updateColumnArrays()
       // initializes all columns with checked: false
@@ -225,13 +224,17 @@ describe('JoinNode', () => {
     });
 
     it('should return only checked columns from left source', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('value', 'INT')],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -261,13 +264,17 @@ describe('JoinNode', () => {
     });
 
     it('should return only checked columns from right source', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('parent_id', 'INT'),
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [createColumnInfo('id', 'INT')],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('parent_id', 'INT'),
+          createColumnInfo('value', 'INT'),
+        ],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -300,15 +307,21 @@ describe('JoinNode', () => {
     });
 
     it('should return checked columns from both sources', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('ts', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('parent_id', 'INT'),
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+          createColumnInfo('ts', 'INT64'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('parent_id', 'INT'),
+          createColumnInfo('value', 'INT'),
+        ],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -346,8 +359,8 @@ describe('JoinNode', () => {
     });
 
     it('should handle empty column lists', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -370,13 +383,17 @@ describe('JoinNode', () => {
     });
 
     it('should return columns with checked=true status', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('value', 'INT')],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -406,12 +423,14 @@ describe('JoinNode', () => {
     });
 
     it('should preserve column aliases in finalCols', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [createColumnInfo('id', 'INT')],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('id', 'INT')],
+      });
 
       const leftCols = createCheckedColumns([
         {name: 'id', type: 'INT', checked: true},
@@ -450,7 +469,7 @@ describe('JoinNode', () => {
 
   describe('validation', () => {
     it('should fail when only one node is provided', () => {
-      const node1 = createMockPrevNode('node1', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -469,19 +488,18 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(joinNode.validate()).toBe(false);
-      expect(joinNode.context.issues?.queryError?.message).toContain(
-        'exactly two sources',
-      );
+      expectValidationError(joinNode, 'exactly two sources');
     });
 
     it('should pass when aliases are set by constructor defaults and columns selected', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [createColumnInfo('id', 'INT')],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('id', 'INT')],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -505,12 +523,12 @@ describe('JoinNode', () => {
       );
 
       // Constructor sets default aliases to 'left' and 'right', so this should pass
-      expect(joinNode.validate()).toBe(true);
+      expectValidationSuccess(joinNode);
     });
 
     it('should fail when equality columns are missing in equality mode', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -529,15 +547,15 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(joinNode.validate()).toBe(false);
-      expect(joinNode.context.issues?.queryError?.message).toContain(
+      expectValidationError(
+        joinNode,
         'Both left and right columns are required',
       );
     });
 
     it('should fail when SQL expression is missing in freeform mode', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -556,19 +574,18 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(joinNode.validate()).toBe(false);
-      expect(joinNode.context.issues?.queryError?.message).toContain(
-        'SQL expression',
-      );
+      expectValidationError(joinNode, 'SQL expression');
     });
 
     it('should pass validation with valid equality condition and checked columns', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [createColumnInfo('id', 'INT')],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('id', 'INT')],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -591,18 +608,24 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(joinNode.validate()).toBe(true);
+      expectValidationSuccess(joinNode);
     });
 
     it('should fail when no columns are checked', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('value', 'INT'),
+        ],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -627,22 +650,25 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(joinNode.validate()).toBe(false);
-      expect(joinNode.context.issues?.queryError?.message).toContain(
-        'No columns selected',
-      );
+      expectValidationError(joinNode, 'No columns selected');
     });
 
     it('should fail when columns default to unchecked', () => {
       // When leftColumns/rightColumns are undefined, columns default to unchecked
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('value', 'INT'),
+        ],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -661,19 +687,18 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(joinNode.validate()).toBe(false);
-      expect(joinNode.context.issues?.queryError?.message).toContain(
-        'No columns selected',
-      );
+      expectValidationError(joinNode, 'No columns selected');
     });
 
     it('should pass validation with valid freeform condition and checked columns', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('parent_id', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [createColumnInfo('id', 'INT')],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('parent_id', 'INT')],
+      });
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -696,14 +721,14 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(joinNode.validate()).toBe(true);
+      expectValidationSuccess(joinNode);
     });
   });
 
   describe('getTitle', () => {
     it('should return "Join"', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -728,8 +753,8 @@ describe('JoinNode', () => {
 
   describe('secondaryInputs.portNames', () => {
     it('should return the left and right query aliases', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -759,8 +784,8 @@ describe('JoinNode', () => {
 
   describe('clone', () => {
     it('should create a deep copy of the node', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -790,8 +815,8 @@ describe('JoinNode', () => {
     });
 
     it('should not share state with original', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -822,7 +847,7 @@ describe('JoinNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should return undefined if validation fails', () => {
-      const node1 = createMockPrevNode('node1', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -850,18 +875,24 @@ describe('JoinNode', () => {
       const mockSq2 = new protos.PerfettoSqlStructuredQuery();
 
       const node1 = {
-        ...createMockPrevNode('node1', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('name', 'STRING'),
-        ]),
+        ...createMockNode({
+          nodeId: 'node1',
+          columns: [
+            createColumnInfo('id', 'INT'),
+            createColumnInfo('name', 'STRING'),
+          ],
+        }),
         getStructuredQuery: () => mockSq1,
       } as QueryNode;
 
       const node2 = {
-        ...createMockPrevNode('node2', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('value', 'INT'),
-        ]),
+        ...createMockNode({
+          nodeId: 'node2',
+          columns: [
+            createColumnInfo('id', 'INT'),
+            createColumnInfo('value', 'INT'),
+          ],
+        }),
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
@@ -908,12 +939,18 @@ describe('JoinNode', () => {
       const mockSq2 = new protos.PerfettoSqlStructuredQuery();
 
       const node1 = {
-        ...createMockPrevNode('node1', [createColumnInfo('id', 'INT')]),
+        ...createMockNode({
+          nodeId: 'node1',
+          columns: [createColumnInfo('id', 'INT')],
+        }),
         getStructuredQuery: () => mockSq1,
       } as QueryNode;
 
       const node2 = {
-        ...createMockPrevNode('node2', [createColumnInfo('id', 'INT')]),
+        ...createMockNode({
+          nodeId: 'node2',
+          columns: [createColumnInfo('id', 'INT')],
+        }),
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
@@ -953,12 +990,18 @@ describe('JoinNode', () => {
       const mockSq2 = new protos.PerfettoSqlStructuredQuery();
 
       const node1 = {
-        ...createMockPrevNode('node1', [createColumnInfo('id', 'INT')]),
+        ...createMockNode({
+          nodeId: 'node1',
+          columns: [createColumnInfo('id', 'INT')],
+        }),
         getStructuredQuery: () => mockSq1,
       } as QueryNode;
 
       const node2 = {
-        ...createMockPrevNode('node2', [createColumnInfo('parent_id', 'INT')]),
+        ...createMockNode({
+          nodeId: 'node2',
+          columns: [createColumnInfo('parent_id', 'INT')],
+        }),
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
@@ -1002,8 +1045,8 @@ describe('JoinNode', () => {
 
   describe('attrs serialization', () => {
     it('should have all state fields in attrs', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
+      const node1 = createMockNode({nodeId: 'node1', columns: []});
+      const node2 = createMockNode({nodeId: 'node2', columns: []});
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -1030,82 +1073,20 @@ describe('JoinNode', () => {
     });
   });
 
-  describe('deserializeState', () => {
-    it('should deserialize state correctly', () => {
-      const serialized = {
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality' as const,
-        joinType: 'INNER' as const,
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      };
-
-      const state = JoinNode.deserializeState(serialized);
-
-      expect(state.leftQueryAlias).toBe('left');
-      expect(state.rightQueryAlias).toBe('right');
-      expect(state.conditionType).toBe('equality');
-      expect(state.leftColumn).toBe('id');
-      expect(state.rightColumn).toBe('id');
-    });
-
-    it('should deserialize legacy string types into PerfettoSqlType', () => {
-      const legacySerialized = {
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality' as const,
-        leftColumn: 'id',
-        rightColumn: 'id',
-        leftColumns: [
-          {name: 'id', type: 'INT', checked: true, columnName: 'id'},
-          {name: 'ts', type: 'TIMESTAMP', checked: false, columnName: 'ts'},
-        ],
-        rightColumns: [
-          {name: 'val', type: 'DOUBLE', checked: true, columnName: 'val'},
-        ],
-      } as unknown as JoinNodeAttrs;
-
-      const state = JoinNode.deserializeState(legacySerialized);
-
-      expect(state.leftColumns?.[0].type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.leftColumns?.[1].type).toEqual(PerfettoSqlTypes.TIMESTAMP);
-      expect(state.rightColumns?.[0].type).toEqual(PerfettoSqlTypes.DOUBLE);
-    });
-
-    it('should deserialize new PerfettoSqlType objects correctly', () => {
-      const newSerialized: JoinNodeAttrs = {
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: [{name: 'id', type: {kind: 'int'}, checked: true}],
-        rightColumns: [{name: 'dur', type: {kind: 'duration'}, checked: true}],
-      };
-
-      const state = JoinNode.deserializeState(newSerialized);
-
-      expect(state.leftColumns?.[0].type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.rightColumns?.[0].type).toEqual(PerfettoSqlTypes.DURATION);
-    });
-  });
-
   describe('serialize/deserialize round-trip', () => {
     it('should preserve checked columns after serialization and deserialization', () => {
       // Create mock source nodes with columns
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('value', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('value', 'INT')],
+      });
 
       // Create a join node with specific columns checked
       const joinNode = createJoinNodeWithInputs(
@@ -1138,15 +1119,12 @@ describe('JoinNode', () => {
       // Serialize the state via attrs
       const serialized = joinNode.attrs;
 
-      // Deserialize the state
-      const deserializedState = JoinNode.deserializeState(serialized);
-
-      // Create a new join node from deserialized state
-      // Connections are now restored at the graph level by json_handler
+      // Create a new join node from serialized state (connections restored at
+      // the graph level by json_handler; constructor handles defaults).
       const restoredNode = createJoinNodeWithInputs(
         node1,
         node2,
-        {...deserializedState},
+        {...serialized},
         {},
       );
 
@@ -1160,12 +1138,14 @@ describe('JoinNode', () => {
 
     it('should preserve column aliases after serialization and deserialization', () => {
       // Create mock source nodes with columns
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [createColumnInfo('id', 'INT')],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [createColumnInfo('id', 'INT')],
+      });
 
       // Create columns with aliases
       const leftCols = createCheckedColumns([
@@ -1203,15 +1183,11 @@ describe('JoinNode', () => {
       // Serialize the state via attrs
       const serialized = joinNode.attrs;
 
-      // Deserialize the state
-      const deserializedState = JoinNode.deserializeState(serialized);
-
-      // Create a new join node from deserialized state
-      // Connections are now restored at the graph level by json_handler
+      // Create a new join node from serialized state.
       const restoredNode = createJoinNodeWithInputs(
         node1,
         node2,
-        {...deserializedState},
+        {...serialized},
         {},
       );
 

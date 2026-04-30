@@ -14,31 +14,21 @@
 
 import {UnionNode} from './union_node';
 import {QueryNode} from '../../query_node';
-import {ColumnInfo} from '../column_info';
 import {
-  createMockNode,
+  createMockNodeWithStructuredQuery,
   createColumnInfo,
-  createMockStructuredQuery,
+  expectValidationError,
+  expectValidationSuccess,
 } from '../testing/test_utils';
 
 describe('UnionNode', () => {
-  function createMockNodeWithSq(id: string, columns: ColumnInfo[]): QueryNode {
-    const sq = createMockStructuredQuery(id);
-    return createMockNode({
-      nodeId: id,
-      columns,
-      getTitle: () => `Mock ${id}`,
-      getStructuredQuery: () => sq,
-    });
-  }
-
   describe('constructor', () => {
     it('should initialize with default values', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
@@ -61,9 +51,9 @@ describe('UnionNode', () => {
     });
 
     it('should initialize connections from inputNodes', () => {
-      const node1 = createMockNodeWithSq('node1', []);
-      const node2 = createMockNodeWithSq('node2', []);
-      const node3 = createMockNodeWithSq('node3', []);
+      const node1 = createMockNodeWithStructuredQuery('node1', []);
+      const node2 = createMockNodeWithStructuredQuery('node2', []);
+      const node3 = createMockNodeWithStructuredQuery('node3', []);
 
       const unionNode = new UnionNode(
         {
@@ -94,7 +84,7 @@ describe('UnionNode', () => {
     });
 
     it('should return all columns from single input', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
@@ -113,12 +103,12 @@ describe('UnionNode', () => {
     });
 
     it('should return only common columns between two inputs', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('value', 'int'),
@@ -138,17 +128,17 @@ describe('UnionNode', () => {
     });
 
     it('should return only columns present in all inputs', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('value', 'int'),
       ]);
-      const node3 = createMockNodeWithSq('node3', [
+      const node3 = createMockNodeWithStructuredQuery('node3', [
         createColumnInfo('id', 'int'),
         createColumnInfo('other', 'string'),
       ]);
@@ -167,11 +157,11 @@ describe('UnionNode', () => {
     });
 
     it('should return empty array when there are no common columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('value', 'int'),
         createColumnInfo('ts', 'int'),
       ]);
@@ -189,11 +179,11 @@ describe('UnionNode', () => {
     });
 
     it('should set all columns as checked by default', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
@@ -213,11 +203,11 @@ describe('UnionNode', () => {
 
   describe('finalCols', () => {
     it('should return only checked columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
@@ -239,10 +229,10 @@ describe('UnionNode', () => {
     });
 
     it('should return empty array when no columns are checked', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -260,11 +250,11 @@ describe('UnionNode', () => {
 
   describe('onPrevNodesUpdated', () => {
     it('should update selectedColumns based on new common columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
@@ -281,7 +271,7 @@ describe('UnionNode', () => {
       );
 
       // Update node2 to remove 'name'
-      const updatedNode2 = createMockNodeWithSq('node2', [
+      const updatedNode2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('value', 'int'),
       ]);
@@ -297,12 +287,12 @@ describe('UnionNode', () => {
     });
 
     it('should preserve checked status for columns that still exist', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('ts', 'int'),
@@ -344,7 +334,7 @@ describe('UnionNode', () => {
 
   describe('validate', () => {
     it('should fail when there are fewer than 2 input nodes', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -356,17 +346,14 @@ describe('UnionNode', () => {
         {},
       );
 
-      expect(unionNode.validate()).toBe(false);
-      expect(unionNode.context.issues?.queryError?.message).toContain(
-        'at least two sources',
-      );
+      expectValidationError(unionNode, 'at least two sources');
     });
 
     it('should fail when there are no common columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('value', 'int'),
       ]);
 
@@ -378,14 +365,11 @@ describe('UnionNode', () => {
         {},
       );
 
-      expect(unionNode.validate()).toBe(false);
-      expect(unionNode.context.issues?.queryError?.message).toContain(
-        'common columns',
-      );
+      expectValidationError(unionNode, 'common columns');
     });
 
     it('should fail when input nodes have disconnected inputs', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -403,18 +387,15 @@ describe('UnionNode', () => {
         undefined as unknown as QueryNode,
       );
 
-      expect(unionNode.validate()).toBe(false);
-      expect(unionNode.context.issues?.queryError?.message).toContain(
-        'disconnected inputs',
-      );
+      expectValidationError(unionNode, 'disconnected inputs');
     });
 
     it('should pass validation with valid inputs', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
@@ -430,14 +411,14 @@ describe('UnionNode', () => {
         {},
       );
 
-      expect(unionNode.validate()).toBe(true);
+      expectValidationSuccess(unionNode);
     });
 
     it('should clear previous errors on successful validation', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -457,7 +438,7 @@ describe('UnionNode', () => {
       // Restore connections and validate again
       unionNode.secondaryInputs.connections.set(0, node1);
       unionNode.secondaryInputs.connections.set(1, node2);
-      expect(unionNode.validate()).toBe(true);
+      expectValidationSuccess(unionNode);
       expect(unionNode.context.issues?.queryError).toBeUndefined();
     });
   });
@@ -478,10 +459,10 @@ describe('UnionNode', () => {
 
   describe('clone', () => {
     it('should create a deep copy of the node', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -500,10 +481,10 @@ describe('UnionNode', () => {
     });
 
     it('should not share state with original', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -527,7 +508,7 @@ describe('UnionNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should return undefined when there are fewer than 2 inputs', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -543,10 +524,10 @@ describe('UnionNode', () => {
     });
 
     it('should return undefined when there are no checked columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -562,7 +543,7 @@ describe('UnionNode', () => {
     });
 
     it('should return undefined when any input node is undefined', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
 
@@ -583,12 +564,12 @@ describe('UnionNode', () => {
     });
 
     it('should create union query with wrapped selects for common columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('value', 'int'),
@@ -614,12 +595,12 @@ describe('UnionNode', () => {
     });
 
     it('should only select checked common columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('ts', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
         createColumnInfo('ts', 'int'),
@@ -664,10 +645,10 @@ describe('UnionNode', () => {
 
   describe('serializeState', () => {
     it('should serialize all input node IDs and selected columns', () => {
-      const node1 = createMockNodeWithSq('node1', [
+      const node1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
       ]);
-      const node2 = createMockNodeWithSq('node2', [
+      const node2 = createMockNodeWithStructuredQuery('node2', [
         createColumnInfo('id', 'int'),
       ]);
 
