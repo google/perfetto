@@ -153,18 +153,21 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
                       : std::make_optional(static_cast<uint32_t>(offset));
 }
 
-// Build a unique URI-style filename pointing at the in-tree |memdb| VFS so
-// that, in the future, additional connections can be opened against the same
-// in-memory database via |cache=shared|. The leading slash on the name is
-// mandatory for memdb URIs. The atomic counter guarantees that two
-// independent SqliteEngine instances in the same process do not collide on
-// the shared cache.
+// Build a unique URI-style filename pointing at the in-tree |memdb| VFS.
+// The leading slash on the name engages memdb's named-MemStore feature:
+// multiple connections opening the same URI share the underlying byte
+// buffer (the MemStore) but each gets its own BtShared / page cache.
+// Sharing the BtShared via |cache=shared| would serialise sqlite3_step
+// across connections on the BtShared mutex, defeating multi-connection
+// parallelism. The atomic counter guarantees that two independent
+// SqliteEngine instances in the same process do not collide on the
+// MemStore name.
 std::string BuildMemdbUri() {
   static std::atomic<uint64_t> kUniqueIdCounter{0};
   uint64_t unique_id = kUniqueIdCounter.fetch_add(1, std::memory_order_relaxed);
   char filename_buf[64];
   snprintf(filename_buf, sizeof(filename_buf),
-           "file:/perfetto-%" PRIu64 "?vfs=memdb&cache=shared", unique_id);
+           "file:/perfetto-%" PRIu64 "?vfs=memdb", unique_id);
   return filename_buf;
 }
 
@@ -195,7 +198,8 @@ SqliteConnection::SqliteConnection(const std::string& filename) {
   //    temp-then-promote include pattern. SQLite stores this as an integer,
   //    so the read-back returns "2", not "memory".
   //  - locking_mode=NORMAL: explicitly set so it can't drift to EXCLUSIVE,
-  //    which would break |cache=shared| across connections.
+  //    which would prevent additional connections from opening the same
+  //    memdb name (and so break the named-MemStore sharing).
   // Each pragma is applied and then verified by re-reading: SQLite silently
   // falls back when a pragma can't be honoured, and we want that to crash
   // loudly rather than corrupt the multi-conn invariants.
