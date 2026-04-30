@@ -178,6 +178,20 @@ class Rpc {
     std::lock_guard<std::mutex> g(pool_mu_);
     return streaming_async_dispatches_;
   }
+  size_t tag_slots_size_for_testing() const {
+    std::lock_guard<std::mutex> g(tag_mu_);
+    return tag_slots_.size();
+  }
+  size_t affinity_size_for_testing() const {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    return tag_to_conn_.size();
+  }
+  // Returns the conn id currently affined to `tag`, or -1 if none.
+  int64_t affinity_for_tag_for_testing(const std::string& tag) const {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    auto* e = tag_to_conn_.Find(tag);
+    return e ? static_cast<int64_t>(e->conn_id) : -1;
+  }
 
  private:
   void ParseRpcRequest(const uint8_t*, size_t);

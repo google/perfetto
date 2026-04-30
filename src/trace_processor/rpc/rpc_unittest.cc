@@ -60,6 +60,19 @@ std::vector<uint8_t> EncodeStreamingQueryRpcMessage(int64_t seq,
   return stream.SerializeAsArray();
 }
 
+std::vector<uint8_t> EncodeTaggedStreamingQueryRpcMessage(
+    int64_t seq, const std::string& sql, const std::string& tag) {
+  protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream> stream;
+  auto* msg = stream->add_msg();
+  msg->set_seq(seq);
+  msg->set_request(
+      protos::pbzero::TraceProcessorRpc::TPM_QUERY_STREAMING);
+  auto* args = msg->set_query_args();
+  args->set_sql_query(sql);
+  args->set_tag(tag);
+  return stream.SerializeAsArray();
+}
+
 // A trivial multi-producer single-consumer task queue used to stand in
 // for `MaybeLockFreeTaskRunner` in tests. The Rpc test driver runs on
 // a fixture thread; workers post completion closures here, the
@@ -550,6 +563,150 @@ TEST(RpcTest, StreamingQueryAsyncMatchesInlineSemantically) {
   EXPECT_EQ(inline_s.has_last_batch, async_s.has_last_batch);
   EXPECT_EQ(inline_s.column_names, async_s.column_names);
   EXPECT_EQ(inline_s.values.size(), 200u);
+}
+
+// A query slow enough that the test-driver thread can fire several
+// of them before any worker finishes — required for the fan-out test
+// to actually observe pool growth. A trivial `SELECT 1` runs in
+// microseconds, faster than the driver's next OnRpcRequest, so all
+// queries end up serialising on the first connection. The recursive
+// CTE below takes a few milliseconds and is the cheapest workload
+// that reliably keeps multiple workers in flight simultaneously.
+constexpr const char* kSlowQuery =
+    "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
+    "WHERE x<5000) SELECT count(*) FROM c";
+
+// Same-tag streaming queries serialise on a single connection (the
+// affinity hit). Different-tag queries fan out across connections.
+TEST(RpcTest, SameTagSerialisesDifferentTagsFanOut) {
+  if (std::thread::hardware_concurrency() < 2) {
+    GTEST_SKIP() << "fan-out test needs >= 2 cores";
+  }
+  Rpc rpc;
+  ASSERT_OK(rpc.NotifyEndOfFile());
+
+  TaskQueue task_queue;
+  std::vector<uint8_t> wire_bytes;
+  std::mutex wire_mu;
+  rpc.SetRpcResponseFunction([&](const void* data, uint32_t len) {
+    std::lock_guard<std::mutex> g(wire_mu);
+    auto* p = static_cast<const uint8_t*>(data);
+    wire_bytes.insert(wire_bytes.end(), p, p + len);
+  });
+  rpc.SetResponseDispatcher([&](std::function<void()> task) {
+    task_queue.Post(std::move(task));
+  });
+
+  // Same-tag run: 4 queries with tag "A". Only one tag-slot is in
+  // flight at a time for tag "A", so each subsequent same-tag query
+  // lands on the same (now-released, affined) connection. The pool
+  // never grows because pool_free_ is non-empty between dispatches.
+  int64_t seq = 1;
+  constexpr int kQueriesPerTag = 4;
+  for (int i = 0; i < kQueriesPerTag; ++i) {
+    auto msg = EncodeTaggedStreamingQueryRpcMessage(seq++, kSlowQuery,
+                                                    /*tag=*/"A");
+    rpc.OnRpcRequest(msg.data(), msg.size());
+  }
+  task_queue.DrainUntilQuiescent(/*expected_count=*/kQueriesPerTag);
+  EXPECT_EQ(rpc.tag_slots_size_for_testing(), 0u);
+  EXPECT_EQ(rpc.affinity_size_for_testing(), 1u)
+      << "expected exactly one affinity entry for tag A";
+  int64_t a_conn_id = rpc.affinity_for_tag_for_testing("A");
+  EXPECT_GE(a_conn_id, 0);
+  EXPECT_EQ(rpc.pool_distinct_connections_for_testing(), 1u)
+      << "same-tag burst should not have grown the pool";
+
+  // Different-tag run: 8 queries with 8 distinct tags. Each tag should
+  // get its own affinity entry; the pool grows because the driver
+  // outpaces worker completion (kSlowQuery takes ms; dispatch is
+  // microseconds).
+  {
+    std::lock_guard<std::mutex> g(wire_mu);
+    wire_bytes.clear();
+  }
+  constexpr int kDistinctTags = 8;
+  for (int i = 0; i < kDistinctTags; ++i) {
+    auto msg = EncodeTaggedStreamingQueryRpcMessage(
+        seq++, kSlowQuery, /*tag=*/"T" + std::to_string(i));
+    rpc.OnRpcRequest(msg.data(), msg.size());
+  }
+  task_queue.DrainUntilQuiescent(/*expected_count=*/kDistinctTags);
+  EXPECT_EQ(rpc.tag_slots_size_for_testing(), 0u);
+  // 1 ("A") + 8 distinct tags = 9 affinity entries.
+  EXPECT_EQ(rpc.affinity_size_for_testing(), 9u);
+  // The pool fanned out — at least 2 distinct connections were minted
+  // to host the 8 concurrent different-tag queries.
+  EXPECT_GE(rpc.pool_distinct_connections_for_testing(), 2u)
+      << "expected pool to grow when distinct tags arrive concurrently";
+}
+
+// Empty tag is the dedicated "untagged stream" — all empty-tag queries
+// share one tag-slot and one affined connection.
+TEST(RpcTest, UntaggedQueriesShareOneConnection) {
+  Rpc rpc;
+  ASSERT_OK(rpc.NotifyEndOfFile());
+
+  TaskQueue task_queue;
+  rpc.SetRpcResponseFunction([&](const void*, uint32_t) {});
+  rpc.SetResponseDispatcher([&](std::function<void()> task) {
+    task_queue.Post(std::move(task));
+  });
+
+  constexpr int kQueries = 8;
+  for (int i = 0; i < kQueries; ++i) {
+    // Default encoder leaves tag empty.
+    auto msg = EncodeStreamingQueryRpcMessage(
+        /*seq=*/static_cast<int64_t>(i + 1),
+        "SELECT " + std::to_string(300 + i));
+    rpc.OnRpcRequest(msg.data(), msg.size());
+  }
+  task_queue.DrainUntilQuiescent(/*expected_count=*/kQueries);
+
+  // Exactly one affinity entry — the empty-string "untagged" slot.
+  EXPECT_EQ(rpc.affinity_size_for_testing(), 1u);
+  EXPECT_GE(rpc.affinity_for_tag_for_testing(""), 0);
+  // tag_slots_ is empty after drain (entry erased on last release).
+  EXPECT_EQ(rpc.tag_slots_size_for_testing(), 0u);
+}
+
+// LRU eviction kicks in when more distinct tags arrive than
+// `kMaxAffinityEntries`. The map size must never exceed the cap.
+TEST(RpcTest, AffinityLRUEvictsAtCap) {
+  Rpc rpc;
+  ASSERT_OK(rpc.NotifyEndOfFile());
+
+  TaskQueue task_queue;
+  rpc.SetRpcResponseFunction([&](const void*, uint32_t) {});
+  rpc.SetResponseDispatcher([&](std::function<void()> task) {
+    task_queue.Post(std::move(task));
+  });
+
+  // Drive way past the cap so eviction must happen. Sequential
+  // dispatch keeps this deterministic (each tag is in flight alone),
+  // so the LRU order matches the insertion order exactly.
+  constexpr int kTagsToInsert = 100;  // > kMaxAffinityEntries (= 64)
+  for (int i = 0; i < kTagsToInsert; ++i) {
+    auto msg = EncodeTaggedStreamingQueryRpcMessage(
+        /*seq=*/static_cast<int64_t>(i + 1),
+        "SELECT " + std::to_string(i),
+        /*tag=*/"unique_tag_" + std::to_string(i));
+    rpc.OnRpcRequest(msg.data(), msg.size());
+    // DrainUntilQuiescent's `expected_count` is per-call, not
+    // cumulative — drain just this iteration's single dispatcher
+    // task before issuing the next OnRpcRequest.
+    task_queue.DrainUntilQuiescent(/*expected_count=*/1);
+  }
+  // After 100 distinct tags, affinity map should be capped at 64.
+  EXPECT_EQ(rpc.affinity_size_for_testing(), 64u)
+      << "expected LRU to fill exactly to the cap (kMaxAffinityEntries)";
+  // Tag inserted first ("unique_tag_0") should have been evicted.
+  EXPECT_EQ(rpc.affinity_for_tag_for_testing("unique_tag_0"), -1)
+      << "oldest tag should have been LRU-evicted";
+  // Most recently inserted tag should still be there.
+  EXPECT_GE(rpc.affinity_for_tag_for_testing(
+                "unique_tag_" + std::to_string(kTagsToInsert - 1)),
+            0);
 }
 
 }  // namespace
