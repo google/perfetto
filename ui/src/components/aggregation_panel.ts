@@ -39,6 +39,9 @@ export interface AggregationPanelAttrs {
   readonly dataGridState?: DataGridState;
   readonly onClearGridState?: () => void;
   readonly controls?: m.Children;
+  readonly extraPivotRowMenuItems?: (
+    drillDown: ReadonlyArray<{readonly field: string; readonly value: SqlValue}>,
+  ) => m.Children;
 }
 
 export class AggregationPanel
@@ -53,6 +56,7 @@ export class AggregationPanel
       dataGridState,
       onClearGridState,
       controls,
+      extraPivotRowMenuItems,
     } = attrs;
 
     return m(Stack, {fillHeight: true, spacing: 'none'}, [
@@ -66,6 +70,7 @@ export class AggregationPanel
           onReady,
           dataGridState,
           onClearGridState,
+          extraPivotRowMenuItems,
         ),
       ),
     ]);
@@ -78,6 +83,7 @@ export class AggregationPanel
     onReady?: (api: DataGridApi) => void,
     dataGridState?: DataGridState,
     onClearGridState?: () => void,
+    extraPivotRowMenuItems?: AggregationPanelAttrs['extraPivotRowMenuItems'],
   ) {
     // Get column definitions - either from pivot model or flat model
     const columnDefs = 'groupBy' in model ? model.columns : model;
@@ -102,6 +108,7 @@ export class AggregationPanel
       rootSchema: 'data',
       data: dataSource,
       onReady,
+      extraPivotRowMenuItems,
       // Spread controlled state props (columns, filters, pivot and callbacks)
       ...dataGridState,
       toolbarItemsLeft: [

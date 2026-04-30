@@ -25,6 +25,7 @@ import {Trace} from '../public/trace';
 import {Track} from '../public/track';
 import {UnionDataset, Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
+import {SqlValue} from '../trace_processor/query_result';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {shortUuid} from '../base/uuid';
@@ -101,6 +102,14 @@ export interface Aggregator {
 
   // Optional controls to render in the top bar of the aggregation panel.
   renderTopbarControls?(): m.Children;
+
+  // Optional extra menu items appended to the per-row popup menu (alongside
+  // the built-in "Drill down" item) when the aggregator runs in pivot mode.
+  // Receives the drill-down descriptor for the row so consumers can build
+  // context-aware actions. Should return one or more `MenuItem` vnodes.
+  extraPivotRowMenuItems?(
+    drillDown: ReadonlyArray<{readonly field: string; readonly value: SqlValue}>,
+  ): m.Children;
 }
 
 export function selectTracksAndGetDataset<T extends DatasetSchema>(
@@ -329,6 +338,8 @@ export function createAggregationTab(
             // Just wipe out the local data model to reset to initial state
             dataModel = initialDataModel;
           },
+          extraPivotRowMenuItems:
+            aggregator.extraPivotRowMenuItems?.bind(aggregator),
         }),
         buttons:
           dataGridApi &&

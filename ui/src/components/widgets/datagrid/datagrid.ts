@@ -279,6 +279,17 @@ export interface DataGridAttrs {
   readonly onPivotChanged?: (pivot: Pivot | undefined) => void;
 
   /**
+   * Optional consumer-provided extra menu items for each pivot row, appended
+   * to the built-in cell popup menu (alongside "Drill down"). Receives the
+   * drill-down descriptor for the row (the groupBy columns up to that row's
+   * level and their values) so consumers can build context-aware actions.
+   * Should return one or more `MenuItem` vnodes.
+   */
+  readonly extraPivotRowMenuItems?: (
+    drillDown: ReadonlyArray<{readonly field: string; readonly value: SqlValue}>,
+  ) => m.Children;
+
+  /**
    * ID-based tree configuration for displaying hierarchical data.
    * Uses id/parent_id columns for tree structure.
    * Mutually exclusive with pivot mode.
@@ -1993,6 +2004,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           ? Number(row['__depth'] ?? numGroupBy) - 1
           : numGroupBy - 1;
 
+        // Drill-down descriptor for this row: groupBy columns up to rowLevel
+        // and their values. Shared by the built-in "Drill down" action, the
+        // edge-of-row drill-down button, and any consumer-provided extras.
+        const drillDownRow: {field: string; value: SqlValue}[] = [];
+        for (let j = 0; j <= rowLevel; j++) {
+          const col = pivot.groupBy[j];
+          drillDownRow.push({field: col.field, value: row[col.id]});
+        }
+        const extraMenuItems = attrs.extraPivotRowMenuItems?.(drillDownRow);
+
         // Render groupBy columns
         for (let i = 0; i < numGroupBy; i++) {
           const groupByCol = pivot.groupBy[i];
@@ -2068,20 +2089,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     m(MenuItem, {
                       label: 'Drill down',
                       icon: 'zoom_in',
-                      onclick: () => {
-                        // Build a row with only the groupBy columns up to rowLevel
-                        const drillDownRow: {field: string; value: SqlValue}[] =
-                          [];
-                        for (let j = 0; j <= rowLevel; j++) {
-                          const col = pivot.groupBy[j];
-                          drillDownRow.push({
-                            field: col.field,
-                            value: row[col.id],
-                          });
-                        }
-                        this.drillDown(drillDownRow, attrs);
-                      },
+                      onclick: () => this.drillDown(drillDownRow, attrs),
                     }),
+                    extraMenuItems,
                     filtersAreMutable && m(MenuDivider),
                   ],
                   filtersAreMutable &&
@@ -2109,15 +2119,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               rounded: true,
               title: 'Drill down into this group',
               fillWidth: true,
-              onclick: () => {
-                // Build a row with only the groupBy columns up to rowLevel
-                const drillDownRow: {field: string; value: SqlValue}[] = [];
-                for (let j = 0; j <= rowLevel; j++) {
-                  const col = pivot.groupBy[j];
-                  drillDownRow.push({field: col.field, value: row[col.id]});
-                }
-                this.drillDown(drillDownRow, attrs);
-              },
+              onclick: () => this.drillDown(drillDownRow, attrs),
             }),
           );
 

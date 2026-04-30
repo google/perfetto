@@ -28,18 +28,23 @@ import {
   Dataset,
   DatasetSchema,
   SourceDataset,
+  UnionDataset,
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
+import {openDistributionTab} from '../../components/distribution_panel';
+import {sliceDistributionCellRenderers} from '../../components/details/slice_details';
 import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
   NUM_NULL,
+  SqlValue,
   STR_NULL,
   UNKNOWN,
 } from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
+import {MenuItem} from '../../widgets/menu';
 
 const SLICE_WITH_PARENT_SPEC = {
   id: NUM,
@@ -65,6 +70,10 @@ export class SliceSelectionAggregator implements Aggregator {
   // Store union datasets for lineage resolution
   private sliceUnionDataset?: UnionDatasetWithLineage<DatasetSchema>;
   private slicelikeUnionDataset?: UnionDatasetWithLineage<DatasetSchema>;
+  // Time-bounded union of all slice-like datasets in the current area
+  // selection. Used by the per-row "Histogram" action to open a
+  // DistributionPanel scoped to the same events the aggregator is summarizing.
+  private distributionDataset?: Dataset;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -87,7 +96,35 @@ export class SliceSelectionAggregator implements Aggregator {
     }
 
     if (sliceTracks.length === 0 && slicelikeTracks.length === 0) {
+      this.distributionDataset = undefined;
       return undefined;
+    }
+
+    // Build the dataset that backs the per-row "Histogram" action. Mirrors
+    // how the area-selection flamegraph builds its distribution dataset:
+    // union of every slice-like track in the selection, wrapped with a
+    // time-window filter so the resulting histogram reflects the same
+    // events the user is looking at in the aggregator.
+    const trackDatasets: Dataset[] = [];
+    for (const track of [...sliceTracks, ...slicelikeTracks]) {
+      const ds = track.renderer.getDataset?.();
+      if (ds !== undefined) trackDatasets.push(ds);
+    }
+    if (trackDatasets.length > 0) {
+      const combined =
+        trackDatasets.length === 1
+          ? trackDatasets[0]
+          : UnionDataset.create(trackDatasets);
+      this.distributionDataset = new SourceDataset({
+        src: `
+          select * from (${combined.query(SLICELIKE_SPEC)})
+          where ts < ${area.end}
+            and ts + dur > ${area.start}
+        `,
+        schema: SLICELIKE_SPEC,
+      });
+    } else {
+      this.distributionDataset = undefined;
     }
 
     return {
@@ -387,5 +424,36 @@ export class SliceSelectionAggregator implements Aggregator {
     }
 
     return undefined;
+  }
+
+  // Per-row "Histogram" menu item appended to the row popup menu (alongside
+  // the built-in "Drill down" item). Opens a DistributionPanel scoped to the
+  // area selection, mirroring how the area-selection flamegraph's per-node
+  // "Find matching slices" action works.
+  extraPivotRowMenuItems(
+    drillDown: ReadonlyArray<{readonly field: string; readonly value: SqlValue}>,
+  ): m.Children {
+    const dataset = this.distributionDataset;
+    if (dataset === undefined) return undefined;
+    const nameEntry = drillDown.find((d) => d.field === 'name');
+    if (nameEntry === undefined || typeof nameEntry.value !== 'string') {
+      return undefined;
+    }
+    const name = nameEntry.value;
+    return m(MenuItem, {
+      label: 'Show duration histogram',
+      icon: 'bar_chart',
+      onclick: () =>
+        openDistributionTab(this.trace, {
+          title: `${name} (in selection)`,
+          dataset,
+          filter: {col: 'name', eq: name},
+          valueColumn: 'dur',
+          idColumn: 'id',
+          sqlTable: 'slice',
+          displayColumns: ['ts', 'dur'],
+          cellRenderers: sliceDistributionCellRenderers(this.trace),
+        }),
+    });
   }
 }
