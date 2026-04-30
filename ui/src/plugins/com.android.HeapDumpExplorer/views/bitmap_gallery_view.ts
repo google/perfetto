@@ -33,8 +33,8 @@ import {
   renderPath,
 } from '../components';
 import type {PathEntry} from '../types';
-import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
+import type {HeapDump} from '../queries';
 
 const SUMMARY_SCHEMA: SchemaRegistry = {
   query: {
@@ -164,6 +164,7 @@ const PATH_HEADING: Record<Exclude<PathMode, 'none'>, string> = {
 interface BitmapCardAttrs {
   readonly row: BitmapListRow;
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
   readonly pathMode: PathMode;
   readonly pathData?: PathEntry[] | null;
@@ -173,11 +174,11 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
   let obs: IntersectionObserver | null = null;
   let bitmap: InstanceDetail['bitmap'] | null | 'loading' | 'error' = null;
 
-  function load(engine: Engine, id: number) {
+  function load(engine: Engine, activeDump: HeapDump, id: number) {
     if (bitmap !== null) return;
     bitmap = 'loading';
     queries
-      .getBitmapPixels(engine, id)
+      .getBitmapPixels(engine, activeDump, id)
       .then((result) => {
         bitmap = result ?? 'error';
         m.redraw();
@@ -194,7 +195,11 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
       obs = new IntersectionObserver(
         ([entry]) => {
           if (entry.isIntersecting) {
-            load(vnode.attrs.engine, vnode.attrs.row.row.id);
+            load(
+              vnode.attrs.engine,
+              vnode.attrs.activeDump,
+              vnode.attrs.row.row.id,
+            );
             obs!.disconnect();
           }
         },
@@ -302,7 +307,9 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
 
 interface BitmapGalleryViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly hasFieldValues?: boolean;
   readonly filterKey?: string;
 }
@@ -347,7 +354,10 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
       .catch(console.error);
   }
 
-  function applyNavFilter(fk: string | undefined) {
+  function applyNavFilter(
+    fk: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!fk) return;
     filters = [{field: 'buffer_hash', op: '=' as const, value: fk}];
     clearNavParam('filterKey');
@@ -355,9 +365,9 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
 
   return {
     oninit(vnode) {
-      applyNavFilter(vnode.attrs.filterKey);
+      applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
       queries
-        .getBitmapList(vnode.attrs.engine)
+        .getBitmapList(vnode.attrs.engine, vnode.attrs.activeDump)
         .then((r) => {
           if (!alive) return;
           rows = r;
@@ -376,13 +386,13 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         .catch(console.error);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.filterKey);
+      applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
     },
     onremove() {
       alive = false;
     },
     view(vnode) {
-      const {engine, navigate} = vnode.attrs;
+      const {engine, activeDump, navigate} = vnode.attrs;
 
       if (!rows) {
         return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
@@ -499,6 +509,7 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                   key: r.row.id,
                   row: r,
                   engine,
+                  activeDump,
                   navigate,
                   pathMode,
                   pathData:
