@@ -5724,16 +5724,6 @@ class FrameTimelineEvent(_message.Message):
     frame_end: FrameTimelineEvent.FrameEnd
     def __init__(self, expected_display_frame_start: _Optional[_Union[FrameTimelineEvent.ExpectedDisplayFrameStart, _Mapping]] = ..., actual_display_frame_start: _Optional[_Union[FrameTimelineEvent.ActualDisplayFrameStart, _Mapping]] = ..., expected_surface_frame_start: _Optional[_Union[FrameTimelineEvent.ExpectedSurfaceFrameStart, _Mapping]] = ..., actual_surface_frame_start: _Optional[_Union[FrameTimelineEvent.ActualSurfaceFrameStart, _Mapping]] = ..., frame_end: _Optional[_Union[FrameTimelineEvent.FrameEnd, _Mapping]] = ...) -> None: ...
 
-class GpuMemTotalEvent(_message.Message):
-    __slots__ = ("gpu_id", "pid", "size")
-    GPU_ID_FIELD_NUMBER: _ClassVar[int]
-    PID_FIELD_NUMBER: _ClassVar[int]
-    SIZE_FIELD_NUMBER: _ClassVar[int]
-    gpu_id: int
-    pid: int
-    size: int
-    def __init__(self, gpu_id: _Optional[int] = ..., pid: _Optional[int] = ..., size: _Optional[int] = ...) -> None: ...
-
 class GraphicsFrameEvent(_message.Message):
     __slots__ = ("buffer_event",)
     class BufferEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -17287,6 +17277,14 @@ class FtraceEventBundle(_message.Message):
     broken_abi_trace_page: bytes
     def __init__(self, cpu: _Optional[int] = ..., event: _Optional[_Iterable[_Union[FtraceEvent, _Mapping]]] = ..., lost_events: bool = ..., compact_sched: _Optional[_Union[FtraceEventBundle.CompactSched, _Mapping]] = ..., ftrace_clock: _Optional[_Union[FtraceClock, str]] = ..., ftrace_timestamp: _Optional[int] = ..., boot_timestamp: _Optional[int] = ..., error: _Optional[_Iterable[_Union[FtraceEventBundle.FtraceError, _Mapping]]] = ..., last_read_event_timestamp: _Optional[int] = ..., previous_bundle_end_timestamp: _Optional[int] = ..., generic_event_descriptors: _Optional[_Iterable[_Union[FtraceEventBundle.GenericEventDescriptor, _Mapping]]] = ..., broken_abi_trace_page: _Optional[bytes] = ...) -> None: ...
 
+class GenericGpuFrequencyEvent(_message.Message):
+    __slots__ = ("gpu_id", "frequency_khz")
+    GPU_ID_FIELD_NUMBER: _ClassVar[int]
+    FREQUENCY_KHZ_FIELD_NUMBER: _ClassVar[int]
+    gpu_id: int
+    frequency_khz: int
+    def __init__(self, gpu_id: _Optional[int] = ..., frequency_khz: _Optional[int] = ...) -> None: ...
+
 class GenericKernelCpuFrequencyEvent(_message.Message):
     __slots__ = ("cpu", "freq_hz")
     CPU_FIELD_NUMBER: _ClassVar[int]
@@ -17421,6 +17419,16 @@ class GpuLog(_message.Message):
     tag: str
     log_message: str
     def __init__(self, severity: _Optional[_Union[GpuLog.Severity, str]] = ..., tag: _Optional[str] = ..., log_message: _Optional[str] = ...) -> None: ...
+
+class GpuMemTotalEvent(_message.Message):
+    __slots__ = ("gpu_id", "pid", "size")
+    GPU_ID_FIELD_NUMBER: _ClassVar[int]
+    PID_FIELD_NUMBER: _ClassVar[int]
+    SIZE_FIELD_NUMBER: _ClassVar[int]
+    gpu_id: int
+    pid: int
+    size: int
+    def __init__(self, gpu_id: _Optional[int] = ..., pid: _Optional[int] = ..., size: _Optional[int] = ...) -> None: ...
 
 class GpuRenderStageEvent(_message.Message):
     __slots__ = ("event_id", "duration", "hw_queue_iid", "stage_iid", "gpu_id", "context", "render_target_handle", "submission_id", "extra_data", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "command_buffer_handle", "name", "name_iid", "event_wait_ids", "kernel_iid", "launch", "specifications", "hw_queue_id", "stage_id")
@@ -20525,7 +20533,7 @@ class UiState(_message.Message):
     def __init__(self, timeline_start_ts: _Optional[int] = ..., timeline_end_ts: _Optional[int] = ..., highlight_process: _Optional[_Union[UiState.HighlightProcess, _Mapping]] = ...) -> None: ...
 
 class TracePacket(_message.Message):
-    __slots__ = ("timestamp", "timestamp_clock_id", "process_tree", "process_stats", "inode_file_map", "chrome_events", "clock_snapshot", "sys_stats", "track_event", "trace_uuid", "trace_config", "ftrace_stats", "trace_stats", "profile_packet", "streaming_allocation", "streaming_free", "battery", "power_rails", "android_log", "system_info", "trigger", "chrome_trigger", "packages_list", "chrome_benchmark_metadata", "perfetto_metatrace", "chrome_metadata", "gpu_counter_event", "gpu_render_stage_event", "streaming_profile_packet", "heap_graph", "graphics_frame_event", "vulkan_memory_event", "gpu_log", "vulkan_api_event", "perf_sample", "cpu_info", "smaps_packet", "service_event", "initial_display_state", "gpu_mem_total_event", "memory_tracker_snapshot", "frame_timeline_event", "android_energy_estimation_breakdown", "ui_state", "android_camera_frame_event", "android_camera_session_stats", "translation_table", "android_game_intervention_list", "statsd_atom", "android_system_property", "entity_state_residency", "trace_provenance", "protovms", "trace_attributes", "android_aflags", "gpu_info", "module_symbols", "deobfuscation_mapping", "track_descriptor", "process_descriptor", "thread_descriptor", "ftrace_events", "synchronization_marker", "compressed_packets", "extension_descriptor", "network_packet", "network_packet_bundle", "track_event_range_of_interest", "surfaceflinger_layers_snapshot", "surfaceflinger_transactions", "shell_transition", "shell_handler_mappings", "protolog_message", "protolog_viewer_config", "winscope_extensions", "etw_events", "v8_js_code", "v8_internal_code", "v8_wasm_code", "v8_reg_exp_code", "v8_code_move", "remote_clock_sync", "pixel_modem_events", "pixel_modem_token_database", "clone_snapshot_trigger", "bluetooth_trace_event", "kernel_wakelock_data", "app_wakelock_bundle", "generic_kernel_task_state_event", "generic_kernel_cpu_freq_event", "generic_kernel_task_rename_event", "generic_kernel_process_tree", "cpu_per_uid_data", "evdev_event", "user_list", "for_testing", "trusted_uid", "trusted_packet_sequence_id", "trusted_pid", "interned_data", "sequence_flags", "incremental_state_cleared", "trace_packet_defaults", "previous_packet_dropped", "first_packet_on_sequence", "machine_id")
+    __slots__ = ("timestamp", "timestamp_clock_id", "track_event", "track_descriptor", "generic_kernel_task_state_event", "generic_kernel_cpu_freq_event", "generic_kernel_task_rename_event", "generic_kernel_process_tree", "generic_gpu_frequency_event", "process_tree", "track_event_range_of_interest", "process_stats", "inode_file_map", "chrome_events", "clock_snapshot", "sys_stats", "trace_uuid", "trace_config", "ftrace_stats", "trace_stats", "profile_packet", "streaming_allocation", "streaming_free", "battery", "power_rails", "android_log", "system_info", "trigger", "chrome_trigger", "packages_list", "chrome_benchmark_metadata", "perfetto_metatrace", "chrome_metadata", "gpu_counter_event", "gpu_render_stage_event", "streaming_profile_packet", "heap_graph", "graphics_frame_event", "vulkan_memory_event", "gpu_log", "vulkan_api_event", "perf_sample", "cpu_info", "smaps_packet", "service_event", "initial_display_state", "gpu_mem_total_event", "memory_tracker_snapshot", "frame_timeline_event", "android_energy_estimation_breakdown", "ui_state", "android_camera_frame_event", "android_camera_session_stats", "translation_table", "android_game_intervention_list", "statsd_atom", "android_system_property", "entity_state_residency", "trace_provenance", "protovms", "trace_attributes", "android_aflags", "gpu_info", "module_symbols", "deobfuscation_mapping", "process_descriptor", "thread_descriptor", "ftrace_events", "synchronization_marker", "compressed_packets", "extension_descriptor", "network_packet", "network_packet_bundle", "surfaceflinger_layers_snapshot", "surfaceflinger_transactions", "shell_transition", "shell_handler_mappings", "protolog_message", "protolog_viewer_config", "winscope_extensions", "etw_events", "v8_js_code", "v8_internal_code", "v8_wasm_code", "v8_reg_exp_code", "v8_code_move", "remote_clock_sync", "pixel_modem_events", "pixel_modem_token_database", "clone_snapshot_trigger", "bluetooth_trace_event", "kernel_wakelock_data", "app_wakelock_bundle", "cpu_per_uid_data", "evdev_event", "user_list", "for_testing", "trusted_uid", "trusted_packet_sequence_id", "trusted_pid", "interned_data", "sequence_flags", "incremental_state_cleared", "trace_packet_defaults", "previous_packet_dropped", "first_packet_on_sequence", "machine_id")
     class SequenceFlags(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         SEQ_UNSPECIFIED: _ClassVar[TracePacket.SequenceFlags]
@@ -20552,13 +20560,20 @@ class TracePacket(_message.Message):
         def __init__(self, instance: _Optional[_Iterable[_Union[TracePacket.ProtoVms.Instance, _Mapping]]] = ...) -> None: ...
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_CLOCK_ID_FIELD_NUMBER: _ClassVar[int]
+    TRACK_EVENT_FIELD_NUMBER: _ClassVar[int]
+    TRACK_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
+    GENERIC_KERNEL_TASK_STATE_EVENT_FIELD_NUMBER: _ClassVar[int]
+    GENERIC_KERNEL_CPU_FREQ_EVENT_FIELD_NUMBER: _ClassVar[int]
+    GENERIC_KERNEL_TASK_RENAME_EVENT_FIELD_NUMBER: _ClassVar[int]
+    GENERIC_KERNEL_PROCESS_TREE_FIELD_NUMBER: _ClassVar[int]
+    GENERIC_GPU_FREQUENCY_EVENT_FIELD_NUMBER: _ClassVar[int]
     PROCESS_TREE_FIELD_NUMBER: _ClassVar[int]
+    TRACK_EVENT_RANGE_OF_INTEREST_FIELD_NUMBER: _ClassVar[int]
     PROCESS_STATS_FIELD_NUMBER: _ClassVar[int]
     INODE_FILE_MAP_FIELD_NUMBER: _ClassVar[int]
     CHROME_EVENTS_FIELD_NUMBER: _ClassVar[int]
     CLOCK_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
     SYS_STATS_FIELD_NUMBER: _ClassVar[int]
-    TRACK_EVENT_FIELD_NUMBER: _ClassVar[int]
     TRACE_UUID_FIELD_NUMBER: _ClassVar[int]
     TRACE_CONFIG_FIELD_NUMBER: _ClassVar[int]
     FTRACE_STATS_FIELD_NUMBER: _ClassVar[int]
@@ -20608,7 +20623,6 @@ class TracePacket(_message.Message):
     GPU_INFO_FIELD_NUMBER: _ClassVar[int]
     MODULE_SYMBOLS_FIELD_NUMBER: _ClassVar[int]
     DEOBFUSCATION_MAPPING_FIELD_NUMBER: _ClassVar[int]
-    TRACK_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
     PROCESS_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
     THREAD_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
     FTRACE_EVENTS_FIELD_NUMBER: _ClassVar[int]
@@ -20617,7 +20631,6 @@ class TracePacket(_message.Message):
     EXTENSION_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
     NETWORK_PACKET_FIELD_NUMBER: _ClassVar[int]
     NETWORK_PACKET_BUNDLE_FIELD_NUMBER: _ClassVar[int]
-    TRACK_EVENT_RANGE_OF_INTEREST_FIELD_NUMBER: _ClassVar[int]
     SURFACEFLINGER_LAYERS_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
     SURFACEFLINGER_TRANSACTIONS_FIELD_NUMBER: _ClassVar[int]
     SHELL_TRANSITION_FIELD_NUMBER: _ClassVar[int]
@@ -20638,10 +20651,6 @@ class TracePacket(_message.Message):
     BLUETOOTH_TRACE_EVENT_FIELD_NUMBER: _ClassVar[int]
     KERNEL_WAKELOCK_DATA_FIELD_NUMBER: _ClassVar[int]
     APP_WAKELOCK_BUNDLE_FIELD_NUMBER: _ClassVar[int]
-    GENERIC_KERNEL_TASK_STATE_EVENT_FIELD_NUMBER: _ClassVar[int]
-    GENERIC_KERNEL_CPU_FREQ_EVENT_FIELD_NUMBER: _ClassVar[int]
-    GENERIC_KERNEL_TASK_RENAME_EVENT_FIELD_NUMBER: _ClassVar[int]
-    GENERIC_KERNEL_PROCESS_TREE_FIELD_NUMBER: _ClassVar[int]
     CPU_PER_UID_DATA_FIELD_NUMBER: _ClassVar[int]
     EVDEV_EVENT_FIELD_NUMBER: _ClassVar[int]
     USER_LIST_FIELD_NUMBER: _ClassVar[int]
@@ -20658,13 +20667,20 @@ class TracePacket(_message.Message):
     MACHINE_ID_FIELD_NUMBER: _ClassVar[int]
     timestamp: int
     timestamp_clock_id: int
+    track_event: TrackEvent
+    track_descriptor: TrackDescriptor
+    generic_kernel_task_state_event: GenericKernelTaskStateEvent
+    generic_kernel_cpu_freq_event: GenericKernelCpuFrequencyEvent
+    generic_kernel_task_rename_event: GenericKernelTaskRenameEvent
+    generic_kernel_process_tree: GenericKernelProcessTree
+    generic_gpu_frequency_event: GenericGpuFrequencyEvent
     process_tree: ProcessTree
+    track_event_range_of_interest: TrackEventRangeOfInterest
     process_stats: ProcessStats
     inode_file_map: InodeFileMap
     chrome_events: ChromeEventBundle
     clock_snapshot: ClockSnapshot
     sys_stats: SysStats
-    track_event: TrackEvent
     trace_uuid: TraceUuid
     trace_config: TraceConfig
     ftrace_stats: FtraceStats
@@ -20714,7 +20730,6 @@ class TracePacket(_message.Message):
     gpu_info: GpuInfo
     module_symbols: ModuleSymbols
     deobfuscation_mapping: DeobfuscationMapping
-    track_descriptor: TrackDescriptor
     process_descriptor: ProcessDescriptor
     thread_descriptor: ThreadDescriptor
     ftrace_events: FtraceEventBundle
@@ -20723,7 +20738,6 @@ class TracePacket(_message.Message):
     extension_descriptor: ExtensionDescriptor
     network_packet: NetworkPacketEvent
     network_packet_bundle: NetworkPacketBundle
-    track_event_range_of_interest: TrackEventRangeOfInterest
     surfaceflinger_layers_snapshot: LayersSnapshotProto
     surfaceflinger_transactions: TransactionTraceEntry
     shell_transition: ShellTransition
@@ -20744,10 +20758,6 @@ class TracePacket(_message.Message):
     bluetooth_trace_event: BluetoothTraceEvent
     kernel_wakelock_data: KernelWakelockData
     app_wakelock_bundle: AppWakelockBundle
-    generic_kernel_task_state_event: GenericKernelTaskStateEvent
-    generic_kernel_cpu_freq_event: GenericKernelCpuFrequencyEvent
-    generic_kernel_task_rename_event: GenericKernelTaskRenameEvent
-    generic_kernel_process_tree: GenericKernelProcessTree
     cpu_per_uid_data: CpuPerUidData
     evdev_event: EvdevEvent
     user_list: AndroidUserList
@@ -20762,7 +20772,7 @@ class TracePacket(_message.Message):
     previous_packet_dropped: bool
     first_packet_on_sequence: bool
     machine_id: int
-    def __init__(self, timestamp: _Optional[int] = ..., timestamp_clock_id: _Optional[int] = ..., process_tree: _Optional[_Union[ProcessTree, _Mapping]] = ..., process_stats: _Optional[_Union[ProcessStats, _Mapping]] = ..., inode_file_map: _Optional[_Union[InodeFileMap, _Mapping]] = ..., chrome_events: _Optional[_Union[ChromeEventBundle, _Mapping]] = ..., clock_snapshot: _Optional[_Union[ClockSnapshot, _Mapping]] = ..., sys_stats: _Optional[_Union[SysStats, _Mapping]] = ..., track_event: _Optional[_Union[TrackEvent, _Mapping]] = ..., trace_uuid: _Optional[_Union[TraceUuid, _Mapping]] = ..., trace_config: _Optional[_Union[TraceConfig, _Mapping]] = ..., ftrace_stats: _Optional[_Union[FtraceStats, _Mapping]] = ..., trace_stats: _Optional[_Union[TraceStats, _Mapping]] = ..., profile_packet: _Optional[_Union[ProfilePacket, _Mapping]] = ..., streaming_allocation: _Optional[_Union[StreamingAllocation, _Mapping]] = ..., streaming_free: _Optional[_Union[StreamingFree, _Mapping]] = ..., battery: _Optional[_Union[BatteryCounters, _Mapping]] = ..., power_rails: _Optional[_Union[PowerRails, _Mapping]] = ..., android_log: _Optional[_Union[AndroidLogPacket, _Mapping]] = ..., system_info: _Optional[_Union[SystemInfo, _Mapping]] = ..., trigger: _Optional[_Union[Trigger, _Mapping]] = ..., chrome_trigger: _Optional[_Union[ChromeTrigger, _Mapping]] = ..., packages_list: _Optional[_Union[PackagesList, _Mapping]] = ..., chrome_benchmark_metadata: _Optional[_Union[ChromeBenchmarkMetadata, _Mapping]] = ..., perfetto_metatrace: _Optional[_Union[PerfettoMetatrace, _Mapping]] = ..., chrome_metadata: _Optional[_Union[ChromeMetadataPacket, _Mapping]] = ..., gpu_counter_event: _Optional[_Union[GpuCounterEvent, _Mapping]] = ..., gpu_render_stage_event: _Optional[_Union[GpuRenderStageEvent, _Mapping]] = ..., streaming_profile_packet: _Optional[_Union[StreamingProfilePacket, _Mapping]] = ..., heap_graph: _Optional[_Union[HeapGraph, _Mapping]] = ..., graphics_frame_event: _Optional[_Union[GraphicsFrameEvent, _Mapping]] = ..., vulkan_memory_event: _Optional[_Union[VulkanMemoryEvent, _Mapping]] = ..., gpu_log: _Optional[_Union[GpuLog, _Mapping]] = ..., vulkan_api_event: _Optional[_Union[VulkanApiEvent, _Mapping]] = ..., perf_sample: _Optional[_Union[PerfSample, _Mapping]] = ..., cpu_info: _Optional[_Union[CpuInfo, _Mapping]] = ..., smaps_packet: _Optional[_Union[SmapsPacket, _Mapping]] = ..., service_event: _Optional[_Union[TracingServiceEvent, _Mapping]] = ..., initial_display_state: _Optional[_Union[InitialDisplayState, _Mapping]] = ..., gpu_mem_total_event: _Optional[_Union[GpuMemTotalEvent, _Mapping]] = ..., memory_tracker_snapshot: _Optional[_Union[MemoryTrackerSnapshot, _Mapping]] = ..., frame_timeline_event: _Optional[_Union[FrameTimelineEvent, _Mapping]] = ..., android_energy_estimation_breakdown: _Optional[_Union[AndroidEnergyEstimationBreakdown, _Mapping]] = ..., ui_state: _Optional[_Union[UiState, _Mapping]] = ..., android_camera_frame_event: _Optional[_Union[AndroidCameraFrameEvent, _Mapping]] = ..., android_camera_session_stats: _Optional[_Union[AndroidCameraSessionStats, _Mapping]] = ..., translation_table: _Optional[_Union[TranslationTable, _Mapping]] = ..., android_game_intervention_list: _Optional[_Union[AndroidGameInterventionList, _Mapping]] = ..., statsd_atom: _Optional[_Union[StatsdAtom, _Mapping]] = ..., android_system_property: _Optional[_Union[AndroidSystemProperty, _Mapping]] = ..., entity_state_residency: _Optional[_Union[EntityStateResidency, _Mapping]] = ..., trace_provenance: _Optional[_Union[TraceProvenance, _Mapping]] = ..., protovms: _Optional[_Union[TracePacket.ProtoVms, _Mapping]] = ..., trace_attributes: _Optional[_Union[TraceAttributes, _Mapping]] = ..., android_aflags: _Optional[_Union[AndroidAflags, _Mapping]] = ..., gpu_info: _Optional[_Union[GpuInfo, _Mapping]] = ..., module_symbols: _Optional[_Union[ModuleSymbols, _Mapping]] = ..., deobfuscation_mapping: _Optional[_Union[DeobfuscationMapping, _Mapping]] = ..., track_descriptor: _Optional[_Union[TrackDescriptor, _Mapping]] = ..., process_descriptor: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., thread_descriptor: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., ftrace_events: _Optional[_Union[FtraceEventBundle, _Mapping]] = ..., synchronization_marker: _Optional[bytes] = ..., compressed_packets: _Optional[bytes] = ..., extension_descriptor: _Optional[_Union[ExtensionDescriptor, _Mapping]] = ..., network_packet: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ..., network_packet_bundle: _Optional[_Union[NetworkPacketBundle, _Mapping]] = ..., track_event_range_of_interest: _Optional[_Union[TrackEventRangeOfInterest, _Mapping]] = ..., surfaceflinger_layers_snapshot: _Optional[_Union[LayersSnapshotProto, _Mapping]] = ..., surfaceflinger_transactions: _Optional[_Union[TransactionTraceEntry, _Mapping]] = ..., shell_transition: _Optional[_Union[ShellTransition, _Mapping]] = ..., shell_handler_mappings: _Optional[_Union[ShellHandlerMappings, _Mapping]] = ..., protolog_message: _Optional[_Union[ProtoLogMessage, _Mapping]] = ..., protolog_viewer_config: _Optional[_Union[ProtoLogViewerConfig, _Mapping]] = ..., winscope_extensions: _Optional[_Union[WinscopeExtensions, _Mapping]] = ..., etw_events: _Optional[_Union[EtwTraceEventBundle, _Mapping]] = ..., v8_js_code: _Optional[_Union[V8JsCode, _Mapping]] = ..., v8_internal_code: _Optional[_Union[V8InternalCode, _Mapping]] = ..., v8_wasm_code: _Optional[_Union[V8WasmCode, _Mapping]] = ..., v8_reg_exp_code: _Optional[_Union[V8RegExpCode, _Mapping]] = ..., v8_code_move: _Optional[_Union[V8CodeMove, _Mapping]] = ..., remote_clock_sync: _Optional[_Union[RemoteClockSync, _Mapping]] = ..., pixel_modem_events: _Optional[_Union[PixelModemEvents, _Mapping]] = ..., pixel_modem_token_database: _Optional[_Union[PixelModemTokenDatabase, _Mapping]] = ..., clone_snapshot_trigger: _Optional[_Union[Trigger, _Mapping]] = ..., bluetooth_trace_event: _Optional[_Union[BluetoothTraceEvent, _Mapping]] = ..., kernel_wakelock_data: _Optional[_Union[KernelWakelockData, _Mapping]] = ..., app_wakelock_bundle: _Optional[_Union[AppWakelockBundle, _Mapping]] = ..., generic_kernel_task_state_event: _Optional[_Union[GenericKernelTaskStateEvent, _Mapping]] = ..., generic_kernel_cpu_freq_event: _Optional[_Union[GenericKernelCpuFrequencyEvent, _Mapping]] = ..., generic_kernel_task_rename_event: _Optional[_Union[GenericKernelTaskRenameEvent, _Mapping]] = ..., generic_kernel_process_tree: _Optional[_Union[GenericKernelProcessTree, _Mapping]] = ..., cpu_per_uid_data: _Optional[_Union[CpuPerUidData, _Mapping]] = ..., evdev_event: _Optional[_Union[EvdevEvent, _Mapping]] = ..., user_list: _Optional[_Union[AndroidUserList, _Mapping]] = ..., for_testing: _Optional[_Union[TestEvent, _Mapping]] = ..., trusted_uid: _Optional[int] = ..., trusted_packet_sequence_id: _Optional[int] = ..., trusted_pid: _Optional[int] = ..., interned_data: _Optional[_Union[InternedData, _Mapping]] = ..., sequence_flags: _Optional[int] = ..., incremental_state_cleared: bool = ..., trace_packet_defaults: _Optional[_Union[TracePacketDefaults, _Mapping]] = ..., previous_packet_dropped: bool = ..., first_packet_on_sequence: bool = ..., machine_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., timestamp_clock_id: _Optional[int] = ..., track_event: _Optional[_Union[TrackEvent, _Mapping]] = ..., track_descriptor: _Optional[_Union[TrackDescriptor, _Mapping]] = ..., generic_kernel_task_state_event: _Optional[_Union[GenericKernelTaskStateEvent, _Mapping]] = ..., generic_kernel_cpu_freq_event: _Optional[_Union[GenericKernelCpuFrequencyEvent, _Mapping]] = ..., generic_kernel_task_rename_event: _Optional[_Union[GenericKernelTaskRenameEvent, _Mapping]] = ..., generic_kernel_process_tree: _Optional[_Union[GenericKernelProcessTree, _Mapping]] = ..., generic_gpu_frequency_event: _Optional[_Union[GenericGpuFrequencyEvent, _Mapping]] = ..., process_tree: _Optional[_Union[ProcessTree, _Mapping]] = ..., track_event_range_of_interest: _Optional[_Union[TrackEventRangeOfInterest, _Mapping]] = ..., process_stats: _Optional[_Union[ProcessStats, _Mapping]] = ..., inode_file_map: _Optional[_Union[InodeFileMap, _Mapping]] = ..., chrome_events: _Optional[_Union[ChromeEventBundle, _Mapping]] = ..., clock_snapshot: _Optional[_Union[ClockSnapshot, _Mapping]] = ..., sys_stats: _Optional[_Union[SysStats, _Mapping]] = ..., trace_uuid: _Optional[_Union[TraceUuid, _Mapping]] = ..., trace_config: _Optional[_Union[TraceConfig, _Mapping]] = ..., ftrace_stats: _Optional[_Union[FtraceStats, _Mapping]] = ..., trace_stats: _Optional[_Union[TraceStats, _Mapping]] = ..., profile_packet: _Optional[_Union[ProfilePacket, _Mapping]] = ..., streaming_allocation: _Optional[_Union[StreamingAllocation, _Mapping]] = ..., streaming_free: _Optional[_Union[StreamingFree, _Mapping]] = ..., battery: _Optional[_Union[BatteryCounters, _Mapping]] = ..., power_rails: _Optional[_Union[PowerRails, _Mapping]] = ..., android_log: _Optional[_Union[AndroidLogPacket, _Mapping]] = ..., system_info: _Optional[_Union[SystemInfo, _Mapping]] = ..., trigger: _Optional[_Union[Trigger, _Mapping]] = ..., chrome_trigger: _Optional[_Union[ChromeTrigger, _Mapping]] = ..., packages_list: _Optional[_Union[PackagesList, _Mapping]] = ..., chrome_benchmark_metadata: _Optional[_Union[ChromeBenchmarkMetadata, _Mapping]] = ..., perfetto_metatrace: _Optional[_Union[PerfettoMetatrace, _Mapping]] = ..., chrome_metadata: _Optional[_Union[ChromeMetadataPacket, _Mapping]] = ..., gpu_counter_event: _Optional[_Union[GpuCounterEvent, _Mapping]] = ..., gpu_render_stage_event: _Optional[_Union[GpuRenderStageEvent, _Mapping]] = ..., streaming_profile_packet: _Optional[_Union[StreamingProfilePacket, _Mapping]] = ..., heap_graph: _Optional[_Union[HeapGraph, _Mapping]] = ..., graphics_frame_event: _Optional[_Union[GraphicsFrameEvent, _Mapping]] = ..., vulkan_memory_event: _Optional[_Union[VulkanMemoryEvent, _Mapping]] = ..., gpu_log: _Optional[_Union[GpuLog, _Mapping]] = ..., vulkan_api_event: _Optional[_Union[VulkanApiEvent, _Mapping]] = ..., perf_sample: _Optional[_Union[PerfSample, _Mapping]] = ..., cpu_info: _Optional[_Union[CpuInfo, _Mapping]] = ..., smaps_packet: _Optional[_Union[SmapsPacket, _Mapping]] = ..., service_event: _Optional[_Union[TracingServiceEvent, _Mapping]] = ..., initial_display_state: _Optional[_Union[InitialDisplayState, _Mapping]] = ..., gpu_mem_total_event: _Optional[_Union[GpuMemTotalEvent, _Mapping]] = ..., memory_tracker_snapshot: _Optional[_Union[MemoryTrackerSnapshot, _Mapping]] = ..., frame_timeline_event: _Optional[_Union[FrameTimelineEvent, _Mapping]] = ..., android_energy_estimation_breakdown: _Optional[_Union[AndroidEnergyEstimationBreakdown, _Mapping]] = ..., ui_state: _Optional[_Union[UiState, _Mapping]] = ..., android_camera_frame_event: _Optional[_Union[AndroidCameraFrameEvent, _Mapping]] = ..., android_camera_session_stats: _Optional[_Union[AndroidCameraSessionStats, _Mapping]] = ..., translation_table: _Optional[_Union[TranslationTable, _Mapping]] = ..., android_game_intervention_list: _Optional[_Union[AndroidGameInterventionList, _Mapping]] = ..., statsd_atom: _Optional[_Union[StatsdAtom, _Mapping]] = ..., android_system_property: _Optional[_Union[AndroidSystemProperty, _Mapping]] = ..., entity_state_residency: _Optional[_Union[EntityStateResidency, _Mapping]] = ..., trace_provenance: _Optional[_Union[TraceProvenance, _Mapping]] = ..., protovms: _Optional[_Union[TracePacket.ProtoVms, _Mapping]] = ..., trace_attributes: _Optional[_Union[TraceAttributes, _Mapping]] = ..., android_aflags: _Optional[_Union[AndroidAflags, _Mapping]] = ..., gpu_info: _Optional[_Union[GpuInfo, _Mapping]] = ..., module_symbols: _Optional[_Union[ModuleSymbols, _Mapping]] = ..., deobfuscation_mapping: _Optional[_Union[DeobfuscationMapping, _Mapping]] = ..., process_descriptor: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., thread_descriptor: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., ftrace_events: _Optional[_Union[FtraceEventBundle, _Mapping]] = ..., synchronization_marker: _Optional[bytes] = ..., compressed_packets: _Optional[bytes] = ..., extension_descriptor: _Optional[_Union[ExtensionDescriptor, _Mapping]] = ..., network_packet: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ..., network_packet_bundle: _Optional[_Union[NetworkPacketBundle, _Mapping]] = ..., surfaceflinger_layers_snapshot: _Optional[_Union[LayersSnapshotProto, _Mapping]] = ..., surfaceflinger_transactions: _Optional[_Union[TransactionTraceEntry, _Mapping]] = ..., shell_transition: _Optional[_Union[ShellTransition, _Mapping]] = ..., shell_handler_mappings: _Optional[_Union[ShellHandlerMappings, _Mapping]] = ..., protolog_message: _Optional[_Union[ProtoLogMessage, _Mapping]] = ..., protolog_viewer_config: _Optional[_Union[ProtoLogViewerConfig, _Mapping]] = ..., winscope_extensions: _Optional[_Union[WinscopeExtensions, _Mapping]] = ..., etw_events: _Optional[_Union[EtwTraceEventBundle, _Mapping]] = ..., v8_js_code: _Optional[_Union[V8JsCode, _Mapping]] = ..., v8_internal_code: _Optional[_Union[V8InternalCode, _Mapping]] = ..., v8_wasm_code: _Optional[_Union[V8WasmCode, _Mapping]] = ..., v8_reg_exp_code: _Optional[_Union[V8RegExpCode, _Mapping]] = ..., v8_code_move: _Optional[_Union[V8CodeMove, _Mapping]] = ..., remote_clock_sync: _Optional[_Union[RemoteClockSync, _Mapping]] = ..., pixel_modem_events: _Optional[_Union[PixelModemEvents, _Mapping]] = ..., pixel_modem_token_database: _Optional[_Union[PixelModemTokenDatabase, _Mapping]] = ..., clone_snapshot_trigger: _Optional[_Union[Trigger, _Mapping]] = ..., bluetooth_trace_event: _Optional[_Union[BluetoothTraceEvent, _Mapping]] = ..., kernel_wakelock_data: _Optional[_Union[KernelWakelockData, _Mapping]] = ..., app_wakelock_bundle: _Optional[_Union[AppWakelockBundle, _Mapping]] = ..., cpu_per_uid_data: _Optional[_Union[CpuPerUidData, _Mapping]] = ..., evdev_event: _Optional[_Union[EvdevEvent, _Mapping]] = ..., user_list: _Optional[_Union[AndroidUserList, _Mapping]] = ..., for_testing: _Optional[_Union[TestEvent, _Mapping]] = ..., trusted_uid: _Optional[int] = ..., trusted_packet_sequence_id: _Optional[int] = ..., trusted_pid: _Optional[int] = ..., interned_data: _Optional[_Union[InternedData, _Mapping]] = ..., sequence_flags: _Optional[int] = ..., incremental_state_cleared: bool = ..., trace_packet_defaults: _Optional[_Union[TracePacketDefaults, _Mapping]] = ..., previous_packet_dropped: bool = ..., first_packet_on_sequence: bool = ..., machine_id: _Optional[int] = ...) -> None: ...
 
 class Trace(_message.Message):
     __slots__ = ("packet",)
