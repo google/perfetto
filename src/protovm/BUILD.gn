@@ -13,12 +13,11 @@
 # limitations under the License.
 
 import("../../gn/fuzzer.gni")
-import("../../gn/perfetto_component.gni")
 import("../../gn/perfetto_host_executable.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/test.gni")
 
-perfetto_component("protovm") {
+source_set("protovm") {
   sources = [
     "allocator.cc",
     "allocator.h",

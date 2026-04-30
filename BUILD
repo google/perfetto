@@ -7142,6 +7142,7 @@ perfetto_cc_library(
         ":src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
     ],
     linkstatic = True,
+    alwayslink = True,
 )
 
 # GN target: //src/android_sdk/nativehelper:nativehelper

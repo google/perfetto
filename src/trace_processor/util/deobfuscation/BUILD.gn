@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
-import("../../../../gn/perfetto_component.gni")
 import("../../../../gn/test.gni")
 
-perfetto_component("deobfuscator") {
+source_set("deobfuscator") {
   sources = [
     "deobfuscator.cc",
     "deobfuscator.h",
