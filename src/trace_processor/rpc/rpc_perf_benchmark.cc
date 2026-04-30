@@ -110,14 +110,22 @@ const std::vector<std::string>& WorkloadQueries() {
 
 // Encodes a `TraceProcessorRpc` framing-prefixed wire message that
 // asks the server to run a streaming query for the given SQL. Mirrors
-// `EncodeStreamingQueryRpcMessage` in `rpc_unittest.cc`.
+// `EncodeStreamingQueryRpcMessage` in `rpc_unittest.cc`. If `tag` is
+// non-empty it is set on the QueryArgs, opting the request into the
+// tag-affine dispatch path (distinct tags fan out across connections,
+// same-tag queries serialise on one connection).
 std::vector<uint8_t> EncodeStreamingQueryRpcMessage(int64_t seq,
-                                                    const std::string& sql) {
+                                                    const std::string& sql,
+                                                    const std::string& tag = {}) {
   protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream> stream;
   auto* msg = stream->add_msg();
   msg->set_seq(seq);
   msg->set_request(protos::pbzero::TraceProcessorRpc::TPM_QUERY_STREAMING);
-  msg->set_query_args()->set_sql_query(sql);
+  auto* args = msg->set_query_args();
+  args->set_sql_query(sql);
+  if (!tag.empty()) {
+    args->set_tag(tag);
+  }
   return stream.SerializeAsArray();
 }
 
@@ -235,18 +243,41 @@ bool LoadTraceInto(Rpc* rpc, benchmark::State& bstate) {
   return true;
 }
 
+// How a burst's queries should be tagged. `kEmpty` and `kSameTag`
+// both route to a single connection (same logical session); they
+// differ only in whether the request opts into the tag-affine
+// dispatch path explicitly. `kDistinctTags` gives each query its own
+// tag so different-tag requests fan out across the pool.
+enum class TagStrategy { kEmpty, kSameTag, kDistinctTags };
+
+std::string TagFor(TagStrategy s, size_t i) {
+  switch (s) {
+    case TagStrategy::kEmpty: return {};
+    case TagStrategy::kSameTag: return "shared";
+    case TagStrategy::kDistinctTags: return "tag_" + std::to_string(i);
+  }
+  return {};
+}
+
 // Pool ON: queries dispatch async through a wired-up dispatcher.
 // Mirrors what `httpd.cc` does at construction.
 //
 // Each iteration: fire all N queries via OnRpcRequest, then drain the
 // task queue until N is_last_batch markers have been observed. Wall
 // time = elapsed from first dispatch to last drained completion.
-void BM_RpcStreamingQueryBurst_PoolOn(benchmark::State& bstate) {
+//
+// `tag_strategy` controls how the burst maps to RPC tags, which in
+// turn controls how queries map to pool connections. Distinct tags is
+// the only configuration that exercises pool fan-out — the empty and
+// same-tag configurations serialise on one connection by design and
+// exist as the lower-bound control for the speedup ratio.
+void RunStreamingBurstPoolOn(benchmark::State& bstate,
+                             const std::vector<std::string>& queries,
+                             TagStrategy tag_strategy) {
   Rpc rpc;
   if (!LoadTraceInto(&rpc, bstate)) {
     return;
   }
-  const auto& queries = WorkloadQueries();
   const size_t kN = queries.size();
 
   TaskQueue task_queue;
@@ -286,7 +317,8 @@ void BM_RpcStreamingQueryBurst_PoolOn(benchmark::State& bstate) {
     }
     auto t0 = std::chrono::steady_clock::now();
     for (size_t i = 0; i < kN; ++i) {
-      auto msg = EncodeStreamingQueryRpcMessage(seq++, queries[i]);
+      auto msg = EncodeStreamingQueryRpcMessage(seq++, queries[i],
+                                                TagFor(tag_strategy, i));
       rpc.OnRpcRequest(msg.data(), msg.size());
     }
     bool done = task_queue.DrainUntil(
@@ -315,6 +347,17 @@ void BM_RpcStreamingQueryBurst_PoolOn(benchmark::State& bstate) {
   bstate.counters["hardware_concurrency"] = benchmark::Counter(
       static_cast<double>(std::thread::hardware_concurrency()),
       benchmark::Counter::kIsIterationInvariant);
+}
+
+void BM_RpcStreamingQueryBurst_PoolOn_Untagged(benchmark::State& bstate) {
+  RunStreamingBurstPoolOn(bstate, WorkloadQueries(), TagStrategy::kEmpty);
+}
+void BM_RpcStreamingQueryBurst_PoolOn_SameTag(benchmark::State& bstate) {
+  RunStreamingBurstPoolOn(bstate, WorkloadQueries(), TagStrategy::kSameTag);
+}
+void BM_RpcStreamingQueryBurst_PoolOn_DistinctTags(benchmark::State& bstate) {
+  RunStreamingBurstPoolOn(bstate, WorkloadQueries(),
+                          TagStrategy::kDistinctTags);
 }
 
 // Pool OFF: no dispatcher. `OnRpcRequest` runs the streaming query
@@ -404,73 +447,15 @@ const std::vector<std::string>& CpuOnlyQueries() {
   return kQueries;
 }
 
-void BM_RpcCpuOnlyBurst_PoolOn(benchmark::State& bstate) {
-  Rpc rpc;
-  if (!LoadTraceInto(&rpc, bstate)) {
-    return;
-  }
-  const auto& queries = CpuOnlyQueries();
-  const size_t kN = queries.size();
-
-  TaskQueue task_queue;
-  std::vector<uint8_t> wire_bytes;
-  std::mutex wire_mu;
-  rpc.SetRpcResponseFunction([&](const void* data, uint32_t len) {
-    std::lock_guard<std::mutex> g(wire_mu);
-    auto* p = static_cast<const uint8_t*>(data);
-    wire_bytes.insert(wire_bytes.end(), p, p + len);
-  });
-  rpc.SetResponseDispatcher([&](std::function<void()> task) {
-    task_queue.Post(std::move(task));
-  });
-  // Pre-warm.
-  {
-    auto msg = EncodeStreamingQueryRpcMessage(0, queries[0]);
-    rpc.OnRpcRequest(msg.data(), msg.size());
-    task_queue.DrainUntil(
-        [&]() {
-          std::lock_guard<std::mutex> g(wire_mu);
-          return CountQueriesCompleted(wire_bytes) >= 1;
-        },
-        std::chrono::seconds(60));
-    std::lock_guard<std::mutex> g(wire_mu);
-    wire_bytes.clear();
-  }
-
-  int64_t seq = 1000;
-  for (auto _ : bstate) {
-    {
-      std::lock_guard<std::mutex> g(wire_mu);
-      wire_bytes.clear();
-    }
-    auto t0 = std::chrono::steady_clock::now();
-    for (size_t i = 0; i < kN; ++i) {
-      auto msg = EncodeStreamingQueryRpcMessage(seq++, queries[i]);
-      rpc.OnRpcRequest(msg.data(), msg.size());
-    }
-    bool done = task_queue.DrainUntil(
-        [&]() {
-          std::lock_guard<std::mutex> g(wire_mu);
-          return CountQueriesCompleted(wire_bytes) >= kN;
-        },
-        std::chrono::seconds(60));
-    auto t1 = std::chrono::steady_clock::now();
-    if (!done) {
-      bstate.SkipWithError("CpuOnly pool-on: drain timed out");
-      return;
-    }
-    bstate.SetIterationTime(
-        std::chrono::duration<double>(t1 - t0).count());
-  }
-  bstate.counters["queries"] =
-      benchmark::Counter(static_cast<double>(kN),
-                         benchmark::Counter::kIsIterationInvariant);
-  bstate.counters["workers_used"] = benchmark::Counter(
-      static_cast<double>(rpc.pool_workers_used_for_testing()),
-      benchmark::Counter::kIsIterationInvariant);
-  bstate.counters["hardware_concurrency"] = benchmark::Counter(
-      static_cast<double>(std::thread::hardware_concurrency()),
-      benchmark::Counter::kIsIterationInvariant);
+void BM_RpcCpuOnlyBurst_PoolOn_Untagged(benchmark::State& bstate) {
+  RunStreamingBurstPoolOn(bstate, CpuOnlyQueries(), TagStrategy::kEmpty);
+}
+void BM_RpcCpuOnlyBurst_PoolOn_SameTag(benchmark::State& bstate) {
+  RunStreamingBurstPoolOn(bstate, CpuOnlyQueries(), TagStrategy::kSameTag);
+}
+void BM_RpcCpuOnlyBurst_PoolOn_DistinctTags(benchmark::State& bstate) {
+  RunStreamingBurstPoolOn(bstate, CpuOnlyQueries(),
+                          TagStrategy::kDistinctTags);
 }
 
 void BM_RpcCpuOnlyBurst_PoolOff(benchmark::State& bstate) {
@@ -514,19 +499,35 @@ void BM_RpcCpuOnlyBurst_PoolOff(benchmark::State& bstate) {
                          benchmark::Counter::kIsIterationInvariant);
 }
 
-BENCHMARK(BM_RpcStreamingQueryBurst_PoolOn)
-    ->UseManualTime()
-    ->Unit(benchmark::kMillisecond)
-    ->MinTime(2.0);
 BENCHMARK(BM_RpcStreamingQueryBurst_PoolOff)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
     ->MinTime(2.0);
-BENCHMARK(BM_RpcCpuOnlyBurst_PoolOn)
+BENCHMARK(BM_RpcStreamingQueryBurst_PoolOn_Untagged)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->MinTime(2.0);
+BENCHMARK(BM_RpcStreamingQueryBurst_PoolOn_SameTag)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->MinTime(2.0);
+BENCHMARK(BM_RpcStreamingQueryBurst_PoolOn_DistinctTags)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
     ->MinTime(2.0);
 BENCHMARK(BM_RpcCpuOnlyBurst_PoolOff)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->MinTime(2.0);
+BENCHMARK(BM_RpcCpuOnlyBurst_PoolOn_Untagged)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->MinTime(2.0);
+BENCHMARK(BM_RpcCpuOnlyBurst_PoolOn_SameTag)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->MinTime(2.0);
+BENCHMARK(BM_RpcCpuOnlyBurst_PoolOn_DistinctTags)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
     ->MinTime(2.0);
