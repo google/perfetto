@@ -1036,19 +1036,11 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
     const FunctionPrototype& prototype,
     sql_argument::Type return_type,
     SqlSource sql) {
-  // Keep a copy of `sql` for publishing to the function pool below so that
-  // sibling connections can re-prepare an equivalent statement on their own
-  // engines. The local register path consumes the original `sql` value;
-  // only the writer publishes (appends-after-success) to keep the pool
-  // authoritative.
+  // Append-after-local-success: readers must never observe a pool
+  // entry whose writer-side registration failed half-way.
   SqlSource sql_for_pool = sql;
-  RETURN_IF_ERROR(RegisterLegacyRuntimeFunctionLocal(replace, prototype,
-                                                    return_type, std::move(sql)));
-
-  // Append-after-success: only land in the pool once we've actually
-  // registered + prepared on the writer's own handle. This guarantees
-  // a reader catching up via `SnapshotSince` will not see a half-baked
-  // entry.
+  RETURN_IF_ERROR(RegisterLegacyRuntimeFunctionLocal(
+      replace, prototype, return_type, std::move(sql)));
   if (is_writer_) {
     last_synced_function_version_ =
         database_->functions.Append(PerfettoSqlDatabase::FunctionPoolEntry{
@@ -1071,11 +1063,8 @@ void PerfettoSqlEngine::RegisterPackage(
         pool_modules,
     bool allow_replace) {
   RegisterPackageLocal(name, std::move(package));
-  // Append-after-success: only land in the pool once the local register
-  // above is in place. RegisterPackageLocal has no failure mode but we
-  // still order the publication after it so readers observe the same
-  // sequence the writer did. Skip if the caller did not provide the
-  // raw modules — they don't need cross-connection propagation.
+  // Skip the pool publish when no `pool_modules` were supplied (legacy
+  // single-engine callers that don't need cross-conn propagation).
   if (is_writer_ && pool_modules) {
     last_synced_package_version_ = database_->packages.Append(
         PerfettoSqlDatabase::PackagePoolEntry{name, allow_replace,
@@ -1101,9 +1090,6 @@ sql_modules::RegisteredPackage RegisteredPackageFromModules(
 }  // namespace
 
 base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
-  // Writer engines never need to sync — they are the source of truth.
-  // Snap `last_synced_package_version_` to the latest version so the
-  // version-equality short-circuit stays cheap on subsequent calls.
   if (is_writer_) {
     last_synced_package_version_ = database_->packages.LatestVersion();
     return base::OkStatus();
@@ -1111,14 +1097,10 @@ base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
   if (database_->packages.LatestVersion() == last_synced_package_version_) {
     return base::OkStatus();
   }
-
   auto snapshot =
       database_->packages.SnapshotSince(last_synced_package_version_);
   for (const auto& entry : snapshot.entries) {
-    // Use the *local* path so we don't re-publish back into the pool. Each
-    // reader gets its own copy of the converted `RegisteredPackage`: the
-    // per-reader `included` bookkeeping evolves independently as that
-    // reader's `Execute` calls run INCLUDE statements.
+    // Use the local-only path so we don't re-publish to the pool.
     RegisterPackageLocal(entry.name,
                          RegisteredPackageFromModules(*entry.modules));
   }
@@ -1127,12 +1109,10 @@ base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
 }
 
 base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
-  // Writer engines never need to sync — they are the source of truth and
-  // append directly via `RegisterLegacyRuntimeFunction`. Importantly, the
-  // writer must *not* re-register pool entries on a fresh engine handle
-  // produced by `RestoreInitialTables`: pool entries may reference tables
-  // (e.g. `_trace_bounds`) that haven't been recreated yet by the new
-  // engine's prelude include.
+  // Writer must not re-register pool entries on a fresh handle from
+  // `RestoreInitialTables` — pool entries may reference tables (e.g.
+  // `_trace_bounds`) that the new engine's prelude include will
+  // recreate.
   if (is_writer_) {
     last_synced_function_version_ = database_->functions.LatestVersion();
     return base::OkStatus();
@@ -1141,20 +1121,13 @@ base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
       last_synced_function_version_) {
     return base::OkStatus();
   }
-
-  auto snapshot = database_->functions.SnapshotSince(last_synced_function_version_);
+  auto snapshot =
+      database_->functions.SnapshotSince(last_synced_function_version_);
   for (auto& entry : snapshot.entries) {
-    // Use the *local* path so we don't re-publish back into the pool. On the
-    // writer this loop never runs because `RegisterLegacyRuntimeFunction`
-    // bumps `last_synced_function_version_` eagerly each append; the
-    // version-equality fast-path above short-circuits. On readers, this is
-    // the only path that registers dynamic functions on their handles.
     RETURN_IF_ERROR(RegisterLegacyRuntimeFunctionLocal(
         entry.replace, entry.prototype, entry.return_type,
         std::move(entry.sql)));
   }
-  // Update to the snapshot's latest version even if `entries` is empty, so
-  // the fast-path stays cheap on subsequent calls.
   last_synced_function_version_ = snapshot.latest_version;
   return base::OkStatus();
 }
