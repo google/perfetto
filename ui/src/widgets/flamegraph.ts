@@ -82,9 +82,21 @@ interface ZoomRegion {
   readonly type: 'ABOVE_ROOT' | 'BELOW_ROOT' | 'ROOT';
 }
 
+// Context passed to a FlamegraphOptionalAction's execute callback.
+//
+// `properties` is the (reduced) kv map of the user-declared
+// unaggregatableProperties / aggregatableProperties on the metric.
+//
+// `node` is the clicked flamegraph node for node-level actions, and undefined
+// for root-level actions (where there is no specific node).
+export interface FlamegraphActionContext {
+  readonly properties: ReadonlyMap<string, string>;
+  readonly node?: FlamegraphNode;
+}
+
 export interface FlamegraphOptionalAction {
   readonly name: string;
-  execute?: (kv: ReadonlyMap<string, string>) => void;
+  execute?: (ctx: FlamegraphActionContext) => void;
   readonly subActions?: FlamegraphOptionalAction[];
 }
 
@@ -1085,18 +1097,24 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             copyToClipboard(this.buildStackString(node, true));
           },
         }),
-      actions.map((action) => this.renderMenuItem(action, properties)),
+      actions.map((action) => this.renderMenuItem(action, properties, node)),
     );
   }
 
   private renderMenuItem(
     action: FlamegraphOptionalAction,
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ): m.Vnode<MenuItemAttrs> {
     if (action.subActions !== undefined && action.subActions.length > 0) {
-      return this.renderParentMenuItem(action, action.subActions, properties);
+      return this.renderParentMenuItem(
+        action,
+        action.subActions,
+        properties,
+        node,
+      );
     } else if (action.execute) {
-      return this.renderExecutableMenuItem(action, properties);
+      return this.renderExecutableMenuItem(action, properties, node);
     } else {
       return this.renderDisabledMenuItem(action);
     }
@@ -1106,6 +1124,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     action: FlamegraphOptionalAction,
     subActions: FlamegraphOptionalAction[],
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ): m.Vnode<MenuItemAttrs> {
     return m(
       MenuItem,
@@ -1114,19 +1133,24 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         // No onclick handler for parent menu items
       },
       // Directly render sub-actions as children of the MenuItem
-      subActions.map((subAction) => this.renderMenuItem(subAction, properties)),
+      subActions.map((subAction) =>
+        this.renderMenuItem(subAction, properties, node),
+      ),
     );
   }
 
   private renderExecutableMenuItem(
     action: FlamegraphOptionalAction,
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ): m.Vnode<MenuItemAttrs> {
     return m(MenuItem, {
       label: action.name,
       onclick: () => {
-        const reducedProperties = this.createReducedProperties(properties);
-        action.execute!(reducedProperties);
+        action.execute!({
+          properties: this.createReducedProperties(properties),
+          node,
+        });
         this.tooltipPos = undefined; // Close tooltip after action
       },
     });

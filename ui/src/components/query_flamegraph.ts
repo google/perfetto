@@ -157,7 +157,7 @@ export function metricsFromTableOrSubquery(
       `,
       unaggregatableProperties: opts.unaggregatableProperties,
       aggregatableProperties: opts.aggregatableProperties,
-      optionalActions: opts.optionalActions,
+      optionalNodeActions: opts.optionalActions,
     });
   }
   return metrics;
