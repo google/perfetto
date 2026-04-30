@@ -157,7 +157,8 @@ class KeyMappingsHelp implements m.ClassComponent {
       m('h2', 'Command Hotkeys'),
       m(
         'table',
-        AppImpl.instance.commands.commands
+        AppImpl.instance.commands
+          .getCommands()
           .filter(({defaultHotkey}) => defaultHotkey)
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(({defaultHotkey, name}) => {

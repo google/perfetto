@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FilterDuringNode, FilterDuringNodeState} from './filter_during_node';
-import {QueryNode, NodeType} from '../../query_node';
-import {ColumnInfo} from '../column_info';
+import {FilterDuringNode, FilterDuringNodeAttrs} from './filter_during_node';
+import {NodeType, QueryNode} from '../../query_node';
 import {
-  PerfettoSqlType,
-  PerfettoSqlTypes,
-} from '../../../../trace_processor/perfetto_sql_type';
-import protos from '../../../../protos';
+  createMockNodeWithStructuredQuery,
+  createMockIntervalNode,
+  createColumnInfo,
+  INTERVAL_COLUMNS,
+  expectValidationSuccess,
+} from '../testing/test_utils';
 
 // Interface for accessing private methods during testing
 interface FilterDuringNodeWithPrivates {
@@ -27,70 +28,27 @@ interface FilterDuringNodeWithPrivates {
   cleanupPartitionColumns(): void;
 }
 
+function makeFilterDuring(
+  primaryNode: QueryNode,
+  secondaryNode: QueryNode,
+  attrs: FilterDuringNodeAttrs = {},
+): FilterDuringNode {
+  const node = new FilterDuringNode(attrs, {});
+  node.primaryInput = primaryNode;
+  node.secondaryInputs.connections.set(0, secondaryNode);
+  return node;
+}
+
 describe('FilterDuringNode', () => {
-  function createMockNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
-      nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      state: {},
-      validate: () => true,
-      getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => ({sections: []}),
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockNode(id, columns),
-      getStructuredQuery: () => {
-        const sq = new protos.PerfettoSqlStructuredQuery();
-        sq.id = id;
-        sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-        sq.table.tableName = 'mock_table';
-        sq.table.columnNames = columns.map((c) => c.name);
-        return sq;
-      },
-      serializeState: () => ({}),
-    } as QueryNode;
-  }
-
-  function stringToSqlType(s: string): PerfettoSqlType {
-    switch (s.toUpperCase()) {
-      case 'INT':
-      case 'INT64':
-        return PerfettoSqlTypes.INT;
-      case 'STRING':
-        return PerfettoSqlTypes.STRING;
-      case 'DOUBLE':
-        return PerfettoSqlTypes.DOUBLE;
-      case 'BYTES':
-        return {kind: 'bytes'};
-      default:
-        return PerfettoSqlTypes.INT;
-    }
-  }
-
-  function createColumnInfo(
-    name: string,
-    type: string,
-    checked: boolean = true,
-  ): ColumnInfo {
-    const sqlType = stringToSqlType(type);
-    return {
-      name,
-      checked,
-      column: {name, type: sqlType},
-    };
-  }
-
   describe('constructor', () => {
     it('should have correct node type', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.type).toBe(NodeType.kFilterDuring);
     });
 
     it('should initialize with no secondary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.secondaryInputs.connections.get(0)).toBeUndefined();
     });
@@ -98,22 +56,25 @@ describe('FilterDuringNode', () => {
 
   describe('finalCols', () => {
     it('should return empty array when no primary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.finalCols).toEqual([]);
     });
 
     it('should return same columns as primary input', () => {
       const primaryCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('cpu', 'INT'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('dur', 'duration'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('cpu', 'int'),
       ];
-      const primaryNode = createMockNode('primary', primaryCols);
+      const primaryNode = createMockNodeWithStructuredQuery(
+        'primary',
+        primaryCols,
+      );
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
 
       expect(node.finalCols).toEqual(primaryCols);
@@ -121,15 +82,18 @@ describe('FilterDuringNode', () => {
 
     it('should preserve column order from primary input', () => {
       const primaryCols = [
-        createColumnInfo('cpu', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('name', 'STRING'),
+        createColumnInfo('cpu', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('dur', 'duration'),
+        createColumnInfo('name', 'string'),
       ];
-      const primaryNode = createMockNode('primary', primaryCols);
+      const primaryNode = createMockNodeWithStructuredQuery(
+        'primary',
+        primaryCols,
+      );
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
 
       const finalCols = node.finalCols;
@@ -145,178 +109,130 @@ describe('FilterDuringNode', () => {
 
   describe('validate', () => {
     it('should fail validation when no primary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Connect a node to be filtered to the top port',
       );
     });
 
     it('should fail validation when no secondary input', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const primaryNode = createMockIntervalNode('primary');
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Connect a node with intervals to the port on the left',
       );
     });
 
     it('should fail validation when primary input is invalid', () => {
-      const primaryNode = createMockNode('primary', []);
+      const primaryNode = createMockNodeWithStructuredQuery('primary', []);
       primaryNode.validate = () => false;
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Node to be filtered is invalid',
       );
     });
 
     it('should fail validation when secondary input is invalid', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const primaryNode = createMockIntervalNode('primary');
 
-      const secondaryNode = createMockNode('secondary', []);
+      const secondaryNode = createMockNodeWithStructuredQuery('secondary', []);
       secondaryNode.validate = () => false;
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Filter intervals input is invalid',
       );
     });
 
     it('should fail validation when primary input missing required columns', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('name', 'STRING'),
+      const primaryNode = createMockNodeWithStructuredQuery('primary', [
+        createColumnInfo('name', 'string'),
       ]);
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Node to be filtered is missing required columns',
       );
     });
 
     it('should fail validation when secondary input missing required columns', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
+      const primaryNode = createMockIntervalNode('primary');
+
+      const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+        createColumnInfo('name', 'string'),
       ]);
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('name', 'STRING'),
-      ]);
-
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Filter intervals input is missing required columns',
       );
     });
 
     it('should pass validation when all requirements met', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('name', 'STRING'),
+      const primaryNode = createMockNodeWithStructuredQuery('primary', [
+        ...INTERVAL_COLUMNS(),
+        createColumnInfo('name', 'string'),
       ]);
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should pass validation when secondary input has no id column', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('name', 'STRING'),
+      const primaryNode = createMockNodeWithStructuredQuery('primary', [
+        ...INTERVAL_COLUMNS(),
+        createColumnInfo('name', 'string'),
       ]);
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
+      const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('dur', 'duration'),
       ]);
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
   });
 
   describe('getStructuredQuery', () => {
     it('should return undefined when validation fails', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.getStructuredQuery()).toBeUndefined();
     });
 
     it('should return structured query when valid', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('name', 'STRING'),
+      const primaryNode = createMockNodeWithStructuredQuery('primary', [
+        ...INTERVAL_COLUMNS(),
+        createColumnInfo('name', 'string'),
       ]);
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       const sq = node.getStructuredQuery();
 
@@ -325,23 +241,15 @@ describe('FilterDuringNode', () => {
     });
 
     it('should create query using experimentalFilterToIntervals with correct structure', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('cpu', 'INT'),
+      const primaryNode = createMockNodeWithStructuredQuery('primary', [
+        ...INTERVAL_COLUMNS(),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('cpu', 'int'),
       ]);
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       const sq = node.getStructuredQuery();
 
@@ -362,22 +270,12 @@ describe('FilterDuringNode', () => {
     });
 
     it('should pass primary input as base query with dur filter when enabled', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const primaryNode = createMockIntervalNode('primary');
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
       // Dur filter is always applied
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       const sq = node.getStructuredQuery();
       const baseQuery = sq?.experimentalFilterToIntervals?.base;
@@ -389,22 +287,12 @@ describe('FilterDuringNode', () => {
     });
 
     it('should pass secondary input as intervals query with dur filter when enabled', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const primaryNode = createMockIntervalNode('primary');
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
       // Dur filter is always applied
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       const sq = node.getStructuredQuery();
       const intervalsQuery = sq?.experimentalFilterToIntervals?.intervals;
@@ -416,21 +304,13 @@ describe('FilterDuringNode', () => {
     });
 
     it('should set clipToIntervals to false when configured', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const primaryNode = createMockIntervalNode('primary');
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({clipToIntervals: false});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode, {
+        clipToIntervals: false,
+      });
 
       const sq = node.getStructuredQuery();
 
@@ -438,21 +318,13 @@ describe('FilterDuringNode', () => {
     });
 
     it('should not explicitly set clipToIntervals to true (relies on proto default)', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const primaryNode = createMockIntervalNode('primary');
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({clipToIntervals: true});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode, {
+        clipToIntervals: true,
+      });
 
       const sq = node.getStructuredQuery();
 
@@ -472,21 +344,17 @@ describe('FilterDuringNode', () => {
     });
 
     it('should generate query when secondary input has no id column', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('name', 'STRING'),
+      const primaryNode = createMockNodeWithStructuredQuery('primary', [
+        ...INTERVAL_COLUMNS(),
+        createColumnInfo('name', 'string'),
       ]);
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
+      const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('dur', 'duration'),
       ]);
 
-      const node = new FilterDuringNode({});
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
+      const node = makeFilterDuring(primaryNode, secondaryNode);
 
       const sq = node.getStructuredQuery();
 
@@ -497,26 +365,16 @@ describe('FilterDuringNode', () => {
 
   describe('serializeState', () => {
     it('should serialize state correctly', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const primaryNode = createMockIntervalNode('primary');
 
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({
+      const node = makeFilterDuring(primaryNode, secondaryNode, {
         partitionColumns: ['utid'],
         clipToIntervals: false,
       });
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
 
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
       expect(serialized).toEqual({
         partitionColumns: ['utid'],
@@ -525,41 +383,36 @@ describe('FilterDuringNode', () => {
     });
 
     it('should handle missing inputs gracefully', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
-      expect(serialized).toEqual({
-        partitionColumns: undefined,
-        clipToIntervals: undefined,
-      });
+      expect(serialized).toEqual({});
     });
   });
 
   describe('clone', () => {
     it('should create a new node with same state', () => {
-      const node = new FilterDuringNode({
-        partitionColumns: ['utid', 'cpu'],
-        clipToIntervals: false,
-      });
+      const node = new FilterDuringNode(
+        {
+          partitionColumns: ['utid', 'cpu'],
+          clipToIntervals: false,
+        },
+        {},
+      );
 
       const cloned = node.clone() as FilterDuringNode;
 
       expect(cloned).toBeInstanceOf(FilterDuringNode);
-      expect((cloned.state as FilterDuringNodeState).partitionColumns).toEqual([
-        'utid',
-        'cpu',
-      ]);
-      expect((cloned.state as FilterDuringNodeState).clipToIntervals).toBe(
-        false,
-      );
+      expect(cloned.attrs.partitionColumns).toEqual(['utid', 'cpu']);
+      expect(cloned.attrs.clipToIntervals).toBe(false);
       expect(cloned.nodeId).not.toBe(node.nodeId); // Should have different ID
     });
   });
 
   describe('getTitle', () => {
     it('should return correct title', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.getTitle()).toBe('Filter During');
     });
@@ -567,19 +420,15 @@ describe('FilterDuringNode', () => {
 
   describe('secondaryNodes getter', () => {
     it('should return empty array when no secondary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.secondaryNodes).toEqual([]);
     });
 
     it('should return array with single secondary node when connected', () => {
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
+      const secondaryNode = createMockIntervalNode('secondary');
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       expect(node.secondaryNodes).toEqual([secondaryNode]);
@@ -589,9 +438,7 @@ describe('FilterDuringNode', () => {
   describe('onPrevNodesUpdated', () => {
     it('should trigger onchange callback when called', () => {
       const onchange = jest.fn();
-      const node = new FilterDuringNode({
-        onchange,
-      });
+      const node = new FilterDuringNode({}, {onchange});
 
       node.onPrevNodesUpdated();
 
@@ -599,7 +446,7 @@ describe('FilterDuringNode', () => {
     });
 
     it('should not throw when onchange is not defined', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(() => node.onPrevNodesUpdated()).not.toThrow();
     });
@@ -608,23 +455,31 @@ describe('FilterDuringNode', () => {
   describe('partition columns', () => {
     describe('initialization', () => {
       it('should initialize with empty partition columns by default', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
-        expect(node.state.partitionColumns).toBeUndefined();
+        expect(
+          (node as FilterDuringNode).attrs.partitionColumns,
+        ).toBeUndefined();
       });
 
       it('should preserve provided partition columns', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'],
+          },
+          {},
+        );
 
-        expect(node.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
     });
 
     describe('getCommonColumnsForPartition', () => {
       it('should return empty array when no primary input', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
         // Access private method for testing
         const commonColumns = (
@@ -635,14 +490,12 @@ describe('FilterDuringNode', () => {
       });
 
       it('should return empty array when no secondary inputs', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
         node.primaryInput = primaryNode;
 
         const commonColumns = (
@@ -653,26 +506,20 @@ describe('FilterDuringNode', () => {
       });
 
       it('should find common columns between primary and secondary inputs', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
-          createColumnInfo('cpu', 'INT'),
-          createColumnInfo('name', 'STRING'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
+          createColumnInfo('cpu', 'int'),
+          createColumnInfo('name', 'string'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
-          createColumnInfo('cpu', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
+          createColumnInfo('cpu', 'int'),
         ]);
 
-        const node = new FilterDuringNode({});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode);
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
@@ -682,21 +529,11 @@ describe('FilterDuringNode', () => {
       });
 
       it('should exclude id, ts, dur columns', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const primaryNode = createMockIntervalNode('primary');
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const secondaryNode = createMockIntervalNode('secondary');
 
-        const node = new FilterDuringNode({});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode);
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
@@ -706,27 +543,21 @@ describe('FilterDuringNode', () => {
       });
 
       it('should exclude STRING and BYTES type columns', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('name', 'STRING'),
-          createColumnInfo('data', 'BYTES'),
-          createColumnInfo('utid', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('data', 'bytes'),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('name', 'STRING'),
-          createColumnInfo('data', 'BYTES'),
-          createColumnInfo('utid', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('data', 'bytes'),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const node = new FilterDuringNode({});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode);
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
@@ -736,27 +567,21 @@ describe('FilterDuringNode', () => {
       });
 
       it('should sort common columns alphabetically', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('zzz', 'INT'),
-          createColumnInfo('aaa', 'INT'),
-          createColumnInfo('mmm', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('zzz', 'int'),
+          createColumnInfo('aaa', 'int'),
+          createColumnInfo('mmm', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('zzz', 'INT'),
-          createColumnInfo('aaa', 'INT'),
-          createColumnInfo('mmm', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('zzz', 'int'),
+          createColumnInfo('aaa', 'int'),
+          createColumnInfo('mmm', 'int'),
         ]);
 
-        const node = new FilterDuringNode({});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode);
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
@@ -768,7 +593,7 @@ describe('FilterDuringNode', () => {
 
     describe('cleanupPartitionColumns', () => {
       it('should not throw when partitionColumns is undefined', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
         expect(() =>
           (
@@ -778,9 +603,12 @@ describe('FilterDuringNode', () => {
       });
 
       it('should not throw when partitionColumns is empty', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: [],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: [],
+          },
+          {},
+        );
 
         expect(() =>
           (
@@ -790,113 +618,90 @@ describe('FilterDuringNode', () => {
       });
 
       it('should remove partition columns no longer available in inputs', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const node = new FilterDuringNode({
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
           partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
         });
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
 
         (
           node as unknown as FilterDuringNodeWithPrivates
         ).cleanupPartitionColumns();
 
-        expect(node.state.partitionColumns).toEqual(['utid']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+        ]);
       });
 
       it('should clear all partition columns when none are available', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const primaryNode = createMockIntervalNode('primary');
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const secondaryNode = createMockIntervalNode('secondary');
 
-        const node = new FilterDuringNode({
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
           partitionColumns: ['utid', 'cpu'],
         });
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
 
         (
           node as unknown as FilterDuringNodeWithPrivates
         ).cleanupPartitionColumns();
 
-        expect(node.state.partitionColumns).toEqual([]);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([]);
       });
 
       it('should preserve valid partition columns', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
-          createColumnInfo('cpu', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
+          createColumnInfo('cpu', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
-          createColumnInfo('cpu', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
+          createColumnInfo('cpu', 'int'),
         ]);
 
-        const node = new FilterDuringNode({
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
           partitionColumns: ['utid', 'cpu'],
         });
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
 
         (
           node as unknown as FilterDuringNodeWithPrivates
         ).cleanupPartitionColumns();
 
-        expect(node.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
     });
 
     describe('serializeState with partition columns', () => {
       it('should include partition columns in serialized state', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const node = new FilterDuringNode({
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
           partitionColumns: ['utid'],
         });
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
 
-        const serialized = node.serializeState();
+        const serialized = node.attrs;
 
         expect(serialized).toEqual({
           partitionColumns: ['utid'],
@@ -905,92 +710,99 @@ describe('FilterDuringNode', () => {
       });
 
       it('should handle undefined partition columns', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
-        const serialized = node.serializeState() as Record<string, unknown>;
+        const serialized = node.attrs;
 
-        expect(serialized).toHaveProperty('partitionColumns');
         expect(serialized.partitionColumns).toBeUndefined();
       });
     });
 
-    describe('deserializeState with partition columns', () => {
-      it('should restore partition columns from serialized state', () => {
-        const state = FilterDuringNode.deserializeState({
-          partitionColumns: ['utid', 'cpu'],
-          clipToIntervals: false,
-        });
+    describe('deserialize with partition columns', () => {
+      it('should restore partition columns via constructor', () => {
+        const node = new FilterDuringNode(
+          {partitionColumns: ['utid', 'cpu'], clipToIntervals: false},
+          {},
+        );
 
-        expect(state.partitionColumns).toEqual(['utid', 'cpu']);
-        expect(state.clipToIntervals).toBe(false);
+        expect(node.attrs.partitionColumns).toEqual(['utid', 'cpu']);
+        expect(node.attrs.clipToIntervals).toBe(false);
       });
 
-      it('should handle missing partition columns in serialized state', () => {
-        const state = FilterDuringNode.deserializeState({
-          clipToIntervals: true,
-        });
+      it('should handle missing partition columns', () => {
+        const node = new FilterDuringNode({clipToIntervals: true}, {});
 
-        expect(state.partitionColumns).toBeUndefined();
-        expect(state.clipToIntervals).toBe(true);
+        expect(node.attrs.partitionColumns).toBeUndefined();
+        expect(node.attrs.clipToIntervals).toBe(true);
       });
     });
 
     describe('clone with partition columns', () => {
       it('should clone partition columns', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'],
+          },
+          {},
+        );
 
         const cloned = node.clone() as FilterDuringNode;
 
-        expect(cloned.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((cloned as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
 
       it('should create independent copy of partition columns array', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid'],
+          },
+          {},
+        );
 
         const cloned = node.clone() as FilterDuringNode;
 
         // Modify cloned partition columns
-        cloned.state.partitionColumns?.push('cpu');
+        (cloned as FilterDuringNode).attrs.partitionColumns?.push('cpu');
 
         // Original should not be affected
-        expect(node.state.partitionColumns).toEqual(['utid']);
-        expect(cloned.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+        ]);
+        expect((cloned as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
 
       it('should handle undefined partition columns', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
         const cloned = node.clone() as FilterDuringNode;
 
-        expect(cloned.state.partitionColumns).toBeUndefined();
+        expect(
+          (cloned as FilterDuringNode).attrs.partitionColumns,
+        ).toBeUndefined();
       });
     });
 
     describe('getStructuredQuery with partition columns', () => {
       it('should pass partition columns to experimentalFilterToIntervals', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const node = new FilterDuringNode({
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
           partitionColumns: ['utid'],
         });
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
 
         const sq = node.getStructuredQuery();
 
@@ -1003,23 +815,17 @@ describe('FilterDuringNode', () => {
       });
 
       it('should work without partition columns', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const node = new FilterDuringNode({});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode);
 
         const sq = node.getStructuredQuery();
 
@@ -1030,52 +836,42 @@ describe('FilterDuringNode', () => {
 
     describe('onPrevNodesUpdated with partition columns', () => {
       it('should cleanup partition columns when inputs change', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('utid', 'INT'),
+        const secondaryNode = createMockNodeWithStructuredQuery('secondary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('utid', 'int'),
         ]);
 
-        const node = new FilterDuringNode({
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
           partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
         });
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
 
         node.onPrevNodesUpdated();
 
         // 'cpu' should be removed as it doesn't exist in inputs
-        expect(node.state.partitionColumns).toEqual(['utid']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+        ]);
       });
     });
 
     describe('selectColumns', () => {
       it('should include all columns when clipToIntervals is true', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('name', 'STRING'),
-          createColumnInfo('cpu', 'INT'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          ...INTERVAL_COLUMNS(),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('cpu', 'int'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const secondaryNode = createMockIntervalNode('secondary');
 
-        const node = new FilterDuringNode({clipToIntervals: true});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
+          clipToIntervals: true,
+        });
 
         const sq = node.getStructuredQuery();
 
@@ -1095,23 +891,19 @@ describe('FilterDuringNode', () => {
       });
 
       it('should include all columns when clipToIntervals is false', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('cpu', 'INT'),
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('name', 'STRING'),
-          createColumnInfo('dur', 'DURATION'),
-          createColumnInfo('ts', 'TIMESTAMP'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          createColumnInfo('cpu', 'int'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('dur', 'duration'),
+          createColumnInfo('ts', 'timestamp'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const secondaryNode = createMockIntervalNode('secondary');
 
-        const node = new FilterDuringNode({clipToIntervals: false});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
+          clipToIntervals: false,
+        });
 
         const sq = node.getStructuredQuery();
 
@@ -1127,23 +919,19 @@ describe('FilterDuringNode', () => {
       });
 
       it('should reorder columns with ts and dur first when clipToIntervals is true', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('cpu', 'INT'),
-          createColumnInfo('name', 'STRING'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('dur', 'DURATION'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          createColumnInfo('cpu', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('ts', 'timestamp'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('dur', 'duration'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const secondaryNode = createMockIntervalNode('secondary');
 
-        const node = new FilterDuringNode({clipToIntervals: true});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
+          clipToIntervals: true,
+        });
 
         const sq = node.getStructuredQuery();
 
@@ -1160,23 +948,19 @@ describe('FilterDuringNode', () => {
       });
 
       it('should preserve original order when clipToIntervals is false', () => {
-        const primaryNode = createMockNode('primary', [
-          createColumnInfo('cpu', 'INT'),
-          createColumnInfo('name', 'STRING'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('dur', 'DURATION'),
+        const primaryNode = createMockNodeWithStructuredQuery('primary', [
+          createColumnInfo('cpu', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('ts', 'timestamp'),
+          createColumnInfo('id', 'int'),
+          createColumnInfo('dur', 'duration'),
         ]);
 
-        const secondaryNode = createMockNode('secondary', [
-          createColumnInfo('id', 'INT'),
-          createColumnInfo('ts', 'TIMESTAMP'),
-          createColumnInfo('dur', 'DURATION'),
-        ]);
+        const secondaryNode = createMockIntervalNode('secondary');
 
-        const node = new FilterDuringNode({clipToIntervals: false});
-        node.primaryInput = primaryNode;
-        node.secondaryInputs.connections.set(0, secondaryNode);
+        const node = makeFilterDuring(primaryNode, secondaryNode, {
+          clipToIntervals: false,
+        });
 
         const sq = node.getStructuredQuery();
 

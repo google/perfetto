@@ -37,7 +37,7 @@ git fetch origin
 git checkout -b releases/v16.x -t origin/releases/v16.x
 ```
 
-Continue with [building the release](#building-and-tagging-the-release).
+Continue with [tagging the release](#tagging-the-release).
 
 ## b) Bumping the minor version
 

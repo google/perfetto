@@ -156,6 +156,7 @@
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
+#include "src/trace_processor/util/sql_bundle.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -420,11 +421,11 @@ void InsertIntoModulesTable(tables::ModulesTable* table,
 
 sql_modules::NameToPackage GetStdlibPackages() {
   sql_modules::NameToPackage packages;
-  for (const auto& file_to_sql : stdlib::kFileToSql) {
+  for (const auto& file_to_sql : SqlBundle(stdlib::kStdlib)) {
     std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
     std::string package_name = sql_modules::GetPackageName(module_name);
     packages.Insert(package_name, {})
-        .first->push_back({module_name, file_to_sql.sql});
+        .first->emplace_back(module_name, file_to_sql.sql_view());
   }
   return packages;
 }
@@ -666,10 +667,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                 config_.skip_builtin_metric_paths.end(),
                                 "") != config_.skip_builtin_metric_paths.end();
   if (!skip_all_sql) {
-    for (const auto& file_to_sql : sql_metrics::kFileToSql) {
+    for (const auto& file_to_sql :
+         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics)) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
-      RegisterMetric(file_to_sql.path, file_to_sql.sql);
+      RegisterMetric(file_to_sql.path, std::string(file_to_sql.sql_view()));
     }
   }
 
@@ -1132,6 +1134,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_experimental_proto_content_table());
   AddStaticTable(tables, storage->mutable_file_table());
   AddStaticTable(tables, storage->mutable_filedescriptor_table());
+  AddStaticTable(tables, storage->mutable_gpu_context_table());
   AddStaticTable(tables, storage->mutable_gpu_counter_group_table());
   AddStaticTable(tables, storage->mutable_gpu_table());
   AddStaticTable(tables, storage->mutable_instruments_sample_table());

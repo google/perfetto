@@ -18,6 +18,7 @@ import type {SqlValue} from '../../../trace_processor/query_result';
 import type {Row} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {EmptyState} from '../../../widgets/empty_state';
+import {Select} from '../../../widgets/select';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
@@ -153,10 +154,18 @@ function makeBitmapListSchema(navigate: NavFn): SchemaRegistry {
   };
 }
 
+type PathMode = 'none' | 'shortest' | 'dominator';
+
+const PATH_HEADING: Record<Exclude<PathMode, 'none'>, string> = {
+  shortest: 'Shortest Path',
+  dominator: 'Dominator Path',
+};
+
 interface BitmapCardAttrs {
   readonly row: BitmapListRow;
   readonly engine: Engine;
   readonly navigate: NavFn;
+  readonly pathMode: PathMode;
   readonly pathData?: PathEntry[] | null;
 }
 
@@ -270,10 +279,17 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
             'Details',
           ),
         ),
-        vnode.attrs.pathData !== undefined && vnode.attrs.pathData !== null
+        vnode.attrs.pathMode !== 'none' &&
+          vnode.attrs.pathData !== undefined &&
+          vnode.attrs.pathData !== null
           ? m(
               'div',
               {class: 'ah-bitmap-card__path'},
+              m(
+                'div',
+                {class: 'ah-muted-heading'},
+                PATH_HEADING[vnode.attrs.pathMode],
+              ),
               vnode.attrs.pathData.length > 0
                 ? renderPath(vnode.attrs.pathData, navigate)
                 : m('span', {class: 'ah-muted'}, 'No path to GC root.'),
@@ -294,22 +310,38 @@ interface BitmapGalleryViewAttrs {
 function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
   let rows: BitmapListRow[] | null = null;
   let alive = true;
-  let showPaths = false;
-  let pathsFetched = false;
-  const pathMap = new Map<number, PathEntry[]>();
+  let pathMode: PathMode = 'none';
+  const pathsFetched: Record<Exclude<PathMode, 'none'>, boolean> = {
+    shortest: false,
+    dominator: false,
+  };
+  const pathMaps: Record<
+    Exclude<PathMode, 'none'>,
+    Map<number, PathEntry[]>
+  > = {
+    shortest: new Map(),
+    dominator: new Map(),
+  };
   let filters: Filter[] = [];
 
-  function fetchAllPaths(engine: Engine, bitmaps: BitmapListRow[]) {
+  function fetchPaths(
+    engine: Engine,
+    bitmaps: BitmapListRow[],
+    mode: Exclude<PathMode, 'none'>,
+  ) {
     const ids = bitmaps.map((b) => b.row.id);
     if (ids.length === 0) return;
-    queries
-      .fetchPathsFromRoot(engine, ids)
+    const fetcher =
+      mode === 'shortest'
+        ? queries.fetchShortestPaths
+        : queries.fetchDominatorPaths;
+    fetcher(engine, ids)
       .then((paths) => {
         if (!alive) return;
         for (const id of ids) {
-          pathMap.set(id, paths.get(id) ?? []);
+          pathMaps[mode].set(id, paths.get(id) ?? []);
         }
-        pathsFetched = true;
+        pathsFetched[mode] = true;
         m.redraw();
       })
       .catch(console.error);
@@ -401,17 +433,39 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
             `Bitmaps (${rows.length.toLocaleString()})`,
           ),
           m(
-            'button',
-            {
-              class: 'ah-link--alt',
-              onclick: () => {
-                showPaths = !showPaths;
-                if (showPaths && !pathsFetched) {
-                  fetchAllPaths(engine, rows!);
-                }
+            'label',
+            {class: 'ah-heading-control'},
+            m('span', {class: 'ah-heading-control__label'}, 'Path'),
+            m(
+              Select,
+              {
+                onchange: (e: Event) => {
+                  const value = (e.target as HTMLSelectElement)
+                    .value as PathMode;
+                  pathMode = value;
+                  if (value !== 'none' && !pathsFetched[value]) {
+                    fetchPaths(engine, rows!, value);
+                  }
+                },
               },
-            },
-            showPaths ? 'Hide Paths' : 'Show Paths',
+              [
+                m(
+                  'option',
+                  {value: 'none', selected: pathMode === 'none'},
+                  'None',
+                ),
+                m(
+                  'option',
+                  {value: 'shortest', selected: pathMode === 'shortest'},
+                  'Shortest path',
+                ),
+                m(
+                  'option',
+                  {value: 'dominator', selected: pathMode === 'dominator'},
+                  'Dominator path',
+                ),
+              ],
+            ),
           ),
         ]),
         m('div', {class: 'ah-card ah-mb-4'}, [
@@ -446,7 +500,11 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                   row: r,
                   engine,
                   navigate,
-                  pathData: showPaths ? pathMap.get(r.row.id) ?? null : null,
+                  pathMode,
+                  pathData:
+                    pathMode === 'none'
+                      ? undefined
+                      : pathMaps[pathMode].get(r.row.id) ?? null,
                 }),
               ),
             )

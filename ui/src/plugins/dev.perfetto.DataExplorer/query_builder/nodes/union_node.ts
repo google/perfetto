@@ -15,14 +15,14 @@
 import m from 'mithril';
 import {
   QueryNode,
-  QueryNodeState,
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../query_node';
 import {notifyNextNodes} from '../graph_utils';
 import protos from '../../../../protos';
-import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {ColumnInfo, newColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
@@ -36,13 +36,8 @@ import {
   ColumnName,
 } from '../node_styling_widgets';
 
-export interface UnionSerializedState {
-  selectedColumns: ColumnInfo[];
-  comment?: string;
-}
-
-export interface UnionNodeState extends QueryNodeState {
-  inputNodes: QueryNode[];
+// Serializable node configuration.
+export interface UnionNodeAttrs {
   selectedColumns: ColumnInfo[];
 }
 
@@ -51,8 +46,8 @@ export class UnionNode implements QueryNode {
   readonly type = NodeType.kUnion;
   secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
-  readonly state: UnionNodeState;
-  comment?: string;
+  readonly attrs: UnionNodeAttrs;
+  readonly context: NodeContext;
 
   get inputNodesList(): QueryNode[] {
     return [...this.secondaryInputs.connections.entries()]
@@ -61,29 +56,33 @@ export class UnionNode implements QueryNode {
   }
 
   get finalCols(): ColumnInfo[] {
-    return this.state.selectedColumns.filter((col) => col.checked);
+    return this.attrs.selectedColumns.filter((col) => col.checked);
   }
 
-  constructor(state: UnionNodeState) {
+  constructor(
+    attrs: UnionNodeAttrs & {inputNodes?: QueryNode[]},
+    context: NodeContext,
+  ) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...state,
-      autoExecute: state.autoExecute ?? false,
-    };
+    const {inputNodes, ...rest} = attrs;
+    this.attrs = rest as UnionNodeAttrs;
+    this.context = context;
     this.secondaryInputs = {
       connections: new Map(),
       min: 2,
       max: 'unbounded',
       portNames: (portIndex: number) => `Input ${portIndex}`,
     };
-    // Initialize connections from state.inputNodes
-    for (let i = 0; i < state.inputNodes.length; i++) {
-      this.secondaryInputs.connections.set(i, state.inputNodes[i]);
+    // Initialize connections from inputNodes
+    if (inputNodes) {
+      for (let i = 0; i < inputNodes.length; i++) {
+        this.secondaryInputs.connections.set(i, inputNodes[i]);
+      }
     }
     this.nextNodes = [];
 
-    const userOnChange = this.state.onchange;
-    this.state.onchange = () => {
+    const userOnChange = this.context.onchange;
+    this.context.onchange = () => {
       notifyNextNodes(this);
       userOnChange?.();
     };
@@ -93,16 +92,14 @@ export class UnionNode implements QueryNode {
     const newCommonColumns = this.getCommonColumns();
 
     // Preserve checked status for columns that still exist.
-    for (const oldCol of this.state.selectedColumns ?? []) {
-      const newCol = newCommonColumns.find(
-        (c) => c.column.name === oldCol.column.name,
-      );
+    for (const oldCol of this.attrs.selectedColumns ?? []) {
+      const newCol = newCommonColumns.find((c) => c.name === oldCol.name);
       if (newCol) {
         newCol.checked = oldCol.checked;
       }
     }
 
-    this.state.selectedColumns = newCommonColumns;
+    this.attrs.selectedColumns = newCommonColumns;
   }
 
   private getCommonColumns(): ColumnInfo[] {
@@ -116,13 +113,14 @@ export class UnionNode implements QueryNode {
     if (validPrevNodes.length === 0) {
       return [];
     }
-    let commonCols = newColumnInfoList(validPrevNodes[0].finalCols, true);
+    let commonCols = validPrevNodes[0].finalCols.map((col) =>
+      newColumnInfo(col, true),
+    );
     for (let i = 1; i < validPrevNodes.length; i++) {
       const currentNodeCols = validPrevNodes[i].finalCols;
       commonCols = commonCols.filter((commonCol) =>
         currentNodeCols.some(
-          (currentNodeCol) =>
-            currentNodeCol.column.name === commonCol.column.name,
+          (currentNodeCol) => currentNodeCol.name === commonCol.name,
         ),
       );
     }
@@ -131,8 +129,8 @@ export class UnionNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     // Check for undefined entries (disconnected inputs)
@@ -165,7 +163,7 @@ export class UnionNode implements QueryNode {
 
       if (!inputNode.validate()) {
         this.setValidationError(
-          inputNode.state.issues?.queryError?.message ??
+          inputNode.context.issues?.queryError?.message ??
             `Input node '${inputNode.getTitle()}' is invalid`,
         );
         return false;
@@ -176,10 +174,10 @@ export class UnionNode implements QueryNode {
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -191,7 +189,7 @@ export class UnionNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
-    const selectedCols = this.state.selectedColumns.filter((c) => c.checked);
+    const selectedCols = this.attrs.selectedColumns.filter((c) => c.checked);
     let message: m.Child;
 
     if (selectedCols.length === 0) {
@@ -202,7 +200,7 @@ export class UnionNode implements QueryNode {
     } else {
       // Show individual column names
       const selectedItems = selectedCols.map((c) =>
-        m('div', ColumnName(c.column.name)),
+        m('div', ColumnName(c.name)),
       );
       message = m('div', ...selectedItems);
     }
@@ -213,12 +211,12 @@ export class UnionNode implements QueryNode {
 
   nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
-    const error = this.state.issues?.queryError;
+    const error = this.context.issues?.queryError;
 
-    const selectedCount = this.state.selectedColumns.filter(
+    const selectedCount = this.attrs.selectedColumns.filter(
       (col) => col.checked,
     ).length;
-    const totalCount = this.state.selectedColumns.length;
+    const totalCount = this.attrs.selectedColumns.length;
 
     const sections: NodeModifyAttrs['sections'] = [];
 
@@ -243,10 +241,10 @@ export class UnionNode implements QueryNode {
       sections.push({
         title: `Select Common Columns (${selectedCount} / ${totalCount} selected)`,
         content: m(ColumnSelector, {
-          columns: this.state.selectedColumns,
+          columns: this.attrs.selectedColumns,
           onColumnsChange: (columns) => {
-            this.state.selectedColumns = columns;
-            this.state.onchange?.();
+            this.attrs.selectedColumns = columns;
+            this.context.onchange?.();
           },
           helpText: 'Select which common columns to include in the union',
           draggable: true,
@@ -261,13 +259,10 @@ export class UnionNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: UnionNodeState = {
-      inputNodes: [...this.state.inputNodes],
-      selectedColumns: this.state.selectedColumns.map((c) => ({...c})),
-    };
-    const clone = new UnionNode(stateCopy);
-    clone.comment = this.comment;
-    return clone;
+    return new UnionNode(
+      {selectedColumns: this.attrs.selectedColumns.map((c) => ({...c}))},
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -279,12 +274,12 @@ export class UnionNode implements QueryNode {
     }
 
     // Get the list of checked common columns
-    const selectedColumns = this.state.selectedColumns.filter((c) => c.checked);
+    const selectedColumns = this.attrs.selectedColumns.filter((c) => c.checked);
     if (selectedColumns.length === 0) return undefined;
 
     // Build column specifications for the SELECT
     const columnSpecs: ColumnSpec[] = selectedColumns.map((col) => ({
-      columnNameOrExpression: col.column.name,
+      columnNameOrExpression: col.name,
     }));
 
     // Create wrapper queries for each input that selects only the common columns
@@ -302,19 +297,5 @@ export class UnionNode implements QueryNode {
 
     // Create the union from the wrapped queries
     return StructuredQueryBuilder.withUnion(wrappedQueries, true, this.nodeId);
-  }
-
-  serializeState(): UnionSerializedState {
-    return {
-      selectedColumns: this.state.selectedColumns,
-      comment: this.comment,
-    };
-  }
-
-  static deserializeState(state: UnionSerializedState): UnionNodeState {
-    return {
-      inputNodes: [],
-      selectedColumns: state.selectedColumns,
-    };
   }
 }

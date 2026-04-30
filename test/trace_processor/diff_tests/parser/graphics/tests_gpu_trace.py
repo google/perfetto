@@ -149,6 +149,21 @@ class GraphicsGpuTrace(TestSuite):
         100,"L2 Cache","L2 cache counters","Counter C"
         """))
 
+  def test_gpu_context(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_context.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE std.gpu.context;
+        SELECT context_id, pid, api
+        FROM gpu_context
+        ORDER BY context_id;
+        """,
+        out=Csv("""
+        "context_id","pid","api"
+        1,100,"VULKAN"
+        2,200,"CUDA"
+        """))
+
   def test_gpu_render_stages(self):
     return DiffTestBlueprint(
         trace=Path('gpu_render_stages.py'),
@@ -563,4 +578,100 @@ class GraphicsGpuTrace(TestSuite):
           "HostSubmit","softmax"
           "softmax","cudaEventWait"
           "softmax","matmul"
+        '''))
+
+  def test_gpu_api_arg(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_api_slice.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'gpu_api') AS gpu_api
+          FROM slice s
+          WHERE extract_arg(s.arg_set_id, 'gpu_api') IS NOT NULL
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","gpu_api"
+          "cuLaunchKernel","GPU_API_CUDA"
+          "vkCmdDispatch","GPU_API_VULKAN"
+        '''))
+
+  def test_gpu_compute_kernel(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_compute_kernel.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'kernel_name') AS kernel_name,
+            extract_arg(s.arg_set_id, 'kernel_demangled_name')
+              AS kernel_demangled_name,
+            extract_arg(s.arg_set_id, 'arch') AS arch
+          FROM gpu_slice s
+          WHERE extract_arg(s.arg_set_id, 'kernel_name') IS NOT NULL
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","kernel_name","kernel_demangled_name","arch"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+          "Kernel","_Z6matMulPfS_S_ii","matMul(float*, float*, float*, int, int)","sm_80"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+        '''))
+
+  def test_gpu_compute_launch(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_compute_launch.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'kernel_name') AS kernel_name,
+            extract_arg(s.arg_set_id, 'launch.grid_size.x') AS grid_x,
+            extract_arg(s.arg_set_id, 'launch.grid_size.y') AS grid_y,
+            extract_arg(s.arg_set_id, 'launch.grid_size.z') AS grid_z,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.x') AS wg_x,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.y') AS wg_y,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.z') AS wg_z,
+            extract_arg(s.arg_set_id, 'registers_per_thread') AS regs,
+            extract_arg(s.arg_set_id, 'shared_mem_dynamic') AS shmem
+          FROM gpu_slice s
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","kernel_name","grid_x","grid_y","grid_z","wg_x","wg_y","wg_z","regs","shmem"
+          "vectorAdd","_Z9vectorAddPfS_S_i",256,1,1,128,1,1,32,4096
+        '''))
+
+  def test_gpu_frequency_event(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            timestamp: 1000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 1500000
+            }
+          }
+          packet {
+            timestamp: 2000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 2100000
+            }
+          }
+        """),
+        query='''
+          SELECT
+            t.name AS track_name,
+            t.type AS track_type,
+            c.ts,
+            c.value
+          FROM counter c
+          JOIN counter_track t ON c.track_id = t.id
+          WHERE t.type = 'gpu_frequency'
+          ORDER BY c.ts;
+        ''',
+        out=Csv('''
+          "track_name","track_type","ts","value"
+          "gpufreq","gpu_frequency",1000,1500000.000000
+          "gpufreq","gpu_frequency",2000,2100000.000000
         '''))

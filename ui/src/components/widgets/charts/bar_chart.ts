@@ -248,9 +248,7 @@ function buildBarOption(
 
   const option: Record<string, unknown> = {
     animation: false,
-    grid: buildGridOption({
-      bottom: dimensionLabel && !horizontal ? 45 : 25,
-    }),
+    grid: buildGridOption(),
     tooltip: buildTooltipOption({
       trigger: 'axis' as const,
       axisPointer: {type: 'shadow' as const},

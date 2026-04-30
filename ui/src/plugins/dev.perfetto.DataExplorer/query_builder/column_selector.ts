@@ -89,7 +89,7 @@ export class ColumnSelector implements m.ClassComponent<ColumnSelectorAttrs> {
             columns.map((col, index) => {
               const checkbox = m(Checkbox, {
                 checked: col.checked,
-                label: col.column.name,
+                label: col.name,
                 onchange: (e) => {
                   const newColumns = [...columns];
                   newColumns[index] = {

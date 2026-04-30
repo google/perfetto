@@ -68,6 +68,20 @@
   }
 }
 
+// Inline label+control (e.g. "Path: <select>") sitting at the right edge
+// of an .ah-heading-row.
+.ah-heading-control {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+
+  &__label {
+    color: var(--pf-color-text-hint);
+  }
+}
+
 // Flex-growing wrapper for view content with a DataGrid that fills height.
 .ah-view-content {
   flex: 1;
@@ -90,6 +104,21 @@
   align-items: center;
   justify-content: center;
   flex: 1;
+}
+
+.ah-dump-selector {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--pf-color-background);
+  border-bottom: 1px solid var(--pf-color-border);
+  font-size: 0.875rem;
+}
+
+.ah-dump-selector__label {
+  color: var(--pf-color-text-hint);
 }
 
 .ah-error-text {
@@ -338,6 +367,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  padding-left: calc(min(var(--ah-depth, 0), 20) * 0.75rem);
 }
 
 .ah-dup-grid-container {

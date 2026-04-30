@@ -50,9 +50,10 @@
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
-#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_interned_data.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
@@ -149,6 +150,19 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       pid_id_(context_->storage->InternString("pid")),
       tid_id_(context_->storage->InternString("tid")),
       category_id_(context->storage->InternString("render_stage_category")),
+      kernel_name_id_(context->storage->InternString("kernel_name")),
+      kernel_demangled_name_id_(
+          context->storage->InternString("kernel_demangled_name")),
+      arch_id_(context->storage->InternString("arch")),
+      grid_x_id_(context->storage->InternString("launch.grid_size.x")),
+      grid_y_id_(context->storage->InternString("launch.grid_size.y")),
+      grid_z_id_(context->storage->InternString("launch.grid_size.z")),
+      workgroup_x_id_(
+          context->storage->InternString("launch.workgroup_size.x")),
+      workgroup_y_id_(
+          context->storage->InternString("launch.workgroup_size.y")),
+      workgroup_z_id_(
+          context->storage->InternString("launch.workgroup_size.z")),
       description_id_(context->storage->InternString("description")),
       correlation_id_(context->storage->InternString("correlation_id")),
       counter_id_key_id_(context->storage->InternString("counter_id")),
@@ -254,6 +268,24 @@ const char* MeasureUnitToString(int32_t unit) {
       return "Instruction";
     default:
       return "Unknown";
+  }
+}
+
+const char* GraphicsApiToString(int32_t api) {
+  using Api = protos::pbzero::InternedGraphicsContext::Api;
+  switch (api) {
+    case Api::OPEN_GL:
+      return "OPEN_GL";
+    case Api::VULKAN:
+      return "VULKAN";
+    case Api::OPEN_CL:
+      return "OPEN_CL";
+    case Api::CUDA:
+      return "CUDA";
+    case Api::HIP:
+      return "HIP";
+    default:
+      return "UNDEFINED";
   }
 }
 
@@ -652,6 +684,140 @@ StringId GpuEventParser::ParseRenderSubpasses(
   return context_->storage->InternString(writer.GetStringView());
 }
 
+void GpuEventParser::InternGpuContext(
+    uint64_t context_id,
+    const protos::pbzero::InternedGraphicsContext::Decoder& ctx) {
+  if (gpu_contexts_inserted_.Find(context_id)) {
+    return;
+  }
+  gpu_contexts_inserted_[context_id] = true;
+
+  tables::GpuContextTable::Row row;
+  row.context_id = static_cast<uint32_t>(context_id);
+  if (ctx.has_pid()) {
+    row.pid = static_cast<uint32_t>(ctx.pid());
+  }
+  if (ctx.has_api()) {
+    row.api = context_->storage->InternString(
+        base::StringView(GraphicsApiToString(ctx.api())));
+  }
+  context_->storage->mutable_gpu_context_table()->Insert(row);
+}
+
+void GpuEventParser::ParseExtraComputeArg(
+    PacketSequenceStateGeneration* sequence_state,
+    protozero::ConstBytes bytes,
+    ArgsTracker::BoundInserter* inserter) {
+  protos::pbzero::GpuRenderStageEvent_ExtraComputeArg::Decoder arg(bytes);
+
+  StringId name_id = kNullStringId;
+  if (arg.has_name_iid()) {
+    auto* interned = sequence_state->LookupInternedMessage<
+        protos::pbzero::GpuInternedData::kComputeArgNamesFieldNumber,
+        protos::pbzero::InternedComputeArgName>(
+        static_cast<size_t>(arg.name_iid()));
+    if (interned) {
+      name_id = context_->storage->InternString(interned->name());
+    }
+  } else if (arg.has_name()) {
+    name_id = context_->storage->InternString(arg.name());
+  }
+
+  if (name_id == kNullStringId) {
+    return;
+  }
+
+  if (arg.has_int_value()) {
+    inserter->AddArg(name_id, Variadic::Integer(arg.int_value()));
+  } else if (arg.has_uint_value()) {
+    inserter->AddArg(name_id, Variadic::UnsignedInteger(arg.uint_value()));
+  } else if (arg.has_double_value()) {
+    inserter->AddArg(name_id, Variadic::Real(arg.double_value()));
+  } else if (arg.has_string_value_iid()) {
+    auto* interned = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kDebugAnnotationStringValuesFieldNumber,
+        protos::pbzero::InternedString>(
+        static_cast<size_t>(arg.string_value_iid()));
+    if (interned) {
+      inserter->AddArg(
+          name_id,
+          Variadic::String(context_->storage->InternString(base::StringView(
+              reinterpret_cast<const char*>(interned->str().data),
+              interned->str().size))));
+    }
+  } else if (arg.has_string_value()) {
+    inserter->AddArg(
+        name_id,
+        Variadic::String(context_->storage->InternString(arg.string_value())));
+  }
+}
+
+void GpuEventParser::ParseComputeKernel(
+    PacketSequenceStateGeneration* sequence_state,
+    uint64_t kernel_iid,
+    ArgsTracker::BoundInserter* inserter) {
+  auto* kernel = sequence_state->LookupInternedMessage<
+      protos::pbzero::GpuInternedData::kComputeKernelsFieldNumber,
+      protos::pbzero::InternedComputeKernel>(static_cast<size_t>(kernel_iid));
+  if (!kernel) {
+    return;
+  }
+  if (kernel->has_name()) {
+    inserter->AddArg(
+        kernel_name_id_,
+        Variadic::String(context_->storage->InternString(kernel->name())));
+  }
+  if (kernel->has_demangled_name()) {
+    inserter->AddArg(kernel_demangled_name_id_,
+                     Variadic::String(context_->storage->InternString(
+                         kernel->demangled_name())));
+  }
+  if (kernel->has_arch()) {
+    inserter->AddArg(
+        arch_id_,
+        Variadic::String(context_->storage->InternString(kernel->arch())));
+  }
+  for (auto it = kernel->args(); it; ++it) {
+    ParseExtraComputeArg(sequence_state, *it, inserter);
+  }
+}
+
+void GpuEventParser::ParseComputeKernelLaunch(
+    PacketSequenceStateGeneration* sequence_state,
+    protozero::ConstBytes bytes,
+    ArgsTracker::BoundInserter* inserter) {
+  protos::pbzero::GpuRenderStageEvent_ComputeKernelLaunch::Decoder launch(
+      bytes);
+  if (launch.has_grid_size()) {
+    protos::pbzero::GpuRenderStageEvent_Dim3::Decoder grid(launch.grid_size());
+    if (grid.has_x()) {
+      inserter->AddArg(grid_x_id_, Variadic::UnsignedInteger(grid.x()));
+    }
+    if (grid.has_y()) {
+      inserter->AddArg(grid_y_id_, Variadic::UnsignedInteger(grid.y()));
+    }
+    if (grid.has_z()) {
+      inserter->AddArg(grid_z_id_, Variadic::UnsignedInteger(grid.z()));
+    }
+  }
+  if (launch.has_workgroup_size()) {
+    protos::pbzero::GpuRenderStageEvent_Dim3::Decoder wg(
+        launch.workgroup_size());
+    if (wg.has_x()) {
+      inserter->AddArg(workgroup_x_id_, Variadic::UnsignedInteger(wg.x()));
+    }
+    if (wg.has_y()) {
+      inserter->AddArg(workgroup_y_id_, Variadic::UnsignedInteger(wg.y()));
+    }
+    if (wg.has_z()) {
+      inserter->AddArg(workgroup_z_id_, Variadic::UnsignedInteger(wg.z()));
+    }
+  }
+  for (auto it = launch.args(); it; ++it) {
+    ParseExtraComputeArg(sequence_state, *it, inserter);
+  }
+}
+
 void GpuEventParser::ParseGpuRenderStageEvent(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
@@ -692,6 +858,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         protos::pbzero::InternedGraphicsContext>(context_id);
     if (decoder) {
       pid = decoder->pid();
+      InternGpuContext(context_id, *decoder);
     }
   }
 
@@ -772,7 +939,15 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         });
 
     StringId name_id = kNullStringId;
-    if (event.has_name()) {
+    if (event.has_name_iid()) {
+      auto* event_name = sequence_state->LookupInternedMessage<
+          protos::pbzero::InternedData::kEventNamesFieldNumber,
+          protos::pbzero::InternedComputeArgName>(
+          static_cast<size_t>(event.name_iid()));
+      if (event_name) {
+        name_id = context_->storage->InternString(event_name->name());
+      }
+    } else if (event.has_name()) {
       name_id = context_->storage->InternString(event.name());
     } else {
       name_id = GetFullStageName(sequence_state, event);
@@ -805,6 +980,14 @@ void GpuEventParser::ParseGpuRenderStageEvent(
             }
           }
 
+          if (event.has_kernel_iid()) {
+            ParseComputeKernel(sequence_state, event.kernel_iid(), inserter);
+          }
+
+          if (event.has_launch()) {
+            ParseComputeKernelLaunch(sequence_state, event.launch(), inserter);
+          }
+
           if (event.render_pass_instance_id()) {
             base::StackString<512> id_str("rp:#%" PRIu64,
                                           event.render_pass_instance_id());
@@ -821,8 +1004,6 @@ void GpuEventParser::ParseGpuRenderStageEvent(
             inserter->AddArg(name_id, Variadic::String(value));
           }
 
-          // TODO: Create table for graphics context and lookup
-          // InternedGraphicsContext.
           inserter->AddArg(context_id_id_,
                            Variadic::UnsignedInteger(event.context()));
           inserter->AddArg(

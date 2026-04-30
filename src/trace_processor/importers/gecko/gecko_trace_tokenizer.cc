@@ -89,11 +89,6 @@ struct GeckoThread {
 
 namespace {
 
-struct Callsite {
-  CallsiteId id;
-  uint32_t depth;
-};
-
 // Parse a schema object: {"field1": index1, "field2": index2, ...}
 base::Status ParseSchema(json::SimpleJsonParser& reader,
                          std::vector<std::string>& keys,
@@ -289,21 +284,30 @@ base::Status ParseThread(json::SimpleJsonParser& reader, GeckoThread& t) {
   });
 }
 
-// Parse the root gecko profile object.
-base::StatusOr<std::vector<GeckoThread>> ParseGeckoProfile(
-    std::string_view json) {
+struct GeckoProfile {
   std::vector<GeckoThread> threads;
+  std::optional<GeckoThread> shared;
+};
+
+// Parse the root gecko profile object.
+base::StatusOr<GeckoProfile> ParseGeckoProfile(std::string_view json) {
+  GeckoProfile profile;
   json::SimpleJsonParser reader(json);
   RETURN_IF_ERROR(reader.Parse());
 
   RETURN_IF_ERROR(
       reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+        if (key == "shared" && reader.IsObject()) {
+          profile.shared.emplace();
+          RETURN_IF_ERROR(ParseThread(reader, *profile.shared));
+          return json::FieldResult::Handled{};
+        }
         if (key == "threads" && reader.IsArray()) {
           RETURN_IF_ERROR(reader.ForEachArrayElement([&]() {
             if (reader.IsObject()) {
               GeckoThread t;
               RETURN_IF_ERROR(ParseThread(reader, t));
-              threads.push_back(std::move(t));
+              profile.threads.push_back(std::move(t));
             }
             return base::OkStatus();
           }));
@@ -312,7 +316,7 @@ base::StatusOr<std::vector<GeckoThread>> ParseGeckoProfile(
         return json::FieldResult::Skip{};
       }));
 
-  return threads;
+  return profile;
 }
 
 }  // namespace
@@ -330,37 +334,83 @@ base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
 }
 
 base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
-  auto threads_or = ParseGeckoProfile(pending_json_);
-  if (!threads_or.ok()) {
+  auto profile_or = ParseGeckoProfile(pending_json_);
+  if (!profile_or.ok()) {
     return base::ErrStatus(
         "Syntactic error while parsing Gecko trace: %s; please use an external "
         "JSON tool (e.g. jq) to understand the source of the error.",
-        threads_or.status().message().c_str());
+        profile_or.status().message().c_str());
   }
 
-  for (const auto& t : *threads_or) {
-    if (t.is_preprocessed) {
-      ProcessPreprocessedThread(t);
+  // If shared resources exist, process frames/stacks once and reuse for all
+  // threads.
+  std::optional<std::vector<Callsite>> shared_callsites;
+  if (profile_or->shared) {
+    const auto& s = *profile_or->shared;
+    if (s.is_preprocessed) {
+      shared_callsites = ProcessPreprocessedFramesAndStacks(s);
     } else {
-      ProcessLegacyThread(t);
+      shared_callsites = ProcessLegacyFramesAndStacks(s);
+    }
+  }
+
+  for (const auto& t : profile_or->threads) {
+    if (shared_callsites) {
+      // Threads use shared frames/stacks; only process samples.
+      if (t.is_preprocessed ||
+          (profile_or->shared && profile_or->shared->is_preprocessed)) {
+        ProcessSamples(t, *shared_callsites);
+      } else {
+        ProcessLegacySamples(t, *shared_callsites);
+      }
+    } else if (t.is_preprocessed) {
+      auto callsites = ProcessPreprocessedFramesAndStacks(t);
+      ProcessSamples(t, callsites);
+    } else {
+      auto callsites = ProcessLegacyFramesAndStacks(t);
+      ProcessLegacySamples(t, callsites);
     }
   }
   return base::OkStatus();
 }
 
-void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
+FrameId GeckoTraceTokenizer::InternFrame(base::StringView name) {
+  constexpr std::string_view kMappingStart = " (in ";
+  size_t mapping_meta_start =
+      name.find(base::StringView(kMappingStart.data(), kMappingStart.size()));
+  if (mapping_meta_start == base::StringView::npos) {
+    if (!dummy_mapping_) {
+      dummy_mapping_ = &context_->mapping_tracker->CreateDummyMapping("gecko");
+    }
+    return dummy_mapping_->InternDummyFrame(name, base::StringView());
+  }
+
+  DummyMemoryMapping* mapping;
+  size_t mapping_start = mapping_meta_start + kMappingStart.size();
+  size_t mapping_end = name.find(')', mapping_start);
+  std::string mapping_name =
+      name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
+  if (auto* mapping_ptr = mappings_.Find(mapping_name); mapping_ptr) {
+    mapping = *mapping_ptr;
+  } else {
+    mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
+    mappings_.Insert(mapping_name, mapping);
+  }
+  return mapping->InternDummyFrame(name.substr(0, mapping_meta_start),
+                                   base::StringView());
+}
+
+std::vector<Callsite> GeckoTraceTokenizer::ProcessLegacyFramesAndStacks(
+    const GeckoThread& t) {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
 
-  // Get schema indices.
   auto location_idx = t.frame_table.GetSchemaIndex("location");
   auto prefix_idx = t.stack_table.GetSchemaIndex("prefix");
   auto frame_idx = t.stack_table.GetSchemaIndex("frame");
-  auto stack_idx = t.samples.GetSchemaIndex("stack");
-  auto time_idx = t.samples.GetSchemaIndex("time");
 
-  if (!location_idx || !prefix_idx || !frame_idx || !stack_idx || !time_idx) {
-    return;
+  if (!location_idx || !prefix_idx || !frame_idx) {
+    return callsites;
   }
 
   // Process frames.
@@ -372,35 +422,7 @@ void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
     if (!loc_val || *loc_val >= t.strings.size()) {
       continue;
     }
-    base::StringView name(t.strings[*loc_val]);
-
-    constexpr std::string_view kMappingStart = " (in ";
-    size_t mapping_meta_start =
-        name.find(base::StringView(kMappingStart.data(), kMappingStart.size()));
-    if (mapping_meta_start == base::StringView::npos && !name.empty() &&
-        name.data()[name.size() - 1] == ')') {
-      if (!dummy_mapping_) {
-        dummy_mapping_ =
-            &context_->mapping_tracker->CreateDummyMapping("gecko");
-      }
-      frame_ids.push_back(
-          dummy_mapping_->InternDummyFrame(name, base::StringView()));
-      continue;
-    }
-
-    DummyMemoryMapping* mapping;
-    size_t mapping_start = mapping_meta_start + kMappingStart.size();
-    size_t mapping_end = name.find(')', mapping_start);
-    std::string mapping_name =
-        name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
-    if (auto* mapping_ptr = mappings_.Find(mapping_name); mapping_ptr) {
-      mapping = *mapping_ptr;
-    } else {
-      mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
-      mappings_.Insert(mapping_name, mapping);
-    }
-    frame_ids.push_back(mapping->InternDummyFrame(
-        name.substr(0, mapping_meta_start), base::StringView()));
+    frame_ids.push_back(InternFrame(base::StringView(t.strings[*loc_val])));
   }
 
   // Process stacks.
@@ -412,7 +434,6 @@ void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
     std::optional<CallsiteId> prefix_id;
     uint32_t depth = 0;
 
-    // Check if prefix is not null.
     if (const auto* prefix_val = std::get_if<uint32_t>(&stack[*prefix_idx])) {
       if (*prefix_val < callsites.size()) {
         const auto& c = callsites[*prefix_val];
@@ -431,7 +452,19 @@ void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
     callsites.push_back({cid, depth});
   }
 
-  // Process samples.
+  return callsites;
+}
+
+void GeckoTraceTokenizer::ProcessLegacySamples(
+    const GeckoThread& t,
+    const std::vector<Callsite>& callsites) {
+  auto stack_idx = t.samples.GetSchemaIndex("stack");
+  auto time_idx = t.samples.GetSchemaIndex("time");
+
+  if (!stack_idx || !time_idx) {
+    return;
+  }
+
   bool added_metadata = false;
   for (const auto& sample : t.samples.data) {
     if (*stack_idx >= sample.size() || *time_idx >= sample.size()) {
@@ -469,7 +502,8 @@ void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
   }
 }
 
-void GeckoTraceTokenizer::ProcessPreprocessedThread(const GeckoThread& t) {
+std::vector<Callsite> GeckoTraceTokenizer::ProcessPreprocessedFramesAndStacks(
+    const GeckoThread& t) {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
 
@@ -482,34 +516,7 @@ void GeckoTraceTokenizer::ProcessPreprocessedThread(const GeckoThread& t) {
     if (name_str_idx >= t.strings.size()) {
       continue;
     }
-    base::StringView name(t.strings[name_str_idx]);
-
-    constexpr std::string_view kMappingStart = " (in ";
-    size_t mapping_meta_start =
-        name.find(base::StringView(kMappingStart.data(), kMappingStart.size()));
-    if (mapping_meta_start == base::StringView::npos) {
-      if (!dummy_mapping_) {
-        dummy_mapping_ =
-            &context_->mapping_tracker->CreateDummyMapping("gecko");
-      }
-      frame_ids.push_back(
-          dummy_mapping_->InternDummyFrame(name, base::StringView()));
-      continue;
-    }
-
-    DummyMemoryMapping* mapping;
-    size_t mapping_start = mapping_meta_start + kMappingStart.size();
-    size_t mapping_end = name.find(')', mapping_start);
-    std::string mapping_name =
-        name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
-    if (auto* mapping_ptr = mappings_.Find(mapping_name); mapping_ptr) {
-      mapping = *mapping_ptr;
-    } else {
-      mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
-      mappings_.Insert(mapping_name, mapping);
-    }
-    frame_ids.push_back(mapping->InternDummyFrame(
-        name.substr(0, mapping_meta_start), base::StringView()));
+    frame_ids.push_back(InternFrame(base::StringView(t.strings[name_str_idx])));
   }
 
   // Process stacks using separate prefix/frame arrays.
@@ -537,11 +544,15 @@ void GeckoTraceTokenizer::ProcessPreprocessedThread(const GeckoThread& t) {
     callsites.push_back({cid, depth});
   }
 
-  // Process samples using separate stack/time arrays.
+  return callsites;
+}
+
+void GeckoTraceTokenizer::ProcessSamples(
+    const GeckoThread& t,
+    const std::vector<Callsite>& callsites) {
   bool added_metadata = false;
   for (size_t i = 0; i < t.sample_stacks.size() && i < t.sample_times.size();
        ++i) {
-    // Stack can be null in preprocessed format.
     if (!t.sample_stacks[i].has_value()) {
       continue;
     }

@@ -14,9 +14,8 @@
 
 import protos from '../../protos';
 import m from 'mithril';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {ColumnInfo} from './query_builder/column_info';
-import {UIFilter} from './query_builder/operations/filter';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
 import {NodeDetailsAttrs} from './node_types';
@@ -109,6 +108,20 @@ export interface NodeActions {
   onInsertCounterToIntervalsNode?: (portIndex: number) => void;
 }
 
+// Runtime dependencies shared across nodes. Never serialized.
+// Injected by the parent component (DataExplorer) after node creation.
+export interface NodeContext {
+  trace?: Trace;
+  sqlModules?: SqlModules;
+  onchange?: () => void;
+  actions?: NodeActions;
+  issues?: NodeIssues;
+  getTableNameForNode?: (nodeId: string) => Promise<string | undefined>;
+  requestNodeExecution?: (nodeId: string) => Promise<void>;
+  hasOperationChanged?: boolean;
+  autoExecute?: boolean;
+}
+
 // Specification for secondary inputs with clear cardinality requirements
 export interface SecondaryInputSpec {
   // The actual connections (no undefined holes - indexed by port number)
@@ -123,41 +136,6 @@ export interface SecondaryInputSpec {
   readonly portNames: string[] | ((portIndex: number) => string);
 }
 
-// All information required to create a new node.
-export interface QueryNodeState {
-  trace?: Trace;
-  sqlModules?: SqlModules;
-  sqlTable?: SqlTable;
-
-  // Operations
-  // Filters can be partial during editing (similar to how Aggregation works)
-  filters?: Partial<UIFilter>[];
-  filterOperator?: 'AND' | 'OR'; // How to combine filters (default: AND)
-
-  issues?: NodeIssues;
-
-  onchange?: () => void;
-
-  // Actions that can be performed on the parent graph
-  actions?: NodeActions;
-
-  // Returns the materialized table name for a given node ID.
-  // Set by the parent component using the QueryExecutionService.
-  getTableNameForNode?: (nodeId: string) => Promise<string | undefined>;
-
-  // Triggers execution (sync + materialize) of a node by ID.
-  // Used by dashboard nodes to force-execute their source nodes.
-  requestNodeExecution?: (nodeId: string) => Promise<void>;
-
-  // Caching
-  hasOperationChanged?: boolean;
-
-  // Whether queries should automatically execute when this node changes.
-  // If false, the user must manually click "Run" to execute queries.
-  // Set by the node registry when the node is created.
-  autoExecute?: boolean;
-}
-
 export interface QueryNode {
   readonly nodeId: string;
   readonly type: NodeType;
@@ -166,30 +144,29 @@ export interface QueryNode {
   // Columns that are available after applying all operations.
   readonly finalCols: ColumnInfo[];
 
-  // State of the node. This is used to store the user's input and can be used
-  // to fully recover the node.
-  readonly state: QueryNodeState;
+  // Serializable node configuration. Always JSON-serializable.
+  readonly attrs: object;
+
+  // Runtime context (trace, callbacks, issues). Never serialized.
+  readonly context: NodeContext;
 
   // Primary input from above (data flows vertically down)
-  // Used by single-input operations (Filter, Sort, Aggregation, etc.)
   primaryInput?: QueryNode;
 
   // Secondary inputs from the side (horizontal connections)
-  // Used by multi-input operations (Union, Join, IntervalIntersect) and
-  // for side joins (AddColumns)
   secondaryInputs?: SecondaryInputSpec;
+
+  // Inner nodes encapsulated by this node (e.g. GroupNode).
+  innerNodes?: QueryNode[];
 
   validate(): boolean;
   getTitle(): string;
   // Returns either NodeModifyAttrs (new structured pattern) or m.Child (legacy pattern)
-  // NodeModifyAttrs allows nodes to declaratively specify sections and corner buttons,
-  // while m.Child allows direct rendering for backwards compatibility
   nodeSpecificModify(): unknown;
   nodeDetails(): NodeDetailsAttrs;
   nodeInfo(): m.Children;
   clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
-  serializeState(): object;
   onPrevNodesUpdated?(): void;
 
   // Optional custom results panel for the bottom drawer panel.

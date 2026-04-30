@@ -43,7 +43,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -78,9 +77,10 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
-  auto* mapping = delegate.seq_state()
-                      ->GetCustomState<StackProfileSequenceState>()
-                      ->FindOrInsertMapping(decoder->mapping_id());
+  auto* mapping =
+      delegate.seq_state()
+          ->GetCustomState<StackProfileSequenceState>()
+          ->FindOrInsertMapping(delegate.seq_state(), decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
   }
@@ -229,6 +229,13 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context_->storage->InternString("end_callsite_id")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
+  // Opt into DebugAnnotation handling: ParseMessage routes DebugAnnotation
+  // sub-fields and direct DebugAnnotation parses through the iterative
+  // DebugAnnotation work-item path on the same stack as proto-message
+  // reflection, so deeply nested DebugAnnotation -> proto_value cycles do
+  // not consume C++ stack.
+  args_parser_.EnableDebugAnnotationParsing();
+
   args_parser_.AddParsingOverrideForField(
       "chrome_mojo_event_info.mojo_interface_method_iid",
       [](const protozero::Field& field,
@@ -272,18 +279,6 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       [](const protozero::Field& field,
          util::ProtoToArgsParser::Delegate& delegate) {
         return MaybeParseAndroidJobName(field, delegate);
-      });
-
-  // Parse DebugAnnotations.
-  args_parser_.AddParsingOverrideForType(
-      ".perfetto.protos.DebugAnnotation",
-      [&](util::ProtoToArgsParser::ScopedNestedKeyContext& key,
-          const protozero::ConstBytes& data,
-          util::ProtoToArgsParser::Delegate& delegate) {
-        // Do not add "debug_annotations" to the final key.
-        key.RemoveFieldSuffix();
-        util::DebugAnnotationParser annotation_parser(args_parser_);
-        return annotation_parser.Parse(data, delegate);
       });
 
   args_parser_.AddParsingOverrideForField(

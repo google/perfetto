@@ -2598,7 +2598,7 @@ describe('pbtxt import - end-to-end validation', () => {
     for (const node of allNodes) {
       const valid = node.validate();
       if (!valid) {
-        const err = node.state.issues?.queryError?.message ?? 'unknown';
+        const err = node.context.issues?.queryError?.message ?? 'unknown';
         fail(`${node.type} (${node.nodeId}) failed validation: ${err}`);
       }
     }
@@ -2608,25 +2608,30 @@ describe('pbtxt import - end-to-end validation', () => {
     const allNodes = hydrateSpec();
     const join = allNodes.find((n) => n.type === NodeType.kJoin);
     expect(join).toBeDefined();
-    const state = join!.state as {
-      leftColumns?: Array<{checked: boolean}>;
-      rightColumns?: Array<{checked: boolean}>;
-    };
-    expect(state.leftColumns?.some((c) => c.checked)).toBe(true);
-    expect(state.rightColumns?.some((c) => c.checked)).toBe(true);
+    const joinAttrs = (
+      join as {
+        attrs?: {
+          leftColumns?: Array<{checked: boolean}>;
+          rightColumns?: Array<{checked: boolean}>;
+        };
+      }
+    ).attrs;
+    expect(joinAttrs?.leftColumns?.some((c) => c.checked)).toBe(true);
+    expect(joinAttrs?.rightColumns?.some((c) => c.checked)).toBe(true);
   });
 
   it('Metrics node preserves value columns after fixups', () => {
     const allNodes = hydrateSpec();
     const metrics = allNodes.find((n) => n.type === NodeType.kMetrics);
     expect(metrics).toBeDefined();
-    const state = metrics!.state as {
-      metricIdPrefix: string;
-      valueColumns: Array<{column: string}>;
-    };
-    expect(state.metricIdPrefix).toBe('x');
-    expect(state.valueColumns.length).toBe(1);
-    expect(state.valueColumns[0].column).toBe('utid');
+    const metricsAttrs = (
+      metrics as {
+        attrs?: {metricIdPrefix: string; valueColumns: Array<{column: string}>};
+      }
+    ).attrs;
+    expect(metricsAttrs?.metricIdPrefix).toBe('x');
+    expect(metricsAttrs?.valueColumns.length).toBe(1);
+    expect(metricsAttrs?.valueColumns[0].column).toBe('utid');
   });
 
   it('Metrics node has correct dimensions from cached availableColumns', () => {
@@ -2634,13 +2639,10 @@ describe('pbtxt import - end-to-end validation', () => {
     const metrics = allNodes.find((n) => n.type === NodeType.kMetrics);
     expect(metrics).toBeDefined();
 
-    // Test the CACHED state.availableColumns — this is what the UI renders.
+    // Test the CACHED availableColumns — this is what the UI renders.
     // It's set during updateAvailableColumns() and NOT recomputed on read.
-    const state = metrics!.state as {
-      availableColumns: Array<{name: string}>;
-      valueColumns: Array<{column: string}>;
-    };
-    const availNames = state.availableColumns.map((c) => c.name);
+    const metricsNode = metrics as {availableColumns?: Array<{name: string}>};
+    const availNames = (metricsNode.availableColumns ?? []).map((c) => c.name);
     // Must include all 4 columns: id, name, utid, total_running_time.
     expect(availNames).toContain('id');
     expect(availNames).toContain('name');

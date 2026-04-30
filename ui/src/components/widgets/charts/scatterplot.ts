@@ -277,10 +277,6 @@ function buildScatterOption(
   });
 
   const option = buildChartOption({
-    grid: {
-      top: displayLegend ? 30 : 10,
-      bottom: xAxisLabel !== undefined ? 40 : 25,
-    },
     xAxis: {
       type: logScaleX ? 'log' : 'value',
       name: xAxisLabel,

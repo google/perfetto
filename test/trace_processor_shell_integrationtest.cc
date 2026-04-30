@@ -15,7 +15,11 @@
  */
 
 #include <cstddef>
+#include <cstdlib>
+#include <cstring>
 #include <initializer_list>
+#include <map>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,7 +30,11 @@
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "protos/perfetto/trace/profiling/deobfuscation.gen.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace_processor/trace_processor.gen.h"
+#include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
@@ -779,6 +787,157 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
   ASSERT_THAT(stream.msg()[1].query_result().batch(), SizeIs(1));
   EXPECT_THAT(stream.msg()[1].query_result().batch()[0].varint_cells(),
               ElementsAre(99));
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: convert (wraps traceconv)
+// ---------------------------------------------------------------------------
+
+namespace {
+// Path to a real, small Perfetto trace shipped in test/data.
+std::string HeapprofdTracePath() {
+  return base::GetTestDataPath(
+      "test/data/heapprofd_standalone_client_example-trace");
+}
+
+// Parses a USTAR archive into a map of filename -> file content.
+// USTAR layout: each file is a 512-byte header (name at offset 0, size as
+// octal ASCII at offset 124) followed by the content padded to 512 bytes.
+std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
+  std::string bytes;
+  PERFETTO_CHECK(base::ReadFile(path, &bytes));
+  std::map<std::string, std::string> out;
+  size_t pos = 0;
+  while (pos + 512 <= bytes.size()) {
+    const char* header = bytes.data() + pos;
+    if (header[0] == '\0') {
+      break;
+    }
+    std::string name(header, strnlen(header, 100));
+    char size_buf[13] = {};
+    memcpy(size_buf, header + 124, 12);
+    size_t size = static_cast<size_t>(strtoul(size_buf, nullptr, 8));
+    pos += 512;
+    PERFETTO_CHECK(pos + size <= bytes.size());
+    out.emplace(std::move(name), bytes.substr(pos, size));
+    pos += ((size + 511) / 512) * 512;
+  }
+  return out;
+}
+
+// Returns the set of package_name values from every deobfuscation_mapping
+// packet in a serialized Trace.
+std::set<std::string> DeobfuscationPackages(const std::string& deob_bytes) {
+  protos::gen::Trace trace;
+  PERFETTO_CHECK(trace.ParseFromString(deob_bytes));
+  std::set<std::string> names;
+  for (const auto& pkt : trace.packet()) {
+    if (pkt.has_deobfuscation_mapping()) {
+      names.insert(pkt.deobfuscation_mapping().package_name());
+    }
+  }
+  return names;
+}
+}  // namespace
+
+// The bundle must carry the input trace byte-for-byte in `trace.perfetto`
+// and a parseable `deobfuscation.pb` whose DeobfuscationMapping names our
+// class and method.
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithProguardMap) {
+  auto mapping = WriteTempFile(
+      "com.example.Foo -> a.a:\n"
+      "    void bar() -> b\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
+                          "--proguard-map", "com.example=" + mapping.path(),
+                          HeapprofdTracePath(), out_path});
+  ASSERT_EQ(result.exit_code, 0) << result.out;
+
+  auto members = ReadTarMembers(out_path);
+  ASSERT_EQ(members.size(), 2u);
+
+  std::string trace_in;
+  ASSERT_TRUE(base::ReadFile(HeapprofdTracePath(), &trace_in));
+  ASSERT_TRUE(members.count("trace.perfetto"));
+  EXPECT_EQ(members["trace.perfetto"], trace_in);
+
+  ASSERT_TRUE(members.count("deobfuscation.pb"));
+  protos::gen::Trace deob;
+  ASSERT_TRUE(deob.ParseFromString(members["deobfuscation.pb"]));
+  ASSERT_EQ(deob.packet().size(), 1u);
+  const auto& dm = deob.packet()[0].deobfuscation_mapping();
+  EXPECT_EQ(dm.package_name(), "com.example");
+  ASSERT_EQ(dm.obfuscated_classes().size(), 1u);
+  EXPECT_EQ(dm.obfuscated_classes()[0].obfuscated_name(), "a.a");
+  EXPECT_EQ(dm.obfuscated_classes()[0].deobfuscated_name(), "com.example.Foo");
+  ASSERT_EQ(dm.obfuscated_classes()[0].obfuscated_methods().size(), 1u);
+  EXPECT_EQ(
+      dm.obfuscated_classes()[0].obfuscated_methods()[0].obfuscated_name(),
+      "b");
+  unlink(out_path.c_str());
+}
+
+// Repeated --proguard-map should emit one DeobfuscationMapping per input map,
+// each tagged with the right package name.
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleRepeatedProguardMap) {
+  auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
+  auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
+                          "--proguard-map", "com.example.one=" + m1.path(),
+                          "--proguard-map", "com.example.two=" + m2.path(),
+                          HeapprofdTracePath(), out_path});
+  ASSERT_EQ(result.exit_code, 0) << result.out;
+
+  auto members = ReadTarMembers(out_path);
+  ASSERT_TRUE(members.count("deobfuscation.pb"));
+  EXPECT_THAT(
+      DeobfuscationPackages(members["deobfuscation.pb"]),
+      testing::UnorderedElementsAre("com.example.one", "com.example.two"));
+  unlink(out_path.c_str());
+}
+
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleMissingProguardMapFails) {
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell(
+      {"convert", "bundle", "--no-auto-symbol-paths", "--proguard-map",
+       "com.example=/nonexistent/mapping.txt", HeapprofdTracePath(), out_path});
+  EXPECT_NE(result.exit_code, 0);
+  unlink(out_path.c_str());
+}
+
+TEST(TraceProcessorShellIntegrationTest, ConvertHelpShowsProguardMap) {
+  auto result = RunShell({"help", "convert"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("proguard-map"));
+  EXPECT_THAT(result.out, HasSubstr("symbol-paths"));
+  EXPECT_THAT(result.out, HasSubstr("no-auto-proguard-maps"));
+}
+
+// --no-auto-proguard-maps must not suppress explicit --proguard-map values:
+// the packet for the explicit package still appears in the bundle.
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleNoAutoProguardMaps) {
+  auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
+                          "--no-auto-proguard-maps", "--proguard-map",
+                          "com.example=" + mapping.path(), HeapprofdTracePath(),
+                          out_path});
+  ASSERT_EQ(result.exit_code, 0) << result.out;
+
+  auto members = ReadTarMembers(out_path);
+  ASSERT_TRUE(members.count("deobfuscation.pb"));
+  EXPECT_THAT(DeobfuscationPackages(members["deobfuscation.pb"]),
+              testing::UnorderedElementsAre("com.example"));
+  unlink(out_path.c_str());
 }
 
 // ---------------------------------------------------------------------------

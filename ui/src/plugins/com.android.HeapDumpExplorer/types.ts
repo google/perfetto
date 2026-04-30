@@ -102,9 +102,9 @@ export interface InstanceDetail {
   isArrayInstance: boolean;
   isClassInstance: boolean;
   classObjRow: InstanceRow | null;
-  forClassName: string | null;
-  superClassObjId: number | null;
   instanceSize: number;
+  /** Superclass chain ordered starting-class first. */
+  classHierarchy: string[];
   staticFields: {name: string; typeName: string; value: PrimOrRef}[];
   instanceFields: {name: string; typeName: string; value: PrimOrRef}[];
   elemTypeName: string | null;
@@ -118,8 +118,8 @@ export interface InstanceDetail {
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];
-  pathFromRoot: PathEntry[] | null;
-  isUnreachablePath?: boolean;
+  dominatorPath: PathEntry[] | null;
+  shortestPath: PathEntry[] | null;
 }
 
 export interface ClassRow {

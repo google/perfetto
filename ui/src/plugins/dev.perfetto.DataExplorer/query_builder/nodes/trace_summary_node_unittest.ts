@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {TraceSummaryNode} from './trace_summary_node';
-import {MetricsNode, MetricsNodeState} from './metrics_node';
+import {MetricsNode, MetricsNodeAttrs} from './metrics_node';
 import {NodeType} from '../../query_node';
 import {
   createMockNode,
@@ -26,22 +26,23 @@ import {
 } from '../testing/test_utils';
 
 function makeMetricsNode(
-  overrides: Partial<MetricsNodeState> = {},
+  overrides: Partial<MetricsNodeAttrs> = {},
 ): MetricsNode {
-  const state: MetricsNodeState = {
+  const attrs: MetricsNodeAttrs = {
     metricIdPrefix: 'test_metric',
     valueColumns: [
       {column: 'value', unit: 'COUNT', polarity: 'NOT_APPLICABLE'},
     ],
     dimensionConfigs: {},
     dimensionUniqueness: 'NOT_UNIQUE',
-    availableColumns: [
-      createColumnInfo('name', 'string'),
-      createColumnInfo('value', 'int'),
-    ],
     ...overrides,
   };
-  return new MetricsNode(state);
+  const node = new MetricsNode(attrs, {});
+  node.availableColumns = [
+    createColumnInfo('name', 'string'),
+    createColumnInfo('value', 'int'),
+  ];
+  return node;
 }
 
 function makeConnectedMetricsNode(prefix = 'test_metric'): {
@@ -61,38 +62,38 @@ function makeConnectedMetricsNode(prefix = 'test_metric'): {
 describe('TraceSummaryNode', () => {
   describe('basic properties', () => {
     test('type is kTraceSummary', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expect(node.type).toBe(NodeType.kTraceSummary);
     });
 
     test('has unique nodeId', () => {
-      const node1 = new TraceSummaryNode({});
-      const node2 = new TraceSummaryNode({});
+      const node1 = new TraceSummaryNode({}, {});
+      const node2 = new TraceSummaryNode({}, {});
       expect(node1.nodeId).not.toBe(node2.nodeId);
     });
 
     test('finalCols is always empty', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expect(node.finalCols).toEqual([]);
     });
 
     test('getTitle returns Trace Summary', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expect(node.getTitle()).toBe('Trace Summary');
     });
 
     test('nextNodes is empty', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expect(node.nextNodes).toEqual([]);
     });
 
     test('getStructuredQuery returns undefined', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expect(node.getStructuredQuery()).toBeUndefined();
     });
 
     test('secondaryInputs requires min 1', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expect(node.secondaryInputs.min).toBe(1);
       expect(node.secondaryInputs.max).toBe('unbounded');
     });
@@ -100,13 +101,13 @@ describe('TraceSummaryNode', () => {
 
   describe('validation', () => {
     test('fails with no inputs', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expectValidationError(node, 'At least one Metrics node is required');
     });
 
     test('fails when input is not a Metrics node', () => {
       const nonMetrics = createMockNode({nodeId: 'non-metrics'});
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(nonMetrics, node, 0);
       expectValidationError(node, 'All inputs must be Metrics nodes');
     });
@@ -114,7 +115,7 @@ describe('TraceSummaryNode', () => {
     test('fails when one of multiple inputs is not a Metrics node', () => {
       const {metrics} = makeConnectedMetricsNode();
       const nonMetrics = createMockNode({nodeId: 'non-metrics'});
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics, node, 0);
       connectSecondary(nonMetrics, node, 1);
       expectValidationError(node, 'All inputs must be Metrics nodes');
@@ -132,7 +133,7 @@ describe('TraceSummaryNode', () => {
       connectNodes(source, metrics);
       metrics.onPrevNodesUpdated();
 
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics, node, 0);
 
       expect(node.validate()).toBe(false);
@@ -140,7 +141,7 @@ describe('TraceSummaryNode', () => {
 
     test('succeeds with one valid Metrics node', () => {
       const {metrics} = makeConnectedMetricsNode();
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics, node, 0);
       expectValidationSuccess(node);
     });
@@ -148,7 +149,7 @@ describe('TraceSummaryNode', () => {
     test('succeeds with multiple Metrics nodes', () => {
       const {metrics: metrics1} = makeConnectedMetricsNode('metric_a');
       const {metrics: metrics2} = makeConnectedMetricsNode('metric_b');
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics1, node, 0);
       connectSecondary(metrics2, node, 1);
       expectValidationSuccess(node);
@@ -157,13 +158,13 @@ describe('TraceSummaryNode', () => {
 
   describe('getTraceSummarySpec', () => {
     test('returns undefined when invalid', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       expect(node.getTraceSummarySpec()).toBeUndefined();
     });
 
     test('bundles single Metrics node', () => {
       const {metrics} = makeConnectedMetricsNode('my_metric');
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics, node, 0);
 
       const spec = node.getTraceSummarySpec();
@@ -175,7 +176,7 @@ describe('TraceSummaryNode', () => {
     test('bundles multiple Metrics nodes', () => {
       const {metrics: metrics1} = makeConnectedMetricsNode('cpu_metric');
       const {metrics: metrics2} = makeConnectedMetricsNode('mem_metric');
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics1, node, 0);
       connectSecondary(metrics2, node, 1);
 
@@ -190,7 +191,7 @@ describe('TraceSummaryNode', () => {
     test('preserves port order in the spec', () => {
       const {metrics: metrics1} = makeConnectedMetricsNode('first_metric');
       const {metrics: metrics2} = makeConnectedMetricsNode('second_metric');
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics1, node, 0);
       connectSecondary(metrics2, node, 1);
 
@@ -202,20 +203,20 @@ describe('TraceSummaryNode', () => {
 
   describe('serialization', () => {
     test('serializeState returns empty object', () => {
-      const node = new TraceSummaryNode({});
-      const serialized = node.serializeState();
+      const node = new TraceSummaryNode({}, {});
+      const serialized = node.attrs;
       expect(serialized).toEqual({});
     });
 
-    test('deserializeState returns empty state', () => {
-      const state = TraceSummaryNode.deserializeState({});
-      expect(state).toEqual({});
+    test('constructor accepts empty attrs', () => {
+      const node = new TraceSummaryNode({}, {});
+      expect(node.attrs).toEqual({});
     });
   });
 
   describe('clone', () => {
     test('creates a new node with different ID', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       const cloned = node.clone();
       expect(cloned.nodeId).not.toBe(node.nodeId);
       expect(cloned.type).toBe(NodeType.kTraceSummary);
@@ -224,7 +225,7 @@ describe('TraceSummaryNode', () => {
 
   describe('nodeDetails', () => {
     test('shows message when no metrics connected', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       const details = node.nodeDetails();
       expect(details.content).toBeDefined();
     });
@@ -232,7 +233,7 @@ describe('TraceSummaryNode', () => {
     test('shows connected metrics count', () => {
       const {metrics: metrics1} = makeConnectedMetricsNode('cpu');
       const {metrics: metrics2} = makeConnectedMetricsNode('mem');
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       connectSecondary(metrics1, node, 0);
       connectSecondary(metrics2, node, 1);
 
@@ -243,7 +244,7 @@ describe('TraceSummaryNode', () => {
 
   describe('nodeSpecificModify', () => {
     test('returns NodeModifyAttrs with info', () => {
-      const node = new TraceSummaryNode({});
+      const node = new TraceSummaryNode({}, {});
       const result = node.nodeSpecificModify();
       expect(result).toHaveProperty('info');
       expect(result).toHaveProperty('sections');

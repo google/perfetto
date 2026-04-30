@@ -500,17 +500,17 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       if (!isDashboardNode(node)) continue;
       // Propagate the stable tab ID so sources are namespaced by graph.
       // Re-publish if the graphId changed so the registry has the right key.
-      const prevGraphId = node.state.graphId;
-      node.state.graphId = tab.id;
+      const prevGraphId = node.graphId;
+      node.graphId = tab.id;
       if (prevGraphId !== tab.id) {
         node.onPrevNodesUpdated?.();
       }
-      if (node.state.getTableNameForNode === undefined) {
-        node.state.getTableNameForNode = (nodeId: string) =>
+      if (node.context.getTableNameForNode === undefined) {
+        node.context.getTableNameForNode = (nodeId: string) =>
           services.queryExecutionService.getTableName(nodeId);
       }
-      if (node.state.requestNodeExecution === undefined) {
-        node.state.requestNodeExecution = (nodeId: string) => {
+      if (node.context.requestNodeExecution === undefined) {
+        node.context.requestNodeExecution = (nodeId: string) => {
           const targetNode = allNodes.find((n) => n.nodeId === nodeId);
           if (targetNode === undefined) return Promise.resolve();
           return services.queryExecutionService
@@ -525,8 +525,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       // Provide getTableNameForNode callback for all nodes (used by
       // add_columns_node and others).
       for (const node of allNodes) {
-        if (node.state.getTableNameForNode === undefined) {
-          node.state.getTableNameForNode = (nodeId: string) =>
+        if (node.context.getTableNameForNode === undefined) {
+          node.context.getTableNameForNode = (nodeId: string) =>
             services.queryExecutionService.getTableName(nodeId);
         }
       }

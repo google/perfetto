@@ -60,11 +60,20 @@ export default class Wattson implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
-    const cpuSupported = await hasWattsonCpuSupport(ctx.engine);
-    const gpuSupported = await hasWattsonGpuSupport(ctx.engine);
-    const tpuSupported = await hasWattsonTpuSupport(ctx.engine);
-    const realCpuIdleCounters = await hasCpuIdleCounters(ctx.engine);
+    const [
+      markersSupported,
+      cpuSupported,
+      gpuSupported,
+      tpuSupported,
+      realCpuIdleCounters,
+    ] = await Promise.all([
+      hasWattsonMarkersSupport(ctx.engine),
+      hasWattsonCpuSupport(ctx.engine),
+      hasWattsonGpuSupport(ctx.engine),
+      hasWattsonTpuSupport(ctx.engine),
+      hasCpuIdleCounters(ctx.engine),
+    ]);
+
     const missingEvents = markersSupported
       ? await missingWattsonCpuConfigs(ctx.engine)
       : [];
@@ -170,78 +179,58 @@ function makeWattsonEstimateTrack(
 }
 
 async function hasCpuIdleCounters(engine: Engine): Promise<boolean> {
-  const checkValue = await engine.query(`
-      INCLUDE PERFETTO MODULE wattson.cpu.idle;
-      SELECT COUNT(*) as numRows from _wattson_cpuidle_counters_exist
+  const result = await engine.query(`
+    SELECT EXISTS (
+      SELECT 1
+      FROM cpu_counter_track
+      WHERE type = 'cpu_idle'
+    ) AS supported
   `);
-  return checkValue.firstRow({numRows: NUM}).numRows > 0;
+  return !!result.firstRow({supported: NUM}).supported;
 }
 
 async function hasWattsonMarkersSupport(engine: Engine): Promise<boolean> {
-  const checkValue = await engine.query(`
-      INCLUDE PERFETTO MODULE wattson.windows;
-      SELECT COUNT(*) as numRows from wattson_window_markers
+  const result = await engine.query(`
+    INCLUDE PERFETTO MODULE wattson.windows;
+    SELECT EXISTS (
+      SELECT 1 FROM wattson_window_markers
+    ) AS supported
   `);
-  return checkValue.firstRow({numRows: NUM}).numRows > 0;
+  return !!result.firstRow({supported: NUM}).supported;
 }
 
 async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
-  // These tables are hard requirements and are the bare minimum needed for
-  // Wattson to run, so check that these tables are populated
-  const queryChecks: string[] = [
-    `
+  const result = await engine.query(`
     INCLUDE PERFETTO MODULE wattson.device_infos;
-    SELECT COUNT(*) as numRows FROM _wattson_device
-    `,
-    `
-    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_frequency'
-    `,
-    `
-    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_idle'
-    `,
-  ];
-  for (const queryCheck of queryChecks) {
-    const checkValue = await engine.query(queryCheck);
-    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
-  }
-
-  return true;
+    SELECT
+      EXISTS (SELECT 1 FROM _wattson_device) as device,
+      EXISTS (SELECT 1 FROM cpu_counter_track WHERE type = 'cpu_frequency') as freq,
+      EXISTS (SELECT 1 FROM cpu_counter_track WHERE type = 'cpu_idle') as idle
+  `);
+  const row = result.firstRow({device: NUM, freq: NUM, idle: NUM});
+  return !!row.device && !!row.freq && !!row.idle;
 }
 
 async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
-  // These tables are hard requirements and are the bare minimum needed for
-  // Wattson to run, so check that these tables are populated
-  const queryChecks: string[] = [
-    `
+  const result = await engine.query(`
     INCLUDE PERFETTO MODULE android.gpu.frequency;
-    SELECT COUNT(*) as numRows FROM android_gpu_frequency
-    `,
-    `
     INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
-    SELECT COUNT(*) as numRows FROM _gpu_power_state
-    `,
-  ];
-  for (const queryCheck of queryChecks) {
-    const checkValue = await engine.query(queryCheck);
-    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
-  }
-
-  return true;
+    SELECT
+      EXISTS (SELECT 1 FROM android_gpu_frequency) as freq,
+      EXISTS (SELECT 1 FROM _gpu_power_state) as idle
+  `);
+  const row = result.firstRow({freq: NUM, idle: NUM});
+  return !!row.freq && !!row.idle;
 }
 
 async function hasWattsonTpuSupport(engine: Engine): Promise<boolean> {
-  const queryChecks: string[] = [
-    `
+  const result = await engine.query(`
     INCLUDE PERFETTO MODULE wattson.tpu.freq_idle;
-    SELECT COUNT(*) as numRows FROM _tpu_freq WHERE dur IS NOT NULL
-    `,
-  ];
-  for (const queryCheck of queryChecks) {
-    const checkValue = await engine.query(queryCheck);
-    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
-  }
-
-  return true;
+    SELECT EXISTS (
+      SELECT 1 FROM _tpu_freq WHERE dur IS NOT NULL
+    ) AS supported
+  `);
+  return !!result.firstRow({supported: NUM}).supported;
 }
 
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {

@@ -14,15 +14,17 @@ perfetto_py_binary(
         "tools/gen_amalgamated_sql.py",
     ],
     main = "tools/gen_amalgamated_sql.py",
+    deps = [perfetto_label("python:cpp_blob_emitter")],
     python_version = "PY3",
 )
 
 perfetto_py_binary(
-    name = "gen_cc_proto_descriptor_py",
+    name = "src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     srcs = [
-        "tools/gen_cc_proto_descriptor.py",
+        "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
     ],
-    main = "tools/gen_cc_proto_descriptor.py",
+    main = "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    deps = [perfetto_label("python:cpp_blob_emitter")],
     python_version = "PY3",
 )
 

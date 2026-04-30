@@ -98,7 +98,7 @@ export function renderChartConfigPopup(
   // Orientation only applies to bar charts.
   const showOrientation = config.chartType === 'bar';
 
-  const showDelete = ctx.node.state.chartConfigs.length > 1;
+  const showDelete = ctx.node.attrs.chartConfigs.length > 1;
 
   return m(
     Form,

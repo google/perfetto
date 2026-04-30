@@ -16,13 +16,16 @@
 
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
 
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/trace/generic_kernel/generic_gpu_frequency.pbzero.h"
 #include "protos/perfetto/trace/generic_kernel/generic_power.pbzero.h"
 #include "protos/perfetto/trace/generic_kernel/generic_task.pbzero.h"
 
@@ -337,6 +340,18 @@ void GenericKernelParser::ParseGenericCpuFrequencyEvent(
       tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu_freq_event.cpu()));
   context_->event_tracker->PushCounter(
       ts, static_cast<double>(cpu_freq_event.freq_hz()) / 1000.0, track);
+}
+
+void GenericKernelParser::ParseGenericGpuFrequencyEvent(
+    int64_t ts,
+    protozero::ConstBytes data) {
+  protos::pbzero::GenericGpuFrequencyEvent::Decoder event(data);
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(event.gpu_id());
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, event.gpu_id()));
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(event.frequency_khz()), track);
 }
 
 }  // namespace perfetto::trace_processor

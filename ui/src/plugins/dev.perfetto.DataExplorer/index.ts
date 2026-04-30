@@ -27,7 +27,6 @@ import {
   DataExplorerTab,
 } from './data_explorer';
 import {nodeRegistry} from './query_builder/node_registry';
-import {QueryNodeState} from './query_node';
 import {deserializeState, serializeState} from './json_handler';
 import {recentGraphsStorage} from './recent_graphs';
 import {getAllNodes} from './query_builder/graph_utils';
@@ -337,7 +336,7 @@ export default class implements PerfettoPlugin {
       // was empty at that point because it's only known from the tab.
       for (const node of getAllNodes(state.rootNodes)) {
         if (isDashboardNode(node)) {
-          node.state.graphId = tabData.id;
+          node.graphId = tabData.id;
           node.onPrevNodesUpdated?.();
         }
       }
@@ -568,11 +567,10 @@ export default class implements PerfettoPlugin {
         }
 
         // Create the TimeRange node with captured values
-        const newNode = descriptor.factory({
-          trace,
-          start,
-          end,
-        } as unknown as QueryNodeState);
+        const newNode = descriptor.factory(
+          {start, end},
+          {allNodes: [], context: {trace}},
+        );
 
         // Ensure we have an active tab
         this.ensureAtLeastOneTab();

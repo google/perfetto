@@ -14,6 +14,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
+import {time} from '../../base/time';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
@@ -67,10 +68,17 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   private readonly nodeSelectedEvt = new EvtSource<{
     pathHashes: string;
     isDominator: boolean;
+    upid: number;
+    ts: time;
   }>();
 
   registerOnNodeSelectedListener(
-    cb: (args: {pathHashes: string; isDominator: boolean}) => void,
+    cb: (args: {
+      pathHashes: string;
+      isDominator: boolean;
+      upid: number;
+      ts: time;
+    }) => void,
   ): Disposable {
     return this.nodeSelectedEvt.addListener(cb);
   }
@@ -228,8 +236,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
               });
             },
             heapType === 'java_heap_graph'
-              ? (pathHashes, isDominator) =>
-                  this.nodeSelectedEvt.notify({pathHashes, isDominator})
+              ? (args) => this.nodeSelectedEvt.notify(args)
               : undefined,
           ),
         };

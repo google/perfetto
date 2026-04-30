@@ -50,3 +50,15 @@ message DpuDispFrameStartTimeoutFtraceEvent {
   optional int32 frames_pending = 3;
   optional int32 te_count = 4;
 }
+message DpuDispFrameDoneMissingFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+}
+message DpuDispFrameStartMissingFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+}

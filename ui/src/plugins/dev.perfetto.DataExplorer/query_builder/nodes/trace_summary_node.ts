@@ -16,10 +16,10 @@ import m from 'mithril';
 import protos from '../../../../protos';
 import {
   QueryNode,
-  QueryNodeState,
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import {NodeIssues} from '../node_issues';
@@ -42,24 +42,25 @@ import {
   buildEmbeddedQueryTree,
 } from '../query_builder_utils';
 
-export interface TraceSummarySerializedState {}
-
-export interface TraceSummaryNodeState extends QueryNodeState {}
+// Serializable node configuration (empty for TraceSummary).
+export interface TraceSummaryNodeAttrs {}
 
 export class TraceSummaryNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kTraceSummary;
   nextNodes: QueryNode[];
-  readonly state: TraceSummaryNodeState;
+  readonly attrs: TraceSummaryNodeAttrs;
+  readonly context: NodeContext;
   secondaryInputs: SecondaryInputSpec;
 
   get finalCols(): ColumnInfo[] {
     return [];
   }
 
-  constructor(state: TraceSummaryNodeState) {
+  constructor(attrs: TraceSummaryNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = {...state};
+    this.attrs = {...attrs};
+    this.context = context;
     this.nextNodes = [];
     this.secondaryInputs = {
       connections: new Map(),
@@ -85,8 +86,8 @@ export class TraceSummaryNode implements QueryNode {
   }
 
   validate(): boolean {
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     // Validate all inputs are Metrics nodes.
@@ -107,7 +108,7 @@ export class TraceSummaryNode implements QueryNode {
     // Validate metric ID prefixes are unique.
     const seenPrefixes = new Set<string>();
     for (const metricsNode of metricsNodes) {
-      const prefix = metricsNode.state.metricIdPrefix;
+      const prefix = metricsNode.attrs.metricIdPrefix;
       if (prefix && seenPrefixes.has(prefix)) {
         this.setValidationError(
           `Duplicate metric ID prefix '${prefix}'. Each metric must have a unique prefix.`,
@@ -122,7 +123,7 @@ export class TraceSummaryNode implements QueryNode {
     for (const metricsNode of metricsNodes) {
       if (!metricsNode.validate()) {
         this.setValidationError(
-          `Metrics node '${metricsNode.state.metricIdPrefix || '(unnamed)'}' is invalid`,
+          `Metrics node '${metricsNode.attrs.metricIdPrefix || '(unnamed)'}' is invalid`,
         );
         return false;
       }
@@ -132,10 +133,10 @@ export class TraceSummaryNode implements QueryNode {
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -158,7 +159,7 @@ export class TraceSummaryNode implements QueryNode {
         'div',
         `${metricsNodes.length} metric${metricsNodes.length !== 1 ? 's' : ''}: `,
         metricsNodes.map((mn, i) => [
-          ColumnName(mn.state.metricIdPrefix || '(unnamed)'),
+          ColumnName(mn.attrs.metricIdPrefix || '(unnamed)'),
           i < metricsNodes.length - 1 ? ', ' : '',
         ]),
       ),
@@ -196,7 +197,8 @@ export class TraceSummaryNode implements QueryNode {
       });
     }
 
-    const canExport = this.validate() && this.state.trace?.engine !== undefined;
+    const canExport =
+      this.validate() && this.context.trace?.engine !== undefined;
 
     return {
       info: 'Bundle multiple metrics into a single trace summary. Connect Metrics nodes as inputs to include them in the summary.',
@@ -213,8 +215,8 @@ export class TraceSummaryNode implements QueryNode {
   }
 
   private renderMetricHeader(mn: MetricsNode): m.Children {
-    const prefix = mn.state.metricIdPrefix || '(unnamed)';
-    const valueCount = mn.state.valueColumns.length;
+    const prefix = mn.attrs.metricIdPrefix || '(unnamed)';
+    const valueCount = mn.attrs.valueColumns.length;
     return m('.pf-trace-summary-metric-header', [
       ColumnName(prefix),
       m(
@@ -248,7 +250,7 @@ export class TraceSummaryNode implements QueryNode {
       m('.pf-trace-summary-detail-row', [
         m('span.pf-trace-summary-detail-label', 'Values'),
       ]),
-      ...mn.state.valueColumns.map((vc) =>
+      ...mn.attrs.valueColumns.map((vc) =>
         m('.pf-trace-summary-value-item', [
           ColumnName(vc.column),
           m(
@@ -271,7 +273,7 @@ export class TraceSummaryNode implements QueryNode {
     // Embed query trees for self-contained export.
     for (const templateSpec of spec.metricTemplateSpec) {
       const metricsNode = this.getAllMetricsNodes().find(
-        (mn) => mn.state.metricIdPrefix === templateSpec.idPrefix,
+        (mn) => mn.attrs.metricIdPrefix === templateSpec.idPrefix,
       );
       if (metricsNode?.primaryInput !== undefined) {
         const allQueries = getStructuredQueries(metricsNode.primaryInput);
@@ -307,9 +309,7 @@ export class TraceSummaryNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new TraceSummaryNode({
-      onchange: this.state.onchange,
-    });
+    return new TraceSummaryNode({}, this.context);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -317,12 +317,12 @@ export class TraceSummaryNode implements QueryNode {
   }
 
   customResultsPanel(): m.Children {
-    const trace = this.state.trace;
+    const trace = this.context.trace;
     if (trace === undefined) return undefined;
     return m(TraceSummaryResultsPanel, {
       node: this,
       trace,
-      onchange: () => this.state.onchange?.(),
+      onchange: () => this.context.onchange?.(),
     });
   }
 
@@ -347,15 +347,5 @@ export class TraceSummaryNode implements QueryNode {
     const spec = new protos.TraceSummarySpec();
     spec.metricTemplateSpec = templateSpecs;
     return spec;
-  }
-
-  serializeState(): TraceSummarySerializedState {
-    return {};
-  }
-
-  static deserializeState(
-    _state: TraceSummarySerializedState,
-  ): TraceSummaryNodeState {
-    return {};
   }
 }

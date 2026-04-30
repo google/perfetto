@@ -149,6 +149,16 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Display',
   },
   {
+    type: 'disp_frame_start_missing',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
+    type: 'disp_frame_done_missing',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
     type: 'drm_sched_ring',
     topLevelGroup: 'HARDWARE',
     group: 'DRM Sched Ring',
@@ -247,6 +257,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     type: 'android_camera_event',
     topLevelGroup: 'HARDWARE',
     group: undefined,
+  },
+  {
+    type: 'adreno_gpu_cmdbatch',
+    topLevelGroup: 'GPU',
+    group: 'Adreno Cmdbatch',
   },
   {
     type: 'triggers',

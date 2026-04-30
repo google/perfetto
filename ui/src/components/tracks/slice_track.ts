@@ -749,17 +749,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ))`,
     });
 
-    // Pre-compute incomplete slices with LEAD() to find next_ts
-    // We compute LEAD over ALL slices first, then filter to incomplete ones
-    // This ensures next_ts is the next slice at the same depth (complete or incomplete)
     const incompleteSlicesTable = await createPerfettoTable({
       engine,
       as: `
-        SELECT id, ts, depth, next_ts
-        FROM (
-          SELECT id, ts, dur, depth, LEAD(ts) OVER (PARTITION BY depth ORDER BY ts) as next_ts
-          FROM (${sqlSource})
-        )
+        SELECT id, ts, depth, (
+          SELECT i.ts
+          FROM (${sqlSource}) i
+          WHERE i.ts > o.ts AND o.depth = i.depth
+          ORDER BY i.ts
+          LIMIT 1
+        ) AS next_ts
+        FROM (${sqlSource}) o
         WHERE dur = -1
       `,
     });

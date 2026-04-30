@@ -19,7 +19,7 @@ import {featureFlags} from '../core/feature_flags';
 import {LinearProgress} from '../widgets/linear_progress';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
-import {Sidebar} from './sidebar';
+import {Sidebar} from './views/sidebar';
 import {renderStatusBar} from './statusbar';
 import {taskTracker} from './task_tracker';
 import {Topbar} from './topbar';
@@ -60,7 +60,7 @@ export class UiMain implements m.ClassComponent {
       taskTracker.hasPendingTasks();
 
     return m('main.pf-ui-main', [
-      m(Sidebar),
+      m(Sidebar, {app}),
       m(Topbar, {trace}),
       m(LinearProgress, {
         className: 'pf-ui-main__loading',

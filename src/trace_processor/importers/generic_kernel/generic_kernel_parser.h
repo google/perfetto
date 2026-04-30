@@ -38,6 +38,8 @@ class GenericKernelParser {
 
   void ParseGenericCpuFrequencyEvent(int64_t ts, protozero::ConstBytes data);
 
+  void ParseGenericGpuFrequencyEvent(int64_t ts, protozero::ConstBytes data);
+
  private:
   enum SchedSwitchType {
     // No context switch event was handled.
