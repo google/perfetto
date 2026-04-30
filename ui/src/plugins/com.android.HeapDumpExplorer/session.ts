@@ -27,6 +27,7 @@ import {
   subpageToState,
 } from './nav_state';
 import type {OverviewData} from './types';
+import type {FlamegraphState} from '../../widgets/flamegraph';
 
 interface FlamegraphSelection {
   readonly pathHashes: string;
@@ -73,6 +74,11 @@ export class HeapDumpExplorerSession {
   private _activeInstanceId: number | null = null;
 
   private _overview: OverviewData | null = null;
+
+  // Lives across tab switches; reset on dump change so the new dump
+  // starts with a default (TOP_DOWN, default metric) rather than
+  // inheriting the previous dump's filters.
+  private _flamegraphPanelState: FlamegraphState | undefined;
 
   constructor(
     readonly trace: Trace,
@@ -282,11 +288,21 @@ export class HeapDumpExplorerSession {
     this._instanceTabs.length = 0;
     this._nextInstanceId = 0;
     this._activeInstanceId = null;
+    this._flamegraphPanelState = undefined;
   }
 
   get cachedOverview(): OverviewData | null {
     return this._overview;
   }
+
+  get flamegraphPanelState(): FlamegraphState | undefined {
+    return this._flamegraphPanelState;
+  }
+
+  // Arrow property: passed by reference into Mithril attrs.
+  readonly setFlamegraphPanelState = (s: FlamegraphState): void => {
+    this._flamegraphPanelState = s;
+  };
 
   // Pins the dump at fetch start; if the user switches dumps before
   // the result arrives, the result is dropped instead of briefly

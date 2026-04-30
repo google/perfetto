@@ -32,6 +32,7 @@ import ClassesView from './views/classes_view';
 import StringsView from './views/strings_view';
 import ArraysView from './views/arrays_view';
 import FlamegraphObjectsView from './views/flamegraph_objects_view';
+import FlamegraphView from './views/flamegraph_view';
 import type {HeapDumpExplorerSession} from './session';
 
 interface HeapDumpPageAttrs {
@@ -115,6 +116,24 @@ function buildTabs(
       key: 'overview',
       title: 'Overview',
       content: m(OverviewView, {overview, navigate: navigateWithTabs}),
+    },
+    {
+      key: 'flamegraph',
+      title: 'Flamegraph',
+      content: m(FlamegraphView, {
+        trace,
+        upid: activeDump.upid,
+        ts: Time.fromRaw(activeDump.ts),
+        state: session.flamegraphPanelState,
+        onStateChange: session.setFlamegraphPanelState,
+        onShowObjects: (pathHashes, isDominator) =>
+          session.openFlamegraph({
+            pathHashes,
+            isDominator,
+            upid: activeDump.upid,
+            ts: activeDump.ts,
+          }),
+      }),
     },
     {
       key: 'classes',
