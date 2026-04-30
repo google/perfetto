@@ -17,7 +17,10 @@ import {AsyncLimiter} from '../../base/async_limiter';
 import {Button} from '../../widgets/button';
 import {showModal} from '../../widgets/modal';
 import {TextInput} from '../../widgets/text_input';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {
+  SegmentedButton,
+  SegmentedButtons,
+} from '../../widgets/segmented_buttons';
 import {Select} from '../../widgets/select';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
 import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
@@ -122,29 +125,32 @@ class AddExtensionServerModal {
   }
 
   private renderServerTypePicker(): m.Children {
-    return m(SegmentedButtons, {
-      options: [
-        {label: 'GitHub', icon: 'link'},
-        {label: 'HTTPS', icon: 'public'},
-      ],
-      selectedOption: this.userInput.type === 'github' ? 0 : 1,
-      disabled: this.isEmbedderManaged,
-      onOptionSelected: (idx: number) => {
-        if (idx === 0 && this.userInput.type !== 'github') {
-          this.userInput = {
-            type: 'github',
-            repo: '',
-            ref: 'main',
-            path: '',
-            auth: {type: 'none'},
-          };
-          this.scheduleManifestFetch();
-        } else if (idx === 1 && this.userInput.type !== 'https') {
-          this.userInput = {type: 'https', url: '', auth: {type: 'none'}};
-          this.scheduleManifestFetch();
-        }
+    return m(
+      SegmentedButtons,
+      {
+        selectedValue: this.userInput.type,
+        disabled: this.isEmbedderManaged,
+        onOptionSelected: (value) => {
+          if (value === 'github' && this.userInput.type !== 'github') {
+            this.userInput = {
+              type: 'github',
+              repo: '',
+              ref: 'main',
+              path: '',
+              auth: {type: 'none'},
+            };
+            this.scheduleManifestFetch();
+          } else if (value === 'https' && this.userInput.type !== 'https') {
+            this.userInput = {type: 'https', url: '', auth: {type: 'none'}};
+            this.scheduleManifestFetch();
+          }
+        },
       },
-    });
+      [
+        m(SegmentedButton, {value: 'github', icon: 'link'}, 'GitHub'),
+        m(SegmentedButton, {value: 'https', icon: 'public'}, 'HTTPS'),
+      ],
+    );
   }
 
   private renderGithubFields(input: GithubUserInput): m.Children {
