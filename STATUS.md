@@ -2752,3 +2752,201 @@ and the temp-then-promote breakthrough above before sequencing them.
   materialise rows, release, stream buffer back. UI engine.ts fans
   queries out across pool. WASM build uses pthreads where COOP+COEP
   is available, with single-thread fallback.
+
+## Phase 4 follow-up — BtShared diagnosis re-investigation (2026-04-30)
+
+  **Questioned claim.** Iter-4 closed with "Confirmed bottleneck:
+  SQLite shared-cache `BtShared` mutex serialises all reads"
+  (lines 281-332 above). The conclusion was reached by argument
+  ("with `SQLITE_THREADSAFE=2` + `cache=shared`, every btree cursor
+  acquires `BtShared.mutex`"), not by direct measurement — and was
+  suspect because the trace-data tables (`slice`, `thread_state`,
+  `sched`, `counter`, `args`, `thread`) are exposed as
+  `__intrinsic_dataframe` virtual tables, not native btrees, so
+  reads against them shouldn't traverse `BtShared` at all. This
+  follow-up re-investigates with hypothesis-driven A/B experiments.
+
+  Test rig: `out/mac_release/perfetto_benchmarks
+  --benchmark_filter='BM_RpcStreamingQueryBurst.*|BM_RpcCpuOnlyBurst.*'`,
+  `--benchmark_min_time=2 --benchmark_repetitions=5`, on a 10-core
+  Apple Silicon box (`hardware_concurrency=10`). All experimental
+  edits (pool size, instrumentation, workload swap) were applied
+  one-at-a-time, measured, then reverted; the only persisted
+  changes are this section and the project memo.
+
+  ### Experiment 1 — baseline reproduction (5 reps)
+
+  | benchmark | mean | stddev |
+  |---|---|---|
+  | `BM_RpcStreamingQueryBurst_PoolOn`  | 188 ms | 0.85 ms |
+  | `BM_RpcStreamingQueryBurst_PoolOff` | 192 ms | 0.77 ms |
+  | `BM_RpcCpuOnlyBurst_PoolOn`  | 7.91 ms | 0.30 ms |
+  | `BM_RpcCpuOnlyBurst_PoolOff` | 42.9 ms | 0.45 ms |
+
+  Streaming pool speedup: **1.02x**. CPU-only speedup: **5.42x**.
+  Counters: `workers_used=120, distinct_connections=120` over 5
+  reps × 15 iters = 75 iters → 8 worker thread-IDs touched on
+  every iter. Reproduces iter-4 numbers within ~1%.
+
+  ### Experiment 2 — pool-size sweep (1, 2, 4, 8 workers, 5 reps)
+
+  Edited `rpc.cc:749` to mint N ∈ {1,2,4,8} workers; rebuilt and
+  re-ran the streaming and cpu-only benchmarks.
+
+  | N | streaming wall (ms) | cpu-only wall (ms) | cpu-only speedup |
+  |---|---|---|---|
+  | 1 | 199 ± 4.86 | 35.5 ± 0.26 | 1.21x |
+  | 2 | 194 ± 0.43 | 18.4 ± 0.10 | 2.33x |
+  | 4 | 196 ± 0.56 | 9.77 ± 0.06 | 4.39x |
+  | 8 | 188 ± 0.85 | 7.91 ± 0.30 | 5.42x |
+
+  Conclusion: streaming wall-time is **flat across N=1..8** (range
+  188-199 ms, all overlap within ~3σ). CPU-only scales near-linearly
+  through N=4 and starts to taper at N=8 (likely E-core saturation).
+  Pool dispatch plumbing works; workers post and execute concurrently
+  on the cpu-only workload but make no observable progress on the
+  trace-data workload. The dispatch-overhead and pool-acquire
+  hypotheses are ruled out — they'd hurt cpu-only too.
+
+  ### Experiment 4 — dataframe-only workload (no GROUP BY)
+
+  Replaced the 12-query workload with 8 copies of a single
+  dataframe scan: `SELECT ts, dur, name, category FROM slice WHERE
+  dur > 100000 ORDER BY dur DESC LIMIT 1000`. No aggregation, no
+  cross-table join — touches only the dataframe vtab path.
+
+  | benchmark | mean | stddev |
+  |---|---|---|
+  | `BM_RpcStreamingQueryBurst_PoolOn`  | 7.99 ms | 0.013 ms |
+  | `BM_RpcStreamingQueryBurst_PoolOff` | 5.80 ms | 0.007 ms |
+
+  Speedup: **0.73x** — pool-on is *slower* than serial. Ruling
+  this out: it isn't a GROUP BY / aggregator issue — even pure
+  dataframe scans don't parallelise. The contention point is hit
+  by the bare dataframe vtab access path.
+
+  ### Experiment 5 — phase timing per worker
+
+  Added timing accumulators (`acq_ns`, `exec_ns`, `post_ns`,
+  `total_worker_ns`) and a `diag_per_query_exec_ns_` vector
+  pushed at `t_exec_end` inside `DispatchStreamingQueryAsync`'s
+  worker lambda; surfaced as benchmark counters and stderr
+  prints. Single iteration of the original 12-query workload,
+  N=8:
+
+  - acq_ms total over 12 queries: **0.004** (worker waits on
+    pool free-list are ~µs).
+  - post_ms total over 12 queries: **0.002** (Insert into
+    `streaming_send_ready_` and PostTask to dispatcher).
+  - exec_ms total over 12 queries: **1432**. With wall = 190 ms
+    and 8 workers, ratio summed/wall = 7.5x → workers ARE
+    running concurrently, each spending ~180 ms in `Execute`.
+
+  Per-query exec time, pool-off (serial, single thread) vs
+  pool-on (parallel, 8 workers), one iteration:
+
+  | query | serial (ms) | parallel (ms) | inflation |
+  |---|---|---|---|
+  | Q1 slice GROUP BY name      |  11.7 |   9.2 |  0.8x |
+  | Q2 slice GROUP BY category  |   3.7 |  41.7 |  11x  |
+  | Q3 thread_state GROUP utid  |   5.0 |  59.9 |  12x  |
+  | Q4 thread_state GROUP state |   9.8 |  76.9 |   8x  |
+  | Q5 sched GROUP cpu          |   2.7 |  77.0 |  29x  |
+  | Q6 counter GROUP track_id   |   2.4 | 189.2 |  78x  |
+  | Q7 args GROUP key           |  31.2 | 180.1 |  6x   |
+  | Q8 slice GROUP depth        |   4.0 | 189.3 |  47x  |
+  | Q9 slice GROUP track_id     |   4.3 | 189.3 |  44x  |
+  | Q10 slice WHERE/ORDER       |   0.8 | 112.5 | 141x  |
+  | Q11 slice GLOB '*draw*'     |   1.4 | 129.8 |  93x  |
+  | Q12 thread_state JOIN thread| 113.7 | 148.1 | 1.3x  |
+  | **sum**                     | **193** | **1403** ||
+
+  Wall pool-off = 193 ms (= sum, since serial). Wall pool-on =
+  190 ms (= max worker time, since concurrent). All workers end
+  ~simultaneously near the 190 ms mark. Workers ARE concurrent;
+  each query's individual SQL execution **balloons 5-141x** the
+  moment peer workers are also doing SQL. Q12 (the JOIN) only
+  inflates 1.3x because it's already the long pole at 114 ms
+  serial, so it's essentially compute-bound regardless.
+
+  Per-query inflation up to 141x with only 8 concurrent workers
+  is well past what a single fair mutex would cause (that gives
+  ≤ 8x with 8 contending threads). Two patterns are consistent
+  with the data:
+  - many fine-grained mutexes acquired thousands of times per
+    query, each contending with a probability proportional to the
+    number of peer workers active,
+  - or a `pthread_mutex` in heavy contention on Apple Silicon
+    showing the OS scheduler's "grab-and-release-and-wait" cost
+    on hot critical sections.
+
+  ### Bottom line
+
+  **Workers are NOT serialised at the dispatch / acquire / SQLite-
+  prepare layer.** They run concurrently. Per-query SQL execution
+  time inflates dramatically (5-141x) when peers are running in
+  parallel, in a way that scales worse than a single fair mutex.
+  This is consistent with the iter-4 BtShared-mutex hypothesis
+  *direction* (contention inside SQL execution) but the original
+  argument was incomplete:
+
+  1. The claim "every btree cursor operation acquires
+     `BtShared.mutex`" doesn't directly explain the inflation
+     because `slice`, `thread_state`, etc. are dataframe vtabs,
+     not native btrees, and dataframe `xColumn`/`xNext` doesn't
+     touch `BtShared` from outside the SQLite VM.
+  2. But Experiment 4 shows even pure dataframe queries don't
+     parallelise — so either (a) some shared resource INSIDE the
+     dataframe path is contended (StringPool fast-read shouldn't
+     be — `Get(Id)` is lock-free per `string_pool.h:243` — but
+     atomic increments / cache-line bouncing across 8 readers can
+     still cost an order of magnitude under heavy load), or
+     (b) every query goes through some shared SQLite metadata
+     path that DOES touch `BtShared` (schema lookup, pragma read,
+     prepared-statement registry) even for vtab queries, or
+     (c) sqlite3_prepare_v2 itself contends on something shared
+     across the secondary connections.
+
+  We do **not** have a smoking-gun localisation. We have ruled
+  out: dispatch overhead, acquire-pool overhead, GROUP BY /
+  aggregator-specific paths, and "workers run sequentially". We
+  have confirmed: per-query SQL execution time scales pessimally
+  with concurrency.
+
+  ### Recommended next experiment
+
+  Experiment 3 (cache=shared removal) is the cleanest single test
+  of where in SQLite the contention sits. Two-step variant:
+  1. Add a `--without-shared-cache` mode to `Rpc::EnsureWorkerPoolPrimed`
+     that opens secondary connections with `cache=private`, then
+     calls `PerfettoSqlEngine::InitializeStaticTablesAndFunctions`
+     on the fresh engine (perfetto_sql_engine.cc:508) so the
+     dataframe vtabs are re-registered. This bypasses the iter-4
+     "schema replay is hard" objection by re-running the constructor-
+     time init code.
+  2. Re-run the streaming benchmark with N=8.
+     - If wall-time drops materially (target 4-5x at N=8) →
+       BtShared / shared-cache plumbing was indeed the ceiling;
+       move forward with cache=private + per-conn schema replay
+       as the v2 design.
+     - If it stays flat → the contention is in lock-free
+       primitives (StringPool, FlatHashMap atomics, dataframe
+       column readers) doing too much cache-line ping-pong. That
+       requires either per-connection RO snapshots of the vtab
+       data or measured profiling with `Instruments` time-profiler
+       → "Spin Time" (off-CPU on macOS) to localise.
+
+  Until experiment 3 runs, the iter-4 conclusion that
+  `BtShared.mutex` is the ceiling **is not contradicted** but
+  **also not confirmed** — the scaling shape (per-query inflation
+  up to 141x) is more consistent with multiple shared resources
+  than a single mutex.
+
+  ### Updates to "Bottleneck investigation" above
+
+  The line `**Confirmed bottleneck: SQLite shared-cache BtShared
+  mutex.**` (line 298) is no longer supported as a confirmed
+  finding. The contention is real and inside SQL execution, but
+  its specific source has not been localised by direct
+  measurement. Treat the existing Bottleneck section as a
+  hypothesis pending experiment 3.
