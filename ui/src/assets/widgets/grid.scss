@@ -88,9 +88,14 @@ $indent-guide-offset: 12px;
   --pf-cell-padding-inline: 0;
   --pf-grid-cell-indent: 0;
 
-  &__menu-button {
+  &__actions {
     // Eliminate the extra space between the menu button and the cell content added by the content padding.
     margin-left: calc(-1 * var(--pf-cell-padding-inline));
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
   }
 
   &__indent {
@@ -161,6 +166,10 @@ $indent-guide-offset: 12px;
 
   .pf-visible-on-hover {
     display: none;
+
+    &:has(.pf-active) {
+      display: block;
+    }
 
     &.pf-active {
       display: block;

@@ -1631,6 +1631,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           return m(
             GridCell,
             {
+              actionButtons: colInfo?.actions?.(value, row),
               align: isRich ? rendered.align ?? 'left' : getAligment(value),
               nullish: isRich
                 ? rendered.nullish ?? value === null
@@ -2300,7 +2301,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 }
 
-export function renderCell(value: SqlValue, columnName: string) {
+export function renderCell(value: SqlValue, columnName?: string) {
   if (value === undefined) {
     return '';
   } else if (value instanceof Uint8Array) {
@@ -2310,7 +2311,7 @@ export function renderCell(value: SqlValue, columnName: string) {
         icon: Icons.Download,
         onclick: () =>
           download({
-            fileName: `${columnName}.blob`,
+            fileName: `${columnName ?? 'untitled'}.bin`,
             content: value,
           }),
       },

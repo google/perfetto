@@ -171,6 +171,7 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly indent?: number;
   readonly chevron?: 'expanded' | 'collapsed' | 'leaf';
   readonly onChevronClick?: () => void;
+  readonly actionButtons?: m.Children;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -185,6 +186,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       indent,
       chevron,
       onChevronClick,
+      actionButtons,
       ...htmlAttrs
     } = attrs;
 
@@ -221,6 +223,22 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       });
     };
 
+    const cellMenu =
+      !isEmptyVnodes(menuItems) &&
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            className: 'pf-visible-on-hover',
+            icon: Icons.ContextMenuAlt,
+            rounded: true,
+            ariaLabel: 'Cell menu',
+          }),
+          position: PopupPosition.Bottom,
+        },
+        menuItems,
+      );
+
     return m(
       '.pf-grid-cell',
       {
@@ -237,20 +255,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       renderIndent(),
       renderChevron(),
       m('.pf-grid-cell__content', children),
-      !isEmptyVnodes(menuItems) &&
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              className: 'pf-visible-on-hover pf-grid-cell__menu-button',
-              icon: Icons.ContextMenuAlt,
-              rounded: true,
-              ariaLabel: 'Cell menu',
-            }),
-            position: PopupPosition.Bottom,
-          },
-          menuItems,
-        ),
+      m('.pf-grid-cell__actions.pf-visible-on-hover', actionButtons, cellMenu),
     );
   }
 }
