@@ -382,22 +382,26 @@ export class DistributionPanel
   }
 
   private renderAddDebugTrackButton(attrs: DistributionPanelAttrs): m.Children {
-    // One-click: pin the panel's source query (dataset + optional filter)
-    // as a debug slice track on the workspace, named after the panel.
     return m(Button, {
       label: 'Add debug track',
-      onclick: () =>
+      onclick: () => {
+        const baseQuery = buildSourceQuery(attrs, [
+          attrs.idColumn,
+          attrs.valueColumn,
+          ...attrs.displayColumns,
+        ]);
+        const brush = this.brush;
+        const sqlSource =
+          brush === undefined
+            ? baseQuery
+            : `SELECT * FROM (${baseQuery}) WHERE ${attrs.valueColumn} ` +
+              `BETWEEN ${brush.start} AND ${brush.end}`;
         extensions.addDebugSliceTrack({
           trace: attrs.trace,
-          data: {
-            sqlSource: buildSourceQuery(attrs, [
-              attrs.idColumn,
-              attrs.valueColumn,
-              ...attrs.displayColumns,
-            ]),
-          },
+          data: {sqlSource},
           title: panelTitle(attrs),
-        }),
+        });
+      },
     });
   }
 
