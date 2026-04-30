@@ -219,7 +219,13 @@ class Rpc {
   // queue (see private members below).
   void DispatchStreamingQueryAsync(std::string sql,
                                    base::TimeNanos t_start,
-                                   int req_type);
+                                   int req_type,
+                                   std::string tag);
+  // Worker-pool-task body shared between the initial dispatch and
+  // same-tag dequeue dispatch. Takes a snapshot of `response_fn_`,
+  // already-claimed slot, sql, and tag.
+  struct PendingTaggedQuery;
+  void PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q);
 
   Config default_config_;
   std::function<void(TraceProcessor*)> on_trace_processor_created_;
@@ -291,6 +297,27 @@ class Rpc {
   };
   base::FlatHashMap<uint64_t, StreamingResult> streaming_send_ready_;
   uint32_t streaming_async_dispatches_ = 0;
+
+  // Tag-affine dispatch state. Each streaming query carries a
+  // `QueryArgs.tag` (forwarded by the UI's `EngineProxy`); same-tag
+  // queries serialise so plugin/track sessions get connection-affinity
+  // benefits (warm per-conn page cache, prepared-statement reuse) at
+  // the cost of intra-tag concurrency. Different-tag queries fan out
+  // across the pool. A tag's slot stays in the map only while a query
+  // is in flight or queued; idle tags are erased to bound the map.
+  struct PendingTaggedQuery {
+    std::string sql;
+    base::TimeNanos t_start;
+    int req_type;
+    RpcResponseFunction response_fn;
+    uint64_t slot;
+  };
+  struct TagSlot {
+    bool in_flight = false;
+    std::deque<PendingTaggedQuery> queue;
+  };
+  mutable std::mutex tag_mu_;
+  base::FlatHashMap<std::string, TagSlot> tag_slots_;
 };
 
 }  // namespace trace_processor

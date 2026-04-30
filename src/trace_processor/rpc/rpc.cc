@@ -283,7 +283,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       static const bool kPoolDisabled =
           getenv("PERFETTO_RPC_POOL_DISABLED") != nullptr;
       if (eof_ && response_dispatcher_ && !kPoolDisabled) {
-        DispatchStreamingQueryAsync(std::move(sql), t_start, req_type);
+        std::string tag = query.tag().ToStdString();
+        DispatchStreamingQueryAsync(std::move(sql), t_start, req_type,
+                                    std::move(tag));
         break;
       }
 
@@ -793,24 +795,33 @@ void Rpc::RunQueryOnPoolWorker(
 
 void Rpc::DispatchStreamingQueryAsync(std::string sql,
                                       base::TimeNanos t_start,
-                                      int req_type) {
+                                      int req_type,
+                                      std::string tag) {
   // Pool setup + connection minting both run on the caller's (transport)
   // thread for the same reason as `RunQueryOnPoolWorker`: workers may
   // not call `CreateConnection`.
   EnsureWorkerPoolPrimed();
-  MaybeGrowConnectionPool();
 
-  // Claim a slot in the request->response ordering. Concurrent
-  // streaming queries dispatch in `tx_seq_id_` order on the transport
-  // thread (single-threaded by contract); the slot they claim here is
-  // the same order. The drain cursor (consumed only on the dispatcher
-  // thread) hands chunks to the snapshotted response fn in slot order,
-  // which is the same order `pendingQueries[]` enqueues on the UI
-  // side.
+  // An empty tag means the caller did not opt into tag-affine dispatch
+  // (e.g. `trace_processor_shell`, the Python API, or any RPC client
+  // that doesn't go through the UI's `EngineProxy`). Synthesise a fresh
+  // anonymous tag per query so untagged queries fan out across the pool
+  // exactly as they did before tag-serialisation landed. Tagged queries
+  // (UI `EngineProxy.tag`) keep the same-tag-serialises semantics.
+  if (tag.empty()) {
+    static std::atomic<uint64_t> anon_counter{0};
+    tag = "__anon_" +
+          std::to_string(anon_counter.fetch_add(1, std::memory_order_relaxed));
+  }
+
+  // Claim a slot in the request->response ordering at *arrival* time
+  // (not dispatch time) so the UI's `pendingQueries[0]`-FIFO contract
+  // holds: send order = request order across all tags, even though
+  // queries within a tag may be queued behind earlier same-tag work.
   // Snapshot `rpc_response_fn_` now: subsequent OnRpcRequest calls (on
   // the same task runner thread, FIFO with this dispatch) may swap it
   // for a different transport connection's send fn before the worker
-  // posts back. Each query carries the fn it was issued under.
+  // posts back.
   RpcResponseFunction response_fn_snapshot = rpc_response_fn_;
   uint64_t my_slot;
   {
@@ -819,9 +830,34 @@ void Rpc::DispatchStreamingQueryAsync(std::string sql,
     streaming_async_dispatches_++;
   }
 
-  worker_pool_->PostTask([this, sql = std::move(sql), t_start, req_type,
-                          my_slot,
-                          response_fn = std::move(response_fn_snapshot)]()
+  PendingTaggedQuery q{std::move(sql), t_start, req_type,
+                       std::move(response_fn_snapshot), my_slot};
+
+  // Tag-slot check: if a same-tag query is in flight, queue this one
+  // and let the worker pick it up after its predecessor releases. If
+  // free, mark the slot in-flight and dispatch immediately.
+  bool dispatch_now = false;
+  {
+    std::lock_guard<std::mutex> lk(tag_mu_);
+    auto* slot = tag_slots_.Find(tag);
+    if (!slot) {
+      slot = tag_slots_.Insert(tag, TagSlot{}).first;
+    }
+    if (!slot->in_flight) {
+      slot->in_flight = true;
+      dispatch_now = true;
+    } else {
+      slot->queue.push_back(std::move(q));
+    }
+  }
+  if (dispatch_now) {
+    MaybeGrowConnectionPool();
+    PostTaggedQueryToWorker(std::move(tag), std::move(q));
+  }
+}
+
+void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
+  worker_pool_->PostTask([this, tag = std::move(tag), q = std::move(q)]()
                              mutable {
     {
       std::lock_guard<std::mutex> g(pool_mu_);
@@ -829,14 +865,14 @@ void Rpc::DispatchStreamingQueryAsync(std::string sql,
     }
     auto conn = AcquireConnectionForQuery();
     StreamingResult sr;
-    sr.req_type = req_type;
-    sr.response_fn = std::move(response_fn);
+    sr.req_type = q.req_type;
+    sr.response_fn = std::move(q.response_fn);
     {
       // Tightly scoped iterator + serializer so the prepared statement
       // is finalised before the connection returns to the pool. Same
       // reason as `RunQueryOnPoolWorker`.
-      auto it = conn->ExecuteQuery(sql);
-      QueryResultSerializer serializer(std::move(it), t_start);
+      auto it = conn->ExecuteQuery(q.sql);
+      QueryResultSerializer serializer(std::move(it), q.t_start);
       protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
                                                                     kSliceSize);
       for (bool has_more = true; has_more;) {
@@ -857,13 +893,36 @@ void Rpc::DispatchStreamingQueryAsync(std::string sql,
     }
     ReleaseConnectionToPool(std::move(conn));
 
+    // Tag bookkeeping: hand off the next same-tag query (if any) to a
+    // fresh worker task. We do this BEFORE posting the send closure so
+    // the next query can start running in parallel with this one's
+    // result delivery. If the queue is empty, the slot is freed and
+    // the tag's entry erased to bound `tag_slots_`.
+    PendingTaggedQuery next;
+    bool dispatch_next = false;
+    {
+      std::lock_guard<std::mutex> lk(tag_mu_);
+      auto* slot = tag_slots_.Find(tag);
+      PERFETTO_DCHECK(slot && slot->in_flight);
+      if (!slot->queue.empty()) {
+        next = std::move(slot->queue.front());
+        slot->queue.pop_front();
+        dispatch_next = true;
+      } else {
+        tag_slots_.Erase(tag);
+      }
+    }
+    if (dispatch_next) {
+      PostTaggedQueryToWorker(tag, std::move(next));
+    }
+
     // Hand the result to the transport thread. The dispatcher posts the
     // closure; the closure walks `streaming_send_ready_` in
     // `streaming_send_drain_cursor_` order so concurrent queries'
     // chunks are sent in send-order, never interleaved.
     {
       std::lock_guard<std::mutex> g(pool_mu_);
-      streaming_send_ready_.Insert(my_slot, std::move(sr));
+      streaming_send_ready_.Insert(q.slot, std::move(sr));
     }
     response_dispatcher_([this]() {
       // Runs on the transport thread. Drain in slot order; out-of-order
