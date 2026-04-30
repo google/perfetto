@@ -64,32 +64,6 @@ using RpcProto = protos::pbzero::TraceProcessorRpc;
 constexpr auto kSliceSize =
     QueryResultSerializer::kDefaultBatchSplitThreshold + 4096;
 
-// RAII helper: clears the `pool_blocked_for_mutation_` flag and notifies
-// waiters when a mutating RPC's body returns. Constructed *after*
-// `Rpc::DrainConnectionPoolForMutation`, so the destructor only runs once
-// the pool is quiesced and the writer-side mutation has completed.
-class ScopedPoolUnblock {
- public:
-  ScopedPoolUnblock(std::mutex* mu,
-                    std::condition_variable* cv,
-                    bool* flag)
-      : mu_(mu), cv_(cv), flag_(flag) {}
-  ~ScopedPoolUnblock() {
-    {
-      std::lock_guard<std::mutex> g(*mu_);
-      *flag_ = false;
-    }
-    cv_->notify_all();
-  }
-  ScopedPoolUnblock(const ScopedPoolUnblock&) = delete;
-  ScopedPoolUnblock& operator=(const ScopedPoolUnblock&) = delete;
-
- private:
-  std::mutex* mu_;
-  std::condition_variable* cv_;
-  bool* flag_;
-};
-
 // Holds a trace_processor::TraceProcessorRpc pbzero message. Avoids extra
 // copies by doing direct scattered calls from the fragmented heap buffer onto
 // the RpcResponseFunction (the receiver is expected to deal with arbitrary
@@ -148,12 +122,13 @@ Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
-  // The new TraceProcessor will be a brand new ingestion target. Drain
-  // the pool now so all secondary connections are released before we
-  // tear down the old TP instance.
-  DrainConnectionPoolForMutation();
-  ScopedPoolUnblock unblock(&pool_mu_, &pool_cv_, &pool_blocked_for_mutation_);
-
+  // TODO: TP-level mutations require `non_default_connection_count_ == 0`
+  // (enforced by a PERFETTO_CHECK in TraceProcessorImpl). Today the only
+  // legal call site is from the writer thread before any post-EOF query
+  // has primed the pool. If a caller invokes this with secondary
+  // connections still alive (in `pool_free_` or held by a worker), the
+  // TP-side CHECK fires. Folding this invariant into TP itself (so the
+  // RPC layer doesn't have to know) is a pending refactor.
   current_config_ = config;
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
@@ -632,12 +607,9 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
 }
 
 base::Status Rpc::RegisterSqlPackage(protozero::ConstBytes bytes) {
-  // Mutating: drop all pooled connections and wait for in-flight workers
-  // before touching the writer engine. The Phase 2 mutation gate
-  // (`non_default_connection_count_ == 0`) would CHECK-fail otherwise.
-  DrainConnectionPoolForMutation();
-  ScopedPoolUnblock unblock(&pool_mu_, &pool_cv_, &pool_blocked_for_mutation_);
-
+  // TODO: TP-level mutations require `non_default_connection_count_ == 0`.
+  // See ResetTraceProcessorInternal for the same caveat. Folding this
+  // invariant into TP itself is a pending refactor.
   protos::pbzero::RegisterSqlPackageArgs::Decoder args(bytes);
   SqlPackage package;
   package.name = args.package_name().ToStdString();
@@ -666,15 +638,13 @@ void Rpc::MaybePrintProgress() {
 std::unique_ptr<TraceProcessor::Connection>
 Rpc::AcquireConnectionForQuery() {
   std::unique_lock<std::mutex> lock(pool_mu_);
-  // Wait until any in-flight mutation drain has completed AND a connection
-  // is available. The pool is pre-populated to `worker_pool_`'s thread
-  // count, so a worker that finds the free list empty just parks until a
-  // peer releases. CreateConnection is *never* invoked from a worker
-  // thread: the StringPool's first `EnableThreadSafetyForMultiConnection`
-  // write must observe a single-producer happens-before with all reads.
-  pool_cv_.wait(lock, [&] {
-    return !pool_blocked_for_mutation_ && !pool_free_.empty();
-  });
+  // Wait until a connection is available. The pool is pre-populated to
+  // `worker_pool_`'s thread count, so a worker that finds the free list
+  // empty just parks until a peer releases. CreateConnection is *never*
+  // invoked from a worker thread: the StringPool's first
+  // `EnableThreadSafetyForMultiConnection` write must observe a
+  // single-producer happens-before with all reads.
+  pool_cv_.wait(lock, [&] { return !pool_free_.empty(); });
   std::unique_ptr<TraceProcessor::Connection> conn = std::move(pool_free_.back());
   pool_free_.pop_back();
   pool_in_use_++;
@@ -683,52 +653,11 @@ Rpc::AcquireConnectionForQuery() {
 
 void Rpc::ReleaseConnectionToPool(
     std::unique_ptr<TraceProcessor::Connection> conn) {
-  std::unique_lock<std::mutex> lock(pool_mu_);
+  std::lock_guard<std::mutex> lock(pool_mu_);
   PERFETTO_DCHECK(pool_in_use_ > 0);
   pool_in_use_--;
-  if (pool_blocked_for_mutation_) {
-    // A mutation is waiting for us to drain. Drop the connection now so
-    // `non_default_connection_count_` decrements before the writer
-    // re-checks its CHECK gate.
-    lock.unlock();
-    conn.reset();
-    {
-      std::lock_guard<std::mutex> g(pool_mu_);
-    }
-    pool_cv_.notify_all();
-    return;
-  }
   pool_free_.push_back(std::move(conn));
   pool_cv_.notify_all();
-}
-
-void Rpc::DrainConnectionPoolForMutation() {
-  // Take the mint mutex so any in-flight Query refilling the pool
-  // finishes before we start tearing connections down. New
-  // mint attempts after this point will park on this same mutex.
-  std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
-  std::vector<std::unique_ptr<TraceProcessor::Connection>> to_destroy;
-  {
-    std::unique_lock<std::mutex> lock(pool_mu_);
-    pool_blocked_for_mutation_ = true;
-    // Move the free list out so we can destroy the connections without
-    // holding the lock (destruction touches `non_default_connection_count_`
-    // and other TP-side state; keep the pool lock scope tight).
-    to_destroy.swap(pool_free_);
-    // Release the lock so the destructors above can run; reacquire to
-    // wait on the condvar.
-  }
-  to_destroy.clear();
-  std::unique_lock<std::mutex> lock(pool_mu_);
-  // Workers that still hold a connection will see
-  // `pool_blocked_for_mutation_` on release and drop the connection
-  // before notifying us. Wait for `pool_in_use_` to hit zero.
-  pool_cv_.wait(lock, [&] { return pool_in_use_ == 0; });
-  // The pool is now empty and no workers are running. Leave
-  // `pool_blocked_for_mutation_` set: callers who arrive during the
-  // mutation should also park. The mutating RPC clears it once the
-  // mutation is done by re-entering this function's tail (see helper
-  // below).
 }
 
 void Rpc::EnsureWorkerPoolPrimed() {
@@ -747,12 +676,6 @@ void Rpc::EnsureWorkerPoolPrimed() {
     if (!worker_pool_) {
       uint32_t hw = std::thread::hardware_concurrency();
       threads_to_mint = std::min<uint32_t>(hw == 0 ? 1u : hw, 8u);
-    } else if (pool_free_.empty() && pool_in_use_ == 0 &&
-               !pool_blocked_for_mutation_) {
-      // The pool was drained for a mutation and is now idle; refill
-      // to worker-pool size on this thread.
-      threads_to_mint = static_cast<uint32_t>(std::min<uint32_t>(
-          8u, std::max<uint32_t>(1u, std::thread::hardware_concurrency())));
     }
   }
   if (threads_to_mint == 0) {
@@ -1009,9 +932,9 @@ void Rpc::Query(const uint8_t* args,
 }
 
 void Rpc::RestoreInitialTables() {
-  // Mutating: drop all pooled connections and wait for in-flight workers.
-  DrainConnectionPoolForMutation();
-  ScopedPoolUnblock unblock(&pool_mu_, &pool_cv_, &pool_blocked_for_mutation_);
+  // TODO: TP-level mutations require `non_default_connection_count_ == 0`.
+  // See ResetTraceProcessorInternal for the same caveat. Folding this
+  // invariant into TP itself is a pending refactor.
   trace_processor_->RestoreInitialTables();
 }
 

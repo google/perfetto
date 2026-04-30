@@ -311,31 +311,6 @@ DecodedSingleIntCol DecodeSingleIntFromQueryResultBytes(
   return out;
 }
 
-// A mutating RPC arriving while the pool has cached connections must
-// drain the pool cleanly. After the mutation, follow-up queries should
-// continue to work; the pool may mint fresh connections.
-TEST(RpcTest, MutationDrainsPoolAndQueriesContinue) {
-  Rpc rpc;
-  ASSERT_OK(rpc.NotifyEndOfFile());
-
-  // Populate the pool with one cached connection.
-  RunQueryAndCollect(&rpc, "SELECT 1");
-  ASSERT_GE(rpc.pool_distinct_connections_for_testing(), 1u);
-
-  // RestoreInitialTables is a mutating RPC. It must drain pooled
-  // connections before touching the writer engine; otherwise the
-  // `non_default_connection_count_ == 0` CHECK in the underlying
-  // TraceProcessor would fire.
-  rpc.RestoreInitialTables();
-
-  // Subsequent queries still work; the pool recreates connections on
-  // demand.
-  auto chunks = RunQueryAndCollect(&rpc, "SELECT 5");
-  auto decoded = DecodeSingleIntCellResponse(chunks);
-  ASSERT_TRUE(decoded.ok) << "decode failed; error=" << decoded.error;
-  EXPECT_EQ(decoded.value, 5);
-}
-
 // Drives the async streaming dispatch path end-to-end. Sets up a
 // dispatcher that routes worker-completion closures back to a fake
 // task queue (standing in for httpd's task runner), pushes a single

@@ -196,15 +196,9 @@ class Rpc {
 
   // Worker-pool plumbing for `Query` fan-out. The pool is only used after
   // `NotifyEndOfFile` (strict-v1: secondary connections are illegal pre-EOF).
-  // Mutating RPCs (`Parse`, `NotifyEndOfFile`, `RegisterSqlPackage`,
-  // `RestoreInitialTables`, `ResetTraceProcessor`, ...) drain the pool
-  // (destroy all pooled connections, wait for in-flight workers to release
-  // theirs) before touching the underlying `TraceProcessor` so the
-  // `non_default_connection_count_ == 0` mutation gate never trips.
   std::unique_ptr<TraceProcessor::Connection> AcquireConnectionForQuery();
   void ReleaseConnectionToPool(
       std::unique_ptr<TraceProcessor::Connection> conn);
-  void DrainConnectionPoolForMutation();
   void RunQueryOnPoolWorker(std::string sql,
                             base::TimeNanos t_start,
                             const QueryResultBatchCallback& result_callback);
@@ -242,16 +236,20 @@ class Rpc {
   // Connection pool + worker pool. The worker pool is sized to
   // `min(hardware_concurrency, 8)` (or 1 if `hardware_concurrency` is 0)
   // and is created lazily on first post-EOF `Query`. The connection pool
-  // is unbounded; idle connections live on `pool_free_`. While a mutation
-  // is pending, `pool_blocked_for_mutation_` is set and acquirers block
-  // (or fall through to the default connection if the pool is empty and
-  // we're servicing the same thread that requested the mutation).
+  // is unbounded; idle connections live on `pool_free_`.
+  //
+  // TP-level mutating RPCs (RegisterSqlPackage, RestoreInitialTables,
+  // ResetTraceProcessor, etc.) are NOT drain-coordinated by this layer;
+  // the underlying `TraceProcessor` enforces its own
+  // `non_default_connection_count_ == 0` precondition with a
+  // PERFETTO_CHECK and will crash if a caller invokes a mutation while
+  // pooled connections are alive. Folding the precondition into TP
+  // itself (so callers don't need to know) is a pending refactor.
   mutable std::mutex pool_mu_;
   std::condition_variable pool_cv_;
   std::vector<std::unique_ptr<TraceProcessor::Connection>> pool_free_;
   uint32_t pool_in_use_ = 0;
   uint32_t distinct_connections_minted_ = 0;
-  bool pool_blocked_for_mutation_ = false;
   std::unordered_set<std::thread::id> distinct_worker_thread_ids_;
   // Serialises calls to `TraceProcessor::CreateConnection`. Any thread
   // can post a Query, but only one of them at a time may mint
