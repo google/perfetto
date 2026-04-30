@@ -574,6 +574,7 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
+    alwayslink = True,
 )
 
 # GN target: //src/trace_processor:trace_processor_shell_lib
@@ -821,6 +822,7 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
+    alwayslink = True,
 )
 
 # GN target: //src/traceconv:libpprofbuilder
@@ -4423,7 +4425,6 @@ perfetto_filegroup(
         "src/trace_processor/plugins/wattson/table_function.cc",
         "src/trace_processor/plugins/wattson/table_function.h",
     ],
-    alwayslink = True,
 )
 
 # GN target: //src/trace_processor/rpc:httpd
@@ -9347,6 +9348,7 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
+    alwayslink = True,
 )
 
 # GN target: //src/trace_processor:trace_processor_shell

@@ -443,7 +443,8 @@ class GnParser(object):
       # When True, generators emit linker hints that prevent stripping of
       # objects whose only entry points are global-ctor-driven side effects
       # (e.g. self-registering plugins). Maps to Bazel's `alwayslink = True`
-      # on filegroups and Soong's `whole_static_libs` on consumers.
+      # on the cc_library that absorbs this source_set, and Soong's
+      # `whole_static_libs` on consumers.
       self.force_alwayslink = False
 
       # These variables are propagated up when encountering a dependency
