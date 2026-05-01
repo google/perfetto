@@ -15,5 +15,8 @@
 
 
 -- sqlformat file off
+
+-- Returns the package name associated with the provided uid. If more than one
+-- package matches the uid, a scoring system will pick the best one.
 CREATE PERFETTO FUNCTION android_package_lookup(uid LONG)
 RETURNS STRING DELEGATES TO package_lookup;
