@@ -41,8 +41,7 @@ template("wasm_lib") {
   assert(invoker.name + "_wasm" == target_name)
   _lib_name = invoker.name
   _is_memory64 = defined(invoker.is_memory64) && invoker.is_memory64
-  _enable_pthreads =
-      defined(invoker.enable_pthreads) && invoker.enable_pthreads
+  _enable_pthreads = defined(invoker.enable_pthreads) && invoker.enable_pthreads
   assert(!(_is_memory64 && _enable_pthreads),
          "memory64 + pthreads is not a supported emscripten configuration")
   if (is_wasm) {
