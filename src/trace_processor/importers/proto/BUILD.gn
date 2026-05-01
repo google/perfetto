@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto_cc_proto_descriptor.gni")
+import("../../../../gn/test.gni")
 
 source_set("minimal") {
   sources = [
@@ -320,7 +321,7 @@ perfetto_cc_proto_descriptor("gen_cc_gpu_interned_data_descriptor") {
       "../../../../protos/perfetto/trace/gpu:gpu_interned_data_descriptor"
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "active_chrome_processes_tracker_unittest.cc",

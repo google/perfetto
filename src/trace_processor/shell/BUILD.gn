@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
 source_set("shell") {
   sources = [
@@ -86,7 +87,7 @@ source_set("subcommands") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [ "find_subcommand_unittest.cc" ]
   deps = [

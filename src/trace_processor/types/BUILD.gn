@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/test.gni")
+
 source_set("types") {
   sources = [
     "destructible.cc",
@@ -37,7 +39,7 @@ source_set("types") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [ "task_state_unittests.cc" ]
   deps = [

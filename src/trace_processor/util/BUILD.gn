@@ -14,6 +14,7 @@
 
 import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_cc_proto_descriptor.gni")
+import("../../../gn/test.gni")
 
 # Track event args parsing logic here is tentatitively planned to eventually
 # move to src/util and will be used to implement writing typed args in console
@@ -436,7 +437,7 @@ source_set("winscope_proto_mapping") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "galloping_search_unittest.cc",

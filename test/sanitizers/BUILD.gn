@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("unittests") {
+import("../../gn/test.gni")
+
+perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     "../../gn:default_deps",
