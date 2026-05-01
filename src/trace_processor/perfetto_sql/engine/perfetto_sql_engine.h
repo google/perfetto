@@ -255,31 +255,6 @@ class PerfettoSqlEngine {
   // Canonical accessor for the underlying sqlite3 handle.
   sqlite3* db() { return engine_->db(); }
 
-  // Makes a new SQL package available to include. On the writer engine
-  // the package is also appended to the database's package pool so
-  // sibling reader connections replicate it locally on their next
-  // top-level `Execute` (via `SyncPackagesFromPool`). `pool_modules`,
-  // if non-null, are the raw (module-name, sql) pairs readers replay
-  // to rebuild an equivalent `RegisteredPackage` on their own engine.
-  void RegisterPackage(
-      const std::string& name,
-      sql_modules::RegisteredPackage package,
-      std::shared_ptr<const std::vector<std::pair<std::string, std::string>>>
-          pool_modules = nullptr,
-      bool allow_replace = false);
-
-  // Removes a SQL package.
-  void ErasePackage(const std::string& name) { packages_.Erase(name); }
-
-  // Fetches registered SQL package.
-  sql_modules::RegisteredPackage* FindPackage(const std::string& name) {
-    return packages_.Find(name);
-  }
-
-  // Finds a package that owns the given module key (i.e., whose name is a
-  // prefix of the key).
-  sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key);
-
   // Returns the number of objects (tables, views, functions etc) registered
   // with SQLite.
   uint64_t SqliteRegisteredObjectCount() {
@@ -339,13 +314,10 @@ class PerfettoSqlEngine {
 
     // For include frames: metadata needed to complete the include
     std::string include_key;
-    sql_modules::RegisteredPackage::ModuleFile* file_ptr = nullptr;
     SqlSource traceback_sql;
 
-    // For wildcard frames: modules to include (processed in order)
-    std::vector<
-        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
-        wildcard_modules;
+    // For wildcard frames: (key, sql) pairs to include in order.
+    std::vector<std::pair<std::string, std::string>> wildcard_modules;
     size_t wildcard_index = 0;
     SqlSource wildcard_traceback_sql;
 
@@ -406,15 +378,12 @@ class PerfettoSqlEngine {
     kValidateOnly
   };
 
-  // Given a package and a key, include the correct file(s) from the package.
-  // The key can contain a wildcard to include all files in the module with the
-  // matching prefix.
+  // Given a package and a module key, includes the matching file(s).
+  // The key may contain a wildcard.
   base::Status IncludePackageImpl(sql_modules::RegisteredPackage&,
                                   const std::string& key,
                                   const PerfettoSqlParser&);
-
-  // Include a given module.
-  base::Status IncludeModuleImpl(sql_modules::RegisteredPackage::ModuleFile&,
+  base::Status IncludeModuleImpl(const std::string& sql,
                                  const std::string& key,
                                  const PerfettoSqlParser&);
 
@@ -422,24 +391,20 @@ class PerfettoSqlEngine {
   // re-entrant Execute() calls from statement handlers.
   base::StatusOr<ExecutionResult> ExecuteUntilLastStatementImpl(SqlSource);
 
-  // Local-only helpers: register on this engine's own state without
-  // touching the cross-conn pools. Used by both the public registration
-  // entry points (writer side; the public method then publishes) and by
-  // the `Sync*FromPool` consumers (reader side; readers only consume).
+  // Local-only function registration: used by both the public
+  // `RegisterLegacyRuntimeFunction` (writer; then publishes to the
+  // pool) and `SyncFunctionsFromPool` (reader; consumes the pool).
   base::Status RegisterLegacyRuntimeFunctionLocal(
       bool replace,
       const FunctionPrototype& prototype,
       sql_argument::Type return_type,
       SqlSource sql);
-  void RegisterPackageLocal(const std::string& name,
-                            sql_modules::RegisteredPackage package);
 
-  // Pool diff at the top of every top-level `Execute`. Cheap fast-path
-  // when `last_synced_*_version_` already matches the pool's latest.
-  // Writer engines short-circuit — they're the source of truth and
-  // bump the version when they Append.
+  // Pool diff at the top of every top-level `Execute`. Cheap fast-
+  // path when `last_synced_function_version_` already matches the
+  // pool's latest. Writer engines short-circuit — they're the source
+  // of truth and bump the version when they Append.
   base::Status SyncFunctionsFromPool();
-  base::Status SyncPackagesFromPool();
 
   // One iteration of the frame at `frame_idx`. May push new frames
   // onto the stack (for includes / wildcards).
@@ -477,10 +442,9 @@ class PerfettoSqlEngine {
   // pools; readers only consume.
   bool is_writer_ = false;
 
-  // Pool versions last synced. The writer also bumps these on Append
-  // so it doesn't re-register its own entries on its own handle.
+  // Function-pool version last synced. The writer also bumps this on
+  // Append so it doesn't re-register its own functions.
   uint64_t last_synced_function_version_ = 0;
-  uint64_t last_synced_package_version_ = 0;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
   // When an INCLUDE statement is encountered, the included module's SQL is
@@ -507,7 +471,6 @@ class PerfettoSqlEngine {
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
-  base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 
   // Registry of intrinsic functions that can be aliased

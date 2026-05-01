@@ -41,8 +41,7 @@ sql_modules::RegisteredPackage CreateTestPackage(
     const std::vector<std::pair<std::string, std::string>>& files) {
   sql_modules::RegisteredPackage result;
   for (const auto& file : files) {
-    result.modules[file.first] =
-        sql_modules::RegisteredPackage::ModuleFile{file.second, false};
+    result.modules.Insert(file.first, file.second);
   }
   return result;
 }
@@ -290,10 +289,10 @@ TEST_F(PerfettoSqlEngineTest, Macro_Duplicates) {
 }
 
 TEST_F(PerfettoSqlEngineTest, Include_All) {
-  engine_.RegisterPackage(
+  database_.RegisterPackage(
       "foo", CreateTestPackage(
                  {{"foo.foo", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}}));
-  engine_.RegisterPackage(
+  database_.RegisterPackage(
       "bar",
       CreateTestPackage(
           {{"bar.bar", "CREATE PERFETTO TABLE bar AS SELECT 42 AS x "}}));
@@ -301,17 +300,21 @@ TEST_F(PerfettoSqlEngineTest, Include_All) {
   auto res_create =
       engine_.Execute(SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE *"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo"].included);
-  ASSERT_TRUE(engine_.FindPackage("bar")->modules["bar.bar"].included);
+  // Both module bodies ran (the SELECTs above would have failed if
+  // either CREATE TABLE didn't land).
+  auto t_foo = engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM foo"));
+  ASSERT_TRUE(t_foo.ok()) << t_foo.status().c_message();
+  auto t_bar = engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM bar"));
+  ASSERT_TRUE(t_bar.ok()) << t_bar.status().c_message();
 }
 
 TEST_F(PerfettoSqlEngineTest, Include_Module) {
-  engine_.RegisterPackage(
+  database_.RegisterPackage(
       "foo", CreateTestPackage({
                  {"foo.foo1", "CREATE PERFETTO TABLE foo1 AS SELECT 42 AS x"},
                  {"foo.foo2", "CREATE PERFETTO TABLE foo2 AS SELECT 42 AS x"},
              }));
-  engine_.RegisterPackage(
+  database_.RegisterPackage(
       "bar",
       CreateTestPackage(
           {{"bar.bar", "CREATE PERFETTO TABLE bar AS SELECT 42 AS x "}}));
@@ -319,9 +322,15 @@ TEST_F(PerfettoSqlEngineTest, Include_Module) {
   auto res_create = engine_.Execute(
       SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.*"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo1"].included);
-  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo2"].included);
-  ASSERT_FALSE(engine_.FindPackage("bar")->modules["bar.bar"].included);
+  // The two `foo.*` modules ran; `bar.bar` did not.
+  ASSERT_TRUE(engine_.Execute(
+                       SqlSource::FromExecuteQuery("SELECT x FROM foo1"))
+                  .ok());
+  ASSERT_TRUE(engine_.Execute(
+                       SqlSource::FromExecuteQuery("SELECT x FROM foo2"))
+                  .ok());
+  ASSERT_FALSE(engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM bar"))
+                   .ok());
 }
 
 TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_TargetNotFound) {
@@ -376,19 +385,15 @@ TEST(SqlModulesTest, IsPackagePrefixOf) {
 }
 
 TEST_F(PerfettoSqlEngineTest, FindPackageForModule_MultiLevel) {
-  // Register a multi-level package
-  engine_.RegisterPackage(
+  database_.RegisterPackage(
       "foo.bar",
       CreateTestPackage(
           {{"foo.bar.baz", "CREATE PERFETTO TABLE t AS SELECT 1 AS x"}}));
 
-  // FindPackageForModule should find it
-  EXPECT_NE(engine_.FindPackageForModule("foo.bar.baz"), nullptr);
-  EXPECT_NE(engine_.FindPackageForModule("foo.bar.baz.qux"), nullptr);
-
-  // But not for unrelated modules
-  EXPECT_EQ(engine_.FindPackageForModule("foo.other"), nullptr);
-  EXPECT_EQ(engine_.FindPackageForModule("other.bar"), nullptr);
+  EXPECT_NE(database_.FindPackageForModule("foo.bar.baz"), nullptr);
+  EXPECT_NE(database_.FindPackageForModule("foo.bar.baz.qux"), nullptr);
+  EXPECT_EQ(database_.FindPackageForModule("foo.other"), nullptr);
+  EXPECT_EQ(database_.FindPackageForModule("other.bar"), nullptr);
 }
 
 }  // namespace

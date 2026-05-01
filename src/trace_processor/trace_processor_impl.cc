@@ -274,8 +274,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
           "Module name '%s' must start with package name '%s.' as prefix.",
           module_name.c_str(), name.c_str());
     }
-    new_package.modules.Insert(module_name,
-                               {module_name_and_sql.second, false});
+    new_package.modules.Insert(module_name, module_name_and_sql.second);
   }
   return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
@@ -636,14 +635,21 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     PERFETTO_CHECK(status.ok());
   }
 
-  // Register stdlib packages.
+  // Register stdlib packages on both the user-visible list and the
+  // database (every connection's includes resolve against the latter).
   auto packages = GetStdlibPackages();
   for (auto package = packages.GetIterator(); package; ++package) {
-    registered_sql_packages_.emplace_back<SqlPackage>({
+    SqlPackage pkg{
         /*name=*/package.key(),
         /*modules=*/package.value(),
         /*allow_override=*/false,
-    });
+    };
+    auto rp = ToRegisteredPackage(pkg);
+    if (!rp.ok()) {
+      PERFETTO_FATAL("%s", rp.status().c_message());
+    }
+    database_->RegisterPackage(pkg.name, std::move(*rp));
+    registered_sql_packages_.emplace_back(std::move(pkg));
   }
 
   // Compute initial trace bounds before any tables are finalized.
@@ -653,7 +659,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       context(),
       context()->storage.get(),
       config_,
-      registered_sql_packages_,
       sql_metrics_,
       &metrics_descriptor_pool_,
       &proto_fn_name_to_path_,
@@ -873,26 +878,15 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
 
   ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
 
-  // If overriding same package, remove old one first
+  // If overriding same package, remove old one first.
   if (same_package_idx.has_value()) {
     registered_sql_packages_.erase(registered_sql_packages_.begin() +
                                    static_cast<ptrdiff_t>(*same_package_idx));
-    engine_->ErasePackage(name);
+    database_->ErasePackage(name);
   }
-
-  // Save the name + raw module list before moving sql_package. The raw
-  // (module-name, sql) pairs are wrapped in a `shared_ptr` and handed to
-  // the engine so the staging-area package pool can publish them for
-  // sibling reader connections to replay locally on their next
-  // `Execute`.
   std::string pkg_name = name;
-  bool allow_replace = sql_package.allow_override;
-  auto pool_modules = std::make_shared<
-      const std::vector<std::pair<std::string, std::string>>>(
-      sql_package.modules);
   registered_sql_packages_.emplace_back(std::move(sql_package));
-  engine_->RegisterPackage(pkg_name, std::move(new_package),
-                           std::move(pool_modules), allow_replace);
+  database_->RegisterPackage(pkg_name, std::move(new_package));
   return base::OkStatus();
 }
 
@@ -1034,14 +1028,22 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
-  // Drop pool entries accumulated by the previous engine: the new
-  // engine has fresh storage and the prelude include below will
-  // re-create everything from scratch. The included-modules set is
-  // wiped for the same reason. Safe because the CHECK above
-  // guarantees no reader engine is observing.
+  // The new engine has fresh storage and the prelude include below
+  // re-creates everything from scratch. Wipe the function pool and
+  // included-modules set so they don't collide with the new engine's
+  // re-registration. Re-populate the package map from the saved user
+  // registrations. Safe because the CHECK above guarantees no reader
+  // engine is observing.
   database_->functions.Reset();
-  database_->packages.Reset();
+  database_->ResetPackages();
   database_->ResetIncludedModules();
+  for (const auto& pkg : registered_sql_packages_) {
+    auto rp = ToRegisteredPackage(pkg);
+    if (!rp.ok()) {
+      PERFETTO_FATAL("%s", rp.status().c_message());
+    }
+    database_->RegisterPackage(pkg.name, std::move(*rp));
+  }
 
   // Reset the engine to its initial state. Pass cached bounds to avoid
   // recomputing them.
@@ -1049,7 +1051,6 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
       context(),
       context()->storage.get(),
       config_,
-      registered_sql_packages_,
       sql_metrics_,
       &metrics_descriptor_pool_,
       &proto_fn_name_to_path_,
@@ -1353,7 +1354,6 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   auto* context = args.context;
   auto* storage = args.storage;
   const auto& config = args.config;
-  const auto& packages = args.packages;
   auto& sql_metrics = args.sql_metrics;
   const auto* metrics_descriptor_pool = args.metrics_descriptor_pool;
   auto* proto_fn_name_to_path = args.proto_fn_name_to_path;
@@ -1591,19 +1591,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 
   // Reregister manually added stdlib packages. We re-publish them into
   // the staging-area package pool too so a freshly-minted secondary
-  // connection (after `RestoreInitialTables`) sees the writer's full
-  // current registration set on its first sync.
-  for (const auto& package : packages) {
-    auto new_package = ToRegisteredPackage(package);
-    if (!new_package.ok()) {
-      PERFETTO_FATAL("%s", new_package.status().c_message());
-    }
-    auto pool_modules = std::make_shared<
-        const std::vector<std::pair<std::string, std::string>>>(
-        package.modules);
-    engine->RegisterPackage(package.name, std::move(*new_package),
-                            std::move(pool_modules), package.allow_override);
-  }
+  // Note: packages live on the database (cross-conn) so they don't
+  // need re-registering here; `RestoreInitialTables` re-populates
+  // `database_->packages` itself before this is called.
 
   // Import prelude package.
   auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(

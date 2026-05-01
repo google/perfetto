@@ -32,14 +32,10 @@ using NameToPackage =
     base::FlatHashMap<std::string,
                       std::vector<std::pair<std::string, std::string>>>;
 
-// Map from include key to sql file. Include key is the string used in INCLUDE
-// function.
+// Map from include key to sql body. Include key is the string used in
+// INCLUDE PERFETTO MODULE.
 struct RegisteredPackage {
-  struct ModuleFile {
-    std::string sql;
-    bool included;
-  };
-  base::FlatHashMap<std::string, ModuleFile> modules;
+  base::FlatHashMap<std::string, std::string> modules;
 };
 
 inline std::string ReplaceSlashWithDot(std::string str) {

@@ -21,7 +21,21 @@
 #include <string>
 #include <utility>
 
+#include "src/trace_processor/util/sql_modules.h"
+
 namespace perfetto::trace_processor {
+
+sql_modules::RegisteredPackage* PerfettoSqlDatabase::FindPackageForModule(
+    const std::string& module_key) {
+  // Prefix-match: `RegisterSqlPackage` rejects clashing prefixes so at
+  // most one package can match.
+  for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
+    if (sql_modules::IsPackagePrefixOf(pkg.key(), module_key)) {
+      return &pkg.value();
+    }
+  }
+  return nullptr;
+}
 
 PerfettoSqlDatabase::PerfettoSqlDatabase() = default;
 PerfettoSqlDatabase::~PerfettoSqlDatabase() = default;

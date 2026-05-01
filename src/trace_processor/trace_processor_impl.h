@@ -163,7 +163,6 @@ class TraceProcessorImpl : public TraceProcessor,
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
-    const std::vector<SqlPackage>& packages;
     std::vector<metrics::SqlMetricFile>& sql_metrics;
     const DescriptorPool* metrics_descriptor_pool;
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path;

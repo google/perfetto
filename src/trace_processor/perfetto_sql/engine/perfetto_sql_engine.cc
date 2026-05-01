@@ -588,9 +588,6 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   // we get here, so the writer's own re-entrant calls don't need a sync.
   std::string execute_savepoint;
   if (stack_base == 0) {
-    if (auto sync_status = SyncPackagesFromPool(); !sync_status.ok()) {
-      return sync_status;
-    }
     if (auto sync_status = SyncFunctionsFromPool(); !sync_status.ok()) {
       return sync_status;
     }
@@ -721,66 +718,47 @@ void PerfettoSqlEngine::RollbackExecuteSavepoint(const std::string& name) {
 
 base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
     size_t frame_idx) {
-  // Handle wildcard frames specially - they just push include frames
+  // Wildcard frames just push include frames for each remaining
+  // module, one at a time.
   if (execution_stack_[frame_idx].type == FrameType::kWildcard) {
     auto& frame = execution_stack_[frame_idx];
-    // Find next module to include (skip already included ones)
     while (frame.wildcard_index < frame.wildcard_modules.size()) {
-      auto& module_pair = frame.wildcard_modules[frame.wildcard_index];
-      const std::string& key = module_pair.first;
-      auto* file_ptr = module_pair.second;
-      frame.wildcard_index++;
+      auto& slot = frame.wildcard_modules[frame.wildcard_index++];
+      std::string key = std::move(slot.first);
+      std::string sql = std::move(slot.second);
+      PERFETTO_TP_TRACE(
+          metatrace::Category::QUERY_TIMELINE,
+          "Include (expanded from wildcard)",
+          [&key](metatrace::Record* r) { r->AddArg("Module", key); });
 
-      if (!file_ptr->included) {
-        PERFETTO_TP_TRACE(
-            metatrace::Category::QUERY_TIMELINE,
-            "Include (expanded from wildcard)",
-            [&key](metatrace::Record* r) { r->AddArg("Module", key); });
-
-        // Copy traceback before push_back which may invalidate frame ref
-        SqlSource traceback = frame.wildcard_traceback_sql;
-
-        // Cross-connection claim: serialise with any peer importing
-        // the same key. `already_included=true` means another engine
-        // already promoted the module's CREATE statements onto shared
-        // `main`, so re-running the body would conflict.
-        auto res = database_->TryClaimInclude(key);
-        if (res.already_included) {
-          file_ptr->included = true;
-          continue;
-        }
-        PerfettoSqlDatabase::IncludeClaim include_claim =
-            std::move(res.claim);
-
-        // Open a savepoint so the wildcard-expanded include is atomic at
-        // module granularity (see IncludeModuleImpl for the design rationale).
-        std::string savepoint_name =
-            "perfetto_include_" + std::to_string(include_savepoint_counter_++);
-        base::StackString<256> savepoint_sql("SAVEPOINT %s",
-                                             savepoint_name.c_str());
-        if (auto st = engine_->ExecWithRetry(savepoint_sql.c_str());
-            !st.ok()) {
-          return base::ErrStatus(
-              "INCLUDE: failed to open savepoint for '%s': %s", key.c_str(),
-              st.c_message());
-        }
-
-        // Push include frame for this module
-        execution_stack_.push_back(
-            {FrameType::kInclude,
-             SqlSource::FromModuleInclude(file_ptr->sql, key),
-             /*parser=*/nullptr, /*accumulated_stats=*/{},
-             /*current_stmt=*/std::nullopt, key, file_ptr, std::move(traceback),
-             /*wildcard_modules=*/{},
-             /*wildcard_index=*/0,
-             /*wildcard_traceback_sql=*/
-             SqlSource::FromTraceProcessorImplementation(""),
-             /*include_savepoint=*/std::move(savepoint_name),
-             /*include_claim=*/std::move(include_claim)});
-        return FrameResult::kContinue;
+      auto res = database_->TryClaimInclude(key);
+      if (res.already_included) {
+        continue;
       }
+      // Copy traceback before push_back which may invalidate frame ref.
+      SqlSource traceback = frame.wildcard_traceback_sql;
+      std::string savepoint_name =
+          "perfetto_include_" + std::to_string(include_savepoint_counter_++);
+      base::StackString<256> savepoint_sql("SAVEPOINT %s",
+                                           savepoint_name.c_str());
+      if (auto st = engine_->ExecWithRetry(savepoint_sql.c_str()); !st.ok()) {
+        return base::ErrStatus(
+            "INCLUDE: failed to open savepoint for '%s': %s", key.c_str(),
+            st.c_message());
+      }
+      execution_stack_.push_back(
+          {FrameType::kInclude,
+           SqlSource::FromModuleInclude(sql, key),
+           /*parser=*/nullptr, /*accumulated_stats=*/{},
+           /*current_stmt=*/std::nullopt, key, std::move(traceback),
+           /*wildcard_modules=*/{},
+           /*wildcard_index=*/0,
+           /*wildcard_traceback_sql=*/
+           SqlSource::FromTraceProcessorImplementation(""),
+           /*include_savepoint=*/std::move(savepoint_name),
+           /*include_claim=*/std::move(res.claim)});
+      return FrameResult::kContinue;
     }
-    // No more modules to process
     return FrameResult::kFrameDone;
   }
 
@@ -917,13 +895,12 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
   // caller; the unwind path in `ExecuteUntilLastStatement` will then
   // attempt a ROLLBACK TO as a best-effort cleanup.
   RETURN_IF_ERROR(ReleaseIncludeSavepoint(frame));
-  // Clear the savepoint name now that it has been RELEASEd; this prevents
-  // the unwind path from trying to ROLLBACK TO a savepoint that no longer
-  // exists if a later frame errors out.
+  // Clear the savepoint name now that it has been RELEASEd; this
+  // prevents the unwind path from trying to ROLLBACK TO a savepoint
+  // that no longer exists if a later frame errors out.
   frame.include_savepoint.clear();
-  frame.file_ptr->included = true;
-  // Release the cross-connection claim with success=true so any waiter
-  // on this module key sees `already_included` and short-circuits.
+  // Release the claim with success=true so waiters see
+  // `already_included` and short-circuit.
   frame.include_claim.Release(/*success=*/true);
   return FrameResult::kFrameDone;
 }
@@ -953,11 +930,10 @@ PerfettoSqlEngine::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
   // pushed onto the execution stack and processed before continuing with the
   // current SQL. This uses an explicit stack to avoid deep recursion.
 
-  // Push root frame onto execution stack
   execution_stack_.push_back(
       {FrameType::kRoot, std::move(sql_source), /*parser=*/nullptr,
        /*accumulated_stats=*/{}, /*current_stmt=*/std::nullopt,
-       /*include_key=*/{}, /*file_ptr=*/nullptr,
+       /*include_key=*/{},
        /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
        /*wildcard_modules=*/{}, /*wildcard_index=*/0,
        /*wildcard_traceback_sql=*/
@@ -1043,65 +1019,6 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
         database_->functions.Append(PerfettoSqlDatabase::FunctionPoolEntry{
             replace, prototype, return_type, std::move(sql_for_pool)});
   }
-  return base::OkStatus();
-}
-
-void PerfettoSqlEngine::RegisterPackageLocal(
-    const std::string& name,
-    sql_modules::RegisteredPackage package) {
-  packages_.Erase(name);
-  packages_.Insert(name, std::move(package));
-}
-
-void PerfettoSqlEngine::RegisterPackage(
-    const std::string& name,
-    sql_modules::RegisteredPackage package,
-    std::shared_ptr<const std::vector<std::pair<std::string, std::string>>>
-        pool_modules,
-    bool allow_replace) {
-  RegisterPackageLocal(name, std::move(package));
-  // Skip the pool publish when no `pool_modules` were supplied (legacy
-  // single-engine callers that don't need cross-conn propagation).
-  if (is_writer_ && pool_modules) {
-    last_synced_package_version_ = database_->packages.Append(
-        PerfettoSqlDatabase::PackagePoolEntry{name, allow_replace,
-                                            std::move(pool_modules)});
-  }
-}
-
-namespace {
-
-// Reconstructs a fresh `RegisteredPackage` from raw (module-name, sql)
-// pairs. Mirrors the conversion `TraceProcessorImpl::ToRegisteredPackage`
-// performs on the writer; replicated here so readers can rebuild the
-// package on their own engine without depending on TP-impl internals.
-sql_modules::RegisteredPackage RegisteredPackageFromModules(
-    const std::vector<std::pair<std::string, std::string>>& modules) {
-  sql_modules::RegisteredPackage package;
-  for (const auto& m : modules) {
-    package.modules.Insert(m.first, {m.second, false});
-  }
-  return package;
-}
-
-}  // namespace
-
-base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
-  if (is_writer_) {
-    last_synced_package_version_ = database_->packages.LatestVersion();
-    return base::OkStatus();
-  }
-  if (database_->packages.LatestVersion() == last_synced_package_version_) {
-    return base::OkStatus();
-  }
-  auto snapshot =
-      database_->packages.SnapshotSince(last_synced_package_version_);
-  for (const auto& entry : snapshot.entries) {
-    // Use the local-only path so we don't re-publish to the pool.
-    RegisterPackageLocal(entry.name,
-                         RegisteredPackageFromModules(*entry.modules));
-  }
-  last_synced_package_version_ = snapshot.latest_version;
   return base::OkStatus();
 }
 
@@ -1270,16 +1187,15 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
 
   const std::string& key = include.key;
   if (key == "*") {
-    for (auto package = packages_.GetIterator(); package; ++package) {
-      RETURN_IF_ERROR(IncludePackageImpl(package.value(), key, parser));
+    for (auto pkg = database_->packages().GetIterator(); pkg; ++pkg) {
+      RETURN_IF_ERROR(IncludePackageImpl(pkg.value(), key, parser));
     }
     return base::OkStatus();
   }
 
-  // Find the package that owns this module by looking for a package whose
-  // name is a prefix of the key. Multi-level package names are supported
-  // (e.g., package "android.camera" owns module "android.camera.jank").
-  auto* package = FindPackageForModule(key);
+  // Multi-level package names are supported, e.g. package
+  // "android.camera" owns module "android.camera.jank".
+  auto* package = database_->FindPackageForModule(key);
   if (!package) {
     std::string first_component = sql_modules::GetPackageName(key);
     if (first_component == "common") {
@@ -1382,72 +1298,57 @@ base::Status PerfettoSqlEngine::IncludePackageImpl(
     const std::string& include_key,
     const PerfettoSqlParser& parser) {
   if (!include_key.empty() && include_key.back() == '*') {
-    // If the key ends with a wildcard, collect all matching modules and
-    // push a wildcard frame that will process them one at a time.
+    // Wildcard: collect (key, sql) for matching modules and push a
+    // wildcard frame that processes them one at a time.
     std::string prefix = include_key.substr(0, include_key.size() - 1);
-    std::vector<
-        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
-        matching_modules;
-    for (auto module = package.modules.GetIterator(); module; ++module) {
-      if (!base::StartsWith(module.key(), prefix))
+    std::vector<std::pair<std::string, std::string>> matching;
+    for (auto m = package.modules.GetIterator(); m; ++m) {
+      if (!base::StartsWith(m.key(), prefix)) {
         continue;
-      // Include both already-included and not-yet-included modules in the list
-      // The wildcard frame will skip already-included ones during iteration
-      matching_modules.emplace_back(module.key(), &module.value());
+      }
+      matching.emplace_back(m.key(), m.value());
     }
-
-    if (matching_modules.empty()) {
+    if (matching.empty()) {
       return base::OkStatus();
     }
-
-    // Push a wildcard frame that will iterate through these modules
     execution_stack_.push_back(
         {FrameType::kWildcard,
          /*sql_source=*/SqlSource::FromTraceProcessorImplementation(""),
          /*parser=*/nullptr, /*accumulated_stats=*/{},
          /*current_stmt=*/std::nullopt,
-         /*include_key=*/{}, /*file_ptr=*/nullptr,
+         /*include_key=*/{},
          /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
-         std::move(matching_modules), /*wildcard_index=*/0,
+         std::move(matching), /*wildcard_index=*/0,
          /*wildcard_traceback_sql=*/parser.statement_sql(),
          /*include_savepoint=*/{},
          /*include_claim=*/{}});
     return base::OkStatus();
   }
-  auto* module_file = package.modules.Find(include_key);
-  if (!module_file) {
+  auto* sql = package.modules.Find(include_key);
+  if (!sql) {
     return base::ErrStatus("INCLUDE: unknown module '%s'", include_key.c_str());
   }
-  return IncludeModuleImpl(*module_file, include_key, parser);
+  return IncludeModuleImpl(*sql, include_key, parser);
 }
 
 base::Status PerfettoSqlEngine::IncludeModuleImpl(
-    sql_modules::RegisteredPackage::ModuleFile& file,
+    const std::string& sql,
     const std::string& key,
     const PerfettoSqlParser& parser) {
-  // INCLUDE is noop for already included files.
-  if (file.included) {
-    return base::OkStatus();
-  }
-
-  // Cross-connection claim: blocks until no peer is mid-import for the
-  // same key. If another connection has already RELEASEd the body onto
-  // shared `main`, short-circuit — re-running the body would conflict
-  // with the now-promoted shared schema.
+  // Cross-connection claim: blocks until no peer is mid-import for
+  // the same key. If another connection has already RELEASEd the
+  // body onto shared `main`, short-circuit — re-running would
+  // conflict with the now-promoted schema.
   auto res = database_->TryClaimInclude(key);
   if (res.already_included) {
-    file.included = true;
     return base::OkStatus();
   }
   PerfettoSqlDatabase::IncludeClaim include_claim = std::move(res.claim);
 
-  // Open a SAVEPOINT before pushing the include frame so the entire
-  // body of the include runs against a sandbox: on success we RELEASE
-  // so the DDL promotes to `main` (and the shared memdb propagates the
-  // new objects to sibling connections); on failure we ROLLBACK TO so
-  // half-installed objects do not leak. Vtab DDL inside an include is
-  // partially handled by the ROLLBACK callback, which lets
-  // `ModuleStateManagerBase` discard staged state.
+  // SAVEPOINT around the include body: success → RELEASE promotes
+  // the DDL to `main`; failure → ROLLBACK TO drops half-installed
+  // objects. Vtab DDL inside is partially handled by the rollback
+  // callback (`ModuleStateManagerBase` discards staged state).
   std::string savepoint_name = "perfetto_include_" +
                                std::to_string(include_savepoint_counter_++);
   base::StackString<256> savepoint_sql("SAVEPOINT %s", savepoint_name.c_str());
@@ -1457,9 +1358,9 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
   }
 
   ExecutionFrame frame{FrameType::kInclude,
-                       SqlSource::FromModuleInclude(file.sql, key),
+                       SqlSource::FromModuleInclude(sql, key),
                        /*parser=*/nullptr, /*accumulated_stats=*/{},
-                       /*current_stmt=*/std::nullopt, key, &file,
+                       /*current_stmt=*/std::nullopt, key,
                        /*traceback_sql=*/parser.statement_sql(),
                        /*wildcard_modules=*/{}, /*wildcard_index=*/0,
                        /*wildcard_traceback_sql=*/
@@ -1743,18 +1644,6 @@ void PerfettoSqlEngine::OnRollback() {
   for (auto* ctx : virtual_module_state_managers_) {
     ctx->OnRollback();
   }
-}
-
-sql_modules::RegisteredPackage* PerfettoSqlEngine::FindPackageForModule(
-    const std::string& key) {
-  // Find the package whose name is a prefix of the key. Due to prefix clash
-  // checking during registration, at most one package can match any given key.
-  for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
-    if (sql_modules::IsPackagePrefixOf(pkg.key(), key)) {
-      return &pkg.value();
-    }
-  }
-  return nullptr;
 }
 
 }  // namespace perfetto::trace_processor

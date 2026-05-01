@@ -31,6 +31,7 @@
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
+#include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto::trace_processor {
 
@@ -129,25 +130,6 @@ class PerfettoSqlDatabase {
   };
   VersionedPool<FunctionPoolEntry> functions;
 
-  // ===== Package pool =====
-  // Additive-only registry of `RegisterSqlPackage` calls. Stores raw
-  // (module-name, sql) pairs (rather than the move-only
-  // `RegisteredPackage`) so multiple readers can rebuild their own
-  // engine-local copies from the same payload.
-  struct PackagePoolEntry {
-    using Modules = std::vector<std::pair<std::string, std::string>>;
-    PackagePoolEntry(std::string _name,
-                     bool _allow_replace,
-                     std::shared_ptr<const Modules> _modules)
-        : name(std::move(_name)),
-          allow_replace(_allow_replace),
-          modules(std::move(_modules)) {}
-    std::string name;
-    bool allow_replace = false;
-    std::shared_ptr<const Modules> modules;
-  };
-  VersionedPool<PackagePoolEntry> packages;
-
   PerfettoSqlDatabase();
   ~PerfettoSqlDatabase();
 
@@ -155,6 +137,34 @@ class PerfettoSqlDatabase {
   PerfettoSqlDatabase& operator=(const PerfettoSqlDatabase&) = delete;
   PerfettoSqlDatabase(PerfettoSqlDatabase&&) = delete;
   PerfettoSqlDatabase& operator=(PerfettoSqlDatabase&&) = delete;
+
+  // ===== SQL packages =====
+  // Registered packages live here (not on individual connections):
+  // every connection's `INCLUDE PERFETTO MODULE` resolves against the
+  // same map. Mutated only by `TraceProcessorImpl::RegisterSqlPackage`,
+  // gated by the `non_default_connection_count_ == 0` precondition so
+  // reads from connection threads never race with writes.
+  void RegisterPackage(const std::string& name,
+                       sql_modules::RegisteredPackage package) {
+    packages_.Erase(name);
+    packages_.Insert(name, std::move(package));
+  }
+  void ErasePackage(const std::string& name) { packages_.Erase(name); }
+  sql_modules::RegisteredPackage* FindPackage(const std::string& name) {
+    return packages_.Find(name);
+  }
+  // Linear scan — package count is small (low tens) and writes are
+  // gated on zero secondary connections, so this is safe to read from
+  // any connection thread.
+  sql_modules::RegisteredPackage* FindPackageForModule(
+      const std::string& module_key);
+  // Iteration handle for `INCLUDE PERFETTO MODULE *;`.
+  base::FlatHashMap<std::string, sql_modules::RegisteredPackage>& packages() {
+    return packages_;
+  }
+  // Drops every registered package. Used by `RestoreInitialTables`
+  // (which already requires zero secondary connections).
+  void ResetPackages() { packages_.Clear(); }
 
   // Cross-connection vtab-state map keyed by `(module_name, vtab_name)`.
   // Stored as `shared_ptr<void>` so different vtab modules can store
@@ -230,6 +240,12 @@ class PerfettoSqlDatabase {
 
   mutable std::mutex vtab_state_mutex_;
   base::FlatHashMap<std::string, std::shared_ptr<void>> vtab_state_;
+
+  // Mutated only by `RegisterPackage` / `ErasePackage` /
+  // `ResetPackages` — all gated by `non_default_connection_count_ ==
+  // 0` at the `TraceProcessorImpl` level — so connection threads can
+  // read concurrently without a lock.
+  base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
 };
 
 }  // namespace perfetto::trace_processor
