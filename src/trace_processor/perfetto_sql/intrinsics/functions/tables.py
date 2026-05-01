@@ -57,10 +57,10 @@ STRUCTURAL_TREE_PARTITION_TABLE = Table(
         C("group_key", CppUint32()),
     ])
 
-# Output of `__intrinsic_critical_path_walk`. Each row is one stack-frame
-# attribution along the timeline of a root's idle window: while the root
-# is blocked, `blocker_utid` is the thread that was running on the root's
-# behalf at depth `depth` in the wakeup chain.
+# Output table of `__intrinsic_critical_path_walk`. One row per emitted
+# attribution: thread `blocker_utid` (wakeup-graph entry `blocker_id`)
+# was running on `root_id`'s behalf during [ts, ts + dur), at `depth`
+# cross-thread hops away from `root_id` along the wakeup chain.
 CRITICAL_PATH_WALK_TABLE = Table(
     python_module=__file__,
     class_name="CriticalPathWalkTable",

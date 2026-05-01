@@ -28,10 +28,13 @@ class StringPool;
 //   - __intrinsic_wakeup_graph_agg: aggregate that builds a WakeupGraph
 //       pointer from per-row inputs (id, utid, ts, dur, idle_dur, waker_id,
 //       prev_id, is_idle_reason_self).
-//   - __intrinsic_critical_path_walk: scalar/aggregate function that takes
-//       (wakeup_graph_ptr, root_id_array_ptr [, max_depth]) and returns a
+//   - __intrinsic_critical_path_walk: function that takes
+//       (wakeup_graph_ptr, root_id_array_ptr [, mode]) and returns a
 //       Dataframe pointer with columns
 //       (root_id, depth, ts, dur, blocker_id, blocker_utid).
+//       `mode` is 0 for userspace edges (default; IRQ self-wakes chain
+//       through `prev_id`) or 1 for kernel edges (always chains through
+//       `waker_id`).
 base::Status RegisterCriticalPathFunctions(PerfettoSqlEngine& engine,
                                            StringPool& pool);
 

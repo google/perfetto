@@ -36,26 +36,30 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
+// Implementation of the SQLite functions used by the
+// `sched.thread_executing_span` stdlib module to compute the critical
+// path of a thread:
+//
+//   __intrinsic_wakeup_graph_agg
+//       SQL aggregate. Consumes rows of `_wakeup_graph` and produces an
+//       opaque `WakeupGraph*` pointer (tagged `WakeupGraph::kName`).
+//
+//   __intrinsic_critical_path_walk
+//       SQL function. Takes a `WakeupGraph*`, an `IntArray*` of root ids
+//       and an optional `mode` (0 = userspace, 1 = kernel; defaults to
+//       userspace), and returns a `Dataframe*` (tagged "TABLE") with
+//       columns (root_id, depth, ts, dur, blocker_id, blocker_utid).
+//
+// The walk is iterative DFS over each root's wakeup chain, with each
+// frame bounded by its own [ts - idle_dur, ts + dur] window.
 namespace perfetto::trace_processor {
 namespace {
 
 using perfetto_sql::WakeupGraph;
 using perfetto_sql::WakeupNode;
 
-// Per-root iteration cap. Termination of the walk is guaranteed
-// structurally: every recursive step strictly reduces the window's
-// upper bound (the waker frame is bounded above by the child's `ts`,
-// the prev frame is bounded above by `node_idle_start`), and time
-// monotonically decreases as we descend either edge. This cap is
-// purely a safety belt against degenerate inputs that could in theory
-// fan out across many overlapping windows; the value is far above
-// anything observed in real traces.
-constexpr uint32_t kMaxIterationsPerRoot = 1u << 20;  // 1,048,576
-
-// Aggregate that materialises a WakeupGraph from rows of the
-// `_wakeup_graph` stdlib table. One Step() per row.
-//
-// Args (8, in order):
+// Aggregate that builds a `WakeupGraph` from rows of the `_wakeup_graph`
+// stdlib table. Args, in order:
 //   id, utid, ts, dur, idle_dur, waker_id, prev_id, is_idle_reason_self
 struct WakeupGraphAgg : public sqlite::AggregateFunction<WakeupGraphAgg> {
   static constexpr char kName[] = "__intrinsic_wakeup_graph_agg";
@@ -101,9 +105,9 @@ struct WakeupGraphAgg : public sqlite::AggregateFunction<WakeupGraphAgg> {
   }
 };
 
-// Per-frame work item used by the iterative walk. Represents "we should
-// attribute time during [window_start, window_end) using node `node_id`'s
-// own structure, at depth `depth` in the chain from the current root."
+// One unit of work for the iterative walk: attribute time during
+// `[window_start, window_end)` using node `node_id`, at chain `depth`
+// relative to the current root.
 struct Frame {
   uint32_t node_id;
   int64_t window_start;
@@ -111,13 +115,13 @@ struct Frame {
   uint32_t depth;
 };
 
+// Edge-following mode for the walk. Mirrors the `_wakeup_userspace_edges`
+// and `_wakeup_kernel_edges` SQL views.
 enum class Mode : uint8_t {
-  // Userspace: IRQ self-wakes (`is_idle_reason_self=1`) chain through
-  // `prev_id` (same thread) instead of `waker_id`. Matches the existing
-  // `_wakeup_userspace_edges` view.
+  // IRQ self-wakes (`is_idle_reason_self=1`) chain through `prev_id`
+  // (same thread); all other wakeups chain through `waker_id`.
   kUserspace = 0,
-  // Kernel: always chain through `waker_id`, ignoring
-  // `is_idle_reason_self`. Matches `_wakeup_kernel_edges`.
+  // Always chain through `waker_id`; `is_idle_reason_self` is ignored.
   kKernel = 1,
 };
 
@@ -131,23 +135,23 @@ void WalkOneRoot(const WakeupGraph& graph,
   }
   const WakeupNode& root = *graph.nodes_by_id[root_id];
 
-  // Reset per-root scratch storage. Keep capacity to avoid reallocs.
+  // Reuse the caller's stack capacity across roots; clear contents only.
   stack.clear();
 
-  // Initial window: the idle period that preceded the root run, plus the
-  // root's own running interval. The idle portion gets attributed via the
-  // waker chain; the running portion is the root running on the CPU.
-  // If `idle_dur` is unknown for the root, fall back to a 0-length idle —
-  // we have no way to bound the search backward in that case.
+  // Seed with the root's full attribution window: the idle period that
+  // preceded the root's run plus the root's own run. Unknown `idle_dur`
+  // collapses the idle half (no lower bound is available).
+  //
+  // Termination relies on the wakeup graph's causal ordering: any node
+  // reachable from `root_id` via `waker_id` or `prev_id` ran strictly
+  // before the current node, so each push descends to a node with a
+  // smaller `ts`. The walk therefore terminates after at most one
+  // (node, sub-window) pair per reachable causal predecessor.
   int64_t initial_start = root.ts - root.idle_dur.value_or(0);
   int64_t initial_end = root.ts + root.dur;
   stack.push_back({root_id, initial_start, initial_end, 0});
 
-  uint32_t iterations = 0;
   while (!stack.empty()) {
-    if (++iterations > kMaxIterationsPerRoot) {
-      break;
-    }
     Frame f = stack.back();
     stack.pop_back();
 
@@ -158,9 +162,9 @@ void WalkOneRoot(const WakeupGraph& graph,
     }
 
     const WakeupNode& n = *graph.nodes_by_id[f.node_id];
-    // If `idle_dur` is unset, the prior idle is open-ended: clip purely
-    // by the caller's window so the chain can still propagate through
-    // `waker_id` without a hard lower bound from this node.
+    // An unset `idle_dur` means the idle half is open below; clip it
+    // by the caller's window so chain propagation through `waker_id`
+    // still works without a hard lower bound from this node.
     int64_t node_idle_start =
         n.idle_dur.has_value() ? (n.ts - *n.idle_dur) : f.window_start;
     int64_t node_run_end = n.ts + n.dur;
@@ -168,12 +172,9 @@ void WalkOneRoot(const WakeupGraph& graph,
     int64_t eff_start = std::max(f.window_start, node_idle_start);
     int64_t eff_end = std::min(f.window_end, node_run_end);
 
-    // Time before this node's own idle window started: this thread was
-    // running on its prior wakeup-graph entry. Recurse into prev_id at
-    // the same depth (same thread, just an earlier run). Without this
-    // step the chain dead-ends as soon as the immediate waker's run
-    // doesn't span the full caller window — the bulk of the runaway-
-    // looking "uncovered tail" symptom we see today.
+    // Caller's window predates this node's idle: descend into `prev_id`
+    // at the same depth (same thread, earlier run) so the chain can
+    // continue covering time before this node existed.
     if (n.idle_dur.has_value() && f.window_start < node_idle_start &&
         n.prev_id) {
       int64_t prev_window_end = std::min(f.window_end, node_idle_start);
@@ -184,9 +185,10 @@ void WalkOneRoot(const WakeupGraph& graph,
       continue;
     }
 
-    // Idle portion: attribute time during which this thread was sleeping
-    // by chaining into the waker (cross-thread) or prev_id (IRQ self-wake,
-    // matching the existing _wakeup_userspace_edges semantic).
+    // Idle portion of the effective window: this thread was sleeping,
+    // so attribute the time to whoever woke it. Userspace IRQ self-wakes
+    // chain into `prev_id` at the same depth; everything else chains
+    // into `waker_id` at depth + 1.
     int64_t idle_clip_start = eff_start;
     int64_t idle_clip_end = std::min(eff_end, n.ts);
     if (idle_clip_start < idle_clip_end) {
@@ -201,8 +203,8 @@ void WalkOneRoot(const WakeupGraph& graph,
       }
     }
 
-    // Running portion: this thread is on-CPU, so it is the blocker at
-    // this depth.
+    // Running portion of the effective window: this thread is on-CPU
+    // and is therefore the blocker at this depth.
     int64_t run_start = std::max(eff_start, n.ts);
     if (run_start < eff_end) {
       tables::CriticalPathWalkTable::Row row;
@@ -217,11 +219,12 @@ void WalkOneRoot(const WakeupGraph& graph,
   }
 }
 
-// Function consumed via __intrinsic_table_ptr(...). Args:
-//   argv[0]: WakeupGraph*  (from __intrinsic_wakeup_graph_agg)
-//   argv[1]: IntArray*     (from __intrinsic_array_agg of root ids)
-//   argv[2]: int  mode (0=userspace, 1=kernel). Defaults to userspace
-//                  if NULL or omitted.
+// Returns a `Dataframe*` (tagged "TABLE") that callers consume via
+// `__intrinsic_table_ptr(...)`. Args:
+//   argv[0]: WakeupGraph*  from `__intrinsic_wakeup_graph_agg`.
+//   argv[1]: IntArray*     of root ids, from `__intrinsic_array_agg`.
+//   argv[2]: int (optional) walk mode: 0 = userspace, 1 = kernel.
+//                  NULL or omitted is treated as userspace.
 struct CriticalPathWalk : public sqlite::AggregateFunction<CriticalPathWalk> {
   static constexpr char kName[] = "__intrinsic_critical_path_walk";
   static constexpr int kArgCount = -1;

@@ -18,20 +18,23 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
-INCLUDE PERFETTO MODULE graphs.critical_path;
-
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE intervals.overlap;
 
+-- Userspace critical path rooted at every entry of `_wakeup_graph`.
+-- Materialised at module-load so the slice-aware tables below can join
+-- against it in id-space.
 CREATE PERFETTO TABLE _critical_path_userspace AS
 SELECT
   *
-FROM _critical_path_intervals
-    !(_wakeup_userspace_edges,
-      (SELECT id AS root_node_id, id - COALESCE(prev_id, id) AS capacity FROM _wakeup_graph),
-      _wakeup_intervals);
+FROM _critical_path_userspace_by_roots!(
+  (SELECT id AS root_node_id FROM _wakeup_graph),
+  _wakeup_graph);
 
+-- Kernel critical path rooted at every userspace node whose wakeup is a
+-- self-wake (i.e. the IRQ-style nodes whose userspace attribution has
+-- already chained through `prev_id`).
 CREATE PERFETTO TABLE _critical_path_kernel AS
 WITH
   _kernel_nodes AS (
@@ -50,14 +53,9 @@ SELECT
   cr.id,
   cr.ts,
   cr.dur
-FROM _critical_path_intervals
-    !(_wakeup_kernel_edges,
-      (
-        SELECT graph.id AS root_node_id, graph.id - COALESCE(graph.prev_id, graph.id) AS capacity
-        FROM _kernel_nodes
-        JOIN _wakeup_graph graph USING(id)
-      ),
-      _wakeup_intervals) AS cr
+FROM _critical_path_kernel_by_roots!(
+  (SELECT id AS root_node_id FROM _kernel_nodes),
+  _wakeup_graph) AS cr
 JOIN _kernel_nodes
   ON _kernel_nodes.id = cr.root_id
 ORDER BY
@@ -159,12 +157,11 @@ SELECT
   cpu
 FROM thread_state;
 
--- Limited slice_view that will later be span joined with the critical path.
--- NOTE: We keep `slice_id` only here. Slice names are TEXT and would be
--- duplicated across the materialized critical-path × slice cross-product
--- (one row per blocker × per slice across the whole trace). Names are
--- instead joined at the leaves of `_critical_path_stack` for just the
--- region the caller asked about.
+-- Slice projection for the SPAN_JOIN with thread_state. Carries
+-- `slice_id` only; the slice's name string is joined on demand at the
+-- leaves of `_critical_path_stack` so the materialised cross-product
+-- below does not duplicate every slice's name across every blocker
+-- region in the trace.
 CREATE PERFETTO VIEW _span_slice_view AS
 SELECT
   slice_id,
@@ -207,11 +204,9 @@ SELECT
   dur
 FROM _interval_intersect!((_critical_path_all, _span_thread_state_slice), (utid));
 
--- Holds id-space columns only. The slice name is intentionally absent
--- so that, at module-load time, we don't materialize a copy of every
--- slice's name TEXT for every row in the critical-path × slice cross
--- product. `_critical_path_stack` joins `slice` on `slice_id` lazily
--- for just the rows it returns.
+-- Critical-path × slice cross product, restricted to id-space columns.
+-- Slice names are not stored here; `_critical_path_stack` joins `slice`
+-- on `slice_id` for the rows it actually returns.
 CREATE PERFETTO TABLE _critical_path_thread_state_slice AS
 SELECT
   raw.ts,
@@ -235,9 +230,8 @@ JOIN _span_thread_state_slice AS th
 -- without 'critical_path' (blocking) information.
 CREATE VIRTUAL TABLE _self_sp USING SPAN_LEFT_JOIN (thread_state PARTITIONED utid, _slice_flattened PARTITIONED utid);
 
--- Limited view of |_self_sp|. Like `_critical_path_thread_state_slice`,
--- this stays in id-space; `_critical_path_stack` joins `slice` lazily
--- on `self_slice_id` for the rows it returns.
+-- Projection of |_self_sp| in id-space. Slice names are joined on
+-- `self_slice_id` at the leaves of `_critical_path_stack`.
 CREATE PERFETTO VIEW _self_view AS
 SELECT
   id AS self_thread_state_id,
@@ -430,9 +424,9 @@ WITH
     WHERE
       anc.dur != -1
     UNION ALL
-    -- Builds the self 'deepest' ancestor slice stack. Slice names are
-    -- joined here on `self_slice_id` rather than carried through the
-    -- materialised intermediate tables — paid once per emitted row.
+    -- Self 'deepest' slice. The slice name is fetched here on
+    -- `self_slice_id` so the upstream materialised tables stay in
+    -- id-space.
     SELECT
       spans.self_slice_id AS id,
       spans.ts,
@@ -569,9 +563,8 @@ WITH
     WHERE
       anc.dur != -1
     UNION ALL
-    -- Builds the critical_path 'deepest' slice. Slice names are joined
-    -- here on `slice_id` rather than carried through the materialised
-    -- intermediate tables — paid once per emitted row.
+    -- Critical-path 'deepest' slice. The slice name is fetched here on
+    -- `slice_id` so the upstream materialised tables stay in id-space.
     SELECT
       cps.slice_id AS id,
       cps.ts,

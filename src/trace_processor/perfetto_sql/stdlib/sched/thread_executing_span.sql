@@ -530,19 +530,10 @@ RETURNS TableOrSubQuery AS
     flat.ts
 );
 
--- Generates the critical path for only the set of roots <id> passed in.
--- _intervals_to_roots can be used to generate root ids from a given time interval.
--- This can be used to genrate the critical path over sparse regions of a trace, e.g
--- binder transactions. It might be more efficient to generate the _critical_path
--- for the entire trace, see _thread_executing_span_critical_path_all, but for a
--- per-process susbset of binder txns for instance, this is likely faster.
--- Userspace per-root walk via the C++ `__intrinsic_critical_path_walk`.
--- Replaces the older `_critical_path_intervals!()` pipeline for the
--- wakeup-graph use case. The walk recursively bounds each frame by its
--- own idle window, falling back to a frame's `prev_id` for the time
--- before that frame's idle started — fixes a class of "uncovered tail"
--- and "runaway depth on monitor contention" bugs that the lead(ts) flatten
--- couldn't model. IRQ self-wake semantics (mode=0) are unchanged.
+-- Userspace critical path for each root id. Each frame in the walk is
+-- bounded by its own [ts - idle_dur, ts + dur] window, with same-depth
+-- descent into `prev_id` for time predating that window. IRQ self-wakes
+-- chain through `prev_id`; all other wakeups chain through `waker_id`.
 CREATE PERFETTO MACRO _critical_path_userspace_by_roots(
     _roots_table TableOrSubQuery,
     _node_table TableOrSubQuery
@@ -578,9 +569,9 @@ RETURNS TableOrSubQuery AS
     AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
 );
 
--- Kernel-mode counterpart of `_critical_path_userspace_by_roots`. Always
--- chains through `waker_id`, ignoring `is_idle_reason_self` (matches the
--- existing `_wakeup_kernel_edges` semantic).
+-- Kernel-mode critical path for each root id. Always chains through
+-- `waker_id`; `is_idle_reason_self` is ignored. Mirrors the
+-- `_wakeup_kernel_edges` view.
 CREATE PERFETTO MACRO _critical_path_kernel_by_roots(
     _roots_table TableOrSubQuery,
     _node_table TableOrSubQuery
@@ -616,6 +607,10 @@ RETURNS TableOrSubQuery AS
     AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
 );
 
+-- Critical path for the given set of root ids, with kernel and userspace
+-- chains merged. `_intervals_to_roots` produces root ids from a time
+-- interval, which makes this form well suited to sparse-region queries
+-- (e.g. binder transactions) without walking the whole trace.
 CREATE PERFETTO MACRO _critical_path_by_roots(
     _roots_table TableOrSubQuery,
     _node_table TableOrSubQuery
