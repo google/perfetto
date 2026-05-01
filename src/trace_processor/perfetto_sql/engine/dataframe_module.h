@@ -63,7 +63,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     // in multi-connection sharing (both the writer and any reader). Null for
     // legacy single-connection setups; in that case `OnCommit`/`OnRollback`
     // behave exactly as the base class.
-    PerfettoSqlDatabase* database = nullptr;  // Set in PerfettoSqlEngine ctor.
+    PerfettoSqlDatabase* database = nullptr;  // Set in PerfettoSqlConnection ctor.
 
     // True for the writer engine (i.e. `TraceProcessorImpl`'s primary
     // engine): publishes its committed `PerVtabState::committed_state` into

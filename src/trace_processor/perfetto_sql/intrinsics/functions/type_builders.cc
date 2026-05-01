@@ -39,7 +39,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_tree.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/counter.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
@@ -590,7 +590,7 @@ struct SymbolizeAgg
 
 }  // namespace
 
-base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterTypeBuilderFunctions(PerfettoSqlConnection& engine,
                                           StringPool* pool) {
   RETURN_IF_ERROR(engine.RegisterAggregateFunction<ArrayAgg>(nullptr));
   RETURN_IF_ERROR(engine.RegisterFunction<Struct>(nullptr));

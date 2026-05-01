@@ -92,7 +92,7 @@ class VersionedPool {
   std::atomic<uint64_t> version_{0};
 };
 
-// Cross-connection state shared by every PerfettoSqlEngine attached
+// Cross-connection state shared by every PerfettoSqlConnection attached
 // to the same TraceProcessorImpl. Owned by TraceProcessorImpl and
 // passed by pointer into each connection at construction time.
 //

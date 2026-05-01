@@ -85,7 +85,7 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/art_heap_graph_functions.h"
@@ -192,9 +192,9 @@ namespace {
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::UserData*>
 void RegisterFunction(
-    PerfettoSqlEngine* engine,
+    PerfettoSqlConnection* engine,
     Ptr context = nullptr,
-    const PerfettoSqlEngine::RegisterFunctionArgs& args = {}) {
+    const PerfettoSqlConnection::RegisterFunctionArgs& args = {}) {
   auto status = engine->RegisterFunction<SqlFunction>(std::move(context), args);
   if (!status.ok()) {
     const char* name = args.name ? args.name : SqlFunction::kName;
@@ -206,7 +206,7 @@ void RegisterFunction(
 base::Status RegisterAllProtoBuilderFunctions(
     const DescriptorPool* pool,
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
-    PerfettoSqlEngine* engine,
+    PerfettoSqlConnection* engine,
     TraceProcessor* tp) {
   for (uint32_t i = 0; i < pool->descriptors().size(); ++i) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
@@ -227,7 +227,7 @@ base::Status RegisterAllProtoBuilderFunctions(
         engine,
         std::make_unique<metrics::BuildProto::UserData>(
             metrics::BuildProto::UserData{tp, pool, i}),
-        PerfettoSqlEngine::RegisterFunctionArgs(fn_name.c_str()));
+        PerfettoSqlConnection::RegisterFunctionArgs(fn_name.c_str()));
     proto_fn_name_to_path->emplace(fn_name, desc.full_name());
   }
   return base::OkStatus();
@@ -253,7 +253,7 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
 }
 
 template <typename T>
-void AddStaticTable(std::vector<PerfettoSqlEngine::StaticTable>& tables,
+void AddStaticTable(std::vector<PerfettoSqlConnection::StaticTable>& tables,
                     T* table_instance) {
   tables.push_back({
       &table_instance->dataframe(),
@@ -358,7 +358,7 @@ class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
   }
 };
 
-void RegisterValueAtMaxTsFunction(PerfettoSqlEngine& engine) {
+void RegisterValueAtMaxTsFunction(PerfettoSqlConnection& engine) {
   base::Status status = engine.RegisterAggregateFunction<ValueAtMaxTs>(nullptr);
   if (!status.ok()) {
     PERFETTO_ELOG("Error initializing VALUE_AT_MAX_TS");
@@ -655,7 +655,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // Compute initial trace bounds before any tables are finalized.
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
 
-  engine_ = InitPerfettoSqlEngine({
+  engine_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
       config_,
@@ -696,7 +696,7 @@ TraceProcessorImpl::~TraceProcessorImpl() {
 class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
  public:
   ConnectionImpl(TraceProcessorImpl* parent,
-                 std::unique_ptr<PerfettoSqlEngine> engine)
+                 std::unique_ptr<PerfettoSqlConnection> engine)
       : parent_(parent), engine_(std::move(engine)) {}
   ~ConnectionImpl() override {
     // Tear down the engine while the parent is still alive.
@@ -717,7 +717,7 @@ class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
 
  private:
   TraceProcessorImpl* parent_;
-  std::unique_ptr<PerfettoSqlEngine> engine_;
+  std::unique_ptr<PerfettoSqlConnection> engine_;
 };
 
 std::unique_ptr<TraceProcessor::Connection>
@@ -729,7 +729,7 @@ TraceProcessorImpl::CreateConnection() {
   // extra barrier is needed).
   context()->storage->mutable_string_pool()
       ->EnableThreadSafetyForMultiConnection();
-  auto engine = std::make_unique<PerfettoSqlEngine>(
+  auto engine = std::make_unique<PerfettoSqlConnection>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
       engine_->sqlite_engine()->filename(), database_.get());
   non_default_connection_count_.fetch_add(1, std::memory_order_relaxed);
@@ -835,7 +835,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
   std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
-  base::StatusOr<PerfettoSqlEngine::ExecutionResult> result =
+  base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
   std::unique_ptr<IteratorImpl> impl(
@@ -1047,7 +1047,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 
   // Reset the engine to its initial state. Pass cached bounds to avoid
   // recomputing them.
-  engine_ = InitPerfettoSqlEngine({
+  engine_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
       config_,
@@ -1189,9 +1189,9 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return metrics_descriptor_pool_.SerializeAsDescriptorSet();
 }
 
-std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
+std::vector<PerfettoSqlConnection::StaticTable> TraceProcessorImpl::GetStaticTables(
     TraceStorage* storage) {
-  std::vector<PerfettoSqlEngine::StaticTable> tables;
+  std::vector<PerfettoSqlConnection::StaticTable> tables;
   AddStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddStaticTable(tables, storage->mutable_aggregate_sample_table());
   AddStaticTable(tables, storage->mutable_android_aflags_table());
@@ -1312,7 +1312,7 @@ std::vector<std::unique_ptr<StaticTableFunction>>
 TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
                                                TraceStorage* storage,
                                                const Config& config,
-                                               PerfettoSqlEngine* engine) {
+                                               PerfettoSqlConnection* engine) {
   std::vector<std::unique_ptr<StaticTableFunction>> fns;
   fns.emplace_back(std::make_unique<ExperimentalFlamegraph>(context));
   fns.emplace_back(std::make_unique<ExperimentalSliceLayout>(
@@ -1349,8 +1349,8 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   return fns;
 }
 
-std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
-    const InitPerfettoSqlEngineArgs& args) {
+std::unique_ptr<PerfettoSqlConnection> TraceProcessorImpl::InitPerfettoSqlConnection(
+    const InitPerfettoSqlConnectionArgs& args) {
   auto* context = args.context;
   auto* storage = args.storage;
   const auto& config = args.config;
@@ -1362,7 +1362,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   auto cached_trace_bounds = args.cached_trace_bounds;
   const auto& plugins = args.plugins;
 
-  auto engine = std::make_unique<PerfettoSqlEngine>(
+  auto engine = std::make_unique<PerfettoSqlConnection>(
       storage->mutable_string_pool(), config.enable_extra_checks,
       args.database);
 
@@ -1370,7 +1370,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       CreateStaticTableFunctions(context, storage, config, engine.get());
 
   // Let plugins contribute their tables and table functions.
-  std::vector<PerfettoSqlEngine::StaticTable> tables = GetStaticTables(storage);
+  std::vector<PerfettoSqlConnection::StaticTable> tables = GetStaticTables(storage);
   std::vector<PluginDataframe> plugin_dataframes;
   std::vector<SqliteModuleRegistration> sqlite_modules;
   for (auto& p : plugins) {
@@ -1615,7 +1615,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   return engine;
 }
 
-void TraceProcessorImpl::IncludeAfterEofPrelude(PerfettoSqlEngine* engine) {
+void TraceProcessorImpl::IncludeAfterEofPrelude(PerfettoSqlConnection* engine) {
   auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(
       "INCLUDE PERFETTO MODULE prelude.after_eof.*"));
   if (!result.status().ok()) {

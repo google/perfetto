@@ -36,7 +36,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 struct SpanJoinOperatorModule;
 
 // Implements the SPAN JOIN operation between two tables on a particular column.
@@ -117,7 +117,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
                     std::optional<uint32_t> dur_idx,
                     uint32_t partition_idx);
 
-    static base::Status Create(PerfettoSqlEngine* engine,
+    static base::Status Create(PerfettoSqlConnection* engine,
                                const TableDescriptor& desc,
                                EmitShadowType emit_shadow_type,
                                TableDefinition* defn);
@@ -373,9 +373,9 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
   };
 
   struct Context {
-    explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
+    explicit Context(PerfettoSqlConnection* _engine) : engine(_engine) {}
 
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* engine;
   };
   struct Vtab : public sqlite3_vtab {
     bool IsLeftJoin() const {
@@ -398,7 +398,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
 
     void PopulateColumnLocatorMap(uint32_t);
 
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* engine;
     std::string module_name;
     std::string create_table_stmt;
     TableDefinition t1_defn;

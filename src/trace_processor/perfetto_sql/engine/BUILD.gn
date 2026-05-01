@@ -24,8 +24,8 @@ source_set("engine") {
     "dataframe_module.h",
     "perfetto_sql_database.cc",
     "perfetto_sql_database.h",
-    "perfetto_sql_engine.cc",
-    "perfetto_sql_engine.h",
+    "perfetto_sql_connection.cc",
+    "perfetto_sql_connection.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
     "static_table_function_module.cc",
@@ -54,7 +54,7 @@ source_set("engine") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "perfetto_sql_engine_unittest.cc" ]
+  sources = [ "perfetto_sql_connection_unittest.cc" ]
   deps = [
     ":engine",
     "../../../../gn:default_deps",

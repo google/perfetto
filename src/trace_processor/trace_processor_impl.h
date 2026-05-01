@@ -38,7 +38,7 @@
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -145,7 +145,7 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  // A `Connection` impl owning a fresh `PerfettoSqlEngine` attached to
+  // A `Connection` impl owning a fresh `PerfettoSqlConnection` attached to
   // the primary engine's memdb URI. See the doc-comment in
   // `trace_processor_impl.cc` for the intentional limitations.
   class ConnectionImpl;
@@ -159,7 +159,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   void CacheBoundsAndBuildTable();
 
-  struct InitPerfettoSqlEngineArgs {
+  struct InitPerfettoSqlConnectionArgs {
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
@@ -173,19 +173,19 @@ class TraceProcessorImpl : public TraceProcessor,
     PerfettoSqlDatabase* database;
   };
 
-  static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
-      const InitPerfettoSqlEngineArgs& args);
+  static std::unique_ptr<PerfettoSqlConnection> InitPerfettoSqlConnection(
+      const InitPerfettoSqlConnectionArgs& args);
 
-  static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
+  static std::vector<PerfettoSqlConnection::StaticTable> GetStaticTables(
       TraceStorage* storage);
 
   static std::vector<std::unique_ptr<StaticTableFunction>>
   CreateStaticTableFunctions(TraceProcessorContext* context,
                              TraceStorage* storage,
                              const Config& config,
-                             PerfettoSqlEngine* engine);
+                             PerfettoSqlConnection* engine);
 
-  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
+  static void IncludeAfterEofPrelude(PerfettoSqlConnection*);
 
   const Config config_;
 
@@ -196,7 +196,7 @@ class TraceProcessorImpl : public TraceProcessor,
   // per-module include locks). Shared by every connection's engine.
   std::unique_ptr<PerfettoSqlDatabase> database_;
 
-  std::unique_ptr<PerfettoSqlEngine> engine_;
+  std::unique_ptr<PerfettoSqlConnection> engine_;
 
   DescriptorPool metrics_descriptor_pool_;
 

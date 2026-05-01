@@ -33,14 +33,14 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
 // The implementation of the SqliteTableLegacy interface for table functions
 // defined at runtime using SQL.
 struct RuntimeTableFunctionModule
     : public sqlite::Module<RuntimeTableFunctionModule> {
   struct State {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* engine;
     SqlSource sql_defn_str;
 
     FunctionPrototype prototype;

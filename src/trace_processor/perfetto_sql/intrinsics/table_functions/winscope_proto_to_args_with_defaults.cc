@@ -43,7 +43,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -338,7 +338,7 @@ base::Status InsertRows(
 }  // namespace
 
 WinscopeProtoToArgsWithDefaults::Cursor::Cursor(StringPool* string_pool,
-                                                const PerfettoSqlEngine* engine,
+                                                const PerfettoSqlConnection* engine,
                                                 TraceProcessorContext* context)
     : string_pool_(string_pool),
       engine_(engine),
@@ -395,7 +395,7 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
 
 WinscopeProtoToArgsWithDefaults::WinscopeProtoToArgsWithDefaults(
     StringPool* string_pool,
-    const PerfettoSqlEngine* engine,
+    const PerfettoSqlConnection* engine,
     TraceProcessorContext* context)
     : string_pool_(string_pool), engine_(engine), context_(context) {}
 

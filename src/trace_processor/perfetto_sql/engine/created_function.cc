@@ -35,7 +35,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -317,7 +317,7 @@ class Memoizer {
 //   the computation.
 class RecursiveCallUnroller {
  public:
-  RecursiveCallUnroller(PerfettoSqlEngine* engine,
+  RecursiveCallUnroller(PerfettoSqlConnection* engine,
                         sqlite3_stmt* stmt,
                         const FunctionPrototype& prototype,
                         Memoizer& memoizer)
@@ -434,7 +434,7 @@ class RecursiveCallUnroller {
     return std::optional<int64_t>(result->long_value);
   }
 
-  PerfettoSqlEngine* engine_;
+  PerfettoSqlConnection* engine_;
   sqlite3_stmt* stmt_;
   const FunctionPrototype& prototype_;
   Memoizer& memoizer_;
@@ -466,7 +466,7 @@ class RecursiveCallUnroller {
 // of the function (e.g. when the function is called recursively).
 class State : public CreatedFunction::UserData {
  public:
-  explicit State(PerfettoSqlEngine* engine) : engine_(engine) {}
+  explicit State(PerfettoSqlConnection* engine) : engine_(engine) {}
   ~State() override;
 
   // Prepare a statement and push it into the stack of allocated statements
@@ -578,7 +578,7 @@ class State : public CreatedFunction::UserData {
     return memoizer_.EnableMemoization(prototype_);
   }
 
-  PerfettoSqlEngine* engine() const { return engine_; }
+  PerfettoSqlConnection* engine() const { return engine_; }
 
   const FunctionPrototype& prototype() const { return prototype_; }
 
@@ -591,7 +591,7 @@ class State : public CreatedFunction::UserData {
   Memoizer& memoizer() { return memoizer_; }
 
  private:
-  PerfettoSqlEngine* engine_;
+  PerfettoSqlConnection* engine_;
   FunctionPrototype prototype_;
   sql_argument::Type return_type_;
   std::optional<SqlSource> sql_;
@@ -617,7 +617,7 @@ class State : public CreatedFunction::UserData {
 State::~State() = default;
 
 std::unique_ptr<CreatedFunction::UserData> CreatedFunction::MakeContext(
-    PerfettoSqlEngine* engine) {
+    PerfettoSqlConnection* engine) {
   return std::make_unique<State>(engine);
 }
 
@@ -625,7 +625,7 @@ bool CreatedFunction::IsValid(UserData* ctx) {
   return static_cast<State*>(ctx)->is_valid();
 }
 
-void CreatedFunction::Reset(UserData* ctx, PerfettoSqlEngine* engine) {
+void CreatedFunction::Reset(UserData* ctx, PerfettoSqlConnection* engine) {
   ctx->~UserData();
   new (ctx) State(engine);
 }

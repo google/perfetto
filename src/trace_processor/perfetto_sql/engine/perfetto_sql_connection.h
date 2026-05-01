@@ -53,7 +53,7 @@ namespace perfetto::trace_processor {
 // Intermediary class which translates high-level concepts and algorithms used
 // in trace processor into lower-level concepts and functions can be understood
 // by and executed against SQLite.
-class PerfettoSqlEngine {
+class PerfettoSqlConnection {
  public:
   struct ExecutionStats {
     uint32_t column_count = 0;
@@ -70,7 +70,7 @@ class PerfettoSqlEngine {
   };
   // Primary (writer) ctor: opens a fresh sqlite3 handle and registers the
   // full set of tables, functions, and vtab modules.
-  PerfettoSqlEngine(StringPool* pool,
+  PerfettoSqlConnection(StringPool* pool,
                     bool enable_extra_checks,
                     PerfettoSqlDatabase* database);
 
@@ -86,7 +86,7 @@ class PerfettoSqlEngine {
   // function vtabs are not yet replicated across connections. PerfettoSQL
   // functions and packages flow in via the additive pool diff at the
   // top of every `Execute`.
-  PerfettoSqlEngine(StringPool* pool,
+  PerfettoSqlConnection(StringPool* pool,
                     bool enable_extra_checks,
                     const std::string& shared_filename,
                     PerfettoSqlDatabase* database);
@@ -492,7 +492,7 @@ class PerfettoSqlEngine {
 // like this to keep the API people actually care about easy to read.
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterFunction(
+base::Status PerfettoSqlConnection::RegisterFunction(
     typename Function::UserData* ctx,
     const RegisterFunctionArgs& args) {
   function_count_++;
@@ -503,7 +503,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterFunction(
+base::Status PerfettoSqlConnection::RegisterFunction(
     std::unique_ptr<typename Function::UserData> ctx,
     const RegisterFunctionArgs& args) {
   function_count_++;
@@ -519,7 +519,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterAggregateFunction(
+base::Status PerfettoSqlConnection::RegisterAggregateFunction(
     typename Function::UserData* ctx,
     bool deterministic) {
   aggregate_function_count_++;
@@ -529,7 +529,7 @@ base::Status PerfettoSqlEngine::RegisterAggregateFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterWindowFunction(
+base::Status PerfettoSqlConnection::RegisterWindowFunction(
     const char* name,
     int argc,
     typename Function::Context* ctx,

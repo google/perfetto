@@ -25,7 +25,7 @@
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "test/gtest_and_gmock.h"
@@ -69,7 +69,7 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
  protected:
   StringPool pool_;
   PerfettoSqlDatabase database_;
-  PerfettoSqlEngine engine_{&pool_, true, &database_};
+  PerfettoSqlConnection engine_{&pool_, true, &database_};
   ScopedStmt stmt_;
 };
 

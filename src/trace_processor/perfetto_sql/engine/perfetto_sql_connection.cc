@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 #include <sqlite3.h>
 #include <algorithm>
@@ -69,11 +69,11 @@
 // The execution of PerfettoSQL statements is the joint responsibility of
 // several classes which all are linked together in the following way:
 //
-//  PerfettoSqlEngine -> PerfettoSqlParser -> PerfettoSqlPreprocessor
+//  PerfettoSqlConnection -> PerfettoSqlParser -> PerfettoSqlPreprocessor
 //
 // The responsibility of each of these classes is as follows:
 //
-// * PerfettoSqlEngine: this class is responsible for the end-to-end processing
+// * PerfettoSqlConnection: this class is responsible for the end-to-end processing
 //   of statements. It calls into PerfettoSqlParser to incrementally receive
 //   parsed SQL statements and then executes them. If the statement is a
 //   PerfettoSQL-only statement, the execution happens entirely in this class.
@@ -139,7 +139,7 @@ struct SqliteStmtValueViewFetcher : public dataframe::ValueFetcher {
 };
 
 void IncrementCountForStmt(const SqliteEngine::PreparedStatement& p_stmt,
-                           PerfettoSqlEngine::ExecutionStats* res) {
+                           PerfettoSqlConnection::ExecutionStats* res) {
   res->statement_count++;
 
   // If the stmt is already done, it clearly didn't have any output.
@@ -190,7 +190,7 @@ base::Status AddTracebackIfNeeded(base::Status status,
 }
 
 // This function is used when the PerfettoSQL has been fully executed by the
-// PerfettoSqlEngine and a SqlSoruce is needed for SQLite to execute.
+// PerfettoSqlConnection and a SqlSoruce is needed for SQLite to execute.
 SqlSource RewriteToDummySql(const SqlSource& source) {
   return source.RewriteAllIgnoreExisting(
       SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
@@ -396,7 +396,7 @@ GetTypesFromSelectStatement(
 
 }  // namespace
 
-PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
+PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
                                      bool enable_extra_checks,
                                      const std::string& shared_filename,
                                      PerfettoSqlDatabase* database)
@@ -413,11 +413,11 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
   // the header doc-comment for the full list of intentional omissions.
   engine_->SetCommitCallback(
       [](void* ctx) {
-        return static_cast<PerfettoSqlEngine*>(ctx)->OnCommit();
+        return static_cast<PerfettoSqlConnection*>(ctx)->OnCommit();
       },
       this);
   engine_->SetRollbackCallback(
-      [](void* ctx) { static_cast<PerfettoSqlEngine*>(ctx)->OnRollback(); },
+      [](void* ctx) { static_cast<PerfettoSqlConnection*>(ctx)->OnRollback(); },
       this);
 
   auto ctx = std::make_unique<DataframeModule::Context>();
@@ -429,7 +429,7 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
                                               std::move(ctx));
 }
 
-PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
+PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
                                      bool enable_extra_checks,
                                      PerfettoSqlDatabase* database)
     : pool_(pool),
@@ -452,11 +452,11 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
   // Register callbacks for transaction management.
   engine_->SetCommitCallback(
       [](void* ctx) {
-        return static_cast<PerfettoSqlEngine*>(ctx)->OnCommit();
+        return static_cast<PerfettoSqlConnection*>(ctx)->OnCommit();
       },
       this);
   engine_->SetRollbackCallback(
-      [](void* ctx) { static_cast<PerfettoSqlEngine*>(ctx)->OnRollback(); },
+      [](void* ctx) { static_cast<PerfettoSqlConnection*>(ctx)->OnRollback(); },
       this);
 
   {
@@ -487,7 +487,7 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
 }
 
 base::StatusOr<SqliteEngine::PreparedStatement>
-PerfettoSqlEngine::PrepareSqliteStatement(SqlSource sql_source) {
+PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
   PerfettoSqlParser parser(std::move(sql_source), macros_);
   if (!parser.Next()) {
     return base::ErrStatus("No statement found to prepare");
@@ -505,7 +505,7 @@ PerfettoSqlEngine::PrepareSqliteStatement(SqlSource sql_source) {
   return std::move(stmt);
 }
 
-base::Status PerfettoSqlEngine::InitializeStaticTablesAndFunctions(
+base::Status PerfettoSqlConnection::InitializeStaticTablesAndFunctions(
     const std::vector<StaticTable>& tables,
     std::vector<std::unique_ptr<StaticTableFunction>> functions) {
   for (const auto& info : tables) {
@@ -517,7 +517,7 @@ base::Status PerfettoSqlEngine::InitializeStaticTablesAndFunctions(
   return base::OkStatus();
 }
 
-void PerfettoSqlEngine::RegisterStaticTable(dataframe::Dataframe* df,
+void PerfettoSqlConnection::RegisterStaticTable(dataframe::Dataframe* df,
                                             const std::string& table_name) {
   PERFETTO_CHECK(!dataframe_context_->temporary_create_state);
   dataframe_context_->temporary_create_state =
@@ -538,7 +538,7 @@ void PerfettoSqlEngine::RegisterStaticTable(dataframe::Dataframe* df,
   PERFETTO_CHECK(!dataframe_context_->temporary_create_state);
 }
 
-void PerfettoSqlEngine::RegisterStaticTableFunction(
+void PerfettoSqlConnection::RegisterStaticTableFunction(
     std::unique_ptr<StaticTableFunction> fn) {
   std::string name = fn->TableName();
 
@@ -559,7 +559,7 @@ void PerfettoSqlEngine::RegisterStaticTableFunction(
   PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
 }
 
-base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
+base::StatusOr<PerfettoSqlConnection::ExecutionStats> PerfettoSqlConnection::Execute(
     SqlSource sql) {
   auto res = ExecuteUntilLastStatement(std::move(sql));
   RETURN_IF_ERROR(res.status());
@@ -572,8 +572,8 @@ base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
   return res->stats;
 }
 
-base::StatusOr<PerfettoSqlEngine::ExecutionResult>
-PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
+base::StatusOr<PerfettoSqlConnection::ExecutionResult>
+PerfettoSqlConnection::ExecuteUntilLastStatement(SqlSource sql_source) {
   // Save the current stack size to handle re-entrant Execute() calls.
   // Statement handlers like ExecuteCreateFunction may call Execute()
   // recursively, which would otherwise corrupt our stack state.
@@ -645,7 +645,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   return result;
 }
 
-base::Status PerfettoSqlEngine::ReleaseIncludeSavepoint(
+base::Status PerfettoSqlConnection::ReleaseIncludeSavepoint(
     const ExecutionFrame& frame) {
   if (frame.include_savepoint.empty()) {
     return base::OkStatus();
@@ -659,7 +659,7 @@ base::Status PerfettoSqlEngine::ReleaseIncludeSavepoint(
   return base::OkStatus();
 }
 
-void PerfettoSqlEngine::RollbackIncludeSavepoint(const ExecutionFrame& frame) {
+void PerfettoSqlConnection::RollbackIncludeSavepoint(const ExecutionFrame& frame) {
   if (frame.include_savepoint.empty()) {
     return;
   }
@@ -675,7 +675,7 @@ void PerfettoSqlEngine::RollbackIncludeSavepoint(const ExecutionFrame& frame) {
   }
 }
 
-base::StatusOr<std::string> PerfettoSqlEngine::OpenExecuteSavepoint() {
+base::StatusOr<std::string> PerfettoSqlConnection::OpenExecuteSavepoint() {
   std::string name =
       "perfetto_execute_" + std::to_string(execute_savepoint_counter_++);
   base::StackString<256> sql("SAVEPOINT %s", name.c_str());
@@ -687,7 +687,7 @@ base::StatusOr<std::string> PerfettoSqlEngine::OpenExecuteSavepoint() {
   return name;
 }
 
-base::Status PerfettoSqlEngine::ReleaseExecuteSavepoint(
+base::Status PerfettoSqlConnection::ReleaseExecuteSavepoint(
     const std::string& name) {
   if (name.empty()) {
     return base::OkStatus();
@@ -701,7 +701,7 @@ base::Status PerfettoSqlEngine::ReleaseExecuteSavepoint(
   return base::OkStatus();
 }
 
-void PerfettoSqlEngine::RollbackExecuteSavepoint(const std::string& name) {
+void PerfettoSqlConnection::RollbackExecuteSavepoint(const std::string& name) {
   if (name.empty()) {
     return;
   }
@@ -716,7 +716,7 @@ void PerfettoSqlEngine::RollbackExecuteSavepoint(const std::string& name) {
   }
 }
 
-base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
+base::StatusOr<PerfettoSqlConnection::FrameResult> PerfettoSqlConnection::ProcessFrame(
     size_t frame_idx) {
   // Wildcard frames just push include frames for each remaining
   // module, one at a time.
@@ -905,8 +905,8 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
   return FrameResult::kFrameDone;
 }
 
-base::StatusOr<PerfettoSqlEngine::ExecutionResult>
-PerfettoSqlEngine::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
+base::StatusOr<PerfettoSqlConnection::ExecutionResult>
+PerfettoSqlConnection::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
   // A SQL string can contain several statements. Some of them might be
   // comment only, e.g. "SELECT 1; /* comment */; SELECT 2;". Some statements
   // can also be PerfettoSQL statements which we need to transpile before
@@ -967,13 +967,13 @@ PerfettoSqlEngine::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
   PERFETTO_FATAL("Unexpected empty execution stack");
 }
 
-const dataframe::Dataframe* PerfettoSqlEngine::GetDataframeOrNull(
+const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
     const std::string& name) const {
   auto* state = dataframe_context_->GetStateByName(name);
   return state ? state->dataframe : nullptr;
 }
 
-base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunctionLocal(
+base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunctionLocal(
     bool replace,
     const FunctionPrototype& prototype,
     sql_argument::Type return_type,
@@ -1004,7 +1004,7 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunctionLocal(
   return CreatedFunction::Prepare(ctx, prototype, return_type, std::move(sql));
 }
 
-base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
+base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     bool replace,
     const FunctionPrototype& prototype,
     sql_argument::Type return_type,
@@ -1022,7 +1022,7 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
+base::Status PerfettoSqlConnection::SyncFunctionsFromPool() {
   // Writer must not re-register pool entries on a fresh handle from
   // `RestoreInitialTables` — pool entries may reference tables (e.g.
   // `_trace_bounds`) that the new engine's prelude include will
@@ -1046,7 +1046,7 @@ base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::ExecuteCreateTable(
+base::Status PerfettoSqlConnection::ExecuteCreateTable(
     const PerfettoSqlParser::CreateTable& create_table) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
                     "CREATE PERFETTO TABLE",
@@ -1115,7 +1115,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   return exec_res.status();
 }
 
-base::Status PerfettoSqlEngine::ExecuteCreateView(
+base::Status PerfettoSqlConnection::ExecuteCreateView(
     const PerfettoSqlParser::CreateView& create_view) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "CREATE PERFETTO VIEW",
                     [&create_view](metatrace::Record* record) {
@@ -1165,7 +1165,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
+base::Status PerfettoSqlConnection::EnableSqlFunctionMemoization(
     const std::string& name) {
   constexpr size_t kSupportedArgCount = 1;
   auto* ctx = static_cast<CreatedFunction::UserData*>(
@@ -1178,7 +1178,7 @@ base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
   return CreatedFunction::EnableMemoization(ctx);
 }
 
-base::Status PerfettoSqlEngine::ExecuteInclude(
+base::Status PerfettoSqlConnection::ExecuteInclude(
     const PerfettoSqlParser::Include& include,
     const PerfettoSqlParser& parser) {
   PERFETTO_TP_TRACE(
@@ -1212,7 +1212,7 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
   return IncludePackageImpl(*package, key, parser);
 }
 
-base::Status PerfettoSqlEngine::ExecuteCreateIndex(
+base::Status PerfettoSqlConnection::ExecuteCreateIndex(
     const PerfettoSqlParser::CreateIndex& create_index) {
   PERFETTO_TP_TRACE(
       metatrace::Category::QUERY_TIMELINE, "CREATE PERFETTO INDEX",
@@ -1250,7 +1250,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::DropIndexBeforeCreate(
+base::Status PerfettoSqlConnection::DropIndexBeforeCreate(
     const PerfettoSqlParser::CreateIndex& create_index) {
   for (const auto& [name, state] : dataframe_context_->GetAllStates()) {
     for (uint32_t i = 0; i < state->named_indexes.size(); ++i) {
@@ -1270,7 +1270,7 @@ base::Status PerfettoSqlEngine::DropIndexBeforeCreate(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::ExecuteDropIndex(
+base::Status PerfettoSqlConnection::ExecuteDropIndex(
     const PerfettoSqlParser::DropIndex& index) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "DROP PERFETTO INDEX",
                     [&index](metatrace::Record* record) {
@@ -1293,7 +1293,7 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
                          index.name.c_str());
 }
 
-base::Status PerfettoSqlEngine::IncludePackageImpl(
+base::Status PerfettoSqlConnection::IncludePackageImpl(
     sql_modules::RegisteredPackage& package,
     const std::string& include_key,
     const PerfettoSqlParser& parser) {
@@ -1331,7 +1331,7 @@ base::Status PerfettoSqlEngine::IncludePackageImpl(
   return IncludeModuleImpl(*sql, include_key, parser);
 }
 
-base::Status PerfettoSqlEngine::IncludeModuleImpl(
+base::Status PerfettoSqlConnection::IncludeModuleImpl(
     const std::string& sql,
     const std::string& key,
     const PerfettoSqlParser& parser) {
@@ -1371,7 +1371,7 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::ExecuteCreateFunction(
+base::Status PerfettoSqlConnection::ExecuteCreateFunction(
     const PerfettoSqlParser::CreateFunction& cf) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
                     "CREATE PERFETTO FUNCTION",
@@ -1503,7 +1503,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
   return status;
 }
 
-base::Status PerfettoSqlEngine::RegisterDelegatingFunction(
+base::Status PerfettoSqlConnection::RegisterDelegatingFunction(
     const PerfettoSqlParser::CreateFunction& cf) {
   PERFETTO_DCHECK(cf.target_function.has_value());
 
@@ -1556,7 +1556,7 @@ base::Status PerfettoSqlEngine::RegisterDelegatingFunction(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::RegisterFunctionAndAddToRegistry(
+base::Status PerfettoSqlConnection::RegisterFunctionAndAddToRegistry(
     const char* name,
     int argc,
     SqliteEngine::Fn* func,
@@ -1578,7 +1578,7 @@ base::Status PerfettoSqlEngine::RegisterFunctionAndAddToRegistry(
   return base::OkStatus();
 }
 
-base::Status PerfettoSqlEngine::ExecuteCreateMacro(
+base::Status PerfettoSqlConnection::ExecuteCreateMacro(
     const PerfettoSqlParser::CreateMacro& create_macro) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
                     "CREATE PERFETTO MACRO",
@@ -1633,14 +1633,14 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   return base::OkStatus();
 }
 
-int PerfettoSqlEngine::OnCommit() {
+int PerfettoSqlConnection::OnCommit() {
   for (auto* ctx : virtual_module_state_managers_) {
     ctx->OnCommit();
   }
   return 0;
 }
 
-void PerfettoSqlEngine::OnRollback() {
+void PerfettoSqlConnection::OnRollback() {
   for (auto* ctx : virtual_module_state_managers_) {
     ctx->OnRollback();
   }
