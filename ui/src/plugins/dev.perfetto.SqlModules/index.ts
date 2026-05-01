@@ -14,19 +14,29 @@
 
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
-import {defer} from '../../base/deferred';
-import {extensions} from '../../components/extensions';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules, isTableEffectivelyDisabled} from './sql_modules';
+import {extensions} from '../../components/extensions';
 import {
-  SQL_MODULES_DOCS_SCHEMA,
-  SqlModulesDocsSchema,
-  SqlModulesImpl,
-} from './sql_modules_impl';
+  STDLIB_METADATA_SCHEMA,
+  StdlibMetadata,
+  loadSqlModulesFromTp,
+} from './sql_modules_from_tp';
 
-const docs = defer<SqlModulesDocsSchema>();
+// Metadata JSON is small and static — fetch it once when the app starts so
+// it is ready by the time a trace loads.
+let metadataPromise: Promise<StdlibMetadata> | undefined;
+
+function getMetadata(): Promise<StdlibMetadata> {
+  if (metadataPromise === undefined) {
+    metadataPromise = fetch(assetSrc('stdlib_docs.json'))
+      .then((r) => r.json())
+      .then((json) => STDLIB_METADATA_SCHEMA.parse(json));
+  }
+  return metadataPromise;
+}
 
 export default class SqlModulesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
@@ -34,18 +44,14 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
   private sqlModules: SqlModules | undefined;
 
   static onActivate(_: App): void {
-    // Load the SQL modules JSON file when the plugin when the app starts up,
-    // rather than waiting until trace load.
-    loadJson().then(docs.resolve.bind(docs));
+    // Kick off the metadata fetch early so it is ready before trace load.
+    getMetadata();
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    docs.then(async (resolvedDocs) => {
-      const impl = new SqlModulesImpl(trace, resolvedDocs);
-      // Don't initialize immediately - let consumers trigger it when needed
-      this.sqlModules = impl;
-      m.redraw();
-    });
+    const metadata = await getMetadata();
+    this.sqlModules = await loadSqlModulesFromTp(trace, metadata);
+    m.redraw();
 
     trace.commands.registerCommand({
       id: 'dev.perfetto.OpenSqlModulesTable',
@@ -58,7 +64,6 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
 
         const tables = this.sqlModules.listTablesNames();
 
-        // Annotate disabled tables in the prompt
         const annotatedTables = tables.map((tableName) => {
           if (isTableEffectivelyDisabled(this.sqlModules!, tableName)) {
             return `${tableName} (no data)`;
@@ -74,14 +79,12 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
           return;
         }
 
-        // Strip the annotation if present
         const actualTableName = chosenTable.replace(' (no data)', '');
         const module = this.sqlModules.getModuleForTable(actualTableName);
         if (module === undefined) {
           return;
         }
 
-        // Warn if opening a disabled table
         if (isTableEffectivelyDisabled(this.sqlModules, actualTableName)) {
           const proceed = window.confirm(
             `Warning: The table "${actualTableName}" may not have data in this trace. ` +
@@ -111,10 +114,4 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
     }
     return Promise.resolve();
   }
-}
-
-async function loadJson() {
-  const x = await fetch(assetSrc('stdlib_docs.json'));
-  const json = await x.json();
-  return SQL_MODULES_DOCS_SCHEMA.parse(json);
 }

@@ -26,7 +26,7 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_docs
+from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_metadata
 
 
 def main():
@@ -84,8 +84,8 @@ def main():
         include_internal=args.with_internal,
         name_filter=None)
 
-    # Format as docs JSON
-    output_data = format_docs(modules)
+    # Format as metadata-only JSON (doc content comes from TP table functions)
+    output_data = format_metadata(modules)
 
     # Write output
     with open(args.json_out, 'w', encoding='utf-8') as f:

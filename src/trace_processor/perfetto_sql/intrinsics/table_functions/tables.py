@@ -301,6 +301,7 @@ STDLIB_DOCS_TABLES_TABLE = Table(
     class_name="StdlibDocsTablesTable",
     sql_name="not_exposed_to_sql",
     columns=[
+        C("module", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("type", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("description",
@@ -316,6 +317,7 @@ STDLIB_DOCS_FUNCTIONS_TABLE = Table(
     class_name="StdlibDocsFunctionsTable",
     sql_name="not_exposed_to_sql",
     columns=[
+        C("module", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("description",
           CppString(),
@@ -340,6 +342,7 @@ STDLIB_DOCS_MACROS_TABLE = Table(
     class_name="StdlibDocsMacrosTable",
     sql_name="not_exposed_to_sql",
     columns=[
+        C("module", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("description",
           CppString(),
