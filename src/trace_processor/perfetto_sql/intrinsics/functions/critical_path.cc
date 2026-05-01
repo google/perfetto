@@ -194,6 +194,25 @@ void WalkOneRoot(const WakeupGraph& graph,
     if (idle_clip_start < idle_clip_end) {
       if (mode == Mode::kUserspace && n.is_idle_reason_self) {
         if (n.prev_id) {
+          // Emit a placeholder row covering the self-idle window
+          // attributed to `prev_id`. The descent into `prev_id` may not
+          // overlap (prev's run can end before the idle window starts),
+          // so without this row the gap survives all the way through
+          // `_intervals_flatten` and shows up as a missing slot in the
+          // critical-path-lite UI. `_critical_path_userspace_adjusted`'s
+          // `is_next_idle_reason_self → next_id` rewrite turns this id
+          // into the current node's id, which is what the kernel-pass
+          // join in `_critical_path_kernel_adjusted` matches against.
+          if (const auto& prev = graph.nodes_by_id[*n.prev_id]) {
+            tables::CriticalPathWalkTable::Row row;
+            row.root_id = root_id;
+            row.depth = f.depth;
+            row.ts = idle_clip_start;
+            row.dur = idle_clip_end - idle_clip_start;
+            row.blocker_id = *n.prev_id;
+            row.blocker_utid = prev->utid;
+            out.Insert(row);
+          }
           stack.push_back(
               {*n.prev_id, idle_clip_start, idle_clip_end, f.depth});
         }
