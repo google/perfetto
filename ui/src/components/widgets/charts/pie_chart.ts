@@ -17,6 +17,7 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
 import {buildLegendOption, buildTooltipOption} from './chart_option_builder';
+import type {LegendPosition} from './common';
 
 /**
  * A single slice in the pie chart.
@@ -71,6 +72,11 @@ export interface PieChartAttrs {
   readonly showLegend?: boolean;
 
   /**
+   * Where the legend sits relative to the chart. Defaults to 'right'.
+   */
+  readonly legendPosition?: LegendPosition;
+
+  /**
    * Show percentage labels on slices. Defaults to false.
    */
   readonly showLabels?: boolean;
@@ -114,9 +120,11 @@ function buildPieOption(
   const {
     formatValue = (v: number) => formatNumber(v),
     showLegend = true,
+    legendPosition = 'right',
     showLabels = false,
     innerRadiusRatio = 0,
   } = attrs;
+  const legendOnRight = showLegend && legendPosition === 'right';
 
   const pieData = slices.map((s) => ({
     name: s.label,
@@ -124,7 +132,7 @@ function buildPieOption(
     itemStyle: s.color !== undefined ? {color: s.color} : undefined,
   }));
 
-  const outerPct = showLegend ? 65 : 75;
+  const outerPct = legendOnRight ? 65 : 75;
   const outerRadius = `${outerPct}%`;
   const innerRadius = `${Math.round(outerPct * innerRadiusRatio)}%`;
 
@@ -143,12 +151,12 @@ function buildPieOption(
         return [name, `Value: ${formatValue(value)}`, `${pct}%`].join('<br>');
       },
     }),
-    legend: showLegend ? buildLegendOption('right') : {show: false},
+    legend: showLegend ? buildLegendOption(legendPosition) : {show: false},
     series: [
       {
         type: 'pie',
         radius: [innerRadius, outerRadius],
-        center: showLegend ? ['35%', '50%'] : ['50%', '50%'],
+        center: legendOnRight ? ['35%', '50%'] : ['50%', '50%'],
         data: pieData,
         label: {
           show: showLabels,

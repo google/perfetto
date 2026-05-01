@@ -21,6 +21,8 @@
  */
 
 import type {EChartsCoreOption} from 'echarts/core';
+import {assertUnreachable} from '../../../base/assert';
+import type {LegendPosition} from './common';
 
 /** Font size used for axis tick labels across all charts. */
 export const AXIS_LABEL_FONT_SIZE = 10;
@@ -164,31 +166,43 @@ export function buildBrushOption(config: BrushConfig): Record<string, unknown> {
  * Theme colors are applied by EChartView.
  */
 export function buildLegendOption(
-  position: 'top' | 'right' = 'top',
+  position: LegendPosition = 'bottom',
 ): Record<string, unknown> {
-  if (position === 'right') {
-    return {
-      show: true,
-      type: 'scroll',
-      orient: 'vertical',
-      right: 0,
-      top: 20,
-      bottom: 20,
-      textStyle: {
-        fontSize: 10,
-        width: 120,
-        overflow: 'truncate',
-        ellipsis: '\u2026',
-      },
-      tooltip: {show: true},
-      pageButtonPosition: 'end',
-    };
+  switch (position) {
+    case 'top':
+      return {
+        show: true,
+        type: 'scroll',
+        top: 0,
+        textStyle: {fontSize: 10},
+      };
+    case 'bottom':
+      return {
+        show: true,
+        type: 'scroll',
+        bottom: 0,
+        textStyle: {fontSize: 10},
+      };
+    case 'right':
+      return {
+        show: true,
+        type: 'scroll',
+        orient: 'vertical',
+        right: 0,
+        top: 20,
+        bottom: 20,
+        textStyle: {
+          fontSize: 10,
+          width: 120,
+          overflow: 'truncate',
+          ellipsis: '\u2026',
+        },
+        tooltip: {show: true},
+        pageButtonPosition: 'end',
+      };
+    default:
+      assertUnreachable(position);
   }
-  return {
-    show: true,
-    top: 0,
-    textStyle: {fontSize: 10},
-  };
 }
 
 /**

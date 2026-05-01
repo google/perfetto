@@ -156,6 +156,10 @@ const GRID_LEFT_INNER_PAD = 6; // Padding between axis line and grid edge.
 // Bottom spacing (grid.bottom) default when the X-axis has a name.
 const X_AXIS_NAME_BOTTOM = 30;
 
+// Right spacing (grid.right) reserved for a vertical (right-side) legend.
+// Matches the legend's truncation width plus padding for the colour swatch.
+const RIGHT_LEGEND_WIDTH = 140;
+
 const AXIS_LABEL_FONT = `${AXIS_LABEL_FONT_SIZE}px sans-serif`;
 
 // Minimal shape we rely on from a CanvasRenderingContext2D-like object, so we
@@ -211,16 +215,30 @@ function autoAdjustGridSpacing(
   const legend = opt.legend as Record<string, unknown> | undefined;
   let yAxisPatch: Record<string, unknown> | undefined;
 
+  const hasLegend = legend !== undefined && legend.show !== false;
+  // Horizontal legends (top/bottom) have no `orient: 'vertical'`; we
+  // distinguish top vs bottom by which edge the legend is anchored to.
+  const legendAtRight = hasLegend && legend?.orient === 'vertical';
+  const isHorizontalLegend = hasLegend && !legendAtRight;
+  const legendAtBottom = isHorizontalLegend && legend?.bottom !== undefined;
+  const legendAtTop = isHorizontalLegend && !legendAtBottom;
+
   if (grid.top === undefined) {
-    const hasLegend = legend !== undefined && legend.show !== false;
-    grid.top = hasLegend ? LEGEND_TOP : TICK_LABEL_TOP;
+    grid.top = legendAtTop ? LEGEND_TOP : TICK_LABEL_TOP;
   }
 
   if (grid.bottom === undefined) {
     const xAxisName = xAxis?.name as string | undefined;
-    if (xAxisName !== undefined && xAxisName !== '') {
+    const hasXAxisName = xAxisName !== undefined && xAxisName !== '';
+    if (legendAtBottom) {
+      grid.bottom = hasXAxisName ? X_AXIS_NAME_BOTTOM + LEGEND_TOP : LEGEND_TOP;
+    } else if (hasXAxisName) {
       grid.bottom = X_AXIS_NAME_BOTTOM;
     }
+  }
+
+  if (grid.right === undefined && legendAtRight) {
+    grid.right = RIGHT_LEGEND_WIDTH;
   }
 
   if (yAxis !== undefined) {
