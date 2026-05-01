@@ -226,12 +226,13 @@ SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "QUERY_PREPARE");
   sqlite3* db = db_.get();
   sqlite3_stmt* raw_stmt = nullptr;
-  // Transparent retry for shared-cache schema-lock contention
-  // (SQLITE_BUSY / SQLITE_LOCKED) and for schema-cookie bumps
-  // (SQLITE_SCHEMA, observed when another connection commits DDL between
-  // sqlite3_prepare_v2 calls). At the prepare boundary we have not touched
-  // the b-tree yet, so a plain retry is safe in either case — no rollback
-  // needed; SQLite will simply re-walk the parser against the new schema.
+  // Transparent retry for two multi-conn signals:
+  // - SQLITE_BUSY/LOCKED: a peer connection holds the MemStore file
+  //   lock at SHARED/RESERVED/EXCLUSIVE. Sleep + retry.
+  // - SQLITE_SCHEMA: a peer connection committed DDL since we last
+  //   read page 1's schema cookie; re-prepare from source.
+  // Both are safe to retry at the prepare boundary — we haven't
+  // walked the b-tree yet, no rollback needed.
   int err = SQLITE_OK;
   BusyRetryHelper busy_retry(busy_retry_timeout_);
   SchemaRetryHelper schema_retry(busy_retry_timeout_);
@@ -453,11 +454,12 @@ bool SqliteEngine::PreparedStatement::Step() {
                     });
 
   // Transparent retry for two multi-conn signals:
-  // - SQLITE_BUSY/LOCKED: shared-cache contention. Reset and retry.
+  // - SQLITE_BUSY/LOCKED: a peer connection holds the MemStore file
+  //   lock. Reset the statement and retry.
   // - SQLITE_SCHEMA: a peer connection bumped the schema cookie; the
   //   bytecode is stale. Re-prepare from `sql_source_` and retry. If
-  //   we've already yielded a row, the cursor can't be safely
-  //   restarted, so surface the error instead.
+  //   a row has already been yielded, the cursor can't be safely
+  //   restarted — surface the error instead.
   int err = SQLITE_OK;
   BusyRetryHelper busy_retry(retry_timeout_);
   SchemaRetryHelper schema_retry(retry_timeout_);

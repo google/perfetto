@@ -628,13 +628,10 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     execution_stack_.pop_back();
   }
 
-  // Close out the top-level savepoint if we opened one. On success RELEASE
-  // (which commits the savepoint's effects up into the parent transaction —
-  // for the outermost savepoint this is an effective COMMIT, propagating
-  // committed objects via `cache=shared` to sibling connections). On error
-  // ROLLBACK TO + RELEASE so any partially-applied multi-statement state
-  // is undone. RELEASE failures on the success path are propagated up so
-  // callers see a clean error.
+  // Close out the top-level savepoint if we opened one. RELEASE on
+  // success (committing the effects to the database; sibling
+  // connections see them via the shared MemStore on their next
+  // SCHEMA-retry / next prepare); ROLLBACK TO + RELEASE on error.
   if (!execute_savepoint.empty()) {
     if (result.ok()) {
       auto release_status = ReleaseExecuteSavepoint(execute_savepoint);

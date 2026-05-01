@@ -1034,16 +1034,11 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
-  // Drop any pool entries accumulated by the previous engine: the new
-  // engine has fresh storage (its own memdb URI, no shared cache) and the
-  // prelude include below will re-create everything from scratch. Calling
-  // `ResetFunctionPool` / `ResetPackagePool` before the new engine boots
-  // ensures the writer's own re-registration of prelude functions and
-  // packages does not collide with stale pool entries. The included-modules
-  // set is also wiped so the new engine's prelude re-import isn't
-  // short-circuited by stale entries from the previous engine. Safe
-  // because `non_default_connection_count_ == 0` is CHECK'd above so no
-  // reader engine is observing any of these.
+  // Drop pool entries accumulated by the previous engine: the new
+  // engine has fresh storage and the prelude include below will
+  // re-create everything from scratch. The included-modules set is
+  // wiped for the same reason. Safe because the CHECK above
+  // guarantees no reader engine is observing.
   database_->functions.Reset();
   database_->packages.Reset();
   database_->ResetIncludedModules();
