@@ -2,13 +2,13 @@
 
 **Authors:** @etiennep-chromium
 
-**Status:** Draft
+**Status:** Decided
 
 ## Problem
 
-Currently, the Perfetto Track Event API provides `TRACE_EVENT_BEGIN` and `TRACE_EVENT_END` to define slices with duration. However, this model has limitations in scenarios common in Chrome:
+Currently, the Perfetto Track Event API provides `TRACE_EVENT_BEGIN` and `TRACE_EVENT_END` to define slices with duration. However, this model has limitations in a scenario common in Chrome:
 
-### Use Case 1: Late Tracing of Long-Running Operations (State Machines)
+### Late Tracing of Long-Running Operations (State Machines)
 
 **Current Chrome Pattern (`_END` + `_BEGIN`):**
 In [performance_manager](https://source.chromium.org/chromium/chromium/src/+/main:components/performance_manager/graph/properties.h), a `TracedWrapper` class observes tracing session starts to ensure properties are traced and emitted.
@@ -43,47 +43,44 @@ void Trace() {
 
 ---
 
-### Use Case 2: Dynamic Argument and Flow Augmentation (Deferred Data)
-
-**Current Chrome Pattern (RAII Helper with Args at `END`):**
-In cases like [render_frame_impl.cc](https://source.chromium.org/chromium/chromium/src/+/main:content/renderer/render_frame_impl.cc), arguments are passed to `TRACE_EVENT_END` to add details that became available only during the operation, using a custom RAII helper:
-
-```cpp
-// Emit the trace event using a helper as we:
-// a) want to ensure that the trace event covers the entire function.
-// b) we want to emit the new child routing id as an argument.
-// c) child routing id becomes available only after a sync call.
-struct CreateChildFrameTraceEvent {
-  explicit CreateChildFrameTraceEvent(const LocalFrameToken& frame_token) {
-    TRACE_EVENT_BEGIN("navigation,rail", "RenderFrameImpl::CreateChildFrame",
-                       "frame_token", frame_token);
-  }
-  ~CreateChildFrameTraceEvent() {
-    TRACE_EVENT_END("navigation,rail", "child_frame_token", child_frame_token);
-  }
-
-  LocalFrameToken child_frame_token;
-};
-
-void RenderFrameImpl::CreateChildFrame(...) {
- CreateChildFrameTraceEvent trace_event(frame_token_);
-  // ...
-  // child_frame_token becomes available only later in the method
-  trace_event.child_frame_token = child_frame_token;
-}
-```
-
-**Drawbacks:**
-*   Arguments are only captured if the operation completes successfully and before tracing stops. There is no visibility into these arguments during the operation, and data is lost if the operation hangs or crashes.
-*   Requires Chrome to implement a custom RAII helper.
-
 ## Decision
 
 Pending
 
 ## Design
 
-Pending decision on which solution to adopt. The solutions are discussed as alternatives below.
+PoC: https://github.com/google/perfetto/pull/5597
+
+In practice, these state update don't need to support nested slices, so concerns about nesting are alleviated by explicitly choosing not to support it.
+
+We introduce `TRACE_STATE` that takes a counter-like track argument, `StateTrack`, and thus cannot be mixed with `TRACE_EVENT_BEGIN`/`END`:
+
+```cpp
+class StateTrack : public Track {
+ public:
+  StateTrack(StaticName name,
+             uint64_t id = 0,
+             Track parent = MakeProcessTrack());
+  ...
+};
+
+TRACE_STATE(cat, <value>, StateTrack(track), ...);
+```
+
+* TRACE_STATE supports all the same arguments (lambda, annotations,
+  flows, etc.) that other TRACE_ macros support.
+* A special "null" value (e.g. `nullptr`) needs to be supported to show the empty track.
+* TRACE_STATE supports both string and proto enums as values.
+* Emitting the same value with different arguments will augment the slice.
+* Trace processor emits state "slice" to a separate table (name TBD, e.g. `state`) that contains values, timestamps and durations.
+* Visually state slices are the same as regular slices in perfetto UI.
+
+**Pros:**
+*   Separates state machine updates from slice operations.
+*   Alleviates concerns about slice nesting.
+
+**Cons:**
+*   Only solves one use case.
 
 ## Alternatives considered
 
@@ -106,50 +103,6 @@ Introduce a new track event type, `TYPE_SLICE_STEP`, and a corresponding macro, 
 **Cons:**
 *   Nesting can be confusing and will behave in a surprising way. Effectively, `TRACE_EVENT_STEP` only works for the leaf slice. This means we can't ensure multiple nested slices are present when starting a trace using `TRACE_EVENT_STEP`.
 
-### Option B: Counter-like track with String (State Machines)
-
-**Use Case Solved**: This only addresses Use Case 1 (State Machines) by allowing state changes to be traced on a non-stacking track.
-
-In practice, Use Case 1 does not need to support nested slices, so concerns about nesting are alleviated by explicitly choosing not to support it.
-
-We can introduce `TRACE_EVENT_STEP` that takes a counter-like track argument, `StateTrack`, and thus cannot be mixed with `TRACE_EVENT_BEGIN`/`END`:
-
-```cpp
-class StateTrack : public Track {
- public:
-  StateTrack(StaticName name,
-             uint64_t id = 0,
-             Track parent = MakeProcessTrack());
-  ...
-};
-```
-
-* A special "idle" value (e.g. `nullptr`) needs to be supported to show the empty track.
-* Flows and arguments should also be supported.
-* Emitting the same value with different arguments should augment the slice.
-
-**Pros:**
-*   Separates state machine updates from slice operations.
-*   Alleviates concerns about slice nesting.
-
-**Cons:**
-*   Only solves one use case.
-
-### Option C: `TRACE_EVENT_UPDATE` (Deferred Data)
-
-*   **Use Case Solved**: This addresses Use Case 2 (Deferred Data) by allowing arguments or flows to be attached to an active slice.
-
-Introduce a macro `TRACE_EVENT_UPDATE` to update an existing slice without starting a new one if not found.
-
-**Pros:**
-*   Solves the argument augmentation use case cleanly.
-
-**Cons:**
-*   Only solves one use case.
-*   It is unclear what the semantics should be when there is no incomplete slice.
-
 ## Open questions
 
-*   Use Case 2 is discussed here because the original `TRACE_EVENT_STEP` (Option A) also solved it,
-but it is unclear whether it is worth having a dedicated solution (Option C), if we implement Option B, as opposed to simply emitting an instant event. I would focus attention on solving Use Case 1 well.
 * Lalit voiced concerns that capturing now when emitting events at the start of a tracing session to describe state that started in the past is the wrong timestamp (this happens in both Option A and B, although this is true of the status quo as well).
