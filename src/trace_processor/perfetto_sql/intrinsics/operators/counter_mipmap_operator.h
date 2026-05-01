@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "src/trace_processor/containers/implicit_segment_forest.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 
@@ -69,8 +69,8 @@ struct CounterMipmapOperator : sqlite::Module<CounterMipmapOperator> {
     std::vector<int64_t> timestamps;
   };
   struct Context : sqlite::ModuleStateManager<CounterMipmapOperator> {
-    explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
-    PerfettoSqlEngine* engine;
+    explicit Context(PerfettoSqlConnection* _engine) : engine(_engine) {}
+    PerfettoSqlConnection* engine;
   };
   struct Vtab : sqlite::Module<CounterMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<CounterMipmapOperator>::PerVtabState* state;

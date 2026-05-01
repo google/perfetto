@@ -1665,11 +1665,10 @@ config("sqlite_config") {
   visibility = _buildtools_visibility
   include_dirs = [ "sqlite" ]
   cflags = [
-    "-DSQLITE_THREADSAFE=0",
+    "-DSQLITE_THREADSAFE=2",
     "-DSQLITE_DEFAULT_MEMSTATUS=0",
     "-DSQLITE_LIKE_DOESNT_MATCH_BLOBS",
     "-DSQLITE_OMIT_DEPRECATED",
-    "-DSQLITE_OMIT_SHARED_CACHE",
     "-DHAVE_USLEEP",
     "-DHAVE_UTIME",
     "-DSQLITE_BYTEORDER=1234",

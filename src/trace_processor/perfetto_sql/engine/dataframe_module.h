@@ -37,6 +37,8 @@
 
 namespace perfetto::trace_processor {
 
+class PerfettoSqlDatabase;
+
 // Adapter class between SQLite and the Dataframe API. Allows SQLite to query
 // and iterate over the results of a dataframe query.
 struct DataframeModule : sqlite::Module<DataframeModule> {
@@ -56,6 +58,23 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
     std::unique_ptr<State> temporary_create_state;
+
+    // Cross-connection vtab-state map. Every connection publishes its
+    // committed states here on `OnCommit` so peer connections see them
+    // on cold `xConnect` via `ResolveMissingStateOnConnect`.
+    PerfettoSqlDatabase* database = nullptr;
+
+    // Module name to key vtab-state entries by in the cross-connection
+    // map. Must be unique across all module types so connections
+    // looking up the same vtab-name on different modules don't collide.
+    std::string module_name;
+
+    void OnCommit() override;
+    void OnRollback() override;
+
+   protected:
+    std::shared_ptr<void> ResolveMissingStateOnConnect(
+        const std::string& vtab_name) override;
   };
   struct SqliteValueFetcher : dataframe::ValueFetcher {
     using Type = sqlite::Type;
@@ -98,6 +117,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   };
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+    // Owning Context, captured during Create/Connect so Filter can
+    // optionally re-resolve the State from the cross-connection staging
+    // area at cursor creation time. Per the design rule, the dataframe
+    // vtab module does not cache the dataframe pointer in PerVtabState
+    // (CREATE INDEX may produce a new dataframe sharing internal
+    // shared_ptr columns/indexes; readers must observe the latest
+    // committed state).
+    Context* context = nullptr;
     std::string name;
     int best_idx_num = 0;
     uint32_t id_col_idx = 0;

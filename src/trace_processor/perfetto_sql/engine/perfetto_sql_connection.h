@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -33,6 +33,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -49,10 +50,24 @@
 
 namespace perfetto::trace_processor {
 
-// Intermediary class which translates high-level concepts and algorithms used
-// in trace processor into lower-level concepts and functions can be understood
-// by and executed against SQLite.
-class PerfettoSqlEngine {
+// A single connection to the trace processor SQL engine: owns one
+// `sqlite3*` handle and the per-connection state layered on top of
+// it (PerfettoSQL parser stack, intrinsic function and macro
+// registries, virtual-table-module state managers, execution stack
+// for nested INCLUDE/wildcard handling).
+//
+// Cross-connection state — vtab-state map, function pool, package
+// map, per-module include-claim machinery — lives on the
+// `PerfettoSqlDatabase` passed in at construction. Connections diff
+// against the database's additive function pool at the top of every
+// `Execute` so dynamic functions registered on the writer become
+// visible on readers.
+//
+// Thread-affinity: a connection (and the iterators / prepared
+// statements it produces) is owned by exactly one thread at a time.
+// Multiple connections — each on its own thread — may execute
+// concurrently against the same `PerfettoSqlDatabase`.
+class PerfettoSqlConnection {
  public:
   struct ExecutionStats {
     uint32_t column_count = 0;
@@ -67,7 +82,29 @@ class PerfettoSqlEngine {
     dataframe::Dataframe* dataframe;
     std::string name;
   };
-  PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
+  // Primary (writer) ctor: opens a fresh sqlite3 handle and registers
+  // the full set of tables, functions, and vtab modules.
+  PerfettoSqlConnection(StringPool* pool,
+                        bool enable_extra_checks,
+                        PerfettoSqlDatabase* database);
+
+  // Secondary (reader) ctor: opens a sqlite3 handle against
+  // `shared_filename` (use `SqliteEngine::filename()` of the primary).
+  // The two handles share the in-memory storage via the named-MemStore
+  // feature, so plain SQL / DDL committed on `main` by the primary is
+  // visible here. Per-connection state (function/aggregate/window
+  // registrations, vtab modules, commit/rollback callbacks) is fresh.
+  //
+  // Intentional limitations: only the dataframe vtab module is
+  // registered on secondaries; runtime-table-function / static-table-
+  // function vtabs are not yet replicated across connections.
+  // PerfettoSQL scalar functions flow in via the database's additive
+  // function pool diff at the top of every `Execute`; package
+  // registrations are looked up directly on the database.
+  PerfettoSqlConnection(StringPool* pool,
+                        bool enable_extra_checks,
+                        const std::string& shared_filename,
+                        PerfettoSqlDatabase* database);
 
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
@@ -230,24 +267,8 @@ class PerfettoSqlEngine {
 
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
-  // Makes new SQL package available to include.
-  void RegisterPackage(const std::string& name,
-                       sql_modules::RegisteredPackage package) {
-    packages_.Erase(name);
-    packages_.Insert(name, std::move(package));
-  }
-
-  // Removes a SQL package.
-  void ErasePackage(const std::string& name) { packages_.Erase(name); }
-
-  // Fetches registered SQL package.
-  sql_modules::RegisteredPackage* FindPackage(const std::string& name) {
-    return packages_.Find(name);
-  }
-
-  // Finds a package that owns the given module key (i.e., whose name is a
-  // prefix of the key).
-  sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key);
+  // Canonical accessor for the underlying sqlite3 handle.
+  sqlite3* db() { return engine_->db(); }
 
   // Returns the number of objects (tables, views, functions etc) registered
   // with SQLite.
@@ -308,15 +329,21 @@ class PerfettoSqlEngine {
 
     // For include frames: metadata needed to complete the include
     std::string include_key;
-    sql_modules::RegisteredPackage::ModuleFile* file_ptr = nullptr;
     SqlSource traceback_sql;
 
-    // For wildcard frames: modules to include (processed in order)
-    std::vector<
-        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
-        wildcard_modules;
+    // For wildcard frames: (key, sql) pairs to include in order.
+    std::vector<std::pair<std::string, std::string>> wildcard_modules;
     size_t wildcard_index = 0;
     SqlSource wildcard_traceback_sql;
+
+    // For include frames: the savepoint name created when the frame
+    // was pushed (empty if open failed). RELEASEd on success so the
+    // DDL becomes visible on `main`; rolled back on failure.
+    std::string include_savepoint;
+    // For include frames: the cross-connection include claim acquired
+    // before the savepoint was opened. Released on successful RELEASE;
+    // destructor is the rollback path (treated as failure).
+    PerfettoSqlDatabase::IncludeClaim include_claim;
   };
 
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
@@ -366,15 +393,12 @@ class PerfettoSqlEngine {
     kValidateOnly
   };
 
-  // Given a package and a key, include the correct file(s) from the package.
-  // The key can contain a wildcard to include all files in the module with the
-  // matching prefix.
+  // Given a package and a module key, includes the matching file(s).
+  // The key may contain a wildcard.
   base::Status IncludePackageImpl(sql_modules::RegisteredPackage&,
                                   const std::string& key,
                                   const PerfettoSqlParser&);
-
-  // Include a given module.
-  base::Status IncludeModuleImpl(sql_modules::RegisteredPackage::ModuleFile&,
+  base::Status IncludeModuleImpl(const std::string& sql,
                                  const std::string& key,
                                  const PerfettoSqlParser&);
 
@@ -382,40 +406,78 @@ class PerfettoSqlEngine {
   // re-entrant Execute() calls from statement handlers.
   base::StatusOr<ExecutionResult> ExecuteUntilLastStatementImpl(SqlSource);
 
-  // Processes a single iteration of the frame at the given index.
-  // May push new frames onto the stack (for includes/wildcards).
+  // Local-only function registration: used by both the public
+  // `RegisterLegacyRuntimeFunction` (writer; then publishes to the
+  // pool) and `SyncFunctionsFromPool` (reader; consumes the pool).
+  base::Status RegisterLegacyRuntimeFunctionLocal(
+      bool replace,
+      const FunctionPrototype& prototype,
+      sql_argument::Type return_type,
+      SqlSource sql);
+
+  // Pool diff at the top of every top-level `Execute`. Cheap fast-
+  // path when `last_synced_function_version_` already matches the
+  // pool's latest. Writer engines short-circuit — they're the source
+  // of truth and bump the version when they Append.
+  base::Status SyncFunctionsFromPool();
+
+  // One iteration of the frame at `frame_idx`. May push new frames
+  // onto the stack (for includes / wildcards).
   base::StatusOr<FrameResult> ProcessFrame(size_t frame_idx);
 
-  // Called when a transaction is committed by SQLite; that is, the result of
-  // running some SQL is considered "perm".
-  //
-  // See https://www.sqlite.org/lang_transaction.html for an explanation of
-  // transactions in SQLite.
-  int OnCommit();
+  // Per-include savepoint open/release/rollback. Rollback is best-
+  // effort: failures are logged because the caller already has the
+  // primary error to report.
+  base::Status ReleaseIncludeSavepoint(const ExecutionFrame& frame);
+  void RollbackIncludeSavepoint(const ExecutionFrame& frame);
 
-  // Called when a transaction is rolled back by SQLite; that is, the result of
-  // of running some SQL should be discarded and the state of the database
-  // should be restored to the state it was in before the transaction was
-  // started.
-  //
-  // See https://www.sqlite.org/lang_transaction.html for an explanation of
-  // transactions in SQLite.
+  // Top-level `Execute` is wrapped in a uniquely-named SAVEPOINT
+  // (`perfetto_execute_<n>`) so multi-statement SQL is atomic: if a
+  // later statement fails, earlier side-effects are rolled back.
+  base::StatusOr<std::string> OpenExecuteSavepoint();
+  base::Status ReleaseExecuteSavepoint(const std::string& name);
+  void RollbackExecuteSavepoint(const std::string& name);
+
+  // SQLite transaction hooks. See
+  // https://www.sqlite.org/lang_transaction.html.
+  int OnCommit();
   void OnRollback();
 
+  // ===== Cross-connection (database) state =====
+  // The only field below pointing at shared state. Owned by the
+  // parent `TraceProcessorImpl`; outlives this connection.
+  PerfettoSqlDatabase* database_ = nullptr;
+
+  // ===== Per-connection state =====
   StringPool* pool_ = nullptr;
 
-  // If true, engine will perform additional consistency checks when e.g.
-  // creating tables and views.
+  // If true, perform additional consistency checks when e.g. creating
+  // tables and views.
   const bool enable_extra_checks_;
 
-  // Execution stack for iterative (non-recursive) processing of SQL sources.
-  // When an INCLUDE statement is encountered, the included module's SQL is
-  // pushed onto this stack and executed before continuing with the current SQL.
+  // Function-pool version last synced from `database_->functions`.
+  // Bumped on `Append` (so we don't re-register our own entries) and
+  // on `SyncFunctionsFromPool` (after registering a peer's entries).
+  uint64_t last_synced_function_version_ = 0;
+
+  // Execution stack for iterative (non-recursive) processing of SQL
+  // sources. When an INCLUDE statement is encountered, the included
+  // module's SQL is pushed onto this stack and executed before
+  // continuing with the current SQL.
   std::vector<ExecutionFrame> execution_stack_;
 
   uint64_t function_count_ = 0;
   uint64_t aggregate_function_count_ = 0;
   uint64_t window_function_count_ = 0;
+
+  // Monotonically increasing counter used to generate unique SAVEPOINT names
+  // for the temp-then-promote include pattern.
+  uint64_t include_savepoint_counter_ = 0;
+
+  // Monotonically increasing counter used to generate unique SAVEPOINT names
+  // wrapping every top-level `ExecuteUntilLastStatement` invocation for
+  // multi-statement atomicity.
+  uint64_t execute_savepoint_counter_ = 0;
 
   // Contains the pointers for all registered virtual table modules where the
   // context class of the module inherits from ModuleStateManagerBase.
@@ -424,7 +486,6 @@ class PerfettoSqlEngine {
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
-  base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 
   // Registry of intrinsic functions that can be aliased
@@ -446,7 +507,7 @@ class PerfettoSqlEngine {
 // like this to keep the API people actually care about easy to read.
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterFunction(
+base::Status PerfettoSqlConnection::RegisterFunction(
     typename Function::UserData* ctx,
     const RegisterFunctionArgs& args) {
   function_count_++;
@@ -457,7 +518,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterFunction(
+base::Status PerfettoSqlConnection::RegisterFunction(
     std::unique_ptr<typename Function::UserData> ctx,
     const RegisterFunctionArgs& args) {
   function_count_++;
@@ -473,7 +534,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterAggregateFunction(
+base::Status PerfettoSqlConnection::RegisterAggregateFunction(
     typename Function::UserData* ctx,
     bool deterministic) {
   aggregate_function_count_++;
@@ -483,7 +544,7 @@ base::Status PerfettoSqlEngine::RegisterAggregateFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterWindowFunction(
+base::Status PerfettoSqlConnection::RegisterWindowFunction(
     const char* name,
     int argc,
     typename Function::Context* ctx,
@@ -496,4 +557,4 @@ base::Status PerfettoSqlEngine::RegisterWindowFunction(
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_

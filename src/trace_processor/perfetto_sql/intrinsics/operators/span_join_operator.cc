@@ -36,7 +36,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -214,7 +214,7 @@ std::string SpanJoinOperatorModule::Vtab::BestIndexStrForDefinition(
 }
 
 base::Status SpanJoinOperatorModule::TableDefinition::Create(
-    PerfettoSqlEngine* engine,
+    PerfettoSqlConnection* engine,
     const TableDescriptor& desc,
     EmitShadowType emit_shadow_type,
     TableDefinition* defn) {
@@ -226,8 +226,8 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
   }
 
   std::vector<std::pair<SqlValue::Type, std::string>> cols;
-  RETURN_IF_ERROR(sqlite::utils::GetColumnsForTable(
-      engine->sqlite_engine()->db(), desc.name, cols));
+  RETURN_IF_ERROR(
+      sqlite::utils::GetColumnsForTable(engine->db(), desc.name, cols));
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();

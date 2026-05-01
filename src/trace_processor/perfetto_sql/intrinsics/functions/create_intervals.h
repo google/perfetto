@@ -19,12 +19,12 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 
 // Registers the __intrinsic_interval_create function with |engine|.
-base::Status RegisterIntervalCreateFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterIntervalCreateFunctions(PerfettoSqlConnection& engine,
                                              StringPool* pool);
 
 }  // namespace perfetto::trace_processor::perfetto_sql

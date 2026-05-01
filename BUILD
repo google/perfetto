@@ -322,6 +322,7 @@ perfetto_cc_library(
                ":include_perfetto_base_base",
                ":include_perfetto_ext_base_base",
                ":include_perfetto_ext_base_regex",
+               ":include_perfetto_ext_base_threading_threading",
                ":include_perfetto_ext_base_version",
                ":include_perfetto_ext_protozero_protozero",
                ":include_perfetto_ext_trace_processor_demangle",
@@ -377,6 +378,7 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_base_regex_regex",
+               ":src_base_threading_threading",
                ":src_base_version",
                ":src_kernel_utils_kernel_wakelock_errors",
                ":src_kernel_utils_syscall_table",
@@ -533,6 +535,7 @@ perfetto_cc_library(
                ":include_perfetto_ext_base_base",
                ":include_perfetto_ext_base_http_http",
                ":include_perfetto_ext_base_regex",
+               ":include_perfetto_ext_base_threading_threading",
                ":include_perfetto_ext_base_version",
                ":include_perfetto_ext_protozero_protozero",
                ":include_perfetto_ext_trace_processor_demangle",
@@ -592,6 +595,7 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_http_http",
                ":src_base_regex_regex",
+               ":src_base_threading_threading",
                ":src_base_version",
                ":src_kernel_utils_kernel_wakelock_errors",
                ":src_kernel_utils_syscall_table",
@@ -997,6 +1001,21 @@ perfetto_cc_library(
     hdrs = [
         "include/perfetto/ext/base/http/http_server.h",
         "include/perfetto/ext/base/http/sha1.h",
+    ],
+    deps = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
+    ],
+    linkstatic = True,
+)
+
+# GN target: //include/perfetto/ext/base/threading:threading
+perfetto_cc_library(
+    name = "include_perfetto_ext_base_threading_threading",
+    hdrs = [
+        "include/perfetto/ext/base/threading/thread_pool.h",
     ],
     deps = [
         ":include_perfetto_base_base",
@@ -1735,6 +1754,23 @@ perfetto_cc_library(
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
     ] + PERFETTO_CONFIG.deps.re2,
+    linkstatic = True,
+)
+
+# GN target: //src/base/threading:threading
+perfetto_cc_library(
+    name = "src_base_threading_threading",
+    srcs = [
+        "src/base/threading/thread_pool.cc",
+    ],
+    deps = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_base_threading_threading",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
+        ":src_base_base",
+    ] + PERFETTO_CONFIG.deps.base_platform,
     linkstatic = True,
 )
 
@@ -6638,7 +6674,8 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables_python",
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
-        "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.cc",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.cc",
@@ -6646,7 +6683,8 @@ perfetto_cc_library(
     hdrs = [
         "src/trace_processor/perfetto_sql/engine/created_function.h",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.h",
-        "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.h",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.h",
@@ -8595,6 +8633,7 @@ perfetto_cc_library(
                ":include_perfetto_ext_base_base",
                ":include_perfetto_ext_base_http_http",
                ":include_perfetto_ext_base_regex",
+               ":include_perfetto_ext_base_threading_threading",
                ":include_perfetto_ext_base_version",
                ":include_perfetto_ext_protozero_protozero",
                ":include_perfetto_ext_trace_processor_demangle",
@@ -8651,6 +8690,7 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_http_http",
                ":src_base_regex_regex",
+               ":src_base_threading_threading",
                ":src_base_version",
                ":src_kernel_utils_kernel_wakelock_errors",
                ":src_kernel_utils_syscall_table",
@@ -8810,6 +8850,7 @@ perfetto_cc_library(
                ":include_perfetto_base_base",
                ":include_perfetto_ext_base_base",
                ":include_perfetto_ext_base_regex",
+               ":include_perfetto_ext_base_threading_threading",
                ":include_perfetto_ext_base_version",
                ":include_perfetto_ext_protozero_protozero",
                ":include_perfetto_ext_trace_processor_demangle",
@@ -8865,6 +8906,7 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_base_regex_regex",
+               ":src_base_threading_threading",
                ":src_base_version",
                ":src_kernel_utils_kernel_wakelock_errors",
                ":src_kernel_utils_syscall_table",
@@ -9022,6 +9064,7 @@ perfetto_cc_library(
                ":include_perfetto_base_base",
                ":include_perfetto_ext_base_base",
                ":include_perfetto_ext_base_regex",
+               ":include_perfetto_ext_base_threading_threading",
                ":include_perfetto_ext_base_version",
                ":include_perfetto_ext_protozero_protozero",
                ":include_perfetto_ext_trace_processor_demangle",
@@ -9077,6 +9120,7 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_base_regex_regex",
+               ":src_base_threading_threading",
                ":src_base_version",
                ":src_kernel_utils_kernel_wakelock_errors",
                ":src_kernel_utils_syscall_table",
@@ -9262,6 +9306,7 @@ perfetto_cc_library(
                ":include_perfetto_ext_base_base",
                ":include_perfetto_ext_base_http_http",
                ":include_perfetto_ext_base_regex",
+               ":include_perfetto_ext_base_threading_threading",
                ":include_perfetto_ext_base_version",
                ":include_perfetto_ext_protozero_protozero",
                ":include_perfetto_ext_trace_processor_demangle",
@@ -9321,6 +9366,7 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_http_http",
                ":src_base_regex_regex",
+               ":src_base_threading_threading",
                ":src_base_version",
                ":src_kernel_utils_kernel_wakelock_errors",
                ":src_kernel_utils_syscall_table",
@@ -17832,6 +17878,7 @@ perfetto_cc_binary(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_base_http_http",
         ":include_perfetto_ext_base_regex",
+        ":include_perfetto_ext_base_threading_threading",
         ":include_perfetto_ext_base_version",
         ":include_perfetto_ext_protozero_protozero",
         ":include_perfetto_ext_trace_processor_demangle",
@@ -17852,6 +17899,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_util",
         ":src_base_base",
         ":src_base_regex_regex",
+        ":src_base_threading_threading",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_protovm_protovm",

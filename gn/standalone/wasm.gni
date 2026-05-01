@@ -28,6 +28,12 @@ if (is_mac_host) {
 #      and provides the boilerplate to initialize the module.
 #  generate_html: when true generates also an example .html file which contains
 #      a minimal console to interact with the module (useful for testing).
+#  enable_pthreads: when true, builds the module with emscripten's pthread
+#      support (-pthread + a default pool of worker threads). The resulting
+#      module requires the host page to be cross-origin isolated
+#      (COOP+COEP) so SharedArrayBuffer is available; otherwise instantiation
+#      fails. Cannot be combined with is_memory64=true (emscripten does not
+#      support that combination at present).
 template("wasm_lib") {
   assert(defined(invoker.name))
 
@@ -35,6 +41,9 @@ template("wasm_lib") {
   assert(invoker.name + "_wasm" == target_name)
   _lib_name = invoker.name
   _is_memory64 = defined(invoker.is_memory64) && invoker.is_memory64
+  _enable_pthreads = defined(invoker.enable_pthreads) && invoker.enable_pthreads
+  assert(!(_is_memory64 && _enable_pthreads),
+         "memory64 + pthreads is not a supported emscripten configuration")
   if (is_wasm) {
     _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'HEAPU8']"
     _target_ldflags = [
@@ -103,6 +112,23 @@ template("wasm_lib") {
       ]
     }
 
+    # When pthreads are enabled, the matching compile-time -pthread flag
+    # is added by the wasm_pthreads toolchain (see gn/standalone/BUILD.gn).
+    # PTHREAD_POOL_SIZE pre-spawns worker threads at module init so
+    # base::ThreadPool can dispatch without a cold-start round trip.
+    if (_enable_pthreads) {
+      _target_ldflags += [
+        "-pthread",
+        "-s",
+        "PTHREAD_POOL_SIZE=8",
+
+        # PROXY_TO_PTHREAD would move main() onto a worker. We deliberately
+        # keep main() on the page's worker (that's where the JS bridge
+        # interacts via ccall) and only let base::ThreadPool spawn child
+        # workers from there.
+      ]
+    }
+
     _vars_to_forward = [
       "cflags",
       "defines",
@@ -159,14 +185,16 @@ template("wasm_lib") {
 
   group(target_name) {
     if (_is_memory64) {
-      _wasm_32_or_64_toolchain = wasm_memory64_toolchain
+      _wasm_target_toolchain = wasm_memory64_toolchain
+    } else if (_enable_pthreads) {
+      _wasm_target_toolchain = wasm_pthreads_toolchain
     } else {
-      _wasm_32_or_64_toolchain = wasm_toolchain
+      _wasm_target_toolchain = wasm_toolchain
     }
     deps = [
-      ":${_lib_name}.d.ts($_wasm_32_or_64_toolchain)",
-      ":${_lib_name}.js($_wasm_32_or_64_toolchain)",
-      ":${_lib_name}.wasm($_wasm_32_or_64_toolchain)",
+      ":${_lib_name}.d.ts($_wasm_target_toolchain)",
+      ":${_lib_name}.js($_wasm_target_toolchain)",
+      ":${_lib_name}.wasm($_wasm_target_toolchain)",
     ]
   }
 }  # template

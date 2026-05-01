@@ -37,7 +37,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -113,7 +113,7 @@ base::Status InsertRows(
 
 WinscopeSurfaceFlingerHierarchyPaths::Cursor::Cursor(
     StringPool* string_pool,
-    const PerfettoSqlEngine* engine)
+    const PerfettoSqlConnection* engine)
     : string_pool_(string_pool), engine_(engine), table_(string_pool) {}
 
 bool WinscopeSurfaceFlingerHierarchyPaths::Cursor::Run(
@@ -139,7 +139,7 @@ bool WinscopeSurfaceFlingerHierarchyPaths::Cursor::Run(
 
 WinscopeSurfaceFlingerHierarchyPaths::WinscopeSurfaceFlingerHierarchyPaths(
     StringPool* string_pool,
-    const PerfettoSqlEngine* engine)
+    const PerfettoSqlConnection* engine)
     : string_pool_(string_pool), engine_(engine) {}
 
 std::unique_ptr<StaticTableFunction::Cursor>

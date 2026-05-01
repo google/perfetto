@@ -14,8 +14,12 @@
 
 wasm_toolchain = "//gn/standalone/toolchain:wasm"
 wasm_memory64_toolchain = "//gn/standalone/toolchain:wasm_memory64"
+wasm_pthreads_toolchain = "//gn/standalone/toolchain:wasm_pthreads"
 
 is_wasm = current_toolchain == wasm_toolchain ||
-          current_toolchain == wasm_memory64_toolchain
-is_wasm_memory32 = current_toolchain == wasm_toolchain
+          current_toolchain == wasm_memory64_toolchain ||
+          current_toolchain == wasm_pthreads_toolchain
+is_wasm_memory32 = current_toolchain == wasm_toolchain ||
+                   current_toolchain == wasm_pthreads_toolchain
 is_wasm_memory64 = current_toolchain == wasm_memory64_toolchain
+is_wasm_pthreads = current_toolchain == wasm_pthreads_toolchain

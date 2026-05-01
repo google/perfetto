@@ -78,8 +78,38 @@ ModuleStateManagerBase::PerVtabState* ModuleStateManagerBase::OnConnect(
     int,
     const char* const* argv) {
   auto* ptr = state_by_name_.Find(argv[2]);
-  PERFETTO_CHECK(ptr);
-  return ptr->get();
+  if (ptr) {
+    return ptr->get();
+  }
+  // Fall back to the cross-connection resolver. This is the cold-xConnect
+  // path on a non-default connection: the vtab was CREATEd on the writer
+  // connection and has been published to the cross-connection staging
+  // area; the reader connection materialises a fresh `PerVtabState`
+  // locally pointing at the same shared state.
+  std::shared_ptr<void> resolved = ResolveMissingStateOnConnect(argv[2]);
+  PERFETTO_CHECK(resolved);
+  auto pv = std::make_unique<PerVtabState>();
+  pv->manager = this;
+  pv->name = argv[2];
+  pv->committed_state = resolved;
+  pv->active_state = std::move(resolved);
+  auto inserted = state_by_name_.Insert(argv[2], std::move(pv));
+  PERFETTO_CHECK(inserted.second);
+  return inserted.first->get();  // unique_ptr*->get() == PerVtabState*
+}
+
+std::shared_ptr<void> ModuleStateManagerBase::ResolveMissingStateOnConnect(
+    const std::string&) {
+  return nullptr;
+}
+
+std::shared_ptr<void> ModuleStateManagerBase::GetCommittedStateSharedByName(
+    const std::string& name) const {
+  auto* ptr = state_by_name_.Find(name);
+  if (!ptr) {
+    return nullptr;
+  }
+  return (*ptr)->committed_state;
 }
 
 void ModuleStateManagerBase::OnDestroy(PerVtabState* state) {

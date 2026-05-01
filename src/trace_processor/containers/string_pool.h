@@ -289,7 +289,16 @@ class StringPool {
     return !large_strings_.empty();
   }
 
-  // Sets the locking mode of the string pool.
+  // Enables internal locking on every mutating / iterating method so the pool
+  // is safe to share across threads. Once enabled it cannot be flipped back
+  // off (the awkward name is intentional to discourage that). Must be called
+  // before any thread other than the constructing one starts using the pool.
+  // The `Get(Id)` fast-path is and remains lock-free.
+  void EnableThreadSafetyForMultiConnection() { should_acquire_mutex_ = true; }
+
+  // Test/benchmark-only: lets the harness toggle locking on and off to
+  // measure the overhead. Production code MUST use
+  // `EnableThreadSafetyForMultiConnection` instead.
   void set_locking(bool should_lock) { should_acquire_mutex_ = should_lock; }
 
  private:

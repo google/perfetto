@@ -353,6 +353,14 @@ config("default") {
     ]
   }
 
+  if (is_wasm_pthreads) {
+    # -pthread on emscripten makes the compiler emit shared-memory
+    # atomics (the 'atomics' + 'bulk-memory' wasm features) and pulls
+    # in the threaded variants of libc / libc++. The matching link
+    # flag is added by the wasm_lib template in gn/standalone/wasm.gni.
+    cflags += [ "-pthread" ]
+  }
+
   if (is_linux) {
     # Enable LFS (large file support) for stat() and other syscalls.
     cflags += [

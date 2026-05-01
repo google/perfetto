@@ -38,6 +38,9 @@ std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
 
 TraceProcessor::~TraceProcessor() = default;
 
+TraceProcessor::Connection::Connection() = default;
+TraceProcessor::Connection::~Connection() = default;
+
 base::Status TraceProcessor::Parse(std::unique_ptr<uint8_t[]> buf,
                                    size_t size) {
   return TraceProcessorStorage::Parse(std::move(buf), size);

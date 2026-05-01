@@ -127,6 +127,10 @@ function defBundle(tsRoot, bundle, distDir) {
                   test: './trace_processor_32_stub',
                   replace: '../gen/trace_processor',
                 },
+                {
+                  test: './trace_processor_pthreads_stub',
+                  replace: '../gen/trace_processor_pthreads',
+                },
               ]
             : [],
       }),

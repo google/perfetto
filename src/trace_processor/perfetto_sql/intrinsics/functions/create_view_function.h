@@ -26,7 +26,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
 // Implementation of CREATE_VIEW_FUNCTION SQL function.
 // See https://perfetto.dev/docs/analysis/metrics#metric-helper-functions for
@@ -35,7 +35,7 @@ struct CreateViewFunction : public sqlite::Function<CreateViewFunction> {
   static constexpr char kName[] = "create_view_function";
   static constexpr int kArgCount = 3;
 
-  using UserData = PerfettoSqlEngine;
+  using UserData = PerfettoSqlConnection;
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 

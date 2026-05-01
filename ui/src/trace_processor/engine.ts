@@ -134,7 +134,24 @@ export interface Engine {
     summarizerId: string,
   ): Promise<protos.DestroySummarizerResult>;
 
-  getProxy(tag: string): EngineProxy;
+  /**
+   * Creates a new `EngineProxy` — a logical session whose queries are
+   * tagged for both diagnostics (query log) and dispatch routing (the
+   * RPC layer serialises queries within a tag and tries to keep them on
+   * the same underlying connection; see `Rpc` tag-affine dispatch).
+   *
+   * Each `getProxy(name)` call returns a proxy with a freshly generated
+   * unique tag — i.e. two `getProxy("foo")` calls produce different
+   * dispatch sessions that fan out across connections independently.
+   * The `name` is used as a human-readable prefix in the tag. Likewise
+   * a nested `proxy.getProxy("sub")` is a fork from the parent's
+   * perspective and gets its own dispatch session.
+   *
+   * If a caller wants multiple call sites to share dispatch, they must
+   * pass the same `EngineProxy` around rather than minting a new one.
+   */
+  getProxy(name: string): EngineProxy;
+
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
 }
@@ -159,6 +176,12 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
+  // FIFO of in-flight `streamingQuery` results. `streamingQuery` pushes
+  // here and immediately fires the RPC (no client-side serialisation
+  // between concurrent `query()` calls). `TPM_QUERY_STREAMING` responses
+  // are matched to `pendingQueries[0]` in arrival order, so this relies
+  // on the trace_processor RPC server emitting all chunks of one query
+  // contiguously on the byte pipe before starting the next.
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
@@ -762,9 +785,13 @@ export abstract class EngineBase implements Engine, Disposable {
     return this._numRequestsPending;
   }
 
-  getProxy(tag: string): EngineProxy {
-    return new EngineProxy(this, tag);
+  getProxy(name: string): EngineProxy {
+    return new EngineProxy(this, `${name}#${EngineBase.proxyCounter++}`);
   }
+
+  // Process-wide counter used by `getProxy` to mint unique tags so each
+  // proxy is a fresh dispatch session (see `Engine.getProxy` doc).
+  private static proxyCounter = 0;
 
   protected fail(reason: string) {
     this._failed = reason;
@@ -807,7 +834,7 @@ export class EngineProxy implements Engine, Disposable {
     if (this.disposed) {
       return errResult(`EngineProxy ${this.tag} was disposed`);
     }
-    return await this.engine.tryQuery(query);
+    return await this.engine.tryQuery(query, this.tag);
   }
 
   async computeMetric(
@@ -872,8 +899,11 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.id;
   }
 
-  getProxy(tag: string): EngineProxy {
-    return this.engine.getProxy(`${this.tag}/${tag}`);
+  getProxy(name: string): EngineProxy {
+    // Hierarchical name for human-readable diagnostics; `engine.getProxy`
+    // mints a unique counter suffix so this is still a fresh dispatch
+    // session (see `Engine.getProxy` doc).
+    return this.engine.getProxy(`${this.tag}/${name}`);
   }
 
   get numRequestsPending() {

@@ -25,6 +25,14 @@ import TraceProcessor64 from '../gen/trace_processor_memory64';
 // redirected by rollup to '../gen/trace_processor' (The 32-bit module).
 import TraceProcessor32 from './trace_processor_32_stub';
 
+// The pthreads-enabled 32-bit variant is built alongside the regular
+// 32-bit one (skipped under --only-wasm-memory64). Rollup rewrites the
+// import below to '../gen/trace_processor_pthreads' in production. The
+// runtime selector in WasmBridge picks this module only when the host
+// page is cross-origin isolated (crossOriginIsolated === true), since
+// the module's worker pool relies on SharedArrayBuffer.
+import TraceProcessorPthreads from './trace_processor_pthreads_stub';
+
 // For manual testing of the Memory32 build, we can disable the Memory64 check.
 const DISABLE_MEMORY64_FOR_MANUAL_TEST = false;
 
@@ -56,7 +64,18 @@ export class WasmBridge {
     this.aborted = false;
     const deferredRuntimeInitialized = defer<void>();
     this.useMemory64 = hasMemory64Support();
-    const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
+    let initModule;
+    if (this.useMemory64) {
+      // Memory64 currently has no pthreads variant (the emscripten
+      // combination is not supported), so the threading-vs-fallback
+      // axis is independent of the bitness axis. Memory64 hosts always
+      // get the single-threaded module.
+      initModule = TraceProcessor64;
+    } else if (hasPthreadsSupport()) {
+      initModule = TraceProcessorPthreads;
+    } else {
+      initModule = TraceProcessor32;
+    }
     this.connection = initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
@@ -155,6 +174,25 @@ export class WasmBridge {
     assertTrue(typeof val === 'number');
     return Number(val) >>> 0; // static_cast<uint32_t>
   }
+}
+
+// Returns true iff the host page is cross-origin isolated (the engine
+// worker inherits the page's COOP+COEP) and SharedArrayBuffer is
+// reachable. Both are preconditions for instantiating the pthreads
+// trace_processor module: emscripten's pthread implementation depends
+// on SharedArrayBuffer for cross-thread heap access. Hosts that don't
+// serve the matching headers must continue to load the single-thread
+// module so the engine boots at all.
+function hasPthreadsSupport() {
+  // crossOriginIsolated is propagated from the document to dedicated
+  // workers (ui/src/engine/index.ts runs in such a worker). A defensive
+  // typeof check covers WorkerGlobalScope variants where the property
+  // is absent rather than false.
+  const coiGlobal = (self as {crossOriginIsolated?: boolean})
+    .crossOriginIsolated;
+  if (coiGlobal !== true) return false;
+  if (typeof SharedArrayBuffer !== 'function') return false;
+  return true;
 }
 
 // Checks if the current environment supports Memory64.

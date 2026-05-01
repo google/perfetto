@@ -16,14 +16,19 @@
 
 #include "src/trace_processor/rpc/rpc.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -31,6 +36,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/threading/thread_pool.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
@@ -116,6 +122,8 @@ Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
+  // TP-level mutation; precondition enforced by TraceProcessorImpl. See
+  // `Rpc` class doc.
   current_config_ = config;
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
@@ -243,52 +251,69 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         auto* result = resp->set_query_result();
         result->set_error(kErrFieldNotSet);
         resp.Send(rpc_response_fn_);
-      } else {
-        protozero::ConstBytes args = req.query_args();
-        protos::pbzero::QueryArgs::Decoder query(args.data, args.size);
-        std::string sql = query.sql_query().ToStdString();
+        break;
+      }
+      protozero::ConstBytes args = req.query_args();
+      protos::pbzero::QueryArgs::Decoder query(args.data, args.size);
+      std::string sql = query.sql_query().ToStdString();
 
-        PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
-                          [&](metatrace::Record* r) {
-                            r->AddArg("SQL", sql);
-                            if (query.has_tag()) {
-                              r->AddArg("tag", query.tag());
-                            }
-                          });
+      PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
+                        [&](metatrace::Record* r) {
+                          r->AddArg("SQL", sql);
+                          if (query.has_tag()) {
+                            r->AddArg("tag", query.tag());
+                          }
+                        });
 
-        const auto t_start = base::GetWallTimeNs();
-        auto it = trace_processor_->ExecuteQuery(sql);
+      const auto t_start = base::GetWallTimeNs();
 
-        QueryResultSerializer serializer(std::move(it), t_start);
-        for (bool has_more = true; has_more;) {
-          const auto seq_id = tx_seq_id_++;
-          Response resp(seq_id, req_type);
-          has_more = serializer.Serialize(resp->set_query_result());
-          const uint32_t resp_size = resp->Finalize();
-          if (resp_size < protozero::proto_utils::kMaxMessageLength) {
-            // This is the nominal case.
-            resp.Send(rpc_response_fn_);
-            continue;
-          }
-          // In rare cases a query can end up with a batch which is too big.
-          // Normally batches are automatically split before hitting the limit,
-          // but one can come up with a query where a single cell is > 256MB.
-          // If this happens, just bail out gracefully rather than creating an
-          // unparsable proto which will cause a RPC framing error.
-          // If we hit this, we have to discard `resp` because it's
-          // unavoidably broken (due to have overflown the 4-bytes size) and
-          // can't be parsed. Instead create a new response with the error.
-          Response err_resp(seq_id, req_type);
-          auto* qres = err_resp->set_query_result();
-          qres->add_batch()->set_is_last_batch(true);
-          qres->set_error(
-              "The query ended up with a response that is too big (" +
-              std::to_string(resp_size) +
-              " bytes). This usually happens when a single row is >= 256 MiB. "
-              "See also WRITE_FILE for dealing with large rows.");
-          err_resp.Send(rpc_response_fn_);
-          break;
+      // Async dispatch: post-EOF only (secondary connections illegal
+      // pre-EOF) and only when the transport has wired a dispatcher.
+      // Otherwise fall through to the synchronous inline path so the
+      // wasm bridge / `/rpc` chunked HTTP / Python API behave exactly
+      // as before. The `PERFETTO_RPC_POOL_DISABLED` env var also forces
+      // the synchronous path; it acts as a v1 stability kill-switch and
+      // is read once on first reach to avoid `getenv` thread-safety
+      // surprises.
+      static const bool kPoolDisabled =
+          getenv("PERFETTO_RPC_POOL_DISABLED") != nullptr;
+      if (eof_ && response_dispatcher_ && !kPoolDisabled) {
+        std::string tag = query.tag().ToStdString();
+        DispatchStreamingQueryAsync(std::move(sql), t_start, req_type,
+                                    std::move(tag));
+        break;
+      }
+
+      auto it = trace_processor_->ExecuteQuery(sql);
+      QueryResultSerializer serializer(std::move(it), t_start);
+      for (bool has_more = true; has_more;) {
+        const auto seq_id = tx_seq_id_++;
+        Response resp(seq_id, req_type);
+        has_more = serializer.Serialize(resp->set_query_result());
+        const uint32_t resp_size = resp->Finalize();
+        if (resp_size < protozero::proto_utils::kMaxMessageLength) {
+          // This is the nominal case.
+          resp.Send(rpc_response_fn_);
+          continue;
         }
+        // In rare cases a query can end up with a batch which is too big.
+        // Normally batches are automatically split before hitting the limit,
+        // but one can come up with a query where a single cell is > 256MB.
+        // If this happens, just bail out gracefully rather than creating an
+        // unparsable proto which will cause a RPC framing error.
+        // If we hit this, we have to discard `resp` because it's
+        // unavoidably broken (due to have overflown the 4-bytes size) and
+        // can't be parsed. Instead create a new response with the error.
+        Response err_resp(seq_id, req_type);
+        auto* qres = err_resp->set_query_result();
+        qres->add_batch()->set_is_last_batch(true);
+        qres->set_error(
+            "The query ended up with a response that is too big (" +
+            std::to_string(resp_size) +
+            " bytes). This usually happens when a single row is >= 256 MiB. "
+            "See also WRITE_FILE for dealing with large rows.");
+        err_resp.Send(rpc_response_fn_);
+        break;
       }
       break;
     }
@@ -579,6 +604,8 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
 }
 
 base::Status Rpc::RegisterSqlPackage(protozero::ConstBytes bytes) {
+  // TP-level mutation; precondition enforced by TraceProcessorImpl. See
+  // `Rpc` class doc.
   protos::pbzero::RegisterSqlPackageArgs::Decoder args(bytes);
   SqlPackage package;
   package.name = args.package_name().ToStdString();
@@ -604,6 +631,325 @@ void Rpc::MaybePrintProgress() {
   }
 }
 
+Rpc::PooledConnection Rpc::AcquireConnectionForQuery(const std::string& tag) {
+  std::unique_lock<std::mutex> lock(pool_mu_);
+  pool_cv_.wait(lock, [&] { return !pool_free_.empty(); });
+
+  // Prefer the tag's previously-affined connection if it's free —
+  // same-tag queries benefit from warm per-conn page cache /
+  // prepared-statement reuse / schema cache. Otherwise take the most
+  // recently released conn and (re)affine the tag to it.
+  size_t pick = pool_free_.size() - 1;
+  auto* aff = tag_to_conn_.Find(tag);
+  if (aff) {
+    for (size_t i = 0; i < pool_free_.size(); ++i) {
+      if (pool_free_[i].id == aff->conn_id) {
+        pick = i;
+        break;
+      }
+    }
+  }
+  PooledConnection chosen = std::move(pool_free_[pick]);
+  pool_free_.erase(pool_free_.begin() + static_cast<ptrdiff_t>(pick));
+  pool_in_use_++;
+
+  if (aff) {
+    aff->conn_id = chosen.id;
+    affinity_lru_.splice(affinity_lru_.begin(), affinity_lru_, aff->lru_iter);
+  } else {
+    affinity_lru_.push_front(tag);
+    tag_to_conn_.Insert(tag, AffinityEntry{chosen.id, affinity_lru_.begin()});
+    if (tag_to_conn_.size() > kMaxAffinityEntries) {
+      const std::string evicted = std::move(affinity_lru_.back());
+      affinity_lru_.pop_back();
+      tag_to_conn_.Erase(evicted);
+    }
+  }
+  return chosen;
+}
+
+void Rpc::ReleaseConnectionToPool(PooledConnection pooled) {
+  std::lock_guard<std::mutex> lock(pool_mu_);
+  PERFETTO_DCHECK(pool_in_use_ > 0);
+  pool_in_use_--;
+  pool_free_.push_back(std::move(pooled));
+  pool_cv_.notify_all();
+}
+
+void Rpc::EnsureWorkerPoolPrimed() {
+  std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
+  {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    if (worker_pool_) {
+      return;
+    }
+  }
+  // Eagerly mint one connection so the first query has somewhere to
+  // land without waiting on the writer to grow the pool. Subsequent
+  // dispatches go through `MaybeGrowConnectionPool`.
+  auto first = trace_processor_->CreateConnection();
+  uint32_t hw = std::thread::hardware_concurrency();
+  uint32_t pool_size = hw == 0 ? 1u : hw;
+  std::lock_guard<std::mutex> g(pool_mu_);
+  worker_pool_ = std::make_unique<base::ThreadPool>(pool_size);
+  pool_free_.emplace_back(distinct_connections_minted_, std::move(first));
+  distinct_connections_minted_++;
+  pool_cv_.notify_all();
+}
+
+void Rpc::MaybeGrowConnectionPool() {
+  std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
+  uint32_t hw = std::thread::hardware_concurrency();
+  uint32_t ceiling = hw == 0 ? 1u : hw;
+  bool should_mint = false;
+  {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    if (pool_free_.empty() && distinct_connections_minted_ < ceiling) {
+      should_mint = true;
+    }
+  }
+  if (!should_mint) {
+    return;
+  }
+  auto fresh = trace_processor_->CreateConnection();
+  std::lock_guard<std::mutex> g(pool_mu_);
+  pool_free_.emplace_back(distinct_connections_minted_, std::move(fresh));
+  distinct_connections_minted_++;
+  pool_cv_.notify_one();
+}
+
+void Rpc::RunQueryOnPoolWorker(
+    std::string sql,
+    base::TimeNanos t_start,
+    const QueryResultBatchCallback& result_callback) {
+  EnsureWorkerPoolPrimed();
+  MaybeGrowConnectionPool();
+
+  // Run the work on a pool thread; block the caller on a promise so the
+  // synchronous `Query` callback contract (responses delivered before
+  // `Query` returns) is preserved. Concurrent callers from different
+  // threads each block on their own promise and so fan out across pool
+  // workers.
+  std::promise<void> done;
+  std::future<void> done_fut = done.get_future();
+  worker_pool_->PostTask(
+      [this, sql = std::move(sql), t_start, &result_callback, &done]() mutable {
+        {
+          std::lock_guard<std::mutex> g(pool_mu_);
+          distinct_worker_thread_ids_.insert(std::this_thread::get_id());
+        }
+        // Sync `Query` callers (wasm bridge, `/rpc` HTTP, Python API) don't
+        // carry tags. The empty-string "untagged stream" tag funnels them
+        // through one connection, matching the streaming async path.
+        auto pooled = AcquireConnectionForQuery(/*tag=*/"");
+        // Drain the iterator into a vector of (bytes, has_more) before
+        // releasing the connection. The prepared statement owned by the
+        // iterator must be finalised on this worker before another worker
+        // picks the connection up — TSan otherwise catches a
+        // sqlite3ErrorClear vs sqlite3VdbeReset race on the shared
+        // `sqlite3*` handle.
+        std::vector<std::pair<std::vector<uint8_t>, bool>> emitted;
+        {
+          auto it = pooled.conn->ExecuteQuery(sql);
+          QueryResultSerializer serializer(std::move(it), t_start);
+          protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(
+              kSliceSize, kSliceSize);
+          for (bool has_more = true; has_more;) {
+            has_more = serializer.Serialize(buffered.get());
+            const auto& slices = buffered.GetSlices();
+            for (uint32_t i = 0; i < slices.size(); ++i) {
+              auto used = slices[i].GetUsedRange();
+              emitted.emplace_back(
+                  std::vector<uint8_t>(used.begin, used.begin + used.size()),
+                  has_more || i + 1 < slices.size());
+            }
+            buffered.Reset();
+          }
+        }
+        ReleaseConnectionToPool(std::move(pooled));
+        // The caller is still parked on `done_fut`, so `result_callback`
+        // is safe to invoke here. The callback contract requires exactly
+        // one terminal call with `has_more=false`: append one if the
+        // serializer didn't already emit a final-slice that ended the
+        // stream (no rows, or the trailing Serialize() call produced 0
+        // slices).
+        if (emitted.empty() || emitted.back().second) {
+          emitted.emplace_back(std::vector<uint8_t>{}, /*has_more=*/false);
+        }
+        for (const auto& [bytes, has_more] : emitted) {
+          result_callback(bytes.empty() ? nullptr : bytes.data(), bytes.size(),
+                          has_more);
+        }
+        done.set_value();
+      });
+  done_fut.wait();
+}
+
+void Rpc::DispatchStreamingQueryAsync(std::string sql,
+                                      base::TimeNanos t_start,
+                                      int req_type,
+                                      std::string tag) {
+  EnsureWorkerPoolPrimed();
+  // Snapshot `rpc_response_fn_` now: a later OnRpcRequest from a
+  // different transport connection may overwrite it before this query's
+  // worker posts back, but the snapshot still routes our chunks to the
+  // originating transport.
+  // Claim the request->response ordering slot at arrival time (not
+  // dispatch time) so the UI's pendingQueries[0]-FIFO holds across
+  // tags, even though within a tag queries may queue behind earlier
+  // same-tag work.
+  RpcResponseFunction response_fn_snapshot = rpc_response_fn_;
+  uint64_t my_slot;
+  {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    my_slot = streaming_send_next_seq_++;
+  }
+  PendingTaggedQuery q{std::move(sql), t_start, req_type,
+                       std::move(response_fn_snapshot), my_slot};
+
+  // Same-tag in flight → queue and let the running worker hand off on
+  // release. Slot free → mark in-flight and dispatch now.
+  bool dispatch_now = false;
+  {
+    std::lock_guard<std::mutex> lk(tag_mu_);
+    auto* slot = tag_slots_.Find(tag);
+    if (!slot) {
+      slot = tag_slots_.Insert(tag, TagSlot{}).first;
+    }
+    if (!slot->in_flight) {
+      slot->in_flight = true;
+      dispatch_now = true;
+    } else {
+      slot->queue.push_back(std::move(q));
+    }
+  }
+  if (dispatch_now) {
+    MaybeGrowConnectionPool();
+    PostTaggedQueryToWorker(std::move(tag), std::move(q));
+  }
+}
+
+void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
+  worker_pool_->PostTask([this, tag = std::move(tag),
+                          q = std::move(q)]() mutable {
+    {
+      std::lock_guard<std::mutex> g(pool_mu_);
+      distinct_worker_thread_ids_.insert(std::this_thread::get_id());
+    }
+    auto pooled = AcquireConnectionForQuery(tag);
+    auto& conn = pooled.conn;
+    StreamingResult sr;
+    sr.req_type = q.req_type;
+    sr.response_fn = std::move(q.response_fn);
+    const auto t_exec_start = base::GetWallTimeNs();
+    {
+      // Iterator + serializer scoped tightly so the prepared statement
+      // is finalised before the connection returns to the pool — TSan
+      // otherwise catches a sqlite3ErrorClear vs sqlite3VdbeReset race
+      // when a peer worker picks up the connection mid-finalize.
+      auto it = conn->ExecuteQuery(q.sql);
+      QueryResultSerializer serializer(std::move(it), q.t_start);
+      protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
+                                                                    kSliceSize);
+      for (bool has_more = true; has_more;) {
+        has_more = serializer.Serialize(buffered.get());
+        const auto& slices = buffered.GetSlices();
+        // Concatenate this Serialize() call's slices into one chunk;
+        // the transport closure wraps each chunk in its own RpcProto.
+        std::vector<uint8_t> chunk;
+        for (uint32_t i = 0; i < slices.size(); ++i) {
+          auto used = slices[i].GetUsedRange();
+          chunk.insert(chunk.end(), used.begin, used.begin + used.size());
+        }
+        sr.chunks.push_back(std::move(chunk));
+        buffered.Reset();
+      }
+    }
+    sql_exec_ns_.fetch_add((base::GetWallTimeNs() - t_exec_start).count(),
+                           std::memory_order_relaxed);
+    ReleaseConnectionToPool(std::move(pooled));
+
+    // Hand off the next same-tag query (if any) BEFORE posting the
+    // send closure so it can start running in parallel with this
+    // query's chunk delivery.
+    PendingTaggedQuery next;
+    bool dispatch_next = false;
+    {
+      std::lock_guard<std::mutex> lk(tag_mu_);
+      auto* slot = tag_slots_.Find(tag);
+      PERFETTO_DCHECK(slot && slot->in_flight);
+      if (!slot->queue.empty()) {
+        next = std::move(slot->queue.front());
+        slot->queue.pop_front();
+        dispatch_next = true;
+      } else {
+        tag_slots_.Erase(tag);
+      }
+    }
+    if (dispatch_next) {
+      PostTaggedQueryToWorker(tag, std::move(next));
+    }
+
+    {
+      std::lock_guard<std::mutex> g(pool_mu_);
+      streaming_send_ready_.Insert(q.slot, std::move(sr));
+    }
+    // Drain on the transport thread in slot order; out-of-order
+    // results park in `streaming_send_ready_` until their predecessor
+    // arrives.
+    response_dispatcher_([this]() {
+      const auto t_drain_start = base::GetWallTimeNs();
+      for (;;) {
+        StreamingResult sr;
+        {
+          std::lock_guard<std::mutex> g(pool_mu_);
+          auto* found =
+              streaming_send_ready_.Find(streaming_send_drain_cursor_);
+          if (!found) {
+            dispatcher_ns_.fetch_add(
+                (base::GetWallTimeNs() - t_drain_start).count(),
+                std::memory_order_relaxed);
+            return;
+          }
+          sr = std::move(*found);
+          streaming_send_ready_.Erase(streaming_send_drain_cursor_);
+          streaming_send_drain_cursor_++;
+        }
+        if (!sr.response_fn) {
+          // Transport disappeared before the chunks were ready; drop
+          // them on the floor. The worker has already released its
+          // connection, so this is just discarding bytes.
+          continue;
+        }
+        for (size_t i = 0; i < sr.chunks.size(); ++i) {
+          const auto& chunk_bytes = sr.chunks[i];
+          const auto seq_id = tx_seq_id_++;
+          Response resp(seq_id, sr.req_type);
+          resp->set_query_result()->AppendRawProtoBytes(chunk_bytes.data(),
+                                                        chunk_bytes.size());
+          const uint32_t resp_size = resp->Finalize();
+          if (resp_size < protozero::proto_utils::kMaxMessageLength) {
+            resp.Send(sr.response_fn);
+            continue;
+          }
+          // Mirror the inline path: a single oversized batch is
+          // unparseable; replace with an error response and stop.
+          Response err_resp(seq_id, sr.req_type);
+          auto* qres = err_resp->set_query_result();
+          qres->add_batch()->set_is_last_batch(true);
+          qres->set_error(
+              "The query ended up with a response that is too big (" +
+              std::to_string(resp_size) +
+              " bytes). This usually happens when a single row is >= 256 MiB. "
+              "See also WRITE_FILE for dealing with large rows.");
+          err_resp.Send(sr.response_fn);
+          break;
+        }
+      }
+    });
+  });
+}
+
 void Rpc::Query(const uint8_t* args,
                 size_t len,
                 const QueryResultBatchCallback& result_callback) {
@@ -618,27 +964,37 @@ void Rpc::Query(const uint8_t* args,
                     });
 
   const auto t_start = base::GetWallTimeNs();
-  auto it = trace_processor_->ExecuteQuery(sql);
 
-  QueryResultSerializer serializer(std::move(it), t_start);
-
-  protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
-                                                                kSliceSize);
-  for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(buffered.get());
-    const auto& res = buffered.GetSlices();
-    for (uint32_t i = 0; i < res.size(); ++i) {
-      auto used = res[i].GetUsedRange();
-      result_callback(used.begin, used.size(), has_more || i < res.size() - 1);
+  // Pre-EOF queries (and queries issued while a mutation is being
+  // serviced — `eof_` flips back off in `Parse` if a fresh trace is
+  // being loaded) go through the writer engine directly: secondary
+  // connections are illegal until `NotifyEndOfFile`.
+  if (!eof_) {
+    auto it = trace_processor_->ExecuteQuery(sql);
+    QueryResultSerializer serializer(std::move(it), t_start);
+    protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
+                                                                  kSliceSize);
+    for (bool has_more = true; has_more;) {
+      has_more = serializer.Serialize(buffered.get());
+      const auto& res = buffered.GetSlices();
+      for (uint32_t i = 0; i < res.size(); ++i) {
+        auto used = res[i].GetUsedRange();
+        result_callback(used.begin, used.size(),
+                        has_more || i < res.size() - 1);
+      }
+      if (res.size() == 0 && !has_more) {
+        result_callback(nullptr, 0, false);
+      }
+      buffered.Reset();
     }
-    if (res.size() == 0 && !has_more) {
-      result_callback(nullptr, 0, false);
-    }
-    buffered.Reset();
+    return;
   }
+  RunQueryOnPoolWorker(std::move(sql), t_start, result_callback);
 }
 
 void Rpc::RestoreInitialTables() {
+  // TP-level mutation; precondition enforced by TraceProcessorImpl. See
+  // `Rpc` class doc.
   trace_processor_->RestoreInitialTables();
 }
 

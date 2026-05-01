@@ -36,7 +36,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h"
@@ -206,7 +206,7 @@ base::Status SqliteToOutputAndStepTable(StringPool* pool,
 }
 
 base::StatusOr<SqliteEngine::PreparedStatement> PrepareStatement(
-    PerfettoSqlEngine& engine,
+    PerfettoSqlConnection& engine,
     const std::vector<std::string>& cols,
     const std::string& sql) {
   std::vector<std::string> select_cols;
@@ -259,7 +259,7 @@ struct GraphAggregatingScanner {
     return id < graph.size() ? graph[id].outgoing_edges : empty_edges;
   }
 
-  PerfettoSqlEngine* engine;
+  PerfettoSqlConnection* engine;
   StringPool* pool;
   const perfetto_sql::Graph& graph;
   const perfetto_sql::RowDataframe& inits;
@@ -494,7 +494,7 @@ base::StatusOr<dataframe::Dataframe> GraphAggregatingScanner::Run() {
   //      table builder for the initial nodes
   //   3) It would allow code deduplication between the initial query, the step
   //      query and also CREATE PERFETTO TABLE: the code here is very similar to
-  //      the code in PerfettoSqlEngine.
+  //      the code in PerfettoSqlConnection.
 
   dataframe::AdhocDataframeBuilder res(
       inits.column_names, pool,
@@ -551,7 +551,7 @@ struct GraphAggregatingScan : public sqlite::Function<GraphAggregatingScan> {
   static constexpr char kName[] = "__intrinsic_graph_aggregating_scan";
   static constexpr int kArgCount = 4;
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* engine;
     StringPool* pool;
   };
 
@@ -626,7 +626,7 @@ struct GraphScan : public sqlite::Function<GraphScan> {
   static constexpr char kName[] = "__intrinsic_graph_scan";
   static constexpr int kArgCount = 4;
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* engine;
     StringPool* pool;
   };
 
@@ -720,7 +720,7 @@ struct GraphScan : public sqlite::Function<GraphScan> {
 
 }  // namespace
 
-base::Status RegisterGraphScanFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterGraphScanFunctions(PerfettoSqlConnection& engine,
                                         StringPool* pool) {
   RETURN_IF_ERROR(
       engine.RegisterFunction<GraphScan>(std::make_unique<GraphScan::UserData>(

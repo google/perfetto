@@ -30,7 +30,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/counter.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_bind.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
@@ -49,7 +49,7 @@ struct CounterIntervals : public sqlite::Function<CounterIntervals> {
   static constexpr int kArgCount = 3;
 
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* engine;
     StringPool* pool;
   };
 
@@ -151,7 +151,7 @@ struct CounterIntervals : public sqlite::Function<CounterIntervals> {
 
 }  // namespace
 
-base::Status RegisterCounterIntervalsFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterCounterIntervalsFunctions(PerfettoSqlConnection& engine,
                                                StringPool* pool) {
   return engine.RegisterFunction<CounterIntervals>(
       std::make_unique<CounterIntervals::UserData>(

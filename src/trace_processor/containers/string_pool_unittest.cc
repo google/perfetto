@@ -17,11 +17,16 @@
 #include "src/trace_processor/containers/string_pool.h"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <random>
+#include <string>
+#include <thread>
+#include <unordered_set>
+#include <vector>
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -184,6 +189,79 @@ TEST_F(StringPoolTest, MaxSmallStringIdOnBlockBoundary) {
   StringPool::Id max_id = pool_.MaxSmallStringId();
   ASSERT_EQ(max_id.block_index(), 1u);
   ASSERT_EQ(max_id.block_offset(), 0u);
+}
+
+// Stress test for the `EnableThreadSafetyForMultiConnection` lock toggle.
+// Spawns several threads each interning a mix of distinct and shared strings
+// concurrently and asserts (a) no crashes, (b) every shared string round-trips
+// to the same `StringId` regardless of which thread interned it first, and
+// (c) every distinct string is recoverable via `Get(id)`.
+TEST_F(StringPoolTest, ConcurrentInternIsThreadSafe) {
+  pool_.EnableThreadSafetyForMultiConnection();
+
+  constexpr int kThreads = 8;
+  constexpr int kItersPerThread = 2000;
+  constexpr int kSharedStrings = 32;
+
+  std::vector<std::string> shared;
+  shared.reserve(kSharedStrings);
+  for (int i = 0; i < kSharedStrings; ++i) {
+    shared.push_back("shared_" + std::to_string(i));
+  }
+
+  std::vector<std::vector<StringPool::Id>> shared_ids(
+      static_cast<size_t>(kThreads));
+  std::vector<std::vector<std::pair<std::string, StringPool::Id>>>
+      distinct_pairs(static_cast<size_t>(kThreads));
+
+  auto worker = [&](size_t tag) {
+    auto& sids = shared_ids[tag];
+    auto& dp = distinct_pairs[tag];
+    sids.reserve(static_cast<size_t>(kItersPerThread));
+    dp.reserve(static_cast<size_t>(kItersPerThread));
+    for (size_t i = 0; i < static_cast<size_t>(kItersPerThread); ++i) {
+      // Mix of dedup-hits (shared bucket) and unique strings (writer path).
+      const std::string& s = shared[i % shared.size()];
+      sids.push_back(pool_.InternString(base::StringView(s)));
+
+      std::string unique = "t" + std::to_string(tag) + "_i" + std::to_string(i);
+      dp.emplace_back(unique, pool_.InternString(base::StringView(unique)));
+    }
+  };
+
+  std::vector<std::thread> threads;
+  threads.reserve(static_cast<size_t>(kThreads));
+  for (size_t i = 0; i < static_cast<size_t>(kThreads); ++i) {
+    threads.emplace_back(worker, i);
+  }
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  // All threads must have agreed on the canonical Id for each shared string.
+  for (size_t s = 0; s < static_cast<size_t>(kSharedStrings); ++s) {
+    StringPool::Id canonical = shared_ids[0][s];
+    for (size_t t = 0; t < static_cast<size_t>(kThreads); ++t) {
+      for (size_t i = s; i < shared_ids[t].size();
+           i += static_cast<size_t>(kSharedStrings)) {
+        ASSERT_EQ(shared_ids[t][i], canonical)
+            << "shared string '" << shared[s]
+            << "' got different ids across threads";
+      }
+    }
+    ASSERT_STREQ(pool_.Get(canonical).c_str(), shared[s].c_str());
+  }
+
+  // Every distinct string must round-trip via Get(Id).
+  std::unordered_set<uint32_t> seen_ids;
+  for (size_t t = 0; t < static_cast<size_t>(kThreads); ++t) {
+    for (auto& [str, id] : distinct_pairs[t]) {
+      ASSERT_STREQ(pool_.Get(id).c_str(), str.c_str());
+      // Unique strings should map to unique ids.
+      ASSERT_TRUE(seen_ids.insert(id.raw_id()).second)
+          << "duplicate id for distinct string '" << str << "'";
+    }
+  }
 }
 
 }  // namespace

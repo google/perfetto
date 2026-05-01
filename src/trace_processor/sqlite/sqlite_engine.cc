@@ -17,7 +17,13 @@
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
 #include <sqlite3.h>
+#include <algorithm>
+#include <atomic>
+#include <cinttypes>
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -25,6 +31,8 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -79,19 +87,64 @@ void EnsureSqliteInitialized() {
 }
 
 void InitializeSqlite(sqlite3* db) {
-  char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
-  }
 // In Android tree builds, we don't have the percentile module.
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
+  char* error = nullptr;
   sqlite3_percentile_init(db, &error, nullptr);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+#else
+  (void)db;
 #endif
+}
+
+// Reads the value of |pragma| (e.g. "journal_mode") on |db| and returns it as
+// a lowercase string. PERFETTO_CHECKs on any SQLite error so a silently broken
+// pragma can never go unnoticed.
+std::string ReadPragma(sqlite3* db, const char* pragma) {
+  std::string sql = std::string("PRAGMA ") + pragma;
+  sqlite3_stmt* stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+  PERFETTO_CHECK(rc == SQLITE_OK);
+  rc = sqlite3_step(stmt);
+  PERFETTO_CHECK(rc == SQLITE_ROW);
+  const unsigned char* text = sqlite3_column_text(stmt, 0);
+  std::string out = text ? reinterpret_cast<const char*>(text) : "";
+  for (char& c : out) {
+    if (c >= 'A' && c <= 'Z') {
+      c = static_cast<char>(c - 'A' + 'a');
+    }
+  }
+  sqlite3_finalize(stmt);
+  return out;
+}
+
+// Applies |pragma_sql| (e.g. "PRAGMA journal_mode=MEMORY"), then re-reads
+// |pragma_name| and PERFETTO_CHECKs that the result matches one of
+// |expected_values|. SQLite is allowed to silently fall back when a pragma
+// can't be honoured (e.g. journal_mode=WAL on a backend without SHM hooks
+// returns 'memory'); failing loudly here ensures future regressions surface
+// at construction time rather than as subtle correctness bugs.
+void ApplyAndVerifyPragma(sqlite3* db,
+                          const char* pragma_sql,
+                          const char* pragma_name,
+                          std::initializer_list<const char*> expected_values) {
+  char* error = nullptr;
+  int rc = sqlite3_exec(db, pragma_sql, nullptr, nullptr, &error);
+  if (rc != SQLITE_OK) {
+    PERFETTO_FATAL("Error executing '%s': %s", pragma_sql,
+                   error ? error : "<no message>");
+  }
+  std::string actual = ReadPragma(db, pragma_name);
+  for (const char* expected : expected_values) {
+    if (actual == expected) {
+      return;
+    }
+  }
+  PERFETTO_FATAL("Pragma '%s' silently fell back: got '%s', expected one of",
+                 pragma_sql, actual.c_str());
 }
 
 std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
@@ -100,28 +153,65 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
                       : std::make_optional(static_cast<uint32_t>(offset));
 }
 
-}  // namespace
-
-SqliteEngine::SqliteEngine() {
-  sqlite3* db = nullptr;
-  EnsureSqliteInitialized();
-
-  // Ensure that we open the database with mutexes disabled: this is because
-  // trace processor as a whole cannot be used from multiple threads so there is
-  // no point paying the (potentially significant) cost of mutexes at the SQLite
-  // level.
-  static constexpr int kSqliteOpenFlags =
-      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
-  PERFETTO_CHECK(sqlite3_open_v2(":memory:", &db, kSqliteOpenFlags, nullptr) ==
-                 SQLITE_OK);
-  InitializeSqlite(db);
-  db_.reset(db);
+// Build a unique URI for the in-tree memdb VFS. The leading slash engages
+// memdb's named-MemStore feature: multiple sqlite3 handles opened against
+// the same URI share the byte buffer (the MemStore) but each gets its own
+// BtShared / page cache. Sharing BtShared (via `cache=shared`) would
+// serialise sqlite3_step across handles on the BtShared mutex, defeating
+// multi-connection parallelism. The atomic counter prevents two
+// `SqliteEngine` instances in the same process from colliding.
+std::string BuildMemdbUri() {
+  static std::atomic<uint64_t> kUniqueIdCounter{0};
+  uint64_t unique_id = kUniqueIdCounter.fetch_add(1, std::memory_order_relaxed);
+  char filename_buf[64];
+  snprintf(filename_buf, sizeof(filename_buf),
+           "file:/perfetto-%" PRIu64 "?vfs=memdb", unique_id);
+  return filename_buf;
 }
 
+ScopedDb OpenDb(const std::string& filename) {
+  EnsureSqliteInitialized();
+  // SQLITE_OPEN_NOMUTEX: trace_processor uses one sqlite3 per thread, so
+  // SQLite's per-handle mutex is unnecessary overhead.
+  // SQLITE_OPEN_URI: URI parsing isn't enabled globally.
+  static constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE |
+                                          SQLITE_OPEN_CREATE |
+                                          SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI;
+  sqlite3* db = nullptr;
+  PERFETTO_CHECK(sqlite3_open_v2(filename.c_str(), &db, kSqliteOpenFlags,
+                                 nullptr) == SQLITE_OK);
+  InitializeSqlite(db);
+
+  // Multi-conn pragmas. Each is applied and verified — SQLite silently
+  // falls back when a pragma can't be honoured and we want to crash
+  // loudly rather than corrupt multi-conn invariants.
+  // - journal_mode=MEMORY: rollback journal in memory (memdb VFS has no
+  //   SHM hooks so WAL isn't an option anyway).
+  // - temp_store=MEMORY: temp tables/indices in memory; substrate for
+  //   the temp-then-promote include pattern. Stored as an int so the
+  //   read-back is "2", not "memory".
+  // - locking_mode=NORMAL: keep it from drifting to EXCLUSIVE which
+  //   would break named-MemStore sharing.
+  ApplyAndVerifyPragma(db, "PRAGMA journal_mode=MEMORY", "journal_mode",
+                       {"memory"});
+  ApplyAndVerifyPragma(db, "PRAGMA temp_store=MEMORY", "temp_store",
+                       {"2", "memory"});
+  ApplyAndVerifyPragma(db, "PRAGMA locking_mode=NORMAL", "locking_mode",
+                       {"normal"});
+  return ScopedDb(db);
+}
+
+}  // namespace
+
+SqliteEngine::SqliteEngine()
+    : filename_(BuildMemdbUri()), db_(OpenDb(filename_)) {}
+
+SqliteEngine::SqliteEngine(const std::string& shared_filename)
+    : filename_(shared_filename), db_(OpenDb(filename_)) {}
+
 SqliteEngine::~SqliteEngine() {
-  // It is important to unregister any functions that have been registered with
-  // the database before destroying it. This is because functions can hold onto
-  // prepared statements, which must be finalized before database destruction.
+  // Unregister functions before db close so any prepared statements they
+  // hold get finalised first.
   for (auto it = fn_ctx_.GetIterator(); it; ++it) {
     int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
                                          it.key().second, SQLITE_UTF8, nullptr,
@@ -130,17 +220,45 @@ SqliteEngine::~SqliteEngine() {
       PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
     }
   }
-  fn_ctx_.Clear();
 }
 
 SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "QUERY_PREPARE");
+  sqlite3* db = db_.get();
   sqlite3_stmt* raw_stmt = nullptr;
-  int err =
-      sqlite3_prepare_v2(db_.get(), sql.sql().c_str(), -1, &raw_stmt, nullptr);
-  PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql)};
+  // Transparent retry for two multi-conn signals:
+  // - SQLITE_BUSY/LOCKED: a peer connection holds the MemStore file
+  //   lock at SHARED/RESERVED/EXCLUSIVE. Sleep + retry.
+  // - SQLITE_SCHEMA: a peer connection committed DDL since we last
+  //   read page 1's schema cookie; re-prepare from source.
+  // Both are safe to retry at the prepare boundary — we haven't
+  // walked the b-tree yet, no rollback needed.
+  int err = SQLITE_OK;
+  BusyRetryHelper busy_retry(busy_retry_timeout_);
+  SchemaRetryHelper schema_retry(busy_retry_timeout_);
+  for (;;) {
+    err = sqlite3_prepare_v2(db, sql.sql().c_str(), -1, &raw_stmt, nullptr);
+    if (err == SQLITE_OK) {
+      break;
+    }
+    if (err == SQLITE_BUSY || err == SQLITE_LOCKED) {
+      if (busy_retry.ShouldRetry(err)) {
+        continue;
+      }
+      break;
+    }
+    if (err == SQLITE_SCHEMA) {
+      if (schema_retry.ShouldRetry(err)) {
+        continue;
+      }
+      break;
+    }
+    break;
+  }
+  PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql), db,
+                              busy_retry_timeout_};
   if (err != SQLITE_OK) {
-    const char* errmsg = sqlite3_errmsg(db_.get());
+    const char* errmsg = sqlite3_errmsg(db);
     std::string frame =
         statement.sql_source_.AsTracebackForSqliteOffset(GetErrorOffset());
     base::Status status = base::ErrStatus("%s%s", frame.c_str(), errmsg);
@@ -155,20 +273,60 @@ SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
   return statement;
 }
 
+base::Status SqliteEngine::ExecWithRetry(const char* sql) {
+  sqlite3* db = db_.get();
+  // Same retry shape as `PrepareStatement`. `sqlite3_exec` re-prepares
+  // internally so a plain re-issue handles SCHEMA, and the short
+  // transactional statements this is intended for (SAVEPOINT/RELEASE/
+  // ROLLBACK TO) leave no partial state on BUSY/LOCKED.
+  BusyRetryHelper busy_retry(busy_retry_timeout_);
+  SchemaRetryHelper schema_retry(busy_retry_timeout_);
+  int err = SQLITE_OK;
+  char* errmsg_raw = nullptr;
+  for (;;) {
+    if (errmsg_raw) {
+      sqlite3_free(errmsg_raw);
+      errmsg_raw = nullptr;
+    }
+    err = sqlite3_exec(db, sql, nullptr, nullptr, &errmsg_raw);
+    if (err == SQLITE_OK) {
+      break;
+    }
+    if (err == SQLITE_BUSY || err == SQLITE_LOCKED) {
+      if (busy_retry.ShouldRetry(err)) {
+        continue;
+      }
+      break;
+    }
+    if (err == SQLITE_SCHEMA) {
+      if (schema_retry.ShouldRetry(err)) {
+        continue;
+      }
+      break;
+    }
+    break;
+  }
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    return base::ErrStatus("%s", errmsg_raw ? errmsg_raw : sqlite3_errmsg(db));
+  }
+  return base::OkStatus();
+}
+
 base::Status SqliteEngine::RegisterFunction(const char* name,
                                             int argc,
                                             Fn* fn,
                                             void* ctx,
                                             FnCtxDestructor* destructor,
                                             bool deterministic) {
+  sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  int ret =
-      sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc), flags,
-                                 ctx, fn, nullptr, nullptr, destructor);
+  int ret = sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
+                                       ctx, fn, nullptr, nullptr, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register function with name %s: %s (SQLite error code: %d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
   *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
   return base::OkStatus();
@@ -182,15 +340,15 @@ base::Status SqliteEngine::RegisterAggregateFunction(
     void* ctx,
     FnCtxDestructor* destructor,
     bool deterministic) {
+  sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  int ret =
-      sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc), flags,
-                                 ctx, nullptr, step, final, destructor);
+  int ret = sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
+                                       ctx, nullptr, step, final, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register aggregate function with name %s: %s (SQLite error "
         "code: %d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
   return base::OkStatus();
 }
@@ -204,28 +362,30 @@ base::Status SqliteEngine::RegisterWindowFunction(const char* name,
                                                   void* ctx,
                                                   FnCtxDestructor* destructor,
                                                   bool deterministic) {
+  sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  int ret = sqlite3_create_window_function(
-      db_.get(), name, static_cast<int>(argc), flags, ctx, step, final, value,
-      inverse, destructor);
+  int ret = sqlite3_create_window_function(db, name, static_cast<int>(argc),
+                                           flags, ctx, step, final, value,
+                                           inverse, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register window function with name %s: %s (SQLite error "
         "code: %d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
   return base::OkStatus();
 }
 
 base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
-  int ret = sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc),
-                                       SQLITE_UTF8, nullptr, nullptr, nullptr,
-                                       nullptr, nullptr);
+  sqlite3* db = db_.get();
+  int ret =
+      sqlite3_create_function_v2(db, name, static_cast<int>(argc), SQLITE_UTF8,
+                                 nullptr, nullptr, nullptr, nullptr, nullptr);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to unregister function with name %s: %s (SQLite error code: "
         "%d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
   fn_ctx_.Erase({name, argc});
   return base::OkStatus();
@@ -258,11 +418,30 @@ void* SqliteEngine::SetRollbackCallback(RollbackCallback callback, void* ctx) {
   return sqlite3_rollback_hook(db_.get(), callback, ctx);
 }
 
-SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
-                                                   SqlSource source)
+SqliteEngine::PreparedStatement::PreparedStatement(
+    ScopedStmt stmt,
+    SqlSource source,
+    sqlite3* db,
+    base::TimeMillis retry_timeout)
     : stmt_(std::move(stmt)),
       expanded_sql_(sqlite3_expanded_sql(stmt_.get())),
-      sql_source_(std::move(source)) {}
+      sql_source_(std::move(source)),
+      db_(db),
+      retry_timeout_(retry_timeout) {}
+
+int SqliteEngine::PreparedStatement::ReprepareFromSource() {
+  // Finalise the stale statement before re-preparing.
+  stmt_.reset();
+  expanded_sql_.reset();
+  sqlite3_stmt* raw_stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql_source_.sql().c_str(), -1, &raw_stmt,
+                              nullptr);
+  stmt_.reset(raw_stmt);
+  if (rc == SQLITE_OK && raw_stmt) {
+    expanded_sql_.reset(sqlite3_expanded_sql(raw_stmt));
+  }
+  return rc;
+}
 
 bool SqliteEngine::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",
@@ -271,21 +450,113 @@ bool SqliteEngine::PreparedStatement::Step() {
                       record->AddArg("Executed SQL", sql());
                     });
 
-  // Now step once into |cur_stmt| so that when we prepare the next statment
-  // we will have executed any dependent bytecode in this one.
-  int err = sqlite3_step(stmt_.get());
+  // Transparent retry for two multi-conn signals:
+  // - SQLITE_BUSY/LOCKED: a peer connection holds the MemStore file
+  //   lock. Reset the statement and retry.
+  // - SQLITE_SCHEMA: a peer connection bumped the schema cookie; the
+  //   bytecode is stale. Re-prepare from `sql_source_` and retry. If
+  //   a row has already been yielded, the cursor can't be safely
+  //   restarted — surface the error instead.
+  int err = SQLITE_OK;
+  BusyRetryHelper busy_retry(retry_timeout_);
+  SchemaRetryHelper schema_retry(retry_timeout_);
+  for (;;) {
+    err = sqlite3_step(stmt_.get());
+    if (err == SQLITE_BUSY || err == SQLITE_LOCKED) {
+      sqlite3_reset(stmt_.get());
+      if (busy_retry.ShouldRetry(err)) {
+        continue;
+      }
+      break;
+    }
+    if (err == SQLITE_SCHEMA) {
+      if (rows_seen_) {
+        break;  // can't restart mid-cursor; surface the error.
+      }
+      if (!schema_retry.ShouldRetry(err)) {
+        break;
+      }
+      // Re-prepare can itself hit SCHEMA or BUSY/LOCKED; both are
+      // absorbed by the same retry budgets here.
+      int rc = ReprepareFromSource();
+      while (rc != SQLITE_OK) {
+        if (rc == SQLITE_SCHEMA && schema_retry.ShouldRetry(rc)) {
+          rc = ReprepareFromSource();
+          continue;
+        }
+        if ((rc == SQLITE_BUSY || rc == SQLITE_LOCKED) &&
+            busy_retry.ShouldRetry(rc)) {
+          rc = ReprepareFromSource();
+          continue;
+        }
+        break;
+      }
+      if (rc != SQLITE_OK) {
+        err = rc;
+        break;
+      }
+      continue;
+    }
+    break;
+  }
   if (err == SQLITE_ROW) {
+    rows_seen_ = true;
     return true;
   }
   if (err == SQLITE_DONE) {
     return false;
   }
-  sqlite3* db = sqlite3_db_handle(stmt_.get());
+  sqlite3* db = db_;
   std::string frame =
       sql_source_.AsTracebackForSqliteOffset(GetErrorOffsetDb(db));
   const char* errmsg = sqlite3_errmsg(db);
   status_ = base::ErrStatus("%s%s", frame.c_str(), errmsg);
   return false;
+}
+
+// =====================
+// BusyRetryHelper impl.
+// =====================
+
+BusyRetryHelper::BusyRetryHelper(base::TimeMillis timeout)
+    : deadline_(base::GetWallTimeMs() + timeout),
+      sleep_fn_(&base::SleepMicroseconds) {}
+
+bool BusyRetryHelper::ShouldRetry(int sqlite_status) {
+  if (sqlite_status != SQLITE_BUSY && sqlite_status != SQLITE_LOCKED) {
+    return false;
+  }
+  if (base::GetWallTimeMs() >= deadline_) {
+    return false;
+  }
+  // Capped exponential backoff: 100us, 1ms, 10ms, then 50ms.
+  static constexpr unsigned kBackoffSchedule[] = {100, 1000, 10000, 50000};
+  unsigned interval_us = kBackoffSchedule[std::min<size_t>(
+      attempt_, base::ArraySize(kBackoffSchedule) - 1)];
+  attempt_++;
+  sleep_fn_(interval_us);
+  return true;
+}
+
+// =====================
+// SchemaRetryHelper impl.
+// =====================
+
+SchemaRetryHelper::SchemaRetryHelper(base::TimeMillis timeout)
+    : deadline_(base::GetWallTimeMs() + timeout) {}
+
+bool SchemaRetryHelper::ShouldRetry(int sqlite_status) {
+  if (sqlite_status != SQLITE_SCHEMA) {
+    return false;
+  }
+  if (attempt_ >= kMaxAttempts) {
+    return false;
+  }
+  if (base::GetWallTimeMs() >= deadline_) {
+    return false;
+  }
+  attempt_++;
+  return true;
 }
 
 bool SqliteEngine::PreparedStatement::IsDone() const {

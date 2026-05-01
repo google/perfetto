@@ -37,7 +37,8 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -76,6 +77,8 @@ class TraceProcessorImpl : public TraceProcessor,
   // =================================================================
 
   Iterator ExecuteQuery(const std::string& sql) override;
+
+  std::unique_ptr<Connection> CreateConnection() override;
 
   base::Status RegisterSqlPackage(SqlPackage) override;
 
@@ -142,15 +145,24 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
+  // A `Connection` impl owning a fresh `PerfettoSqlConnection` attached to
+  // the primary connection's memdb URI. See the doc-comment in
+  // `trace_processor_impl.cc` for the intentional limitations.
+  class ConnectionImpl;
+  friend class ConnectionImpl;
+
+  // Called by `ConnectionImpl::~ConnectionImpl` to release a connection
+  // back to this TraceProcessor. Decrements `non_default_connection_count_`.
+  void ReleaseConnection(ConnectionImpl* conn);
+
   bool IsRootMetricField(const std::string& metric_name);
 
   void CacheBoundsAndBuildTable();
 
-  struct InitPerfettoSqlEngineArgs {
+  struct InitPerfettoSqlConnectionArgs {
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
-    const std::vector<SqlPackage>& packages;
     std::vector<metrics::SqlMetricFile>& sql_metrics;
     const DescriptorPool* metrics_descriptor_pool;
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path;
@@ -158,28 +170,36 @@ class TraceProcessorImpl : public TraceProcessor,
     bool notify_eof_called;
     std::pair<int64_t, int64_t> cached_trace_bounds;
     std::vector<std::unique_ptr<PluginBase>>& plugins;
+    PerfettoSqlDatabase* database;
   };
 
-  static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
-      const InitPerfettoSqlEngineArgs& args);
+  static std::unique_ptr<PerfettoSqlConnection> InitPerfettoSqlConnection(
+      const InitPerfettoSqlConnectionArgs& args);
 
-  static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
+  static std::vector<PerfettoSqlConnection::StaticTable> GetStaticTables(
       TraceStorage* storage);
 
   static std::vector<std::unique_ptr<StaticTableFunction>>
   CreateStaticTableFunctions(TraceProcessorContext* context,
                              TraceStorage* storage,
                              const Config& config,
-                             PerfettoSqlEngine* engine);
+                             PerfettoSqlConnection* connection);
 
-  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
+  static void IncludeAfterEofPrelude(PerfettoSqlConnection*);
 
   const Config config_;
 
   // Registered plugins, topologically sorted by dependency order.
   std::vector<std::unique_ptr<PluginBase>> plugins_;
 
-  std::unique_ptr<PerfettoSqlEngine> engine_;
+  // Cross-connection state (vtab-state map, function pool, package
+  // map, per-module include locks). Shared by every connection.
+  std::unique_ptr<PerfettoSqlDatabase> database_;
+
+  // Primary (writer) connection. Secondary (reader) connections are
+  // minted on demand by `CreateConnection` and owned by the returned
+  // `Connection` handle.
+  std::unique_ptr<PerfettoSqlConnection> connection_;
 
   DescriptorPool metrics_descriptor_pool_;
 
@@ -214,6 +234,18 @@ class TraceProcessorImpl : public TraceProcessor,
 
   // Auto-incrementing counter for generating unique summarizer ids.
   uint32_t next_summarizer_id_ = 0;
+
+  // Number of currently-alive non-default `Connection`s minted by
+  // `CreateConnection`. While > 0, mutating TP-level methods are
+  // illegal (strict-v1 — see design rules). `CreateConnection` runs
+  // on the writer thread, but a `Connection` may be handed off and
+  // destroyed on a different thread, so multiple destructors can
+  // race on the decrement. Atomic to keep the count race-free; the
+  // mutation-gating reads issued from writer-thread methods can
+  // observe the count under relaxed ordering since the expected
+  // value at those sites is zero (no live secondaries) and the
+  // writer thread is the only producer of `++`.
+  std::atomic<int> non_default_connection_count_{0};
 };
 
 }  // namespace perfetto::trace_processor

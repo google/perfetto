@@ -451,10 +451,19 @@ template("wasm_toolchain") {
   }
 }
 
-# Istantiates both wasm toolchains.
+# Istantiates the wasm toolchains.
 wasm_toolchain("wasm") {
 }
 wasm_toolchain("wasm_memory64") {
+}
+
+# A 32-bit-memory variant compiled with -pthread so the resulting wasm
+# module can spawn worker threads via base::ThreadPool. The host page
+# must be cross-origin isolated (COOP+COEP) for SharedArrayBuffer to be
+# available; otherwise the module fails to instantiate. The runtime
+# branch in ui/src/engine/wasm_bridge.ts picks this module only when
+# crossOriginIsolated is true.
+wasm_toolchain("wasm_pthreads") {
 }
 
 # This is used both for MSVC anc clang-cl. clang-cl cmdline interface pretends

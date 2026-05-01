@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
@@ -148,6 +149,45 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
 
 }  // namespace
 
+void DataframeModule::Context::OnCommit() {
+  // Run the base bookkeeping first (commit active_state, drop empties).
+  sqlite::ModuleStateManager<DataframeModule>::OnCommit();
+
+  // Republish every surviving committed state to the cross-connection
+  // map. The shared_ptr is the same one peer connections already point
+  // at (the State object lives behind a shared_ptr that all
+  // connections holding this vtab share), so this is idempotent for
+  // entries no other connection has replaced. Entries that *another*
+  // connection just CREATEd-and-committed get installed in the map by
+  // that connection's `PublishVtabState`; SQLite serialises commits
+  // via the file lock, so the last writer wins on conflicting
+  // updates.
+  for (const auto& [name, _state_ptr] : GetAllStates()) {
+    auto shared = GetCommittedStateSharedByName(name);
+    if (!shared) {
+      // Pre-commit-only entry; skip.
+      continue;
+    }
+    database->PublishVtabState(module_name, name, std::move(shared));
+  }
+}
+
+void DataframeModule::Context::OnRollback() {
+  // Defer to the base bookkeeping — we never published rolled-back
+  // state (publish only happens on OnCommit), so there is nothing to
+  // undo in the cross-connection map.
+  sqlite::ModuleStateManager<DataframeModule>::OnRollback();
+}
+
+std::shared_ptr<void> DataframeModule::Context::ResolveMissingStateOnConnect(
+    const std::string& vtab_name) {
+  // Cold xConnect: this connection has no local PerVtabState for
+  // `vtab_name`, so consult the cross-connection map. A peer
+  // connection that CREATEd the vtab will have published its
+  // committed state there.
+  return database->LookupVtabState(module_name, vtab_name);
+}
+
 int DataframeModule::Create(sqlite3* db,
                             void* raw_ctx,
                             int argc,
@@ -168,6 +208,7 @@ int DataframeModule::Create(sqlite3* db,
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->id_col_idx = FindIdColumnIndex(state->dataframe->column_names());
   res->state = ctx->OnCreate(argc, argv, std::move(state));
+  res->context = ctx;
   res->name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
@@ -196,6 +237,7 @@ int DataframeModule::Connect(sqlite3* db,
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->state = vtab_state;
+  res->context = GetContext(raw_ctx);
   res->id_col_idx = FindIdColumnIndex(state->dataframe->column_names());
   res->name = argv[2];
   *vtab = res.release();
@@ -207,9 +249,27 @@ int DataframeModule::Disconnect(sqlite3_vtab* vtab) {
   return SQLITE_OK;
 }
 
+// Helper that resolves the current `State*` for a vtab, preferring the
+// cross-connection staging area when one is configured. Per the design
+// rule, the dataframe vtab does not cache the State pointer in PerVtabState;
+// re-resolving on each query plan / cursor open lets reader connections
+// observe new dataframes published after CREATE INDEX (or other writer-side
+// mutations that swap the dataframe shared_ptr in place).
+//
+static DataframeModule::State* ResolveState(DataframeModule::Vtab* v) {
+  if (v->context) {
+    auto staged =
+        v->context->database->LookupVtabState(v->context->module_name, v->name);
+    if (staged) {
+      return static_cast<DataframeModule::State*>(staged.get());
+    }
+  }
+  return sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+}
+
 int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   auto* v = GetVtab(tab);
-  auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+  auto* s = ResolveState(v);
 
   std::optional<int> limit_constraint_idx;
   std::optional<int> offset_constraint_idx;
@@ -450,7 +510,7 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
           }
         });
     auto* v = GetVtab(cur->pVtab);
-    auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+    auto* s = ResolveState(v);
     s->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
     c->id_col_idx = v->id_col_idx;

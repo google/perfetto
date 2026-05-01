@@ -27,6 +27,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -173,18 +174,34 @@ class TraceStorage {
   class SqlStats {
    public:
     static constexpr size_t kMaxLogEntries = 100;
+
+    // Point-in-time copy of all currently-tracked queries. Returned by
+    // |Snapshot| so readers (e.g. `SELECT * FROM sql_stats`) iterate a stable
+    // view that cannot tear under concurrent recording from other connections.
+    struct Snapshot {
+      std::vector<std::string> queries;
+      std::vector<int64_t> times_started;
+      std::vector<int64_t> times_first_next;
+      std::vector<int64_t> times_ended;
+      size_t size() const { return queries.size(); }
+    };
+
     uint32_t RecordQueryBegin(const std::string& query, int64_t time_started);
     void RecordQueryFirstNext(uint32_t row, int64_t time_first_next);
     void RecordQueryEnd(uint32_t row, int64_t time_end);
-    size_t size() const { return queries_.size(); }
-    const std::deque<std::string>& queries() const { return queries_; }
-    const std::deque<int64_t>& times_started() const { return times_started_; }
-    const std::deque<int64_t>& times_first_next() const {
-      return times_first_next_;
+
+    size_t size() const {
+      std::lock_guard<std::mutex> lock(mutex_);
+      return queries_.size();
     }
-    const std::deque<int64_t>& times_ended() const { return times_ended_; }
+
+    // Copies all currently-tracked queries into a |Snapshot|. Safe to call
+    // concurrently with |RecordQueryBegin|/|RecordQueryFirstNext|/
+    // |RecordQueryEnd| from other threads.
+    Snapshot SnapshotForReading() const;
 
    private:
+    mutable std::mutex mutex_;
     uint32_t popped_queries_ = 0;
 
     std::deque<std::string> queries_;

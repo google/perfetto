@@ -31,7 +31,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
 struct CreatedFunction : public sqlite::Function<CreatedFunction> {
   using UserData = Destructible;
@@ -42,10 +42,10 @@ struct CreatedFunction : public sqlite::Function<CreatedFunction> {
   // sqlite::Function implementation
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
-  // Glue code for PerfettoSqlEngine.
-  static std::unique_ptr<UserData> MakeContext(PerfettoSqlEngine*);
+  // Glue code for PerfettoSqlConnection.
+  static std::unique_ptr<UserData> MakeContext(PerfettoSqlConnection*);
   static bool IsValid(UserData*);
-  static void Reset(UserData*, PerfettoSqlEngine*);
+  static void Reset(UserData*, PerfettoSqlConnection*);
   static base::Status Prepare(UserData*,
                               FunctionPrototype,
                               sql_argument::Type return_type,
