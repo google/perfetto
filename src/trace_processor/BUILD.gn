@@ -396,27 +396,29 @@ perfetto_cc_proto_descriptor("gen_cc_test_messages_descriptor") {
   descriptor_target = "../protozero:testing_messages_descriptor"
 }
 
-source_set("integrationtests") {
-  testonly = true
-  sources = []
-  deps = []
-  if (enable_perfetto_trace_processor_sqlite) {
-    sources += [
-      "read_trace_integrationtest.cc",
-      "trace_database_integrationtest.cc",
-    ]
-    deps += [
-      ":lib",
-      "../../gn:default_deps",
-      "../../gn:gtest_and_gmock",
-      "../../protos/perfetto/common:zero",
-      "../../protos/perfetto/trace:zero",
-      "../../protos/perfetto/trace_processor:zero",
-      "../base",
-      "../base:test_support",
-      "sqlite",
-      "trace_summary:integrationtests",
-    ]
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtests") {
+    testonly = true
+    sources = []
+    deps = []
+    if (enable_perfetto_trace_processor_sqlite) {
+      sources += [
+        "read_trace_integrationtest.cc",
+        "trace_database_integrationtest.cc",
+      ]
+      deps += [
+        ":lib",
+        "../../gn:default_deps",
+        "../../gn:gtest_and_gmock",
+        "../../protos/perfetto/common:zero",
+        "../../protos/perfetto/trace:zero",
+        "../../protos/perfetto/trace_processor:zero",
+        "../base",
+        "../base:test_support",
+        "sqlite",
+        "trace_summary:integrationtests",
+      ]
+    }
   }
 }
 

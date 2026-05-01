@@ -369,6 +369,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "perfetto-sdk-docs-tests"
+version = "0.0.0"
+dependencies = [
+ "perfetto-sdk",
+ "perfetto-sdk-derive",
+ "perfetto-sdk-protos-gpu",
+ "tracing",
+ "tracing-perfetto-sdk",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "perfetto-sdk-protos-gpu"
 version = "1.0.0"
 dependencies = [
