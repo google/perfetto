@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/config/android/activity_manager_dumpsys_config.proto";
 import "protos/perfetto/config/android/android_aflags_config.proto";
 import "protos/perfetto/config/android/android_game_intervention_list_config.proto";
 import "protos/perfetto/config/android/android_input_event_config.proto";
@@ -64,7 +65,7 @@ import "protos/perfetto/config/chrome/histogram_samples.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 142
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -304,6 +305,10 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: android.activity_manager.dumpsys
+  optional ActivityManagerDumpsysConfig activity_manager_dumpsys_config = 141
+      [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

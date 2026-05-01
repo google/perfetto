@@ -1,0 +1,34 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_android_sdk.gni")
+
+assert(enable_perfetto_android_java_sdk)
+
+perfetto_android_library("perfetto_datasource_lib") {
+  sources = [
+    "dev/perfetto/sdk/InternPool.java",
+    "dev/perfetto/sdk/PacketBuilder.java",
+    "dev/perfetto/sdk/PerfettoDataSource.java",
+    "dev/perfetto/sdk/ProtoWriter.java",
+    "dev/perfetto/sdk/TraceContext.java",
+  ]
+  deps = [ "../../jni:libperfetto_datasource_jni" ]
+  manifest = "AndroidManifest.xml"
+  android_bp_java_target_name_suffix = "_java"
+  android_bp_copy_java_target_name_suffix = "_framework_java"
+  android_bp_copy_java_target_jarjar =
+      "perfetto-datasource-framework-jarjar-rules.txt"
+}

@@ -22,6 +22,7 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/protovm/vm_program.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
+import "protos/perfetto/trace/android/activity_manager_dumpsys.proto";
 import "protos/perfetto/trace/android/android_aflags.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
@@ -118,7 +119,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 130.
+// Next id: 131.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -308,6 +309,11 @@ message TracePacket {
     EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
+
+    // Emitted by the "android.activity_manager.dumpsys" data source.
+    // One packet per trace session at start, with the serialized
+    // com.android.server.am.ActivityManagerServiceProto.
+    ActivityManagerDumpsys activity_manager_dumpsys = 130;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

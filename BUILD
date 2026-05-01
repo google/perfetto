@@ -15345,6 +15345,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_android_protos",
     srcs = [
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -16309,6 +16310,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",

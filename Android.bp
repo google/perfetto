@@ -1634,6 +1634,7 @@ filegroup {
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -1712,6 +1713,7 @@ java_library {
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -2913,6 +2915,7 @@ cc_test {
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
         ":perfetto_src_ipc_perfetto_ipc",
+        ":perfetto_src_java_datasource_integrationtests",
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
@@ -3377,6 +3380,7 @@ filegroup {
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -3428,6 +3432,7 @@ filegroup {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_input_event.proto",
@@ -4168,6 +4173,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_android_cpp",
     srcs: [
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -4204,6 +4210,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_android_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/config/android/activity_manager_dumpsys_config.gen.cc",
         "external/perfetto/protos/perfetto/config/android/android_aflags_config.gen.cc",
         "external/perfetto/protos/perfetto/config/android/android_game_intervention_list_config.gen.cc",
         "external/perfetto/protos/perfetto/config/android/android_input_event_config.gen.cc",
@@ -4240,6 +4247,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_android_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/config/android/activity_manager_dumpsys_config.gen.h",
         "external/perfetto/protos/perfetto/config/android/android_aflags_config.gen.h",
         "external/perfetto/protos/perfetto/config/android/android_game_intervention_list_config.gen.h",
         "external/perfetto/protos/perfetto/config/android/android_input_event_config.gen.h",
@@ -4270,6 +4278,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_android_lite",
     srcs: [
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -4305,6 +4314,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_android_lite)",
     out: [
+        "external/perfetto/protos/perfetto/config/android/activity_manager_dumpsys_config.pb.cc",
         "external/perfetto/protos/perfetto/config/android/android_aflags_config.pb.cc",
         "external/perfetto/protos/perfetto/config/android/android_game_intervention_list_config.pb.cc",
         "external/perfetto/protos/perfetto/config/android/android_input_event_config.pb.cc",
@@ -4340,6 +4350,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_android_lite)",
     out: [
+        "external/perfetto/protos/perfetto/config/android/activity_manager_dumpsys_config.pb.h",
         "external/perfetto/protos/perfetto/config/android/android_aflags_config.pb.h",
         "external/perfetto/protos/perfetto/config/android/android_game_intervention_list_config.pb.h",
         "external/perfetto/protos/perfetto/config/android/android_input_event_config.pb.h",
@@ -4370,6 +4381,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_android_zero",
     srcs: [
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -4406,6 +4418,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_android_zero)",
     out: [
+        "external/perfetto/protos/perfetto/config/android/activity_manager_dumpsys_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/android/android_aflags_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/android/android_game_intervention_list_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/android/android_input_event_config.pbzero.cc",
@@ -4442,6 +4455,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_android_zero)",
     out: [
+        "external/perfetto/protos/perfetto/config/android/activity_manager_dumpsys_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/android/android_aflags_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/android/android_game_intervention_list_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/android/android_input_event_config.pbzero.h",
@@ -4602,6 +4616,7 @@ genrule {
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -7615,6 +7630,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_cpp",
     srcs: [
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -7650,6 +7666,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/activity_manager_dumpsys.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/android_log.gen.cc",
@@ -7685,6 +7702,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/activity_manager_dumpsys.gen.h",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.gen.h",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.gen.h",
         "external/perfetto/protos/perfetto/trace/android/android_log.gen.h",
@@ -7712,6 +7730,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_lite",
     srcs: [
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -7746,6 +7765,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/activity_manager_dumpsys.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/android_log.pb.cc",
@@ -7780,6 +7800,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/activity_manager_dumpsys.pb.h",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pb.h",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pb.h",
         "external/perfetto/protos/perfetto/trace/android/android_log.pb.h",
@@ -8414,6 +8435,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_zero",
     srcs: [
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -8449,6 +8471,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/activity_manager_dumpsys.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.cc",
@@ -8484,6 +8507,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/activity_manager_dumpsys.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.h",
@@ -8697,6 +8721,7 @@ genrule {
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -8748,6 +8773,7 @@ genrule {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -10336,6 +10362,7 @@ genrule {
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -14159,6 +14186,14 @@ filegroup {
         "src/ipc/deferred_unittest.cc",
         "src/ipc/host_impl_unittest.cc",
         "src/ipc/test/ipc_integrationtest.cc",
+    ],
+}
+
+// GN: //src/java_datasource:integrationtests
+filegroup {
+    name: "perfetto_src_java_datasource_integrationtests",
+    srcs: [
+        "src/java_datasource/java_datasource_integrationtest.cc",
     ],
 }
 
@@ -19612,6 +19647,7 @@ java_library {
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
+        "protos/perfetto/config/android/activity_manager_dumpsys_config.proto",
         "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
@@ -19663,6 +19699,7 @@ java_library {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/activity_manager_dumpsys.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
