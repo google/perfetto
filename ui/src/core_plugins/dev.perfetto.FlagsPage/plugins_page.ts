@@ -301,6 +301,7 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
     const dependantPlugins =
       this.dependantsByPluginId.get(plugin.desc.id) ?? [];
     return m(SettingsCard, {
+      key: plugin.desc.id,
       id: plugin.desc.id,
       className: classNames(
         'pf-plugins-page__card',
@@ -310,13 +311,13 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
       linkHref: `#!/plugins/${encodeURIComponent(plugin.desc.id)}`,
       description: [
         plugin.desc.description?.trim(),
-        renderPluginIdList(
+        this.renderPluginIdList(
           'Requires',
           'account_tree',
           'pf-plugins-page__deps--dependencies',
           dependencyPlugins,
         ),
-        renderPluginIdList(
+        this.renderPluginIdList(
           'Required by',
           'hub',
           'pf-plugins-page__deps--dependants',
@@ -361,38 +362,41 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
             : undefined,
     });
   }
-}
 
-function renderPluginIdList(
-  label: string,
-  icon: string,
-  variantClass: string,
-  plugins: ReadonlyArray<PluginWrapper>,
-) {
-  if (plugins.length === 0) return null;
-  return m(
-    `.pf-plugins-page__deps.${variantClass}`,
-    m(Icon, {icon, className: 'pf-plugins-page__deps-icon'}),
-    m('span.pf-plugins-page__deps-label', `${label}: `),
-    plugins.map((p) => {
-      const id = p.desc.id;
-      const isActive = Boolean(p.active);
-      return m(
-        Anchor,
-        {
-          href: `#!/plugins/${encodeURIComponent(id)}`,
-          className: 'pf-plugins-page__deps-link',
-          title: isActive ? `${id} (active)` : `${id} (inactive)`,
-        },
-        m(Chip, {
-          className: 'pf-plugins-page__chip',
-          label: id,
-          icon: isActive ? 'check_circle' : 'radio_button_unchecked',
-          intent: isActive ? Intent.Success : undefined,
-        }),
-      );
-    }),
-  );
+  private renderPluginIdList(
+    label: string,
+    icon: string,
+    variantClass: string,
+    plugins: ReadonlyArray<PluginWrapper>,
+  ) {
+    if (plugins.length === 0) return null;
+    return m(
+      `.pf-plugins-page__deps.${variantClass}`,
+      m(Icon, {icon, className: 'pf-plugins-page__deps-icon'}),
+      m('span.pf-plugins-page__deps-label', `${label}: `),
+      plugins.map((p) => {
+        const id = p.desc.id;
+        const isActive = Boolean(p.active);
+        return m(
+          Anchor,
+          {
+            href: `#!/plugins/${encodeURIComponent(id)}`,
+            onclick: () => {
+              this.filterText = '';
+            },
+            className: 'pf-plugins-page__deps-link',
+            title: isActive ? `${id} (active)` : `${id} (inactive)`,
+          },
+          m(Chip, {
+            className: 'pf-plugins-page__chip',
+            label: id,
+            icon: isActive ? 'check_circle' : 'radio_button_unchecked',
+            intent: isActive ? Intent.Success : undefined,
+          }),
+        );
+      }),
+    );
+  }
 }
 
 function reloadButton() {
