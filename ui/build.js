@@ -704,8 +704,21 @@ function copySyntaqliteRuntime() {
   addTask(buildSyntaqlitePerfettoDialect, []);
 }
 
+function getBuildToolsBinDir() {
+  function getBinDirName() {
+    switch (process.platform) {
+      case 'darwin': return 'mac';
+      case 'linux': return 'linux64';
+      default: throw new Error(`Unsupported platform: ${process.platform}`);
+    }
+  }
+
+  return pjoin(ROOT_DIR, 'buildtools', getBinDirName());
+}
+
 function buildSyntaqlitePerfettoDialect() {
-  const emcc = pjoin(ROOT_DIR, 'buildtools/linux64/emsdk/emscripten/emcc');
+  const buildToolsBinDir = getBuildToolsBinDir();
+  const emcc = pjoin(buildToolsBinDir, 'emsdk/emscripten/emcc');
   const src = pjoin(
       ROOT_DIR,
       'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c');
