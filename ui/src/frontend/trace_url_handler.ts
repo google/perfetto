@@ -20,6 +20,7 @@ import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {Route, Router} from '../core/router';
 import {taskTracker} from './task_tracker';
 import {AppImpl} from '../core/app_impl';
+import {isTrustedOrigin, saveUserTrustedOrigin} from './post_message_handler';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;
@@ -244,7 +245,17 @@ function loadTraceFromUrl(url: string) {
 
 function promptDataUrlTrust(url: string) {
   const origin = document.referrer ? new URL(document.referrer).origin : 'null';
-  const originTxt = origin === 'null' ? 'An unknown origin' : origin;
+  const open = () => {
+    AppImpl.instance.openTraceFromUrl(url);
+  };
+
+  if (isTrustedOrigin(origin)) {
+    open();
+    return;
+  }
+
+  const originUnknown = origin === 'null';
+  const originTxt = originUnknown ? 'An unknown origin' : origin;
   showModal({
     title: 'Open trace?',
     content: m(
@@ -254,14 +265,19 @@ function promptDataUrlTrust(url: string) {
     ),
     buttons: [
       {text: 'No', primary: true},
-      {
-        text: 'Yes',
-        primary: false,
-        action: () => {
-          AppImpl.instance.openTraceFromUrl(url);
-        },
-      },
-    ],
+      {text: 'Yes', primary: false, action: open},
+    ].concat(
+      originUnknown
+        ? []
+        : {
+            text: 'Always trust',
+            primary: false,
+            action: () => {
+              saveUserTrustedOrigin(origin);
+              open();
+            },
+          },
+    ),
   });
 }
 
