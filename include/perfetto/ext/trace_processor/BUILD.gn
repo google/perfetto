@@ -30,4 +30,9 @@ source_set("demangle") {
 
 source_set("trace_processor_shell") {
   sources = [ "trace_processor_shell.h" ]
+  public_deps = [
+    "../../base",
+    "../../trace_processor",
+    "../../trace_processor:basic_types",
+  ]
 }

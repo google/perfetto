@@ -21,7 +21,7 @@ source_set("collapsed_stack") {
     "../../../../gn:default_deps",
     "../../importers/common",
     "../../storage",
-    "../../tables:tables_python",
+    "../../tables",
     "../../types:types",
     "../../util:trace_blob_view_reader",
   ]

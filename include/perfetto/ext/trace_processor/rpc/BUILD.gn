@@ -16,4 +16,5 @@ import("../../../../../gn/perfetto.gni")
 
 source_set("query_result_serializer") {
   sources = [ "query_result_serializer.h" ]
+  public_deps = [ "../../../base" ]
 }
