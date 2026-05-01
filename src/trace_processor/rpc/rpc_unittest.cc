@@ -247,8 +247,7 @@ class RpcStreamingTest : public ::testing::Test {
   std::vector<uint8_t> wire_bytes_;
 };
 
-// Smoke test for the simple post-EOF query path. The pool should mint
-// one connection on the first query and reuse it on subsequent calls.
+// Post-EOF query: the pool mints one connection and reuses it.
 TEST(RpcTest, PostEofQueryRunsThroughWorkerPool) {
   Rpc rpc;
   ASSERT_OK(rpc.NotifyEndOfFile());
@@ -260,9 +259,8 @@ TEST(RpcTest, PostEofQueryRunsThroughWorkerPool) {
   EXPECT_LE(rpc.pool_workers_used_for_testing(), 1u);
 }
 
-// Pre-EOF queries must bypass the worker pool because secondary
-// connections aren't legal yet (TraceProcessor's mutation precondition
-// would CHECK-fail).
+// Pre-EOF queries bypass the worker pool (secondary connections
+// aren't legal yet — TraceProcessor would CHECK).
 TEST(RpcTest, PreEofQueryBypassesWorkerPool) {
   Rpc rpc;
   auto decoded = DecodeSingleInt(RunQueryAndCollect(&rpc, "SELECT 7"));
@@ -272,9 +270,7 @@ TEST(RpcTest, PreEofQueryBypassesWorkerPool) {
   EXPECT_EQ(rpc.pool_workers_used_for_testing(), 0u);
 }
 
-// Fans 8 queries out across N threads concurrently and verifies
-// (a) all of them get the right answer back and (b) the pool actually
-// engaged more than one worker thread.
+// Sync `Rpc::Query` from N threads fans out across worker threads.
 TEST(RpcTest, QueryFansOutAcrossWorkers) {
   Rpc rpc;
   ASSERT_OK(rpc.NotifyEndOfFile());
@@ -303,9 +299,8 @@ TEST(RpcTest, QueryFansOutAcrossWorkers) {
             static_cast<uint32_t>(kQueries));
 }
 
-// `OnRpcRequest` must return *before* the response is delivered (the
-// task-runner-unblock invariant) and the response must decode
-// correctly once the dispatcher's task is drained.
+// `OnRpcRequest` returns before the response is delivered; the
+// response decodes correctly once the dispatcher's task is drained.
 TEST_F(RpcStreamingTest, DispatchesAsyncAndUnblocksTransport) {
   Submit(/*seq=*/1, "SELECT 99");
   EXPECT_TRUE(WireIsEmpty())
@@ -326,11 +321,8 @@ TEST_F(RpcStreamingTest, DispatchesAsyncAndUnblocksTransport) {
   EXPECT_EQ(decoded.value, 99);
 }
 
-// Issues 8 concurrent streaming queries via OnRpcRequest with the
-// async dispatcher wired up. Verifies (a) all of them get the right
-// answer back, (b) responses arrive in send-order (the UI's
-// `pendingQueries[0]` FIFO invariant), and (c) the worker pool
-// engaged more than one thread.
+// 8 concurrent async streaming queries fan out across workers and
+// arrive in send-order (pendingQueries[0] FIFO).
 TEST_F(RpcStreamingTest, FansOutAcrossWorkers) {
   // Pre-warm so the lazy minting cost is paid before timing matters.
   Submit(/*seq=*/0, "SELECT 0");
@@ -363,11 +355,9 @@ TEST_F(RpcStreamingTest, FansOutAcrossWorkers) {
   }
 }
 
-// Verifies content identity between the inline streaming path
-// (dispatcher unset) and the async streaming path. Decodes the
-// `query_result` protos from each and compares everything except
-// `elapsed_time_ms` (wall-time-dependent and so by design differs
-// between two runs of the same query).
+// Inline (no dispatcher) and async streaming paths must produce
+// identical responses (modulo `elapsed_time_ms`, which is wall-time
+// dependent).
 TEST(RpcTest, StreamingQueryAsyncMatchesInlineSemantically) {
   const char* kSql =
       "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c "
