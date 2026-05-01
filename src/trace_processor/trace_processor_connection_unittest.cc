@@ -125,19 +125,14 @@ class TraceProcessorConnectionTest : public ::testing::Test {
   std::unique_ptr<TraceProcessor> tp_;
 };
 
-// Smoke test for `TraceProcessor::CreateConnection` and the secondary
-// `Connection` it returns.
 TEST_F(TraceProcessorConnectionTest, SecondaryConnectionExecutesTrivialQuery) {
   auto conn = MintConn();
-  // Trivial query that touches no tables: exercises the per-connection
-  // SQLite handle and the Iterator wiring without depending on any
-  // schema or vtab/function being replicated to the secondary engine.
   EXPECT_EQ(QueryLongOn(conn.get(), "SELECT 1"), 1);
 }
 
+// Plain SQL DDL on the writer propagates to secondaries via the shared
+// memdb store.
 TEST_F(TraceProcessorConnectionTest, SecondaryConnectionSeesPrimarySchema) {
-  // Plain SQL table on the writer lives in `main` and propagates to
-  // other connections via the shared memdb store.
   ASSERT_OK(Exec("CREATE TABLE conn_test_table(id INTEGER, val TEXT);"));
   ASSERT_OK(Exec("INSERT INTO conn_test_table VALUES(7, 'hello');"));
 
@@ -157,9 +152,8 @@ TEST_F(TraceProcessorConnectionTest, MultipleConnectionsCoexist) {
   EXPECT_EQ(QueryLongOn(conn_b.get(), "SELECT 2"), 2);
 }
 
-// A successful `INCLUDE PERFETTO MODULE` issued on the default
-// connection promotes its CREATE statements to `main`, so a freshly-
-// minted secondary connection (sharing memdb) sees the new objects.
+// Successful INCLUDE on the writer promotes the module's CREATE
+// statements to `main`; a secondary minted after sees the new objects.
 TEST_F(TraceProcessorConnectionTest, IncludePromotesObjectsToOtherConnections) {
   RegisterPackage("include_promote_test",
                   {{"include_promote_test.tables",
@@ -168,8 +162,6 @@ TEST_F(TraceProcessorConnectionTest, IncludePromotesObjectsToOtherConnections) {
                     " (2, 'beta');\n"}});
   ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_promote_test.tables;"));
 
-  // Secondary minted *after* the include sees both rows because the
-  // savepoint released the DDL onto `main`.
   auto conn = MintConn();
   auto it = conn->ExecuteQuery(
       "SELECT id, name FROM include_promote_t ORDER BY id;");
@@ -184,34 +176,25 @@ TEST_F(TraceProcessorConnectionTest, IncludePromotesObjectsToOtherConnections) {
 
 // Failed-include atomicity: a module whose body has a bad statement at
 // the end must (a) return an error and (b) leave no trace of any
-// CREATE statements that ran before the bad one.
+// CREATE that ran before the bad one — on the writer or any secondary.
 TEST_F(TraceProcessorConnectionTest, FailedIncludeLeavesNoTrace) {
   RegisterPackage(
       "include_fail_test",
       {{"include_fail_test.broken",
         "CREATE TABLE include_fail_t(id INTEGER);\n"
         "INSERT INTO include_fail_t VALUES (42);\n"
-        // Fails — references a column that doesn't exist.
         "SELECT no_such_column FROM include_fail_t;\n"}});
   EXPECT_FALSE(Exec("INCLUDE PERFETTO MODULE include_fail_test.broken;").ok());
 
-  // Neither the writer nor a secondary connection should see the
-  // partially-created table.
+  static constexpr char kCheck[] =
+      "SELECT count(*) FROM sqlite_master WHERE name = 'include_fail_t';";
+  EXPECT_EQ(QueryLong(kCheck), 0);
   auto conn = MintConn();
-  for (auto* exec : {static_cast<void*>(tp_.get()),
-                     static_cast<void*>(conn.get())}) {
-    int64_t cnt = exec == tp_.get()
-                      ? QueryLong("SELECT count(*) FROM sqlite_master "
-                                  "WHERE name = 'include_fail_t';")
-                      : QueryLongOn(conn.get(),
-                                    "SELECT count(*) FROM sqlite_master "
-                                    "WHERE name = 'include_fail_t';");
-    EXPECT_EQ(cnt, 0);
-  }
+  EXPECT_EQ(QueryLongOn(conn.get(), kCheck), 0);
 }
 
-// Two distinct successful includes from the writer should both be
-// visible on a later-minted secondary connection.
+// Two successful includes from the writer should both be visible on a
+// later-minted secondary.
 TEST_F(TraceProcessorConnectionTest,
        SequentialIncludesPromoteToOtherConnection) {
   RegisterPackage(
@@ -232,31 +215,22 @@ TEST_F(TraceProcessorConnectionTest,
             3);
 }
 
-// Every top-level `Execute(sql)` opens a SAVEPOINT
-// (`perfetto_execute_<n>`) so that if a later statement in a multi-
-// statement SQL string fails, earlier side-effects are rolled back.
+// Top-level `Execute` is wrapped in a SAVEPOINT so a later-statement
+// failure rolls back earlier side-effects.
 TEST_F(TraceProcessorConnectionTest,
        MultiStatementExecuteRollsBackOnFailure) {
-  // Second CREATE collides with the first; the whole Execute must
-  // roll back so the table never lands.
+  // Second CREATE collides; the whole Execute must roll back.
   EXPECT_FALSE(Exec("CREATE TABLE multistmt_t (x INT); "
                     "CREATE TABLE multistmt_t (y INT);")
                    .ok());
-
-  // Neither writer nor a fresh secondary should see the table.
+  static constexpr char kCheck[] =
+      "SELECT count(*) FROM sqlite_master WHERE name = 'multistmt_t';";
+  EXPECT_EQ(QueryLong(kCheck), 0);
   auto conn = MintConn();
-  EXPECT_EQ(QueryLong("SELECT count(*) FROM sqlite_master "
-                      "WHERE name = 'multistmt_t';"),
-            0);
-  EXPECT_EQ(QueryLongOn(conn.get(),
-                        "SELECT count(*) FROM sqlite_master "
-                        "WHERE name = 'multistmt_t';"),
-            0);
+  EXPECT_EQ(QueryLongOn(conn.get(), kCheck), 0);
 }
 
-// Positive control for the execute-savepoint wrap: two successful
-// CREATEs in a single Execute land normally and are visible to a
-// secondary connection.
+// Positive control for the SAVEPOINT wrap.
 TEST_F(TraceProcessorConnectionTest, MultiStatementExecuteCommitsOnSuccess) {
   ASSERT_OK(Exec("CREATE TABLE multistmt_ok_a (x INT); "
                  "CREATE TABLE multistmt_ok_b (y INT); "
@@ -270,18 +244,11 @@ TEST_F(TraceProcessorConnectionTest, MultiStatementExecuteCommitsOnSuccess) {
             18);
 }
 
-// `CREATE PERFETTO TABLE` installs a dataframe-backed virtual table.
-// The secondary connection must be able to `SELECT` from it and
-// observe the same rows, exercising:
-//  - dataframe vtab module registration on the secondary engine
-//  - cross-connection vtab-state publishing via `PerfettoSqlDatabase`
-//    (writer publishes its committed `PerVtabState` on every
-//    `OnCommit`)
-//  - cold xConnect resolution on the secondary consulting staging
-//    via `DataframeModule::Context::ResolveMissingStateOnConnect`
-//  - re-resolution at cursor creation time (`DataframeModule::Filter`
-//    / `BestIndex` look up the State from staging rather than caching
-//    it).
+// `CREATE PERFETTO TABLE` on the writer installs a dataframe-backed
+// vtab; secondaries must be able to SELECT from it. Exercises
+// cross-conn vtab-state publishing on writer commit, cold-xConnect
+// resolution from the database state map, and re-resolution at cursor
+// creation time.
 TEST_F(TraceProcessorConnectionTest,
        SecondaryConnectionReadsDataframeVtabFromPrimary) {
   ASSERT_OK(Exec("CREATE PERFETTO TABLE conn_df_test AS "
@@ -315,11 +282,9 @@ TEST_F(TraceProcessorConnectionTest,
             primary_count);
 }
 
-// A `CREATE PERFETTO FUNCTION` issued on the writer is propagated to a
-// freshly-minted secondary via the staging-area function pool. The
-// secondary's engine diffs `last_synced_function_version_` against the
-// pool at the start of every `Execute` and re-registers any missing
-// entries on its own `sqlite3*`.
+// `CREATE PERFETTO FUNCTION` on the writer flows to secondaries via
+// the database's function pool (each secondary diffs at the top of
+// every `Execute`).
 TEST_F(TraceProcessorConnectionTest, DynamicFunctionPropagatesToSecondary) {
   ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_double(x INT) RETURNS INT "
                  "AS SELECT $x * 2;"));
@@ -329,40 +294,30 @@ TEST_F(TraceProcessorConnectionTest, DynamicFunctionPropagatesToSecondary) {
   EXPECT_EQ(QueryLongOn(conn.get(), "SELECT conn_double(7);"), 14);
 }
 
-// Version-diff is incremental: a function created on the writer
-// *after* a secondary has been minted (and possibly already used) must
-// still be visible on the secondary's next `Execute`. The pool diff is
-// per-Execute, not one-shot at connection-mint time.
+// The pool diff is per-Execute, not one-shot at mint time: functions
+// added after a secondary exists still flow through on its next
+// Execute.
 TEST_F(TraceProcessorConnectionTest, DynamicFunctionPickedUpIncrementally) {
-  // Mint conn-1 first, before any dynamic function exists. Run an
-  // unrelated query so its `last_synced_version_` advances through one
-  // (empty) Execute cycle.
   auto conn = MintConn();
-  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT 1;"), 1);
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT 1;"), 1);  // empty sync
 
-  // Now create two functions in succession on the writer.
   ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_a(x INT) RETURNS INT "
                  "AS SELECT $x + 100;"));
   ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_b(x INT) RETURNS INT "
                  "AS SELECT $x + 200;"));
-
-  // conn-1's next Execute picks up *both* via the version diff.
   EXPECT_EQ(QueryLongOn(conn.get(),
                         "SELECT conn_inc_a(1) + conn_inc_b(2);"),
             1 + 100 + 2 + 200);
 
-  // A *third* function added now should also flow through on the
-  // subsequent Execute (the diff is truly per-Execute, not one-shot).
+  // A third function added now flows through on the next Execute too.
   ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_c(x INT) RETURNS INT "
                  "AS SELECT $x + 1000;"));
   EXPECT_EQ(QueryLongOn(conn.get(), "SELECT conn_inc_c(5);"), 1005);
 }
 
-// Two secondary connections, each owned and used exclusively by its
-// own thread, run a tight loop of trivial queries concurrently.
-// Connections are thread-compatible (not thread-safe), so each thread
-// takes ownership of its own `Connection`. Asserts no crashes / data
-// races / wrong results — baseline for subsequent stress work.
+// Two secondary connections each on their own thread run a tight loop
+// of trivial queries concurrently. Asserts no crashes / data races /
+// wrong results.
 TEST_F(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
   std::vector<std::unique_ptr<Conn>> conns;
   conns.push_back(MintConn());
@@ -385,12 +340,9 @@ TEST_F(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
   EXPECT_EQ(errs, 0);
 }
 
-// Single-thread sanity for the include-lock plumbing. The per-module
-// recursive mutex must be acquired/released for every
-// `INCLUDE PERFETTO MODULE <name>` (and every individual module from
-// wildcard expansion) without deadlock. Re-issuing an include of an
-// already-included module short-circuits before re-acquiring the
-// lock.
+// Single-thread sanity for the include-claim plumbing. Single-key,
+// wildcard, and re-issue paths all complete without deadlock; the
+// re-issue short-circuits via the per-engine `included` flag.
 TEST_F(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
   RegisterPackage(
       "include_lock_test",
@@ -411,10 +363,9 @@ TEST_F(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
             2);
 }
 
-// A `RegisterSqlPackage` on the writer is observable on a freshly-
-// minted secondary via `INCLUDE PERFETTO MODULE`. The secondary's
-// `packages_` is populated by `SyncPackagesFromPool` at the top of
-// every top-level `Execute`.
+// `RegisterSqlPackage` on the writer is observable on a fresh
+// secondary via `INCLUDE PERFETTO MODULE` (its first `Execute` syncs
+// the package pool).
 TEST_F(TraceProcessorConnectionTest,
        IncludeOnSecondaryConnectionWorksAfterPackageRegister) {
   RegisterPackage(
@@ -432,14 +383,9 @@ TEST_F(TraceProcessorConnectionTest,
             2);
 }
 
-// The package-pool diff is incremental: entries appended after the
-// writer registers them flow to subsequently-minted secondaries. The
-// TP-level `RegisterSqlPackage` is gated on `non_default_connection_
-// count_ == 0` so this test interleaves register-and-mint cycles.
-// Round 1: register pkg_a, mint+use+drop a secondary. Round 2:
-// register pkg_b, mint a fresh secondary; its first sync picks up
-// *both* pool entries — i.e. the pool retains pkg_a across the second
-// append, the diff is purely additive.
+// Package-pool diff is purely additive: a second `RegisterSqlPackage`
+// after a secondary has used the first still flows to fresh
+// secondaries.
 TEST_F(TraceProcessorConnectionTest,
        IncrementalPackageRegistrationFlowsToSecondary) {
   RegisterPackage("pkg_inc_a",
@@ -475,12 +421,9 @@ TEST_F(TraceProcessorConnectionTest,
             303);
 }
 
-// End-to-end concurrency through the per-module include lock plus
-// cross-connection package propagation. Writer pre-includes a module;
-// two secondary threads each then INCLUDE the same module
-// (short-circuited via `IsModuleIncluded`) and SELECT from its table.
-// Validates: no deadlocks under contention, correct package-pool sync,
-// and `IsModuleIncluded` short-circuit hits across connections.
+// Writer pre-includes a module; two secondary threads then re-include
+// the same module concurrently. The cross-conn already-included
+// short-circuit must hit (no body re-runs, no schema-write conflict).
 TEST_F(TraceProcessorConnectionTest,
        ConcurrentIncludesOfSameModuleSerialise) {
   RegisterPackage(
@@ -511,16 +454,10 @@ TEST_F(TraceProcessorConnectionTest,
   EXPECT_EQ(errs, 0);
 }
 
-// Two secondary connections concurrently INCLUDE the *same* module
-// that no other connection has pre-included. Both racers run the body
-// (CREATE TABLE + INSERT) inside per-connection temp schemas, then
-// re-issue them as DDL on shared `main`. The shared-cache schema lock
-// returns SQLITE_LOCKED to whichever transaction is second; the
-// transparent BUSY/LOCKED retry middleware makes that invisible — the
-// second writer waits, retries, and either acquires the lock and
-// re-issues its DDL (which the per-module `IsModuleIncluded` short-
-// circuit prevents from re-creating) or finds the module already
-// promoted and short-circuits the body entirely.
+// Two secondary connections race on the *same* module that no peer
+// has pre-included. The cross-conn claim serialises them; the second
+// thread either acquires after the first or short-circuits via the
+// already-included flag.
 TEST_F(TraceProcessorConnectionTest,
        ConcurrentIncludesUnderSharedCacheNowSucceeds) {
   RegisterPackage(
@@ -553,13 +490,9 @@ TEST_F(TraceProcessorConnectionTest,
   EXPECT_EQ(errs, 0);
 }
 
-// SqlStats stress test. Each `ExecuteQuery` records `RecordQueryBegin`
-// + `RecordQueryFirstNext` + `RecordQueryEnd` against the parent's
-// shared `TraceStorage::SqlStats`. Multiple connections running on
-// their own threads race on the same `std::deque`s. Pre-fix, ASan
-// caught a container-overflow within a few iterations; post-fix the
-// run is clean and `SELECT count(*) FROM sqlstats` returns the bounded
-// log size (`kMaxLogEntries == 100`).
+// SqlStats stress: multiple connections each on their own thread
+// race on the shared `TraceStorage::SqlStats` deques. Pre-fix, ASan
+// caught a container-overflow within a few iters; post-fix clean.
 TEST_F(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
   constexpr int kThreads = 4;
   constexpr int kItersPerThread = 100;
@@ -591,27 +524,16 @@ TEST_F(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
   EXPECT_LE(logged, 100);
 }
 
-// `TraceProcessorImpl::CreateConnection` flips `StringPool::Enable
-// ThreadSafetyForMultiConnection` on the shared `TraceStorage`-owned
-// pool before returning the secondary. After the flip, concurrent
-// `InternString` calls from any thread must be serialised by the
-// pool's internal mutex. This test populates many strings via the
-// writer, then has four secondary connections concurrently SELECT
-// from a column that returns them. Reads exercise `Get(Id)` (the
-// documented lock-free fast-path) on every row. Verifies the
-// `CreateConnection`-side wiring is correct; the deeper "many threads
-// concurrently `InternString`" stress runs in the StringPool unit
-// tests.
+// Verifies that `CreateConnection` flips `StringPool` to MT-safe
+// mode: secondaries can concurrently SELECT from a string-typed
+// column without races. The deeper `InternString` stress lives in
+// the StringPool unit tests.
 TEST_F(TraceProcessorConnectionTest,
        ConcurrentInternFromMultipleConnections) {
   constexpr int kRowsPerTable = 32;
   constexpr int kThreads = 4;
   constexpr int kReadsPerThread = 200;
 
-  // Pre-populate a shared table on the writer; each row a unique
-  // string. CREATE PERFETTO TABLE interns every column value through
-  // `RuntimeDataframeBuilder::AddRow` — so the pool now holds
-  // kRowsPerTable entries reachable by any subsequent SELECT.
   std::string create =
       "CREATE PERFETTO TABLE stress_strings AS WITH src(s) AS (VALUES";
   for (int i = 0; i < kRowsPerTable; ++i) {
@@ -640,14 +562,9 @@ TEST_F(TraceProcessorConnectionTest,
   EXPECT_EQ(errs, 0);
 }
 
-// Companion to the read-side stress: secondary connections concurrent-
-// ly issue equality-filtered SELECTs on the string column. Every
-// comparison goes through `Get(Id)` on the pool (lock-free hot-path)
-// plus a hash-into-`string_index_` lookup via `GetId` (lock-taking)
-// for every literal in the WHERE clause. With the
-// `EnableThreadSafetyForMultiConnection` flip, these reads run race-
-// free; without it the parallel `GetId` callers would observe torn
-// reads in the FlatHashMap.
+// Companion: secondaries concurrently issue equality-filtered SELECTs
+// on a string column. Every comparison hits `GetId` on the shared
+// pool (lock-taking); the MT-safety flip makes these race-free.
 TEST_F(TraceProcessorConnectionTest,
        InternedStringMatchesAcrossConnections) {
   constexpr int kThreads = 4;
@@ -690,25 +607,16 @@ TEST_F(TraceProcessorConnectionTest,
   EXPECT_EQ(errs, 0);
 }
 
-// SQLite returns SQLITE_SCHEMA from `sqlite3_step` (and sometimes
-// `sqlite3_prepare_v2`) when another connection has bumped the schema
-// cookie since the statement was prepared. The fix is to finalise and
-// re-prepare from the original SqlSource — see
-// `SqliteEngine::PreparedStatement::ReprepareFromSource`. This test
-// interleaves DDL on the writer with SELECTs on a secondary; the
-// transparent retry middleware must absorb the SCHEMA error.
+// SQLITE_SCHEMA recovery: a peer's DDL bumps the schema cookie
+// between prepare and step on this conn; the retry middleware
+// transparently re-prepares.
 TEST_F(TraceProcessorConnectionTest, SchemaRetryRePreparesOnSchemaChange) {
   ASSERT_OK(Exec("CREATE TABLE schema_retry_t(v INTEGER); "
                  "INSERT INTO schema_retry_t VALUES (42);"));
   auto conn = MintConn();
 
-  // Bump the schema cookie. Next prepare on `conn` would otherwise
-  // surface SQLITE_SCHEMA; the retry middleware re-prepares
-  // transparently.
   ASSERT_OK(Exec("CREATE TABLE schema_retry_other(x INTEGER);"));
   EXPECT_EQ(QueryLongOn(conn.get(), "SELECT v FROM schema_retry_t;"), 42);
-
-  // Repeat: another bump, another SELECT.
   ASSERT_OK(Exec("CREATE TABLE schema_retry_more(y INTEGER);"));
   EXPECT_EQ(QueryLongOn(conn.get(), "SELECT v + 1 FROM schema_retry_t;"), 43);
 }
