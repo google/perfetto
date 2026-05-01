@@ -166,13 +166,10 @@ geometry::Rect GetDisplayCrop(
     const LayerDecoder& layer,
     const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder) {
   geometry::Rect display_crop = geometry::Rect();
-  if (!layer.has_layer_stack()) {
-    return display_crop;
-  }
   auto layer_stack = layer.layer_stack();
   for (auto it = snapshot_decoder.displays(); it; ++it) {
     protos::pbzero::DisplayProto::Decoder display(*it);
-    if (!display.has_layer_stack() || display.layer_stack() != layer_stack) {
+    if (display.layer_stack() != layer_stack) {
       continue;
     }
     if (!display.has_layer_stack_space_rect()) {
@@ -236,9 +233,6 @@ VisibilityProperties VisibilityComputation::IsLayerVisible(
   if (res.is_visible) {
     for (const auto opaque_layer_id : opaque_layer_ids) {
       const auto& opaque_layer = layers_by_id_.at(opaque_layer_id);
-      if (opaque_layer.has_layer_stack() != layer.has_layer_stack()) {
-        continue;
-      }
       if (opaque_layer.layer_stack() != layer.layer_stack()) {
         continue;
       }
@@ -261,9 +255,6 @@ VisibilityProperties VisibilityComputation::IsLayerVisible(
 
     for (const auto translucent_layer_id : translucent_layer_ids) {
       const auto& translucent_layer = layers_by_id_.at(translucent_layer_id);
-      if (translucent_layer.has_layer_stack() != layer.has_layer_stack()) {
-        continue;
-      }
       if (translucent_layer.layer_stack() != layer.layer_stack()) {
         continue;
       }
