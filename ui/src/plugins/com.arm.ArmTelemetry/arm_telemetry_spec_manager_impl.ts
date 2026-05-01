@@ -13,10 +13,7 @@
 // limitations under the License.
 
 import type {Setting} from '../../public/settings';
-import {
-  ARM_TELEMETRY_CPU_SPEC_SCHEMA,
-  getCpuId,
-} from './arm_telemetry_spec';
+import {ARM_TELEMETRY_CPU_SPEC_SCHEMA, getCpuId} from './arm_telemetry_spec';
 import type {ArmTelemetryCpuSpec} from './arm_telemetry_spec';
 import type {ArmTelemetrySpecManager} from './arm_telemetry_spec_manager';
 
@@ -109,6 +106,10 @@ export class ArmTelemetrySpecManagerImpl implements ArmTelemetrySpecManager {
 
   clear(): void {
     this.cpuSpecsSetting.set([]);
+  }
+
+  hasSpecs(): boolean {
+    return this.cpuSpecsSetting.get().length > 0;
   }
 
   registeredCpuids(): string[] {
