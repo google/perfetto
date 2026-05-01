@@ -6971,6 +6971,7 @@ perfetto_cc_library(
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/critical_path.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.cc",
@@ -6998,6 +6999,7 @@ perfetto_cc_library(
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/critical_path.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h",
@@ -7498,6 +7500,7 @@ perfetto_cc_library(
         "src/trace_processor/perfetto_sql/intrinsics/types/sorted_timestamps.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/struct.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/value.h",
+        "src/trace_processor/perfetto_sql/intrinsics/types/wakeup_graph.h",
     ],
     deps = [
         ":include_perfetto_base_base",

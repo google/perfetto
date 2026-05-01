@@ -16734,6 +16734,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/critical_path.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.cc",
