@@ -59,22 +59,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
     std::unique_ptr<State> temporary_create_state;
 
-    // Cross-connection staging area. Set on every engine that participates
-    // in multi-connection sharing (both the writer and any reader). Null for
-    // legacy single-connection setups; in that case `OnCommit`/`OnRollback`
-    // behave exactly as the base class.
-    PerfettoSqlDatabase* database = nullptr;  // Set in PerfettoSqlConnection ctor.
+    // Cross-connection vtab-state map. Every connection publishes its
+    // committed states here on `OnCommit` so peer connections see them
+    // on cold `xConnect` via `ResolveMissingStateOnConnect`.
+    PerfettoSqlDatabase* database = nullptr;
 
-    // True for the writer engine (i.e. `TraceProcessorImpl`'s primary
-    // engine): publishes its committed `PerVtabState::committed_state` into
-    // the staging area on `OnCommit`. False for reader (secondary)
-    // connections: only consults staging on cold xConnect via
-    // `ResolveMissingStateOnConnect`.
-    bool is_writer = false;
-
-    // Module name to key vtab-state entries by in the staging area. Must be
-    // unique across all module types so reader connections looking up the
-    // same vtab-name on different modules don't collide.
+    // Module name to key vtab-state entries by in the cross-connection
+    // map. Must be unique across all module types so connections
+    // looking up the same vtab-name on different modules don't collide.
     std::string module_name;
 
     void OnCommit() override;

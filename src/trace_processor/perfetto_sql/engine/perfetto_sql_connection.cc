@@ -403,14 +403,14 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
     : database_(database),
       pool_(pool),
       enable_extra_checks_(enable_extra_checks),
-      is_writer_(false),
       engine_(new SqliteEngine(shared_filename)) {
   PERFETTO_CHECK(database_);
-  // Secondary engines: minimal setup, piggybacking on storage created by
-  // the primary via the shared memdb store. We register only the
-  // dataframe vtab module here so reader connections can resolve
-  // `__intrinsic_dataframe`-backed tables (the dominant table type). See
-  // the header doc-comment for the full list of intentional omissions.
+  // Secondary connections: minimal setup, piggybacking on storage
+  // created by the primary via the shared memdb store. We register
+  // only the dataframe vtab module here so reader connections can
+  // resolve `__intrinsic_dataframe`-backed tables (the dominant table
+  // type). See the header doc-comment for the full list of
+  // intentional omissions.
   engine_->SetCommitCallback(
       [](void* ctx) {
         return static_cast<PerfettoSqlConnection*>(ctx)->OnCommit();
@@ -422,7 +422,6 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
 
   auto ctx = std::make_unique<DataframeModule::Context>();
   ctx->database = database_;
-  ctx->is_writer = false;
   ctx->module_name = "__intrinsic_dataframe";
   dataframe_context_ = ctx.get();
   RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
@@ -435,7 +434,6 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
     : database_(database),
       pool_(pool),
       enable_extra_checks_(enable_extra_checks),
-      is_writer_(true),
       engine_(new SqliteEngine()) {
   PERFETTO_CHECK(database_);
   // Initialize `perfetto_tables` table, which will contain the names of all of
@@ -473,12 +471,7 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
   }
   {
     auto ctx = std::make_unique<DataframeModule::Context>();
-    // The primary connection's dataframe module is the writer for
-    // the cross-connection vtab-state map. Readers (secondary
-    // connections) consult the same map; the writer publishes its
-    // committed state on every `OnCommit`.
     ctx->database = database_;
-    ctx->is_writer = true;
     ctx->module_name = "__intrinsic_dataframe";
     dataframe_context_ = ctx.get();
     RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
@@ -1009,28 +1002,21 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     const FunctionPrototype& prototype,
     sql_argument::Type return_type,
     SqlSource sql) {
-  // Append-after-local-success: readers must never observe a pool
-  // entry whose writer-side registration failed half-way.
+  // Append-after-local-success: peers must never observe a pool entry
+  // whose owning-connection registration failed half-way.
   SqlSource sql_for_pool = sql;
   RETURN_IF_ERROR(RegisterLegacyRuntimeFunctionLocal(
       replace, prototype, return_type, std::move(sql)));
-  if (is_writer_) {
-    last_synced_function_version_ =
-        database_->functions.Append(PerfettoSqlDatabase::FunctionPoolEntry{
-            replace, prototype, return_type, std::move(sql_for_pool)});
-  }
+  // Bumping `last_synced_function_version_` to the version returned
+  // by `Append` means our next `SyncFunctionsFromPool` snapshot won't
+  // include this entry — we already registered it locally above.
+  last_synced_function_version_ =
+      database_->functions.Append(PerfettoSqlDatabase::FunctionPoolEntry{
+          replace, prototype, return_type, std::move(sql_for_pool)});
   return base::OkStatus();
 }
 
 base::Status PerfettoSqlConnection::SyncFunctionsFromPool() {
-  // Writer must not re-register pool entries on a fresh handle from
-  // `RestoreInitialTables` — pool entries may reference tables (e.g.
-  // `_trace_bounds`) that the new engine's prelude include will
-  // recreate.
-  if (is_writer_) {
-    last_synced_function_version_ = database_->functions.LatestVersion();
-    return base::OkStatus();
-  }
   if (database_->functions.LatestVersion() ==
       last_synced_function_version_) {
     return base::OkStatus();

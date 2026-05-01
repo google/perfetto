@@ -153,17 +153,15 @@ void DataframeModule::Context::OnCommit() {
   // Run the base bookkeeping first (commit active_state, drop empties).
   sqlite::ModuleStateManager<DataframeModule>::OnCommit();
 
-  // Publish each committed state to the cross-connection staging area
-  // so reader connections can resolve them on cold xConnect. Only the
-  // writer engine publishes; readers must never write here.
-  if (!is_writer) {
-    return;
-  }
-  // GetAllStates() walks the local state_by_name_ map post-commit.
-  // For each surviving entry we republish its committed shared_ptr<void>
-  // (which shares ownership with the writer's local PerVtabState) so
-  // readers materialise their own PerVtabState from the same underlying
-  // DataframeModule::State.
+  // Republish every surviving committed state to the cross-connection
+  // map. The shared_ptr is the same one peer connections already point
+  // at (the State object lives behind a shared_ptr that all
+  // connections holding this vtab share), so this is idempotent for
+  // entries no other connection has replaced. Entries that *another*
+  // connection just CREATEd-and-committed get installed in the map by
+  // that connection's `PublishVtabState`; SQLite serialises commits
+  // via the file lock, so the last writer wins on conflicting
+  // updates.
   for (const auto& [name, _state_ptr] : GetAllStates()) {
     auto shared = GetCommittedStateSharedByName(name);
     if (!shared) {
@@ -175,24 +173,19 @@ void DataframeModule::Context::OnCommit() {
 }
 
 void DataframeModule::Context::OnRollback() {
-  // Defer to the base bookkeeping — we never published rolled-back state
-  // (publish only happens on OnCommit), so there is nothing to undo in
-  // the staging area.
+  // Defer to the base bookkeeping — we never published rolled-back
+  // state (publish only happens on OnCommit), so there is nothing to
+  // undo in the cross-connection map.
   sqlite::ModuleStateManager<DataframeModule>::OnRollback();
 }
 
 std::shared_ptr<void>
 DataframeModule::Context::ResolveMissingStateOnConnect(
     const std::string& vtab_name) {
-  // Reader connections (is_writer == false) consult the staging area
-  // on cold xConnect. Writer connections never see a missing local
-  // state in the OnConnect path (the writer is the one that called
-  // OnCreate); a miss there is a real bug, so fall through to the base
-  // default (returns null, triggering the PERFETTO_CHECK in OnConnect).
-  if (is_writer) {
-    return sqlite::ModuleStateManager<DataframeModule>::
-        ResolveMissingStateOnConnect(vtab_name);
-  }
+  // Cold xConnect: this connection has no local PerVtabState for
+  // `vtab_name`, so consult the cross-connection map. A peer
+  // connection that CREATEd the vtab will have published its
+  // committed state there.
   return database->LookupVtabState(module_name, vtab_name);
 }
 

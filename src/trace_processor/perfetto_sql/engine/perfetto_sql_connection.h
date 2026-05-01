@@ -455,13 +455,9 @@ class PerfettoSqlConnection {
   // tables and views.
   const bool enable_extra_checks_;
 
-  // True for the writer (connection-0). Writers publish vtab state on
-  // commit and Append to `database_->functions`; readers only consume.
-  bool is_writer_ = false;
-
   // Function-pool version last synced from `database_->functions`.
-  // The writer also bumps this on Append so it doesn't re-register
-  // its own functions.
+  // Bumped on `Append` (so we don't re-register our own entries) and
+  // on `SyncFunctionsFromPool` (after registering a peer's entries).
   uint64_t last_synced_function_version_ = 0;
 
   // Execution stack for iterative (non-recursive) processing of SQL
