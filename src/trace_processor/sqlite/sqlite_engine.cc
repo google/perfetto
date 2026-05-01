@@ -308,8 +308,7 @@ base::Status SqliteEngine::ExecWithRetry(const char* sql) {
   }
   ScopedSqliteString errmsg(errmsg_raw);
   if (err != SQLITE_OK) {
-    return base::ErrStatus("%s",
-                           errmsg_raw ? errmsg_raw : sqlite3_errmsg(db));
+    return base::ErrStatus("%s", errmsg_raw ? errmsg_raw : sqlite3_errmsg(db));
   }
   return base::OkStatus();
 }
@@ -322,9 +321,8 @@ base::Status SqliteEngine::RegisterFunction(const char* name,
                                             bool deterministic) {
   sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  int ret =
-      sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
-                                 ctx, fn, nullptr, nullptr, destructor);
+  int ret = sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
+                                       ctx, fn, nullptr, nullptr, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register function with name %s: %s (SQLite error code: %d)",
@@ -344,9 +342,8 @@ base::Status SqliteEngine::RegisterAggregateFunction(
     bool deterministic) {
   sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  int ret =
-      sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
-                                 ctx, nullptr, step, final, destructor);
+  int ret = sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
+                                       ctx, nullptr, step, final, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register aggregate function with name %s: %s (SQLite error "
@@ -367,9 +364,9 @@ base::Status SqliteEngine::RegisterWindowFunction(const char* name,
                                                   bool deterministic) {
   sqlite3* db = db_.get();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  int ret = sqlite3_create_window_function(
-      db, name, static_cast<int>(argc), flags, ctx, step, final, value,
-      inverse, destructor);
+  int ret = sqlite3_create_window_function(db, name, static_cast<int>(argc),
+                                           flags, ctx, step, final, value,
+                                           inverse, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register window function with name %s: %s (SQLite error "
@@ -381,9 +378,9 @@ base::Status SqliteEngine::RegisterWindowFunction(const char* name,
 
 base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
   sqlite3* db = db_.get();
-  int ret = sqlite3_create_function_v2(db, name, static_cast<int>(argc),
-                                       SQLITE_UTF8, nullptr, nullptr, nullptr,
-                                       nullptr, nullptr);
+  int ret =
+      sqlite3_create_function_v2(db, name, static_cast<int>(argc), SQLITE_UTF8,
+                                 nullptr, nullptr, nullptr, nullptr, nullptr);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to unregister function with name %s: %s (SQLite error code: "
@@ -399,8 +396,8 @@ void SqliteEngine::RegisterVirtualTableModule(
     const sqlite3_module* module,
     void* ctx,
     ModuleContextDestructor destructor) {
-  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(),
-                                     module, ctx, destructor);
+  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(), module,
+                                     ctx, destructor);
   PERFETTO_CHECK(res == SQLITE_OK);
 }
 
@@ -534,9 +531,8 @@ bool BusyRetryHelper::ShouldRetry(int sqlite_status) {
   }
   // Capped exponential backoff: 100us, 1ms, 10ms, then 50ms.
   static constexpr unsigned kBackoffSchedule[] = {100, 1000, 10000, 50000};
-  unsigned interval_us =
-      kBackoffSchedule[std::min<size_t>(attempt_,
-                                        base::ArraySize(kBackoffSchedule) - 1)];
+  unsigned interval_us = kBackoffSchedule[std::min<size_t>(
+      attempt_, base::ArraySize(kBackoffSchedule) - 1)];
   attempt_++;
   sleep_fn_(interval_us);
   return true;

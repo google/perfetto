@@ -711,8 +711,8 @@ class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
             sql, base::GetWallTimeNs().count());
     auto result = connection_->ExecuteUntilLastStatement(
         SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
-    return Iterator(std::make_unique<IteratorImpl>(
-        parent_, std::move(result), sql_stats_row));
+    return Iterator(std::make_unique<IteratorImpl>(parent_, std::move(result),
+                                                   sql_stats_row));
   }
 
  private:
@@ -727,7 +727,8 @@ TraceProcessorImpl::CreateConnection() {
   // Flip the StringPool to MT-safe mode before the secondary
   // connection can intern (it has no way to until this function
   // returns, so no extra barrier is needed).
-  context()->storage->mutable_string_pool()
+  context()
+      ->storage->mutable_string_pool()
       ->EnableThreadSafetyForMultiConnection();
   auto connection = std::make_unique<PerfettoSqlConnection>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
@@ -1139,8 +1140,9 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
   PERFETTO_CHECK(non_default_connection_count_ == 0);
   RETURN_IF_ERROR(metrics_descriptor_pool_.AddFromFileDescriptorSet(
       data, size, skip_prefixes));
-  RETURN_IF_ERROR(RegisterAllProtoBuilderFunctions(
-      &metrics_descriptor_pool_, &proto_fn_name_to_path_, connection_.get(), this));
+  RETURN_IF_ERROR(RegisterAllProtoBuilderFunctions(&metrics_descriptor_pool_,
+                                                   &proto_fn_name_to_path_,
+                                                   connection_.get(), this));
   return base::OkStatus();
 }
 
@@ -1189,8 +1191,8 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return metrics_descriptor_pool_.SerializeAsDescriptorSet();
 }
 
-std::vector<PerfettoSqlConnection::StaticTable> TraceProcessorImpl::GetStaticTables(
-    TraceStorage* storage) {
+std::vector<PerfettoSqlConnection::StaticTable>
+TraceProcessorImpl::GetStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlConnection::StaticTable> tables;
   AddStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddStaticTable(tables, storage->mutable_aggregate_sample_table());
@@ -1349,7 +1351,8 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   return fns;
 }
 
-std::unique_ptr<PerfettoSqlConnection> TraceProcessorImpl::InitPerfettoSqlConnection(
+std::unique_ptr<PerfettoSqlConnection>
+TraceProcessorImpl::InitPerfettoSqlConnection(
     const InitPerfettoSqlConnectionArgs& args) {
   auto* context = args.context;
   auto* storage = args.storage;
@@ -1370,7 +1373,8 @@ std::unique_ptr<PerfettoSqlConnection> TraceProcessorImpl::InitPerfettoSqlConnec
       CreateStaticTableFunctions(context, storage, config, engine.get());
 
   // Let plugins contribute their tables and table functions.
-  std::vector<PerfettoSqlConnection::StaticTable> tables = GetStaticTables(storage);
+  std::vector<PerfettoSqlConnection::StaticTable> tables =
+      GetStaticTables(storage);
   std::vector<PluginDataframe> plugin_dataframes;
   std::vector<SqliteModuleRegistration> sqlite_modules;
   for (auto& p : plugins) {

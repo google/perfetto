@@ -221,7 +221,8 @@ class SqliteEngine {
 
  private:
   using FnCtxMap =
-      base::FlatHashMap<std::pair<std::string, int>, void*,
+      base::FlatHashMap<std::pair<std::string, int>,
+                        void*,
                         base::MurmurHash<std::pair<std::string, int>>>;
   std::optional<uint32_t> GetErrorOffset() const;
 

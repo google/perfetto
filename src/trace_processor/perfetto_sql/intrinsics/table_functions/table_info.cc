@@ -103,7 +103,8 @@ bool TableInfo::Cursor::Run(const std::vector<SqlValue>& arguments) {
                                    table_name_str.c_str()));
 }
 
-TableInfo::TableInfo(StringPool* string_pool, const PerfettoSqlConnection* engine)
+TableInfo::TableInfo(StringPool* string_pool,
+                     const PerfettoSqlConnection* engine)
     : string_pool_(string_pool), engine_(engine) {}
 
 std::unique_ptr<StaticTableFunction::Cursor> TableInfo::MakeCursor() {

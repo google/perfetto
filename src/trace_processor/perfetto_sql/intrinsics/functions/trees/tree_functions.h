@@ -24,7 +24,8 @@ namespace perfetto::trace_processor {
 class PerfettoSqlConnection;
 class StringPool;
 
-base::Status RegisterTreeFunctions(PerfettoSqlConnection& engine, StringPool& pool);
+base::Status RegisterTreeFunctions(PerfettoSqlConnection& engine,
+                                   StringPool& pool);
 
 }  // namespace perfetto::trace_processor
 

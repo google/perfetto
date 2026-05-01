@@ -38,7 +38,8 @@ class WinscopeSurfaceFlingerHierarchyPaths : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(StringPool* string_pool, const PerfettoSqlConnection* engine);
+    explicit Cursor(StringPool* string_pool,
+                    const PerfettoSqlConnection* engine);
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:

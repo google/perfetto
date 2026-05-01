@@ -224,8 +224,7 @@ class Rpc {
     uint32_t id = 0;
     std::unique_ptr<TraceProcessor::Connection> conn;
     PooledConnection() = default;
-    PooledConnection(uint32_t i,
-                     std::unique_ptr<TraceProcessor::Connection> c)
+    PooledConnection(uint32_t i, std::unique_ptr<TraceProcessor::Connection> c)
         : id(i), conn(std::move(c)) {}
     PooledConnection(PooledConnection&&) noexcept = default;
     PooledConnection& operator=(PooledConnection&&) noexcept = default;
@@ -315,8 +314,8 @@ class Rpc {
   // thread drains in slot order so the UI's pendingQueries[0]-FIFO
   // invariant holds across out-of-order worker completions.
   ResponseDispatcher response_dispatcher_;
-  uint64_t streaming_send_next_seq_ = 0;       // claimed under pool_mu_
-  uint64_t streaming_send_drain_cursor_ = 0;   // accessed only on dispatcher
+  uint64_t streaming_send_next_seq_ = 0;      // claimed under pool_mu_
+  uint64_t streaming_send_drain_cursor_ = 0;  // accessed only on dispatcher
   // `response_fn` is snapshotted at dispatch time so each query routes
   // back to its originating transport even if `rpc_response_fn_` has
   // since been overwritten by a later OnRpcRequest from a different

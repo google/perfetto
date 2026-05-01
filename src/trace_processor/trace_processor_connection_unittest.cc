@@ -106,15 +106,12 @@ class TraceProcessorConnectionTest : public ::testing::Test {
   // with its own connection moved in. Returns the number of times
   // `body` reported a failure via the supplied counter.
   template <typename Body>
-  static int RunOnThreads(std::vector<std::unique_ptr<Conn>> conns,
-                          Body body) {
+  static int RunOnThreads(std::vector<std::unique_ptr<Conn>> conns, Body body) {
     std::atomic<int> errors{0};
     std::vector<std::thread> threads;
     for (size_t i = 0; i < conns.size(); ++i) {
-      threads.emplace_back(
-          [&errors, body, conn = std::move(conns[i]), i]() mutable {
-            body(std::move(conn), i, errors);
-          });
+      threads.emplace_back([&errors, body, conn = std::move(conns[i]),
+                            i]() mutable { body(std::move(conn), i, errors); });
     }
     for (auto& t : threads) {
       t.join();
@@ -137,8 +134,8 @@ TEST_F(TraceProcessorConnectionTest, SecondaryConnectionSeesPrimarySchema) {
   ASSERT_OK(Exec("INSERT INTO conn_test_table VALUES(7, 'hello');"));
 
   auto conn = MintConn();
-  auto it = conn->ExecuteQuery(
-      "SELECT id, val FROM conn_test_table ORDER BY id;");
+  auto it =
+      conn->ExecuteQuery("SELECT id, val FROM conn_test_table ORDER BY id;");
   ASSERT_TRUE(it.Next()) << it.Status().c_message();
   EXPECT_EQ(it.Get(0).long_value, 7);
   EXPECT_STREQ(it.Get(1).string_value, "hello");
@@ -163,8 +160,8 @@ TEST_F(TraceProcessorConnectionTest, IncludePromotesObjectsToOtherConnections) {
   ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_promote_test.tables;"));
 
   auto conn = MintConn();
-  auto it = conn->ExecuteQuery(
-      "SELECT id, name FROM include_promote_t ORDER BY id;");
+  auto it =
+      conn->ExecuteQuery("SELECT id, name FROM include_promote_t ORDER BY id;");
   ASSERT_TRUE(it.Next()) << it.Status().c_message();
   EXPECT_EQ(it.Get(0).long_value, 1);
   EXPECT_STREQ(it.Get(1).string_value, "alpha");
@@ -178,12 +175,11 @@ TEST_F(TraceProcessorConnectionTest, IncludePromotesObjectsToOtherConnections) {
 // the end must (a) return an error and (b) leave no trace of any
 // CREATE that ran before the bad one — on the writer or any secondary.
 TEST_F(TraceProcessorConnectionTest, FailedIncludeLeavesNoTrace) {
-  RegisterPackage(
-      "include_fail_test",
-      {{"include_fail_test.broken",
-        "CREATE TABLE include_fail_t(id INTEGER);\n"
-        "INSERT INTO include_fail_t VALUES (42);\n"
-        "SELECT no_such_column FROM include_fail_t;\n"}});
+  RegisterPackage("include_fail_test",
+                  {{"include_fail_test.broken",
+                    "CREATE TABLE include_fail_t(id INTEGER);\n"
+                    "INSERT INTO include_fail_t VALUES (42);\n"
+                    "SELECT no_such_column FROM include_fail_t;\n"}});
   EXPECT_FALSE(Exec("INCLUDE PERFETTO MODULE include_fail_test.broken;").ok());
 
   static constexpr char kCheck[] =
@@ -197,14 +193,13 @@ TEST_F(TraceProcessorConnectionTest, FailedIncludeLeavesNoTrace) {
 // later-minted secondary.
 TEST_F(TraceProcessorConnectionTest,
        SequentialIncludesPromoteToOtherConnection) {
-  RegisterPackage(
-      "include_seq_test",
-      {{"include_seq_test.first",
-        "CREATE TABLE include_seq_a(x INTEGER);\n"
-        "INSERT INTO include_seq_a VALUES (1);\n"},
-       {"include_seq_test.second",
-        "CREATE TABLE include_seq_b(y INTEGER);\n"
-        "INSERT INTO include_seq_b VALUES (2);\n"}});
+  RegisterPackage("include_seq_test",
+                  {{"include_seq_test.first",
+                    "CREATE TABLE include_seq_a(x INTEGER);\n"
+                    "INSERT INTO include_seq_a VALUES (1);\n"},
+                   {"include_seq_test.second",
+                    "CREATE TABLE include_seq_b(y INTEGER);\n"
+                    "INSERT INTO include_seq_b VALUES (2);\n"}});
   ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_seq_test.first;"));
   ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_seq_test.second;"));
 
@@ -217,8 +212,7 @@ TEST_F(TraceProcessorConnectionTest,
 
 // Top-level `Execute` is wrapped in a SAVEPOINT so a later-statement
 // failure rolls back earlier side-effects.
-TEST_F(TraceProcessorConnectionTest,
-       MultiStatementExecuteRollsBackOnFailure) {
+TEST_F(TraceProcessorConnectionTest, MultiStatementExecuteRollsBackOnFailure) {
   // Second CREATE collides; the whole Execute must roll back.
   EXPECT_FALSE(Exec("CREATE TABLE multistmt_t (x INT); "
                     "CREATE TABLE multistmt_t (y INT);")
@@ -232,10 +226,11 @@ TEST_F(TraceProcessorConnectionTest,
 
 // Positive control for the SAVEPOINT wrap.
 TEST_F(TraceProcessorConnectionTest, MultiStatementExecuteCommitsOnSuccess) {
-  ASSERT_OK(Exec("CREATE TABLE multistmt_ok_a (x INT); "
-                 "CREATE TABLE multistmt_ok_b (y INT); "
-                 "INSERT INTO multistmt_ok_a VALUES (7); "
-                 "INSERT INTO multistmt_ok_b VALUES (11);"));
+  ASSERT_OK(
+      Exec("CREATE TABLE multistmt_ok_a (x INT); "
+           "CREATE TABLE multistmt_ok_b (y INT); "
+           "INSERT INTO multistmt_ok_a VALUES (7); "
+           "INSERT INTO multistmt_ok_b VALUES (11);"));
 
   auto conn = MintConn();
   EXPECT_EQ(QueryLongOn(conn.get(),
@@ -251,10 +246,11 @@ TEST_F(TraceProcessorConnectionTest, MultiStatementExecuteCommitsOnSuccess) {
 // creation time.
 TEST_F(TraceProcessorConnectionTest,
        SecondaryConnectionReadsDataframeVtabFromPrimary) {
-  ASSERT_OK(Exec("CREATE PERFETTO TABLE conn_df_test AS "
-                 "SELECT 1 AS id, 'first' AS name UNION ALL "
-                 "SELECT 2 AS id, 'second' AS name UNION ALL "
-                 "SELECT 3 AS id, 'third' AS name;"));
+  ASSERT_OK(
+      Exec("CREATE PERFETTO TABLE conn_df_test AS "
+           "SELECT 1 AS id, 'first' AS name UNION ALL "
+           "SELECT 2 AS id, 'second' AS name UNION ALL "
+           "SELECT 3 AS id, 'third' AS name;"));
 
   // Writer sees the rows.
   EXPECT_EQ(QueryLong("SELECT count(*) FROM conn_df_test;"), 3);
@@ -286,8 +282,9 @@ TEST_F(TraceProcessorConnectionTest,
 // the database's function pool (each secondary diffs at the top of
 // every `Execute`).
 TEST_F(TraceProcessorConnectionTest, DynamicFunctionPropagatesToSecondary) {
-  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_double(x INT) RETURNS INT "
-                 "AS SELECT $x * 2;"));
+  ASSERT_OK(
+      Exec("CREATE PERFETTO FUNCTION conn_double(x INT) RETURNS INT "
+           "AS SELECT $x * 2;"));
   EXPECT_EQ(QueryLong("SELECT conn_double(21);"), 42);
 
   auto conn = MintConn();
@@ -301,17 +298,19 @@ TEST_F(TraceProcessorConnectionTest, DynamicFunctionPickedUpIncrementally) {
   auto conn = MintConn();
   EXPECT_EQ(QueryLongOn(conn.get(), "SELECT 1;"), 1);  // empty sync
 
-  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_a(x INT) RETURNS INT "
-                 "AS SELECT $x + 100;"));
-  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_b(x INT) RETURNS INT "
-                 "AS SELECT $x + 200;"));
-  EXPECT_EQ(QueryLongOn(conn.get(),
-                        "SELECT conn_inc_a(1) + conn_inc_b(2);"),
+  ASSERT_OK(
+      Exec("CREATE PERFETTO FUNCTION conn_inc_a(x INT) RETURNS INT "
+           "AS SELECT $x + 100;"));
+  ASSERT_OK(
+      Exec("CREATE PERFETTO FUNCTION conn_inc_b(x INT) RETURNS INT "
+           "AS SELECT $x + 200;"));
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT conn_inc_a(1) + conn_inc_b(2);"),
             1 + 100 + 2 + 200);
 
   // A third function added now flows through on the next Execute too.
-  ASSERT_OK(Exec("CREATE PERFETTO FUNCTION conn_inc_c(x INT) RETURNS INT "
-                 "AS SELECT $x + 1000;"));
+  ASSERT_OK(
+      Exec("CREATE PERFETTO FUNCTION conn_inc_c(x INT) RETURNS INT "
+           "AS SELECT $x + 1000;"));
   EXPECT_EQ(QueryLongOn(conn.get(), "SELECT conn_inc_c(5);"), 1005);
 }
 
@@ -324,19 +323,18 @@ TEST_F(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
   conns.push_back(MintConn());
 
   constexpr int kIters = 50;
-  int errs = RunOnThreads(
-      std::move(conns),
-      [](std::unique_ptr<Conn> conn, size_t tid, std::atomic<int>& errors) {
-        const int64_t expected = static_cast<int64_t>(tid) + 1;
-        for (int i = 0; i < kIters; ++i) {
-          int64_t v = QueryLongOn(conn.get(),
-                                  "SELECT " + std::to_string(expected));
-          if (v != expected) {
-            errors.fetch_add(1, std::memory_order_relaxed);
-            return;
-          }
-        }
-      });
+  int errs = RunOnThreads(std::move(conns), [](std::unique_ptr<Conn> conn,
+                                               size_t tid,
+                                               std::atomic<int>& errors) {
+    const int64_t expected = static_cast<int64_t>(tid) + 1;
+    for (int i = 0; i < kIters; ++i) {
+      int64_t v = QueryLongOn(conn.get(), "SELECT " + std::to_string(expected));
+      if (v != expected) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+  });
   EXPECT_EQ(errs, 0);
 }
 
@@ -344,12 +342,11 @@ TEST_F(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
 // wildcard, and re-issue paths all complete without deadlock; the
 // re-issue short-circuits via the per-engine `included` flag.
 TEST_F(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
-  RegisterPackage(
-      "include_lock_test",
-      {{"include_lock_test.first",
-        "CREATE TABLE include_lock_first(x INTEGER);\n"},
-       {"include_lock_test.second",
-        "CREATE TABLE include_lock_second(y INTEGER);\n"}});
+  RegisterPackage("include_lock_test",
+                  {{"include_lock_test.first",
+                    "CREATE TABLE include_lock_first(x INTEGER);\n"},
+                   {"include_lock_test.second",
+                    "CREATE TABLE include_lock_second(y INTEGER);\n"}});
 
   // Single-key, then wildcard, then re-issue (no-op).
   ASSERT_OK(Exec("INCLUDE PERFETTO MODULE include_lock_test.first;"));
@@ -376,10 +373,9 @@ TEST_F(TraceProcessorConnectionTest,
 
   // Mint AFTER registration so the include exercises pool-sync.
   auto conn = MintConn();
-  ASSERT_OK(ExecOn(conn.get(),
-                   "INCLUDE PERFETTO MODULE pkg_propagate_test.tables;"));
-  EXPECT_EQ(QueryLongOn(conn.get(),
-                        "SELECT count(*) FROM pkg_propagate_t;"),
+  ASSERT_OK(
+      ExecOn(conn.get(), "INCLUDE PERFETTO MODULE pkg_propagate_test.tables;"));
+  EXPECT_EQ(QueryLongOn(conn.get(), "SELECT count(*) FROM pkg_propagate_t;"),
             2);
 }
 
@@ -388,31 +384,27 @@ TEST_F(TraceProcessorConnectionTest,
 // secondaries.
 TEST_F(TraceProcessorConnectionTest,
        IncrementalPackageRegistrationFlowsToSecondary) {
-  RegisterPackage("pkg_inc_a",
-                  {{"pkg_inc_a.tables",
-                    "CREATE TABLE pkg_inc_a_t(x INTEGER);\n"
-                    "INSERT INTO pkg_inc_a_t VALUES (101);\n"}});
+  RegisterPackage("pkg_inc_a", {{"pkg_inc_a.tables",
+                                 "CREATE TABLE pkg_inc_a_t(x INTEGER);\n"
+                                 "INSERT INTO pkg_inc_a_t VALUES (101);\n"}});
 
   // Round 1: secondary picks up pkg_a, includes it (promoting onto
   // `main`), then is dropped.
   {
     auto conn1 = MintConn();
-    ASSERT_OK(ExecOn(conn1.get(),
-                     "INCLUDE PERFETTO MODULE pkg_inc_a.tables;"));
+    ASSERT_OK(ExecOn(conn1.get(), "INCLUDE PERFETTO MODULE pkg_inc_a.tables;"));
     EXPECT_EQ(QueryLongOn(conn1.get(), "SELECT x FROM pkg_inc_a_t;"), 101);
   }
   // conn1 destructor decrements non_default_connection_count_ to 0.
 
   // Round 2: register pkg_b; fresh secondary's first sync picks up
   // both entries on its engine.
-  RegisterPackage("pkg_inc_b",
-                  {{"pkg_inc_b.tables",
-                    "CREATE TABLE pkg_inc_b_t(y INTEGER);\n"
-                    "INSERT INTO pkg_inc_b_t VALUES (202);\n"}});
+  RegisterPackage("pkg_inc_b", {{"pkg_inc_b.tables",
+                                 "CREATE TABLE pkg_inc_b_t(y INTEGER);\n"
+                                 "INSERT INTO pkg_inc_b_t VALUES (202);\n"}});
 
   auto conn2 = MintConn();
-  ASSERT_OK(ExecOn(conn2.get(),
-                   "INCLUDE PERFETTO MODULE pkg_inc_b.tables;"));
+  ASSERT_OK(ExecOn(conn2.get(), "INCLUDE PERFETTO MODULE pkg_inc_b.tables;"));
   // pkg_a's table was promoted in round 1; pkg_b's just now. Both
   // reachable from conn2.
   EXPECT_EQ(QueryLongOn(conn2.get(),
@@ -424,8 +416,7 @@ TEST_F(TraceProcessorConnectionTest,
 // Writer pre-includes a module; two secondary threads then re-include
 // the same module concurrently. The cross-conn already-included
 // short-circuit must hit (no body re-runs, no schema-write conflict).
-TEST_F(TraceProcessorConnectionTest,
-       ConcurrentIncludesOfSameModuleSerialise) {
+TEST_F(TraceProcessorConnectionTest, ConcurrentIncludesOfSameModuleSerialise) {
   RegisterPackage(
       "concurrent_include_test",
       {{"concurrent_include_test.tables",
@@ -471,22 +462,21 @@ TEST_F(TraceProcessorConnectionTest,
   conns.push_back(MintConn());
   conns.push_back(MintConn());
 
-  int errs = RunOnThreads(
-      std::move(conns),
-      [](std::unique_ptr<Conn> conn, size_t, std::atomic<int>& errors) {
-        if (!ExecOn(conn.get(),
-                    "INCLUDE PERFETTO MODULE "
-                    "concurrent_include_lift_test.tables;")
-                 .ok()) {
-          errors.fetch_add(1);
-          return;
-        }
-        if (QueryLongOn(conn.get(),
-                        "SELECT count(*) FROM concurrent_include_lift_t;") !=
-            2) {
-          errors.fetch_add(1);
-        }
-      });
+  int errs = RunOnThreads(std::move(conns), [](std::unique_ptr<Conn> conn,
+                                               size_t,
+                                               std::atomic<int>& errors) {
+    if (!ExecOn(conn.get(),
+                "INCLUDE PERFETTO MODULE "
+                "concurrent_include_lift_test.tables;")
+             .ok()) {
+      errors.fetch_add(1);
+      return;
+    }
+    if (QueryLongOn(conn.get(),
+                    "SELECT count(*) FROM concurrent_include_lift_t;") != 2) {
+      errors.fetch_add(1);
+    }
+  });
   EXPECT_EQ(errs, 0);
 }
 
@@ -500,22 +490,21 @@ TEST_F(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
   for (int i = 0; i < kThreads; ++i) {
     conns.push_back(MintConn());
   }
-  int errs = RunOnThreads(
-      std::move(conns),
-      [](std::unique_ptr<Conn> conn, size_t tid, std::atomic<int>& errors) {
-        for (int i = 0; i < kItersPerThread; ++i) {
-          // Distinct query per (thread, iter) so the SqlStats deque
-          // observes a steady stream of writes (no dedup).
-          if (!ExecOn(conn.get(),
-                      "SELECT " + std::to_string(
-                                      static_cast<int>(tid) * kItersPerThread +
-                                      i))
-                   .ok()) {
-            errors.fetch_add(1);
-            return;
-          }
-        }
-      });
+  int errs = RunOnThreads(std::move(conns), [](std::unique_ptr<Conn> conn,
+                                               size_t tid,
+                                               std::atomic<int>& errors) {
+    for (int i = 0; i < kItersPerThread; ++i) {
+      // Distinct query per (thread, iter) so the SqlStats deque
+      // observes a steady stream of writes (no dedup).
+      if (!ExecOn(conn.get(),
+                  "SELECT " + std::to_string(
+                                  static_cast<int>(tid) * kItersPerThread + i))
+               .ok()) {
+        errors.fetch_add(1);
+        return;
+      }
+    }
+  });
   EXPECT_EQ(errs, 0);
 
   // SqlStats caps at kMaxLogEntries = 100.
@@ -528,8 +517,7 @@ TEST_F(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
 // mode: secondaries can concurrently SELECT from a string-typed
 // column without races. The deeper `InternString` stress lives in
 // the StringPool unit tests.
-TEST_F(TraceProcessorConnectionTest,
-       ConcurrentInternFromMultipleConnections) {
+TEST_F(TraceProcessorConnectionTest, ConcurrentInternFromMultipleConnections) {
   constexpr int kRowsPerTable = 32;
   constexpr int kThreads = 4;
   constexpr int kReadsPerThread = 200;
@@ -551,8 +539,7 @@ TEST_F(TraceProcessorConnectionTest,
       std::move(conns),
       [](std::unique_ptr<Conn> conn, size_t, std::atomic<int>& errors) {
         for (int i = 0; i < kReadsPerThread; ++i) {
-          if (QueryLongOn(conn.get(),
-                          "SELECT count(*) FROM stress_strings;") !=
+          if (QueryLongOn(conn.get(), "SELECT count(*) FROM stress_strings;") !=
               kRowsPerTable) {
             errors.fetch_add(1);
             return;
@@ -565,8 +552,7 @@ TEST_F(TraceProcessorConnectionTest,
 // Companion: secondaries concurrently issue equality-filtered SELECTs
 // on a string column. Every comparison hits `GetId` on the shared
 // pool (lock-taking); the MT-safety flip makes these race-free.
-TEST_F(TraceProcessorConnectionTest,
-       InternedStringMatchesAcrossConnections) {
+TEST_F(TraceProcessorConnectionTest, InternedStringMatchesAcrossConnections) {
   constexpr int kThreads = 4;
   constexpr int kSharedStrings = 32;
   constexpr int kReadsPerThread = 100;
@@ -611,8 +597,9 @@ TEST_F(TraceProcessorConnectionTest,
 // between prepare and step on this conn; the retry middleware
 // transparently re-prepares.
 TEST_F(TraceProcessorConnectionTest, SchemaRetryRePreparesOnSchemaChange) {
-  ASSERT_OK(Exec("CREATE TABLE schema_retry_t(v INTEGER); "
-                 "INSERT INTO schema_retry_t VALUES (42);"));
+  ASSERT_OK(
+      Exec("CREATE TABLE schema_retry_t(v INTEGER); "
+           "INSERT INTO schema_retry_t VALUES (42);"));
   auto conn = MintConn();
 
   ASSERT_OK(Exec("CREATE TABLE schema_retry_other(x INTEGER);"));

@@ -207,7 +207,7 @@ class PerfettoSqlDatabase {
     std::string key_;
   };
   struct IncludeClaimResult {
-    IncludeClaim claim;       // valid iff `!already_included`
+    IncludeClaim claim;  // valid iff `!already_included`
     bool already_included = false;
   };
 

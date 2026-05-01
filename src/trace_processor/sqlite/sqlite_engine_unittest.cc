@@ -130,8 +130,8 @@ TEST(SchemaRetryHelperTest, BothBoundsApplyIndependently) {
   uint32_t retries = 0;
   while (retry.ShouldRetry(SQLITE_SCHEMA)) {
     retries++;
-    ASSERT_LT(retries, 1000u) << "should have hit count cap at "
-                              << SchemaRetryHelper::kMaxAttempts;
+    ASSERT_LT(retries, 1000u)
+        << "should have hit count cap at " << SchemaRetryHelper::kMaxAttempts;
   }
   // The cap, not the deadline, terminated this run.
   EXPECT_EQ(retries, SchemaRetryHelper::kMaxAttempts);

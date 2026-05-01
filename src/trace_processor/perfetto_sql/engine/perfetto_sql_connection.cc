@@ -73,7 +73,8 @@
 //
 // The responsibility of each of these classes is as follows:
 //
-// * PerfettoSqlConnection: this class is responsible for the end-to-end processing
+// * PerfettoSqlConnection: this class is responsible for the end-to-end
+// processing
 //   of statements. It calls into PerfettoSqlParser to incrementally receive
 //   parsed SQL statements and then executes them. If the statement is a
 //   PerfettoSQL-only statement, the execution happens entirely in this class.
@@ -397,9 +398,9 @@ GetTypesFromSelectStatement(
 }  // namespace
 
 PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
-                                     bool enable_extra_checks,
-                                     const std::string& shared_filename,
-                                     PerfettoSqlDatabase* database)
+                                             bool enable_extra_checks,
+                                             const std::string& shared_filename,
+                                             PerfettoSqlDatabase* database)
     : database_(database),
       pool_(pool),
       enable_extra_checks_(enable_extra_checks),
@@ -429,8 +430,8 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
 }
 
 PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
-                                     bool enable_extra_checks,
-                                     PerfettoSqlDatabase* database)
+                                             bool enable_extra_checks,
+                                             PerfettoSqlDatabase* database)
     : database_(database),
       pool_(pool),
       enable_extra_checks_(enable_extra_checks),
@@ -511,7 +512,7 @@ base::Status PerfettoSqlConnection::InitializeStaticTablesAndFunctions(
 }
 
 void PerfettoSqlConnection::RegisterStaticTable(dataframe::Dataframe* df,
-                                            const std::string& table_name) {
+                                                const std::string& table_name) {
   PERFETTO_CHECK(!dataframe_context_->temporary_create_state);
   dataframe_context_->temporary_create_state =
       std::make_unique<DataframeModule::State>(df);
@@ -552,8 +553,8 @@ void PerfettoSqlConnection::RegisterStaticTableFunction(
   PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
 }
 
-base::StatusOr<PerfettoSqlConnection::ExecutionStats> PerfettoSqlConnection::Execute(
-    SqlSource sql) {
+base::StatusOr<PerfettoSqlConnection::ExecutionStats>
+PerfettoSqlConnection::Execute(SqlSource sql) {
   auto res = ExecuteUntilLastStatement(std::move(sql));
   RETURN_IF_ERROR(res.status());
   if (res->stmt.IsDone()) {
@@ -652,7 +653,8 @@ base::Status PerfettoSqlConnection::ReleaseIncludeSavepoint(
   return base::OkStatus();
 }
 
-void PerfettoSqlConnection::RollbackIncludeSavepoint(const ExecutionFrame& frame) {
+void PerfettoSqlConnection::RollbackIncludeSavepoint(
+    const ExecutionFrame& frame) {
   if (frame.include_savepoint.empty()) {
     return;
   }
@@ -709,8 +711,8 @@ void PerfettoSqlConnection::RollbackExecuteSavepoint(const std::string& name) {
   }
 }
 
-base::StatusOr<PerfettoSqlConnection::FrameResult> PerfettoSqlConnection::ProcessFrame(
-    size_t frame_idx) {
+base::StatusOr<PerfettoSqlConnection::FrameResult>
+PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   // Wildcard frames just push include frames for each remaining
   // module, one at a time.
   if (execution_stack_[frame_idx].type == FrameType::kWildcard) {
@@ -735,13 +737,11 @@ base::StatusOr<PerfettoSqlConnection::FrameResult> PerfettoSqlConnection::Proces
       base::StackString<256> savepoint_sql("SAVEPOINT %s",
                                            savepoint_name.c_str());
       if (auto st = engine_->ExecWithRetry(savepoint_sql.c_str()); !st.ok()) {
-        return base::ErrStatus(
-            "INCLUDE: failed to open savepoint for '%s': %s", key.c_str(),
-            st.c_message());
+        return base::ErrStatus("INCLUDE: failed to open savepoint for '%s': %s",
+                               key.c_str(), st.c_message());
       }
       execution_stack_.push_back(
-          {FrameType::kInclude,
-           SqlSource::FromModuleInclude(sql, key),
+          {FrameType::kInclude, SqlSource::FromModuleInclude(sql, key),
            /*parser=*/nullptr, /*accumulated_stats=*/{},
            /*current_stmt=*/std::nullopt, key, std::move(traceback),
            /*wildcard_modules=*/{},
@@ -1017,8 +1017,7 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
 }
 
 base::Status PerfettoSqlConnection::SyncFunctionsFromPool() {
-  if (database_->functions.LatestVersion() ==
-      last_synced_function_version_) {
+  if (database_->functions.LatestVersion() == last_synced_function_version_) {
     return base::OkStatus();
   }
   auto snapshot =
@@ -1335,8 +1334,8 @@ base::Status PerfettoSqlConnection::IncludeModuleImpl(
   // the DDL to `main`; failure → ROLLBACK TO drops half-installed
   // objects. Vtab DDL inside is partially handled by the rollback
   // callback (`ModuleStateManagerBase` discards staged state).
-  std::string savepoint_name = "perfetto_include_" +
-                               std::to_string(include_savepoint_counter_++);
+  std::string savepoint_name =
+      "perfetto_include_" + std::to_string(include_savepoint_counter_++);
   base::StackString<256> savepoint_sql("SAVEPOINT %s", savepoint_name.c_str());
   if (auto st = engine_->ExecWithRetry(savepoint_sql.c_str()); !st.ok()) {
     return base::ErrStatus("INCLUDE: failed to open savepoint for '%s': %s",

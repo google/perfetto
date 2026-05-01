@@ -724,9 +724,8 @@ void CreatedFunction::Step(sqlite3_context* ctx,
     return sqlite::utils::SetError(ctx, status.c_message());
   }
 
-  auto result =
-      EvaluateScalarStatement(state->CurrentStatement(),
-                              state->engine()->db(), state->prototype());
+  auto result = EvaluateScalarStatement(
+      state->CurrentStatement(), state->engine()->db(), state->prototype());
   if (!result.ok()) {
     return sqlite::utils::SetError(ctx, result.status().c_message());
   }

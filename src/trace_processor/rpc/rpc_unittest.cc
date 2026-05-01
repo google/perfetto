@@ -48,7 +48,9 @@ std::vector<uint8_t> EncodeQueryArgs(const std::string& sql) {
 // request. If `tag` is non-empty it is set on the QueryArgs (otherwise
 // the request goes through the untagged-stream path).
 std::vector<uint8_t> EncodeStreamingQueryRpcMessage(
-    int64_t seq, const std::string& sql, const std::string& tag = {}) {
+    int64_t seq,
+    const std::string& sql,
+    const std::string& tag = {}) {
   protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream> stream;
   auto* msg = stream->add_msg();
   msg->set_seq(seq);
@@ -77,8 +79,7 @@ class TaskQueue {
   void DrainUntilQuiescent(uint32_t expected_count,
                            uint32_t idle_quiescence_ms = 50) {
     uint32_t processed = 0;
-    auto deadline =
-        std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
     while (true) {
       std::function<void()> task;
       {
@@ -187,7 +188,7 @@ DecodedSingleInt DecodeSingleInt(
 // Drives the synchronous `Rpc::Query` path and returns the chunks
 // emitted via the callback.
 std::vector<std::vector<uint8_t>> RunQueryAndCollect(Rpc* rpc,
-                                                    const std::string& sql) {
+                                                     const std::string& sql) {
   std::vector<uint8_t> args = EncodeQueryArgs(sql);
   std::vector<std::vector<uint8_t>> chunks;
   rpc->Query(args.data(), args.size(),
@@ -218,7 +219,8 @@ class RpcStreamingTest : public ::testing::Test {
 
   // Submits one streaming query. Empty `tag` exercises the untagged-
   // stream path; non-empty exercises tag-affine dispatch.
-  void Submit(int64_t seq, const std::string& sql,
+  void Submit(int64_t seq,
+              const std::string& sql,
               const std::string& tag = {}) {
     auto msg = EncodeStreamingQueryRpcMessage(seq, sql, tag);
     rpc_.OnRpcRequest(msg.data(), msg.size());
@@ -414,7 +416,7 @@ TEST(RpcTest, StreamingQueryAsyncMatchesInlineSemantically) {
         s.total_batches++;
         auto bb = bit->as_bytes();
         protos::pbzero::QueryResult::CellsBatch::Decoder batch(bb.data,
-                                                                bb.size);
+                                                               bb.size);
         if (batch.is_last_batch()) {
           s.has_last_batch = true;
         }
@@ -509,8 +511,8 @@ TEST_F(RpcStreamingTest, AffinityLRUEvictsAtCap) {
   EXPECT_EQ(rpc_.affinity_size_for_testing(), 64u);
   EXPECT_FALSE(rpc_.has_affinity_for_testing("unique_tag_0"))
       << "oldest tag should have been LRU-evicted";
-  EXPECT_TRUE(rpc_.has_affinity_for_testing(
-      "unique_tag_" + std::to_string(kTagsToInsert - 1)));
+  EXPECT_TRUE(rpc_.has_affinity_for_testing("unique_tag_" +
+                                            std::to_string(kTagsToInsert - 1)));
 }
 
 }  // namespace

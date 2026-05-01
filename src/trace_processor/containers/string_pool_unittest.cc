@@ -224,10 +224,8 @@ TEST_F(StringPoolTest, ConcurrentInternIsThreadSafe) {
       const std::string& s = shared[i % shared.size()];
       sids.push_back(pool_.InternString(base::StringView(s)));
 
-      std::string unique =
-          "t" + std::to_string(tag) + "_i" + std::to_string(i);
-      dp.emplace_back(unique,
-                      pool_.InternString(base::StringView(unique)));
+      std::string unique = "t" + std::to_string(tag) + "_i" + std::to_string(i);
+      dp.emplace_back(unique, pool_.InternString(base::StringView(unique)));
     }
   };
 

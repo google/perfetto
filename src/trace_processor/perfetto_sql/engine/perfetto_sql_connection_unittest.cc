@@ -302,9 +302,11 @@ TEST_F(PerfettoSqlConnectionTest, Include_All) {
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
   // Both module bodies ran (the SELECTs above would have failed if
   // either CREATE TABLE didn't land).
-  auto t_foo = engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM foo"));
+  auto t_foo =
+      engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM foo"));
   ASSERT_TRUE(t_foo.ok()) << t_foo.status().c_message();
-  auto t_bar = engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM bar"));
+  auto t_bar =
+      engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM bar"));
   ASSERT_TRUE(t_bar.ok()) << t_bar.status().c_message();
 }
 
@@ -323,14 +325,12 @@ TEST_F(PerfettoSqlConnectionTest, Include_Module) {
       SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.*"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
   // The two `foo.*` modules ran; `bar.bar` did not.
-  ASSERT_TRUE(engine_.Execute(
-                       SqlSource::FromExecuteQuery("SELECT x FROM foo1"))
-                  .ok());
-  ASSERT_TRUE(engine_.Execute(
-                       SqlSource::FromExecuteQuery("SELECT x FROM foo2"))
-                  .ok());
-  ASSERT_FALSE(engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM bar"))
-                   .ok());
+  ASSERT_TRUE(
+      engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM foo1")).ok());
+  ASSERT_TRUE(
+      engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM foo2")).ok());
+  ASSERT_FALSE(
+      engine_.Execute(SqlSource::FromExecuteQuery("SELECT x FROM bar")).ok());
 }
 
 TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_TargetNotFound) {

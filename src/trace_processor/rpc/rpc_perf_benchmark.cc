@@ -157,7 +157,9 @@ const std::vector<std::string>& CpuOnlyQueries() {
 // Encodes a `TraceProcessorRpcStream`-framed `TPM_QUERY_STREAMING`
 // request. Empty `tag` exercises the untagged-stream path.
 std::vector<uint8_t> EncodeStreamingQueryRpcMessage(
-    int64_t seq, const std::string& sql, const std::string& tag = {}) {
+    int64_t seq,
+    const std::string& sql,
+    const std::string& tag = {}) {
   protozero::HeapBuffered<protos::pbzero::TraceProcessorRpcStream> stream;
   auto* msg = stream->add_msg();
   msg->set_seq(seq);
@@ -187,7 +189,7 @@ size_t CountQueriesCompleted(const std::vector<uint8_t>& wire_bytes) {
     for (auto b_it = result.batch(); b_it; ++b_it) {
       auto b_bytes = b_it->as_bytes();
       protos::pbzero::QueryResult::CellsBatch::Decoder batch(b_bytes.data,
-                                                              b_bytes.size);
+                                                             b_bytes.size);
       if (batch.is_last_batch()) {
         completed++;
       }
@@ -241,8 +243,9 @@ class TaskQueue {
 bool LoadTraceInto(Rpc* rpc, benchmark::State& bstate) {
   std::string contents;
   if (!base::ReadFile(kTraceFixture, &contents)) {
-    bstate.SkipWithError("Test data missing. Please ensure "
-                         "test/data/android_postboot_unlock.pftrace exists.");
+    bstate.SkipWithError(
+        "Test data missing. Please ensure "
+        "test/data/android_postboot_unlock.pftrace exists.");
     return false;
   }
   if (auto s = rpc->Parse(reinterpret_cast<const uint8_t*>(contents.data()),
@@ -345,16 +348,17 @@ void RunBurstPoolOn(benchmark::State& bstate,
     bstate.SetIterationTime(std::chrono::duration<double>(t1 - t0).count());
   }
   using Ctr = benchmark::Counter;
-  bstate.counters["queries"] = Ctr(static_cast<double>(kN), Ctr::kIsIterationInvariant);
-  bstate.counters["workers_used"] = Ctr(
-      static_cast<double>(rpc.pool_workers_used_for_testing()),
-      Ctr::kIsIterationInvariant);
-  bstate.counters["distinct_connections"] = Ctr(
-      static_cast<double>(rpc.pool_distinct_connections_for_testing()),
-      Ctr::kIsIterationInvariant);
-  bstate.counters["hardware_concurrency"] = Ctr(
-      static_cast<double>(std::thread::hardware_concurrency()),
-      Ctr::kIsIterationInvariant);
+  bstate.counters["queries"] =
+      Ctr(static_cast<double>(kN), Ctr::kIsIterationInvariant);
+  bstate.counters["workers_used"] =
+      Ctr(static_cast<double>(rpc.pool_workers_used_for_testing()),
+          Ctr::kIsIterationInvariant);
+  bstate.counters["distinct_connections"] =
+      Ctr(static_cast<double>(rpc.pool_distinct_connections_for_testing()),
+          Ctr::kIsIterationInvariant);
+  bstate.counters["hardware_concurrency"] =
+      Ctr(static_cast<double>(std::thread::hardware_concurrency()),
+          Ctr::kIsIterationInvariant);
   // Diagnostic counters: how busy was the worker pool vs the single-
   // threaded transport dispatcher? Ideal speedup needs
   // worker_parallelism ≈ #pool_workers AND dispatcher_fraction << 1.
@@ -431,30 +435,30 @@ void RunBurstPoolOff(benchmark::State& bstate,
                    : 0.0;
   }
   using Ctr = benchmark::Counter;
-  bstate.counters["queries"] = Ctr(static_cast<double>(kN), Ctr::kIsIterationInvariant);
-  bstate.counters["hardware_concurrency"] = Ctr(
-      static_cast<double>(std::thread::hardware_concurrency()),
-      Ctr::kIsIterationInvariant);
+  bstate.counters["queries"] =
+      Ctr(static_cast<double>(kN), Ctr::kIsIterationInvariant);
+  bstate.counters["hardware_concurrency"] =
+      Ctr(static_cast<double>(std::thread::hardware_concurrency()),
+          Ctr::kIsIterationInvariant);
 }
 
-#define BURST_POOL_OFF(name, queries)                       \
-  static void BM_RpcBurst_##name##_PoolOff(                 \
-      benchmark::State& bstate) {                           \
-    RunBurstPoolOff(bstate, queries());                     \
-  }                                                         \
-  BENCHMARK(BM_RpcBurst_##name##_PoolOff)                   \
-      ->UseManualTime()                                     \
-      ->Unit(benchmark::kMillisecond)                       \
+#define BURST_POOL_OFF(name, queries)                                  \
+  static void BM_RpcBurst_##name##_PoolOff(benchmark::State& bstate) { \
+    RunBurstPoolOff(bstate, queries());                                \
+  }                                                                    \
+  BENCHMARK(BM_RpcBurst_##name##_PoolOff)                              \
+      ->UseManualTime()                                                \
+      ->Unit(benchmark::kMillisecond)                                  \
       ->MinTime(2.0)
 
-#define BURST_POOL_ON(name, queries, strategy)              \
-  static void BM_RpcBurst_##name##_PoolOn_##strategy(       \
-      benchmark::State& bstate) {                           \
+#define BURST_POOL_ON(name, queries, strategy)                   \
+  static void BM_RpcBurst_##name##_PoolOn_##strategy(            \
+      benchmark::State& bstate) {                                \
     RunBurstPoolOn(bstate, queries(), TagStrategy::k##strategy); \
-  }                                                         \
-  BENCHMARK(BM_RpcBurst_##name##_PoolOn_##strategy)         \
-      ->UseManualTime()                                     \
-      ->Unit(benchmark::kMillisecond)                       \
+  }                                                              \
+  BENCHMARK(BM_RpcBurst_##name##_PoolOn_##strategy)              \
+      ->UseManualTime()                                          \
+      ->Unit(benchmark::kMillisecond)                            \
       ->MinTime(2.0)
 
 BURST_POOL_OFF(Workload, WorkloadQueries);

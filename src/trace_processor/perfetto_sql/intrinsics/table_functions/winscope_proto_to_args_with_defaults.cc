@@ -337,9 +337,10 @@ base::Status InsertRows(
 }
 }  // namespace
 
-WinscopeProtoToArgsWithDefaults::Cursor::Cursor(StringPool* string_pool,
-                                                const PerfettoSqlConnection* engine,
-                                                TraceProcessorContext* context)
+WinscopeProtoToArgsWithDefaults::Cursor::Cursor(
+    StringPool* string_pool,
+    const PerfettoSqlConnection* engine,
+    TraceProcessorContext* context)
     : string_pool_(string_pool),
       engine_(engine),
       context_(context),

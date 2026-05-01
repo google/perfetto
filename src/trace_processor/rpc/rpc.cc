@@ -732,56 +732,56 @@ void Rpc::RunQueryOnPoolWorker(
   // workers.
   std::promise<void> done;
   std::future<void> done_fut = done.get_future();
-  worker_pool_->PostTask([this, sql = std::move(sql), t_start,
-                          &result_callback, &done]() mutable {
-    {
-      std::lock_guard<std::mutex> g(pool_mu_);
-      distinct_worker_thread_ids_.insert(std::this_thread::get_id());
-    }
-    // Sync `Query` callers (wasm bridge, `/rpc` HTTP, Python API) don't
-    // carry tags. The empty-string "untagged stream" tag funnels them
-    // through one connection, matching the streaming async path.
-    auto pooled = AcquireConnectionForQuery(/*tag=*/"");
-    // Drain the iterator into a vector of (bytes, has_more) before
-    // releasing the connection. The prepared statement owned by the
-    // iterator must be finalised on this worker before another worker
-    // picks the connection up — TSan otherwise catches a
-    // sqlite3ErrorClear vs sqlite3VdbeReset race on the shared
-    // `sqlite3*` handle.
-    std::vector<std::pair<std::vector<uint8_t>, bool>> emitted;
-    {
-      auto it = pooled.conn->ExecuteQuery(sql);
-      QueryResultSerializer serializer(std::move(it), t_start);
-      protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
-                                                                    kSliceSize);
-      for (bool has_more = true; has_more;) {
-        has_more = serializer.Serialize(buffered.get());
-        const auto& slices = buffered.GetSlices();
-        for (uint32_t i = 0; i < slices.size(); ++i) {
-          auto used = slices[i].GetUsedRange();
-          emitted.emplace_back(
-              std::vector<uint8_t>(used.begin, used.begin + used.size()),
-              has_more || i + 1 < slices.size());
+  worker_pool_->PostTask(
+      [this, sql = std::move(sql), t_start, &result_callback, &done]() mutable {
+        {
+          std::lock_guard<std::mutex> g(pool_mu_);
+          distinct_worker_thread_ids_.insert(std::this_thread::get_id());
         }
-        buffered.Reset();
-      }
-    }
-    ReleaseConnectionToPool(std::move(pooled));
-    // The caller is still parked on `done_fut`, so `result_callback`
-    // is safe to invoke here. The callback contract requires exactly
-    // one terminal call with `has_more=false`: append one if the
-    // serializer didn't already emit a final-slice that ended the
-    // stream (no rows, or the trailing Serialize() call produced 0
-    // slices).
-    if (emitted.empty() || emitted.back().second) {
-      emitted.emplace_back(std::vector<uint8_t>{}, /*has_more=*/false);
-    }
-    for (const auto& [bytes, has_more] : emitted) {
-      result_callback(bytes.empty() ? nullptr : bytes.data(),
-                      bytes.size(), has_more);
-    }
-    done.set_value();
-  });
+        // Sync `Query` callers (wasm bridge, `/rpc` HTTP, Python API) don't
+        // carry tags. The empty-string "untagged stream" tag funnels them
+        // through one connection, matching the streaming async path.
+        auto pooled = AcquireConnectionForQuery(/*tag=*/"");
+        // Drain the iterator into a vector of (bytes, has_more) before
+        // releasing the connection. The prepared statement owned by the
+        // iterator must be finalised on this worker before another worker
+        // picks the connection up — TSan otherwise catches a
+        // sqlite3ErrorClear vs sqlite3VdbeReset race on the shared
+        // `sqlite3*` handle.
+        std::vector<std::pair<std::vector<uint8_t>, bool>> emitted;
+        {
+          auto it = pooled.conn->ExecuteQuery(sql);
+          QueryResultSerializer serializer(std::move(it), t_start);
+          protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(
+              kSliceSize, kSliceSize);
+          for (bool has_more = true; has_more;) {
+            has_more = serializer.Serialize(buffered.get());
+            const auto& slices = buffered.GetSlices();
+            for (uint32_t i = 0; i < slices.size(); ++i) {
+              auto used = slices[i].GetUsedRange();
+              emitted.emplace_back(
+                  std::vector<uint8_t>(used.begin, used.begin + used.size()),
+                  has_more || i + 1 < slices.size());
+            }
+            buffered.Reset();
+          }
+        }
+        ReleaseConnectionToPool(std::move(pooled));
+        // The caller is still parked on `done_fut`, so `result_callback`
+        // is safe to invoke here. The callback contract requires exactly
+        // one terminal call with `has_more=false`: append one if the
+        // serializer didn't already emit a final-slice that ended the
+        // stream (no rows, or the trailing Serialize() call produced 0
+        // slices).
+        if (emitted.empty() || emitted.back().second) {
+          emitted.emplace_back(std::vector<uint8_t>{}, /*has_more=*/false);
+        }
+        for (const auto& [bytes, has_more] : emitted) {
+          result_callback(bytes.empty() ? nullptr : bytes.data(), bytes.size(),
+                          has_more);
+        }
+        done.set_value();
+      });
   done_fut.wait();
 }
 
@@ -830,8 +830,8 @@ void Rpc::DispatchStreamingQueryAsync(std::string sql,
 }
 
 void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
-  worker_pool_->PostTask([this, tag = std::move(tag), q = std::move(q)]()
-                             mutable {
+  worker_pool_->PostTask([this, tag = std::move(tag),
+                          q = std::move(q)]() mutable {
     {
       std::lock_guard<std::mutex> g(pool_mu_);
       distinct_worker_thread_ids_.insert(std::this_thread::get_id());
@@ -865,9 +865,8 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
         buffered.Reset();
       }
     }
-    sql_exec_ns_.fetch_add(
-        (base::GetWallTimeNs() - t_exec_start).count(),
-        std::memory_order_relaxed);
+    sql_exec_ns_.fetch_add((base::GetWallTimeNs() - t_exec_start).count(),
+                           std::memory_order_relaxed);
     ReleaseConnectionToPool(std::move(pooled));
 
     // Hand off the next same-tag query (if any) BEFORE posting the
@@ -904,7 +903,8 @@ void Rpc::PostTaggedQueryToWorker(std::string tag, PendingTaggedQuery q) {
         StreamingResult sr;
         {
           std::lock_guard<std::mutex> g(pool_mu_);
-          auto* found = streaming_send_ready_.Find(streaming_send_drain_cursor_);
+          auto* found =
+              streaming_send_ready_.Find(streaming_send_drain_cursor_);
           if (!found) {
             dispatcher_ns_.fetch_add(
                 (base::GetWallTimeNs() - t_drain_start).count(),

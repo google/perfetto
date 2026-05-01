@@ -179,8 +179,7 @@ void DataframeModule::Context::OnRollback() {
   sqlite::ModuleStateManager<DataframeModule>::OnRollback();
 }
 
-std::shared_ptr<void>
-DataframeModule::Context::ResolveMissingStateOnConnect(
+std::shared_ptr<void> DataframeModule::Context::ResolveMissingStateOnConnect(
     const std::string& vtab_name) {
   // Cold xConnect: this connection has no local PerVtabState for
   // `vtab_name`, so consult the cross-connection map. A peer
@@ -259,8 +258,8 @@ int DataframeModule::Disconnect(sqlite3_vtab* vtab) {
 //
 static DataframeModule::State* ResolveState(DataframeModule::Vtab* v) {
   if (v->context) {
-    auto staged = v->context->database->LookupVtabState(
-        v->context->module_name, v->name);
+    auto staged =
+        v->context->database->LookupVtabState(v->context->module_name, v->name);
     if (staged) {
       return static_cast<DataframeModule::State*>(staged.get());
     }
