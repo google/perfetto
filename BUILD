@@ -4304,6 +4304,7 @@ perfetto_cc_library(
                ":src_trace_processor_util_elf_elf",
                ":src_trace_processor_util_glob",
                ":src_trace_processor_util_interned_message_view",
+               ":src_trace_processor_util_json_args",
                ":src_trace_processor_util_json_parser",
                ":src_trace_processor_util_profiler_util",
                ":src_trace_processor_util_proto_to_args_parser",
