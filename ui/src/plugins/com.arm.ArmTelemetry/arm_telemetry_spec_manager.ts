@@ -19,6 +19,7 @@ export interface ArmTelemetrySpecManager {
   add(desc: ArmTelemetryCpuSpec): void;
   update(desc: ArmTelemetryCpuSpec): void;
   clear(): void;
+  hasSpecs(): boolean;
   registeredCpuids(): string[];
   getCpuDesc(cpuid: string): ArmTelemetryCpuSpec;
 }

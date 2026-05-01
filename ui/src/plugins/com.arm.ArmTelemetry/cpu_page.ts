@@ -66,6 +66,8 @@ export interface CpuPageAttrs {
 }
 
 export class CpuPage implements m.ClassComponent<CpuPageAttrs> {
+  private reloadRequired = false;
+
   view({attrs}: m.CVnode<CpuPageAttrs>) {
     const specManager = attrs.specManager;
     const cpus = new Set<string>(specManager.registeredCpuids());
@@ -102,6 +104,7 @@ export class CpuPage implements m.ClassComponent<CpuPageAttrs> {
               );
             }
             specManager.update(parsedInfo);
+            this.reloadRequired = true;
             input.value = '';
             m.redraw();
           };
@@ -124,6 +127,14 @@ export class CpuPage implements m.ClassComponent<CpuPageAttrs> {
             fileElement.click();
           },
         }),
+        this.reloadRequired &&
+          m(Button, {
+            icon: 'check',
+            label: 'Apply',
+            title: 'Click here to apply the updated CPU specifications',
+            variant: ButtonVariant.Filled,
+            onclick: () => window.location.reload(),
+          }),
         cpus.size > 0 &&
           m(Button, {
             icon: 'refresh',
@@ -132,6 +143,7 @@ export class CpuPage implements m.ClassComponent<CpuPageAttrs> {
             variant: ButtonVariant.Filled,
             onclick: () => {
               specManager.clear();
+              this.reloadRequired = true;
             },
           }),
       ),

@@ -108,6 +108,10 @@ export class ArmTelemetrySpecManagerImpl implements ArmTelemetrySpecManager {
     this.cpuSpecsSetting.set([]);
   }
 
+  hasSpecs(): boolean {
+    return this.cpuSpecsSetting.get().length > 0;
+  }
+
   registeredCpuids(): string[] {
     return this.cpuSpecsSetting.get().map((spec) => getCpuId(spec));
   }
