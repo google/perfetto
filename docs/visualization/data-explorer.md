@@ -16,7 +16,7 @@ It is most useful when you are:
 - **Iterating on an analysis** - building up a query step by step and
   inspecting intermediate results at each stage
 - **Visualizing results** - charting query output as graphs and dashboards
-  using the visualization node, or exporting back to the trace as a
+  using the Charts node, or exporting back to the trace as a
   [debug track](/docs/analysis/debug-tracks.md)
 
 The key features are:
@@ -25,7 +25,7 @@ The key features are:
   example, adding a column doesn't require knowing about JOINs, and
   conditional expressions are built through a form rather than written as
   SQL
-- **Specialised for Perfetto** - first-class support for trace-specific
+- **Specialized for Perfetto** - first-class support for trace-specific
   operations: intersecting time intervals, filtering events to a time range
   selected on the timeline, generating time ranges, and pairing start/end
   events into slices
@@ -39,10 +39,10 @@ The key features are:
   also create new nodes directly from the grid without going back to the
   canvas - click a column value to add a filter, or enrich results by
   adding columns from a related table based on a foreign key
-- **Charts and dashboards** - attach a visualization node to any query to
+- **Charts and dashboards** - attach a Charts node to any query to
   produce charts; multiple visualizations can be combined into a dashboard
 - **Full SQL power when needed** - the builder generates real SQL; you can
-  inspect the generated query at any point and drop into a raw SQL node
+  inspect the generated query at any point and drop into a Query node
   when the built-in nodes aren't enough
 - **Persistent state** - the graph is saved in the permalink and cached in
   the browser, so no work is lost between sessions and the same graph is
@@ -51,22 +51,66 @@ The key features are:
 
 ## Concepts
 
+### Projects
+
+Work in the Data Explorer is organized into **projects**. Each project
+contains one query graph and any number of dashboards. You can maintain
+multiple projects to keep separate analyses distinct, or do them all on in one project - the choice is yours.
+
 ### Nodes
 
-The core concept in the Data Explorer is a **node**. Nodes fall into two
-categories:
+The core concept in the Data Explorer is a **node**. Nodes fall into
+three categories:
 
-- **Source nodes** - provide the initial data. Examples: a SQL table, a
-  slice query, or a custom SQL expression.
-- **Operation nodes** - transform the data flowing through them. Examples:
-  filter, aggregate, sort, join.
+```mermaid
+graph LR
+    classDef src fill:#4a90d9,color:#fff,stroke:none
+    classDef mod fill:#36a265,color:#fff,stroke:none
+    classDef multi fill:#ef991c,color:#fff,stroke:none
+    classDef exp fill:#7b68ee,color:#fff,stroke:none
+
+    src["Source<br/>(Table / Slices / Query / Time Range)"]:::src
+    mod["Modification<br/>(Filter / Aggregate / Sort / Add Columns / ...)"]:::mod
+    multi["Multi-source<br/>(Join / Union / Interval Intersect / Create Slices)"]:::multi
+    exp["Export<br/>(Dashboard / Charts / Metrics / Trace Summary)"]:::exp
+
+    src --> mod --> multi --> exp
+    mod --> exp
+```
+
+- **Source nodes** - provide the initial data. Examples: a SQL table,
+  a slice query, or a custom SQL expression.
+- **Modification nodes** - take a single input and transform it.
+  Examples: filter, aggregate, sort, add columns. Every row comes in
+  from one upstream node and comes out modified or filtered.
+- **Multi-source nodes** - combine data from two or more inputs, with
+  no single primary source. Examples: join, union, interval intersect,
+  create slices.
+- **Export nodes** - sit at the end of a pipeline and produce output
+  outside the query graph: a dashboard view, a chart, a metric spec,
+  or a trace summary for cross-trace analysis.
 
 ### The Graph
 
-Nodes are arranged on a canvas and connected by dragging from one node's
-output port to another node's input port. Data flows from left to right
-(or top to bottom). The graph forms a pipeline: each node receives the
-output of the node(s) upstream of it and passes its own output downstream.
+Nodes are arranged on a canvas. Connect two nodes by dragging from one
+node's output port to another node's input port. Most nodes have a
+single **primary input** (vertical flow); some accept **secondary
+inputs** (side ports) for join-style operations. Data flows from left
+to right (or top to bottom): each node receives the output of the
+node(s) upstream of it and passes its own output downstream.
+
+To insert a node into an existing pipeline, click the **+** button on
+the node you want to insert after — the new node is automatically wired
+between that node and its downstream connections. You can also insert
+nodes directly from the data grid without going back to the canvas: for
+example, clicking a cell value adds a Filter node on that value inline.
+
+To delete a node, select it and press `Delete` (or use the right-click
+menu). If the deleted node is in the middle of a pipeline, its primary
+parent is automatically reconnected to its primary children so the rest
+of the graph stays intact.
+
+Use buttons to undo and redo changes.
 
 ### Column Types
 
@@ -82,10 +126,10 @@ and what the data grid can do when you interact with it.
 | `boolean` | True / false |
 | `timestamp` | Absolute timestamp in nanoseconds; displayed as a human-readable time in the data grid |
 | `duration` | Duration in nanoseconds; displayed in readable units (ms, us, etc.) in the data grid |
-| `bytes` | Raw byte sequence |
 | `arg_set_id` | Reference to a set of trace arguments; enables the **From args** feature in Add Columns |
 | `id` | Integer ID referencing a specific row in a known table; displayed as a link to the timeline in the data grid, and enables foreign-key column enrichment |
 | `joinid` | Like `id`, but specifically used as a join key |
+| `bytes` | Raw byte sequence; rarely encountered in practice |
 
 Types are inferred automatically from the standard library schema. For
 columns produced by a Query node or computed expressions, the type may
@@ -96,7 +140,7 @@ Add Columns.
 
 Select any node in the graph to see its results in the data grid below the
 canvas. The grid supports column sorting, filtering, and adding new columns,
-and handles large result sets via server-side pagination. Column types are
+and handles large result sets via pagination through the query engine. Column types are
 used for special cell formatting - durations are shown in readable units,
 and IDs link directly to the timeline.
 
@@ -127,9 +171,9 @@ the node menu. Under **Sources**, pick the starting point for your data:
 | [**Table**](#table) | Use any standard library table | `T` |
 | [**Slices**](#slices) | Pre-configured query over trace thread slices | `L` |
 | [**Query**](#query) | Custom SQL query; column types may need to be set manually | `Q` |
-| [**Time Range**](#time-range) | A time interval, entered manually or synced from the timeline selection | |
+| [**Time Range**](#time-range) | A time interval, entered manually or synced from the timeline selection | — |
 
-### Adding operation nodes
+### Adding nodes
 
 With a node selected, open the node menu and pick an operation. The new
 node is automatically wired to the selected node. Operations come in two
@@ -139,14 +183,13 @@ kinds:
 
 | Node | Description |
 |------|-------------|
-| [**Filter**](#filter) | Filter rows by criteria; conditions are `AND` by default. Can be added directly from the data grid. |
-| [**Filter In**](#filter-in) | Keep only rows where a column value appears in the output of another node. |
+| [**Filter**](#filter) | Filter rows by value, condition, set membership, or time interval. |
 | [**Aggregation**](#aggregation) | Group rows and add aggregated columns. |
 | [**Sort**](#sort) | Order rows by one or more columns, ascending or descending. |
 | [**Modify Columns**](#modify-columns) | Rename, remove, or change the types of columns. |
 | [**Add Columns**](#add-columns) | Add columns from a secondary source or computed expressions. |
 | [**Limit / Offset**](#limit-offset) | Restrict the number of rows returned. |
-| [**Filter During**](#filter-during) | Keep rows that fall within intervals from a secondary source. |
+| [**Filter During**](#filter) | Keep rows that fall within intervals from a secondary source. |
 | [**Counter to Intervals**](#counter-to-intervals) | Convert counter data (timestamps, no duration) into intervals with `ts` and `dur`. |
 | [**Charts**](#charts) | Visualize data as bar charts or histograms; clicking a bar adds a filter. |
 
@@ -168,24 +211,12 @@ primary input:
 | [**Metrics**](#metrics) | Define a trace metric with a value column and dimensions. |
 | [**Trace Summary**](#trace-summary) | Bundle multiple metrics into a single trace summary specification. |
 
-### Connecting nodes manually
-
-Drag from a node's output port to another node's input port to create a
-connection. Most nodes have a single **primary input** (vertical flow) and
-some accept **secondary inputs** (side ports) for join-style operations.
-
-### Deleting a node
-
-Select a node and press `Delete` (or use the right-click menu). If the
-deleted node is in the middle of a pipeline, its primary parent is
-automatically reconnected to its primary children so the rest of the graph
-stays intact.
-
 ## Running Queries
 
-Most nodes execute automatically as you build the graph. For nodes that
-involve custom SQL or complex multi-source operations, a **Run Query**
-button appears - click it to execute manually.
+Most nodes execute automatically as you build the graph. Nodes that
+require you to write SQL or finish configuring inputs before they can
+run — such as the Query node — show a **Run Query** button instead.
+Click it once the node is ready.
 
 ## Viewing Results
 
@@ -195,15 +226,13 @@ bottom of the Data Explorer. The grid supports:
 - **Column sorting** - click a column header to sort
 - **Column filtering** - filter values inline within the grid
 - **Export to timeline** - send results back to the main timeline as a
-  [debug track](/docs/analysis/debug-tracks.md)
+  [debug track](/docs/analysis/debug-tracks.md) using the **Export to
+  timeline** button in the data grid toolbar
 
-To see the generated SQL or the structured query proto for a selected
-node, use the **SQL** and **Proto** tabs in the node sidebar.
-
-## Undo / Redo
-
-Use `Ctrl+Z` / `Ctrl+Y` (or `Cmd+Z` / `Cmd+Y` on Mac) to undo and redo
-changes to the graph.
+To see the generated SQL for a selected node, click the **SQL** tab in
+the node sidebar. The **Proto** tab shows the node's internal query
+representation as a structured proto — useful for debugging or for
+sharing query graphs programmatically.
 
 ## Import / Export
 
@@ -214,8 +243,10 @@ query pipelines with teammates or saving work across sessions.
 ## Examples
 
 Click **Examples** in the Data Explorer toolbar to load a curated set of
-pre-built query graphs. These demonstrate common analysis patterns and are
-a good starting point for building your own queries.
+pre-built query graphs. These cover common analysis patterns — finding
+long slices, aggregating CPU time by process, filtering events to a time
+window, joining thread metadata, and building dashboards — and are a good
+starting point for building your own queries.
 
 ## Node Reference
 
@@ -248,8 +279,12 @@ a guarantee.
 
 #### Slices {#slices}
 
-A pre-configured source over all thread slices in the trace. A good
-starting point for exploring what events are present.
+A pre-configured source over all thread slices in the trace, with thread
+and process metadata already joined in — exposing columns like `ts`,
+`dur`, `name`, `tid`, `pid`, `thread_name`, and `process_name` without
+any manual joining. Equivalent to querying the `slice` table with thread
+and process context. A good starting point for exploring what events are
+present without needing to know which tables to join.
 
 #### Query {#query}
 
@@ -284,42 +319,74 @@ case it updates dynamically as the selection changes. Useful as input to
 
 #### Filter {#filter}
 
-Filters rows based on conditions. In most cases you won't need to create a Filter node manually - it's
-much faster to add filters directly from the results of the node you
-want to filter:
+There are three filter-family nodes, each covering a different kind of
+filtering. All three reduce the number of rows in your result without
+changing the columns.
 
-- **Click a cell value** - instantly adds an equals or not-equals filter
-  on that value.
-- **Click a column header** - opens a picker to select which values to
-  include or exclude.
+<?tabs>
+
+TAB: Normal
+
+Filters rows based on conditions. In most cases you won't need to
+create a Filter node manually - it's much faster to add filters
+directly from the results of the node you want to filter:
+
+- **Click a cell value** - adds an equals or not-equals filter on
+  that value.
+- **Click a column header** - opens a picker to select which values
+  to filter on.
 
 When you do need to create a Filter node manually, it supports two
 modes:
 
-- **Structured** - pick a column, an operator, and a value using the UI.
-  Available operators: `=`, `!=`, `<`, `>`, `<=`, `>=`, `glob`,
+- **Structured** - pick a column, an operator, and a value using the
+  UI. Available operators: `=`, `!=`, `<`, `>`, `<=`, `>=`, `glob`,
   `is null`, `is not null`.
-- **Freeform** - write a raw SQL WHERE expression for cases the
-  structured mode can't express.
+- **Freeform** - write a raw SQL `WHERE` expression for cases the
+  structured mode can't express, such as multi-column conditions or
+  subexpressions that don't fit the picker.
 
 Multiple conditions can be combined with either `AND` (all must be
 satisfied) or `OR` (any must be satisfied) - switchable at the node
 level. Since the AND/OR mode applies to the whole node, complex
 expressions like `(X OR Y) AND Z` are achieved by chaining two Filter
-nodes: one with OR for the `X OR Y` part, and one with AND for the `Z`
-part.
+nodes: one with OR for the `X OR Y` part, and one with AND for the
+`Z` part.
 
-#### Filter In {#filter-in}
+TAB: Filter In
 
 Keeps only rows where a column's value appears in the output of a
-secondary node. Equivalent to a SQL `WHERE col IN (SELECT ...)`. You
-pick a base column from the primary input and a match column from the
+secondary node. Equivalent to a SQL `WHERE col IN (SELECT ...)`.
+
+Pick a base column from the primary input and a match column from the
 secondary input - rows are kept when the base column value is found in
 the match column. If there is only one common column between the two
 inputs, it is auto-suggested.
 
-Useful for, e.g., filtering slices to only those belonging to a specific
-set of threads, or filtering counters by a set of track IDs.
+Useful for filtering slices to only those belonging to a specific set
+of threads, or filtering counters by a set of track IDs.
+
+TAB: Filter During
+
+Keeps only rows whose time intervals overlap with intervals from a
+secondary source. Designed for trace-specific temporal filtering - for
+example, keeping only events that occurred during a specific task,
+frame, or phase of a trace.
+
+Key options:
+
+- **Clip to intervals** (default on) - the output `ts` and `dur` are
+  clipped to the intersection with the filter interval. Turn this off
+  to keep the original `ts` and `dur` of the primary row.
+- **Partition by** - group the overlap calculation by one or more
+  columns (e.g. by thread or process), so that filter intervals are
+  only matched against primary rows in the same group.
+
+Overlapping filter intervals are automatically merged. If a primary
+row spans multiple non-overlapping filter intervals, it is duplicated
+once per interval.
+
+</tabs?>
 
 #### Aggregation {#aggregation}
 
@@ -376,80 +443,107 @@ table, a computed expression, a label derived from a raw ID, a trace
 argument - the node supports six different ways to produce a new
 column:
 
-- **Join from another source** - use this when the column you want
-  lives in a different table. Pick a secondary node, choose which of
-  its columns to bring in, and specify the join keys. The join is
-  performed automatically without writing SQL. There are two ways the
-  join key gets resolved:
-  - If the upstream data already contains a `joinid` column typed to
-    a known table (for example `thread_id` typed to `thread`), the
-    Data Explorer auto-suggests that table and pre-fills both sides of
-    the join key - you just confirm and pick which columns to bring
-    in. This is the common case and usually takes just a couple of
-    clicks.
-  - If there is no typed suggestion, you manually pick a column from
-    the primary input and a matching column from the secondary input
-    to join on.
+<?tabs>
 
-  The join is a **left join**: every row from the upstream node is
-  kept, even if no matching row is found in the secondary source. For
-  rows with no match, the new columns will be `NULL`. This means
-  adding columns never silently drops rows from your result - you
-  always see the full upstream data, with missing values where the
-  join found nothing.
+TAB: Join from another source
 
-  Each incoming column can be renamed and have its type overridden
-  inline.
+Use this when the column you want lives in a different table. Pick a
+secondary node, choose which of its columns to bring in, and specify
+the join keys. The join is performed automatically without writing SQL.
 
-- **Expression** - use this when the column you want can be computed
-  from columns already in the result. Write any valid PerfettoSQL
-  expression and it is evaluated per row. Examples: `dur / 1e6` to
-  convert nanoseconds to milliseconds, `name || ' (' || tid || ')'`
-  to build a display label, `ts + dur` to compute an end timestamp.
-  Anything you can write in a SQL `SELECT` clause works here.
+There are two ways the join key gets resolved:
 
-- **SWITCH** - use this when you want to map specific values of an
-  existing column to a new output value - for example, turning a
-  numeric state code into a human-readable label, or translating an
-  internal enum into something meaningful. Pick the column to switch
-  on, then list cases: when the column equals this value, produce that
-  output. Equivalent to SQL
-  `CASE col WHEN v1 THEN r1 WHEN v2 THEN r2 END`, but expressed
-  through a form with no SQL knowledge needed. On string columns, the
-  match can use **glob patterns** instead of exact equality - so you
-  can map `com.google.*` to `'Google app'` and `com.android.*` to
-  `'Android app'` without listing every package name. This is one of
-  the reasons column types matter: the Data Explorer uses the type to
-  decide whether to offer glob matching as an option.
+- If the upstream data already contains a `joinid` column typed to a
+  known table (for example `thread_id` typed to `thread`), the Data
+  Explorer auto-suggests that table and pre-fills both sides of the
+  join key - you just confirm and pick which columns to bring in. This
+  is the common case and usually takes just a couple of clicks.
+- If there is no typed suggestion, you manually pick a column from the
+  primary input and a matching column from the secondary input to join
+  on.
 
-- **IF** - use this when the column you want depends on a condition
-  rather than an exact value match. Write a condition, a value to
-  produce when it is true, optional `elif` branches for additional
-  cases, and a fallback `else` value. Useful for bucketing rows - for
-  example, producing `'long'` when `dur > 1e9` and `'short'`
-  otherwise, or tagging rows by threshold ranges. Equivalent to SQL
-  `CASE WHEN cond THEN val ... ELSE fallback END`, but expressed
-  through a structured form.
+The join is a **left join**: every row from the upstream node is kept,
+even if no matching row is found in the secondary source. For rows
+with no match, the new columns will be `NULL`. This means adding
+columns never silently drops rows from your result - you always see
+the full upstream data, with missing values where the join found
+nothing.
 
-- **From args** - use this when the column you want is stored as a
-  trace argument on an `arg_set_id` column, which is a very common
-  pattern in Perfetto traces. Instead of manually writing the args
-  join, the Data Explorer inspects the current result set, discovers
-  which arg keys are actually present in the data, and presents them
-  as a searchable list. Pick a key and a new column appears,
-  populated via `extract_arg(arg_set_id_col, key)`, with the column
-  name derived from the key automatically. This makes surfacing
-  arbitrary per-event metadata - render intents, scheduling
-  parameters, app-specific annotations - a matter of a few clicks,
-  with no knowledge of the args table schema required.
+Each incoming column can be renamed and have its type overridden
+inline.
 
-- **Apply function** - use this when the column you want is the return
-  value of a PerfettoSQL standard library function applied to the
-  current rows. A two-step flow: first search and select a function
-  from the stdlib; then configure argument bindings, mapping each
-  function parameter to a source column or a custom expression. Useful
-  for calling helper macros or any stdlib function over your data
-  without dropping into a raw SQL node.
+TAB: Expression
+
+Use this when the column you want can be computed from columns already
+in the result. Write any valid PerfettoSQL expression and it is
+evaluated per row. Anything you can write in a SQL `SELECT` clause
+works here.
+
+Examples:
+
+- `dur / 1e6` - convert nanoseconds to milliseconds
+- `name || ' (' || tid || ')'` - build a display label
+- `ts + dur` - compute an end timestamp
+
+TAB: Switch
+
+Use this when you want to map specific values of an existing column to
+a new output value - for example, turning a numeric state code into a
+human-readable label, or translating an internal enum into something
+meaningful.
+
+Pick the column to switch on, then list cases: when the column equals
+this value, produce that output. Equivalent to SQL
+`CASE col WHEN v1 THEN r1 WHEN v2 THEN r2 END`, but expressed through
+a form with no SQL knowledge needed.
+
+On string columns, the match can use **glob patterns** instead of
+exact equality - so you can map `com.google.*` to `'Google app'` and
+`com.android.*` to `'Android app'` without listing every package name.
+This is one of the reasons column types matter: the Data Explorer uses
+the type to decide whether to offer glob matching as an option.
+
+TAB: If
+
+Use this when the column you want depends on a condition rather than
+an exact value match. Write a condition, a value to produce when it is
+true, optional `elif` branches for additional cases, and a fallback
+`else` value.
+
+Useful for bucketing rows - for example, producing `'long'` when
+`dur > 1e9` and `'short'` otherwise, or tagging rows by threshold
+ranges. Equivalent to SQL
+`CASE WHEN cond THEN val ... ELSE fallback END`, but expressed through
+a structured form.
+
+TAB: From args
+
+Use this when the column you want is stored as a trace argument on an
+`arg_set_id` column, which is a very common pattern in Perfetto
+traces.
+
+Instead of manually writing the args join, the Data Explorer inspects
+the current result set, discovers which arg keys are actually present
+in the data, and presents them as a searchable list. Pick a key and a
+new column appears, populated via `extract_arg(arg_set_id_col, key)`,
+with the column name derived from the key automatically.
+
+This makes surfacing arbitrary per-event metadata - render intents,
+scheduling parameters, app-specific annotations - a matter of a few
+clicks, with no knowledge of the args table schema required.
+
+TAB: Apply function
+
+Use this when the column you want is the return value of a PerfettoSQL
+standard library function applied to the current rows.
+
+A two-step flow: first search and select a function from the stdlib;
+then configure argument bindings, mapping each function parameter to a
+source column or a custom expression. Useful for calling helper macros
+or any stdlib function over your data without dropping into a Query
+node.
+
+</tabs?>
 
 Multiple columns of any mix of types can be added in a single node,
 each configured independently. Each column's type can be overridden
@@ -461,26 +555,6 @@ Restricts how many rows are returned and optionally skips a leading
 number of rows. Equivalent to SQL `LIMIT` / `OFFSET`. Default is
 limit=10, offset=0. Useful for sampling large results or paginating
 through data.
-
-#### Filter During {#filter-during}
-
-Keeps only rows whose time intervals overlap with intervals from a
-secondary source. Designed for trace-specific temporal filtering - for
-example, keeping only events that occurred during a specific task,
-frame, or phase of a trace.
-
-Key options:
-
-- **Clip to intervals** (default on) - the output `ts` and `dur` are
-  clipped to the intersection with the filter interval. Turn this off
-  to keep the original `ts` and `dur` of the primary row.
-- **Partition by** - group the overlap calculation by one or more
-  columns (e.g. by thread or process), so that filter intervals are
-  only matched against primary rows in the same group.
-
-Overlapping filter intervals are automatically merged. If a primary row
-spans multiple non-overlapping filter intervals, it is duplicated once
-per interval.
 
 #### Counter to Intervals {#counter-to-intervals}
 
@@ -543,14 +617,18 @@ or a freeform condition.
 #### Union {#union}
 
 Stacks rows from two or more sources into a single result. Accepts
-any number of inputs (no upper limit). Equivalent to SQL `UNION ALL`
-- duplicate rows are not deduplicated.
+any number of inputs (no upper limit).
 
-Only columns that are common across all inputs are available in the
-output. Inputs do not need identical schemas, but the intersection of
-their column names must be non-empty. Use
-[Modify Columns](#modify-columns) upstream to rename columns if the
-names don't align.
+You select which columns appear in the output. You can include columns
+that are not present in every source - any column missing from one or
+more sources is silently excluded from the output rather than causing
+an error. Use [Modify Columns](#modify-columns) upstream to rename
+columns if the names don't align across sources.
+
+NOTE: This is more permissive than SQL `UNION` / `UNION ALL`, which
+requires all inputs to have identical columns. Here, you can freely
+add sources with different schemas - columns that don't appear in all
+of them simply won't be in the result.
 
 #### Interval Intersect {#interval-intersect}
 
@@ -670,14 +748,22 @@ Clicking **Export** downloads a `trace_summary_spec.pbtxt` file. This
 file can then be run on any trace using the Trace Processor CLI or
 Python API:
 
+<?tabs>
+
+TAB: Command-line
+
 ```sh
 trace_processor_shell summarize --metrics-v2 IDS \
   trace.pftrace spec.pbtxt
 ```
 
+TAB: Python API
+
 ```python
 tp.trace_summary(specs, metric_ids, metadata_query_id)
 ```
+
+</tabs?>
 
 See [Trace Summarization](/docs/analysis/trace-summary.md) for the
 full documentation on how to use the exported spec downstream.
