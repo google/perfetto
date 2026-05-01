@@ -438,7 +438,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     if (trackDataset === undefined) return undefined;
 
     const body = this.distributionLoaded
-      ? this.renderLoadedBody(sliceName, trackDataset)
+      ? this.renderLoadedBody(sliceName, trackDataset, Number(slice.dur))
       : this.renderGatedPlaceholder();
     return m(
       Section,
@@ -468,6 +468,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private renderLoadedBody(
     sliceName: string,
     trackDataset: Dataset,
+    sliceDur: number,
   ): m.Children {
     const dataset = this.activeDataset(trackDataset);
     if (dataset === undefined) return renderDistributionPlaceholder();
@@ -477,6 +478,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         dataset,
         filter: {col: 'name', eq: sliceName},
         valueColumn: 'dur',
+        highlightValue: sliceDur,
       }),
       m(
         '.pf-thread-slice-distribution-link',
@@ -551,7 +553,6 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     const contextMenuItems = getSliceContextMenuItems(sliceInfo);
     if (contextMenuItems.length > 0) {
       const trigger = m(Button, {
-        compact: true,
         label: 'Contextual Options',
         rightIcon: Icons.ContextMenu,
       });
