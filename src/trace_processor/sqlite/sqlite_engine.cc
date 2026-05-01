@@ -274,13 +274,10 @@ SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
 
 base::Status SqliteEngine::ExecWithRetry(const char* sql) {
   sqlite3* db = db_.get();
-  // Same retry shape as |PrepareStatement|: BUSY/LOCKED triggers a sleep+
-  // retry under the busy budget; SCHEMA triggers a re-issue under the
-  // schema budget (sqlite3_exec re-prepares internally each call so
-  // re-issuing handles the cookie bump). |sqlite3_exec| does not leave
-  // partial state behind on BUSY/LOCKED for these short transactional
-  // statements (they touch only the savepoint stack, not the b-tree),
-  // so a plain re-issue is safe.
+  // Same retry shape as `PrepareStatement`. `sqlite3_exec` re-prepares
+  // internally so a plain re-issue handles SCHEMA, and the short
+  // transactional statements this is intended for (SAVEPOINT/RELEASE/
+  // ROLLBACK TO) leave no partial state on BUSY/LOCKED.
   BusyRetryHelper busy_retry(busy_retry_timeout_);
   SchemaRetryHelper schema_retry(busy_retry_timeout_);
   int err = SQLITE_OK;
@@ -435,13 +432,7 @@ SqliteEngine::PreparedStatement::PreparedStatement(
       retry_timeout_(retry_timeout) {}
 
 int SqliteEngine::PreparedStatement::ReprepareFromSource() {
-  // Finalize the stale statement (the bytecode references the old schema
-  // cookie) and re-prepare from the original |SqlSource|. We deliberately
-  // reset |stmt_| *before* the |sqlite3_prepare_v2| call: holding two
-  // statements on the same connection is fine, but releasing the old one
-  // first keeps the state easy to reason about (and the new prepare can't
-  // collide with the old finalize either way because the connection is
-  // single-threaded by construction).
+  // Finalise the stale statement before re-preparing.
   stmt_.reset();
   expanded_sql_.reset();
   sqlite3_stmt* raw_stmt = nullptr;
@@ -461,29 +452,12 @@ bool SqliteEngine::PreparedStatement::Step() {
                       record->AddArg("Executed SQL", sql());
                     });
 
-  // Now step once into |cur_stmt| so that when we prepare the next statment
-  // we will have executed any dependent bytecode in this one.
-  //
-  // Transparent retry for two distinct multi-connection signals:
-  //
-  //   - SQLITE_BUSY / SQLITE_LOCKED: shared-cache contention. The statement
-  //     is in an indeterminate state per the SQLite docs, so we must
-  //     |sqlite3_reset| before retrying. The reset propagates the same
-  //     BUSY/LOCKED status as a deferred error — that is fine, the loop
-  //     simply retries until |ShouldRetry| gives up or the next step
-  //     produces a real status.
-  //
-  //   - SQLITE_SCHEMA: another connection committed DDL since this
-  //     statement was prepared. The bytecode is stale; the only fix is
-  //     to finalize and re-prepare from |sql_source_| — see
-  //     |ReprepareFromSource|. If |SQLITE_ROW| has already been seen for
-  //     this statement, the cursor cannot be safely restarted (the caller
-  //     has already consumed rows, re-preparing would either re-yield
-  //     them or skip rows depending on the new plan), so the error is
-  //     surfaced instead. In practice |SQLITE_SCHEMA| is documented to
-  //     occur only on the *first* step after prepare, so this guard is a
-  //     defence-in-depth assertion of the contract rather than a frequent
-  //     code path.
+  // Transparent retry for two multi-conn signals:
+  // - SQLITE_BUSY/LOCKED: shared-cache contention. Reset and retry.
+  // - SQLITE_SCHEMA: a peer connection bumped the schema cookie; the
+  //   bytecode is stale. Re-prepare from `sql_source_` and retry. If
+  //   we've already yielded a row, the cursor can't be safely
+  //   restarted, so surface the error instead.
   int err = SQLITE_OK;
   BusyRetryHelper busy_retry(retry_timeout_);
   SchemaRetryHelper schema_retry(retry_timeout_);
@@ -498,18 +472,13 @@ bool SqliteEngine::PreparedStatement::Step() {
     }
     if (err == SQLITE_SCHEMA) {
       if (rows_seen_) {
-        // Mid-iteration schema bump — cannot safely restart the cursor,
-        // surface the error to the caller.
-        break;
+        break;  // can't restart mid-cursor; surface the error.
       }
       if (!schema_retry.ShouldRetry(err)) {
         break;
       }
-      // Re-prepare from |sql_source_|. The re-prepare itself can yield
-      // SCHEMA (if another DDL slipped in between) or BUSY/LOCKED (the
-      // shared-cache schema lock); both are absorbed by the same retry
-      // budget here. SQLITE_OK falls through to the top of the loop to
-      // re-issue |sqlite3_step| on the freshly-prepared statement.
+      // Re-prepare can itself hit SCHEMA or BUSY/LOCKED; both are
+      // absorbed by the same retry budgets here.
       int rc = ReprepareFromSource();
       while (rc != SQLITE_OK) {
         if (rc == SQLITE_SCHEMA && schema_retry.ShouldRetry(rc)) {
@@ -561,10 +530,7 @@ bool BusyRetryHelper::ShouldRetry(int sqlite_status) {
   if (base::GetWallTimeMs() >= deadline_) {
     return false;
   }
-  // Capped exponential backoff: 100us, 1ms, 10ms, then 50ms thereafter.
-  // The exact schedule is not load-bearing; the goal is to yield the
-  // thread for a bounded number of microseconds so the contending writer
-  // can make progress, without busy-spinning.
+  // Capped exponential backoff: 100us, 1ms, 10ms, then 50ms.
   static constexpr unsigned kBackoffSchedule[] = {100, 1000, 10000, 50000};
   unsigned interval_us =
       kBackoffSchedule[std::min<size_t>(attempt_,
