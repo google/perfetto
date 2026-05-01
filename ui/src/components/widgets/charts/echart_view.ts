@@ -136,6 +136,13 @@ function buildEChartsTheme(colors: ChartThemeColors): Record<string, unknown> {
       splitLine: {lineStyle: {color: colors.borderColor}},
       nameTextStyle: {color: colors.textColor},
     },
+    timeAxis: {
+      axisLine: {lineStyle: {color: colors.borderColor}},
+      axisTick: {lineStyle: {color: colors.borderColor}},
+      axisLabel: {color: colors.textColor},
+      splitLine: {lineStyle: {color: colors.borderColor}},
+      nameTextStyle: {color: colors.textColor},
+    },
     visualMap: {
       textStyle: {color: colors.textColor},
       inRange: {
