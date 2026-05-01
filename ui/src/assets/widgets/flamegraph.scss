@@ -72,6 +72,10 @@
     align-self: center;
   }
 
+  .pf-flamegraph-filter-bar-spacer {
+    flex: 0 0 8px;
+  }
+
   .pf-flamegraph-filter-label {
     font-weight: 500;
     flex-shrink: 0;

@@ -20,6 +20,7 @@ import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
+import {AddFlamegraphMenu} from '../tracks/add_flamegraph_menu';
 import {getSelectableColumns, SqlTableState} from '../widgets/sql/table/state';
 import {SqlTable} from '../widgets/sql/table/table';
 import type {SqlTableDefinition} from '../widgets/sql/table/table_description';
@@ -126,6 +127,7 @@ class SqlTableTab implements Tab {
     const debugTrackColumns = Object.values(columns).filter(
       (c) => !c.startsWith('__'),
     );
+    const sourceQuery = `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`;
     const addDebugTrack = m(
       Popup,
       {
@@ -134,13 +136,26 @@ class SqlTableTab implements Tab {
       },
       m(AddDebugTrackMenu, {
         trace: this.tableState.trace,
-        query: `SELECT ${debugTrackColumns.join(', ')} FROM (${selectStatement})`,
+        query: sourceQuery,
+        availableColumns: debugTrackColumns,
+      }),
+    );
+    const addFlamegraph = m(
+      Popup,
+      {
+        trigger: m(Button, {label: 'Add flamegraph'}),
+        position: PopupPosition.Top,
+      },
+      m(AddFlamegraphMenu, {
+        trace: this.tableState.trace,
+        query: sourceQuery,
         availableColumns: debugTrackColumns,
       }),
     );
     return [
       ...navigation,
       addDebugTrack,
+      addFlamegraph,
       m(
         PopupMenu,
         {

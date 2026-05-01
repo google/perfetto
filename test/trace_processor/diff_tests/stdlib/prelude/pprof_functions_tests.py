@@ -196,6 +196,70 @@ class PreludePprofFunctions(TestSuite):
                 C (0x0)
             """))
 
+  def test_profile_from_tree(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample.pb"),
+        query="""
+        WITH t(id, parent_id, name, value) AS (
+          VALUES
+            (1, NULL, 'main', 0),
+            (2, 1,    'foo',  100),
+            (3, 1,    'bar',  50),
+            (4, 2,    'baz',  25)
+        )
+        SELECT HEX(profile_from_tree(
+          id, parent_id, name, value, 'wall', 'nanoseconds'))
+        FROM t
+        """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
+            Sample:
+              Values: 100
+              Stack:
+                foo (0x0)
+                main (0x0)
+
+            Sample:
+              Values: 25
+              Stack:
+                baz (0x0)
+                foo (0x0)
+                main (0x0)
+
+            Sample:
+              Values: 50
+              Stack:
+                bar (0x0)
+                main (0x0)
+            """))
+
+  def test_pprof_from_tree_macro(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample.pb"),
+        query="""
+        INCLUDE PERFETTO MODULE pprof.from_tree;
+        WITH t(id, parent_id, name, value) AS (
+          VALUES
+            (1, NULL, 'root',  0),
+            (2, 1,    'leaf', 7)
+        )
+        SELECT HEX(_pprof_from_tree!(
+          _tree_from_table!(t, (name, value)),
+          name, value, 'samples', 'count'))
+        """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
+            Sample:
+              Values: 7
+              Stack:
+                leaf (0x0)
+                root (0x0)
+            """))
+
   def test_annotated_callstack(self):
     return DiffTestBlueprint(
         trace=DataPath("perf_sample_annotations.pftrace"),

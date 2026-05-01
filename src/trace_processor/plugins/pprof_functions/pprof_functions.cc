@@ -16,11 +16,15 @@
 
 #include "src/trace_processor/plugins/pprof_functions/pprof_functions.h"
 
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -29,8 +33,11 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
+#include "protos/third_party/pprof/profile.pbzero.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
@@ -202,6 +209,289 @@ struct ProfileBuilder {
   }
 };
 
+// Aggregate that converts an `(id, parent_id, frame_name, self_value)` tree
+// — together with constant `sample_type` and `unit` strings — into a
+// serialized pprof Profile proto.
+//
+// Conventions:
+// - `id` must be unique per row (duplicates fail the aggregate).
+// - `parent_id` NULL marks a root; multiple roots are allowed.
+// - `parent_id` referencing an unknown id fails the aggregate.
+// - `self_value` <= 0 (or NULL) means no Sample is emitted for that node
+//   but the location is still available as an ancestor for samples below.
+// - `sample_type` and `unit` are read from the first row only; SQL callers
+//   are expected to pass them as constants. Later rows are not re-checked.
+//
+// Order independence: rows are buffered during Step and resolved in Final,
+// so any SQL ordering is correct.
+class TreeAggregateContext {
+ public:
+  base::Status Step(size_t argc, sqlite3_value** argv) {
+    if (argc != 6) {
+      return base::ErrStatus(
+          "PROFILE_FROM_TREE: expected 6 args (id, parent_id, frame_name, "
+          "self_value, sample_type, unit); got %zu",
+          argc);
+    }
+
+    base::StatusOr<SqlValue> id =
+        sqlite::utils::ExtractArgument(argc, argv, "id", 0, SqlValue::kLong);
+    if (!id.ok()) {
+      return id.status();
+    }
+
+    Node node;
+    node.id = id->AsLong();
+
+    if (sqlite3_value_type(argv[1]) != SQLITE_NULL) {
+      base::StatusOr<SqlValue> parent_id = sqlite::utils::ExtractArgument(
+          argc, argv, "parent_id", 1, SqlValue::kLong);
+      if (!parent_id.ok()) {
+        return parent_id.status();
+      }
+      node.parent_id = parent_id->AsLong();
+    }
+
+    if (sqlite3_value_type(argv[2]) != SQLITE_NULL) {
+      base::StatusOr<SqlValue> name = sqlite::utils::ExtractArgument(
+          argc, argv, "frame_name", 2, SqlValue::kString);
+      if (!name.ok()) {
+        return name.status();
+      }
+      node.name = name->AsString();
+    }
+
+    if (sqlite3_value_type(argv[3]) != SQLITE_NULL) {
+      base::StatusOr<SqlValue> value = sqlite::utils::ExtractArgument(
+          argc, argv, "self_value", 3, SqlValue::kLong);
+      if (!value.ok()) {
+        return value.status();
+      }
+      node.self_value = value->AsLong();
+    }
+
+    if (sample_type_.empty()) {
+      base::StatusOr<SqlValue> stype = sqlite::utils::ExtractArgument(
+          argc, argv, "sample_type", 4, SqlValue::kString);
+      if (!stype.ok()) {
+        return stype.status();
+      }
+      sample_type_ = stype->AsString();
+
+      base::StatusOr<SqlValue> u = sqlite::utils::ExtractArgument(
+          argc, argv, "unit", 5, SqlValue::kString);
+      if (!u.ok()) {
+        return u.status();
+      }
+      unit_ = u->AsString();
+    }
+
+    auto [_, inserted] = id_to_index_.emplace(node.id, nodes_.size());
+    if (!inserted) {
+      return base::ErrStatus("PROFILE_FROM_TREE: duplicate id %" PRId64,
+                             node.id);
+    }
+    nodes_.push_back(std::move(node));
+    return base::OkStatus();
+  }
+
+  void Final(sqlite3_context* ctx) {
+    base::Status status = Build(ctx);
+    if (!status.ok()) {
+      sqlite::utils::SetError(ctx, "PROFILE_FROM_TREE", status);
+    }
+  }
+
+ private:
+  struct Node {
+    int64_t id = 0;
+    std::optional<int64_t> parent_id;
+    std::string name;
+    int64_t self_value = 0;
+  };
+
+  // Adds `s` to the staged string_table if not already present. Indices
+  // are 0-based; index 0 is always "" per the pprof format.
+  int64_t InternString(const std::string& s) {
+    auto it = string_index_.find(s);
+    if (it != string_index_.end()) {
+      return it->second;
+    }
+    auto index = static_cast<int64_t>(string_table_.size());
+    string_table_.push_back(s);
+    string_index_[s] = index;
+    return index;
+  }
+
+  base::Status Build(sqlite3_context* ctx) {
+    protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
+        profile;
+
+    // protozero only allows one open child submessage at a time. We
+    // therefore stage every string in `string_table_` first, so writing
+    // a submessage never needs to insert a new top-level string_table
+    // field while the child is still open.
+    InternString("");
+
+    if (sample_type_.empty()) {
+      // No rows. Emit a valid, empty Profile (just the empty string).
+      profile->add_string_table(string_table_[0]);
+      std::string out = profile.SerializeAsString();
+      sqlite::result::TransientBytes(ctx, out.data(),
+                                     static_cast<int>(out.size()));
+      return base::OkStatus();
+    }
+
+    int64_t type_idx = InternString(sample_type_);
+    int64_t unit_idx = InternString(unit_);
+
+    // Stage one Function per unique frame_name and remember the
+    // assigned function id keyed by name. Function ids start at 1.
+    std::unordered_map<std::string, uint64_t> name_to_function_id;
+    struct StagedFunction {
+      uint64_t id;
+      int64_t name_idx;
+    };
+    std::vector<StagedFunction> staged_functions;
+    auto get_function_id = [&](const std::string& name) -> uint64_t {
+      auto it = name_to_function_id.find(name);
+      if (it != name_to_function_id.end()) {
+        return it->second;
+      }
+      uint64_t id = name_to_function_id.size() + 1;
+      name_to_function_id[name] = id;
+      staged_functions.push_back({id, InternString(name)});
+      return id;
+    };
+
+    // Location id == nodes_index + 1 (dense, stable).
+    std::vector<uint64_t> location_function_id(nodes_.size());
+    for (size_t i = 0; i < nodes_.size(); ++i) {
+      location_function_id[i] = get_function_id(nodes_[i].name);
+    }
+
+    // Validate the parent chain: every non-NULL parent_id must point at
+    // a known id. Cycle detection is deferred to the sample walk where
+    // it is per-sample.
+    std::vector<std::optional<size_t>> parent_index(nodes_.size());
+    for (size_t i = 0; i < nodes_.size(); ++i) {
+      const auto& n = nodes_[i];
+      if (!n.parent_id) {
+        continue;
+      }
+      auto it = id_to_index_.find(*n.parent_id);
+      if (it == id_to_index_.end()) {
+        return base::ErrStatus("PROFILE_FROM_TREE: id %" PRId64
+                               " has parent_id %" PRId64
+                               " which was not seen in the input",
+                               n.id, *n.parent_id);
+      }
+      parent_index[i] = it->second;
+    }
+
+    {
+      auto* st = profile->add_sample_type();
+      st->set_type(type_idx);
+      st->set_unit(unit_idx);
+    }
+
+    for (const auto& fn : staged_functions) {
+      auto* f = profile->add_function();
+      f->set_id(fn.id);
+      f->set_name(fn.name_idx);
+      f->set_system_name(fn.name_idx);
+    }
+
+    for (size_t i = 0; i < nodes_.size(); ++i) {
+      auto* loc = profile->add_location();
+      loc->set_id(static_cast<uint64_t>(i + 1));
+      auto* line = loc->add_line();
+      line->set_function_id(location_function_id[i]);
+    }
+
+    // For every node with a positive self_value emit one Sample whose
+    // location stack is the path from the node up to the root. pprof's
+    // Sample.location_id and Sample.value are packed-varint repeated
+    // fields; pbzero exposes them via PackedVarInt + set_*.
+    for (size_t i = 0; i < nodes_.size(); ++i) {
+      const auto& n = nodes_[i];
+      if (n.self_value <= 0) {
+        continue;
+      }
+      protozero::PackedVarInt locs;
+      std::unordered_set<size_t> visited;
+      for (std::optional<size_t> cur = i; cur; cur = parent_index[*cur]) {
+        if (!visited.insert(*cur).second) {
+          return base::ErrStatus(
+              "PROFILE_FROM_TREE: cycle detected at id %" PRId64,
+              nodes_[*cur].id);
+        }
+        locs.Append(static_cast<uint64_t>(*cur + 1));
+      }
+      protozero::PackedVarInt vals;
+      vals.Append(n.self_value);
+
+      auto* sample = profile->add_sample();
+      sample->set_location_id(locs);
+      sample->set_value(vals);
+    }
+
+    for (const auto& s : string_table_) {
+      profile->add_string_table(s);
+    }
+
+    std::string out = profile.SerializeAsString();
+    sqlite::result::TransientBytes(ctx, out.data(),
+                                   static_cast<int>(out.size()));
+    return base::OkStatus();
+  }
+
+  std::vector<Node> nodes_;
+  std::unordered_map<int64_t, size_t> id_to_index_;
+  std::vector<std::string> string_table_;
+  std::unordered_map<std::string, int64_t> string_index_;
+  std::string sample_type_;
+  std::string unit_;
+};
+
+base::Status TreeStepStatus(sqlite3_context* ctx,
+                            size_t argc,
+                            sqlite3_value** argv) {
+  auto** agg_context_ptr = static_cast<TreeAggregateContext**>(
+      sqlite3_aggregate_context(ctx, sizeof(TreeAggregateContext*)));
+  if (!agg_context_ptr) {
+    return base::ErrStatus("Failed to allocate aggregate context");
+  }
+  if (!*agg_context_ptr) {
+    *agg_context_ptr = new TreeAggregateContext();
+  }
+  return (*agg_context_ptr)->Step(argc, argv);
+}
+
+struct ProfileFromTree {
+  static constexpr char kName[] = "PROFILE_FROM_TREE";
+  static constexpr int kArgCount = 6;
+  using UserData = TraceProcessorContext;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_CHECK(argc >= 0);
+    base::Status status = TreeStepStatus(ctx, static_cast<size_t>(argc), argv);
+    if (!status.ok()) {
+      sqlite::utils::SetError(ctx, kName, status);
+    }
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    auto** agg_context_ptr =
+        static_cast<TreeAggregateContext**>(sqlite3_aggregate_context(ctx, 0));
+    if (!agg_context_ptr) {
+      return;
+    }
+    (*agg_context_ptr)->Final(ctx);
+    delete (*agg_context_ptr);
+  }
+};
+
 }  // namespace
 
 namespace pprof_functions {
@@ -215,6 +505,7 @@ class PprofFunctionsPlugin : public Plugin<PprofFunctionsPlugin> {
       PerfettoSqlConnection*,
       std::vector<AggregateFunctionRegistration>& out) override {
     out.push_back(MakeAggregateRegistration<ProfileBuilder>(trace_context_));
+    out.push_back(MakeAggregateRegistration<ProfileFromTree>(trace_context_));
   }
 };
 

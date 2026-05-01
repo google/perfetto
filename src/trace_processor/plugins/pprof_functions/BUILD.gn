@@ -24,8 +24,10 @@ source_set("pprof_functions") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
+    "../../../../include/perfetto/protozero",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace_processor:zero",
+    "../../../../protos/third_party/pprof:zero",
     "../../../base",
     "../../core/plugin",
     "../../perfetto_sql/engine",
