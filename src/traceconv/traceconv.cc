@@ -39,7 +39,6 @@
 #include "src/traceconv/trace.descriptor.h"
 #include "src/traceconv/trace_to_bundle.h"
 #include "src/traceconv/trace_to_firefox.h"
-#include "src/traceconv/trace_to_hprof.h"
 #include "src/traceconv/trace_to_json.h"
 #include "src/traceconv/trace_to_profile.h"
 #include "src/traceconv/trace_to_systrace.h"
@@ -90,10 +89,6 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
 
  java_heap_profile                    Legacy alias for "profile --java-heap"
 
- hprof                                Converts heap profile to hprof format
-   --timestamps T1,T2,...             Generate profiles for specific timestamps
-   --pid PID                          Generate profiles for specific process
-
  symbolize                            Symbolizes addresses in profiles
    (no additional options)
 
@@ -112,6 +107,11 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
    --symbol-paths PATH1,PATH2,...     Additional paths to search for symbols
                                       (beyond automatic discovery)
    --no-auto-symbol-paths             Disable automatic symbol path discovery
+   --proguard-map [pkg=]PATH          ProGuard/R8 mapping.txt for Java/Kotlin
+                                      deobfuscation (may be repeated).
+                                      pkg= prefix scopes the map to a package.
+   --no-auto-proguard-maps            Disable automatic ProGuard/R8 mapping
+                                      discovery (e.g. Gradle project layout)
    --verbose                          Print more detailed output
 
  binary                               Converts text proto to binary format
@@ -162,7 +162,9 @@ int Main(int argc, char** argv) {
   std::optional<trace_to_text::ConversionMode> profile_type;
   bool profile_no_annotations = false;
   std::vector<std::string> symbol_paths;
+  std::vector<trace_to_text::ProguardMapSpec> proguard_maps;
   bool no_auto_symbol_paths = false;
+  bool no_auto_proguard_maps = false;
   bool verbose = false;
   bool skip_unknown_fields = false;
   std::string output_dir;
@@ -207,6 +209,24 @@ int Main(int argc, char** argv) {
       symbol_paths = base::SplitString(argv[i], ",");
     } else if (strcmp(argv[i], "--no-auto-symbol-paths") == 0) {
       no_auto_symbol_paths = true;
+    } else if (strcmp(argv[i], "--no-auto-proguard-maps") == 0) {
+      no_auto_proguard_maps = true;
+    } else if (i < argc && strcmp(argv[i], "--proguard-map") == 0) {
+      i++;
+      if (i >= argc) {
+        PERFETTO_ELOG("--proguard-map requires an argument.");
+        return Usage(argv[0]);
+      }
+      std::string arg = argv[i];
+      size_t eq = arg.find('=');
+      trace_to_text::ProguardMapSpec spec;
+      if (eq == std::string::npos) {
+        spec.path = std::move(arg);
+      } else {
+        spec.package = arg.substr(0, eq);
+        spec.path = arg.substr(eq + 1);
+      }
+      proguard_maps.push_back(std::move(spec));
     } else if (strcmp(argv[i], "--verbose") == 0) {
       verbose = true;
     } else if (i < argc && strcmp(argv[i], "--output-dir") == 0) {
@@ -266,11 +286,10 @@ int Main(int argc, char** argv) {
 
   std::string format(positional_args[0]);
 
-  if ((format != "profile" && format != "hprof" &&
-       format != "java_heap_profile") &&
+  if ((format != "profile" && format != "java_heap_profile") &&
       (pid != 0 || !timestamps.empty())) {
     PERFETTO_ELOG(
-        "--pid and --timestamps are supported only for profile, hprof, "
+        "--pid and --timestamps are supported only for profile "
         "and java_heap_profile formats.");
     return 1;
   }
@@ -342,10 +361,6 @@ int Main(int argc, char** argv) {
         trace_to_text::ConversionMode::kJavaHeapProfile, verbose);
   }
 
-  if (format == "hprof")
-    return trace_to_text::TraceToHprof(input_stream, output_stream, pid,
-                                       timestamps);
-
   if (format == "symbolize")
     return trace_to_text::SymbolizeProfile(input_stream, output_stream,
                                            verbose);
@@ -389,7 +404,9 @@ int Main(int argc, char** argv) {
 
     trace_to_text::BundleContext context;
     context.symbol_paths = symbol_paths;
+    context.proguard_maps = std::move(proguard_maps);
     context.no_auto_symbol_paths = no_auto_symbol_paths;
+    context.no_auto_proguard_maps = no_auto_proguard_maps;
     context.verbose = verbose;
     if (const char* val = getenv("ANDROID_PRODUCT_OUT")) {
       context.android_product_out = val;

@@ -17,6 +17,7 @@ import {errResult, okResult, Result} from '../../../base/result';
 import {PreflightCheck} from '../interfaces/connection_check';
 import {AdbDevice} from './adb_device';
 import {getAdbTracingServiceState} from './adb_tracing_session';
+import {RecordTraceV2Settings} from '../settings';
 
 /**
  * Common pre-flight checks for Android targets. This function is used by
@@ -26,6 +27,7 @@ import {getAdbTracingServiceState} from './adb_tracing_session';
  */
 export async function* checkAndroidTarget(
   adbDevice: AdbDevice,
+  settings: RecordTraceV2Settings,
 ): AsyncGenerator<PreflightCheck> {
   yield {
     name: 'Android version',
@@ -53,7 +55,7 @@ export async function* checkAndroidTarget(
       );
     })(),
   };
-  const svcStatus = await getAdbTracingServiceState(adbDevice);
+  const svcStatus = await getAdbTracingServiceState(adbDevice, settings);
   yield {
     name: 'Traced version',
     status: await (async (): Promise<Result<string>> => {

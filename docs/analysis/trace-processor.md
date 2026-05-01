@@ -9,29 +9,64 @@ descriptions and deriving new events from the contents of the trace._
 
 ![Trace processor block diagram](/docs/images/trace-processor.png)
 
-## Getting Started with the Shell
+Most users will interact with Trace Processor through the
+[`trace_processor` shell](#shell), a command-line wrapper around the library
+that opens an interactive PerfettoSQL prompt. Embedders that want to integrate
+Trace Processor into another C++ application should jump to
+[Embedding the C++ library](#embedding). Python users should see the
+[Python API](trace-processor-python.md) instead.
+
+## {#shell} The trace_processor shell
 
 The `trace_processor` shell is a command-line binary which wraps the C++
 library, providing a convenient way to interactively analyze traces.
 
 ### Downloading the shell
 
-The shell can be downloaded from the Perfetto website:
+The shell can be downloaded from the Perfetto website. The download is a thin
+Python wrapper that fetches and caches the correct native binary for your
+platform (including `trace_processor_shell.exe` on Windows) under
+`~/.local/share/perfetto/prebuilts` on first use.
+
+<?tabs>
+
+TAB: Linux / macOS
 
 ```bash
-# Download prebuilts (Linux and Mac only)
 curl -LO https://get.perfetto.dev/trace_processor
 chmod +x ./trace_processor
 ```
+
+TAB: Windows
+
+```powershell
+curl.exe -LO https://get.perfetto.dev/trace_processor
+```
+
+Python 3 is required to run the wrapper script. `curl` ships with Windows 10
+and later.
+
+</tabs?>
 
 ### Running the shell
 
 Once downloaded, you can immediately use it to open a trace file:
 
+<?tabs>
+
+TAB: Linux / macOS
+
 ```bash
-# Start the interactive shell
 ./trace_processor trace.perfetto-trace
 ```
+
+TAB: Windows
+
+```powershell
+python trace_processor trace.perfetto-trace
+```
+
+</tabs?>
 
 This will open an interactive SQL shell where you can query the trace. For
 more information on how to write queries, see the
@@ -66,160 +101,262 @@ ts                   value
 ...
 ```
 
+### {#subcommands} Subcommand interface
 
-## Python API
+In addition to launching an interactive REPL, `trace_processor` exposes a
+subcommand-based CLI for non-interactive workflows: running a SQL query,
+computing trace summaries, exporting to SQLite, starting an RPC server, and
+converting between trace formats. The general invocation is:
 
-The trace processor's C++ library is also exposed through Python. This is
-documented on a [separate page](/docs/analysis/trace-processor-python.md).
-
-## Testing
-
-Trace processor is mainly tested in two ways:
-
-1. Unit tests of low-level building blocks
-2. "Diff" tests which parse traces and check the output of queries
-
-### Unit tests
-
-Unit testing trace processor is the same as in other parts of Perfetto and other
-C++ projects. However, unlike the rest of Perfetto, unit testing is relatively
-light in trace processor.
-
-We have discovered over time that unit tests are generally too brittle when
-dealing with code which parses traces leading to painful, mechanical changes
-being needed when refactorings happen.
-
-Because of this, we choose to focus on diff tests for most areas (e.g. parsing
-events, testing schema of tables etc.) and only use unit testing for the
-low-level building blocks on which the rest of trace processor is built.
-
-### Diff tests
-
-Diff tests are essentially integration tests for trace processor and the main
-way trace processor is tested.
-
-Each diff test takes as input a) a trace file b) a query file _or_ a metric
-name. It runs `trace_processor_shell` to parse the trace and then executes the
-query/metric. The result is then compared to a 'golden' file and any difference
-is highlighted.
-
-All diff tests are organized under [test/trace_processor](/test/trace_processor)
-in `tests{_category name}.py` files as methods of a class in each file and are
-run by the script
-[`tools/diff_test_trace_processor.py`](/tools/diff_test_trace_processor.py). To
-add a new test its enough to add a new method starting with `test_` in suitable
-python tests file.
-
-Methods can't take arguments and have to return `DiffTestBlueprint`:
-
-```python
-class DiffTestBlueprint:
-  trace: Union[Path, Json, Systrace, TextProto]
-  query: Union[str, Path, Metric]
-  out: Union[Path, Json, Csv, TextProto]
+```text
+trace_processor <command> [flags] [positional args]
 ```
 
-_Trace_ and _Out_: For every type apart from `Path`, contents of the object will
-be treated as file contents so it has to follow the same rules.
+Run `trace_processor --help` for the top-level summary, or
+`trace_processor help <command>` (equivalently `trace_processor <command> --help`)
+for the flags accepted by a specific subcommand. The top-level help looks
+like this:
 
-_Query_: For metric tests it is enough to provide the metric name. For query
-tests there can be a raw SQL statement, for example `"SELECT * FROM SLICE"` or
-path to an `.sql` file.
+```text
+Perfetto Trace Processor.
+Usage: trace_processor [command] [flags] [trace_file]
 
-NOTE: `trace_processor_shell` and associated proto descriptors needs to be built
-before running `tools/diff_test_trace_processor.py`. The easiest way to do this
-is to run `tools/ninja -C <out directory>` both initially and on every change to
-trace processor code.
+If no command is given, opens an interactive SQL shell on the trace file.
 
-#### Choosing where to add diff tests
+Commands:
+  query         Load a trace and run a SQL query.
+  interactive   Interactive SQL shell (default if no command is given).
+  server        Start an RPC server (http or stdio).
+  summarize     Compute a trace summary from specs and/or built-in metrics.
+  export        Export a trace to a database file.
+  metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
+  convert       Convert trace format.
 
-`diff_tests/` folder contains four directories corresponding to different areas
-of trace processor.
+Common flags (apply to all commands):
+  -h, --help                  Show help (per-command if after a command).
+  -v, --version               Print version.
+      --full-sort             Force full sort ignoring windowing.
+      --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
+      --add-sql-package PATH  Register SQL files from a directory as a package.
+  -m, --metatrace FILE        Enable metatracing, write to FILE.
+```
 
-1. **stdlib**: Tests focusing on testing Perfetto Standard Library, both prelude
-   and the regular modules. The subdirectories in this folder should generally
-   correspond to directories in `perfetto_sql/stdlib`.
-2. **parser**: Tests focusing on ensuring that different trace files are parsed
-   correctly and the corresponding built-in tables are populated.
-3. **syntax**: Tests focusing on testing the core syntax of PerfettoSQL (i.e.
-   `CREATE PERFETTO TABLE` or `CREATE PERFETTO FUNCTION`).
+> **Backwards compatibility.** The previous flat-flag interface (e.g. `-q`,
+> `-Q`, `--httpd`, `--summary`, `--run-metrics`, `-e`, `--stdiod`) is fully
+> supported via an internal translation layer; existing scripts and
+> integrations continue to work unchanged. Run
+> `trace_processor --help-classic` to see the full classic flag reference.
 
-**Scenario**: A new stdlib module `foo/bar.sql` is being added.
+#### {#subcommand-query} `query` — run SQL
 
-_Answer_: Add the test to the `stdlib/foo/bar_tests.py` file.
+Loads a trace, runs one or more `;`-separated SQL statements, prints the
+result to stdout, and exits. SQL can be supplied as an inline positional
+argument, read from a file with `-f/--query-file`, or piped on stdin
+(either by passing `-` to `--query-file` or by piping when no SQL was
+specified):
 
-**Scenario**: A new event is being parsed, the focus of the test is to ensure
-the event is being parsed correctly.
+```bash
+# 1. Inline query.
+trace_processor query trace.pftrace "SELECT ts, dur, name FROM slice LIMIT 5"
 
-_Answer_: Add the test in one of the `parser` subdirectories. Prefer adding a
-test to an existing related directory (i.e. `sched`, `power`) if one exists.
+# 2. From a file.
+trace_processor query -f queries.sql trace.pftrace
 
-**Scenario**: A new dynamic table is being added and the focus of the test is to
-ensure the dynamic table is being correctly computed...
+# 3. From stdin.
+cat queries.sql | trace_processor query trace.pftrace
+```
 
-_Answer_: Add the test to the `stdlib/dynamic_tables` folder
+Useful flags:
 
-**Scenario**: The interals of trace processor are being modified and the test is
-to ensure the trace processor is correctly filtering/sorting important built-in
-tables.
+- `-f, --query-file FILE` — read SQL from `FILE` (or `-` for stdin).
+- `-i, --interactive` — drop into the interactive REPL after the queries
+  finish.
+- `-W, --wide` — double-width columns when printing results.
+- `--perf-file FILE` — write trace-load and query timings to `FILE`.
+- `--structured-query-id ID` + `--summary-spec FILE` _(advanced)_ — execute
+  a single structured query by ID from one or more
+  [TraceSummarySpec](trace-summary.md) files. The spec(s) replace the
+  inline/file/stdin SQL source.
 
-_Answer_: Add the test to the `parser/core_tables` folder.
+#### {#subcommand-interactive} `interactive` — REPL
 
-## {#embedding} Embedding
+Opens the same interactive PerfettoSQL prompt shown in the previous
+section. This is the default subcommand when none is specified, so
+`trace_processor trace.pftrace` and
+`trace_processor interactive trace.pftrace` are equivalent. The only
+subcommand-specific flag is `-W, --wide`.
 
-### Building
+#### {#subcommand-server} `server` — HTTP / stdio RPC
 
-As with all components in Perfetto, the trace processor can be built in several
-build systems:
+Exposes trace processor over a remote-procedure-call protocol.
 
-- GN (the native system)
-- Bazel
-- As part of the Android tree
+```bash
+# HTTP server (used by ui.perfetto.dev). Listens on 9001 by default.
+trace_processor server http
 
-The trace processor is exposed as a static library `//:trace_processor` to Bazel
-and `src/trace_processor:trace_processor` in GN; it is not exposed to Android
-(but patches to add support for this are welcome).
+# Pre-load a trace and serve it over HTTP.
+trace_processor server http trace.pftrace
 
-The trace processor is also built as a WASM target
-`src/trace_processor:trace_processor_wasm` for the Perfetto UI; patches for
-adding support for other supported build systems are welcome.
+# stdio server (length-prefixed RPC; used by tooling that embeds
+# trace_processor as a subprocess).
+trace_processor server stdio
+```
 
-The trace processor is also built as a shell binary, `trace_processor_shell`
-which backs the `trace_processor` tool described in other parts of the
-documentation. This is exposed as the `trace_processor_shell` target to Android,
-`//:trace_processor_shell` to Bazel and
-`src/trace_processor:trace_processor_shell` in GN.
+Server-specific flags:
 
-### Library structure
+- `--port PORT` — HTTP port (default 9001).
+- `--ip-address IP` — HTTP bind address.
+- `--additional-cors-origins O1,O2,...` — extra CORS-allowed origins on
+  top of the defaults (`https://ui.perfetto.dev`, `http://localhost:10000`,
+  `http://127.0.0.1:10000`).
 
-The trace processor library is structured around the `TraceProcessor` class; all
-API methods exposed by trace processor are member functions on this class.
+The trace file is optional in `http` mode: clients can also load traces
+remotely. The most common client is the Perfetto UI, which auto-detects a
+local server and offloads trace parsing to it; see
+[Visualising large traces](/docs/visualization/large-traces.md) for the
+end-user flow, or
+[trace_processor.proto](/protos/perfetto/trace_processor/trace_processor.proto)
+for the RPC wire schema.
 
-The C++ header for this class is split between two files:
-[include/perfetto/trace_processor/trace_processor_storage.h](/include/perfetto/trace_processor/trace_processor_storage.h)
-and
-[include/perfetto/trace_processor/trace_processor.h](/include/perfetto/trace_processor/trace_processor.h).
+#### {#subcommand-summarize} `summarize` — trace summaries and v2 metrics
 
-### Reading traces
+Computes a [trace summary](trace-summary.md). Spec files are passed as
+extra positional arguments after the trace file; built-in v2 metrics are
+selected with `--metrics-v2`:
 
-To ingest a trace into trace processor, the `Parse` function can be called
-multiple times to with chunks of the trace and `NotifyEndOfFile` can be called
-at the end.
+```bash
+# Run all available v2 metrics.
+trace_processor summarize --metrics-v2 all trace.pftrace
 
-As this is a common task, a helper function `ReadTrace` is provided in
-[include/perfetto/trace_processor/read_trace.h](/include/perfetto/trace_processor/read_trace.h).
-This will read a trace file directly from the filesystem and calls into
-appropriate `TraceProcessor`functions to perform parsing.
+# Run two specific metric ids defined in spec.textproto.
+trace_processor summarize \
+  --metrics-v2 startup_metric,memory_metric \
+  trace.pftrace spec.textproto
+```
+
+Subcommand flags:
+
+- `--metrics-v2 IDS` — comma-separated metric ids, or the literal `all`.
+- `--metadata-query ID` — query id used to populate the summary's
+  `metadata` field.
+- `--format text|binary` — output format for the `TraceSummary` proto
+  (default: `text`).
+- `--post-query FILE` — SQL file run after summarization. When set, the
+  summary proto is _not_ printed; the SQL output is printed instead.
+- `--perf-file FILE` — write load/query timings to `FILE`.
+- `-i, --interactive` — drop into the REPL after summarization finishes.
+
+Spec files are auto-detected as binary or text based on extension
+(`.pb` → binary, `.textproto` → text) with a content-sniffing fallback.
+
+#### {#global-flags} Global flags (apply to every subcommand)
+
+These flags are accepted in addition to the subcommand-specific flags
+above and behave identically across subcommands:
+
+- **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
+  `--analyze-trace-proto-content`, `--crop-track-events`.
+- **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
+  `--override-sql-package PATH[@PKG]`, `--override-stdlib PATH`
+  (requires `--dev`).
+- **Metric extensions:** `--metric-extension DISK_PATH@VIRTUAL_PATH`.
+- **Auxiliary file content:** `--register-files-dir PATH` — exposes the
+  contents of files under `PATH` to importers (e.g. ETM decoders).
+- **Development:** `--dev`, `--dev-flag KEY=VALUE`, `--extra-checks`.
+- **Metatracing:** `-m, --metatrace FILE`,
+  `--metatrace-buffer-capacity N`, `--metatrace-categories CATEGORIES` —
+  produces a Perfetto trace of trace processor itself, which can be
+  loaded back into the UI for performance debugging.
+
+## {#embedding} Embedding the C++ library
+
+The public API is centered on the `TraceProcessor` class defined in
+[`trace_processor.h`](/include/perfetto/trace_processor/trace_processor.h). All
+high-level operations — parsing trace bytes, executing SQL queries, computing
+summaries — are member functions on this class.
+
+A `TraceProcessor` instance is created via `CreateInstance`:
+
+```cpp
+#include "perfetto/trace_processor/trace_processor.h"
+
+using namespace perfetto::trace_processor;
+
+Config config;
+std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
+```
+
+### Loading a trace
+
+To ingest a trace, call `Parse` repeatedly with chunks of trace bytes, then
+`NotifyEndOfFile` once the entire trace has been pushed:
+
+```cpp
+while (/* more data available */) {
+  TraceBlobView blob = /* ... */;
+  base::Status status = tp->Parse(std::move(blob));
+  if (!status.ok()) { /* handle error */ }
+}
+base::Status status = tp->NotifyEndOfFile();
+```
+
+Because reading a trace from the filesystem is a common case, a helper
+`ReadTrace` is provided in
+[`read_trace.h`](/include/perfetto/trace_processor/read_trace.h):
+
+```cpp
+#include "perfetto/trace_processor/read_trace.h"
+
+base::Status status = ReadTrace(tp.get(), "/path/to/trace.pftrace");
+```
+
+`ReadTrace` reads the file from disk, calls `Parse` with the contents, and
+calls `NotifyEndOfFile` for you.
 
 ### Executing queries
 
-The `ExecuteQuery` function can be called with an SQL statement to execute. This
-will return an iterator which can be used to retrieve rows in a streaming
-fashion.
+Queries are submitted via `ExecuteQuery`, which returns an `Iterator` that
+streams rows back to the caller:
 
-WARNING: embedders should ensure that the iterator is forwarded using `Next`
-before any other functions are called on the iterator.
+```cpp
+auto it = tp->ExecuteQuery("SELECT ts, name FROM slice LIMIT 10");
+while (it.Next()) {
+  int64_t ts = it.Get(0).AsLong();
+  std::string name = it.Get(1).AsString();
+  // ...
+}
+if (!it.Status().ok()) {
+  // Query produced an error.
+}
+```
 
-WARNING: embedders should ensure that the status of the iterator is checked
-after every row and at the end of iteration to verify that the query was
-successful.
+Two important rules when using the iterator:
+
+- **Always call `Next` before accessing values.** The iterator is positioned
+  before the first row when returned, so `Get` cannot be called until `Next`
+  has returned `true`.
+- **Always check `Status` after iteration finishes.** A query may fail
+  partway through; `Next` returning `false` only means iteration stopped, not
+  that it succeeded. Inspect `Status()` to distinguish EOF from an error.
+
+See the comments in
+[`iterator.h`](/include/perfetto/trace_processor/iterator.h) for the full
+iterator API.
+
+### Other functionality
+
+The `TraceProcessor` class also exposes:
+
+- **Trace summarization** (`Summarize`) — computes structured summaries of a
+  trace. See [Trace Summarization](trace-summary.md) for the user-facing
+  description of this feature.
+- **Custom SQL packages** (`RegisterSqlPackage`) — registers PerfettoSQL files
+  under a package name so they can be `INCLUDE`d by queries.
+- **Out-of-band file content** (`RegisterFileContent`) — passes auxiliary data
+  to importers, e.g. binaries used to decode ETM traces.
+- **Metatracing** (`EnableMetatrace` / `DisableAndReadMetatrace`) — traces the
+  Trace Processor itself for performance debugging.
+
+Refer to the comments in
+[`trace_processor.h`](/include/perfetto/trace_processor/trace_processor.h) for
+the complete API surface.

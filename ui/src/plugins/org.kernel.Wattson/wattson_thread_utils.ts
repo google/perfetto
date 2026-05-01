@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
@@ -45,22 +45,10 @@ export async function addWattsonThreadTrack(
   `);
 
   const sqlSource = `
-    WITH _filtered_thread AS (
-      SELECT ts, dur, cpu, _auto_id
-      FROM _all_tasks_flattened_slices
+    WITH _per_thread_estimate AS (
+      SELECT ts, dur, estimated_mw
+      FROM _estimates_w_tasks_attribution
       WHERE utid = ${utid}
-    ),
-    _per_thread_estimate AS (
-      SELECT ii.ts, ii.dur, uw.estimated_mw
-      FROM _interval_intersect!(
-        (
-          _ii_subquery!(_unioned_wattson_estimates_mw),
-          _ii_subquery!(_filtered_thread)
-        ),
-        (cpu)
-      ) AS ii
-      JOIN _unioned_wattson_estimates_mw AS uw ON uw._auto_id = id_0
-      JOIN _filtered_thread AS s ON s._auto_id = id_1
     ),
     -- Need to fill in gaps where thread isn't running with 0mW entry
     gapless AS (
@@ -80,10 +68,10 @@ export async function addWattsonThreadTrack(
     WHERE dur > 0
   `;
 
-  const renderer = await createQueryCounterTrack({
+  const renderer = await CounterTrack.createMaterialized({
     trace,
     uri,
-    data: {sqlSource},
+    sqlSource,
   });
 
   trace.tracks.registerTrack({

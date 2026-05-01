@@ -34,7 +34,13 @@ SELECT
   ts,
   lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
   -- Rate of event accesses in a section (i.e. count / dur).
-  value / (
+  -- If the event name ends in '_cpu0', then the counter is "counts per period".
+  -- If the event name does not end in '_cpu0', then the counter is monotonic.
+  iif(
+    $event GLOB "*_cpu0",
+    value,
+    lead(value) OVER (PARTITION BY track_id ORDER BY ts) - value
+  ) * 1.0 / (
     lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts
   ) AS access_rate
 FROM counter AS c
@@ -55,6 +61,20 @@ WITH
       dur,
       access_rate AS l3_miss_rate
     FROM _get_rate("arm_dsu_0/bus_access/_cpu0")
+    UNION ALL
+    SELECT
+      ts,
+      dur,
+      access_rate AS l3_miss_rate
+    FROM _get_rate("arm_dsu_0-bus_access")
+    WHERE
+      NOT EXISTS(
+        SELECT
+          1
+        FROM counter_track
+        WHERE
+          name = "arm_dsu_0/bus_access/_cpu0"
+      )
   )
 SELECT
   trace_start() AS ts,
@@ -91,6 +111,20 @@ WITH
       dur,
       access_rate AS l3_hit_rate
     FROM _get_rate("arm_dsu_0/l3d_cache/_cpu0")
+    UNION ALL
+    SELECT
+      ts,
+      dur,
+      access_rate AS l3_hit_rate
+    FROM _get_rate("arm_dsu_0-l3d_cache")
+    WHERE
+      NOT EXISTS(
+        SELECT
+          1
+        FROM counter_track
+        WHERE
+          name = "arm_dsu_0/l3d_cache/_cpu0"
+      )
   )
 SELECT
   trace_start() AS ts,

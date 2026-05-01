@@ -51,6 +51,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
+PERFETTO_PB_MSG_DECL(perfetto_protos_GenericGpuFrequencyEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelCpuFrequencyEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelTaskRenameEvent);
@@ -140,9 +141,49 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   58);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
+                  perfetto_protos_TrackEvent,
+                  track_event,
+                  11);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_TrackDescriptor,
+                  track_descriptor,
+                  60);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GenericKernelTaskStateEvent,
+                  generic_kernel_task_state_event,
+                  117);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GenericKernelCpuFrequencyEvent,
+                  generic_kernel_cpu_freq_event,
+                  118);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GenericKernelTaskRenameEvent,
+                  generic_kernel_task_rename_event,
+                  120);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GenericKernelProcessTree,
+                  generic_kernel_process_tree,
+                  122);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GenericGpuFrequencyEvent,
+                  generic_gpu_frequency_event,
+                  129);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
                   perfetto_protos_ProcessTree,
                   process_tree,
                   2);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_TrackEventRangeOfInterest,
+                  track_event_range_of_interest,
+                  90);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ProcessStats,
@@ -168,11 +209,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_SysStats,
                   sys_stats,
                   7);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_TrackEvent,
-                  track_event,
-                  11);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TraceUuid,
@@ -420,11 +456,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   64);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_TrackDescriptor,
-                  track_descriptor,
-                  60);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_ProcessDescriptor,
                   process_descriptor,
                   43);
@@ -463,11 +494,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_NetworkPacketBundle,
                   network_packet_bundle,
                   92);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_TrackEventRangeOfInterest,
-                  track_event_range_of_interest,
-                  90);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_LayersSnapshotProto,
@@ -568,26 +594,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_AppWakelockBundle,
                   app_wakelock_bundle,
                   116);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_GenericKernelTaskStateEvent,
-                  generic_kernel_task_state_event,
-                  117);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_GenericKernelCpuFrequencyEvent,
-                  generic_kernel_cpu_freq_event,
-                  118);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_GenericKernelTaskRenameEvent,
-                  generic_kernel_task_rename_event,
-                  120);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_GenericKernelProcessTree,
-                  generic_kernel_process_tree,
-                  122);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_CpuPerUidData,

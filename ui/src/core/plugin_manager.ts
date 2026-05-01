@@ -153,6 +153,11 @@ export class PluginManagerImpl {
     return this.registry.tryGet(id);
   }
 
+  isPluginEnabled(id: string): boolean {
+    const plugin = this.registry.tryGet(id);
+    return plugin?.traceContext !== undefined;
+  }
+
   getPlugin<T extends PerfettoPlugin>(
     pluginDescriptor: PerfettoPluginStatic<T>,
   ): T {

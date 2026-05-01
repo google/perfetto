@@ -34,31 +34,27 @@ namespace perfetto::trace_processor::util {
 class SizeProfileComputer {
  public:
   struct Field {
-    Field(uint32_t field_idx_in,
-          const FieldDescriptor* field_descriptor_in,
-          uint32_t type_in,
-          const ProtoDescriptor* proto_descriptor_in);
+    Field(uint32_t field_idx_in, std::string field_name, std::string type_name);
 
     bool has_field_name() const {
-      return field_descriptor || field_idx == static_cast<uint32_t>(-1);
+      return !field_name_.empty() || field_idx == static_cast<uint32_t>(-1);
     }
 
-    std::string field_name() const;
-    std::string type_name() const;
+    const std::string& field_name() const { return field_name_; }
+    const std::string& type_name() const { return type_name_; }
 
     bool operator==(const Field& other) const {
-      return field_idx == other.field_idx && type == other.type;
+      return field_idx == other.field_idx && type_name_ == other.type_name_;
     }
 
     template <typename H>
     friend H PerfettoHashValue(H hasher, const Field& f) {
-      return H::Combine(std::move(hasher), f.field_idx, f.type);
+      return H::Combine(std::move(hasher), f.field_idx, f.type_name_);
     }
 
     uint32_t field_idx;
-    uint32_t type;
-    const FieldDescriptor* field_descriptor;
-    const ProtoDescriptor* proto_descriptor;
+    std::string field_name_;
+    std::string type_name_;
   };
 
   struct FieldPath {

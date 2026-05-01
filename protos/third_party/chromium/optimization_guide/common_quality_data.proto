@@ -376,7 +376,7 @@ message ContentAttributes {
 }
 
 // The geometry of the content, in the page coordinate system.
-// Next ID: 7
+// Next ID: 8
 // NOTE: If `visual_bounding_box` is empty, i.e., the content is offscreen and
 // it's in an iframe, the `outer_bounding_box` may be incorrect. See crbug.com/384996050
 // for details.
@@ -400,6 +400,14 @@ message Geometry {
   // ancestor clipping. These are the element bounds visible to the user and
   // hit-testable in the DOM.
   BoundingRect visible_bounding_box = 2 [features = { field_presence: EXPLICIT }];
+
+  // The bounding box of the content node relative to the viewport including all
+  // ancestor clipping. This is conceptually the same as `visible_bounding_box`,
+  // but with coordinates calculated by the compositor on the client side. This
+  // geometry should be more in sync with the browser screenshot, and should be
+  // used for screenshot redaction when present. See crbug.com/441532128 for more
+  // details.
+  BoundingRect compositor_bounding_box = 7 [features = { field_presence: EXPLICIT }];
 
   // Multiple boxes are used when there are multiple rectangles belonging to
   // the same node, e.g.: across multiple lines, columns or pages. In layout
@@ -2085,7 +2093,7 @@ enum AXIntListAttribute {
 }
 
 // AX StringList attribute enum.
-// Next ID: 4
+// Next ID: 5
 enum AXStringListAttribute {
   AX_SLA_NONE = 0;
 
@@ -2094,11 +2102,15 @@ enum AXStringListAttribute {
   AX_SLA_ARIANOTIFICATIONANNOUNCEMENTS = 2;
 
   AX_SLA_ARIANOTIFICATIONTYPES = 3;
+
+  AX_SLA_TEXTOPERATIONREPLACEMENTSTRINGS = 4;
 }
 
 // This will be updated when there is a significant change in the parsing logic.
 // Next ID: 3
 enum AnnotatedPageContentVersion {
+  option allow_alias = true;
+
   ANNOTATED_PAGE_CONTENT_VERSION_UNKNOWN = 0;
 
   ANNOTATED_PAGE_CONTENT_VERSION_1_0 = 1;
@@ -2107,6 +2119,10 @@ enum AnnotatedPageContentVersion {
   // TODO(crbug.com/490195093): Maintain both on the client until all users have been
   // switched over.
   ANNOTATED_PAGE_CONTENT_VERSION_ONLY_ACTIONABLE_ELEMENTS_1_0 = 2 [deprecated = true];
+
+  // The maximum valid version of the proto. This value includes deprecated
+  // versions to ensure backward compatibility with older clients.
+  ANNOTATED_PAGE_CONTENT_VERSION_MAX_VALID = 2;
 }
 
 // The extraction on the client can be configured to a specific mode. This
@@ -2405,6 +2421,9 @@ enum RedactionDecision {
   // Is a non-empty field that autofill recognized as an OTP field and so must
   // be redacted.
   REDACTION_DECISION_REDACTED_IS_OTP = 8;
+
+  // Is a empty field that autofill recognized as an OTP field.
+  REDACTION_DECISION_UNREDACTED_EMPTY_OTP_FIELD = 9;
 }
 
 // The type of data that can be autofilled into a form.
@@ -2414,6 +2433,8 @@ enum CoarseAutofillFieldType {
   COARSE_AUTOFILL_FIELD_TYPE_ADDRESS = 1;
 
   COARSE_AUTOFILL_FIELD_TYPE_CREDIT_CARD = 2;
+
+  COARSE_AUTOFILL_FIELD_TYPE_OTP = 3;
 }
 
 // Indicates the type of media in the media data.

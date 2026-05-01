@@ -32,6 +32,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/tracing/backend_type.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/in_process_tracing_backend.h"
 #include "perfetto/tracing/internal/system_tracing_backend.h"
@@ -152,6 +153,12 @@ struct TracingInitArgs {
   // making sure that Trace Processor doesn't merge track event and system
   // event tracks for the same thread.
   bool disallow_merging_with_system_tracks = false;
+
+  // [Optional] Sets the default buffer exhausted policy for TrackEvent.
+  // Defaults to kDrop. When set to kStall, the calling thread will block
+  // when the shared memory buffer is full instead of dropping trace data.
+  BufferExhaustedPolicy track_event_buffer_exhausted_policy =
+      BufferExhaustedPolicy::kDrop;
 
   // If set, this function will be called by the producer client to create a
   // socket for connection to the system service. The function takes one

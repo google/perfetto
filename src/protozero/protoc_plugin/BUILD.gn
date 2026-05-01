@@ -20,6 +20,7 @@ perfetto_host_executable("protozero_plugin") {
   sources = [ "protozero_plugin.cc" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
     "../../../gn:protoc_lib",
     "../../../src/base",
   ]
@@ -32,6 +33,7 @@ perfetto_host_executable("cppgen_plugin") {
   sources = [ "cppgen_plugin.cc" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
     "../../../gn:protoc_lib",
     "../../../src/base",
   ]
@@ -43,6 +45,7 @@ perfetto_host_executable("protozero_c_plugin") {
   sources = [ "protozero_c_plugin.cc" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
     "../../../gn:protoc_lib",
     "../../../src/base",
   ]
@@ -54,6 +57,7 @@ perfetto_host_executable("protozero_rust_plugin") {
   sources = [ "protozero_rust_plugin.cc" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
     "../../../gn:protoc_lib",
     "../../../src/base",
   ]

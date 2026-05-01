@@ -202,7 +202,9 @@ export class QuerySlot<T> {
   // Stores error keyed by keyStr - thrown on next use() with same key
   private error?: {keyStr: string; error: Error};
 
-  constructor(private readonly queue: SerialTaskQueue) {}
+  constructor(
+    private readonly queue: SerialTaskQueue = new SerialTaskQueue(),
+  ) {}
 
   /**
    * Call every render cycle to get the current query result.

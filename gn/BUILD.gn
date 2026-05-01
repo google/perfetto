@@ -494,6 +494,9 @@ perfetto_py_library("protobuf_py") {
 perfetto_android_library("android_test_common") {
 }
 
+perfetto_android_library("error_prone_annotations") {
+}
+
 if (enable_perfetto_etm_importer) {
   group("open_csd") {
     visibility = [ "//src/trace_processor/importers/etm" ]

@@ -49,6 +49,10 @@ void heapprofd_free_malloc_leak_info(uint8_t* info);
 size_t heapprofd_malloc_usable_size(void* pointer);
 void* heapprofd_malloc(size_t size);
 void heapprofd_free(void* pointer);
+void heapprofd_free_sized(void* pointer, size_t size);
+void heapprofd_free_aligned_sized(void* pointer,
+                                  size_t alignmentd,
+                                  size_t size);
 void* heapprofd_aligned_alloc(size_t alignment, size_t size);
 void* heapprofd_memalign(size_t alignment, size_t bytes);
 void* heapprofd_realloc(void* pointer, size_t bytes);
@@ -156,6 +160,18 @@ int heapprofd_posix_memalign(void** memptr, size_t alignment, size_t size) {
 void heapprofd_free(void* pointer) {
   return perfetto::profiling::wrap_free(g_heap_id, GetDispatch()->free,
                                         pointer);
+}
+
+void heapprofd_free_sized(void* pointer, size_t size) {
+  return perfetto::profiling::wrap_free_sized(
+      g_heap_id, GetDispatch()->free_sized, pointer, size);
+}
+
+void heapprofd_free_aligned_sized(void* pointer,
+                                  size_t alignment,
+                                  size_t size) {
+  return perfetto::profiling::wrap_free_aligned_sized(
+      g_heap_id, GetDispatch()->free_aligned_sized, pointer, alignment, size);
 }
 
 // Approach to recording realloc: under the initial lock, get a safe copy of the

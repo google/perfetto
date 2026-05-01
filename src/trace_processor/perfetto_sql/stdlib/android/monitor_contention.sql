@@ -205,7 +205,8 @@ WITH
       s.ts,
       s.name,
       lag(s.name) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS prev_name,
-      lead(s.name) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS next_name
+      lead(s.name, 1) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS next_name_1,
+      lead(s.name, 2) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS next_name_2
     FROM slice AS s
     WHERE
       s.track_id IN (
@@ -224,9 +225,16 @@ WITH
     SELECT
       id,
       CASE
-        WHEN prev_name GLOB '*_lock_acquire'
-        AND next_name GLOB '*_lock_held'
-        AND replace(prev_name, '_lock_acquire', '') = replace(next_name, '_lock_held', '')
+        -- Scenario A: Immediate adjacency
+        WHEN substr(next_name_1, -10) = '_lock_held'
+        AND substr(prev_name, -13) = '_lock_acquire'
+        AND replace(prev_name, '_lock_acquire', '') = replace(next_name_1, '_lock_held', '')
+        THEN replace(prev_name, '_lock_acquire', '')
+        -- Scenario B: Child 'Lock contention' slice exists (check next_name_2)
+        WHEN substr(next_name_1, 1, 15) = 'Lock contention'
+        AND substr(next_name_2, -10) = '_lock_held'
+        AND substr(prev_name, -13) = '_lock_acquire'
+        AND replace(prev_name, '_lock_acquire', '') = replace(next_name_2, '_lock_held', '')
         THEN replace(prev_name, '_lock_acquire', '')
         ELSE NULL
       END AS lock_name

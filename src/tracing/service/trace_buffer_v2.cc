@@ -289,9 +289,18 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
                            : 0,
                        iter_->chunk_id, end_->chunk_id);
 
-  if (seq_->last_chunk_consumed.has_value() &&
-      iter_->chunk_id != seq_->last_chunk_consumed->chunk_id + 1) {
-    seq_->data_loss = true;
+  if (seq_->last_chunk_consumed.has_value()) {
+    const auto& last = *seq_->last_chunk_consumed;
+    // Re-admit: an incomplete chunk that was evicted has been re-committed
+    // with strictly more payload. The chunk_id is unchanged, so the +1
+    // successor check below would fire spuriously even though the re-admit
+    // recovered the deferred fragments without losing data. Keep this
+    // predicate in sync with the re-admit acceptance check in
+    // TraceBufferV2::CopyChunkUntrusted.
+    bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
+    if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
+      seq_->data_loss = true;
+    }
   }
 }
 
@@ -442,12 +451,17 @@ void ChunkSeqReader::ConsumeFragment(TBChunk* chunk, Frag* frag) {
 
   PERFETTO_DCHECK(chunk->payload_avail >= frag->size_with_header());
   chunk->payload_avail -= frag->size_with_header();
+
   if (chunk->payload_avail == 0) {
     TRACE_BUFFER_V2_DLOG("  Fully consumed chunk @ %zu", buf_->OffsetOf(chunk));
+    auto& stats = buf_->stats_;
     if (mode_ == kReadMode) {
-      auto& stats = buf_->stats_;
       stats.set_chunks_read(stats.chunks_read() + 1);
       stats.set_bytes_read(stats.bytes_read() + chunk->outer_size());
+    } else if (mode_ == kEraseMode) {
+      stats.set_chunks_overwritten(stats.chunks_overwritten() + 1);
+      stats.set_bytes_overwritten(stats.bytes_overwritten() +
+                                  chunk->outer_size());
     }
   }
 }
@@ -459,24 +473,22 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     TracePacket* out_packet,
     Frag* initial_frag) {
   PERFETTO_DCHECK(initial_frag->type == Frag::kFragBegin);
-
   TBChunk* initial_chunk = seq_iter_.chunk();
-  if (initial_chunk->flags & kChunkNeedsPatch)
-    return FragReassemblyResult::kNotEnoughData;
 
   struct FragAndChunk {
     FragAndChunk(Frag f, TBChunk* c) : frag(std::move(f)), chunk(c) {}
     Frag frag;
     TBChunk* chunk;
   };
-
   base::SmallVector<FragAndChunk, 8> frags;
   frags.emplace_back(*initial_frag, initial_chunk);
   ChunkSeqIterator chunk_iter = seq_iter_;  // Make copy.
 
-  // Iterate over chunks using the linked list.
-  FragReassemblyResult res;
-  for (;;) {
+  // Iterate over chunks using the linked list, unless the chunk needs patching
+  // in which case we skip down with res = kNotEnoughData.
+  FragReassemblyResult res = FragReassemblyResult::kNotEnoughData;
+  const bool chunk_needs_patching = initial_chunk->flags & kChunkNeedsPatch;
+  while (!chunk_needs_patching) {
     PERFETTO_DCHECK((chunk_iter.valid()));
     TBChunk* next_chunk = chunk_iter.NextChunkInSequence();
     if (!next_chunk || next_chunk->flags & kChunkNeedsPatch) {
@@ -537,7 +549,8 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
         out_packet->AddSlice(f.begin, f.size);
     }
     if (res == FragReassemblyResult::kSuccess ||
-        res == FragReassemblyResult::kDataLoss) {
+        res == FragReassemblyResult::kDataLoss ||
+        (res == FragReassemblyResult::kNotEnoughData && mode_ == kEraseMode)) {
       ConsumeFragment(fc.chunk, &f);
     }
   }
@@ -754,7 +767,8 @@ void TraceBufferV2::CopyChunkUntrusted(
   // Don't allow re-commit of chunks that have been consumed already, unless
   // the chunk was evicted while incomplete (scraped) and the new commit has
   // strictly more payload. In that case we re-admit it so the previously-
-  // dropped fragments can be recovered.
+  // dropped fragments can be recovered. Keep this acceptance condition in
+  // sync with the re-admit branch of the gap check in ChunkSeqReader's ctor.
   //
   // When re-admitting, |previously_consumed_payload| records how many payload
   // bytes were already consumed before eviction, so we can skip them below.
@@ -783,7 +797,11 @@ void TraceBufferV2::CopyChunkUntrusted(
     if (overwrite_policy_ == kDiscard)
       return DiscardWrite();
 
-    DeleteNextChunksFor(cached_size_to_end);
+    // Skip the tail cleanup if the previous write landed exactly at the end
+    // of the buffer (|wr_| == |size_|): there is no leftover tail to clear.
+    if (cached_size_to_end > 0)
+      DeleteNextChunksFor(cached_size_to_end);
+
     wr_ = 0;
     stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
     PERFETTO_DCHECK(size_to_end() >= tbchunk_outer_size);
@@ -880,7 +898,6 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   wr_ += tbchunk_outer_size;
   PERFETTO_DCHECK(wr_ <= size_ && wr_ <= used_size_);
-  wr_ = wr_ >= size_ ? 0 : wr_;
 
   stats_.set_chunks_written(stats_.chunks_written() + 1);
   stats_.set_bytes_written(stats_.bytes_written() + tbchunk_outer_size);
@@ -977,9 +994,6 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     // ChunkSeqReader(kEraseMode) must delete the chunk once
     // ReadNextPacketInSeqOrder() returns false.
     PERFETTO_DCHECK(chunk->is_padding());
-
-    stats_.set_chunks_overwritten(stats_.chunks_overwritten() + 1);
-    stats_.set_bytes_overwritten(stats_.bytes_overwritten() + chunk_outer_size);
   }
 
   // Having consumed the packets above, this loop wipes out the contents of the

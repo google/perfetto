@@ -37,7 +37,7 @@ import {
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {assertExists} from '../../base/assert';
-import {Time} from '../../base/time';
+import {Time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {
   DragEvent,
@@ -624,7 +624,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               renderedTracks,
             );
 
-            this.handleDrag.currentTime = currentTime;
+            this.handleDrag.currentTime = currentTime.clamp(
+              trace.traceInfo.start,
+              trace.traceInfo.end,
+            );
+
             trace.timeline.selectedSpan = this.handleDrag
               .timeSpan()
               .toTimeSpan();
@@ -640,10 +644,15 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               renderedTracks,
             );
 
+            const newAreaSelection = new TimeSpan(
+              Time.min(newStartTime.toTime('ceil'), areaSelection.end),
+              Time.max(newStartTime.toTime('ceil'), areaSelection.end),
+            ).clamp(trace.traceInfo.start, trace.traceInfo.end);
+
             trace.selection.selectArea({
               ...areaSelection,
-              end: Time.max(newStartTime.toTime('ceil'), areaSelection.end),
-              start: Time.min(newStartTime.toTime('ceil'), areaSelection.end),
+              start: newAreaSelection.start,
+              end: newAreaSelection.end,
             });
             trace.timeline.selectedSpan = undefined;
             this.handleDrag = undefined;
@@ -678,7 +687,10 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               renderedTracks,
             );
 
-            this.handleDrag.currentTime = currentTime;
+            this.handleDrag.currentTime = currentTime.clamp(
+              trace.traceInfo.start,
+              trace.traceInfo.end,
+            );
             trace.timeline.selectedSpan = this.handleDrag
               .timeSpan()
               .toTimeSpan();
@@ -694,10 +706,14 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               renderedTracks,
             );
 
+            const newAreaSelection = new TimeSpan(
+              Time.min(newEndTime.toTime('ceil'), areaSelection.start),
+              Time.max(newEndTime.toTime('ceil'), areaSelection.start),
+            ).clamp(trace.traceInfo.start, trace.traceInfo.end);
             trace.selection.selectArea({
               ...areaSelection,
-              end: Time.max(newEndTime.toTime('ceil'), areaSelection.start),
-              start: Time.min(newEndTime.toTime('ceil'), areaSelection.start),
+              end: newAreaSelection.end,
+              start: newAreaSelection.start,
             });
             trace.timeline.selectedSpan = undefined;
             this.handleDrag = undefined;
@@ -737,7 +753,10 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             this.areaDrag.currentY = e.dragCurrent.y;
 
             this.trace.raf.scheduleCanvasRedraw();
-            trace.timeline.selectedSpan = this.areaDrag.timeSpan().toTimeSpan();
+            trace.timeline.selectedSpan = this.areaDrag
+              .timeSpan()
+              .toTimeSpan()
+              .clamp(trace.traceInfo.start, trace.traceInfo.end);
           },
           onDragEnd: (e) => {
             if (!this.areaDrag) {
@@ -768,7 +787,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               .map((t) => t.uri)
               .filter((uri) => uri !== undefined);
 
-            const timeSpan = this.areaDrag.timeSpan().toTimeSpan();
+            const timeSpan = this.areaDrag
+              .timeSpan()
+              .toTimeSpan()
+              .clamp(trace.traceInfo.start, trace.traceInfo.end);
+
             trace.selection.selectArea({
               start: timeSpan.start,
               end: timeSpan.end,

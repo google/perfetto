@@ -77,6 +77,14 @@ export default class TimelinePlugin implements PerfettoPlugin {
         });
       },
     });
+
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      sortOrder: 10,
+      text: 'Timeline',
+      href: '#!/viewer',
+      icon: 'line_style',
+    });
   }
 }
 

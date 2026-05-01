@@ -34,10 +34,11 @@ import {hasArgs, renderArguments} from '../../components/details/args';
 import {asArgSetId} from '../../components/sql_utils/core_types';
 import {ArgsDict, getArgs} from '../../components/sql_utils/args';
 import {
-  CounterOptions,
+  YMode,
   counterDisplayUnit,
   counterValueExpression,
-} from '../../components/tracks/base_counter_track';
+} from '../../components/tracks/counter_track';
+import {assertUnreachable} from '../../base/assert';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)
@@ -63,7 +64,7 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   private readonly engine: Engine;
   private readonly sqlSource: string;
   private readonly trackName: string;
-  private readonly getMode: () => CounterOptions['yMode'];
+  private readonly getMode: () => YMode;
   private readonly unit: string;
   private readonly rateUnit: string;
   private counterDetails?: CounterDetails;
@@ -71,7 +72,7 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   constructor(
     trace: Trace,
     trackName: string,
-    getMode: () => CounterOptions['yMode'],
+    getMode: () => YMode,
     unit: string,
     rateUnit: string,
     sqlSource: string,
@@ -93,7 +94,7 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
     );
   }
 
-  private formatWithUnit(value: number, mode: CounterOptions['yMode']): string {
+  private formatWithUnit(value: number, mode: YMode): string {
     const unitLabel = counterDisplayUnit(mode, this.unit, this.rateUnit);
     return unitLabel
       ? `${value.toLocaleString()} ${unitLabel}`
@@ -134,6 +135,8 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
           left: 'Rate',
           right: this.formatWithUnit(info.rate, 'rate'),
         });
+      default:
+        assertUnreachable(mode);
     }
   }
 

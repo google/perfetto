@@ -32,6 +32,7 @@ source_set("minimal") {
     "chrome_system_probes_parser.h",
     "default_modules.cc",
     "default_modules.h",
+    "incremental_state.cc",
     "memory_tracker_snapshot_module.cc",
     "memory_tracker_snapshot_module.h",
     "memory_tracker_snapshot_parser.cc",
@@ -77,6 +78,7 @@ source_set("minimal") {
   deps = [
     ":gen_cc_android_track_event_descriptor",
     ":gen_cc_chrome_track_event_descriptor",
+    ":gen_cc_gpu_track_event_descriptor",
     ":gen_cc_track_event_descriptor",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:trace_processor",
@@ -87,6 +89,7 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/chrome:zero",
     "../../../../protos/perfetto/trace/etw:zero",
     "../../../../protos/perfetto/trace/ftrace:zero",
+    "../../../../protos/perfetto/trace/gpu:gpu_track_event_zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/perfetto:zero",
     "../../../../protos/perfetto/trace/power:zero",
@@ -191,6 +194,7 @@ source_set("full") {
     "vulkan_memory_tracker.h",
   ]
   deps = [
+    ":gen_cc_gpu_interned_data_descriptor",
     ":gen_cc_statsd_atoms_descriptor",
     ":gen_cc_trace_descriptor",
     ":minimal",
@@ -202,6 +206,7 @@ source_set("full") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../../protos/perfetto/trace/chrome:zero",
+    "../../../../protos/perfetto/trace/gpu:gpu_interned_data_zero",
     "../../../../protos/perfetto/trace/gpu:zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/power:zero",
@@ -260,8 +265,10 @@ source_set("proto_importer_module") {
 
 source_set("packet_sequence_state_generation_hdr") {
   sources = [
+    "incremental_state.h",
     "packet_sequence_state_generation.h",
     "track_event_sequence_state.h",
+    "track_event_thread_descriptor.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -301,6 +308,18 @@ perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {
       "../../../../protos/perfetto/trace/android:android_track_event_descriptor"
 }
 
+perfetto_cc_proto_descriptor("gen_cc_gpu_track_event_descriptor") {
+  descriptor_name = "gpu_track_event.descriptor"
+  descriptor_target =
+      "../../../../protos/perfetto/trace/gpu:gpu_track_event_descriptor"
+}
+
+perfetto_cc_proto_descriptor("gen_cc_gpu_interned_data_descriptor") {
+  descriptor_name = "gpu_interned_data.descriptor"
+  descriptor_target =
+      "../../../../protos/perfetto/trace/gpu:gpu_interned_data_descriptor"
+}
+
 source_set("unittests") {
   testonly = true
   sources = [
@@ -310,6 +329,7 @@ source_set("unittests") {
     "heap_graph_tracker_unittest.cc",
     "jit_tracker_unittest.cc",
     "network_trace_module_unittest.cc",
+    "packet_sequence_state_generation_unittest.cc",
     "perf_sample_tracker_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",

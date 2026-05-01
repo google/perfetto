@@ -92,6 +92,29 @@ void wrap_free(uint32_t heap_id, void (*fn)(void*), void* pointer) {
   return fn(pointer);
 }
 
+void wrap_free_sized(uint32_t heap_id,
+                     void (*fn)(void*, size_t),
+                     void* pointer,
+                     size_t size) {
+  if (pointer == nullptr)
+    return;
+
+  AHeapProfile_reportFree(heap_id, reinterpret_cast<uint64_t>(pointer));
+  return fn(pointer, size);
+}
+
+void wrap_free_aligned_sized(uint32_t heap_id,
+                             void (*fn)(void*, size_t, size_t),
+                             void* pointer,
+                             size_t alignment,
+                             size_t size) {
+  if (pointer == nullptr)
+    return;
+
+  AHeapProfile_reportFree(heap_id, reinterpret_cast<uint64_t>(pointer));
+  return fn(pointer, alignment, size);
+}
+
 // As with the free, we record the deallocation before calling the backing
 // implementation to make sure the address is still exclusive while we're
 // processing it.

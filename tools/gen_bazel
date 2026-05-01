@@ -44,6 +44,11 @@ from compat import itervalues, iteritems, basestring
 # which can depend on it.
 ALLOWLIST_PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 
+# Visibility option for trace processor proto targets which we want an
+# allowlist of public targets which can depend on it, but should not be
+# visible to all targets that have public_visibility access.
+ALLOWLIST_TRACE_PROCESSOR_VISIBILITY = 'PERFETTO_CONFIG.trace_processor_proto_library_visibility'
+
 # Arguments for the GN output directory.
 # host_os="linux" is to generate the right build files from Mac OS.
 gn_args_base = {
@@ -138,6 +143,12 @@ proto_groups = {
         ],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
     },
+    'winscope': {
+        'sources': [
+            '//protos/perfetto/trace/android:winscope_extensions_source_set',
+        ],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
     'metrics': {
         'sources': ['//protos/perfetto/metrics:source_set',],
         'visibility': ['//visibility:public'],
@@ -152,7 +163,7 @@ proto_groups = {
     },
     'trace_processor': {
         'sources': ['//protos/perfetto/trace_processor:source_set',],
-        'visibility': [],
+        'visibility': ALLOWLIST_TRACE_PROCESSOR_VISIBILITY,
     },
     'trace_summary': {
         'sources': ['//protos/perfetto/trace_summary:source_set',],
@@ -209,6 +220,8 @@ public_python_targets = [
 # These are Python targets which are exposed by default.
 default_python_targets = [
     '//python:batch_trace_processor',
+    '//python:cpp_blob_emitter',
+    '//python:cpp_blob_emitter_bin',
     '//python:experimental_slice_breakdown_bin',
     '//python:trace_processor_table_generator',
     '//python:trace_processor_py_example',
@@ -225,6 +238,9 @@ external_python_deps: Dict[str, List[str]] = {
 
 external_java_android_sdk_deps: Dict[str, List[str]] = {
     '//gn:android_test_common': ['PERFETTO_CONFIG.deps.android_test_common'],
+    '//gn:error_prone_annotations': [
+        'PERFETTO_CONFIG.deps.error_prone_annotations'
+    ],
 }
 
 # Map from GN targets to the list of Bazel deps labels
@@ -240,7 +256,7 @@ target_overrides = {
     '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql': {
         'srcs':
             'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
-    }
+    },
 }
 
 # Defines required for Bazel.
@@ -427,6 +443,9 @@ class BazelLabel(object):
     self.app: Optional[str] = None
     self.test_app: Optional[str] = None
     self.testonly: Optional[bool] = None
+    self.script: Optional[str] = None
+    self.args: List[str] = []
+    self.target_compatible_with: List[str] = []
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -442,9 +461,10 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-        'name', 'testonly', 'srcs', 'binary_name', 'linkopts', 'manifest',
-        'resource_files', 'instruments', 'hdrs', 'defines', 'visibility',
-        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main'
+        'name', 'testonly', 'script', 'srcs', 'binary_name', 'linkopts',
+        'manifest', 'resource_files', 'instruments', 'hdrs', 'defines',
+        'visibility', 'data', 'deps', 'outs', 'args', 'cmd', 'tools', 'exports',
+        'main'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -472,7 +492,11 @@ class BazelLabel(object):
         if k == "srcs" and self.win_srcs is not None:
           non_win_srcs = sorted(set(self.srcs) - set(self.win_srcs))
 
-        for entry in sorted(v):
+        # `args` is positional and must preserve insertion order. Other
+        # list-valued attributes are unordered to Bazel, so we sort them for
+        # stable output.
+        entries = v if k == 'args' else sorted(v)
+        for entry in entries:
           if entry in non_win_srcs:
             continue
           if entry.startswith('PERFETTO_CONFIG.'):
@@ -674,36 +698,62 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
   ]
 
 
-def gen_cc_proto_descriptor(target: GnParser.Target):
+def gen_cpp_blob_header(target: GnParser.Target):
+  # Maps a Python script's repo path to a relative `package:target` label
+  # for the py_binary that wraps it. The `perfetto_cpp_blob_header` rule in
+  # bazel/rules.bzl prepends `PERFETTO_CONFIG.root` to make the label work in
+  # both standalone and embedded builds.
+  script_to_bazel_label = {
+      'python/tools/cpp_blob_emitter.py':
+          'python:cpp_blob_emitter_bin',
+      'src/trace_processor/plugins/wattson/gen_wattson_curves.py':
+          ':src_trace_processor_plugins_wattson_gen_wattson_curves_py',
+      'tools/gen_amalgamated_sql.py':
+          ':gen_amalgamated_sql_py',
+  }
+
   label = BazelLabel(
-      get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
+      get_bazel_label_name(target.name), 'perfetto_cpp_blob_header')
   label.comment = target.name
+  script_path = re.sub(r'^//', '', target.script)
+  bazel_script_label = script_to_bazel_label.get(script_path)
+  assert bazel_script_label, (
+      'No Bazel py_binary mapping found for %s. Add an entry to '
+      'script_to_bazel_label in gen_cpp_blob_header.' % script_path)
+  label.script = bazel_script_label
   label.deps += [':' + get_bazel_label_name(x.name) for x in target.deps]
   label.deps += [
       gn_utils.label_to_path(src)
       for src in target.inputs
       if "tmp.gn_utils" not in src
   ]
-
   label.outs += target.outputs
-  return [label]
 
+  # The GN template invokes the script as:
+  #   <script> --output <output> \
+  #            [--gen-dir <gen_dir>] \
+  #            [<extra_args>...] \
+  #            <inputs>...
+  # Strip the leading --output/output pair and the trailing input paths so
+  # only the script-specific flags remain for the Bazel rule's `args`.
+  # Substitute the rebased --gen-dir value with `$(GENDIR)`, which Bazel
+  # expands to the genrule's gen dir at build time.
+  args = list(target.args)
+  if len(args) >= 2 and args[0] == '--output':
+    args = args[2:]
+  if len(target.inputs) > 0:
+    args = args[:-len(target.inputs)]
 
-def gen_cc_amalgamated_sql(target: GnParser.Target):
-  label = BazelLabel(
-      get_bazel_label_name(target.name), 'perfetto_cc_amalgamated_sql')
-
-  def find_arg(name):
-    for i, arg in enumerate(target.args):
-      if arg.startswith(f'--{name}'):
-        return target.args[i + 1]
-
-  label.comment = target.name
-  label.namespace = find_arg('namespace')
-
-  label.deps += sorted(
-      ':' + get_bazel_label_name(x.name) for x in target.transitive_deps)
-  label.outs += target.outputs
+  out = []
+  i = 0
+  while i < len(args):
+    if args[i] == '--gen-dir' and i + 1 < len(args):
+      out.append('--gen-dir=$(GENDIR)')
+      i += 2
+    else:
+      out.append(args[i])
+      i += 1
+  label.args = out
   return [label]
 
 
@@ -711,6 +761,10 @@ def gen_sql_source_set(target: GnParser.Target):
   label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_filegroup')
   label.comment = target.name
   label.srcs += (gn_utils.label_to_path(x) for x in target.inputs)
+  # Include dependent filegroups so Bazel resolves the SQL source set
+  # transitively. Consumers of the amalgamation rule then only need a
+  # direct dep on each top-level filegroup.
+  label.srcs += (':' + get_bazel_label_name(x.name) for x in target.deps)
   return [label]
 
 
@@ -794,18 +848,17 @@ def gen_protozero_descriptor_diff(target: GnParser.Target):
 
 
 def gen_target_helper(gn_target: GnParser.Target,
-                      win_target: GnParser.Target = None):
+                      win_target: GnParser.Target = None,
+                      android_only: bool = False):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
     if gn_target.name in custom_actions:
       return custom_actions[gn_target.name](gn_target)
-    if gn_target.custom_action_type == 'sql_amalgamation':
-      return gen_cc_amalgamated_sql(gn_target)
     if gn_target.custom_action_type == 'sql_source_set':
       return gen_sql_source_set(gn_target)
-    if gn_target.custom_action_type == 'cc_proto_descriptor':
-      return gen_cc_proto_descriptor(gn_target)
+    if gn_target.custom_action_type == 'cpp_blob_header':
+      return gen_cpp_blob_header(gn_target)
     if gn_target.custom_action_type == 'tp_tables':
       return gen_cc_tp_tables(gn_target)
     if gn_target.custom_action_type == 'perfetto_android_library':
@@ -826,7 +879,7 @@ def gen_target_helper(gn_target: GnParser.Target,
   elif gn_target.type == 'static_library':
     bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'source_set':
-    bazel_type = 'perfetto_filegroup'
+    bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'generated_file':
     return []
   else:
@@ -877,6 +930,9 @@ def gen_target_helper(gn_target: GnParser.Target,
   else:
     label.srcs = raw_srcs
 
+  if gn_target.force_alwayslink:
+    label.alwayslink = True
+
   if win_target:
     label.win_srcs = list(
         set(label.srcs)
@@ -887,51 +943,45 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.binary_name = gn_target.binary_name()
     label.linkopts = gn_target.linkopts()
 
-  if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
-    # |source_sets| contains the transitive set of source_set deps.
-    for trans_dep in gn_target.transitive_source_set_deps():
-      name = ':' + get_bazel_label_name(trans_dep.name)
-      if name.startswith(
-          ':include_perfetto_') and gn_target.type != 'executable':
-        label.hdrs += [name]
-      else:
-        if win_target:
-          win_target_names = [
-              target.name for target in win_target.transitive_source_set_deps()
-          ]
-          if trans_dep.name in win_target_names:
-            label.win_srcs += [name]
+  # Targets that only exist in the Android GN description (e.g. JNI source
+  # sets behind enable_perfetto_android_java_sdk) need to be marked as
+  # Android-only in Bazel; otherwise `bazel build //...` on a Linux host
+  # tries to compile them and fails on missing `<jni.h>` / `<android/log.h>`.
+  if android_only and bazel_type == 'perfetto_cc_library':
+    label.target_compatible_with = ['@platforms//os:android']
 
-        label.srcs += [name]
-
-      # Add defines from all transitive dependencies.
-      label.defines += trans_dep.defines
-
-    for dep in sorted(gn_target.non_proto_or_source_set_deps()):
+  if (gn_target.type in gn_utils.LINKER_UNIT_TYPES or
+      gn_target.type == 'source_set'):
+    # Bazel's layering_check requires every #include to be satisfied by a
+    # *direct* dep, so we list every target whose headers GN's public_deps
+    # chain makes visible to this target. See header_visible_deps() for
+    # how that set is computed.
+    for dep in sorted(gn_target.header_visible_deps()):
       dep_name = dep.name
+      # source_set / descriptor proto plugins don't emit cc artifacts; they
+      # are pure proto aggregators, so cc consumers must skip them.
+      if dep.type == 'proto_library' and dep.proto_plugin in ('source_set',
+                                                              'descriptor'):
+        continue
       if dep_name.startswith('//gn:'):
         assert (dep_name in external_deps), dep
+      if dep_name in external_deps:
+        assert (isinstance(external_deps[dep_name], list))
+        label.external_deps += external_deps[dep_name]
+        continue
 
       # tp_tables produces a filegroup not a cc_library so should end up srcs
       # not deps.
       if dep.custom_action_type == 'tp_tables':
         label_name = ':' + get_bazel_label_name(dep_name)
-        win_target_names = [
-            target.name for target in win_target.non_proto_or_source_set_deps()
-        ]
-        if win_target and dep_name in win_target_names:
-          label.win_srcs += [label_name]
+        if win_target:
+          win_target_names = [t.name for t in win_target.header_visible_deps()]
+          if dep_name in win_target_names:
+            label.win_srcs += [label_name]
         label.srcs += [label_name]
-      elif dep_name in external_deps:
-        assert (isinstance(external_deps[dep_name], list))
-        label.external_deps += external_deps[dep_name]
-      else:
-        label.deps += [':' + get_bazel_label_name(dep_name)]
+        continue
 
-    label.deps += [
-        ':' + get_bazel_label_name(x.name)
-        for x in gn_target.transitive_cpp_proto_deps()
-    ]
+      label.deps += [':' + get_bazel_label_name(dep_name)]
 
   # All items starting with : need to be sorted to the end of the list.
   # However, Python makes specifying a comparator function hard so cheat
@@ -971,8 +1021,10 @@ def gen_protozero_group_target(gn: GnParser):
   return [label]
 
 
-def gen_target(gn_target: GnParser.Target, win_target: GnParser.Target = None):
-  targets = gen_target_helper(gn_target, win_target)
+def gen_target(gn_target: GnParser.Target,
+               win_target: GnParser.Target = None,
+               android_only: bool = False):
+  targets = gen_target_helper(gn_target, win_target, android_only)
   if gn_target.name not in target_overrides:
     return targets
   for target in targets:
@@ -981,8 +1033,11 @@ def gen_target(gn_target: GnParser.Target, win_target: GnParser.Target = None):
   return targets
 
 
-def gen_target_str(gn_target, win_target: GnParser.Target = None):
-  return ''.join(str(x) for x in gen_target(gn_target, win_target))
+def gen_target_str(gn_target,
+                   win_target: GnParser.Target = None,
+                   android_only: bool = False):
+  return ''.join(
+      str(x) for x in gen_target(gn_target, win_target, android_only))
 
 
 def generate_build(gn_desc, gn_desc_win, gn_desc_android, targets, extras):
@@ -1013,11 +1068,10 @@ load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load(
     "@perfetto//bazel:rules.bzl",
     "perfetto_build_config_cc_library",
-    "perfetto_cc_amalgamated_sql",
     "perfetto_cc_binary",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
-    "perfetto_cc_proto_descriptor",
+    "perfetto_cpp_blob_header",
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
@@ -1034,6 +1088,7 @@ load(
     "perfetto_py_library",
     "perfetto_py_proto_library",
     "perfetto_jspb_proto_library",
+    "perfetto_label",
     "perfetto_android_binary",
     "perfetto_android_jni_library",
     "perfetto_android_library",
@@ -1094,7 +1149,7 @@ exports_files(["NOTICE"])
   android_str = ''
   for target_name in sorted(android_only_targets):
     target = gn_android.get_target(target_name)
-    android_str += gen_target_str(target)
+    android_str += gen_target_str(target, android_only=True)
 
   res += android_str
 
@@ -1135,10 +1190,6 @@ exports_files(["NOTICE"])
   res += public_str
   res += '# Content from BUILD.extras\n\n'
   res += extras
-
-  # Check for ODR violations
-  for target_name in default_targets:
-    checker = gn_utils.ODRChecker(gn, target_name)
 
   return res
 

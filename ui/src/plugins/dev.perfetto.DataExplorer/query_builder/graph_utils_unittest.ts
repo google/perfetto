@@ -58,10 +58,10 @@ describe('graph_utils', () => {
 
   // Helper to create a simple test node (source node)
   function createTestNode(): QueryNode {
-    return new TableSourceNode({
-      trace: mockTrace,
-      sqlModules: mockSqlModules,
-    }) as QueryNode;
+    return new TableSourceNode(
+      {},
+      {trace: mockTrace, sqlModules: mockSqlModules},
+    ) as QueryNode;
   }
 
   describe('getAllNodes', () => {
@@ -843,7 +843,7 @@ describe('graph_utils', () => {
 
   describe('applyGroupRewiring - edge cases', () => {
     it('should be a no-op when endNode is undefined', () => {
-      const group = new GroupNode([], undefined, []);
+      const group = new GroupNode({}, {}, [], undefined, []);
       // Should not throw
       applyGroupRewiring(group);
     });
@@ -893,7 +893,7 @@ describe('graph_utils', () => {
     it('should handle group with undefined endNode gracefully', () => {
       const a = createMockNode({nodeId: 'a'});
 
-      const group = new GroupNode([a], undefined, []);
+      const group = new GroupNode({}, {}, [a], undefined, []);
 
       // Should not throw
       ungroupNode(group);

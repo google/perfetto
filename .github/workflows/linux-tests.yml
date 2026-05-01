@@ -46,8 +46,8 @@ jobs:
           - name: clang-x86-release
             PERFETTO_TEST_GN_ARGS: 'is_debug=false target_cpu=\"x86\" cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
-          - name: gcc8-x86_64-release
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\" enable_perfetto_llvm_symbolizer=true'
+          - name: gcc9-x86_64-release
+            PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-9\" cxx=\"g++-9\" cc_wrapper=\"ccache\" enable_perfetto_llvm_symbolizer=true'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--grpc'
     env:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-${{ matrix.config.name }}

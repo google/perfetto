@@ -31,6 +31,8 @@ import {TextInput} from '../../widgets/text_input';
 import {EmptyState} from '../../widgets/empty_state';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
+import {Anchor} from '../../widgets/anchor';
+import {Icon} from '../../widgets/icon';
 import {Icons} from '../../base/semantic_icons';
 import {GateDetector} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
@@ -93,6 +95,35 @@ export interface PluginsPageAttrs {
 
 export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
   private filterText: string = '';
+  private readonly dependenciesByPluginId: ReadonlyMap<
+    string,
+    ReadonlyArray<PluginWrapper>
+  >;
+  private readonly dependantsByPluginId: ReadonlyMap<
+    string,
+    ReadonlyArray<PluginWrapper>
+  >;
+
+  constructor() {
+    const allPlugins = AppImpl.instance.plugins.getAllPlugins();
+    const byId = new Map(allPlugins.map((p) => [p.desc.id, p]));
+    const dependencies = new Map<string, PluginWrapper[]>();
+    const dependants = new Map<string, PluginWrapper[]>();
+    for (const p of allPlugins) {
+      dependencies.set(p.desc.id, []);
+      dependants.set(p.desc.id, []);
+    }
+    for (const p of allPlugins) {
+      for (const dep of p.desc.dependencies ?? []) {
+        const target = byId.get(dep.id);
+        if (!target) continue;
+        dependencies.get(p.desc.id)!.push(target);
+        dependants.get(target.desc.id)!.push(p);
+      }
+    }
+    this.dependenciesByPluginId = dependencies;
+    this.dependantsByPluginId = dependants;
+  }
 
   view({attrs}: m.Vnode<PluginsPageAttrs>): m.Children {
     const pluginManager = AppImpl.instance.plugins;
@@ -265,18 +296,46 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
     focused: boolean,
   ): m.Children {
     const loadTime = plugin.traceContext?.loadTimeMs;
+    const dependencyPlugins =
+      this.dependenciesByPluginId.get(plugin.desc.id) ?? [];
+    const dependantPlugins =
+      this.dependantsByPluginId.get(plugin.desc.id) ?? [];
     return m(SettingsCard, {
+      id: plugin.desc.id,
       className: classNames(
         'pf-plugins-page__card',
         plugin.enableFlag.get() && 'pf-plugins-page__card--enabled',
       ),
       title: plugin.desc.id,
       linkHref: `#!/plugins/${encodeURIComponent(plugin.desc.id)}`,
-      description: plugin.desc.description?.trim(),
+      description: [
+        plugin.desc.description?.trim(),
+        renderPluginIdList(
+          'Requires',
+          'account_tree',
+          'pf-plugins-page__deps--dependencies',
+          dependencyPlugins,
+        ),
+        renderPluginIdList(
+          'Required by',
+          'hub',
+          'pf-plugins-page__deps--dependants',
+          dependantPlugins,
+        ),
+      ],
 
       focused: focused,
       controls: m(
         'span.pf-plugins-page__controls',
+        plugin.active &&
+          !plugin.enabled &&
+          m(Chip, {
+            className: 'pf-plugins-page__chip',
+            label: 'TRANSITIVELY ENABLED',
+            intent: Intent.Warning,
+            title:
+              'This plugin is disabled but has been activated because another active plugin requires it. See the Required by list below.',
+          }),
         exists(loadTime) &&
           m(Chip, {
             className: 'pf-plugins-page__chip',
@@ -302,20 +361,38 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
             : undefined,
     });
   }
+}
 
-  oncreate(vnode: m.VnodeDOM<PluginsPageAttrs>) {
-    const subpage = decodeURIComponent(vnode.attrs.subpage ?? '');
-    console.log(subpage);
-    const pluginId = /[/](.+)/.exec(subpage)?.[1];
-    console.log('Scrolling to plugin', pluginId);
-    if (pluginId) {
-      const plugin = vnode.dom.querySelector(`#${CSS.escape(pluginId)}`);
-      console.log('Scrolling to plugin', pluginId, plugin);
-      if (plugin) {
-        plugin.scrollIntoView({block: 'center'});
-      }
-    }
-  }
+function renderPluginIdList(
+  label: string,
+  icon: string,
+  variantClass: string,
+  plugins: ReadonlyArray<PluginWrapper>,
+) {
+  if (plugins.length === 0) return null;
+  return m(
+    `.pf-plugins-page__deps.${variantClass}`,
+    m(Icon, {icon, className: 'pf-plugins-page__deps-icon'}),
+    m('span.pf-plugins-page__deps-label', `${label}: `),
+    plugins.map((p) => {
+      const id = p.desc.id;
+      const isActive = Boolean(p.active);
+      return m(
+        Anchor,
+        {
+          href: `#!/plugins/${encodeURIComponent(id)}`,
+          className: 'pf-plugins-page__deps-link',
+          title: isActive ? `${id} (active)` : `${id} (inactive)`,
+        },
+        m(Chip, {
+          className: 'pf-plugins-page__chip',
+          label: id,
+          icon: isActive ? 'check_circle' : 'radio_button_unchecked',
+          intent: isActive ? Intent.Success : undefined,
+        }),
+      );
+    }),
+  );
 }
 
 function reloadButton() {

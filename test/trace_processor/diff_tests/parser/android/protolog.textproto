@@ -151,12 +151,30 @@ packet {
   }
 }
 packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384150
+  protolog_message {
+    message_id: 555
+    str_param_iids: 1
+  }
+}
+packet {
   trusted_uid: 10224
   trusted_packet_sequence_id: 10
   previous_packet_dropped: true
   trusted_pid: 2063
   first_packet_on_sequence: true
   protolog_viewer_config {
+    messages {
+      message_id: 555
+      message: "Test message with percent sign: %% and a string %s"
+      level: PROTOLOG_LEVEL_DEBUG
+      location: "com/test/TestClass.java:888"
+      group_id: 1
+    }
     messages {
       message_id: 6924537961316301726
       message: "Test message with a string (%s), an int (%d), a double %g, and a boolean %b."

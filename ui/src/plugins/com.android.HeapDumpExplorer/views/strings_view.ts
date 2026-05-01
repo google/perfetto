@@ -31,34 +31,37 @@ import {
   SQL_PREAMBLE,
   RowCounter,
 } from '../components';
-import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
-const QUERY = `
-  SELECT base.*,
-    a.cumulative_size AS reachable_size,
-    a.cumulative_native_size AS reachable_native,
-    a.cumulative_count AS reachable_count
-  FROM (
-    SELECT
-      o.id,
-      od.value_string AS value,
-      LENGTH(od.value_string) AS len,
-      o.self_size,
-      ifnull(d.dominated_size_bytes, o.self_size)
-        + ifnull(d.dominated_native_size_bytes, o.native_size) AS retained,
-      ifnull(o.heap_type, 'default') AS heap
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
-    WHERE o.reachable != 0
-      AND od.value_string IS NOT NULL
-      AND (c.name = 'java.lang.String'
-        OR c.deobfuscated_name = 'java.lang.String')
-  ) base
-  LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
-`;
+function buildQuery(activeDump: HeapDump): string {
+  return `
+    SELECT base.*,
+      a.cumulative_size AS reachable_size,
+      a.cumulative_native_size AS reachable_native,
+      a.cumulative_count AS reachable_count
+    FROM (
+      SELECT
+        o.id,
+        od.value_string AS value,
+        LENGTH(od.value_string) AS len,
+        o.self_size,
+        ifnull(d.dominated_size_bytes, o.self_size)
+          + ifnull(d.dominated_native_size_bytes, o.native_size) AS retained,
+        ifnull(o.heap_type, 'default') AS heap
+      FROM heap_graph_object o
+      JOIN heap_graph_class c ON o.type_id = c.id
+      LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+      LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
+      WHERE o.reachable != 0
+        AND ${dumpFilterSql(activeDump, 'o')}
+        AND od.value_string IS NOT NULL
+        AND (c.name = 'java.lang.String'
+          OR c.deobfuscated_name = 'java.lang.String')
+    ) base
+    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
+  `;
+}
 
 function makeUiSchema(navigate: NavFn): SchemaRegistry {
   return {
@@ -149,7 +152,9 @@ const SUMMARY_SCHEMA: SchemaRegistry = {
 
 interface StringsViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly initialQuery?: string;
   readonly hasFieldValues?: boolean;
 }
@@ -161,7 +166,10 @@ function StringsView(): m.Component<StringsViewAttrs> {
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
-  function applyNavFilter(q: string | undefined) {
+  function applyNavFilter(
+    q: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!q) return;
     filters = [{field: 'value', op: '=' as const, value: q}];
     counter.onFiltersChanged(filters);
@@ -170,17 +178,18 @@ function StringsView(): m.Component<StringsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(QUERY),
+        sqlSchema: createSimpleSchema(query),
         rootSchemaName: 'query',
         preamble: SQL_PREAMBLE,
       });
-      counter.init(engine, QUERY, SQL_PREAMBLE);
-      applyNavFilter(vnode.attrs.initialQuery);
+      counter.init(engine, query, SQL_PREAMBLE);
+      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
       queries
-        .getStringList(vnode.attrs.engine)
+        .getStringList(engine, activeDump)
         .then((r) => {
           if (!alive) return;
           allRows = r;
@@ -189,7 +198,7 @@ function StringsView(): m.Component<StringsViewAttrs> {
         .catch(console.error);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialQuery);
+      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
       alive = false;

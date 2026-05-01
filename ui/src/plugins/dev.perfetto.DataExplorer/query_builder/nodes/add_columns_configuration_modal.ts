@@ -30,7 +30,7 @@ export interface AddColumnsConfigurationModalAttrs {
   readonly leftColumn?: string;
   readonly rightColumn?: string;
   readonly selectedColumns: string[];
-  readonly columnAliases?: Map<string, string>;
+  readonly columnAliases?: Record<string, string>;
 
   // Callbacks
   readonly getJoinColumnErrors: (
@@ -66,8 +66,8 @@ export class AddColumnsConfigurationModal
     // Create rightCols with checked state based on selectedColumns
     const rightColsWithChecked = rightCols.map((col) => ({
       ...col,
-      checked: selectedColumns.includes(col.column.name),
-      alias: columnAliases?.get(col.column.name),
+      checked: selectedColumns.includes(col.name),
+      alias: columnAliases?.[col.name],
     }));
 
     return m(
@@ -116,10 +116,10 @@ export class AddColumnsConfigurationModal
               m(
                 'option',
                 {
-                  value: col.column.name,
-                  selected: col.column.name === leftColumn,
+                  value: col.name,
+                  selected: col.name === leftColumn,
                 },
-                col.column.name,
+                col.name,
               ),
             ),
           ],
@@ -138,11 +138,11 @@ export class AddColumnsConfigurationModal
           onRightColumnChange(columnName);
         },
         onColumnToggle: (index: number, checked: boolean) => {
-          const colName = rightCols[index].column.name;
+          const colName = rightCols[index].name;
           onColumnToggle(colName, checked);
         },
         onColumnAlias: (index: number, alias: string) => {
-          const colName = rightCols[index].column.name;
+          const colName = rightCols[index].name;
           onColumnAlias(colName, alias);
         },
       }),

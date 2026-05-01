@@ -65,6 +65,9 @@ export interface ChartTypeDefinition {
    */
   readonly supportsYColumn: boolean;
 
+  /** Label shown for the Y column picker (defaults to "Y Column"). */
+  readonly yColumnLabel?: string;
+
   /**
    * Whether the chart supports an optional grouping/series column (any type).
    * When true, a group column picker is shown in the config popup.
@@ -99,7 +102,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     requiresNumericDimension: false,
     primaryColumnLabel: 'Dimension',
     supportsYColumn: false,
-    supportsGroupColumn: false,
+    supportsGroupColumn: true,
     supportsSizeColumn: false,
     description: 'Compare categories using vertical or horizontal bars',
   },
@@ -188,8 +191,9 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsAggregation: true,
     supportsBinning: false,
     requiresNumericDimension: false,
-    primaryColumnLabel: 'X Column',
+    primaryColumnLabel: 'X Dimension',
     supportsYColumn: true,
+    yColumnLabel: 'Y Dimension',
     supportsGroupColumn: false,
     supportsSizeColumn: false,
     description: 'Visualize magnitude across two dimensions using color',

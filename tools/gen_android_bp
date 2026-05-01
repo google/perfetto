@@ -329,6 +329,13 @@ additional_args = {
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'libperfetto_c': [
         ('min_sdk_version', '30'),
@@ -342,6 +349,13 @@ additional_args = {
             ],
             'host_ldlibs': ['-lws2_32'],
         }),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
@@ -425,16 +439,20 @@ def enable_libunwind(module):
 
 
 def enable_pcre2(module):
-  # Soong does not transitively propagate deps from static archives to their
-  # consumers (b/169779783). External modules like libandroid_runtime and
-  # libinputflinger link perfetto modules statically, so we use
-  # whole_static_libs to embed pcre2 symbols directly in the archive.
-  # For device-only shared libs/binaries, shared_libs suffices as the .so
-  # resolves its own deps internally.
-  if module.type in ('cc_library_static', 'cc_binary_host'):
-    module.whole_static_libs.add('libpcre2')
+  # Invoked by the dep walker for every module that transitively depends on
+  # //buildtools:pcre2 in GN. Modules that opt out via PERFETTO_REGEX_FORCE_STD
+  # compile base::Regex against std::regex, so they don't reference any pcre2
+  # symbols and the libpcre2 dep is suppressed for them.
+  if '-DPERFETTO_REGEX_FORCE_STD' in module.cflags:
+    return
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libpcre2')
   elif module.host_supported:
     module.android.shared_libs.add('libpcre2')
+    # Use whole_static_libs on host so that pcre2 symbols are embedded in
+    # host static archives (.a). Without this, host consumers of a static
+    # lib (e.g. libandroid_runtime linking libperfetto_c.a) would hit
+    # undefined pcre2 symbols because static_libs don't propagate.
     module.host.whole_static_libs.add('libpcre2')
   else:
     module.shared_libs.add('libpcre2')
@@ -496,6 +514,10 @@ def enable_android_test_common(module):
   module.static_libs.add('androidx.test.ext.junit')
 
 
+def enable_error_prone_annotations(module):
+  module.libs.add('error_prone_annotations')
+
+
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
@@ -533,6 +555,8 @@ builtin_deps = {
         enable_bionic_libc_platform_headers_on_android,
     '//gn:android_test_common':
         enable_android_test_common,
+    '//gn:error_prone_annotations':
+        enable_error_prone_annotations,
 }
 
 # ----------------------------------------------------------------------------
@@ -684,10 +708,18 @@ class Module(object):
     self.stubs = {}
     self.manifest: Optional[str] = None
     self.resource_dirs: Optional[List[str]] = None
+    self.libs = set()
     self.jni_libs: Optional[List[str]] = None
     self.jni_uses_platform_apis: Optional[bool] = None
     self.jarjar_rules: Optional[str] = None
     self.visibility = set()
+    # When True, this module carries static-init objects (directly via a
+    # source_set tagged `perfetto_force_alwayslink` in GN, or transitively
+    # from absorbing such a filegroup or static lib) that the linker must
+    # not strip. cc_library_static consumers inherit the flag and pull this
+    # module in via `whole_static_libs` rather than `static_libs` / `srcs`,
+    # so the .o files survive every link boundary up to the final binary.
+    self.force_alwayslink = False
 
   def to_string(self, output):
     if self.comment:
@@ -697,6 +729,7 @@ class Module(object):
     self._output_field(output, 'srcs')
     self._output_field(output, 'resource_dirs')
     self._output_field(output, 'manifest')
+    self._output_field(output, 'libs')
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
@@ -1070,54 +1103,78 @@ def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
   return module
 
 
-def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
-                                  target: GnParser.Target):
-  bp_module_name = label_to_module_name(target.name)
+def create_sql_source_set_module(blueprint: Blueprint, target: GnParser.Target):
+  # Emit one Soong filegroup per `perfetto_sql_source_set` whose srcs are
+  # flattened to the leaf .sql files (own inputs + every transitive
+  # sql_source_set's inputs). create_modules_from_target's action branch does
+  # not recurse into deps, so sub-sets are never materialised as their own
+  # modules; flattening avoids dangling `:foo` references and keeps a single
+  # filegroup per top-level set, matching the pre-5ff30c245a behaviour.
+  CHROME_SQL_PREFIX = (
+      '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql')
+  CHROME_SQL_GLOB = 'src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql'
 
-  def find_arg(name):
-    for i, arg in enumerate(target.args):
-      if arg.startswith(f'--{name}'):
-        return target.args[i + 1]
+  module = Module('filegroup', label_to_module_name(target.name), target.name)
 
-  namespace = find_arg('namespace')
+  def add_inputs(t: GnParser.Target):
+    # The chrome stdlib SQL list is autorolled from Chromium; use a glob so
+    # the filegroup does not need regenerating on every roll. Mirrors the
+    # `target_overrides` precedent in tools/gen_bazel.
+    if t.name.startswith(CHROME_SQL_PREFIX):
+      module.srcs.add(CHROME_SQL_GLOB)
+    else:
+      module.srcs.update(gn_utils.label_to_path(s) for s in t.inputs)
 
-  module = Module('genrule', bp_module_name, target.name)
-  module.tool_files = [
-      'tools/gen_amalgamated_sql.py',
-  ]
-  module.cmd = ' '.join([
-      '$(location tools/gen_amalgamated_sql.py)',
-      f'--namespace={namespace}',
-      '--cpp-out=$(out)',
-      '$(in)',
-  ])
-  module.genrule_headers.add(module.name)
-  module.out.update(target.outputs)
-
+  add_inputs(target)
   for dep in target.transitive_deps:
-    # Use globs for the chrome stdlib so the file does not need to be
-    # regenerated in autoroll CLs.
-    if dep.name.startswith(
-        '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
-      module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
-      continue
-    module.srcs.update(
-        [gn_utils.label_to_path(src) for src in gn.get_target(dep.name).inputs])
+    if dep.custom_action_type == 'sql_source_set':
+      add_inputs(dep)
+
   blueprint.add_module(module)
   return module
 
 
-def create_cc_proto_descriptor_module(blueprint: Blueprint,
-                                      target: GnParser.Target):
+def create_cpp_blob_header_module(blueprint: Blueprint,
+                                  target: GnParser.Target):
   bp_module_name = label_to_module_name(target.name)
   module = Module('genrule', bp_module_name, target.name)
-  module.tool_files = [
-      'tools/gen_cc_proto_descriptor.py',
-  ]
-  module.cmd = ' '.join([
-      '$(location tools/gen_cc_proto_descriptor.py)', '--gen_dir=$(genDir)',
-      '--cpp_out=$(out)', '$(in)'
-  ])
+  script_path = gn_utils.label_to_path(target.script)
+  module.tool_files = [script_path]
+  # Scripts other than cpp_blob_emitter typically `import` it via sys.path
+  # manipulation, so make the helper available alongside them in Soong.
+  if script_path != 'python/tools/cpp_blob_emitter.py':
+    module.tool_files.append('python/tools/cpp_blob_emitter.py')
+
+  # The GN template invokes the script as:
+  #   <script> --output <output> \
+  #            [--gen-dir <gen_dir>] \
+  #            [<extra_args>...] \
+  #            <inputs>...
+  # Strip the leading --output/output pair and the trailing input paths so
+  # only the script-specific flags remain to thread into the genrule cmd.
+  # Substitute the rebased --gen-dir value with `$(genDir)`, which Soong
+  # expands to the genrule's gen dir at build time.
+  args = list(target.args)
+  if len(args) >= 2 and args[0] == '--output':
+    args = args[2:]
+  if len(target.inputs) > 0:
+    args = args[:-len(target.inputs)]
+
+  extra_args = []
+  i = 0
+  while i < len(args):
+    if args[i] == '--gen-dir' and i + 1 < len(args):
+      extra_args.append('--gen-dir=$(genDir)')
+      i += 2
+    else:
+      extra_args.append(args[i])
+      i += 1
+
+  cmd_parts = [
+      '$(location %s)' % script_path,
+      '--output=$(out)',
+  ] + extra_args + ['$(in)']
+  module.cmd = ' '.join(cmd_parts)
   module.genrule_headers.add(module.name)
   module.srcs.update(
       ':' + label_to_module_name(dep.name) for dep in target.deps)
@@ -1241,6 +1298,10 @@ class AndroidJavaSDKModulesGenerator:
 
       _add_additional_args(java_module)
 
+      # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
+      # or 'android_test' rule that depends on this 'android_library' rule.
+      self._generate_deps_modules_and_add_non_jni_lib_deps(java_module, target)
+
       self.blueprint.add_module(java_module)
 
       if target.android_bp_copy_java_target_name_suffix:
@@ -1255,11 +1316,13 @@ class AndroidJavaSDKModulesGenerator:
 
       module.static_libs.add(java_library_module_name)
     else:
+      java_module = None
       module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
-    # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
-    # or 'android_test' rule that depends on this 'android_library' rule.
-    self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
+    if not java_module:
+      # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
+      # or 'android_test' rule that depends on this 'android_library' rule.
+      self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
 
     module.manifest = gn_utils.label_to_path(target.manifest)
 
@@ -1377,6 +1440,25 @@ def _add_additional_args(module: Module):
                   (type(add_val), key))
 
 
+def _absorb_static_dep(module: 'Module', dep_module: 'Module'):
+  """Wires a cc_library_static `dep_module` into `module`.
+
+  Force-alwayslink deps must reach the final link via `whole_static_libs` at
+  every boundary, otherwise the next link step dead-strips the static-init
+  .o files. So when we absorb such a dep, we also flag the consumer (if it
+  is itself a cc_library_static) as force_alwayslink, propagating the
+  property virally up the static-archive chain until it terminates at a
+  cc_test / cc_binary / cc_library_shared (which is the final link).
+  """
+  if dep_module.force_alwayslink:
+    module.whole_static_libs.add(dep_module.name)
+    if module.type in ('cc_library_static', 'cc_library'):
+      module.force_alwayslink = True
+  else:
+    module.static_libs.add(dep_module.name)
+  module.add_static_library_transitive_deps(dep_module)
+
+
 def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                                gn_target_name: str) -> Optional[Module]:
   """Generate module(s) for a given GN target.
@@ -1417,6 +1499,12 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     module = Module(bp_type, bp_module_name, gn_target_name)
   elif target.type == 'source_set':
     module = Module('filegroup', bp_module_name, gn_target_name)
+    # `force_alwayslink` is sticky: any cc_library_static that flattens this
+    # filegroup into its srcs inherits the flag (see the filegroup branch
+    # of the dep walker below) and in turn forces its own consumers to pull
+    # it in via whole_static_libs, preserving static-init objects across
+    # every link boundary on the way to the final binary.
+    module.force_alwayslink = target.force_alwayslink
   elif target.type == 'group':
     # "group" targets are resolved recursively by gn_utils.get_target().
     # There's nothing we need to do at this level for them.
@@ -1426,8 +1514,8 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if module is None:
       return None
   elif target.type == 'action':
-    if target.custom_action_type == 'sql_amalgamation':
-      return create_amalgamated_sql_module(blueprint, gn, target)
+    if target.custom_action_type == 'sql_source_set':
+      return create_sql_source_set_module(blueprint, target)
     if target.custom_action_type == 'tp_tables':
       return create_tp_tables_module(blueprint, gn, target)
     if target.custom_action_type == 'perfetto_android_library':
@@ -1445,8 +1533,8 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if target.custom_action_type == 'protozero_descriptor_diff':
       return create_protozero_descriptor_diff_module(blueprint, gn, target)
 
-    if target.custom_action_type == 'cc_proto_descriptor':
-      module = create_cc_proto_descriptor_module(blueprint, target)
+    if target.custom_action_type == 'cpp_blob_header':
+      module = create_cpp_blob_header_module(blueprint, target)
     elif name_without_toolchain == gn_utils.GEN_VERSION_TARGET:
       module = create_gen_version_module(blueprint, target, bp_module_name)
     else:
@@ -1539,20 +1627,26 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if dep_module.type == 'cc_library_shared':
       module.shared_libs.add(dep_module.name)
     elif dep_module.type == 'cc_library_static':
-      module.static_libs.add(dep_module.name)
-      module.add_static_library_transitive_deps(dep_module)
+      _absorb_static_dep(module, dep_module)
     elif dep_module.type == 'cc_library':
       dep_gn_target = gn.get_target(dep_name)
       if dep_gn_target.type == 'shared_library':
         module.shared_libs.add(dep_module.name)
       elif dep_gn_target.type == 'static_library':
-        module.static_libs.add(dep_module.name)
-        module.add_static_library_transitive_deps(dep_module)
+        _absorb_static_dep(module, dep_module)
       else:
         raise Error('Unknown gn type %s for cc_library dep %s' %
                     (dep_gn_target.type, dep_module.name))
     elif dep_module.type == 'filegroup':
       module.srcs.add(':' + dep_module.name)
+      # Inlining a force_alwayslink filegroup means its static-init .o files
+      # land in *this* cc_library_static; if our own consumers pulled us in
+      # via plain `static_libs`, those .o files would dead-strip at the next
+      # link step. Mark ourselves force_alwayslink so the chain virally
+      # propagates whole_static_libs all the way to the final binary.
+      if dep_module.force_alwayslink and module.type in ('cc_library_static',
+                                                         'cc_library'):
+        module.force_alwayslink = True
       # Filegroup sources are flattened into the module, but the filegroup's
       # own GN deps (e.g. //gn:pcre2 on the regex source_set) are not
       # automatically walked. Recurse into them to pick up any builtin_deps.

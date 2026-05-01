@@ -13,12 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  QueryNode,
-  QueryNodeState,
-  nextNodeId,
-  NodeType,
-} from '../../query_node';
+import {QueryNode, NodeContext, nextNodeId, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Button} from '../../../../widgets/button';
@@ -44,7 +39,9 @@ export interface SortCriterion {
   direction: 'ASC' | 'DESC';
 }
 
-export interface SortNodeState extends QueryNodeState {
+// Serializable node configuration. This IS the serialized format —
+// no separate serializeState()/deserializeState() needed.
+export interface SortNodeAttrs {
   sortCriteria?: SortCriterion[];
 }
 
@@ -53,22 +50,25 @@ export class SortNode implements QueryNode {
   readonly type = NodeType.kSort;
   primaryInput?: QueryNode;
   nextNodes: QueryNode[];
-  readonly state: SortNodeState;
+  readonly attrs: SortNodeAttrs;
+  readonly context: NodeContext;
 
-  constructor(state: SortNodeState) {
+  constructor(attrs: SortNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.attrs = {
+      ...attrs,
+      sortCriteria: attrs.sortCriteria ?? [],
+    };
+    this.context = context;
     this.nextNodes = [];
-
-    this.state.sortCriteria = this.state.sortCriteria ?? [];
   }
 
   get sortCols(): ColumnInfo[] {
-    if (!this.state.sortCriteria) {
+    if (!this.attrs.sortCriteria) {
       return [];
     }
     const sourceCols = this.sourceCols;
-    return this.state.sortCriteria
+    return this.attrs.sortCriteria
       .map((criterion) => sourceCols.find((c) => c.name === criterion.colName))
       .filter((c): c is ColumnInfo => c !== undefined);
   }
@@ -86,13 +86,13 @@ export class SortNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
-    if (!this.state.sortCriteria || this.state.sortCriteria.length === 0) {
+    if (!this.attrs.sortCriteria || this.attrs.sortCriteria.length === 0) {
       return {
         content: NodeDetailsMessage('No sort columns'),
       };
     }
 
-    const label = this.state.sortCriteria
+    const label = this.attrs.sortCriteria
       .map((c) =>
         c.direction === 'DESC' ? `${c.colName} ↓` : `${c.colName} ↑`,
       )
@@ -104,8 +104,8 @@ export class SortNode implements QueryNode {
   }
 
   nodeSpecificModify(): NodeModifyAttrs {
-    if (!this.state.sortCriteria) {
-      this.state.sortCriteria = [];
+    if (!this.attrs.sortCriteria) {
+      this.attrs.sortCriteria = [];
     }
 
     const sections: NodeModifyAttrs['sections'] = [
@@ -129,7 +129,7 @@ export class SortNode implements QueryNode {
   }
 
   private renderColumnSelector(): m.Child {
-    const sortCriteria = this.state.sortCriteria ?? [];
+    const sortCriteria = this.attrs.sortCriteria ?? [];
 
     const sortOptions: MultiSelectOption[] = this.sourceCols.map((col) => ({
       id: col.name,
@@ -156,45 +156,45 @@ export class SortNode implements QueryNode {
         options: sortOptions,
         showNumSelected: false,
         onChange: (diffs: MultiSelectDiff[]) => {
-          if (!this.state.sortCriteria) {
-            this.state.sortCriteria = [];
+          if (!this.attrs.sortCriteria) {
+            this.attrs.sortCriteria = [];
           }
           for (const diff of diffs) {
             if (diff.checked) {
               // Add column if not already present
-              if (!this.state.sortCriteria.some((c) => c.colName === diff.id)) {
-                this.state.sortCriteria.push({
+              if (!this.attrs.sortCriteria.some((c) => c.colName === diff.id)) {
+                this.attrs.sortCriteria.push({
                   colName: diff.id,
                   direction: 'ASC',
                 });
               }
             } else {
               // Remove column
-              this.state.sortCriteria = this.state.sortCriteria.filter(
+              this.attrs.sortCriteria = this.attrs.sortCriteria.filter(
                 (c) => c.colName !== diff.id,
               );
             }
           }
-          this.state.onchange?.();
+          this.context.onchange?.();
         },
       }),
     );
   }
 
   private renderSortCriteriaList(): m.Child {
-    const sortCriteria = this.state.sortCriteria ?? [];
+    const sortCriteria = this.attrs.sortCriteria ?? [];
 
     if (sortCriteria.length === 0) {
       return null;
     }
 
     const handleReorder = (from: number, to: number) => {
-      if (!this.state.sortCriteria) return;
-      const newSortCriteria = [...this.state.sortCriteria];
+      if (!this.attrs.sortCriteria) return;
+      const newSortCriteria = [...this.attrs.sortCriteria];
       const [removed] = newSortCriteria.splice(from, 1);
       newSortCriteria.splice(to, 0, removed);
-      this.state.sortCriteria = newSortCriteria;
-      this.state.onchange?.();
+      this.attrs.sortCriteria = newSortCriteria;
+      this.context.onchange?.();
       m.redraw();
     };
 
@@ -211,10 +211,10 @@ export class SortNode implements QueryNode {
           m(Button, {
             label: criterion.direction,
             onclick: () => {
-              if (this.state.sortCriteria) {
-                this.state.sortCriteria[index].direction =
+              if (this.attrs.sortCriteria) {
+                this.attrs.sortCriteria[index].direction =
                   criterion.direction === 'ASC' ? 'DESC' : 'ASC';
-                this.state.onchange?.();
+                this.context.onchange?.();
                 m.redraw();
               }
             },
@@ -230,22 +230,22 @@ export class SortNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
-      setValidationError(this.state, 'No input node connected');
+      setValidationError(this.context, 'No input node connected');
       return false;
     }
 
     if (!this.primaryInput.validate()) {
-      setValidationError(this.state, 'Previous node is invalid');
+      setValidationError(this.context, 'Previous node is invalid');
       return false;
     }
 
     if (this.sortCols === undefined || this.sortCols.length === 0) {
-      setValidationError(this.state, 'No sort columns selected');
+      setValidationError(this.context, 'No sort columns selected');
       return false;
     }
 
@@ -253,13 +253,10 @@ export class SortNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: SortNodeState = {
-      sortCriteria: this.state.sortCriteria?.map((c) => ({...c})),
-      filters: this.state.filters?.map((f) => ({...f})),
-      filterOperator: this.state.filterOperator,
-      onchange: this.state.onchange,
-    };
-    return new SortNode(stateCopy);
+    return new SortNode(
+      {sortCriteria: this.attrs.sortCriteria?.map((c) => ({...c}))},
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -271,14 +268,12 @@ export class SortNode implements QueryNode {
     }
 
     const criteria: BuilderSortCriterion[] = [];
-    for (const criterion of this.state.sortCriteria ?? []) {
-      const col = this.sortCols.find(
-        (c) => c.column.name === criterion.colName,
-      );
+    for (const criterion of this.attrs.sortCriteria ?? []) {
+      const col = this.sortCols.find((c) => c.name === criterion.colName);
       if (!col) continue;
 
       criteria.push({
-        columnName: col.column.name,
+        columnName: col.name,
         direction: criterion.direction,
       });
     }
@@ -293,18 +288,5 @@ export class SortNode implements QueryNode {
       criteria,
       this.nodeId,
     );
-  }
-
-  serializeState(): object {
-    // Only return serializable fields, excluding callbacks and objects
-    // that might contain circular references
-    return {
-      primaryInputId: this.primaryInput?.nodeId,
-      sortCriteria: this.state.sortCriteria,
-    };
-  }
-
-  static deserializeState(state: SortNodeState): SortNodeState {
-    return {...state};
   }
 }

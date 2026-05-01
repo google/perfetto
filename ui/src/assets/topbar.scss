@@ -210,6 +210,14 @@
       &.pf-highlighted {
         background-color: var(--pf-color-primary);
         color: var(--pf-color-text-on-primary);
+
+        // Intent-coloured chips would otherwise blend into the primary bg;
+        // re-derive their colours from the row's text colour so they stay
+        // visible against the highlight.
+        .pf-chip {
+          color: currentColor;
+          background: color-mix(in srgb, currentColor 15%, transparent);
+        }
       }
     }
   }

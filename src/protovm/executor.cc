@@ -105,14 +105,14 @@ StatusOr<void> Executor::Delete(RwProto::Cursor* dst) const {
   return dst->Delete();
 }
 
-StatusOr<void> Executor::Merge(Cursors* cursors) const {
+StatusOr<void> Executor::Merge(Cursors* cursors, bool skip_submessages) const {
   if (!cursors->src.IsBytes()) {
     PROTOVM_ABORT(
         "Attempted MERGE operation but src cursor has incompatible data "
         "type");
   }
 
-  return cursors->dst.Merge(*cursors->src.GetBytes());
+  return cursors->dst.Merge(*cursors->src.GetBytes(), skip_submessages);
 }
 
 StatusOr<void> Executor::Set(Cursors* cursors) const {

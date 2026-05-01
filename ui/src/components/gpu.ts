@@ -14,6 +14,8 @@
 
 import {maybeMachineLabel} from '../public/utils';
 
+const MAX_GPUS_PER_MACHINE = 256;
+
 export class Gpu {
   constructor(
     readonly ugpu: number,
@@ -28,6 +30,12 @@ export class Gpu {
 
   public maybeMachineLabel(): string {
     return maybeMachineLabel(this.machine);
+  }
+
+  // Sort order for deterministic track ordering: machine first (unbounded),
+  // then gpu_id within a machine (small, bounded).
+  get sortOrder(): number {
+    return this.machine * MAX_GPUS_PER_MACHINE + this.gpu;
   }
 
   public toString(): string {

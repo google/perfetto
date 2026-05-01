@@ -18,7 +18,9 @@
 
 #include <cstdint>
 #include <string_view>
+#include <vector>
 
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 
@@ -71,6 +73,80 @@ tables::GpuTable::Id GpuTracker::SetGpuInfo(uint32_t gpu,
     gpu_row->set_pci_bdf(context_->storage->InternString(pci_bdf));
   }
   return id;
+}
+
+void GpuTracker::AddGpuRenderStageSlice(uint64_t event_id, SliceId slice_id) {
+  auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
+  if (!gpu_slices) {
+    event_id_to_gpu_slices_.Insert(event_id, {slice_id});
+  } else {
+    gpu_slices->push_back(slice_id);
+  }
+
+  auto* te_slice = event_id_to_track_event_slice_.Find(event_id);
+  if (te_slice) {
+    context_->flow_tracker->InsertFlow(*te_slice, slice_id);
+  }
+
+  auto* term_slice = event_id_to_terminating_slice_.Find(event_id);
+  if (term_slice) {
+    context_->flow_tracker->InsertFlow(slice_id, *term_slice);
+  }
+
+  auto* waiting = event_id_to_waiting_slices_.Find(event_id);
+  if (waiting) {
+    for (SliceId wait_slice : *waiting) {
+      context_->flow_tracker->InsertFlow(slice_id, wait_slice);
+    }
+  }
+}
+
+void GpuTracker::AddRenderStageSubmission(uint64_t event_id, SliceId slice_id) {
+  auto* existing = event_id_to_track_event_slice_.Find(event_id);
+  if (existing) {
+    *existing = slice_id;
+  } else {
+    event_id_to_track_event_slice_.Insert(event_id, slice_id);
+  }
+
+  auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
+  if (gpu_slices) {
+    for (SliceId gpu_slice : *gpu_slices) {
+      context_->flow_tracker->InsertFlow(slice_id, gpu_slice);
+    }
+  }
+}
+
+void GpuTracker::AddRenderStageWait(uint64_t event_id, SliceId slice_id) {
+  auto* existing = event_id_to_terminating_slice_.Find(event_id);
+  if (existing) {
+    *existing = slice_id;
+  } else {
+    event_id_to_terminating_slice_.Insert(event_id, slice_id);
+  }
+
+  auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
+  if (gpu_slices) {
+    for (SliceId gpu_slice : *gpu_slices) {
+      context_->flow_tracker->InsertFlow(gpu_slice, slice_id);
+    }
+  }
+}
+
+void GpuTracker::AddEventWait(uint64_t waited_event_id, SliceId slice_id) {
+  auto* gpu_slices = event_id_to_gpu_slices_.Find(waited_event_id);
+  if (gpu_slices) {
+    for (SliceId src_slice : *gpu_slices) {
+      context_->flow_tracker->InsertFlow(src_slice, slice_id);
+    }
+  }
+
+  auto* waiting = event_id_to_waiting_slices_.Find(waited_event_id);
+  if (!waiting) {
+    event_id_to_waiting_slices_.Insert(waited_event_id, {slice_id});
+  } else {
+    waiting->push_back(slice_id);
+  }
 }
 
 }  // namespace perfetto::trace_processor

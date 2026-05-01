@@ -15,14 +15,11 @@
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {
-  createQueryCounterTrack,
-  SqlTableCounterTrack,
-} from '../../components/tracks/query_counter_track';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {time, TimeSpan} from '../../base/time';
 import {z} from 'zod';
+import {CounterTrack} from '../../components/tracks/counter_track';
 
 export default class OomAdjScoreViz implements PerfettoPlugin {
   static readonly id = 'com.android.OomAdjScoreViz';
@@ -103,11 +100,11 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
     const concurrencyUri = `${OomAdjScoreViz.id}.${bucket}.concurrency.${uuidv4()}`;
     ctx.tracks.registerTrack({
       uri: concurrencyUri,
-      renderer: new SqlTableCounterTrack(
-        ctx,
-        concurrencyUri,
-        OomAdjScoreViz.getConcurrencyTrackQuery(window, bucket),
-      ),
+      renderer: CounterTrack.create({
+        trace: ctx,
+        uri: concurrencyUri,
+        sqlSource: OomAdjScoreViz.getConcurrencyTrackQuery(window, bucket),
+      }),
       description: `This track shows the number of processes that are concurrently in the same OOM score bucket '${bucket}' over time.`,
     });
 
@@ -149,17 +146,10 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
   ): Promise<TrackNode> {
     const name = `${processName} ${pid}`;
     const uri = `${OomAdjScoreViz.id}.process.${upid}.${uuidv4()}`;
-    const renderer = await createQueryCounterTrack({
+    const renderer = CounterTrack.create({
       trace: ctx,
       uri,
-      materialize: false,
-      data: {
-        sqlSource: OomAdjScoreViz.getOomScoreTrackQuery(window, upid),
-      },
-      columns: {
-        ts: 'ts',
-        value: 'value',
-      },
+      sqlSource: OomAdjScoreViz.getOomScoreTrackQuery(window, upid),
     });
     ctx.tracks.registerTrack({
       uri,

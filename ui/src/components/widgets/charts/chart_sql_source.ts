@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../base/assert';
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
+import {QuerySlot} from '../../../base/query_slot';
 import type {Engine} from '../../../trace_processor/engine';
 import type {QueryResult as TPQueryResult} from '../../../trace_processor/query_result';
 import {Filter} from '../datagrid/model';
@@ -162,6 +162,17 @@ export interface HistogramQueryConfig {
 
   /** Number of buckets. */
   readonly bucketCount: number;
+
+  /**
+   * If provided, a fixed bucket size is used (rather than auto-binning the
+   * data range into `bucketCount` buckets). Must be paired with `minValue`.
+   * The histogram covers [minValue, minValue + bucketCount * bucketSize];
+   * values outside this range are clamped to the edge buckets.
+   */
+  readonly bucketSize?: number;
+
+  /** Lower bound of bucket 0. Required when `bucketSize` is provided. */
+  readonly minValue?: number;
 
   /** Filters to apply before bucketing. */
   readonly filters?: ReadonlyArray<Filter>;
@@ -499,6 +510,31 @@ ${orderByClause}`.trim();
     const bucketCount = config.bucketCount;
     const whereClause = this.buildWhereClause(config.filters);
 
+    // Fixed-bucketization variant: callers compute "nice" boundaries (e.g.,
+    // rounded to 1/2/5 * 10^n) externally and pass them in. The histogram
+    // covers [minValue, minValue + bucketCount * bucketSize]; values outside
+    // are clamped to the edge buckets so the tail isn't lost.
+    if (config.bucketSize !== undefined && config.minValue !== undefined) {
+      const min = config.minValue;
+      const size = config.bucketSize;
+      const max = min + bucketCount * size;
+      return `
+WITH _data AS (
+  SELECT ${col} AS _value
+  FROM (${this.query})
+  ${whereClause}
+)
+SELECT
+  ${min} AS _min,
+  ${max} AS _max,
+  (SELECT COUNT(*) FROM _data) AS _total,
+  MIN(${bucketCount - 1}, MAX(0, CAST((_value - ${min}) / CAST(${size} AS REAL) AS INT))) AS _bucket_idx,
+  COUNT(*) AS _count
+FROM _data
+GROUP BY _bucket_idx
+ORDER BY _bucket_idx`.trim();
+    }
+
     return `
 WITH _data AS (
   SELECT ${col} AS _value
@@ -657,8 +693,7 @@ export interface ChartLoaderResult<TData> {
 export abstract class SQLChartLoader<TConfig, TData> {
   private readonly engine: Engine;
   protected readonly source: ChartSource;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<TData>(this.taskQueue);
+  private readonly querySlot = new QuerySlot<TData>();
 
   constructor(engine: Engine, source: ChartSource) {
     this.engine = engine;

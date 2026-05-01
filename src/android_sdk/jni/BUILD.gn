@@ -19,15 +19,27 @@ SOURCE_SET_DEPS = [
   "../perfetto_sdk_for_jni:perfetto_sdk_for_jni",
 ]
 
+# JNI_OnLoad and the Java_* native methods are looked up by the JVM via
+# dlsym(), so they have no in-binary references. When this source_set is
+# absorbed into a final link as a static archive (Bazel cc_library /
+# Soong cc_library_static), the linker dead-strips those .o files. The
+# `perfetto_force_alwayslink` metadata tells generators to mark the
+# library so its objects survive the link.
+SOURCE_SET_METADATA = {
+  perfetto_force_alwayslink = [ true ]
+}
+
 source_set("libperfetto_jni_src") {
   sources = SOURCE_SET_SOURCES
   deps = SOURCE_SET_DEPS
+  metadata = SOURCE_SET_METADATA
 }
 
 source_set("libperfetto_framework_jni_src") {
   sources = SOURCE_SET_SOURCES
   deps = SOURCE_SET_DEPS
   cflags = [ "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal/" ]
+  metadata = SOURCE_SET_METADATA
 }
 
 perfetto_android_jni_library("libperfetto_jni") {

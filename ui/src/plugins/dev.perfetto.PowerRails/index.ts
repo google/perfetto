@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {createAggregationTab} from '../../components/aggregation_adapter';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -81,24 +81,20 @@ export default class implements PerfettoPlugin {
         machine,
       });
       const uri = `/counter_${trackId}`;
-      const track = await createQueryCounterTrack({
+      const track = await CounterTrack.createMaterialized({
         trace: ctx,
         uri,
-        data: {
-          sqlSource: `
-            SELECT
-              ts,
-              value / 1000.0 AS value -- convert uJ to mJ
-            FROM counter
-            WHERE track_id = ${trackId}
-          `,
-        },
-        options: {
-          yMode: 'rate',
-          yRangeSharingKey: 'power_rails',
-          unit: 'mJ',
-          rateUnit: 'mW',
-        },
+        sqlSource: `
+          SELECT
+            ts,
+            value / 1000.0 AS value -- convert uJ to mJ
+          FROM counter
+          WHERE track_id = ${trackId}
+        `,
+        yMode: 'rate',
+        yRangeSharingKey: 'power_rails',
+        unit: 'mJ',
+        rateUnit: 'mW',
       });
 
       ctx.tracks.registerTrack({

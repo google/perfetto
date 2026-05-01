@@ -28,6 +28,80 @@ INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
 INCLUDE PERFETTO MODULE wattson.utils;
 
 -- ========================================================
+-- MACRO: _wattson_threads_aggregation
+--
+-- Low-level macro to calculate energy and power attribution per thread/process.
+-- ========================================================
+CREATE PERFETTO MACRO _wattson_threads_aggregation(
+    tasks_table TableOrSubquery,
+    window_table TableOrSubquery,
+    cpus_table TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  WITH
+    active_summary AS (
+      SELECT
+        period_id,
+        utid,
+        thread_name,
+        process_name,
+        package_name,
+        tid,
+        pid,
+        upid,
+        uid,
+        sum(estimated_mw * dur) / 1e9 AS active_mws,
+        sum(estimated_mw * dur) AS total_mw_ns
+      FROM $tasks_table
+      GROUP BY
+        period_id,
+        utid
+    ),
+    -- Calculate Idle Cost
+    idle_summary AS (
+      SELECT
+        w.period_id,
+        cost.utid,
+        sum(cost.idle_cost_mws) AS idle_mws
+      FROM $window_table AS w, _filter_idle_attribution(w.ts, w.dur) AS cost
+      WHERE
+        cost.cpu IN (
+          SELECT
+            cpu
+          FROM $cpus_table
+        )
+      GROUP BY
+        w.period_id,
+        cost.utid
+    )
+  -- Final Join & Calculation
+  SELECT
+    a.period_id,
+    w.dur AS period_dur,
+    a.utid,
+    a.tid,
+    a.pid,
+    a.upid,
+    a.uid,
+    coalesce(a.thread_name, 'Thread ' || a.tid) AS thread_name,
+    coalesce(a.process_name, '') AS process_name,
+    coalesce(a.package_name, '') AS package_name,
+    a.active_mws AS estimated_mws,
+    -- Fixed power calculation: divide by the specific period duration
+    a.total_mw_ns / w.dur AS estimated_mw,
+    coalesce(i.idle_mws, 0) AS idle_transitions_mws,
+    (
+      a.active_mws + coalesce(i.idle_mws, 0)
+    ) AS total_mws
+  FROM active_summary AS a
+  JOIN $window_table AS w
+    ON a.period_id = w.period_id
+  LEFT JOIN idle_summary AS i
+    ON a.period_id = i.period_id AND a.utid = i.utid
+);
+
+-- ========================================================
 -- MACRO: wattson_threads_aggregation
 --
 -- Calculates energy and power attribution per thread/process for the
@@ -49,7 +123,6 @@ CREATE PERFETTO MACRO wattson_threads_aggregation(
 )
 RETURNS TableOrSubquery AS
 (
-  -- Active Power Intersection (Intersection of Task Power & Window)
   WITH
     windowed_active_state AS (
       SELECT
@@ -60,6 +133,9 @@ RETURNS TableOrSubquery AS
         tasks.process_name,
         tasks.tid,
         tasks.pid,
+        tasks.upid,
+        tasks.uid,
+        tasks.package_name,
         tasks.utid
       FROM _interval_intersect!(
       (
@@ -70,61 +146,25 @@ RETURNS TableOrSubquery AS
     ) AS ii
       JOIN _estimates_w_tasks_attribution AS tasks
         ON tasks._auto_id = id_0
-    ),
-    -- Aggregate Active Power per Thread per Period
-    active_summary AS (
-      SELECT
-        period_id,
-        utid,
-        -- Metadata (take min/max as they are constant per utid)
-        min(thread_name) AS thread_name,
-        min(process_name) AS process_name,
-        min(tid) AS tid,
-        min(pid) AS pid,
-        -- Calculations
-        sum(estimated_mw * dur) / 1e9 AS active_mws,
-        -- Keep for power calc
-        sum(estimated_mw * dur) AS total_mw_ns
-      FROM windowed_active_state
-      GROUP BY
-        period_id,
-        utid
-    ),
-    -- Calculate Idle Cost (Join against the specific window constraints)
-    idle_summary AS (
-      SELECT
-        w.period_id,
-        cost.utid,
-        sum(cost.idle_cost_mws) AS idle_mws
-      FROM $window_table AS w, _filter_idle_attribution(w.ts, w.dur) AS cost
-      GROUP BY
-        w.period_id,
-        cost.utid
     )
-  -- Final Join & Calculation
   SELECT
-    a.period_id,
-    w.dur AS period_dur,
-    a.utid,
-    a.tid,
-    a.pid,
-    coalesce(a.thread_name, 'Thread ' || a.tid) AS thread_name,
-    coalesce(a.process_name, '') AS process_name,
-    -- Metrics
-    a.active_mws AS estimated_mws,
-    -- Power = Energy / Window Duration
-    (
-      a.total_mw_ns / w.dur
-    ) AS estimated_mw,
-    coalesce(i.idle_mws, 0) AS idle_transitions_mws,
-    (
-      a.active_mws + coalesce(i.idle_mws, 0)
-    ) AS total_mws
-  FROM active_summary AS a
-  JOIN $window_table AS w
-    ON a.period_id = w.period_id
-  LEFT JOIN idle_summary AS i
-    ON a.period_id = i.period_id AND a.utid = i.utid
+    period_id,
+    period_dur,
+    utid,
+    tid,
+    pid,
+    thread_name,
+    process_name,
+    package_name,
+    estimated_mws,
+    estimated_mw,
+    idle_transitions_mws,
+    total_mws
+  FROM _wattson_threads_aggregation!(
+    windowed_active_state,
+    $window_table,
+    _wattson_cpus
+  )
 );
 
 -- ========================================================

@@ -134,9 +134,9 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
 // interned, and assert we only store one.
 TEST_F(HeapProfileTrackerDupTest, Mapping) {
   InsertMapping(kFirstPacket);
-  profile_packet_sequence_state().FinalizeProfile();
+  profile_packet_sequence_state().FinalizeProfile(sequence_state.get());
   InsertMapping(kSecondPacket);
-  profile_packet_sequence_state().FinalizeProfile();
+  profile_packet_sequence_state().FinalizeProfile(sequence_state.get());
 
   EXPECT_THAT(context.storage->stack_profile_mapping_table()[0].build_id(),
               context.storage->InternString(kBuildIDHexName));
@@ -158,9 +158,9 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
 // interned, and assert we only store one.
 TEST_F(HeapProfileTrackerDupTest, Frame) {
   InsertFrame(kFirstPacket);
-  profile_packet_sequence_state().FinalizeProfile();
+  profile_packet_sequence_state().FinalizeProfile(sequence_state.get());
   InsertFrame(kSecondPacket);
-  profile_packet_sequence_state().FinalizeProfile();
+  profile_packet_sequence_state().FinalizeProfile(sequence_state.get());
 
   const auto& frames = context.storage->stack_profile_frame_table();
   EXPECT_THAT(frames[0].name(), frame_name);
@@ -172,9 +172,9 @@ TEST_F(HeapProfileTrackerDupTest, Frame) {
 // stored once.
 TEST_F(HeapProfileTrackerDupTest, Callstack) {
   InsertCallsite(kFirstPacket);
-  profile_packet_sequence_state().FinalizeProfile();
+  profile_packet_sequence_state().FinalizeProfile(sequence_state.get());
   InsertCallsite(kSecondPacket);
-  profile_packet_sequence_state().FinalizeProfile();
+  profile_packet_sequence_state().FinalizeProfile(sequence_state.get());
 
   const auto& callsite_table = context.storage->stack_profile_callsite_table();
 
@@ -230,7 +230,7 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
   mapping.load_bias = 0;
   mapping.name_ids = {kMappingNameId1, kMappingNameId2};
   ppss.AddMapping(0, mapping);
-  ppss.CommitAllocations();
+  ppss.CommitAllocations(state.get());
   auto foo_bar_id = context.storage->string_pool().GetId("/foo/bar");
   ASSERT_NE(foo_bar_id, std::nullopt);
   EXPECT_THAT(context.storage->stack_profile_mapping_table()[0].name(),
@@ -338,7 +338,7 @@ TEST(HeapProfileTrackerTest, Functional) {
   for (uint32_t i = 0; i < base::ArraySize(callstacks); ++i)
     ppss.AddCallstack(i, callstacks[i]);
 
-  ppss.CommitAllocations();
+  ppss.CommitAllocations(state.get());
 
   for (size_t i = 0; i < base::ArraySize(callstacks); ++i) {
     std::optional<CallsiteId> parent;
@@ -353,7 +353,7 @@ TEST(HeapProfileTrackerTest, Functional) {
     }
   }
 
-  ppss.FinalizeProfile();
+  ppss.FinalizeProfile(state.get());
 }
 
 }  // namespace

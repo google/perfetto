@@ -2313,6 +2313,12 @@ if (enable_perfetto_re2) {
     visibility = _buildtools_visibility
     include_dirs = [ "re2" ]
     defines = [ "RE2_USE_ABSL" ]
+
+    # On Windows, NULL expands to 0 (not nullptr), which triggers this
+    # warning in re2 headers included from our code.
+    if (is_win && is_clang) {
+      cflags = [ "-Wno-zero-as-null-pointer-constant" ]
+    }
   }
 
   # Use source_set for WASM to avoid the alink step — macOS libtool rejects

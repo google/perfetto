@@ -91,11 +91,7 @@ function createMockColumnInfo(
   name: string,
   type?: PerfettoSqlType,
 ): ColumnInfo {
-  return {
-    name,
-    checked: false,
-    column: {name, type},
-  };
+  return {name, type, checked: false};
 }
 
 describe('buildFunctionExpression', () => {

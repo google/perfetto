@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("perfetto.gni")
+import("perfetto_cpp_blob_header.gni")
 
 template("perfetto_sql_source_set") {
   action("${target_name}") {
@@ -47,30 +48,16 @@ template("perfetto_amalgamated_sql_header") {
     rebase = root_build_dir
   }
 
-  config("${invoker_target}_config") {
-    include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]
-  }
-
-  action(invoker_target) {
-    deps = [ ":${invoker_target}_generated_file" ]
-    deps += invoker.deps
-
+  perfetto_cpp_blob_header(invoker_target) {
     script = "$perfetto_root_path/tools/gen_amalgamated_sql.py"
-    generated_file = "${target_gen_dir}/" + invoker.generated_header
-    args = [
+    sources = [ gen_txt_file ]
+    generated_header = "${target_gen_dir}/" + invoker.generated_header
+    pass_gen_dir = true
+    extra_args = [
       "--namespace",
-      invoker.namespace,
-      "--cpp-out",
-      rebase_path(generated_file, root_build_dir),
-      "--input-list-file",
-      rebase_path(gen_txt_file, root_build_dir),
+      "perfetto::trace_processor::${invoker.namespace}",
     ]
-    inputs = [ gen_txt_file ]
-    outputs = [ generated_file ]
-    public_configs = [ ":${invoker_target}_config" ]
-    metadata = {
-      perfetto_action_type_for_generator = [ "sql_amalgamation" ]
-    }
+    deps = [ ":${invoker_target}_generated_file" ] + invoker.deps
   }
 
   if (defined(invoker.generate_docs) && invoker.generate_docs &&

@@ -72,7 +72,12 @@ TEST(FixedStringWriterTest, BasicCases) {
   {
     base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendDouble(123.25);
-    ASSERT_EQ(writer.GetStringView().ToStdString(), "123.250000");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "123.25");
+  }
+  {
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
+    writer.AppendDouble(1e100);
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "1e+100");
   }
   {
     base::FixedStringWriter writer(buffer, sizeof(buffer));
@@ -146,7 +151,7 @@ TEST(FixedStringWriterTest, WriteAllTypes) {
   writer.AppendString(kTestStr);
 
   ASSERT_EQ(writer.GetStringView().ToStdString(),
-            "01325455231000101001  123  456123.250000truetesttesttest");
+            "01325455231000101001  123  456123.25truetesttesttest");
 }
 
 TEST(FixedStringWriterTest, PaddedHexInt) {

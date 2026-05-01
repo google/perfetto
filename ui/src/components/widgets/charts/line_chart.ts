@@ -16,6 +16,7 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
+import type {LegendPosition} from './common';
 import {
   buildChartOption,
   buildLegendOption,
@@ -126,6 +127,11 @@ export interface LineChartAttrs {
    * Show legend. Defaults to true when multiple series.
    */
   readonly showLegend?: boolean;
+
+  /**
+   * Where the legend sits relative to the chart. Defaults to 'top'.
+   */
+  readonly legendPosition?: LegendPosition;
 
   /**
    * Show data points as circles. Defaults to true.
@@ -242,10 +248,6 @@ function buildLineOption(
   });
 
   const option = buildChartOption({
-    grid: {
-      top: displayLegend ? 30 : 10,
-      bottom: xAxisLabel ? 40 : 25,
-    },
     xAxis: {
       // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
       // or 'time'. Since we want to support x-values at irregular intervals, we
@@ -291,7 +293,9 @@ function buildLineOption(
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
-    legend: displayLegend ? buildLegendOption() : {show: false},
+    legend: displayLegend
+      ? buildLegendOption(attrs.legendPosition)
+      : {show: false},
   });
 
   (option as Record<string, unknown>).series = series;

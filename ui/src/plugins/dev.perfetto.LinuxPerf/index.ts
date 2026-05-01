@@ -398,16 +398,14 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           trackIds: [trackId],
           cpu: cpu ?? undefined,
         },
-        renderer: new TraceProcessorCounterTrack(
+        renderer: new TraceProcessorCounterTrack({
           trace,
           uri,
-          {
-            yMode: 'rate', // Default to rate mode
-            unit: unit ?? undefined,
-          },
+          yMode: 'rate', // Default to rate mode
+          unit: unit ?? undefined,
           trackId,
-          title,
-        ),
+          trackName: title,
+        }),
       });
       const trackNode = new TrackNode({
         uri,

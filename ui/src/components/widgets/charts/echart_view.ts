@@ -27,6 +27,12 @@
  */
 
 import m from 'mithril';
+import {
+  AXIS_LABEL_FONT_SIZE,
+  LabelFormatter,
+  collectYAxisLabels,
+  formatLabel,
+} from './chart_option_builder';
 import * as echarts from 'echarts/core';
 import {
   BarChart as EBarChart,
@@ -130,12 +136,157 @@ function buildEChartsTheme(colors: ChartThemeColors): Record<string, unknown> {
       splitLine: {lineStyle: {color: colors.borderColor}},
       nameTextStyle: {color: colors.textColor},
     },
+    timeAxis: {
+      axisLine: {lineStyle: {color: colors.borderColor}},
+      axisTick: {lineStyle: {color: colors.borderColor}},
+      axisLabel: {color: colors.textColor},
+      splitLine: {lineStyle: {color: colors.borderColor}},
+      nameTextStyle: {color: colors.textColor},
+    },
     visualMap: {
       textStyle: {color: colors.textColor},
       inRange: {
         color: [colors.chartColors[0] + '22', colors.chartColors[0]],
       },
     },
+  };
+}
+
+// Top padding (grid.top) defaults.
+const LEGEND_TOP = 30;
+const TICK_LABEL_TOP = 10; // Prevents topmost tick label clipping.
+
+// Horizontal spacing constants.
+const NAME_GAP_PADDING = 14; // Extra gap between tick labels and axis name.
+const GRID_LEFT_INNER_PAD = 6; // Padding between axis line and grid edge.
+
+// Bottom spacing (grid.bottom) default when the X-axis has a name.
+const X_AXIS_NAME_BOTTOM = 30;
+
+// Right spacing (grid.right) reserved for a vertical (right-side) legend.
+// Matches the legend's truncation width plus padding for the colour swatch.
+const RIGHT_LEGEND_WIDTH = 140;
+
+const AXIS_LABEL_FONT = `${AXIS_LABEL_FONT_SIZE}px sans-serif`;
+
+// Minimal shape we rely on from a CanvasRenderingContext2D-like object, so we
+// can substitute a no-op stub when canvas creation fails (e.g. in tests or
+// restricted environments) without crashing the chart.
+interface TextMeasurer {
+  font: string;
+  measureText(text: string): {width: number};
+}
+
+// Fallback used when canvas 2d context isn't available (e.g. in tests or
+// restricted environments). Auto-spacing becomes a no-op but the chart still
+// renders.
+const NOOP_MEASURER: TextMeasurer = {
+  font: '',
+  measureText: () => ({width: 0}),
+};
+
+// Intentionally cached for the page lifetime — canvas context creation is
+// expensive and font metrics don't change between chart renders.
+let measureCtx: TextMeasurer | undefined;
+
+function getMeasureCtx(): TextMeasurer {
+  if (measureCtx === undefined) {
+    const canvas = document.createElement('canvas');
+    measureCtx = canvas.getContext('2d') ?? NOOP_MEASURER;
+  }
+  return measureCtx;
+}
+
+function measureTextWidth(text: string, font: string): number {
+  const ctx = getMeasureCtx();
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+/**
+ * Auto-compute grid spacing from axis/legend context before rendering.
+ * Y-axis nameGap and grid.left are measured from actual tick label width.
+ */
+function autoAdjustGridSpacing(
+  option: echarts.EChartsCoreOption,
+): echarts.EChartsCoreOption {
+  const opt = option as Record<string, unknown>;
+  // Nothing to adjust for charts without axes (e.g. treemap, pie).
+  if (opt.xAxis === undefined && opt.yAxis === undefined) return option;
+  const grid = {...((opt.grid ?? {}) as Record<string, unknown>)};
+  // Skip array yAxis (dual Y-axis) — auto-spacing only handles single axis.
+  const yAxis = !Array.isArray(opt.yAxis)
+    ? (opt.yAxis as Record<string, unknown> | undefined)
+    : undefined;
+  const xAxis = opt.xAxis as Record<string, unknown> | undefined;
+  const legend = opt.legend as Record<string, unknown> | undefined;
+  let yAxisPatch: Record<string, unknown> | undefined;
+
+  const hasLegend = legend !== undefined && legend.show !== false;
+  // Horizontal legends (top/bottom) have no `orient: 'vertical'`; we
+  // distinguish top vs bottom by which edge the legend is anchored to.
+  const legendAtRight = hasLegend && legend?.orient === 'vertical';
+  const isHorizontalLegend = hasLegend && !legendAtRight;
+  const legendAtBottom = isHorizontalLegend && legend?.bottom !== undefined;
+  const legendAtTop = isHorizontalLegend && !legendAtBottom;
+
+  if (grid.top === undefined) {
+    grid.top = legendAtTop ? LEGEND_TOP : TICK_LABEL_TOP;
+  }
+
+  if (grid.bottom === undefined) {
+    const xAxisName = xAxis?.name as string | undefined;
+    const hasXAxisName = xAxisName !== undefined && xAxisName !== '';
+    if (legendAtBottom) {
+      grid.bottom = hasXAxisName ? X_AXIS_NAME_BOTTOM + LEGEND_TOP : LEGEND_TOP;
+    } else if (hasXAxisName) {
+      grid.bottom = X_AXIS_NAME_BOTTOM;
+    }
+  }
+
+  if (grid.right === undefined && legendAtRight) {
+    grid.right = RIGHT_LEGEND_WIDTH;
+  }
+
+  if (yAxis !== undefined) {
+    const yName = yAxis.name as string | undefined;
+    const nameLocation = yAxis.nameLocation as string | undefined;
+    const hasRotatedName =
+      yName !== undefined &&
+      yName !== '' &&
+      (nameLocation === undefined || nameLocation === 'middle');
+
+    if (hasRotatedName && yAxis.nameGap === undefined) {
+      const labels = collectYAxisLabels(opt);
+      if (labels.length > 0) {
+        const axisLabel = yAxis.axisLabel as
+          | Record<string, unknown>
+          | undefined;
+        const formatter = axisLabel?.formatter as
+          | LabelFormatter
+          | string
+          | undefined;
+        let maxWidth = 0;
+        for (const l of labels) {
+          const text = formatLabel(l, formatter);
+          const w = measureTextWidth(text, AXIS_LABEL_FONT);
+          if (w > maxWidth) maxWidth = w;
+        }
+        const requiredGap = Math.ceil(maxWidth) + NAME_GAP_PADDING;
+        yAxisPatch = {...yAxis, nameGap: requiredGap};
+        if (grid.left === undefined) {
+          // The grid's left padding holds the rotated axis name (width
+          // NAME_GAP_PADDING once trimmed) plus a bit of inner padding.
+          grid.left = NAME_GAP_PADDING + GRID_LEFT_INNER_PAD;
+        }
+      }
+    }
+  }
+
+  return {
+    ...opt,
+    grid,
+    ...(yAxisPatch !== undefined ? {yAxis: yAxisPatch} : {}),
   };
 }
 
@@ -327,7 +478,10 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     attrs: EChartViewAttrs,
     colors: ChartThemeColors,
   ): echarts.EChartsCoreOption {
-    return attrs.resolveOption ? attrs.resolveOption(option, colors) : option;
+    const resolved = attrs.resolveOption
+      ? attrs.resolveOption(option, colors)
+      : option;
+    return autoAdjustGridSpacing(resolved);
   }
 
   private disposeChart(): void {

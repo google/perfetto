@@ -44,6 +44,7 @@ import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
+import {MenuItem} from '../../widgets/menu';
 import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
 
 const ROW_H = 24;
@@ -74,6 +75,7 @@ interface Pagination {
 
 interface LogEntries {
   readonly offset: number;
+  readonly ids: number[];
   readonly machineIds: number[];
   readonly timestamps: time[];
   readonly pids: bigint[];
@@ -216,6 +218,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     hasProcessNames: boolean | undefined,
   ): ReadonlyArray<GridRow> {
     const trace = this.trace;
+    const ids = entries.ids;
     const machineIds = entries.machineIds;
     const timestamps = entries.timestamps;
     const pids = entries.pids;
@@ -230,6 +233,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       const priority = priorities[i];
       const priorityLetter = LOG_PRIORITIES[priority][0];
       const ts = timestamps[i];
+      const eventId = ids[i];
       const priorityClass = `pf-logs-panel__row--${classForPriority(priority)}`;
       const isHighlighted = entries.isHighlighted[i];
       const className = classNames(
@@ -240,7 +244,23 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       const row = [
         hasMachineIds &&
           m(GridCell, {className, align: 'right'}, machineIds[i]),
-        m(GridCell, {className}, m(Timestamp, {trace, ts})),
+        m(
+          GridCell,
+          {
+            className,
+            menuItems: m(MenuItem, {
+              label: 'Go to event on timeline',
+              icon: Icons.UpdateSelection,
+              onclick: () => {
+                trace.selection.selectSqlEvent('android_logs', eventId, {
+                  scrollToSelection: true,
+                  switchToCurrentSelectionTab: true,
+                });
+              },
+            }),
+          },
+          m(Timestamp, {trace, ts}),
+        ),
         m(GridCell, {className, align: 'right'}, String(pids[i])),
         m(GridCell, {className, align: 'right'}, String(tids[i])),
         m(GridCell, {className}, priorityLetter || '?'),
@@ -467,6 +487,7 @@ async function updateLogEntries(
 ): Promise<LogEntries> {
   const rowsResult = await engine.query(`
         select
+          id,
           ts,
           pid,
           tid,
@@ -483,6 +504,7 @@ async function updateLogEntries(
         limit ${pagination.offset}, ${pagination.count}
     `);
 
+  const ids: number[] = [];
   const machineIds = [];
   const timestamps: time[] = [];
   const pids = [];
@@ -494,6 +516,7 @@ async function updateLogEntries(
   const processName = [];
 
   const it = rowsResult.iter({
+    id: NUM,
     ts: LONG,
     pid: LONG,
     tid: LONG,
@@ -506,6 +529,7 @@ async function updateLogEntries(
     machineId: NUM,
   });
   for (; it.valid(); it.next()) {
+    ids.push(it.id);
     timestamps.push(Time.fromRaw(it.ts));
     pids.push(it.pid);
     tids.push(it.tid);
@@ -529,6 +553,7 @@ async function updateLogEntries(
 
   return {
     offset: pagination.offset,
+    ids,
     machineIds,
     timestamps,
     pids,
@@ -547,7 +572,7 @@ async function updateLogView(
   filter: LogFilteringCriteria,
 ): Promise<AsyncDisposable> {
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
-  let selectedRows = `select prio, ts, pid, tid, tag, msg,
+  let selectedRows = `select android_logs.id, prio, ts, pid, tid, tag, msg,
       process.name as process_name,
       process.machine_id as machine_id, ${globMatch}
       from android_logs

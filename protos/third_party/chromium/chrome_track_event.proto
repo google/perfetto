@@ -43,6 +43,7 @@ message BlinkTaskScope {
     TASK_SCOPE_MISC_EVENT = 10;
     TASK_SCOPE_MICROTASK = 11;
     TASK_SCOPE_RESOURCE_TIMING = 12;
+    TASK_SCOPE_SCRIPT_TOOL_EXECUTION = 13;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -1030,6 +1031,10 @@ message EventLatency {
         // Trace IDs of the first synthetic scroll update included in this
         // frame. Can be joined with EventLatency.event_latency_id.
         optional int64 first_event_latency_id = 1;
+
+        // True if the synthetic scroll update was generated from an inertial
+        // input (e.g. a fling).
+        optional bool has_inertial_input = 2;
       }
       optional Synthetic synthetic = 2;
 
@@ -1133,6 +1138,24 @@ message EventLatency {
 
   // Deprecated in favor of top-level `ChromeTrackEvent.scroll_jank_v4`.
   optional ScrollJankV4Result scroll_jank_v4 = 10 [deprecated = true];
+
+  // The timestamp of when the scroll begin event which started the scroll
+  // containing this scroll event arrived in the renderer compositor.
+  //
+  // This value effectively serves as the ID of the scroll that this event
+  // belongs to. For example, if the renderer compositor receives the sequence
+  // of events GSB1, GSU1a, GSU1b, GSE1, GSB2, GSU2a, GSU2b, GSE, then:
+  //
+  //   * `GSB1.scroll_begin_arrival_us`, `GSU1a.scroll_begin_arrival_us`,
+  //     `GSU1b.scroll_begin_arrival_us` and `GSE1.scroll_begin_arrival_us` will
+  //     all be equal to some value T1.
+  //   * `GSB2.scroll_begin_arrival_us`, `GSU2a.scroll_begin_arrival_us`,
+  //     `GSU2b.scroll_begin_arrival_us` and `GSE2.scroll_begin_arrival_us` will
+  //     all be equal to some value T2 such that T2 > T1.
+  //
+  // See `EventMetrics::scroll_begin_arrival_timestamp()` and
+  // `cc::ScrollSequenceTracker` for more details.
+  optional int64 scroll_begin_arrival_us = 11;
 }
 
 message ProcessSingleton {
@@ -1715,9 +1738,8 @@ message ChromeGraphicsPipeline {
   // should allow us to match input to frame production.
   repeated int64 latency_ids = 9;
 
-  // Optional frame data containing of possible latch and present
-  // frame deadlines. Only set on Android devices.
-  optional AndroidChoreographerFrameCallbackData possible_deadlines = 11;
+  reserved 11;
+  reserved "possible_deadlines";
 };
 
 message LibunwindstackUnwinder {
@@ -2273,6 +2295,7 @@ message WebViewStartup {
     STATIC_GET_RENDERER_LIBRARY_PREFETCH_MODE = 106;
     GET_DEFAULT_COOKIE_MANAGER = 107;
     GET_PROFILE_STORE = 108;
+    WEBVIEW_INSTANCE_GET_SETTINGS = 109;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }
@@ -2620,7 +2643,7 @@ message EventTiming {
 // Frame information provided by Android's Choreographer.
 // See
 // https://developer.android.com/ndk/reference/group/choreographer#achoreographerframecallbackdata.
-// Next ID: 4
+// Next ID: 5
 message AndroidChoreographerFrameCallbackData {
   // The time in microseconds at which the frame started being rendered.
   // See
@@ -2658,6 +2681,9 @@ message AndroidChoreographerFrameCallbackData {
   // See
   // https://developer.android.com/ndk/reference/group/choreographer#achoreographerframecallbackdata_getpreferredframetimelineindex.
   optional int64 preferred_frame_timeline_index = 3;
+
+  // The chrome-preferred frame timeline.
+  optional FrameTimeline chrome_preferred_frame_timeline = 4;
 }
 
 message ChromeFrameReporter2 {
@@ -2908,9 +2934,16 @@ message FrameIntervalDecider {
   optional FrameIntervalMatcherType matcher_type = 2;
 }
 
+message ChromeAccessibilityWinNotifyWinEvent {
+  // The DWORD `event` parameter to ::NotifyWinEvent(). See
+  // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-notifywinevent
+  // One of the following constants:
+  // https://learn.microsoft.com/en-us/windows/win32/winauto/event-constants
+  optional uint32 native_event = 1;
+}
+
 message ChromeTrackEvent {
-  reserved 1045, 1080;
-  reserved "chrome_accessibility_win_notify_win_event";
+  reserved 1045;
 
   // Extension range for Chrome: 1000-1999
   // Next ID: 1083
@@ -3084,6 +3117,9 @@ message ChromeTrackEvent {
     // Identifies the MemoryDumpProvider object that runs in the scope of a
     // trace event, to identify which objects cause delays in a trace.
     optional MemoryDumpProvider memory_dump_provider = 1079;
+
+    optional ChromeAccessibilityWinNotifyWinEvent
+        chrome_accessibility_win_notify_win_event = 1080;
 
     optional FrameIntervalDecider frame_interval_decider = 1081;
 

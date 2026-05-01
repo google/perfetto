@@ -151,14 +151,16 @@ void ProfilePacketSequenceState::StoreAllocation(
   pending_allocs_.push_back(std::move(alloc));
 }
 
-void ProfilePacketSequenceState::CommitAllocations() {
+void ProfilePacketSequenceState::CommitAllocations(
+    PacketSequenceStateGeneration* state) {
   for (const SourceAllocation& alloc : pending_allocs_)
-    AddAllocation(alloc);
+    AddAllocation(state, alloc);
   pending_allocs_.clear();
 }
 
-void ProfilePacketSequenceState::FinalizeProfile() {
-  CommitAllocations();
+void ProfilePacketSequenceState::FinalizeProfile(
+    PacketSequenceStateGeneration* state) {
+  CommitAllocations(state);
   strings_.Clear();
   mappings_.Clear();
   frames_.Clear();
@@ -175,10 +177,13 @@ FrameId ProfilePacketSequenceState::GetDatabaseFrameIdForTesting(
   return *frame_id;
 }
 
-void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
+void ProfilePacketSequenceState::AddAllocation(
+    PacketSequenceStateGeneration* state,
+    const SourceAllocation& alloc) {
   const UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(alloc.pid));
-  auto opt_callstack_id = FindOrInsertCallstack(upid, alloc.callstack_id);
+  auto opt_callstack_id =
+      FindOrInsertCallstack(state, upid, alloc.callstack_id);
   if (!opt_callstack_id)
     return;
 
@@ -278,13 +283,14 @@ void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
 }
 
 std::optional<CallsiteId> ProfilePacketSequenceState::FindOrInsertCallstack(
+    PacketSequenceStateGeneration* state,
     UniquePid upid,
     uint64_t iid) {
   if (CallsiteId* id = callstacks_.Find(iid); id) {
     return *id;
   }
-  return GetCustomState<StackProfileSequenceState>()->FindOrInsertCallstack(
-      upid, iid);
+  return state->GetCustomState<StackProfileSequenceState>()
+      ->FindOrInsertCallstack(state, upid, iid);
 }
 
 }  // namespace trace_processor

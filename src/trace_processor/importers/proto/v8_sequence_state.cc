@@ -46,12 +46,15 @@ V8SequenceState::V8SequenceState(TraceProcessorContext* context,
 
 V8SequenceState::~V8SequenceState() = default;
 
-std::optional<IsolateId> V8SequenceState::GetOrInsertIsolate(uint64_t iid) {
+std::optional<IsolateId> V8SequenceState::GetOrInsertIsolate(
+    PacketSequenceStateGeneration* state,
+    uint64_t iid) {
   if (auto* id = isolates_.Find(iid); id != nullptr) {
     return *id;
   }
 
-  auto* view = GetInternedMessageView(InternedData::kV8IsolateFieldNumber, iid);
+  auto* view =
+      state->GetInternedMessageView(InternedData::kV8IsolateFieldNumber, iid);
   if (!view) {
     context_->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
@@ -63,13 +66,15 @@ std::optional<IsolateId> V8SequenceState::GetOrInsertIsolate(uint64_t iid) {
 }
 
 std::optional<tables::V8JsFunctionTable::Id>
-V8SequenceState::GetOrInsertJsFunction(uint64_t iid, IsolateId isolate_id) {
+V8SequenceState::GetOrInsertJsFunction(PacketSequenceStateGeneration* state,
+                                       uint64_t iid,
+                                       IsolateId isolate_id) {
   if (auto* id = js_functions_.Find(iid); id != nullptr) {
     return *id;
   }
 
-  auto* view =
-      GetInternedMessageView(InternedData::kV8JsFunctionFieldNumber, iid);
+  auto* view = state->GetInternedMessageView(
+      InternedData::kV8JsFunctionFieldNumber, iid);
   if (!view) {
     context_->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
@@ -78,12 +83,13 @@ V8SequenceState::GetOrInsertJsFunction(uint64_t iid, IsolateId isolate_id) {
   InternedV8JsFunction::Decoder function(ToConstBytes(view->message()));
 
   std::optional<tables::V8JsScriptTable::Id> script_id =
-      GetOrInsertJsScript(function.v8_js_script_iid(), isolate_id);
+      GetOrInsertJsScript(state, function.v8_js_script_iid(), isolate_id);
   if (!script_id) {
     return std::nullopt;
   }
 
-  auto name = GetOrInsertJsFunctionName(function.v8_js_function_name_iid());
+  auto name =
+      GetOrInsertJsFunctionName(state, function.v8_js_function_name_iid());
   if (!name) {
     return std::nullopt;
   }
@@ -96,12 +102,14 @@ V8SequenceState::GetOrInsertJsFunction(uint64_t iid, IsolateId isolate_id) {
 }
 
 std::optional<tables::V8WasmScriptTable::Id>
-V8SequenceState::GetOrInsertWasmScript(uint64_t iid, IsolateId isolate_id) {
+V8SequenceState::GetOrInsertWasmScript(PacketSequenceStateGeneration* state,
+                                       uint64_t iid,
+                                       IsolateId isolate_id) {
   if (auto* id = wasm_scripts_.Find(iid); id != nullptr) {
     return *id;
   }
-  auto* view =
-      GetInternedMessageView(InternedData::kV8WasmScriptFieldNumber, iid);
+  auto* view = state->GetInternedMessageView(
+      InternedData::kV8WasmScriptFieldNumber, iid);
   if (!view) {
     context_->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
@@ -114,13 +122,14 @@ V8SequenceState::GetOrInsertWasmScript(uint64_t iid, IsolateId isolate_id) {
 }
 
 std::optional<tables::V8JsScriptTable::Id> V8SequenceState::GetOrInsertJsScript(
+    PacketSequenceStateGeneration* state,
     uint64_t iid,
     IsolateId v8_isolate_id) {
   if (auto* id = js_scripts_.Find(iid); id != nullptr) {
     return *id;
   }
   auto* view =
-      GetInternedMessageView(InternedData::kV8JsScriptFieldNumber, iid);
+      state->GetInternedMessageView(InternedData::kV8JsScriptFieldNumber, iid);
   if (!view) {
     context_->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
@@ -133,13 +142,14 @@ std::optional<tables::V8JsScriptTable::Id> V8SequenceState::GetOrInsertJsScript(
 }
 
 std::optional<StringId> V8SequenceState::GetOrInsertJsFunctionName(
+    PacketSequenceStateGeneration* state,
     uint64_t iid) {
   if (auto* id = js_function_names_.Find(iid); id != nullptr) {
     return *id;
   }
 
-  auto* view =
-      GetInternedMessageView(InternedData::kV8JsFunctionNameFieldNumber, iid);
+  auto* view = state->GetInternedMessageView(
+      InternedData::kV8JsFunctionNameFieldNumber, iid);
 
   if (!view) {
     context_->storage->IncrementStats(stats::v8_intern_errors);

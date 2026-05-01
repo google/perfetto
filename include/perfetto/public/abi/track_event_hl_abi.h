@@ -175,6 +175,7 @@ struct PerfettoTeHlExtraNamedTrack {
   const char* name;
   uint64_t id;
   uint64_t parent_uuid;
+  bool is_name_static;
 };
 
 // PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP

@@ -246,11 +246,8 @@ def process_trace(trace_file, profile_target, traceconv_binary, args,
   else:
     print('Wrote profiles to {}'.format(profile_target))
 
-  print('The raw-trace file can be viewed using https://ui.perfetto.dev.')
-  print('The heap_dump.* files can be viewed using pprof/ (Googlers only) ' +
-        'or https://www.speedscope.app/.')
-  print('The two above are equivalent. The raw-trace contains the union of ' +
-        'all the heap dumps.')
+  print('The raw-trace and heap_dump.* (pprof) files can be visualized with '
+        'https://ui.perfetto.dev.')
   return 0
 
 

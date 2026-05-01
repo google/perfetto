@@ -52,6 +52,7 @@ source_set("full") {
     "../..:storage_minimal",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/common:zero",
+    "../../../base/regex",
     "../../containers",
     "../../sorter",
     "../../storage",

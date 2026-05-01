@@ -146,7 +146,8 @@ class FixedStringWriter {
   void AppendDouble(double value) {
     // TODO(lalitm): trying to optimize this is premature given we almost never
     // print doubles. Reevaluate this in the future if we do print them more.
-    size_t res = base::SprintfTrunc(buffer_ + pos_, size_ - pos_, "%lf", value);
+    size_t res =
+        base::SprintfTrunc(buffer_ + pos_, size_ - pos_, "%.16g", value);
     PERFETTO_DCHECK(pos_ + res <= size_);
     pos_ += res;
   }

@@ -83,6 +83,7 @@ source_set("string_filter") {
     "string_filter.cc",
     "string_filter.h",
   ]
+  public_deps = [ "../../base/regex" ]
   deps = [
     "..:protozero",
     "../../../gn:default_deps",
@@ -139,6 +140,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:lite",
     "../../base",
     "../../base:test_support",
+    "../../base/regex",
   ]
   sources = [
     "filter_bytecode_generator_unittest.cc",

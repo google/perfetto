@@ -77,9 +77,19 @@ pb_enum!(GpuCounterDescriptorMeasureUnit {
 pb_msg!(GpuCounterDescriptor {
     specs: GpuCounterDescriptorGpuCounterSpec, msg, 1,
     blocks: GpuCounterDescriptorGpuCounterBlock, msg, 2,
+    counter_groups: GpuCounterDescriptorGpuCounterGroupSpec, msg, 6,
     min_sampling_period_ns: u64, primitive, 3,
     max_sampling_period_ns: u64, primitive, 4,
     supports_instrumented_sampling: bool, primitive, 5,
+    supports_counter_names: bool, primitive, 7,
+    supports_counter_name_globs: bool, primitive, 8,
+});
+
+pb_msg!(GpuCounterDescriptorGpuCounterGroupSpec {
+    group_id: u32, primitive, 1,
+    name: String, primitive, 2,
+    description: String, primitive, 3,
+    counter_ids: u32, primitive, 4,
 });
 
 pb_msg!(GpuCounterDescriptorGpuCounterBlock {

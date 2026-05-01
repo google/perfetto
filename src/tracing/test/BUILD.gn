@@ -111,6 +111,7 @@ if (enable_perfetto_integration_tests) {
       "../../../protos/perfetto/trace/track_event:cpp",
       "../../../test:integrationtest_initializer",
       "../../base",
+      "../../base/regex",
     ]
     sources = [
       "api_integrationtest.cc",

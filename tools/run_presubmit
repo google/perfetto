@@ -538,35 +538,6 @@ def CheckBinaryDescriptors(changed_files: List[str]) -> List[str]:
   return []
 
 
-def CheckMergedTraceConfigProto(changed_files: List[str]) -> List[str]:
-  if sys.platform == 'win32':
-    return []
-  tool_rel_path = 'tools/gen_merged_protos'
-  tool = os.path.join(REPO_ROOT, tool_rel_path)
-  # Use fnmatch patterns
-  files_to_check_list = filter_files(
-      changed_files, files_to_check=['protos/perfetto/*.proto', tool_rel_path])
-  if not files_to_check_list:
-    return []
-
-  tool_changed = tool_rel_path in [os.path.normpath(f) for f in changed_files]
-  source_files_changed = any(f != tool_rel_path for f in files_to_check_list)
-
-  if not tool_changed and not source_files_changed:
-    return []
-
-  try:
-    run_command([sys.executable, tool, '--check-only'], cwd=REPO_ROOT)
-  except FileNotFoundError:
-    return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [
-        'perfetto_config.proto or perfetto_trace.proto is out of ' +
-        f'date. Please run python {tool} to update it.'
-    ]
-  return []
-
-
 def CheckProtoEventList(changed_files: List[str],
                         merge_base: Optional[str]) -> List[str]:
   target_file = 'src/tools/ftrace_proto_gen/event_list'
@@ -1032,7 +1003,6 @@ def main():
       (CheckBuild, [changed_files]),
       (CheckAndroidBlueprint, [changed_files]),
       (CheckBinaryDescriptors, [changed_files]),
-      (CheckMergedTraceConfigProto, [changed_files]),
       (CheckProtoEventList, [changed_files, merge_base]),  # Needs merge_base
       (CheckBannedCpp, [changed_files]),
       (CheckSqlModules, [changed_files]),  # Includes --check-includes

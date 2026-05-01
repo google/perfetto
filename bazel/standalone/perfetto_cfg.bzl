@@ -51,7 +51,17 @@ PERFETTO_CONFIG = struct(
         sqlite = ["@perfetto_dep_sqlite//:sqlite"],
         sqlite_ext_percentile = ["@perfetto_dep_sqlite_src//:percentile_ext"],
         protoc = ["@com_google_protobuf//:protoc"],
-        protoc_lib = ["@com_google_protobuf//:protoc_lib"],
+        protoc_lib = [
+            "@com_google_protobuf//:protoc_lib",
+            # Upstream protobuf splits per-subdir. Layering_check requires
+            # direct deps on the targets that own the headers we include.
+            "@com_google_protobuf//src/google/protobuf/compiler:code_generator",
+            "@com_google_protobuf//src/google/protobuf/compiler:importer",
+            "@com_google_protobuf//src/google/protobuf/compiler:plugin",
+            "@com_google_protobuf//src/google/protobuf/io",
+            "@com_google_protobuf//src/google/protobuf/io:printer",
+            "@com_google_protobuf//src/google/protobuf/io:tokenizer",
+        ],
         protobuf_lite = ["@com_google_protobuf//:protobuf_lite"],
         protobuf_full = ["@com_google_protobuf//:protobuf"],
         protobuf_descriptor_proto = ["@com_google_protobuf//:descriptor_proto"],
@@ -63,6 +73,10 @@ PERFETTO_CONFIG = struct(
             "@perfetto_maven//:junit_junit",
             "@perfetto_maven//:com_google_truth_truth",
             "@perfetto_maven//:androidx_test_ext_junit",
+        ],
+
+        error_prone_annotations = [
+            "@perfetto_maven//:com_google_errorprone_error_prone_annotations",
         ],
 
         # The Python targets are empty on the standalone build because we assume
@@ -111,6 +125,13 @@ PERFETTO_CONFIG = struct(
     # This variable has been introduced to limit the change to Bazel and avoid
     # making the targets public in the google internal tree.
     proto_library_visibility = "//visibility:private",
+
+    # Allow Bazel embedders to change the visibility of the trace processor protos.
+    # Trace processor protos may be used outside of perfetto library, but should
+    # not be visible to all targets that have public_visibility access.
+    trace_processor_proto_library_visibility = [
+        "//visibility:private",
+    ],
 
     # Allow Bazel embedders to change the visibility of the Go protos.
     # Go protos have all sorts of strange behaviour in Google3 so need special

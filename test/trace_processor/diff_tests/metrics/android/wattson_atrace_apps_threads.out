@@ -5490,8 +5490,8 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 103.995613
       estimated_mw: 122.830215
-      idle_transitions_mws: -25.668091
-      total_mws: 78.327522
+      idle_transitions_mws: -25.667099
+      total_mws: 78.328514
       thread_name: "swapper"
       process_name: ""
       thread_id: 0
@@ -5760,8 +5760,8 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 1.545309
       estimated_mw: 1.825180
-      idle_transitions_mws: 0.097715
-      total_mws: 1.643024
+      idle_transitions_mws: 0.097042
+      total_mws: 1.642351
       thread_name: "roidJUnitRunner"
       process_name: "android.platform.test.scenario"
       thread_id: 7325
@@ -5800,8 +5800,8 @@ wattson_atrace_apps_threads {
     task_info {
       estimated_mws: 1.491250
       estimated_mw: 1.761330
-      idle_transitions_mws: 0.516288
-      total_mws: 2.007539
+      idle_transitions_mws: 0.515970
+      total_mws: 2.007220
       thread_name: "sugov:4"
       process_name: "sugov:4"
       thread_id: 521

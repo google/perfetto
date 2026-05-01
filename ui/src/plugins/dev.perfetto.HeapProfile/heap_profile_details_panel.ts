@@ -77,10 +77,12 @@ export class HeapProfileFlamegraphDetailsPanel
     private readonly tsEnd: time,
     private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
-    private readonly onNodeSelected?: (
-      pathHashes: string,
-      isDominator: boolean,
-    ) => void,
+    onNodeSelected?: (args: {
+      pathHashes: string;
+      isDominator: boolean;
+      upid: number;
+      ts: time;
+    }) => void,
   ) {
     this.props = {ts, type: profileDescriptor.type};
     this.flamegraph = new QueryFlamegraph(trace);
@@ -90,7 +92,10 @@ export class HeapProfileFlamegraphDetailsPanel
       this.ts,
       this.tsEnd,
       this.upid,
-      this.onNodeSelected,
+      onNodeSelected
+        ? (pathHashes, isDominator) =>
+            onNodeSelected({pathHashes, isDominator, upid, ts})
+        : undefined,
     );
     if (this.state === undefined) {
       this.state = Flamegraph.createDefaultState(this.metrics);
@@ -542,17 +547,21 @@ function getHeapGraphNodeOptionalActions(
   isDominator: boolean,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
 ): ReadonlyArray<FlamegraphOptionalAction> {
+  if (!trace.plugins.isPluginEnabled('com.android.HeapDumpExplorer')) {
+    return [];
+  }
   return [
     {
       name: 'Open in Heapdump Explorer',
-      execute: async (kv: ReadonlyMap<string, string>) => {
-        const pathHashes = kv.get('path_hash_stable');
+      execute: async ({properties, node}) => {
+        const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
 
         onNodeSelected?.(pathHashes, isDominator);
 
-        const name = kv.get('name');
-        const nameSuffix = name ? `_${encodeURIComponent(name)}` : '';
+        const name = node?.name;
+        const nameSuffix =
+          name !== undefined ? `_${encodeURIComponent(name)}` : '';
         trace.navigate(`#!/heapdump/flamegraph_objects${nameSuffix}`);
       },
     },
@@ -566,7 +575,7 @@ function getHeapGraphRootOptionalActions(
   return [
     {
       name: 'Reference paths by class',
-      execute: async (_kv: ReadonlyMap<string, string>) => {
+      execute: async () => {
         const viewName = `_heap_graph${tableModifier(isDominator)}duplicate_objects`;
         const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
         const macroExpr = `_heap_graph_duplicate_objects_agg!(${macroArgs})`;

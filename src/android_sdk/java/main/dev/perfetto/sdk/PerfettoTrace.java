@@ -16,6 +16,8 @@
 
 package dev.perfetto.sdk;
 
+import com.google.errorprone.annotations.CompileTimeConstant;
+
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 import java.util.List;
@@ -244,8 +246,12 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
-  public static PerfettoTrackEventBuilder counter(Category category, long value, String trackName) {
+  public static PerfettoTrackEventBuilder counter(Category category, long value, @CompileTimeConstant String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
+  }
+
+  public static PerfettoTrackEventBuilder counterWithDynamicName(Category category, long value, String trackName) {
+    return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
   }
 
   /**
@@ -267,8 +273,13 @@ public final class PerfettoTrace {
    * @param trackName The trackName for the event.
    */
   public static PerfettoTrackEventBuilder counter(
-      Category category, double value, String trackName) {
+      Category category, double value, @CompileTimeConstant String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
+  }
+
+  public static PerfettoTrackEventBuilder counterWithDynamicName(
+      Category category, double value, String trackName) {
+    return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
   }
 
   /** Returns the next flow id to be used. */

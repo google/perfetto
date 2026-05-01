@@ -19,7 +19,10 @@ import {Aggregator} from '../../components/aggregation_adapter';
 import {Area, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {SqlValue} from '../../trace_processor/query_result';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {
+  SegmentedButton,
+  SegmentedButtons,
+} from '../../widgets/segmented_buttons';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
@@ -65,17 +68,10 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     let query = `
       INCLUDE PERFETTO MODULE wattson.estimates;
 
-      CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
-      SELECT
-        ${area.start} as ts,
-        ${duration} as dur;
-
-      DROP TABLE IF EXISTS wattson_plugin_windowed_subsystems_estimate;
-      CREATE VIRTUAL TABLE wattson_plugin_windowed_subsystems_estimate
-      USING
-        SPAN_JOIN(wattson_plugin_ui_selection_window, _system_state_mw);
-
       CREATE PERFETTO VIEW ${this.id} AS
+      WITH window_stats AS (
+        SELECT * FROM _windowed_system_state_mw(${area.start}, ${duration})
+      )
     `;
 
     // Convert average power track to total energy in UI window, then divide by
@@ -87,9 +83,9 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
       query += `
         SELECT
         '${estimateTrack}' as name,
-        ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power_mw,
-        ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy_mws
-        FROM wattson_plugin_windowed_subsystems_estimate
+        ROUND(${estimateTrack}_mw, 3) as power_mw,
+        ROUND(${estimateTrack}_mw * ${duration} / 1000000000, 3) as energy_mws
+        FROM window_stats
       `;
     });
     query += `;`;
@@ -98,14 +94,20 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
   }
 
   renderTopbarControls(): m.Children {
-    return m(SegmentedButtons, {
-      options: [{label: 'µW'}, {label: 'mW'}],
-      selectedOption: this.scaleNumericData ? 0 : 1,
-      onOptionSelected: (index) => {
-        this.scaleNumericData = index === 0;
+    return m(
+      SegmentedButtons,
+      {
+        selectedValue: this.scaleNumericData ? 'uw' : 'mw',
+        onOptionSelected: (value) => {
+          this.scaleNumericData = value === 'uw';
+        },
+        title: 'Select power units',
       },
-      title: 'Select power units',
-    });
+      [
+        m(SegmentedButton, {value: 'uw'}, 'µW'),
+        m(SegmentedButton, {value: 'mw'}, 'mW'),
+      ],
+    );
   }
 
   private powerUnits(): string {

@@ -24,6 +24,29 @@ import("../../../gn/perfetto_cc_proto_descriptor.gni")
 
 source_set("stdlib") {
   sources = [ "sql_modules.h" ]
+  public_deps = [ "../../../include/perfetto/ext/base" ]
+}
+
+source_set("sql_bundle") {
+  sources = [ "sql_bundle.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
+if (enable_perfetto_trace_processor_sqlite) {
+  source_set("sql_module_doc_parser") {
+    sources = [
+      "sql_module_doc_parser.cc",
+      "sql_module_doc_parser.h",
+    ]
+    deps = [
+      "../../../gn:default_deps",
+      "../../base",
+      "../perfetto_sql/syntaqlite",
+    ]
+  }
 }
 
 source_set("bump_allocator") {
@@ -158,8 +181,6 @@ source_set("descriptors") {
 
 source_set("proto_to_args_parser") {
   sources = [
-    "debug_annotation_parser.cc",
-    "debug_annotation_parser.h",
     "proto_to_args_parser.cc",
     "proto_to_args_parser.h",
   ]
@@ -418,7 +439,6 @@ source_set("winscope_proto_mapping") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
-    "debug_annotation_parser_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
@@ -484,6 +504,10 @@ source_set("unittests") {
   if (enable_perfetto_zlib) {
     sources += [ "gzip_utils_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]
+  }
+  if (enable_perfetto_trace_processor_sqlite) {
+    sources += [ "sql_module_doc_parser_unittest.cc" ]
+    deps += [ ":sql_module_doc_parser" ]
   }
 }
 

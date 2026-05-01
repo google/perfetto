@@ -58,9 +58,9 @@ int main(void) {
   PerfettoTeInit();
   PERFETTO_TE_REGISTER_CATEGORIES(EXAMPLE_CATEGORIES);
   PerfettoTeNamedTrackRegister(&mytrack, "mytrack", 0,
-                               PerfettoTeProcessTrackUuid());
+                               PerfettoTeProcessTrackUuid(), true);
   PerfettoTeCounterTrackRegister(&mycounter, "mycounter",
-                                 PerfettoTeProcessTrackUuid());
+                                 PerfettoTeProcessTrackUuid(), true);
   PerfettoTeCategorySetCallback(&physics, EnabledCb, PERFETTO_NULL);
   for (;;) {
     PERFETTO_TE(rendering, PERFETTO_TE_INSTANT("name1"));

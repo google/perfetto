@@ -226,21 +226,19 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             utid: utid ?? undefined,
             trackEvent: true,
           },
-          renderer: new TraceProcessorCounterTrack(
-            ctx,
+          renderer: new TraceProcessorCounterTrack({
+            trace: ctx,
             uri,
-            {
-              unit: unit ?? undefined,
-              // We combine the yAxisShareKey with the parentId to ensure that
-              // only tracks under the same parent are grouped.
-              yRangeSharingKey:
-                yAxisShareKey === null
-                  ? undefined
-                  : `trackEvent-${parentId}-${yAxisShareKey}`,
-            },
+            unit: unit ?? undefined,
+            // We combine the yAxisShareKey with the parentId to ensure that
+            // only tracks under the same parent are grouped.
+            yRangeSharingKey:
+              yAxisShareKey === null
+                ? undefined
+                : `trackEvent-${parentId}-${yAxisShareKey}`,
             trackId,
             trackName,
-          ),
+          }),
         });
       } else if (hasData) {
         ctx.tracks.registerTrack({

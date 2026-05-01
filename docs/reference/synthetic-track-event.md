@@ -1014,6 +1014,164 @@ your `trace_converter_template.py` script.
 
 ![Correlation IDs](/docs/images/synthetic-track-event-correlation-ids.png)
 
+### {#proto-extensions} Attaching Custom Typed Fields with Proto Extensions
+
+When `debug_annotations` aren't expressive enough — you want a real schema
+with nested messages, repeated fields, or types your downstream tooling can
+rely on — extend `TrackEvent` with a protobuf extension. Trace Processor
+parses every decoded extension field into the `args` table automatically,
+provided its descriptor is available.
+
+The full explanation of the mechanism (field-number allocation, wrapper-message
+requirement, the three ways descriptors can reach Trace Processor) lives in
+[Extending TrackEvent with Custom Protos](/docs/instrumentation/extensions.md).
+This section focuses on the manual-trace-writing flow: how to set extension
+fields with the standard protobuf Python API and embed the descriptor in the
+trace so the result is self-contained.
+
+#### Two-File Setup
+
+Split the schema across two `.proto` files.
+
+**File 1 — `acme_data.proto`** is your regular data schema. You'll generate
+Python bindings for this one and use them like any other protobuf message.
+
+```protobuf
+syntax = "proto2";
+package com.acme;
+
+message AcmeRequestMetadata {
+  optional string request_id = 1;
+  repeated int32 retry_latencies_ms = 2;
+  optional string endpoint = 3;
+}
+```
+
+**File 2 — `acme_extension.proto`** is the extension *hook*: it binds the
+data message to a specific field number on `TrackEvent`. You never import
+Python bindings for this file — its only purpose is to produce the
+`FileDescriptorSet` embedded in the trace so Trace Processor knows how to
+decode that field number.
+
+```protobuf
+syntax = "proto2";
+import "protos/perfetto/trace/perfetto_trace.proto";
+import "acme_data.proto";
+package com.acme;
+
+message AcmeExtension {
+  extend perfetto.protos.TrackEvent {
+    optional AcmeRequestMetadata request_metadata = 9902;
+  }
+}
+```
+
+Place a copy of `perfetto_trace.proto`
+([download from GitHub](https://github.com/google/perfetto/blob/main/protos/perfetto/trace/perfetto_trace.proto))
+under `protos/perfetto/trace/`:
+
+```
+project/
+├── protos/perfetto/trace/perfetto_trace.proto   # from the Perfetto repo
+├── acme_data.proto
+└── acme_extension.proto
+```
+
+From `project/`, compile:
+
+```bash
+# Python bindings for the data schema only.
+protoc --python_out=. acme_data.proto
+
+# Self-contained descriptor set for the extension hook (pulls in its imports).
+protoc -I. --include_imports \
+       --descriptor_set_out=acme_extension.desc \
+       acme_extension.proto
+```
+
+#### Python Example
+
+The extension payload is written as protobuf wire bytes onto the
+`TrackEvent` — a length-delimited field (wire type 2) whose value is the
+serialized bytes of your data message.
+
+Copy the following into the `populate_packets(builder)` function in your
+`trace_converter_template.py` script.
+
+```python
+    from acme_data_pb2 import AcmeRequestMetadata
+
+    # Field number declared in acme_extension.proto.
+    REQUEST_METADATA_FIELD_NUMBER = 9902
+
+    def _varint(n):
+        out = bytearray()
+        while n >= 0x80:
+            out.append((n & 0x7f) | 0x80)
+            n >>= 7
+        out.append(n)
+        return bytes(out)
+
+    def set_request_metadata(track_event, meta):
+        """Attach a message-typed extension field (wire type 2) onto a TrackEvent."""
+        tag = (REQUEST_METADATA_FIELD_NUMBER << 3) | 2
+        payload = meta.SerializeToString()
+        wire = _varint(tag) + _varint(len(payload)) + payload
+        # MergeFromString preserves fields outside the compiled schema as
+        # unknown fields, which are carried through on re-serialization.
+        track_event.MergeFromString(wire)
+
+    TRUSTED_PACKET_SEQUENCE_ID = 1001
+    TRACK_UUID = 77777
+
+    # 1. Embed the descriptor set so Trace Processor can decode the extension.
+    desc_packet = builder.add_packet()
+    with open('acme_extension.desc', 'rb') as f:
+        desc_packet.extension_descriptor.extension_set.ParseFromString(f.read())
+
+    # 2. Describe the track on which the event will appear.
+    td = builder.add_packet()
+    td.track_descriptor.uuid = TRACK_UUID
+    td.track_descriptor.name = "Requests"
+
+    # 3. Build your metadata.
+    meta = AcmeRequestMetadata()
+    meta.request_id = "req-42"
+    meta.retry_latencies_ms.extend([12, 34])
+    meta.endpoint = "/api/v1/search"
+
+    # 4. Emit a SLICE_BEGIN with the metadata spliced in as an extension.
+    begin = builder.add_packet()
+    begin.timestamp = 1000
+    begin.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    begin.track_event.type = TrackEvent.TYPE_SLICE_BEGIN
+    begin.track_event.track_uuid = TRACK_UUID
+    begin.track_event.name = "HandleRequest"
+    set_request_metadata(begin.track_event, meta)
+
+    # 5. Close the slice.
+    end = builder.add_packet()
+    end.timestamp = 1500
+    end.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+    end.track_event.type = TrackEvent.TYPE_SLICE_END
+    end.track_event.track_uuid = TRACK_UUID
+```
+
+After importing the resulting trace, extension fields are queryable with
+`EXTRACT_ARG`. Trace Processor keys the extension field by its name
+(`request_metadata`) and flattens nested messages with dot-notation; repeated
+fields use `[N]` indexing.
+
+```sql
+SELECT
+  slice.name,
+  EXTRACT_ARG(slice.arg_set_id, 'request_metadata.request_id') AS request_id,
+  EXTRACT_ARG(slice.arg_set_id, 'request_metadata.endpoint') AS endpoint,
+  EXTRACT_ARG(slice.arg_set_id, 'request_metadata.retry_latencies_ms[0]') AS first_retry_ms
+FROM slice
+WHERE EXTRACT_ARG(slice.arg_set_id, 'request_metadata.request_id') IS NOT NULL;
+```
+
 ## {#controlling-track-merging} Controlling Track Merging
 
 By default, the Perfetto UI merges tracks that share the same name. This is

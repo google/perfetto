@@ -716,9 +716,27 @@ impl TrackEventTrack {
 
     /// Register a named track.
     pub fn register_named_track(
+        name: &'static str,
+        id: u64,
+        parent_track_uuid: u64,
+    ) -> Result<Self, TrackEventError> {
+        Self::register_named_track_impl(name, id, parent_track_uuid, true)
+    }
+
+    /// Register a named track with a dynamic name.
+    pub fn register_named_track_with_dynamic_name(
         name: &str,
         id: u64,
         parent_track_uuid: u64,
+    ) -> Result<Self, TrackEventError> {
+        Self::register_named_track_impl(name, id, parent_track_uuid, false)
+    }
+
+    fn register_named_track_impl(
+        name: &str,
+        id: u64,
+        parent_track_uuid: u64,
+        is_name_static: bool,
     ) -> Result<Self, TrackEventError> {
         let uuid = Self::named_track_uuid(name, id, parent_track_uuid);
         let writer = PbMsgWriter::new();
@@ -730,7 +748,11 @@ impl TrackEventTrack {
             if parent_track_uuid != 0 {
                 desc.set_parent_uuid(parent_track_uuid);
             }
-            desc.set_name(name);
+            if is_name_static {
+                desc.set_static_name(name);
+            } else {
+                desc.set_name(name);
+            }
         }
         msg.finalize();
         let descriptor_size = writer.writer.get_written_size();
@@ -750,8 +772,24 @@ impl TrackEventTrack {
 
     /// Register a counter track.
     pub fn register_counter_track(
+        name: &'static str,
+        parent_track_uuid: u64,
+    ) -> Result<Self, TrackEventError> {
+        Self::register_counter_track_impl(name, parent_track_uuid, true)
+    }
+
+    /// Register a counter track with a dynamic name.
+    pub fn register_counter_track_with_dynamic_name(
         name: &str,
         parent_track_uuid: u64,
+    ) -> Result<Self, TrackEventError> {
+        Self::register_counter_track_impl(name, parent_track_uuid, false)
+    }
+
+    fn register_counter_track_impl(
+        name: &str,
+        parent_track_uuid: u64,
+        is_name_static: bool,
     ) -> Result<Self, TrackEventError> {
         let uuid = Self::counter_track_uuid(name, parent_track_uuid);
         let writer = PbMsgWriter::new();
@@ -763,7 +801,11 @@ impl TrackEventTrack {
             if parent_track_uuid != 0 {
                 desc.set_parent_uuid(parent_track_uuid);
             }
-            desc.set_name(name);
+            if is_name_static {
+                desc.set_static_name(name);
+            } else {
+                desc.set_name(name);
+            }
             desc.set_counter(|counter: &mut CounterDescriptor| {
                 counter.set_is_incremental(false);
             });
@@ -1288,9 +1330,30 @@ impl EventContext {
         self
     }
 
-    /// Add named track.
-    pub fn set_named_track(&mut self, name: &str, id: u64, parent_uuid: u64) -> &mut Self {
+    /// Add a named track with static string.
+    pub fn set_named_track(&mut self, name: &'static str, id: u64, parent_uuid: u64) -> &mut Self {
+        self.set_named_track_impl(name, id, parent_uuid, true)
+    }
+
+    /// Add named track with dynamic string.
+    pub fn set_named_track_with_dynamic_name(
+        &mut self,
+        name: &str,
+        id: u64,
+        parent_uuid: u64,
+    ) -> &mut Self {
+        self.set_named_track_impl(name, id, parent_uuid, false)
+    }
+
+    fn set_named_track_impl(
+        &mut self,
+        name: &str,
+        id: u64,
+        parent_uuid: u64,
+        is_name_static: bool,
+    ) -> &mut Self {
         let cname = CString::new(name).unwrap();
+
         let track = PerfettoTeHlExtraNamedTrack {
             header: PerfettoTeHlExtra {
                 type_: PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK,
@@ -1298,7 +1361,9 @@ impl EventContext {
             name: cname.as_ptr(),
             id,
             parent_uuid,
+            is_name_static,
         };
+
         self.extras.push(TeHlExtra::NamedTrack(track, cname));
         self
     }

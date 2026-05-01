@@ -49,6 +49,15 @@ message AndroidAflags {
     FLAG_STORAGE_BACKEND_DEVICE_CONFIG = 3;
   }
 
+  // The value type of the flag.
+  enum FlagType {
+    // Flag type unspecified. This flag type means the flag is an old version
+    // boolean flag or unknown newer type.
+    FLAG_TYPE_UNSPECIFIED = 0;
+    FLAG_TYPE_BOOLEAN = 1;
+    FLAG_TYPE_INTEGER = 2;
+  }
+
   // Representation of an aconfig flag and its metadata.
   message Flag {
     optional string flag_namespace = 1;
@@ -67,6 +76,7 @@ message AndroidAflags {
     optional FlagPermission permission = 7;
     optional ValuePickedFrom value_picked_from = 8;
     optional FlagStorageBackend storage_backend = 9;
+    optional FlagType type = 10;
   }
 
   // A collection of flags.

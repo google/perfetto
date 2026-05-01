@@ -83,7 +83,7 @@ export class SwitchComponent implements m.ClassComponent<SwitchComponentAttrs> {
     };
 
     if (column.switchOn === undefined || column.switchOn === '') {
-      const columnNames = columns.map((c) => c.column.name);
+      const columnNames = columns.map((c) => c.name);
       return m(
         OutlinedField,
         {
@@ -100,12 +100,10 @@ export class SwitchComponent implements m.ClassComponent<SwitchComponentAttrs> {
       );
     }
 
-    const columnNames = columns.map((c) => c.column.name);
+    const columnNames = columns.map((c) => c.name);
 
-    const selectedColumn = columns.find(
-      (c) => c.column.name === column.switchOn,
-    );
-    const isStringColumn = selectedColumn?.column.type?.kind === 'string';
+    const selectedColumn = columns.find((c) => c.name === column.switchOn);
+    const isStringColumn = selectedColumn?.type?.kind === 'string';
 
     return m('.pf-inline-edit-list', [
       m(

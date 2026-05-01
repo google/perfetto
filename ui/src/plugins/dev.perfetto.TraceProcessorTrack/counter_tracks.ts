@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {CounterOptions} from '../../components/tracks/base_counter_track';
+import {YMode} from '../../components/tracks/counter_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 
-type CounterMode = CounterOptions['yMode'];
+type CounterMode = YMode;
 
 type DescriptionRenderer = () => m.Children;
 
@@ -26,6 +26,7 @@ interface CounterTrackTypeSchema {
   readonly group: string | TrackGroupSchema | undefined;
   readonly shareYAxis?: true;
   readonly mode?: CounterMode;
+  readonly unit?: string;
 
   /**
    * Optional function to provide a rich description renderer for the track.
@@ -128,37 +129,32 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   {
     type: 'cpu_capacity',
     topLevelGroup: 'CPU',
-    group: 'CPU Capacity',
+    group: 'Capacity',
   },
   {
     type: 'cpu_frequency_throttle',
     topLevelGroup: 'CPU',
-    group: 'CPU Frequency Throttling',
+    group: 'Frequency Throttling',
   },
   {
     type: 'cpu_max_frequency_limit',
     topLevelGroup: 'CPU',
-    group: 'CPU Max Frequency',
+    group: 'Max Frequency',
   },
   {
     type: 'cpu_min_frequency_limit',
     topLevelGroup: 'CPU',
-    group: 'CPU Min Frequency',
+    group: 'Min Frequency',
   },
   {
     type: 'cpu_nr_running',
     topLevelGroup: 'CPU',
-    group: 'CPU Number Running',
+    group: 'Number Running',
   },
   {
     type: 'cpu_utilization',
     topLevelGroup: 'CPU',
-    group: 'CPU Utilization',
-  },
-  {
-    type: 'cpustat',
-    topLevelGroup: 'CPU',
-    group: 'CPU Stat',
+    group: 'Utilization',
   },
   {
     type: 'cros_ec_sensorhub_data',
@@ -329,6 +325,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'process_memory',
     topLevelGroup: 'PROCESS',
     group: undefined,
+    unit: 'B',
   },
   {
     type: 'psi',
@@ -345,6 +342,11 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'smaps',
     topLevelGroup: 'PROCESS',
     group: undefined,
+  },
+  {
+    type: 'slabinfo',
+    topLevelGroup: 'MEMORY',
+    group: 'Slab',
   },
   {
     type: 'sysprop_counter',

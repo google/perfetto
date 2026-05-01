@@ -154,6 +154,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   std::vector<TraceBlobView> eof_deferred_packets_;
   bool received_eof_ = false;
+  std::vector<uint8_t> trace_config_raw_;
 };
 
 }  // namespace trace_processor

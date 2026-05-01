@@ -34,6 +34,10 @@ class GeckoTraceParser
   void Parse(int64_t ts, GeckoEvent);
 
  private:
+  void ParseThreadMetadata(const GeckoEvent::ThreadMetadata&);
+  void ParseStackSample(int64_t ts, const GeckoEvent::StackSample&);
+  void ParseMarker(int64_t ts, const GeckoEvent::Marker&);
+
   TraceProcessorContext* const context_;
 };
 

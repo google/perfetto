@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Creates an image that can check out / build / test the perfetto source.
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -22,11 +22,10 @@ RUN set -ex; \
     dpkg --add-architecture i386; \
     apt-get update; \
     apt-get -y install --no-install-recommends \
-        python3.9 \
+        python3.10 \
         python3-pip \
-        python3.9-dev \
-        python3.9-venv \
-        python3.9-distutils \
+        python3.10-dev \
+        python3.10-venv \
         python-is-python3 \
         git \
         curl \
@@ -51,23 +50,23 @@ RUN set -ex; \
         zlib1g-dev \
         unzip \
         xz-utils \
-        gcc-8 \
-        g++-8 \
-        gcc-8-multilib \
+        gcc-9 \
+        g++-9 \
+        gcc-9-multilib \
         openjdk-11-jdk \
-        clang-8 \
-        libc++-8-dev \
+        clang-11 \
+        libc++-11-dev \
         llvm-dev \
-        libc++abi-8-dev; \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1; \
+        libc++abi-11-dev; \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1; \
     python3 -m pip install --no-cache-dir protobuf pandas grpcio; \
     python3 --version; \
     python --version; \
     pip3 --version; \
-    gcc-8 --version; \
-    g++-8 --version; \
-    clang-8 --version; \
-    clang++-8 --version; \
+    gcc-9 --version; \
+    g++-9 --version; \
+    clang-11 --version; \
+    clang++-11 --version; \
     java -version
 
 # Chrome/puppeteer deps.

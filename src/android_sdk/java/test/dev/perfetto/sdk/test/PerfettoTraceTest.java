@@ -299,6 +299,115 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testStaticNamedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.begin(FOO_CATEGORY, "event")
+        .usingProcessNamedTrack(123, "static_track")
+        .emit();
+
+    PerfettoTrace.end(FOO_CATEGORY)
+        .usingProcessNamedTrack(123, "static_track")
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean foundStaticName = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("static_track".equals(td.getStaticName())) {
+          foundStaticName = true;
+        }
+      }
+    }
+
+    assertThat(foundStaticName).isTrue();
+  }
+
+  @Test
+  public void testDynamicNamedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.begin(FOO_CATEGORY, "event")
+        .usingProcessNamedTrackWithDynamicName(123, "dynamic_track")
+        .emit();
+
+    PerfettoTrace.end(FOO_CATEGORY)
+        .usingProcessNamedTrackWithDynamicName(123, "dynamic_track")
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean foundDynamicName = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("dynamic_track".equals(td.getName())) {
+          foundDynamicName = true;
+        }
+      }
+    }
+
+    assertThat(foundDynamicName).isTrue();
+  }
+
+  @Test
+  public void testStaticCounterTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.counter(FOO_CATEGORY, 42)
+        .usingProcessCounterTrack("static_counter")
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean foundStaticName = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("static_counter".equals(td.getStaticName())) {
+          foundStaticName = true;
+        }
+      }
+    }
+
+    assertThat(foundStaticName).isTrue();
+  }
+
+  @Test
+  public void testDynamicCounterTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.counter(FOO_CATEGORY, 42)
+        .usingProcessCounterTrackWithDynamicName("dynamic_counter")
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean foundDynamicName = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("dynamic_counter".equals(td.getName())) {
+          foundDynamicName = true;
+        }
+      }
+    }
+
+    assertThat(foundDynamicName).isTrue();
+  }
+
+
+  @Test
   public void testCounterSimple() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
@@ -835,6 +944,11 @@ public class PerfettoTraceTest {
       return;
     }
     TrackDescriptor desc = packet.getTrackDescriptor();
-    mTrackNames.add(desc.getName());
+    if (desc.hasName()) {
+      mTrackNames.add(desc.getName());
+    }
+    if (desc.hasStaticName()) {
+      mTrackNames.add(desc.getStaticName());
+    }
   }
 }

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
-import {Accordion, AccordionItem} from '../../widgets/accordion';
+import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Icon} from '../../widgets/icon';
@@ -45,7 +45,6 @@ export interface TableListAttrs {
 
 export class TableList implements m.ClassComponent<TableListAttrs> {
   private searchQuery = '';
-  private expandedTable: string | undefined = undefined;
 
   view({attrs}: m.CVnode<TableListAttrs>): m.Children {
     const tables = attrs.sqlModules.listTables();
@@ -66,15 +65,6 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       }));
     }
 
-    const items: AccordionItem[] = filteredTables.map(({table, segments}) => ({
-      id: table.name,
-      header: m(
-        'code.pf-simple-table-list__item-name',
-        renderHighlightedName(segments),
-      ),
-      content: this.renderTableContent(table, attrs.onQueryTable),
-    }));
-
     return m(
       '.pf-simple-table-list',
       m(TextInput, {
@@ -86,50 +76,44 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           this.searchQuery = value;
         },
       }),
-      items.length > 0
+      filteredTables.length > 0
         ? m(
             '.pf-simple-table-list__items',
-            m(Accordion, {
-              items,
-              expanded: this.expandedTable,
-              onToggle: (id) => {
-                this.expandedTable = id;
-              },
-            }),
+            m(
+              Accordion,
+              filteredTables.map(({table, segments}) =>
+                m(
+                  AccordionSection,
+                  {
+                    key: table.name,
+                    summary: m(
+                      'code.pf-simple-table-list__item-name',
+                      renderHighlightedName(segments),
+                    ),
+                  },
+                  m(TableContent, {
+                    table,
+                    onQueryTable: attrs.onQueryTable,
+                  }),
+                ),
+              ),
+            ),
           )
         : m(EmptyState, {
             title: 'No matching tables found',
           }),
     );
   }
+}
 
-  private generateQuery(table: SqlTable): string {
-    const lines: string[] = [];
+interface TableContentAttrs {
+  readonly table: SqlTable;
+  onQueryTable?(tableName: string, query: string): void;
+}
 
-    // Add INCLUDE statement if needed
-    if (table.includeKey) {
-      lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
-      lines.push('');
-    }
-
-    // Build SELECT with all columns
-    const columns =
-      table.columns.length > 0
-        ? table.columns.map((c) => c.name).join(',\n  ')
-        : '*';
-
-    lines.push('SELECT');
-    lines.push(`  ${columns}`);
-    lines.push(`FROM ${table.name}`);
-    lines.push('LIMIT 1000');
-
-    return lines.join('\n');
-  }
-
-  private renderTableContent(
-    table: SqlTable,
-    onQueryTable?: (tableName: string, query: string) => void,
-  ): m.Children {
+const TableContent: m.Component<TableContentAttrs> = {
+  view({attrs}: m.CVnode<TableContentAttrs>): m.Children {
+    const {table, onQueryTable} = attrs;
     return [
       // Description
       table.description &&
@@ -150,7 +134,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             icon: 'play_arrow',
             compact: true,
             tooltip: `SELECT * FROM ${table.name} in a new tab`,
-            onclick: () => onQueryTable(table.name, this.generateQuery(table)),
+            onclick: () => onQueryTable(table.name, generateQuery(table)),
           }),
       ),
       // Module
@@ -209,5 +193,28 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           ),
         ),
     ];
+  },
+};
+
+function generateQuery(table: SqlTable): string {
+  const lines: string[] = [];
+
+  // Add INCLUDE statement if needed
+  if (table.includeKey) {
+    lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
+    lines.push('');
   }
+
+  // Build SELECT with all columns
+  const columns =
+    table.columns.length > 0
+      ? table.columns.map((c) => c.name).join(',\n  ')
+      : '*';
+
+  lines.push('SELECT');
+  lines.push(`  ${columns}`);
+  lines.push(`FROM ${table.name}`);
+  lines.push('LIMIT 1000');
+
+  return lines.join('\n');
 }
