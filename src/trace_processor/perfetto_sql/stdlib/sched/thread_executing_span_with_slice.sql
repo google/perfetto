@@ -160,11 +160,15 @@ SELECT
 FROM thread_state;
 
 -- Limited slice_view that will later be span joined with the critical path.
+-- NOTE: We keep `slice_id` only here. Slice names are TEXT and would be
+-- duplicated across the materialized critical-path × slice cross-product
+-- (one row per blocker × per slice across the whole trace). Names are
+-- instead joined at the leaves of `_critical_path_stack` for just the
+-- region the caller asked about.
 CREATE PERFETTO VIEW _span_slice_view AS
 SELECT
   slice_id,
   depth AS slice_depth,
-  name AS slice_name,
   cast_int!(ts) AS ts,
   cast_int!(dur) AS dur,
   utid
@@ -188,7 +192,6 @@ SELECT
   cpu,
   io_wait,
   slice_id,
-  slice_name,
   slice_depth
 FROM _span_thread_state_slice_sp
 WHERE
@@ -204,6 +207,11 @@ SELECT
   dur
 FROM _interval_intersect!((_critical_path_all, _span_thread_state_slice), (utid));
 
+-- Holds id-space columns only. The slice name is intentionally absent
+-- so that, at module-load time, we don't materialize a copy of every
+-- slice's name TEXT for every row in the critical-path × slice cross
+-- product. `_critical_path_stack` joins `slice` on `slice_id` lazily
+-- for just the rows it returns.
 CREATE PERFETTO TABLE _critical_path_thread_state_slice AS
 SELECT
   raw.ts,
@@ -215,7 +223,6 @@ SELECT
   cpu,
   io_wait,
   slice_id,
-  slice_name,
   slice_depth,
   root_utid
 FROM _critical_path_thread_state_slice_raw AS raw
@@ -228,7 +235,9 @@ JOIN _span_thread_state_slice AS th
 -- without 'critical_path' (blocking) information.
 CREATE VIRTUAL TABLE _self_sp USING SPAN_LEFT_JOIN (thread_state PARTITIONED utid, _slice_flattened PARTITIONED utid);
 
--- Limited view of |_self_sp|.
+-- Limited view of |_self_sp|. Like `_critical_path_thread_state_slice`,
+-- this stays in id-space; `_critical_path_stack` joins `slice` lazily
+-- on `self_slice_id` for the rows it returns.
 CREATE PERFETTO VIEW _self_view AS
 SELECT
   id AS self_thread_state_id,
@@ -240,7 +249,6 @@ SELECT
   blocked_function AS self_function,
   cpu AS self_cpu,
   io_wait AS self_io_wait,
-  name AS self_slice_name,
   depth AS self_slice_depth
 FROM _self_sp;
 
@@ -291,7 +299,6 @@ WITH
       self_thread_state_id,
       self_state,
       self_slice_id,
-      self_slice_name,
       self_slice_depth,
       self_function,
       self_io_wait,
@@ -300,7 +307,6 @@ WITH
       function,
       io_wait,
       slice_id,
-      slice_name,
       slice_depth,
       cpu,
       utid,
@@ -321,7 +327,6 @@ WITH
       self_thread_state_id,
       self_state,
       self_slice_id,
-      self_slice_name,
       self_slice_depth,
       self_function,
       self_io_wait,
@@ -330,7 +335,6 @@ WITH
       function,
       io_wait,
       slice_id,
-      slice_name,
       slice_depth,
       cpu,
       utid,
@@ -426,17 +430,21 @@ WITH
     WHERE
       anc.dur != -1
     UNION ALL
-    -- Builds the self 'deepest' ancestor slice stack
+    -- Builds the self 'deepest' ancestor slice stack. Slice names are
+    -- joined here on `self_slice_id` rather than carried through the
+    -- materialised intermediate tables — paid once per emitted row.
     SELECT
-      self_slice_id AS id,
-      ts,
-      dur,
-      root_utid AS utid,
-      self_slice_depth + 5 AS stack_depth,
-      iif($enable_self_slice, self_slice_name, NULL) AS name,
+      spans.self_slice_id AS id,
+      spans.ts,
+      spans.dur,
+      spans.root_utid AS utid,
+      spans.self_slice_depth + 5 AS stack_depth,
+      iif($enable_self_slice, sl.name, NULL) AS name,
       'slice' AS table_name,
-      root_utid
-    FROM relevant_spans AS slice
+      spans.root_utid
+    FROM relevant_spans AS spans
+    LEFT JOIN slice AS sl
+      ON sl.id = spans.self_slice_id
     ORDER BY
       stack_depth
   ),
@@ -461,7 +469,6 @@ WITH
       function,
       io_wait,
       slice_id,
-      slice_name,
       slice_depth,
       spans.ts,
       spans.dur,
@@ -562,17 +569,21 @@ WITH
     WHERE
       anc.dur != -1
     UNION ALL
-    -- Builds the critical_path 'deepest' slice
+    -- Builds the critical_path 'deepest' slice. Slice names are joined
+    -- here on `slice_id` rather than carried through the materialised
+    -- intermediate tables — paid once per emitted row.
     SELECT
-      slice_id AS id,
-      ts,
-      dur,
-      utid,
-      slice_depth + start_depth + 5 AS stack_depth,
-      iif($enable_critical_path_slice, slice_name, NULL) AS name,
+      cps.slice_id AS id,
+      cps.ts,
+      cps.dur,
+      cps.utid,
+      cps.slice_depth + cps.start_depth + 5 AS stack_depth,
+      iif($enable_critical_path_slice, sl.name, NULL) AS name,
       'slice' AS table_name,
-      root_utid
-    FROM critical_path_span AS slice
+      cps.root_utid
+    FROM critical_path_span AS cps
+    LEFT JOIN slice AS sl
+      ON sl.id = cps.slice_id
     ORDER BY
       stack_depth
   ),

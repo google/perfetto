@@ -536,6 +536,86 @@ RETURNS TableOrSubQuery AS
 -- binder transactions. It might be more efficient to generate the _critical_path
 -- for the entire trace, see _thread_executing_span_critical_path_all, but for a
 -- per-process susbset of binder txns for instance, this is likely faster.
+-- Userspace per-root walk via the C++ `__intrinsic_critical_path_walk`.
+-- Replaces the older `_critical_path_intervals!()` pipeline for the
+-- wakeup-graph use case. The walk recursively bounds each frame by its
+-- own idle window, falling back to a frame's `prev_id` for the time
+-- before that frame's idle started — fixes a class of "uncovered tail"
+-- and "runaway depth on monitor contention" bugs that the lead(ts) flatten
+-- couldn't model. IRQ self-wake semantics (mode=0) are unchanged.
+CREATE PERFETTO MACRO _critical_path_userspace_by_roots(
+    _roots_table TableOrSubQuery,
+    _node_table TableOrSubQuery
+)
+RETURNS TableOrSubQuery AS
+(
+  SELECT
+    c0 AS root_id,
+    c4 AS id,
+    c2 AS ts,
+    c3 AS dur
+  FROM __intrinsic_table_ptr(
+    __intrinsic_critical_path_walk(
+      (
+        SELECT
+          __intrinsic_wakeup_graph_agg(id, utid, ts, dur, idle_dur, waker_id, prev_id, is_idle_reason_self)
+        FROM $_node_table
+      ),
+      (
+        SELECT
+          __intrinsic_array_agg(root_node_id)
+        FROM $_roots_table
+      ),
+      0
+    )
+  )
+  WHERE
+    __intrinsic_table_ptr_bind(c0, 'root_id')
+    AND __intrinsic_table_ptr_bind(c1, 'depth')
+    AND __intrinsic_table_ptr_bind(c2, 'ts')
+    AND __intrinsic_table_ptr_bind(c3, 'dur')
+    AND __intrinsic_table_ptr_bind(c4, 'blocker_id')
+    AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
+);
+
+-- Kernel-mode counterpart of `_critical_path_userspace_by_roots`. Always
+-- chains through `waker_id`, ignoring `is_idle_reason_self` (matches the
+-- existing `_wakeup_kernel_edges` semantic).
+CREATE PERFETTO MACRO _critical_path_kernel_by_roots(
+    _roots_table TableOrSubQuery,
+    _node_table TableOrSubQuery
+)
+RETURNS TableOrSubQuery AS
+(
+  SELECT
+    c0 AS root_id,
+    c4 AS id,
+    c2 AS ts,
+    c3 AS dur
+  FROM __intrinsic_table_ptr(
+    __intrinsic_critical_path_walk(
+      (
+        SELECT
+          __intrinsic_wakeup_graph_agg(id, utid, ts, dur, idle_dur, waker_id, prev_id, is_idle_reason_self)
+        FROM $_node_table
+      ),
+      (
+        SELECT
+          __intrinsic_array_agg(root_node_id)
+        FROM $_roots_table
+      ),
+      1
+    )
+  )
+  WHERE
+    __intrinsic_table_ptr_bind(c0, 'root_id')
+    AND __intrinsic_table_ptr_bind(c1, 'depth')
+    AND __intrinsic_table_ptr_bind(c2, 'ts')
+    AND __intrinsic_table_ptr_bind(c3, 'dur')
+    AND __intrinsic_table_ptr_bind(c4, 'blocker_id')
+    AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
+);
+
 CREATE PERFETTO MACRO _critical_path_by_roots(
     _roots_table TableOrSubQuery,
     _node_table TableOrSubQuery
@@ -546,10 +626,7 @@ RETURNS TableOrSubQuery AS
     _userspace_critical_path_by_roots AS (
       SELECT
         *
-      FROM _critical_path_intervals
-        !(_wakeup_userspace_edges,
-          $_roots_table,
-          _wakeup_intervals)
+      FROM _critical_path_userspace_by_roots!($_roots_table, $_node_table)
     ),
     _kernel_nodes AS (
       SELECT
@@ -568,14 +645,9 @@ RETURNS TableOrSubQuery AS
         cr.id,
         cr.ts,
         cr.dur
-      FROM _critical_path_intervals
-        !(_wakeup_kernel_edges,
-          (
-           SELECT graph.id AS root_node_id, graph.id - COALESCE(graph.prev_id, graph.id) AS capacity
-           FROM _kernel_nodes
-           JOIN _wakeup_graph graph USING(id)
-          ),
-          _wakeup_intervals) AS cr
+      FROM _critical_path_kernel_by_roots!(
+        (SELECT id AS root_node_id FROM _kernel_nodes),
+        $_node_table) AS cr
       JOIN _kernel_nodes
         ON _kernel_nodes.id = cr.root_id
     )
