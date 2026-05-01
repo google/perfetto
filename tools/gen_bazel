@@ -981,6 +981,18 @@ def gen_target_helper(gn_target: GnParser.Target,
         label.srcs += [label_name]
         continue
 
+      # External consumers (e.g. Google-internal targets) depend on perfetto's
+      # cc_libraries, not on the internal include_perfetto_* source_sets that
+      # own the public headers. layering_check requires every #include be
+      # satisfied by a *direct* dep, so re-expose public-header source_set
+      # hdrs in this cc_library's hdrs. This restores the pre-refactor
+      # visibility (when //include/perfetto/... source_sets were filegroups
+      # inlined into linker_units). Restrict to //include/ to avoid leaking
+      # private src/ headers, and skip executables (cc_binary has no hdrs).
+      if (gn_target.type in ('static_library', 'shared_library') and
+          dep.type == 'source_set' and dep.name.startswith('//include/')):
+        label.hdrs += [s[2:] for s in dep.sources]
+
       label.deps += [':' + get_bazel_label_name(dep_name)]
 
   # All items starting with : need to be sorted to the end of the list.
@@ -993,7 +1005,7 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.win_srcs = sorted(label.win_srcs, key=lambda x: x.replace(':', '|'))
 
   label.deps = sorted(label.deps)
-  label.hdrs = sorted(label.hdrs)
+  label.hdrs = sorted(set(label.hdrs))
   label.defines = sorted(filter_defines(set(label.defines)))
   return [label]
 

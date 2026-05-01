@@ -29,5 +29,6 @@ source_set("storage") {
     "../core/dataframe",
     "../tables",
     "../types",
+    "../util:blob",
   ]
 }
