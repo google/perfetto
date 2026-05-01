@@ -146,7 +146,7 @@ class TraceProcessorImpl : public TraceProcessor,
   friend class IteratorImpl;
 
   // A `Connection` impl owning a fresh `PerfettoSqlConnection` attached to
-  // the primary engine's memdb URI. See the doc-comment in
+  // the primary connection's memdb URI. See the doc-comment in
   // `trace_processor_impl.cc` for the intentional limitations.
   class ConnectionImpl;
   friend class ConnectionImpl;
@@ -183,7 +183,7 @@ class TraceProcessorImpl : public TraceProcessor,
   CreateStaticTableFunctions(TraceProcessorContext* context,
                              TraceStorage* storage,
                              const Config& config,
-                             PerfettoSqlConnection* engine);
+                             PerfettoSqlConnection* connection);
 
   static void IncludeAfterEofPrelude(PerfettoSqlConnection*);
 
@@ -192,11 +192,14 @@ class TraceProcessorImpl : public TraceProcessor,
   // Registered plugins, topologically sorted by dependency order.
   std::vector<std::unique_ptr<PluginBase>> plugins_;
 
-  // Cross-connection state (vtab-state map, function/package pools,
-  // per-module include locks). Shared by every connection's engine.
+  // Cross-connection state (vtab-state map, function pool, package
+  // map, per-module include locks). Shared by every connection.
   std::unique_ptr<PerfettoSqlDatabase> database_;
 
-  std::unique_ptr<PerfettoSqlConnection> engine_;
+  // Primary (writer) connection. Secondary (reader) connections are
+  // minted on demand by `CreateConnection` and owned by the returned
+  // `Connection` handle.
+  std::unique_ptr<PerfettoSqlConnection> connection_;
 
   DescriptorPool metrics_descriptor_pool_;
 

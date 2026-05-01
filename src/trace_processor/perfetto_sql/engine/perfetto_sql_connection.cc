@@ -400,9 +400,9 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
                                      bool enable_extra_checks,
                                      const std::string& shared_filename,
                                      PerfettoSqlDatabase* database)
-    : pool_(pool),
+    : database_(database),
+      pool_(pool),
       enable_extra_checks_(enable_extra_checks),
-      database_(database),
       is_writer_(false),
       engine_(new SqliteEngine(shared_filename)) {
   PERFETTO_CHECK(database_);
@@ -432,9 +432,9 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
 PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
                                      bool enable_extra_checks,
                                      PerfettoSqlDatabase* database)
-    : pool_(pool),
+    : database_(database),
+      pool_(pool),
       enable_extra_checks_(enable_extra_checks),
-      database_(database),
       is_writer_(true),
       engine_(new SqliteEngine()) {
   PERFETTO_CHECK(database_);
@@ -473,9 +473,9 @@ PerfettoSqlConnection::PerfettoSqlConnection(StringPool* pool,
   }
   {
     auto ctx = std::make_unique<DataframeModule::Context>();
-    // The primary engine's dataframe module is the writer for the
-    // cross-connection vtab-state map. Readers (secondary engines)
-    // consult the same staging area; the writer publishes its
+    // The primary connection's dataframe module is the writer for
+    // the cross-connection vtab-state map. Readers (secondary
+    // connections) consult the same map; the writer publishes its
     // committed state on every `OnCommit`.
     ctx->database = database_;
     ctx->is_writer = true;

@@ -655,7 +655,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // Compute initial trace bounds before any tables are finalized.
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
 
-  engine_ = InitPerfettoSqlConnection({
+  connection_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
       config_,
@@ -669,7 +669,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       database_.get(),
   });
 
-  sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
+  sqlite_objects_post_prelude_ = connection_->SqliteRegisteredObjectCount();
 
   bool skip_all_sql = std::find(config_.skip_builtin_metric_paths.begin(),
                                 config_.skip_builtin_metric_paths.end(),
@@ -696,11 +696,11 @@ TraceProcessorImpl::~TraceProcessorImpl() {
 class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
  public:
   ConnectionImpl(TraceProcessorImpl* parent,
-                 std::unique_ptr<PerfettoSqlConnection> engine)
-      : parent_(parent), engine_(std::move(engine)) {}
+                 std::unique_ptr<PerfettoSqlConnection> connection)
+      : parent_(parent), connection_(std::move(connection)) {}
   ~ConnectionImpl() override {
-    // Tear down the engine while the parent is still alive.
-    engine_.reset();
+    // Tear down the connection while the parent is still alive.
+    connection_.reset();
     parent_->ReleaseConnection(this);
   }
 
@@ -709,7 +709,7 @@ class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
     uint32_t sql_stats_row =
         parent_->context()->storage->mutable_sql_stats()->RecordQueryBegin(
             sql, base::GetWallTimeNs().count());
-    auto result = engine_->ExecuteUntilLastStatement(
+    auto result = connection_->ExecuteUntilLastStatement(
         SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
     return Iterator(std::make_unique<IteratorImpl>(
         parent_, std::move(result), sql_stats_row));
@@ -717,23 +717,23 @@ class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
 
  private:
   TraceProcessorImpl* parent_;
-  std::unique_ptr<PerfettoSqlConnection> engine_;
+  std::unique_ptr<PerfettoSqlConnection> connection_;
 };
 
 std::unique_ptr<TraceProcessor::Connection>
 TraceProcessorImpl::CreateConnection() {
   // Strict-v1: connections are only legal post-NotifyEndOfFile.
   PERFETTO_CHECK(notify_eof_called_);
-  // Flip the StringPool to MT-safe mode before the secondary engine
-  // can intern (it has no way to until this function returns, so no
-  // extra barrier is needed).
+  // Flip the StringPool to MT-safe mode before the secondary
+  // connection can intern (it has no way to until this function
+  // returns, so no extra barrier is needed).
   context()->storage->mutable_string_pool()
       ->EnableThreadSafetyForMultiConnection();
-  auto engine = std::make_unique<PerfettoSqlConnection>(
+  auto connection = std::make_unique<PerfettoSqlConnection>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
-      engine_->sqlite_engine()->filename(), database_.get());
+      connection_->sqlite_engine()->filename(), database_.get());
   non_default_connection_count_.fetch_add(1, std::memory_order_relaxed);
-  return std::make_unique<ConnectionImpl>(this, std::move(engine));
+  return std::make_unique<ConnectionImpl>(this, std::move(connection));
 }
 
 void TraceProcessorImpl::ReleaseConnection(ConnectionImpl*) {
@@ -807,8 +807,8 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   }
 
   // Stage 4: prepare the engine for queries.
-  IncludeAfterEofPrelude(engine_.get());
-  sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
+  IncludeAfterEofPrelude(connection_.get());
+  sqlite_objects_post_prelude_ = connection_->SqliteRegisteredObjectCount();
 
   return base::OkStatus();
 }
@@ -820,7 +820,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
   }
   bounds_tables_mutations_ = mutations;
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
-  BuildBoundsTable(engine_->db(), cached_trace_bounds_);
+  BuildBoundsTable(connection_->db(), cached_trace_bounds_);
 }
 
 // =================================================================
@@ -836,7 +836,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           sql, base::GetWallTimeNs().count());
   std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
-      engine_->ExecuteUntilLastStatement(
+      connection_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
   std::unique_ptr<IteratorImpl> impl(
       new IteratorImpl(this, std::move(result), sql_stats_row));
@@ -1015,17 +1015,17 @@ base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
 }
 
 void TraceProcessorImpl::InterruptQuery() {
-  if (!engine_->db())
+  if (!connection_->db())
     return;
   query_interrupted_.store(true);
-  sqlite3_interrupt(engine_->db());
+  sqlite3_interrupt(connection_->db());
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
   PERFETTO_CHECK(non_default_connection_count_ == 0);
   // We should always have at least as many objects now as we did in the
   // constructor.
-  uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
+  uint64_t registered_count_before = connection_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
   // The new engine has fresh storage and the prelude include below
@@ -1047,7 +1047,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 
   // Reset the engine to its initial state. Pass cached bounds to avoid
   // recomputing them.
-  engine_ = InitPerfettoSqlConnection({
+  connection_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
       config_,
@@ -1062,7 +1062,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   });
 
   // The registered count should now be the same as it was in the constructor.
-  uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
+  uint64_t registered_count_after = connection_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_after == sqlite_objects_post_prelude_);
   return static_cast<size_t>(registered_count_before - registered_count_after);
 }
@@ -1121,7 +1121,7 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   }
 
   if (metric.proto_field_name) {
-    InsertIntoTraceMetricsTable(engine_->db(), *metric.proto_field_name);
+    InsertIntoTraceMetricsTable(connection_->db(), *metric.proto_field_name);
   }
   sql_metrics_.emplace_back(metric);
   return base::OkStatus();
@@ -1140,7 +1140,7 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
   RETURN_IF_ERROR(metrics_descriptor_pool_.AddFromFileDescriptorSet(
       data, size, skip_prefixes));
   RETURN_IF_ERROR(RegisterAllProtoBuilderFunctions(
-      &metrics_descriptor_pool_, &proto_fn_name_to_path_, engine_.get(), this));
+      &metrics_descriptor_pool_, &proto_fn_name_to_path_, connection_.get(), this));
   return base::OkStatus();
 }
 
@@ -1154,7 +1154,7 @@ base::Status TraceProcessorImpl::ComputeMetric(
 
   const auto& root_descriptor =
       metrics_descriptor_pool_.descriptors()[opt_idx.value()];
-  return metrics::ComputeMetrics(engine_.get(), metric_names, sql_metrics_,
+  return metrics::ComputeMetrics(connection_.get(), metric_names, sql_metrics_,
                                  metrics_descriptor_pool_, root_descriptor,
                                  metrics_proto);
 }

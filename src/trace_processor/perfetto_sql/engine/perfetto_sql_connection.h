@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -50,9 +50,23 @@
 
 namespace perfetto::trace_processor {
 
-// Intermediary class which translates high-level concepts and algorithms used
-// in trace processor into lower-level concepts and functions can be understood
-// by and executed against SQLite.
+// A single connection to the trace processor SQL engine: owns one
+// `sqlite3*` handle and the per-connection state layered on top of
+// it (PerfettoSQL parser stack, intrinsic function and macro
+// registries, virtual-table-module state managers, execution stack
+// for nested INCLUDE/wildcard handling).
+//
+// Cross-connection state — vtab-state map, function pool, package
+// map, per-module include-claim machinery — lives on the
+// `PerfettoSqlDatabase` passed in at construction. Connections diff
+// against the database's additive function pool at the top of every
+// `Execute` so dynamic functions registered on the writer become
+// visible on readers.
+//
+// Thread-affinity: a connection (and the iterators / prepared
+// statements it produces) is owned by exactly one thread at a time.
+// Multiple connections — each on its own thread — may execute
+// concurrently against the same `PerfettoSqlDatabase`.
 class PerfettoSqlConnection {
  public:
   struct ExecutionStats {
@@ -68,28 +82,29 @@ class PerfettoSqlConnection {
     dataframe::Dataframe* dataframe;
     std::string name;
   };
-  // Primary (writer) ctor: opens a fresh sqlite3 handle and registers the
-  // full set of tables, functions, and vtab modules.
+  // Primary (writer) ctor: opens a fresh sqlite3 handle and registers
+  // the full set of tables, functions, and vtab modules.
   PerfettoSqlConnection(StringPool* pool,
-                    bool enable_extra_checks,
-                    PerfettoSqlDatabase* database);
+                        bool enable_extra_checks,
+                        PerfettoSqlDatabase* database);
 
   // Secondary (reader) ctor: opens a sqlite3 handle against
   // `shared_filename` (use `SqliteEngine::filename()` of the primary).
   // The two handles share the in-memory storage via the named-MemStore
   // feature, so plain SQL / DDL committed on `main` by the primary is
-  // visible here. Per-engine state (function/aggregate/window
+  // visible here. Per-connection state (function/aggregate/window
   // registrations, vtab modules, commit/rollback callbacks) is fresh.
   //
   // Intentional limitations: only the dataframe vtab module is
   // registered on secondaries; runtime-table-function / static-table-
-  // function vtabs are not yet replicated across connections. PerfettoSQL
-  // functions and packages flow in via the additive pool diff at the
-  // top of every `Execute`.
+  // function vtabs are not yet replicated across connections.
+  // PerfettoSQL scalar functions flow in via the database's additive
+  // function pool diff at the top of every `Execute`; package
+  // registrations are looked up directly on the database.
   PerfettoSqlConnection(StringPool* pool,
-                    bool enable_extra_checks,
-                    const std::string& shared_filename,
-                    PerfettoSqlDatabase* database);
+                        bool enable_extra_checks,
+                        const std::string& shared_filename,
+                        PerfettoSqlDatabase* database);
 
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
@@ -428,27 +443,31 @@ class PerfettoSqlConnection {
   int OnCommit();
   void OnRollback();
 
-  StringPool* pool_ = nullptr;
-
-  // If true, engine will perform additional consistency checks when e.g.
-  // creating tables and views.
-  const bool enable_extra_checks_;
-
-  // Cross-connection database, owned by the parent `TraceProcessorImpl`.
+  // ===== Cross-connection (database) state =====
+  // The only field below pointing at shared state. Owned by the
+  // parent `TraceProcessorImpl`; outlives this connection.
   PerfettoSqlDatabase* database_ = nullptr;
 
-  // True if this is the parent's writer (connection-0) engine. Writers
-  // publish vtab state on commit and Append to the function/package
-  // pools; readers only consume.
+  // ===== Per-connection state =====
+  StringPool* pool_ = nullptr;
+
+  // If true, perform additional consistency checks when e.g. creating
+  // tables and views.
+  const bool enable_extra_checks_;
+
+  // True for the writer (connection-0). Writers publish vtab state on
+  // commit and Append to `database_->functions`; readers only consume.
   bool is_writer_ = false;
 
-  // Function-pool version last synced. The writer also bumps this on
-  // Append so it doesn't re-register its own functions.
+  // Function-pool version last synced from `database_->functions`.
+  // The writer also bumps this on Append so it doesn't re-register
+  // its own functions.
   uint64_t last_synced_function_version_ = 0;
 
-  // Execution stack for iterative (non-recursive) processing of SQL sources.
-  // When an INCLUDE statement is encountered, the included module's SQL is
-  // pushed onto this stack and executed before continuing with the current SQL.
+  // Execution stack for iterative (non-recursive) processing of SQL
+  // sources. When an INCLUDE statement is encountered, the included
+  // module's SQL is pushed onto this stack and executed before
+  // continuing with the current SQL.
   std::vector<ExecutionFrame> execution_stack_;
 
   uint64_t function_count_ = 0;
@@ -542,4 +561,4 @@ base::Status PerfettoSqlConnection::RegisterWindowFunction(
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
