@@ -215,6 +215,13 @@ async function maybeOpenCachedTrace(traceUuid: string) {
 }
 
 function loadTraceFromUrl(url: string) {
+  if (url.startsWith('data:')) {
+    // Gate behind a trust prompt: window.open(...?url=data:...) would
+    // otherwise silently load attacker-controlled bytes.
+    promptDataUrlTrust(url);
+    return;
+  }
+
   const isLocalhostTraceUrl = ['127.0.0.1', 'localhost'].includes(
     new URL(url).hostname,
   );
@@ -233,6 +240,29 @@ function loadTraceFromUrl(url: string) {
   } else {
     AppImpl.instance.openTraceFromUrl(url);
   }
+}
+
+function promptDataUrlTrust(url: string) {
+  const origin = document.referrer ? new URL(document.referrer).origin : 'null';
+  const originTxt = origin === 'null' ? 'An unknown origin' : origin;
+  showModal({
+    title: 'Open trace?',
+    content: m(
+      'div',
+      m('div', `${originTxt} is trying to open an embedded trace.`),
+      m('div', 'Only continue if you trust this URL.'),
+    ),
+    buttons: [
+      {text: 'No', primary: true},
+      {
+        text: 'Yes',
+        primary: false,
+        action: () => {
+          AppImpl.instance.openTraceFromUrl(url);
+        },
+      },
+    ],
+  });
 }
 
 function openTraceFromAndroidBugTool() {
