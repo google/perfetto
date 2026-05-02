@@ -110,12 +110,12 @@ data_sources: {
 data_sources: { config { name: "linux.process_stats" } }
 ```
 
-`sched_switch` + `sched_waking` are required (without them the
-critical-path UI command won't appear). `dalvik` is what gives
-you ART's `Lock contention on a monitor lock` slices — without it
-you see the wait but not the contention shape that names a
-nominal owner. The remaining categories make the surrounding
-slice context readable.
+`sched_switch` and `sched_waking` are required to populate the
+wakeup graph the analysis walks. `dalvik` is what gives you ART's
+`Lock contention on a monitor lock` slices — without it you see
+the wait but not the contention shape that names a nominal owner.
+The remaining categories make the surrounding slice context
+readable.
 
 See [recording system traces](../getting-started/system-tracing.md)
 for capture mechanics. Open the resulting `.perfetto-trace` at
@@ -123,37 +123,24 @@ for capture mechanics. Open the resulting `.perfetto-trace` at
 
 ## Open the critical path in the UI
 
-The **Critical path lite** command, rooted at a `Sleeping`
-segment of any thread-state track, adds one row below that thread
+The **Critical path lite** action, rooted at a `Sleeping` segment
+of any thread-state track, adds one row below that thread
 segmented by which thread was on-CPU on the blocked thread's
 behalf at each instant.
 
-Two ways to invoke it:
+Click the `Sleeping` segment, then use the _"Critical Path Lite"_
+button on the Thread State details panel that appears at the
+bottom of the UI:
 
-1. **Right-click the `Sleeping` segment** of a thread-state track
-   → _"Critical path lite"_.
-2. **Click the segment**, then use the _"Critical Path Lite"_
-   button on the Thread State details panel:
-
-   ![Thread State details panel showing the "Critical Path Lite" action button alongside the start time, duration, state, and waker information for a Sleeping segment on the main thread.](../images/critical-path/03-details-panel.png)
-
-If the command isn't available, the trace is missing
-`sched_switch` and/or `sched_waking`; re-record with the config
-above.
+![Thread State details panel showing the "Critical Path Lite" action button alongside the start time, duration, state, and waker information for a Sleeping segment on the main thread.](../images/critical-path/03-details-panel.png)
 
 ## Read the result
 
-Pinning the three threads of the scenario + their thread-state
-tracks + running `Critical path lite` on main's long Sleeping
-segment, then zooming to the lock-wait window:
+Pin the three threads and their thread-state tracks, run
+`Critical path lite` on main's long Sleeping segment, then zoom in
+on the wait:
 
 ![Main thread's slice track at top: clientTransactionExecuted, activityStart, performCreate, MainActivity.onCreate, then the long olive "main waits for LOCK_AB" slice, with two ART contention slices stacked beneath it: "monitor contention with owner Worker-A (...) at MainActivity.lambda$startContenders$0 ... blocking from MainActivity.onCreate" and "Lock contention on a monitor lock (owner tid: <Worker-A>)". Below: thread-state rows for main (mostly Sleeping during the wait), Worker-B (solidly Running through the bulk of the wait), Worker-A (mostly S, briefly Running near the end). The Critical Path Lite track at the bottom is dominated by the long pink Worker-B segment, with brief prefixes/suffixes attributed to main itself and a short Worker-A bridge near the end.](../images/critical-path/01-overview.png)
-
-The same view at a slightly tighter zoom — the chain transitions
-on the Lite track are explicit and the contention-slice text is
-readable:
-
-![Tighter zoom: the ART "monitor contention with owner Worker-A …" slice spans most of the wait on main; under it the "Lock contention on a monitor lock (owner tid: <Worker-A>)" slice. Worker-A's own thread state shows S throughout, with its own ART contention slice naming Worker-B as the owner. Worker-B is Running the whole time. The Critical Path Lite track resolves to four segments left-to-right: a short main self-run prefix, a long Worker-B segment, a short Worker-A bridge, then back to main.](../images/critical-path/02-cp-lite-zoomed.png)
 
 The Lite chain attributes each instant of main's 60 ms wait to
 the thread that was on-CPU on its behalf:
@@ -400,7 +387,7 @@ sleep where the kernel records a waker:
 
 ## Common pitfalls
 
-**The right-click action isn't there.** The trace is missing
+**The button doesn't produce any output.** The trace is missing
 `sched_switch` and/or `sched_waking`. Re-record with the config
 above. On Android the device must allow ftrace capture
 (`userdebug` build, or appropriate permissions).
@@ -417,8 +404,8 @@ above. On Android the device must allow ftrace capture
    before `trace_start()` only the time inside the trace window
    can be attributed.
 
-**Rooting at a non-main thread.** The right-click action works on
-any thread state; the SQL function takes an arbitrary `utid`.
+**Rooting at a non-main thread.** The action works on any
+thread-state segment; the SQL function takes an arbitrary `utid`.
 Useful for tracing why a binder thread on a service process was
 slow to reply, or why a kworker stalled.
 
