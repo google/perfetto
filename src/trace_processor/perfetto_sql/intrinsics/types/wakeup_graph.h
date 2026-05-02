@@ -23,37 +23,29 @@
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-// One entry in the wakeup graph: a single transition of a thread from
-// idle to runnable, plus the run that follows. Mirrors the columns of
-// the `_wakeup_graph` stdlib table.
+// One entry in the wakeup graph: a thread's transition from idle to
+// runnable, plus the run that follows. Mirrors the columns of the
+// `_wakeup_graph` stdlib table.
 struct WakeupNode {
   uint32_t utid = 0;
   // The thread is running across [ts, ts + dur). The preceding idle
-  // period is [ts - *idle_dur, ts) when `idle_dur` is set; when unset,
-  // the idle period has no lower bound from this node and is clipped
-  // by the caller's recursion window instead.
+  // period is [ts - *idle_dur, ts) when `idle_dur` is set; otherwise
+  // the idle period has no lower bound from this node.
   int64_t ts = 0;
   int64_t dur = 0;
   std::optional<int64_t> idle_dur;
-  // Id of the wakeup-graph entry on the thread that woke this one.
-  // Empty when this thread's run starts with no recorded waker.
+  // Wakeup-graph entry of the thread that woke this one. Empty when
+  // no waker is recorded.
   std::optional<uint32_t> waker_id;
-  // Id of this thread's previous wakeup-graph entry (the run that ended
-  // when this idle period started). Empty for the first entry on a
-  // thread.
+  // Previous wakeup-graph entry on this thread. Empty at the first
+  // entry on a thread.
   std::optional<uint32_t> prev_id;
-  // True when the wakeup is a self-wake (e.g. IRQ). Userspace
-  // critical-path semantics chain through `prev_id` rather than
-  // `waker_id` for such entries.
-  bool is_idle_reason_self = false;
 };
 
 // Pointer-tagged value consumed by `__intrinsic_critical_path_walk`.
-// Indexed by node id; gaps in the id space hold default-constructed
-// `std::nullopt`. Direct array indexing keeps lookup O(1); the per-slot
-// `sizeof(optional<WakeupNode>)` overhead is acceptable because
-// wakeup-graph ids derive from thread_state ids and are dense in
-// practice.
+// Direct id indexing keeps lookup O(1); gaps in the id space hold
+// default `std::nullopt`. Wakeup-graph ids derive from thread_state
+// ids and are dense in practice, so the per-slot overhead is fine.
 struct WakeupGraph {
   static constexpr char kName[] = "WAKEUP_GRAPH";
 

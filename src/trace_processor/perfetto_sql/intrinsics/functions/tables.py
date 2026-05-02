@@ -57,10 +57,13 @@ STRUCTURAL_TREE_PARTITION_TABLE = Table(
         C("group_key", CppUint32()),
     ])
 
-# Output table of `__intrinsic_critical_path_walk`. One row per emitted
-# attribution: thread `blocker_utid` (wakeup-graph entry `blocker_id`)
-# was running on `root_id`'s behalf during [ts, ts + dur), at `depth`
-# cross-thread hops away from `root_id` along the wakeup chain.
+# Output of `__intrinsic_critical_path_walk`. One row per emitted
+# blocker frame: thread `blocker_utid` (wakeup-graph entry `blocker_id`)
+# was on-CPU on `root_id`'s behalf during [ts, ts + dur), at `depth`
+# cross-thread hops along the wakeup chain. `parent_id` is the
+# `blocker_id` of the layer one level above this row (`root_id` at
+# depth 0); callers feed the rows to `_intervals_flatten` to collapse
+# overlapping layers to the deepest active blocker per timestamp.
 CRITICAL_PATH_WALK_TABLE = Table(
     python_module=__file__,
     class_name="CriticalPathWalkTable",
@@ -75,6 +78,9 @@ CRITICAL_PATH_WALK_TABLE = Table(
           CppUint32(),
           cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("blocker_utid",
+          CppUint32(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("parent_id",
           CppUint32(),
           cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ])

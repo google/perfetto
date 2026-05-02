@@ -20,115 +20,19 @@ INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE intervals.overlap;
-
--- Userspace critical path rooted at every entry of `_wakeup_graph`.
--- Materialised at module-load so the slice-aware tables below can join
--- against it in id-space.
-CREATE PERFETTO TABLE _critical_path_userspace AS
-SELECT
-  *
-FROM _critical_path_userspace_by_roots!(
-  (SELECT id AS root_node_id FROM _wakeup_graph),
-  _wakeup_graph);
-
--- Kernel critical path rooted at every userspace node whose wakeup is a
--- self-wake (i.e. the IRQ-style nodes whose userspace attribution has
--- already chained through `prev_id`).
-CREATE PERFETTO TABLE _critical_path_kernel AS
-WITH
-  _kernel_nodes AS (
-    SELECT
-      id,
-      root_id
-    FROM _critical_path_userspace
-    JOIN _wakeup_graph
-      USING (id)
-    WHERE
-      is_idle_reason_self = 1
-  )
-SELECT
-  _kernel_nodes.root_id,
-  cr.root_id AS parent_id,
-  cr.id,
-  cr.ts,
-  cr.dur
-FROM _critical_path_kernel_by_roots!(
-  (SELECT id AS root_node_id FROM _kernel_nodes),
-  _wakeup_graph) AS cr
-JOIN _kernel_nodes
-  ON _kernel_nodes.id = cr.root_id
-ORDER BY
-  -- Important to allow for fast lookup of the parent_id in
-  -- `_critical_path_kernel_adjusted`.
-  parent_id;
-
-CREATE PERFETTO TABLE _critical_path_userspace_adjusted AS
-SELECT DISTINCT
-  *
-FROM _critical_path_userspace_adjusted!(_critical_path_userspace, _wakeup_graph);
-
-CREATE PERFETTO TABLE _critical_path_kernel_adjusted AS
-SELECT DISTINCT
-  *
-FROM _critical_path_kernel_adjusted!(_critical_path_userspace_adjusted, _critical_path_kernel, _wakeup_graph);
-
-CREATE PERFETTO TABLE _critical_path_merged_adjusted AS
-SELECT
-  root_id,
-  parent_id,
-  id,
-  ts,
-  dur
-FROM _critical_path_userspace_adjusted
-UNION ALL
-SELECT
-  root_id,
-  parent_id,
-  id,
-  ts,
-  dur
-FROM _critical_path_kernel_adjusted
-WHERE
-  id != parent_id;
-
-CREATE PERFETTO TABLE _critical_path_roots AS
-SELECT
-  root_id,
-  min(ts) AS root_ts,
-  max(ts + dur) - min(ts) AS root_dur
-FROM _critical_path_userspace_adjusted
-GROUP BY
-  root_id;
-
-CREATE PERFETTO TABLE _critical_path_roots_and_merged AS
-WITH
-  roots_and_merged_critical_path AS (
-    SELECT
-      root_id,
-      root_ts,
-      root_dur,
-      parent_id,
-      id,
-      ts,
-      dur
-    FROM _critical_path_merged_adjusted
-    JOIN _critical_path_roots
-      USING (root_id)
-  )
-SELECT
-  flat.root_id,
-  flat.id,
-  flat.ts,
-  flat.dur
-FROM _intervals_flatten!(roots_and_merged_critical_path) AS flat
-WHERE
-  flat.dur > 0
-GROUP BY
-  flat.root_id,
-  flat.ts;
-
+-- Critical path rooted at every entry of `_wakeup_graph`, with the
+-- on-CPU blocker thread (`utid`) and the root's thread (`root_utid`)
+-- joined in. Materialised so the slice-aware tables below can join in
+-- id-space.
 CREATE PERFETTO TABLE _critical_path_all AS
+WITH
+  _per_root AS (
+    SELECT
+      *
+    FROM _critical_path_by_roots!(
+      (SELECT id AS root_node_id FROM _wakeup_graph),
+      _wakeup_graph)
+  )
 SELECT
   row_number() OVER (ORDER BY cr.ts) AS id,
   cr.ts,
@@ -136,7 +40,7 @@ SELECT
   cr.ts + cr.dur AS ts_end,
   id_graph.utid,
   root_id_graph.utid AS root_utid
-FROM _critical_path_roots_and_merged AS cr
+FROM _per_root AS cr
 JOIN _wakeup_graph AS id_graph
   ON cr.id = id_graph.id
 JOIN _wakeup_graph AS root_id_graph
@@ -157,11 +61,10 @@ SELECT
   cpu
 FROM thread_state;
 
--- Slice projection for the SPAN_JOIN with thread_state. Carries
--- `slice_id` only; the slice's name string is joined on demand at the
--- leaves of `_critical_path_stack` so the materialised cross-product
--- below does not duplicate every slice's name across every blocker
--- region in the trace.
+-- Slice projection for SPAN_JOIN with thread_state. Carries `slice_id`
+-- only; the slice's name is joined on demand at the leaves of
+-- `_critical_path_stack` so the materialised cross-product below does
+-- not duplicate every slice's name across every blocker region.
 CREATE PERFETTO VIEW _span_slice_view AS
 SELECT
   slice_id,

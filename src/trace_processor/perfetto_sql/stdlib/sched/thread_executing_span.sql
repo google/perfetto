@@ -14,8 +14,6 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE graphs.critical_path;
-
 INCLUDE PERFETTO MODULE intervals.overlap;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
@@ -284,10 +282,7 @@ WITH
       _wakeup.id,
       iif(is_irq, NULL, _wakeup_map.id) AS waker_id,
       _wakeup.ts,
-      prev_end_ts AS idle_ts,
-      iif(is_irq OR _wakeup_map.id IS NULL OR (
-        NOT state IS NULL AND state != 'S'
-      ), 1, 0) AS is_idle_reason_self
+      prev_end_ts AS idle_ts
     FROM _wakeup
     LEFT JOIN _wakeup_map
       USING (waker_id)
@@ -300,39 +295,11 @@ SELECT
   idle_state,
   idle_reason,
   ts - idle_ts AS idle_dur,
-  is_idle_reason_self,
   lag(id) OVER (PARTITION BY utid ORDER BY ts) AS prev_id,
-  lead(id) OVER (PARTITION BY utid ORDER BY ts) AS next_id,
-  coalesce(lead(idle_ts) OVER (PARTITION BY utid ORDER BY ts), thread_end_ts) - ts AS dur,
-  lead(is_idle_reason_self) OVER (PARTITION BY utid ORDER BY ts) AS is_next_idle_reason_self
+  coalesce(lead(idle_ts) OVER (PARTITION BY utid ORDER BY ts), thread_end_ts) - ts AS dur
 FROM _wakeup_events
 ORDER BY
   id;
-
--- View of all the edges for the userspace critical path.
-CREATE PERFETTO VIEW _wakeup_userspace_edges AS
-SELECT
-  id AS source_node_id,
-  coalesce(iif(is_idle_reason_self, prev_id, waker_id), id) AS dest_node_id,
-  id - coalesce(iif(is_idle_reason_self, prev_id, waker_id), id) AS edge_weight
-FROM _wakeup_graph;
-
--- View of all the edges for the kernel critical path.
-CREATE PERFETTO VIEW _wakeup_kernel_edges AS
-SELECT
-  id AS source_node_id,
-  coalesce(waker_id, id) AS dest_node_id,
-  id - coalesce(waker_id, id) AS edge_weight
-FROM _wakeup_graph;
-
--- View of the relevant timestamp and intervals for all nodes in the critical path.
-CREATE PERFETTO VIEW _wakeup_intervals AS
-SELECT
-  id,
-  ts,
-  dur,
-  idle_dur
-FROM _wakeup_graph;
 
 -- Converts a table with <ts, dur, utid> columns to a unique set of wakeup roots <id> that
 -- completely cover the time intervals.
@@ -416,125 +383,14 @@ RETURNS TableOrSubQuery AS
     AND _interval_to_root_nodes.utid = _bound.utid
 );
 
--- Adjusts the userspace critical path such that any interval that includes a kernel stall
--- gets the next id, the root id of the kernel critical path. This ensures that the merge
--- step associates the userspace critical path and kernel critical path on the same interval
--- correctly.
-CREATE PERFETTO MACRO _critical_path_userspace_adjusted(
-    _critical_path_table TableOrSubQuery,
-    _node_table TableOrSubQuery
-)
-RETURNS TableOrSubQuery AS
-(
-  SELECT
-    cr.root_id,
-    cr.root_id AS parent_id,
-    iif(node.is_next_idle_reason_self, node.next_id, cr.id) AS id,
-    cr.ts,
-    cr.dur
-  FROM (
-    SELECT
-      *
-    FROM $_critical_path_table
-  ) AS cr
-  JOIN $_node_table AS node
-    USING (id)
-);
-
--- Adjusts the start and end of the kernel critical path such that it is completely bounded within
--- its corresponding userspace critical path.
-CREATE PERFETTO MACRO _critical_path_kernel_adjusted(
-    _userspace_critical_path_table TableOrSubQuery,
-    _kernel_critical_path_table TableOrSubQuery,
-    _node_table TableOrSubQuery
-)
-RETURNS TableOrSubQuery AS
-(
-  SELECT
-    kernel_cr.root_id,
-    kernel_cr.root_id AS parent_id,
-    kernel_cr.id,
-    max(kernel_cr.ts, userspace_cr.ts) AS ts,
-    min(kernel_cr.ts + kernel_cr.dur, userspace_cr.ts + userspace_cr.dur) - max(kernel_cr.ts, userspace_cr.ts) AS dur
-  FROM $_kernel_critical_path_table AS kernel_cr
-  JOIN $_node_table AS node
-    ON kernel_cr.parent_id = node.id
-  JOIN $_userspace_critical_path_table AS userspace_cr
-    ON userspace_cr.id = kernel_cr.parent_id
-    AND userspace_cr.root_id = kernel_cr.root_id
-);
-
--- Merge the kernel and userspace critical path such that the corresponding kernel critical path
--- has priority over userpsace critical path it overlaps.
-CREATE PERFETTO MACRO _critical_path_merged(
-    _userspace_critical_path_table TableOrSubQuery,
-    _kernel_critical_path_table TableOrSubQuery,
-    _node_table TableOrSubQuery
-)
-RETURNS TableOrSubQuery AS
-(
-  WITH
-    _userspace_critical_path AS (
-      SELECT DISTINCT
-        *
-      FROM _critical_path_userspace_adjusted!(
-    $_userspace_critical_path_table,
-    $_node_table)
-    ),
-    _merged_critical_path AS (
-      SELECT
-        *
-      FROM _userspace_critical_path
-      UNION ALL
-      SELECT DISTINCT
-        *
-      FROM _critical_path_kernel_adjusted!(
-      _userspace_critical_path,
-      $_kernel_critical_path_table,
-      $_node_table)
-      WHERE
-        id != parent_id
-    ),
-    _roots_critical_path AS (
-      SELECT
-        root_id,
-        min(ts) AS root_ts,
-        max(ts + dur) - min(ts) AS root_dur
-      FROM _userspace_critical_path
-      GROUP BY
-        root_id
-    ),
-    _roots_and_merged_critical_path AS (
-      SELECT
-        root_id,
-        root_ts,
-        root_dur,
-        parent_id,
-        id,
-        ts,
-        dur
-      FROM _merged_critical_path
-      JOIN _roots_critical_path
-        USING (root_id)
-    )
-  SELECT
-    flat.root_id,
-    flat.id,
-    flat.ts,
-    flat.dur
-  FROM _intervals_flatten!(_roots_and_merged_critical_path) AS flat
-  WHERE
-    flat.dur > 0
-  GROUP BY
-    flat.root_id,
-    flat.ts
-);
-
--- Userspace critical path for each root id. Each frame in the walk is
--- bounded by its own [ts - idle_dur, ts + dur] window, with same-depth
--- descent into `prev_id` for time predating that window. IRQ self-wakes
--- chain through `prev_id`; all other wakeups chain through `waker_id`.
-CREATE PERFETTO MACRO _critical_path_userspace_by_roots(
+-- Critical path for the given roots with the chain depth retained.
+-- One row per `(root_id, depth, ts, dur, id, parent_id)` blocker
+-- frame: `id` is the on-CPU blocker at this depth, `parent_id` is
+-- the blocker one level up (the root at depth 0). At a self-wake the
+-- woken thread is the depth-N fallback (it is in kernel) and the
+-- waker chain layers at depth N+1. `_critical_path_by_roots`
+-- collapses these depths to one blocker per `(root_id, ts)`.
+CREATE PERFETTO MACRO _critical_path_with_depth_by_roots(
     _roots_table TableOrSubQuery,
     _node_table TableOrSubQuery
 )
@@ -542,22 +398,23 @@ RETURNS TableOrSubQuery AS
 (
   SELECT
     c0 AS root_id,
-    c4 AS id,
+    c1 AS depth,
     c2 AS ts,
-    c3 AS dur
+    c3 AS dur,
+    c4 AS id,
+    c6 AS parent_id
   FROM __intrinsic_table_ptr(
     __intrinsic_critical_path_walk(
       (
         SELECT
-          __intrinsic_wakeup_graph_agg(id, utid, ts, dur, idle_dur, waker_id, prev_id, is_idle_reason_self)
+          __intrinsic_wakeup_graph_agg(id, utid, ts, dur, idle_dur, waker_id, prev_id)
         FROM $_node_table
       ),
       (
         SELECT
           __intrinsic_array_agg(root_node_id)
         FROM $_roots_table
-      ),
-      0
+      )
     )
   )
   WHERE
@@ -567,50 +424,13 @@ RETURNS TableOrSubQuery AS
     AND __intrinsic_table_ptr_bind(c3, 'dur')
     AND __intrinsic_table_ptr_bind(c4, 'blocker_id')
     AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
+    AND __intrinsic_table_ptr_bind(c6, 'parent_id')
 );
 
--- Kernel-mode critical path for each root id. Always chains through
--- `waker_id`; `is_idle_reason_self` is ignored. Mirrors the
--- `_wakeup_kernel_edges` view.
-CREATE PERFETTO MACRO _critical_path_kernel_by_roots(
-    _roots_table TableOrSubQuery,
-    _node_table TableOrSubQuery
-)
-RETURNS TableOrSubQuery AS
-(
-  SELECT
-    c0 AS root_id,
-    c4 AS id,
-    c2 AS ts,
-    c3 AS dur
-  FROM __intrinsic_table_ptr(
-    __intrinsic_critical_path_walk(
-      (
-        SELECT
-          __intrinsic_wakeup_graph_agg(id, utid, ts, dur, idle_dur, waker_id, prev_id, is_idle_reason_self)
-        FROM $_node_table
-      ),
-      (
-        SELECT
-          __intrinsic_array_agg(root_node_id)
-        FROM $_roots_table
-      ),
-      1
-    )
-  )
-  WHERE
-    __intrinsic_table_ptr_bind(c0, 'root_id')
-    AND __intrinsic_table_ptr_bind(c1, 'depth')
-    AND __intrinsic_table_ptr_bind(c2, 'ts')
-    AND __intrinsic_table_ptr_bind(c3, 'dur')
-    AND __intrinsic_table_ptr_bind(c4, 'blocker_id')
-    AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
-);
-
--- Critical path for the given set of root ids, with kernel and userspace
--- chains merged. `_intervals_to_roots` produces root ids from a time
--- interval, which makes this form well suited to sparse-region queries
--- (e.g. binder transactions) without walking the whole trace.
+-- Critical path for the given roots, one blocker per `(root_id, ts)`.
+-- Pair with `_intervals_to_roots` to compute the path over a sparse
+-- time region (e.g. binder transactions) without walking the whole
+-- trace.
 CREATE PERFETTO MACRO _critical_path_by_roots(
     _roots_table TableOrSubQuery,
     _node_table TableOrSubQuery
@@ -618,40 +438,44 @@ CREATE PERFETTO MACRO _critical_path_by_roots(
 RETURNS TableOrSubQuery AS
 (
   WITH
-    _userspace_critical_path_by_roots AS (
+    _frames AS (
       SELECT
         *
-      FROM _critical_path_userspace_by_roots!($_roots_table, $_node_table)
+      FROM _critical_path_with_depth_by_roots!($_roots_table, $_node_table)
     ),
-    _kernel_nodes AS (
+    _root_spans AS (
       SELECT
-        id,
+        root_id,
+        min(ts) AS root_ts,
+        max(ts + dur) - min(ts) AS root_dur
+      FROM _frames
+      GROUP BY
         root_id
-      FROM _userspace_critical_path_by_roots
-      JOIN $_node_table AS node
-        USING (id)
-      WHERE
-        is_idle_reason_self = 1
     ),
-    _kernel_critical_path_by_roots AS (
+    _flatten_input AS (
       SELECT
-        _kernel_nodes.root_id,
-        cr.root_id AS parent_id,
-        cr.id,
-        cr.ts,
-        cr.dur
-      FROM _critical_path_kernel_by_roots!(
-        (SELECT id AS root_node_id FROM _kernel_nodes),
-        $_node_table) AS cr
-      JOIN _kernel_nodes
-        ON _kernel_nodes.id = cr.root_id
+        _frames.root_id,
+        root_ts,
+        root_dur,
+        parent_id,
+        id,
+        ts,
+        dur
+      FROM _frames
+      JOIN _root_spans
+        USING (root_id)
     )
   SELECT
-    *
-  FROM _critical_path_merged!(
-    _userspace_critical_path_by_roots,
-    _kernel_critical_path_by_roots,
-    $_node_table)
+    flat.root_id,
+    flat.id,
+    flat.ts,
+    flat.dur
+  FROM _intervals_flatten!(_flatten_input) AS flat
+  WHERE
+    flat.dur > 0
+  GROUP BY
+    flat.root_id,
+    flat.ts
 );
 
 -- Generates the critical path for only the time intervals for the utids given.
