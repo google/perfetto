@@ -95,6 +95,17 @@ class HeapGraphTracker : public Destructible {
     std::vector<uint64_t> object_ids;
   };
 
+  // Per-object Java-frame root attribution: identifies the kernel TID of
+  // the thread whose stack frame retains a single object. Implies
+  // root_type = ROOT_JAVA_FRAME for that object — emitted disjoint from
+  // SourceRoot to avoid losing per-object attribution to the type-
+  // bucketed list. The actual call stack of that thread at heap-dump time
+  // is in the trace's perf_sample row at the same (ts, upid).
+  struct SourceFrameRoot {
+    uint64_t object_id = 0;
+    uint32_t thread_tid = 0;
+  };
+
   explicit HeapGraphTracker(TraceStorage* storage);
 
   static HeapGraphTracker* Get(TraceProcessorContext* context) {
@@ -102,6 +113,10 @@ class HeapGraphTracker : public Destructible {
   }
 
   void AddRoot(uint32_t seq_id, UniquePid upid, int64_t ts, SourceRoot root);
+  void AddFrameRoot(uint32_t seq_id,
+                    UniquePid upid,
+                    int64_t ts,
+                    SourceFrameRoot frame_root);
   void AddObject(uint32_t seq_id, UniquePid upid, int64_t ts, SourceObject obj);
   void AddInternedType(uint32_t seq_id,
                        uint64_t intern_id,
@@ -174,6 +189,7 @@ class HeapGraphTracker : public Destructible {
     protos::pbzero::HeapGraphObject::HeapType last_heap_type =
         protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN;
     std::vector<SourceRoot> current_roots;
+    std::vector<SourceFrameRoot> current_frame_roots;
     std::vector<uint64_t> internal_vm_roots;
 
     // Note: the below maps are a mix of std::map and base::FlatHashMap because

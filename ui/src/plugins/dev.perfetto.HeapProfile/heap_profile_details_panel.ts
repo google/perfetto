@@ -283,20 +283,29 @@ function flamegraphMetrics(
             'include perfetto module android.memory.heap_graph.class_tree;',
           statement: `
             select
-              id,
-              parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
-              root_type,
-              heap_type,
-              self_size as value,
-              self_count,
-              path_hash_stable
-            from _heap_graph_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
+              t.id,
+              t.parent_id as parentId,
+              ifnull(t.name, '[Unknown]') as name,
+              t.root_type,
+              t.heap_type,
+              case
+                when t.root_type = 'ROOT_JAVA_FRAME' and t.root_thread_tid is not null
+                  then printf('%s (tid %d)',
+                              coalesce(thread.name, '[unknown]'),
+                              t.root_thread_tid)
+                else null
+              end as held_by_thread,
+              t.self_size as value,
+              t.self_count,
+              t.path_hash_stable
+            from _heap_graph_class_tree as t
+            left join thread on thread.tid = t.root_thread_tid
+            where t.graph_sample_ts = ${ts} and t.upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            {name: 'held_by_thread', displayName: 'Held By Thread'},
           ],
           aggregatableProperties: [
             {
@@ -325,20 +334,29 @@ function flamegraphMetrics(
             'include perfetto module android.memory.heap_graph.class_tree;',
           statement: `
             select
-              id,
-              parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
-              root_type,
-              heap_type,
-              self_size,
-              self_count as value,
-              path_hash_stable
-            from _heap_graph_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
+              t.id,
+              t.parent_id as parentId,
+              ifnull(t.name, '[Unknown]') as name,
+              t.root_type,
+              t.heap_type,
+              case
+                when t.root_type = 'ROOT_JAVA_FRAME' and t.root_thread_tid is not null
+                  then printf('%s (tid %d)',
+                              coalesce(thread.name, '[unknown]'),
+                              t.root_thread_tid)
+                else null
+              end as held_by_thread,
+              t.self_size,
+              t.self_count as value,
+              t.path_hash_stable
+            from _heap_graph_class_tree as t
+            left join thread on thread.tid = t.root_thread_tid
+            where t.graph_sample_ts = ${ts} and t.upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            {name: 'held_by_thread', displayName: 'Held By Thread'},
           ],
           aggregatableProperties: [
             {
@@ -362,20 +380,34 @@ function flamegraphMetrics(
             'include perfetto module android.memory.heap_graph.dominator_class_tree;',
           statement: `
             select
-              id,
-              parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
-              root_type,
-              heap_type,
-              self_size as value,
-              self_count,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
+              t.id,
+              t.parent_id as parentId,
+              ifnull(t.name, '[Unknown]') as name,
+              t.root_type,
+              t.heap_type,
+              -- Held-by attribution for ROOT_JAVA_FRAME nodes: surface the
+              -- retaining thread (kernel TID + name) as a tooltip line. NULL
+              -- (and hence not displayed) for any node whose root_type is
+              -- not ROOT_JAVA_FRAME, keeping the tooltip clean for other
+              -- root kinds.
+              case
+                when t.root_type = 'ROOT_JAVA_FRAME' and t.root_thread_tid is not null
+                  then printf('%s (tid %d)',
+                              coalesce(thread.name, '[unknown]'),
+                              t.root_thread_tid)
+                else null
+              end as held_by_thread,
+              t.self_size as value,
+              t.self_count,
+              t.path_hash_stable
+            from _heap_graph_dominator_class_tree as t
+            left join thread on thread.tid = t.root_thread_tid
+            where t.graph_sample_ts = ${ts} and t.upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            {name: 'held_by_thread', displayName: 'Held By Thread'},
           ],
           aggregatableProperties: [
             {
@@ -404,20 +436,29 @@ function flamegraphMetrics(
             'include perfetto module android.memory.heap_graph.dominator_class_tree;',
           statement: `
             select
-              id,
-              parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
-              root_type,
-              heap_type,
-              self_size,
-              self_count as value,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
+              t.id,
+              t.parent_id as parentId,
+              ifnull(t.name, '[Unknown]') as name,
+              t.root_type,
+              t.heap_type,
+              case
+                when t.root_type = 'ROOT_JAVA_FRAME' and t.root_thread_tid is not null
+                  then printf('%s (tid %d)',
+                              coalesce(thread.name, '[unknown]'),
+                              t.root_thread_tid)
+                else null
+              end as held_by_thread,
+              t.self_size,
+              t.self_count as value,
+              t.path_hash_stable
+            from _heap_graph_dominator_class_tree as t
+            left join thread on thread.tid = t.root_thread_tid
+            where t.graph_sample_ts = ${ts} and t.upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            {name: 'held_by_thread', displayName: 'Held By Thread'},
           ],
           aggregatableProperties: [
             {

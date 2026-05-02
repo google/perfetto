@@ -876,6 +876,12 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             CppOptional(CppUint32()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
+        C(
+            'root_thread_tid',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -912,6 +918,11 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             'object_data_id':
                 '''optional ID into heap_graph_object_data for HPROF
                 primitive field values and array data.''',
+            'root_thread_tid':
+                '''For ROOT_JAVA_FRAME objects: kernel TID of the thread whose
+                stack frame retains this object. Joinable to thread.tid. The
+                thread's full call stack at heap-dump time is in the trace's
+                perf_sample row at the same (ts, upid).''',
         }))
 
 HEAP_GRAPH_OBJECT_DATA_TABLE = Table(

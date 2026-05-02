@@ -94,6 +94,12 @@ RETURNS TableOrSubquery AS
         coalesce(c.deobfuscated_name, c.name) AS name,
         o.root_type,
         o.heap_type,
+        -- For ROOT_JAVA_FRAME nodes: pick any retaining-thread tid from the
+        -- aggregated rows. In practice all aggregated objects with the same
+        -- class+path are usually held on the same thread (allocations come
+        -- from one code path); when they differ we surface a representative
+        -- one rather than NULL so the tooltip is at least suggestive.
+        MAX(o.root_thread_tid) AS root_thread_tid,
         count() AS self_count,
         sum(o.self_size) AS self_size,
         sum(o.native_size > 0) AS self_native_count,
@@ -114,6 +120,7 @@ RETURNS TableOrSubquery AS
     '[native] ' || x.name AS name,
     root_type,
     'HEAP_TYPE_NATIVE' AS heap_type,
+    NULL AS root_thread_tid,
     sum(x.self_native_count) AS self_count,
     sum(x.self_native_size) AS self_size
   FROM x
@@ -130,6 +137,7 @@ RETURNS TableOrSubquery AS
     name,
     root_type,
     heap_type,
+    root_thread_tid,
     self_count,
     self_size
   FROM x
@@ -162,6 +170,7 @@ RETURNS TableOrSubquery AS
     name,
     root_type,
     heap_type,
+    root_thread_tid,
     self_count,
     self_size,
     path_hash AS path_hash_stable

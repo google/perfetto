@@ -505,6 +505,17 @@ void HeapGraphTracker::AddRoot(uint32_t seq_id,
   sequence_state.current_roots.emplace_back(std::move(root));
 }
 
+void HeapGraphTracker::AddFrameRoot(uint32_t seq_id,
+                                    UniquePid upid,
+                                    int64_t ts,
+                                    SourceFrameRoot frame_root) {
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  if (!SetPidAndTimestamp(&sequence_state, upid, ts))
+    return;
+
+  sequence_state.current_frame_roots.emplace_back(frame_root);
+}
+
 void HeapGraphTracker::AddInternedLocationName(uint32_t seq_id,
                                                uint64_t intern_id,
                                                StringId strid) {
@@ -762,6 +773,26 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
                             sequence_state.current_ts)]
           .emplace(*ptr);
       MarkRoot(row_ref, InternRootTypeString(root.root_type));
+    }
+  }
+  // Apply per-Java-frame attribution: marks the object as ROOT_JAVA_FRAME
+  // and records the kernel TID of the retaining thread. The thread's full
+  // call stack at heap-dump time is in the trace's perf_sample row at the
+  // same (ts, upid).
+  StringId java_frame_root_type =
+      InternRootTypeString(protos::pbzero::HeapGraphRoot::ROOT_JAVA_FRAME);
+  for (const SourceFrameRoot& fr : sequence_state.current_frame_roots) {
+    auto* ptr = sequence_state.object_id_to_db_row.Find(fr.object_id);
+    if (!ptr)
+      continue;
+    ObjectTable::RowReference row_ref =
+        ptr->ToRowReference(storage_->mutable_heap_graph_object_table());
+    roots_[std::make_pair(sequence_state.current_upid,
+                          sequence_state.current_ts)]
+        .emplace(*ptr);
+    MarkRoot(row_ref, java_frame_root_type);
+    if (fr.thread_tid != 0) {
+      row_ref.set_root_thread_tid(fr.thread_tid);
     }
   }
 
