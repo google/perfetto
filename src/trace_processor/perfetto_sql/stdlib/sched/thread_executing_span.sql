@@ -383,14 +383,15 @@ RETURNS TableOrSubQuery AS
     AND _interval_to_root_nodes.utid = _bound.utid
 );
 
--- Critical path for the given roots with the chain depth retained.
--- One row per `(root_id, depth, ts, dur, id, parent_id)` blocker
--- frame: `id` is the on-CPU blocker at this depth, `parent_id` is
--- the blocker one level up (the root at depth 0). At a self-wake the
--- woken thread is the depth-N fallback (it is in kernel) and the
--- waker chain layers at depth N+1. `_critical_path_by_roots`
--- collapses these depths to one blocker per `(root_id, ts)`.
-CREATE PERFETTO MACRO _critical_path_with_depth_by_roots(
+-- Layered critical-path frames for the given roots. One row per
+-- `(root_id, depth, ts, dur, id, parent_id)`: `id` is the on-CPU
+-- thread at this depth, `parent_id` is the layer one level above
+-- (the root at depth 0). At a self-wake the woken thread is the
+-- depth-N fallback (it is in kernel) and the waker chain layers at
+-- depth N+1. Multiple rows may cover the same `(root_id, ts)`;
+-- pair with `_critical_path_flatten!` to collapse to one blocker
+-- per `(root_id, ts)`.
+CREATE PERFETTO MACRO _critical_path_layered_by_roots(
     _roots_table TableOrSubQuery,
     _node_table TableOrSubQuery
 )
@@ -427,13 +428,14 @@ RETURNS TableOrSubQuery AS
     AND __intrinsic_table_ptr_bind(c6, 'parent_id')
 );
 
--- Critical path for the given roots, one blocker per `(root_id, ts)`.
--- Pair with `_intervals_to_roots` to compute the path over a sparse
--- time region (e.g. binder transactions) without walking the whole
--- trace.
-CREATE PERFETTO MACRO _critical_path_by_roots(
-    _roots_table TableOrSubQuery,
-    _node_table TableOrSubQuery
+-- Collapses layered critical-path frames to non-overlapping
+-- `(root_id, id, ts, dur)` intervals — one blocker per `(root_id,
+-- ts)`. Deeper layers win where they have coverage; shallower
+-- layers fill the gaps. The behaviour falls out of
+-- `_intervals_flatten!`'s use of `parent_id` to interleave the
+-- overlapping layers.
+CREATE PERFETTO MACRO _critical_path_flatten(
+    _layered_table TableOrSubQuery
 )
 RETURNS TableOrSubQuery AS
 (
@@ -441,7 +443,7 @@ RETURNS TableOrSubQuery AS
     _frames AS (
       SELECT
         *
-      FROM _critical_path_with_depth_by_roots!($_roots_table, $_node_table)
+      FROM $_layered_table
     ),
     _root_spans AS (
       SELECT
@@ -476,6 +478,106 @@ RETURNS TableOrSubQuery AS
   GROUP BY
     flat.root_id,
     flat.ts
+);
+
+-- Critical path for the given roots, one blocker per `(root_id,
+-- ts)`. Composition of `_critical_path_layered_by_roots!` and
+-- `_critical_path_flatten!`. Pair with `_intervals_to_roots` for
+-- sparse-region queries (e.g. binder transactions) without walking
+-- the whole trace.
+CREATE PERFETTO MACRO _critical_path_by_roots(
+    _roots_table TableOrSubQuery,
+    _node_table TableOrSubQuery
+)
+RETURNS TableOrSubQuery AS
+(
+  WITH
+    _cp_layered AS (
+      SELECT
+        *
+      FROM _critical_path_layered_by_roots!($_roots_table, $_node_table)
+    )
+  SELECT
+    *
+  FROM _critical_path_flatten!(_cp_layered)
+);
+
+-- Layered (multi-depth) critical path scoped to per-utid time
+-- intervals. Same windowing as `_critical_path_by_intervals!` but
+-- emits every layer instead of collapsing to one blocker per ts.
+CREATE PERFETTO MACRO _critical_path_layered_by_intervals(
+    _intervals_table TableOrSubQuery,
+    _node_table TableOrSubQuery
+)
+RETURNS TableOrSubQuery AS
+(
+  WITH
+    _nodes AS (
+      SELECT
+        *
+      FROM $_node_table
+    ),
+    _raw_intervals AS (
+      SELECT
+        ts,
+        dur,
+        utid
+      FROM $_intervals_table
+    ),
+    _intervals AS (
+      SELECT
+        row_number() OVER (ORDER BY ts) AS id,
+        ts,
+        dur,
+        utid AS root_utid
+      FROM _raw_intervals
+    ),
+    _layered_roots AS (
+      SELECT
+        *
+      FROM _intervals_to_roots!(_raw_intervals, _nodes)
+    ),
+    _layers AS (
+      SELECT
+        row_number() OVER (ORDER BY ts) AS id,
+        root_id,
+        depth,
+        id AS cr_id,
+        ts,
+        dur
+      FROM _critical_path_layered_by_roots!(_layered_roots, _nodes)
+    ),
+    _span AS (
+      SELECT
+        _root_nodes.utid AS root_utid,
+        _nodes.utid,
+        cr.root_id,
+        cr.depth,
+        cr.cr_id,
+        cr.id,
+        cr.ts,
+        cr.dur
+      FROM _layers AS cr
+      JOIN _nodes AS _root_nodes
+        ON _root_nodes.id = cr.root_id
+      JOIN _nodes
+        ON _nodes.id = cr.cr_id
+    )
+  SELECT DISTINCT
+    _span.root_utid,
+    _span.utid,
+    _span.depth,
+    _span.root_id,
+    _span.cr_id AS id,
+    ii.ts,
+    ii.dur,
+    _intervals.ts AS interval_ts,
+    _intervals.dur AS interval_dur
+  FROM _interval_intersect!((_span, _intervals), (root_utid)) AS ii
+  JOIN _span
+    ON _span.id = ii.id_0
+  JOIN _intervals
+    ON _intervals.id = ii.id_1
 );
 
 -- Generates the critical path for only the time intervals for the utids given.
@@ -578,5 +680,43 @@ SELECT
   dur,
   utid
 FROM _critical_path_by_intervals!(
+  (SELECT $root_utid AS utid, $ts as ts, $dur AS dur),
+  _wakeup_graph);
+
+-- Layered (multi-depth) critical path for a single utid + window.
+-- Same as `_thread_executing_span_critical_path` but emits every
+-- layer rather than the deepest. `depth=0` is `root_utid` itself;
+-- depth grows by 1 on each cross-thread waker hop. Multiple rows
+-- can cover the same `(root_utid, ts)` at different depths.
+CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_layered(
+    -- Utid of the thread to compute the critical path for.
+    root_utid JOINID(thread.id),
+    -- Timestamp.
+    ts TIMESTAMP,
+    -- Duration.
+    dur DURATION
+)
+RETURNS TABLE (
+  -- Thread utid the critical path was filtered to.
+  root_utid JOINID(thread.id),
+  -- Chain depth from `root_utid` (0 = root, 1 = immediate waker, …).
+  depth LONG,
+  -- Id of the thread_executing_span at this layer.
+  id LONG,
+  -- Timestamp of this layer's contribution to the critical path.
+  ts TIMESTAMP,
+  -- Duration of this layer's contribution.
+  dur DURATION,
+  -- Utid of the on-CPU thread at this layer.
+  utid JOINID(thread.id)
+) AS
+SELECT
+  root_utid,
+  depth,
+  id,
+  ts,
+  dur,
+  utid
+FROM _critical_path_layered_by_intervals!(
   (SELECT $root_utid AS utid, $ts as ts, $dur AS dur),
   _wakeup_graph);

@@ -353,6 +353,36 @@ class TablesSched(TestSuite):
         12521,1477,12521,1737407641875,1830015,1477
         """))
 
+  # Layered output for the same waiter as
+  # test_thread_executing_span_critical_path_utid: each row carries
+  # `depth` (0 = root self-runs, +1 per cross-thread waker hop).
+  def test_thread_executing_span_critical_path_layered(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
+        SELECT root_utid, depth, id, ts, dur, utid
+        FROM _thread_executing_span_critical_path_layered(
+          (select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
+        ORDER BY ts, depth
+        LIMIT 12
+        """,
+        out=Csv("""
+        "root_utid","depth","id","ts","dur","utid"
+        1477,0,11889,1737349401439,7705561,1477
+        1477,1,11952,1737357107000,547583,1480
+        1477,0,11980,1737357654583,8430762,1477
+        1477,1,12052,1737366085345,50400,91
+        1477,0,12057,1737366135745,6635927,1477
+        1477,1,12251,1737372771672,12594070,1488
+        1477,1,12251,1737385365742,204244,1488
+        1477,0,12254,1737385569986,21830622,1477
+        1477,1,12517,1737407400608,241267,91
+        1477,0,12521,1737407641875,1830015,1477
+        1477,1,12669,1737409471890,68590,91
+        1477,0,12672,1737409540480,52226883,1477
+        """))
+
   def test_thread_executing_span_critical_path_stack(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),

@@ -22,10 +22,15 @@ import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {showModal} from '../../widgets/modal';
 import {
   CRITICAL_PATH_CMD,
+  CRITICAL_PATH_LAYERED_CMD,
   CRITICAL_PATH_LITE_CMD,
 } from '../../public/exposed_commands';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {NUM} from '../../trace_processor/query_result';
+
+// Upper bound on per-layer debug tracks pinned by the layered
+// command, to guard against pathological chain depths.
+const MAX_CRITICAL_PATH_LAYERS = 8;
 
 const criticalPathSliceColumns = {
   ts: 'ts',
@@ -200,6 +205,76 @@ export default class implements PerfettoPlugin {
               rawColumns: sliceLiteColumnNames,
             }),
           );
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: CRITICAL_PATH_LAYERED_CMD,
+      name: 'Critical path layered (selected thread state slice)',
+      callback: async (utidArg) => {
+        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utidArg);
+        if (thdInfo === undefined) {
+          return showModalErrorThreadStateRequired();
+        }
+        await ctx.engine.query(
+          `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
+        );
+        // Probe how many layers the chain has so we know how many
+        // tracks to pin. depth=0 is the root itself; depth grows
+        // by 1 on each cross-thread waker hop.
+        const depthQuery = await ctx.engine.query(`
+          SELECT DISTINCT depth
+          FROM _thread_executing_span_critical_path_layered(
+            ${thdInfo.utid}, trace_bounds.start_ts,
+            trace_bounds.end_ts - trace_bounds.start_ts), trace_bounds
+          ORDER BY depth
+          LIMIT ${MAX_CRITICAL_PATH_LAYERS};
+        `);
+        const depths: number[] = [];
+        const it = depthQuery.iter({depth: NUM});
+        for (; it.valid(); it.next()) depths.push(it.depth);
+        if (depths.length === 0) {
+          return showModal({
+            title: 'Critical path layered: no chain found',
+            content:
+              'No wakeup-graph attribution for this thread over the trace ' +
+              'window. Trace may be missing sched_switch / sched_waking ' +
+              'or this thread never slept with a recorded waker.',
+          });
+        }
+        // One track per layer: layer 0 = root self-runs, layer N =
+        // chain N hops deep. Each track is named `<thread> ◀ layer N`
+        // so the depth ordering reads top-to-bottom.
+        for (const depth of depths) {
+          await addDebugSliceTrack({
+            trace: ctx,
+            data: {
+              sqlSource: `
+                SELECT
+                  cr.id,
+                  cr.utid,
+                  cr.ts,
+                  cr.dur,
+                  thread.name AS thread_name,
+                  process.name AS process_name,
+                  'thread_state' AS table_name
+                FROM
+                  _thread_executing_span_critical_path_layered(
+                    ${thdInfo.utid},
+                    trace_bounds.start_ts,
+                    trace_bounds.end_ts - trace_bounds.start_ts) cr,
+                  trace_bounds
+                JOIN thread USING(utid)
+                LEFT JOIN process USING(upid)
+                WHERE cr.depth = ${depth}
+              `,
+              columns: sliceLiteColumnNames,
+            },
+            title: `${thdInfo.name} ◀ layer ${depth}`,
+            columns: sliceLiteColumns,
+            rawColumns: sliceLiteColumnNames,
+          });
+        }
       },
     });
 
