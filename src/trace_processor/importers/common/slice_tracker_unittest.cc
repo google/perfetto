@@ -234,6 +234,41 @@ TEST_F(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
   EXPECT_EQ(ar1.int_value(), 20);
 }
 
+TEST_F(SliceTrackerTest, UpdateState) {
+  SliceTracker tracker(&context_);
+
+  constexpr TrackId track{22u};
+  const StringId state1 = context_.storage->InternString("state1");
+  const StringId state2 = context_.storage->InternString("state2");
+
+  // 1. Start state1
+  tracker.UpdateState(2 /*ts*/, track, state1);
+
+  // 2. Update with same state
+  tracker.UpdateState(5 /*ts*/, track, state1);
+
+  // 3. Update with different state (should end state1 and start state2)
+  tracker.UpdateState(10 /*ts*/, track, state2);
+
+  // 4. Update with empty state (should end state2)
+  tracker.UpdateState(15 /*ts*/, track, kNullStringId);
+
+  const auto& slices = context_.storage->slice_table();
+  EXPECT_EQ(slices.row_count(), 2u);
+
+  // First slice (state1) should be closed at ts=10
+  auto sr0 = slices[0];
+  EXPECT_EQ(sr0.ts(), 2);
+  EXPECT_EQ(sr0.dur(), 8);  // 10 - 2
+  EXPECT_EQ(sr0.name().value_or(kNullStringId).raw_id(), state1.raw_id());
+
+  // Second slice (state2) should start at ts=10 and be closed at ts=15
+  auto sr1 = slices[1];
+  EXPECT_EQ(sr1.ts(), 10);
+  EXPECT_EQ(sr1.dur(), 5);  // 15 - 10
+  EXPECT_EQ(sr1.name().value_or(kNullStringId).raw_id(), state2.raw_id());
+}
+
 TEST_F(SliceTrackerTest, TwoSliceDetailed) {
   SliceTracker tracker(&context_);
 

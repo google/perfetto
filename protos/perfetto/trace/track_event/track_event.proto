@@ -159,6 +159,11 @@ message TrackEvent {
     // that most other TrackEvent fields (e.g. categories, name, ..) are not
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
+
+    // Event that provides a string value for a state track. |track_uuid| should
+    // refer to a state track and the state value is carried in the |name| or
+    // |name_iid| field. An empty or unset name field indicates "no state".
+    TYPE_STATE = 5;
   }
   optional Type type = 9;
 

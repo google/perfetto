@@ -112,6 +112,13 @@ class SliceTracker {
                                   StringId name,
                                   SetArgsCallback args_callback);
 
+  // Update the state of a StateTrack. If the state changed, it ends the
+  // previous slice and starts a new one. An empty state value indicates "no
+  // state" and closes the current slice.
+  virtual std::optional<SliceId> UpdateState(int64_t timestamp,
+                                             TrackId track_id,
+                                             StringId state_id);
+
   void FlushPendingSlices();
 
   void SetOnSliceBeginCallback(OnSliceBeginCallback callback);
