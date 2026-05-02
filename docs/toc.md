@@ -92,6 +92,7 @@
     - [Deep Linking](visualization/deep-linking-to-perfetto-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Heap Dump Explorer](visualization/heap-dump-explorer.md) {.tag-android}
+    - [Critical Path](visualization/critical-path.md) {.tag-android .tag-linux}
 
     - [Extending the UI](#)
 
