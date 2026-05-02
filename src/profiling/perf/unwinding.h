@@ -75,7 +75,7 @@ class Unwinder {
  public:
   friend class UnwinderHandle;
 
-  enum class UnwindMode { kUnwindStack, kFramePointer };
+  enum class UnwindMode { kUnwindStack, kFramePointer, kKernelFramePointer };
 
   // Callbacks from the unwinder to the primary producer thread.
   class Delegate {
@@ -196,9 +196,24 @@ class Unwinder {
                                bool pid_unwound_before,
                                UnwindMode unwind_mode);
 
-  // Returns a list of symbolized kernel frames in the sample (if any).
-  std::vector<unwindstack::FrameData> SymbolizeKernelCallchain(
-      const ParsedSample& sample);
+  // Appends symbolized kernel frames from the kernel-supplied callchain to
+  // |out|. The userspace portion of the callchain (present in
+  // |kKernelFramePointer| mode) is left for |AppendKernelSuppliedUserFrames|.
+  void AppendKernelCallchainFrames(const ParsedSample& sample,
+                                   std::vector<unwindstack::FrameData>* out);
+
+  // Appends frames for the userspace portion of the kernel-supplied callchain
+  // (i.e. the section after the PERF_CONTEXT_USER marker) into |out|, along
+  // with their corresponding build IDs. Only relevant when sampling with
+  // |UnwindMode::kKernelFramePointer|. For kernel threads (no user section)
+  // this is a no-op.
+  //
+  // |user_state| (if non-null) is used to resolve mapping info, |rel_pc|, and
+  // build IDs for each user IP. If null, the user IPs are skipped (they would
+  // be uninterpretable without mapping context).
+  void AppendKernelSuppliedUserFrames(const ParsedSample& sample,
+                                      UnwindingMetadata* user_state,
+                                      CompletedSample* out);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we

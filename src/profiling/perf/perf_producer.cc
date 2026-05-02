@@ -266,6 +266,61 @@ uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
   return period_ms - ((now_ms - ds_period_offset) % period_ms);
 }
 
+// True if the kernel-supplied callchain contains a userspace section. The
+// kernel inserts a PERF_CONTEXT_USER marker before the userspace frames iff
+// the sampled task has a userspace context, regardless of whether the FP
+// walk produces any user IPs.
+bool CallchainHasUserSection(const std::vector<uint64_t>& kernel_ips) {
+  for (uint64_t ip : kernel_ips) {
+    if (ip == PERF_CONTEXT_USER)
+      return true;
+  }
+  return false;
+}
+
+// Translates the proto-level unwind mode into the unwinder's internal enum.
+// Unknown / SKIP / DWARF all collapse to the libunwindstack path, which is
+// the historical default.
+Unwinder::UnwindMode ToUnwinderMode(
+    protos::gen::PerfEventConfig::UnwindMode pb_mode) {
+  switch (pb_mode) {
+    case protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER:
+      return Unwinder::UnwindMode::kFramePointer;
+    case protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER:
+      return Unwinder::UnwindMode::kKernelFramePointer;
+    case protos::gen::PerfEventConfig::UNWIND_UNKNOWN:
+    case protos::gen::PerfEventConfig::UNWIND_SKIP:
+    case protos::gen::PerfEventConfig::UNWIND_DWARF:
+      return Unwinder::UnwindMode::kUnwindStack;
+  }
+  return Unwinder::UnwindMode::kUnwindStack;  // unreachable; pacify -Wreturn
+}
+
+// Returns true if the sample comes from a kernel thread (a task with no
+// userspace context, e.g. ksoftirqd or kworker).
+//
+// The "right" signal depends on what the kernel was asked to record:
+//
+//  * Modes that sample user regs (DWARF/FP unwinding done by us) set
+//    PERF_SAMPLE_REGS_USER. The kernel only fills user regs for tasks with
+//    a userspace context, so |sample.regs == nullptr| is the unambiguous
+//    signal here.
+//
+//  * UNWIND_KERNEL_FRAME_POINTER does not sample user regs. We instead use
+//    PERF_SAMPLE_CALLCHAIN, which includes a PERF_CONTEXT_USER marker iff
+//    the task has a userspace context. Note: this is independent of
+//    |cpu_mode|, since a userspace task sampled in kernel mode (e.g. during
+//    a syscall) still gets a PERF_CONTEXT_USER section.
+//
+// In both cases the signal is something the kernel synthesises specifically
+// to indicate "this task has no userspace", not a heuristic on our side.
+bool LooksLikeKernelThread(const ParsedSample& sample,
+                           const EventConfig& event_config) {
+  if (event_config.kernel_unwinds_user_frames())
+    return !CallchainHasUserSection(sample.kernel_ips);
+  return !sample.regs;
+}
+
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
   using Profiling = protos::pbzero::Profiling;
   switch (perf_cpu_mode) {
@@ -567,12 +622,9 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
 
   // Inform unwinder of the new data source instance, and optionally start a
   // periodic task to clear its cached state.
-  auto unwind_mode = (ds.event_config.unwind_mode() ==
-                      protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
-                         ? Unwinder::UnwindMode::kFramePointer
-                         : Unwinder::UnwindMode::kUnwindStack;
-  unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
-                                         unwind_mode);
+  unwinding_worker_->PostStartDataSource(
+      ds_id, ds.event_config.kernel_frames(),
+      ToUnwinderMode(ds.event_config.unwind_mode()));
   if (ds.event_config.unwind_state_clear_period_ms()) {
     unwinding_worker_->PostClearCachedStatePeriodic(
         ds_id, ds.event_config.unwind_state_clear_period_ms());
@@ -841,7 +893,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
 
       // Kernel threads (which have no userspace state) are never relevant if
       // we're not recording kernel callchains.
-      bool is_kthread = !sample->regs;  // no userspace regs
+      bool is_kthread = LooksLikeKernelThread(*sample, event_config);
       if (is_kthread && !event_config.kernel_frames()) {
         process_state = ProcessTrackingStatus::kRejected;
         EmitSkippedSample(ds_id, std::move(sample.value()),
@@ -864,6 +916,9 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       }
 
       // At this point, sampled process is known to be of interest.
+      // Userspace samples (regardless of whether we or the kernel walk the
+      // stack) need the process's /proc/<pid>/{maps,mem} to fill in mapping
+      // info and build IDs for any user frames.
       if (!is_kthread && event_config.user_frames()) {
         // Start resolving the proc-fds. Response is async.
         process_state = ProcessTrackingStatus::kFdsResolving;
@@ -871,8 +926,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                                  event_config.remote_descriptor_timeout_ms());
         // note: fallthrough
       } else {
-        // Either a kernel thread (no need to obtain proc-fds), or a userspace
-        // process but we're not recording userspace callstacks.
+        // Either a kernel thread (no userspace state), or a userspace process
+        // for which we're not recording user callstacks.
         process_state = ProcessTrackingStatus::kAccepted;
         unwinding_worker_->PostRecordNoUserspaceProcess(ds_id, pid);
         // note: fallthrough
