@@ -12,109 +12,100 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
+import {endpointStorage} from '../settings/endpoint_storage';
+import {QueryExecution} from './query_store';
 
-import {LocalStorage} from '../../core/local_storage';
-import {BIGTRACE_SETTINGS_STORAGE_KEY} from '../settings/settings_storage';
-
-const QUERY_HISTORY_ENTRY_SCHEMA = z.object({
-  query: z.string(),
-  timestamp: z.number(),
-  starred: z.boolean().default(false),
-});
-
-export type QueryHistoryEntry = z.infer<typeof QUERY_HISTORY_ENTRY_SCHEMA>;
-
-const QUERY_HISTORY_SCHEMA = z.array(QUERY_HISTORY_ENTRY_SCHEMA);
-
-export type QueryHistory = z.infer<typeof QUERY_HISTORY_SCHEMA>;
+export interface RawQueryExecution {
+  queryUuid?: string;
+  status?: string;
+  startTime?: string;
+  endTime?: string;
+  processedRows?: number;
+  processedTraces?: number;
+  totalTraces?: number;
+  error?: string;
+  errorMessage?: string;
+  perfettoSql?: string;
+  limit?: string | number;
+  materialized?: boolean;
+  tableName?: string;
+  tableLink?: string;
+}
 
 export class QueryHistoryStorage {
-  private _data: QueryHistory;
-  maxItems = 50;
-  private storage: LocalStorage;
-
-  constructor() {
-    this.storage = new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY);
-    this._data = this.load();
+  async getAllHistory(): Promise<QueryExecution[]> {
+    return this.fetchHistory();
   }
 
-  get data(): QueryHistory {
-    return this._data;
+  async getMaterializedHistory(): Promise<QueryExecution[]> {
+    const all = await this.getAllHistory();
+    return all.filter((item) => item.materialized === true);
   }
 
-  saveQuery(query: string): void {
-    // If query already exists, move it to the front preserving starred status
-    const existingIndex = this._data.findIndex(
-      (entry) => entry.query === query,
-    );
-    if (existingIndex !== -1) {
-      const existing = this._data[existingIndex];
-      this._data.splice(existingIndex, 1);
-      this._data.unshift({
-        query,
-        timestamp: Date.now(),
-        starred: existing.starred,
-      });
-      this.save();
-      return;
-    }
+  async getNonMaterializedHistory(): Promise<QueryExecution[]> {
+    const all = await this.getAllHistory();
+    return all.filter((item) => item.materialized !== true);
+  }
 
-    // Count unstarred items and find the oldest one
-    let lastUnstarredIndex = -1;
-    let countUnstarred = 0;
-    for (let i = 0; i < this._data.length; i++) {
-      if (!this._data[i].starred) {
-        countUnstarred++;
-        lastUnstarredIndex = i;
-      }
-    }
-
-    // Remove oldest unstarred if at capacity
-    if (countUnstarred >= this.maxItems && lastUnstarredIndex !== -1) {
-      this._data.splice(lastUnstarredIndex, 1);
-    }
-
-    this._data.unshift({
-      query,
-      timestamp: Date.now(),
-      starred: false,
+  async deleteQuery(uuid: string): Promise<void> {
+    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
+    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
+    const url = `${endpoint}/query_executions/${uuid}`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      credentials: 'include',
+      mode: 'cors',
     });
-
-    this.save();
-  }
-
-  setStarred(index: number, starred: boolean): void {
-    if (index >= 0 && index < this._data.length) {
-      this._data[index].starred = starred;
-      this.save();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
   }
 
-  remove(index: number): void {
-    if (index >= 0 && index < this._data.length) {
-      this._data.splice(index, 1);
-      this.save();
+  private async fetchHistory(): Promise<QueryExecution[]> {
+    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
+    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
+    const url = `${endpoint}/query_executions`;
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      mode: 'cors',
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  }
+    const result = (await response.json()) as {
+      queryExecutions?: RawQueryExecution[];
+    };
+    const list =
+      result.queryExecutions !== undefined ? result.queryExecutions : [];
 
-  private load(): QueryHistory {
-    const value = this.storage.load()['queries'];
-    if (value === undefined) {
-      return [];
-    }
-    const res = QUERY_HISTORY_SCHEMA.safeParse(value);
-    return res.success ? res.data : [];
-  }
+    const mappedList: QueryExecution[] = list.map((raw) => ({
+      uuid: raw.queryUuid || '',
+      status: raw.status || 'UNKNOWN',
+      startTime:
+        raw.startTime !== undefined
+          ? new Date(raw.startTime).getTime()
+          : undefined,
+      endTime:
+        raw.endTime !== undefined ? new Date(raw.endTime).getTime() : undefined,
+      processedRows: raw.processedRows !== undefined ? raw.processedRows : 0,
+      processedTraces:
+        raw.processedTraces !== undefined ? raw.processedTraces : 0,
+      totalTraces: raw.totalTraces !== undefined ? raw.totalTraces : 0,
+      error: raw.error || raw.errorMessage,
+      perfettoSql: raw.perfettoSql,
+      limit: raw.limit !== undefined ? Number(raw.limit) : undefined,
+      materialized: raw.materialized,
+      tableName: raw.tableName,
+      tableLink: raw.tableLink,
+    }));
 
-  private save(): void {
-    try {
-      const data = this.storage.load();
-      data['queries'] = this._data;
-      this.storage.save(data);
-    } catch (e) {
-      console.warn('Failed to save query history to localStorage:', e);
-    }
+    mappedList.sort((a, b) => {
+      const timeA = a.startTime !== undefined ? a.startTime : 0;
+      const timeB = b.startTime !== undefined ? b.startTime : 0;
+      return timeB - timeA;
+    });
+    return mappedList;
   }
 }
 

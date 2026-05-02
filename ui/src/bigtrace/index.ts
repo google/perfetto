@@ -225,7 +225,7 @@ class BigTraceRoot implements m.ClassComponent {
     switch (route) {
       case Routes.QUERY:
         return m(QueryPage, {
-          useBrushBackend: true,
+          useBigtraceBackend: true,
           initialQuery: this.queryInitialQuery,
         });
       case Routes.SETTINGS:
