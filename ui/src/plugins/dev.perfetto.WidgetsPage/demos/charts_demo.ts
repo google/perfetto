@@ -27,6 +27,7 @@ import {
   BarChartLoaderConfig,
 } from '../../../components/widgets/charts/bar_chart_loader';
 import {Histogram} from '../../../components/widgets/charts/histogram';
+import type {LegendPosition} from '../../../components/widgets/charts/common';
 import {
   InMemoryHistogramLoader,
   SQLHistogramLoader,
@@ -167,6 +168,7 @@ export function renderCharts(app: App): m.Children {
           multiSeries: opts.multiSeries,
           stacked: opts.stacked,
           gridLines: opts.gridLines,
+          legendPosition: opts.legendPosition,
         });
       },
       initialOpts: {
@@ -186,6 +188,11 @@ export function renderCharts(app: App): m.Children {
           'vertical',
           'both',
         ] as const),
+        legendPosition: new EnumOption('top', [
+          'top',
+          'right',
+          'bottom',
+        ] as const),
       },
     }),
 
@@ -198,6 +205,7 @@ export function renderCharts(app: App): m.Children {
           showLabels: opts.showLabels,
           showLegend: opts.showLegend,
           donut: opts.donut,
+          legendPosition: opts.legendPosition,
         });
       },
       initialOpts: {
@@ -205,6 +213,11 @@ export function renderCharts(app: App): m.Children {
         showLabels: false,
         showLegend: true,
         donut: false,
+        legendPosition: new EnumOption('right', [
+          'top',
+          'right',
+          'bottom',
+        ] as const),
       },
     }),
 
@@ -282,6 +295,7 @@ export function renderCharts(app: App): m.Children {
           scaleAxes: opts.scaleAxes,
           brushMode: opts.brushMode,
           gridLines: opts.gridLines,
+          legendPosition: opts.legendPosition,
         });
       },
       initialOpts: {
@@ -299,6 +313,11 @@ export function renderCharts(app: App): m.Children {
           'horizontal',
           'vertical',
           'both',
+        ] as const),
+        legendPosition: new EnumOption('top', [
+          'top',
+          'right',
+          'bottom',
         ] as const),
       },
     }),
@@ -1316,6 +1335,7 @@ function LineChartDemo(): m.Component<{
   multiSeries: boolean;
   stacked: boolean;
   gridLines: string;
+  legendPosition: LegendPosition;
 }> {
   let brushRange: {start: number; end: number} | undefined;
 
@@ -1407,6 +1427,7 @@ function LineChartDemo(): m.Component<{
           xAxisMax: isFilter ? range?.end : undefined,
           stacked: attrs.stacked,
           gridLines: toGridLines(attrs.gridLines),
+          legendPosition: attrs.legendPosition,
           onBrush:
             attrs.brushMode !== 'off'
               ? (newRange) => {
@@ -1467,6 +1488,7 @@ function PieChartDemo(): m.Component<{
   showLabels: boolean;
   showLegend: boolean;
   donut: boolean;
+  legendPosition: LegendPosition;
 }> {
   let clickedSlice: string | undefined;
 
@@ -1478,6 +1500,7 @@ function PieChartDemo(): m.Component<{
           height: attrs.height,
           showLabels: attrs.showLabels,
           showLegend: attrs.showLegend,
+          legendPosition: attrs.legendPosition,
           innerRadiusRatio: attrs.donut ? 0.5 : 0,
           onSliceClick: (slice) => {
             clickedSlice = slice.label;
@@ -1569,6 +1592,7 @@ function ScatterChartDemo(): m.Component<{
   scaleAxes: boolean;
   brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
+  legendPosition: LegendPosition;
 }> {
   let brushRange:
     | {xMin: number; xMax: number; yMin: number; yMax: number}
@@ -1606,6 +1630,7 @@ function ScatterChartDemo(): m.Component<{
           xAxisLabel: 'X Value',
           yAxisLabel: 'Y Value',
           showLegend: attrs.showLegend,
+          legendPosition: attrs.legendPosition,
           scaleAxes: attrs.scaleAxes,
           gridLines: toGridLines(attrs.gridLines),
           onBrush:

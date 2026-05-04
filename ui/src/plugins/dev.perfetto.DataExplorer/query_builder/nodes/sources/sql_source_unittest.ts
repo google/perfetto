@@ -13,29 +13,19 @@
 // limitations under the License.
 
 import {SqlSourceNode} from './sql_source';
-import {QueryNode} from '../../../query_node';
-import {ColumnInfo} from '../../column_info';
 import {
   createMockNode,
   createColumnInfo,
-  createMockStructuredQuery,
+  createMockNodeWithStructuredQuery,
   connectSecondary,
+  expectValidationError,
+  expectValidationSuccess,
 } from '../../testing/test_utils';
 import {Trace} from '../../../../../public/trace';
 
 describe('SqlSourceNode', () => {
   // Mock trace object for tests
   const mockTrace = {} as Trace;
-
-  function createMockNodeWithSq(id: string, columns: ColumnInfo[]): QueryNode {
-    const sq = createMockStructuredQuery(id);
-    return createMockNode({
-      nodeId: id,
-      columns,
-      getTitle: () => `Mock ${id}`,
-      getStructuredQuery: () => sq,
-    });
-  }
 
   describe('constructor', () => {
     it('should initialize with default values', () => {
@@ -88,9 +78,9 @@ describe('SqlSourceNode', () => {
         {trace: mockTrace},
       );
 
-      const input0 = createMockNodeWithSq('node0', []);
-      const input1 = createMockNodeWithSq('node1', []);
-      const input2 = createMockNodeWithSq('node2', []);
+      const input0 = createMockNodeWithStructuredQuery('node0', []);
+      const input1 = createMockNodeWithStructuredQuery('node1', []);
+      const input2 = createMockNodeWithStructuredQuery('node2', []);
 
       // Connect in reverse order to verify sorting
       connectSecondary(input2, node, 2);
@@ -123,7 +113,7 @@ describe('SqlSourceNode', () => {
         {trace: mockTrace},
       );
 
-      const input0 = createMockNodeWithSq('node0', [
+      const input0 = createMockNodeWithStructuredQuery('node0', [
         createColumnInfo('id', 'int'),
       ]);
       connectSecondary(input0, node, 0);
@@ -140,10 +130,10 @@ describe('SqlSourceNode', () => {
         {trace: mockTrace},
       );
 
-      const input0 = createMockNodeWithSq('node0', [
+      const input0 = createMockNodeWithStructuredQuery('node0', [
         createColumnInfo('id', 'int'),
       ]);
-      const input1 = createMockNodeWithSq('node1', [
+      const input1 = createMockNodeWithStructuredQuery('node1', [
         createColumnInfo('id', 'int'),
         createColumnInfo('name', 'string'),
       ]);
@@ -194,7 +184,7 @@ describe('SqlSourceNode', () => {
         {trace: mockTrace},
       );
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should pass validation with connected inputs', () => {
@@ -203,12 +193,12 @@ describe('SqlSourceNode', () => {
         {trace: mockTrace},
       );
 
-      const input0 = createMockNodeWithSq('node0', [
+      const input0 = createMockNodeWithStructuredQuery('node0', [
         createColumnInfo('id', 'int'),
       ]);
       connectSecondary(input0, node, 0);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     describe('statement structure validation', () => {
@@ -226,10 +216,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT * FROM slice; SELECT * FROM thread'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(false);
-        expect(node.context.issues?.queryError?.message).toContain(
-          'INCLUDE PERFETTO MODULE',
-        );
+        expectValidationError(node, 'INCLUDE PERFETTO MODULE');
       });
 
       it('should allow subqueries', () => {
@@ -237,7 +224,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT * FROM (SELECT * FROM slice) AS sub'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow CTEs', () => {
@@ -245,7 +232,7 @@ describe('SqlSourceNode', () => {
           {sql: 'WITH cte AS (SELECT * FROM slice) SELECT * FROM cte'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow nested subqueries', () => {
@@ -259,7 +246,7 @@ describe('SqlSourceNode', () => {
           },
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow SELECT in WHERE subquery', () => {
@@ -267,7 +254,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT * FROM slice WHERE id IN (SELECT id FROM thread)'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow SELECT in comments', () => {
@@ -275,7 +262,7 @@ describe('SqlSourceNode', () => {
           {sql: '-- SELECT * FROM thread\nSELECT * FROM slice'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow SELECT in string literals', () => {
@@ -283,7 +270,7 @@ describe('SqlSourceNode', () => {
           {sql: "SELECT 'SELECT * FROM thread' AS query FROM slice"},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow SELECT in multi-line comments', () => {
@@ -291,7 +278,7 @@ describe('SqlSourceNode', () => {
           {sql: '/* SELECT * FROM thread */ SELECT * FROM slice'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow UNION queries', () => {
@@ -299,7 +286,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT * FROM slice UNION SELECT * FROM thread'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow UNION ALL queries', () => {
@@ -307,7 +294,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT * FROM slice UNION ALL SELECT * FROM thread'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow INTERSECT queries', () => {
@@ -315,7 +302,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT id FROM slice INTERSECT SELECT id FROM thread'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow EXCEPT queries', () => {
@@ -323,7 +310,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT id FROM slice EXCEPT SELECT id FROM thread'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow INCLUDE PERFETTO MODULE before SELECT', () => {
@@ -331,7 +318,7 @@ describe('SqlSourceNode', () => {
           {sql: 'INCLUDE PERFETTO MODULE slices.slices; SELECT * FROM slice'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow multiple INCLUDE PERFETTO MODULE before SELECT', () => {
@@ -343,7 +330,7 @@ describe('SqlSourceNode', () => {
           },
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should reject non-INCLUDE statements before SELECT', () => {
@@ -351,10 +338,7 @@ describe('SqlSourceNode', () => {
           {sql: 'DROP TABLE foo; SELECT * FROM slice'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(false);
-        expect(node.context.issues?.queryError?.message).toContain(
-          'INCLUDE PERFETTO MODULE',
-        );
+        expectValidationError(node, 'INCLUDE PERFETTO MODULE');
       });
 
       it('should reject INCLUDE PERFETTO MODULE after SELECT', () => {
@@ -379,7 +363,7 @@ describe('SqlSourceNode', () => {
           {sql: 'SELECT * FROM slice;'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
 
       it('should allow INCLUDE with trailing semicolon', () => {
@@ -387,7 +371,7 @@ describe('SqlSourceNode', () => {
           {sql: 'INCLUDE PERFETTO MODULE foo; SELECT * FROM slice;'},
           {trace: mockTrace},
         );
-        expect(node.validate()).toBe(true);
+        expectValidationSuccess(node);
       });
     });
   });

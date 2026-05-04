@@ -31,11 +31,10 @@ import {
   SQL_PREAMBLE,
   RowCounter,
 } from '../components';
-import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
-import {dumpFilterSql} from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
-function buildQuery(): string {
+function buildQuery(activeDump: HeapDump): string {
   return `
     SELECT base.*,
       a.cumulative_size AS reachable_size,
@@ -55,7 +54,7 @@ function buildQuery(): string {
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       WHERE o.reachable != 0
-        AND ${dumpFilterSql('o')}
+        AND ${dumpFilterSql(activeDump, 'o')}
         AND od.value_string IS NOT NULL
         AND (c.name = 'java.lang.String'
           OR c.deobfuscated_name = 'java.lang.String')
@@ -153,7 +152,9 @@ const SUMMARY_SCHEMA: SchemaRegistry = {
 
 interface StringsViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly initialQuery?: string;
   readonly hasFieldValues?: boolean;
 }
@@ -165,7 +166,10 @@ function StringsView(): m.Component<StringsViewAttrs> {
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
-  function applyNavFilter(q: string | undefined) {
+  function applyNavFilter(
+    q: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!q) return;
     filters = [{field: 'value', op: '=' as const, value: q}];
     counter.onFiltersChanged(filters);
@@ -174,8 +178,8 @@ function StringsView(): m.Component<StringsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
-      const query = buildQuery();
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
         sqlSchema: createSimpleSchema(query),
@@ -183,9 +187,9 @@ function StringsView(): m.Component<StringsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
-      applyNavFilter(vnode.attrs.initialQuery);
+      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
       queries
-        .getStringList(vnode.attrs.engine)
+        .getStringList(engine, activeDump)
         .then((r) => {
           if (!alive) return;
           allRows = r;
@@ -194,7 +198,7 @@ function StringsView(): m.Component<StringsViewAttrs> {
         .catch(console.error);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialQuery);
+      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
       alive = false;

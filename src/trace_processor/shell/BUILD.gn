@@ -49,6 +49,7 @@ source_set("shell") {
     ":subcommands",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
+    "../../../gn:protoc_lib",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",

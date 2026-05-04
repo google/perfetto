@@ -95,6 +95,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/critical_path.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
@@ -129,6 +130,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/stdlib_docs_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
@@ -1262,6 +1264,15 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
       storage->mutable_string_pool(), engine));
 #endif
 
+  fns.emplace_back(std::make_unique<StdlibDocsModules>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsTables>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsFunctions>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsMacros>(
+      storage->mutable_string_pool(), engine));
+
   if (config.enable_dev_features) {
     fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(
         storage->mutable_string_pool()));
@@ -1415,6 +1426,12 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   {
     base::Status status = RegisterGraphTraversalFunctions(
         *engine, *storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status =
+        RegisterCriticalPathFunctions(*engine, *storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

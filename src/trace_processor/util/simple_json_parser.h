@@ -205,6 +205,23 @@ class SimpleJsonParser {
   // Convenience: collect all double values from an array into a vector.
   base::StatusOr<std::vector<double>> CollectDoubleArray();
 
+  // When the current value is an Object or Array (just entered via the most
+  // recent ForEachField/ForEachArrayElement step), captures its raw JSON
+  // bytes — including the surrounding `{}`/`[]` — and advances the parser past
+  // the closing delimiter. Invalid to call for any other value type.
+  base::StatusOr<std::string_view> CollectRawObjectOrArray() {
+    if (PERFETTO_UNLIKELY(!IsObject() && !IsArray())) {
+      return base::ErrStatus(
+          "CollectRawObjectOrArray called on non-object/array value");
+    }
+    std::string_view out;
+    if (auto rc = it_.CollectCurrentScope(out); rc != ReturnCode::kOk) {
+      return base::ErrStatus("Failed to collect raw scope: %s",
+                             it_.status().message().c_str());
+    }
+    return out;
+  }
+
  private:
   // Skip the current nested object/array scope.
   // Called when callback returns Skip for a nested value.

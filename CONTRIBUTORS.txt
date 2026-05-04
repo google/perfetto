@@ -46,6 +46,9 @@ Advanced query/data features in UI:
 Rust SDK:
   David Reveman <reveman@meta.com> - @dreveman
 
+Standard library, data explorer and UI:
+  Anna Mayzner <mayzneranna@gmail.com> - @mayzner
+
 
 Community maintainers
 ---------------------

@@ -231,6 +231,13 @@ def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
       ts=86_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
   trace.add_atrace_end(ts=88_500_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
 
+  trace.add_atrace_begin(
+      ts=27_100_000,
+      buf="CreateGraphicsPipeline",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
+  trace.add_atrace_end(ts=27_900_000, tid=SYSUI_RTID, pid=SYSUI_PID)
+
   # Add expected and actual frames.
   add_expected_surface_frame_events(
       ts=10_000_000, dur=16_000_000, token=15, pid=SYSUI_PID)
@@ -444,6 +451,16 @@ def setup_trace():
       tgid=SYSUI_PID,
       cmdline="BackPanelUiThre",
       name="BackPanelUiThre")
+  trace.add_thread(
+      tid=SYSUI_RTID,
+      tgid=SYSUI_PID,
+      cmdline="RenderThread",
+      name="RenderThread")
+  trace.add_thread(
+      tid=LAUNCHER_RTID,
+      tgid=LAUNCHER_PID,
+      cmdline="RenderThread",
+      name="RenderThread")
 
   trace.add_ftrace_packet(cpu=0)
   return trace

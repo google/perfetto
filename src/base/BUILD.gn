@@ -23,7 +23,7 @@ import("../../gn/wasm.gni")
 _subprocess_supported =
     is_linux || is_chromeos || is_android || is_mac || is_win || is_freebsd
 
-perfetto_component("base") {
+source_set("base") {
   deps = [
     "../../gn:base_platform",
     "../../gn:default_deps",

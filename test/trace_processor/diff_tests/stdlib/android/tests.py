@@ -1918,3 +1918,27 @@ class AndroidStdlib(TestSuite):
         1883713423201,"app_startup_ttff",57720540,"TTFF"
         1883713423201,"app_startup_tti",39962036,"TTI"
       """))
+
+  def test_android_package_lookup(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          packages_list {
+            packages {
+              name: "com.fake.package"
+              uid: 10123
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.package_lookup;
+        SELECT
+          android_package_lookup(10123) as matching,
+          android_package_lookup(1000) as system_pkg,
+          android_package_lookup(12345) as no_package;
+        """,
+        out=Csv("""
+        "matching","system_pkg","no_package"
+        "com.fake.package","AID_SYSTEM_USER","uid=12345"
+        """))

@@ -62,6 +62,9 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
     if (args.disallow_merging_with_system_tracks) {
       internal::TrackEventInternal::SetDisallowMergingWithSystemTracks(true);
     }
+
+    internal::TrackEventInternal::SetBufferExhaustedPolicy(
+        args.track_event_buffer_exhausted_policy);
   }
 
   internal::TracingMuxerImpl::InitializeInstance(args);

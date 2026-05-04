@@ -553,14 +553,15 @@ function getHeapGraphNodeOptionalActions(
   return [
     {
       name: 'Open in Heapdump Explorer',
-      execute: async (kv: ReadonlyMap<string, string>) => {
-        const pathHashes = kv.get('path_hash_stable');
+      execute: async ({properties, node}) => {
+        const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
 
         onNodeSelected?.(pathHashes, isDominator);
 
-        const name = kv.get('name');
-        const nameSuffix = name ? `_${encodeURIComponent(name)}` : '';
+        const name = node?.name;
+        const nameSuffix =
+          name !== undefined ? `_${encodeURIComponent(name)}` : '';
         trace.navigate(`#!/heapdump/flamegraph_objects${nameSuffix}`);
       },
     },
@@ -574,7 +575,7 @@ function getHeapGraphRootOptionalActions(
   return [
     {
       name: 'Reference paths by class',
-      execute: async (_kv: ReadonlyMap<string, string>) => {
+      execute: async () => {
         const viewName = `_heap_graph${tableModifier(isDominator)}duplicate_objects`;
         const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
         const macroExpr = `_heap_graph_duplicate_objects_agg!(${macroArgs})`;

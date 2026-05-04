@@ -246,6 +246,10 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
  public:
   static constexpr bool kRequiresCallbacksUnderLock = false;
 
+  static BufferExhaustedPolicy GetDefaultBufferExhaustedPolicy() {
+    return TrackEventInternal::GetBufferExhaustedPolicy();
+  }
+
   // DataSource implementation.
   void OnSetup(const DataSourceBase::SetupArgs& args) override {
     auto config_raw = args.config->track_event_config_raw();
@@ -362,6 +366,8 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
 
   static void ResetForTesting() {
     TrackEventInternal::GetInstance().ResetRegistriesForTesting();
+    TrackEventInternal::SetBufferExhaustedPolicy(
+        GetDefaultBufferExhaustedPolicy());
   }
 
  private:
@@ -373,6 +379,7 @@ template <const TrackEventCategoryRegistry* Registry>
 class TrackEvent {
  public:
   using TraceContext = TrackEventDataSource::TraceContext;
+
   static bool Register() { return TrackEventDataSource::AddRegistry(Registry); }
 
   // Add or remove a session observer for this track event data source. The

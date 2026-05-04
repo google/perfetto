@@ -1,0 +1,23 @@
+[package]
+name = "tracing-perfetto-sdk"
+version = "1.0.0"
+authors = ["David Reveman <reveman@meta.com>"]
+edition = "2024"
+description = "tracing-subscriber Layer for Perfetto SDK"
+license = "Apache-2.0"
+readme = "README.md"
+
+[dependencies]
+perfetto-sdk = { path = "../perfetto", version = "1", default-features = false }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-core = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
+
+[[example]]
+name = "tracing"
+path = "examples/tracing.rs"
+
+[features]
+default = ["vendored"]
+vendored = ["perfetto-sdk/vendored"]
+intrinsics = ["perfetto-sdk/intrinsics"]

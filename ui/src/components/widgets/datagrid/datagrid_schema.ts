@@ -96,6 +96,9 @@ export interface ColumnDef {
 
   // Optional value formatter for this column, used when exporting data.
   readonly cellFormatter?: CellFormatter;
+
+  // Additional actions displayed to the right of the cell dropdown menu.
+  readonly actions?: (value: SqlValue, row: Row) => m.Children;
 }
 
 /**
@@ -202,6 +205,9 @@ export interface ColumnInfo {
   readonly columnType?: ColumnType;
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
+
+  // Additional actions displayed to the right of the cell dropdown menu.
+  readonly actions?: (value: SqlValue, row: Row) => m.Children;
 }
 
 /**
@@ -284,6 +290,7 @@ export function getColumnInfo(
           columnType: entry.columnType,
           cellRenderer: entry.cellRenderer,
           cellFormatter: entry.cellFormatter,
+          actions: entry.actions,
         };
       }
       // Trying to navigate deeper into a leaf column - invalid

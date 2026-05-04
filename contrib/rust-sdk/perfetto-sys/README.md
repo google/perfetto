@@ -1,27 +1,30 @@
 # perfetto-sdk-sys
 
-Low-level FFI bindings for Perfetto.
+Low-level FFI bindings for [Perfetto](https://perfetto.dev).
 
-## Features
+This crate provides raw Rust bindings to the Perfetto C API (`perfetto_c`).
+It is used internally by `perfetto-sdk` and should not normally be used
+directly.
 
-### `vendored` (default)
+## Crate features
 
-Compiles the Perfetto C library from the included amalgamated source. This is
-the default and recommended option for most users.
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `vendored` | yes | Compiles and statically links the bundled Perfetto C library |
+| `bindgen` | no | Regenerates Rust bindings from C headers at build time using bindgen (requires `libclang`) |
 
-### `bindgen`
+### Linking against an external library
 
-Regenerates the Rust bindings from the C headers at build time using
-[bindgen](https://github.com/rust-lang/rust-bindgen). This requires `libclang`
-to be installed on the system.
-
-By default, pre-generated bindings are used, which avoids the `libclang`
-dependency and speeds up build times. Enable this feature when:
-
-- You've modified the C headers and need updated bindings
-- You're targeting a platform where the pre-generated bindings don't work
-- You want to ensure bindings match your specific `libclang` version
+To link against a system-installed Perfetto C library instead of the
+vendored one:
 
 ```bash
-cargo build --features bindgen
+export PERFETTO_SYS_LIB_DIR=/path/to/lib
+cargo build -p perfetto-sdk-sys --no-default-features
 ```
+
+## Related crates
+
+| Crate | Description |
+|-------|-------------|
+| [`perfetto-sdk`](https://crates.io/crates/perfetto-sdk) | Safe wrapper around these bindings |

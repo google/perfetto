@@ -36,6 +36,7 @@ import {
   BitmapImage,
 } from '../components';
 import * as queries from '../queries';
+import type {HeapDump} from '../queries';
 
 export interface ObjectParams {
   readonly id: number;
@@ -43,6 +44,7 @@ export interface ObjectParams {
 
 interface ObjectViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
   readonly params: ObjectParams;
@@ -486,7 +488,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
     prevId = attrs.params.id;
     const seq = ++fetchSeq;
     queries
-      .getInstance(attrs.engine, attrs.params.id)
+      .getInstance(attrs.engine, attrs.activeDump, attrs.params.id)
       .then((d) => {
         if (!alive || seq !== fetchSeq) return;
         detail = d;

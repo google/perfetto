@@ -16,6 +16,7 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRect, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
+import type {LegendPosition} from './common';
 import {
   buildChartOption,
   buildLegendOption,
@@ -137,6 +138,11 @@ export interface ScatterChartAttrs {
    * Show legend. Defaults to true when multiple series.
    */
   readonly showLegend?: boolean;
+
+  /**
+   * Where the legend sits relative to the chart. Defaults to 'top'.
+   */
+  readonly legendPosition?: LegendPosition;
 
   /**
    * Default symbol size for points without explicit size.
@@ -327,7 +333,9 @@ function buildScatterOption(
     brush: attrs.onBrush
       ? {xAxisIndex: 0, yAxisIndex: 0, brushType: 'rect' as const}
       : undefined,
-    legend: displayLegend ? buildLegendOption() : {show: false},
+    legend: displayLegend
+      ? buildLegendOption(attrs.legendPosition)
+      : {show: false},
   });
 
   (option as Record<string, unknown>).series = series;

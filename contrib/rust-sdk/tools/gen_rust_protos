@@ -79,8 +79,11 @@ SOURCE_FILES = [
             "protos/perfetto/config/gpu/gpu_counter_config.proto",
             "protos/perfetto/config/gpu/gpu_renderstages_config.proto",
             "protos/perfetto/config/gpu/vulkan_memory_config.proto",
+            "protos/perfetto/trace/generic_kernel/generic_gpu_frequency.proto",
             "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+            "protos/perfetto/trace/gpu/gpu_interned_data.proto",
             "protos/perfetto/trace/gpu/gpu_log.proto",
+            "protos/perfetto/trace/gpu/gpu_mem_event.proto",
             "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
             "protos/perfetto/trace/gpu/gpu_track_event.proto",
             "protos/perfetto/trace/gpu/vulkan_api_event.proto",
@@ -263,7 +266,7 @@ def main():
               path_strip_prefix=sources["path_strip_prefix"],
               path_add_prefix=sources["path_add_prefix"],
               external_crate=sources.get("external_crate"),
-              local_files=all_files,
+              local_files=sources["files"],
           )
 
           tmpfilename = os.path.join(tmpdirname, transform_extension(source))

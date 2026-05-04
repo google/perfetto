@@ -50,10 +50,10 @@
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
-#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_interned_data.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"

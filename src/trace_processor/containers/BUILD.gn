@@ -12,14 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto_component.gni")
 import("../../../gn/test.gni")
 
-# Used by two static libs - trace_processor and libpprofbuilder, hence using
-# perfetto_component to turn this into a cc_library in bazel builds.
-# The 'public' section gets converted to 'hdrs', and is necessary for the bazel
-# build to pass strict header checks.
-perfetto_component("containers") {
+source_set("containers") {
   public = [
     "implicit_segment_forest.h",
     "interval_intersector.h",

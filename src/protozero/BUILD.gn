@@ -62,6 +62,7 @@ source_set("multifile_error_collector") {
   deps = [
     "../../gn:default_deps",
     "../../gn:protobuf_full",
+    "../../gn:protoc_lib",
     "../base",
   ]
 }

@@ -151,7 +151,8 @@ SELECT
   (
     frame.ts + frame.dur
   ) AS ts_end,
-  ui_thread_utid
+  ui_thread_utid,
+  frame.render_thread_utid
 FROM android_frames_layers AS frame
 JOIN _cuj_instant_events AS cie
   ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
@@ -200,6 +201,7 @@ SELECT
   expected_frame_timeline_id,
   cuj_id,
   ui_thread_utid,
+  render_thread_utid,
   -- In case of multiple frames for a frame_id, consider the min start timestamp.
   min(frame_ts) AS frame_ts,
   -- In case of multiple frames for a frame_id, consider the max end timestamp.
@@ -232,6 +234,7 @@ SELECT
   expected_frame_timeline_id,
   cuj_id,
   ui_thread_utid,
+  render_thread_utid,
   frame_ts,
   ts_end,
   dur
