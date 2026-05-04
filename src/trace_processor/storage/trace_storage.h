@@ -824,6 +824,37 @@ class TraceStorage {
   tables::V8RegexpCodeTable* mutable_v8_regexp_code_table() {
     return mutable_table<tables::V8RegexpCodeTable>();
   }
+  const tables::V8CpuProfileSessionTable& v8_cpu_profile_session_table() const {
+    return table<tables::V8CpuProfileSessionTable>();
+  }
+  tables::V8CpuProfileSessionTable* mutable_v8_cpu_profile_session_table() {
+    return mutable_table<tables::V8CpuProfileSessionTable>();
+  }
+  const tables::V8CpuProfileChunkTable& v8_cpu_profile_chunk_table() const {
+    return table<tables::V8CpuProfileChunkTable>();
+  }
+  tables::V8CpuProfileChunkTable* mutable_v8_cpu_profile_chunk_table() {
+    return mutable_table<tables::V8CpuProfileChunkTable>();
+  }
+  const tables::V8CpuProfileNodeTable& v8_cpu_profile_node_table() const {
+    return table<tables::V8CpuProfileNodeTable>();
+  }
+  tables::V8CpuProfileNodeTable* mutable_v8_cpu_profile_node_table() {
+    return mutable_table<tables::V8CpuProfileNodeTable>();
+  }
+  const tables::V8CpuProfileSampleTable& v8_cpu_profile_sample_table() const {
+    return table<tables::V8CpuProfileSampleTable>();
+  }
+  tables::V8CpuProfileSampleTable* mutable_v8_cpu_profile_sample_table() {
+    return mutable_table<tables::V8CpuProfileSampleTable>();
+  }
+  const tables::V8CpuProfileTraceIdTable& v8_cpu_profile_trace_id_table()
+      const {
+    return table<tables::V8CpuProfileTraceIdTable>();
+  }
+  tables::V8CpuProfileTraceIdTable* mutable_v8_cpu_profile_trace_id_table() {
+    return mutable_table<tables::V8CpuProfileTraceIdTable>();
+  }
 
   const tables::EtmV4ConfigurationTable& etm_v4_configuration_table() const {
     return table<tables::EtmV4ConfigurationTable>();

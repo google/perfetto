@@ -1174,6 +1174,11 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_v8_internal_code_table());
   AddStaticTable(tables, storage->mutable_v8_wasm_code_table());
   AddStaticTable(tables, storage->mutable_v8_regexp_code_table());
+  AddStaticTable(tables, storage->mutable_v8_cpu_profile_session_table());
+  AddStaticTable(tables, storage->mutable_v8_cpu_profile_chunk_table());
+  AddStaticTable(tables, storage->mutable_v8_cpu_profile_node_table());
+  AddStaticTable(tables, storage->mutable_v8_cpu_profile_sample_table());
+  AddStaticTable(tables, storage->mutable_v8_cpu_profile_trace_id_table());
   AddStaticTable(tables, storage->mutable_symbol_table());
   AddStaticTable(tables, storage->mutable_jit_code_table());
   AddStaticTable(tables, storage->mutable_jit_frame_table());

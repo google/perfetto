@@ -32,6 +32,8 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.jit_tables import JIT_CODE_TABLE
+from src.trace_processor.tables.profiler_tables import (
+    CPU_PROFILE_STACK_SAMPLE_TABLE, STACK_PROFILE_CALLSITE_TABLE)
 
 V8_ISOLATE = Table(
     python_module=__file__,
@@ -347,6 +349,297 @@ V8_REGEXP_CODE = Table(
     ),
 )
 
+V8_CPU_PROFILE_SESSION = Table(
+    python_module=__file__,
+    class_name='V8CpuProfileSessionTable',
+    sql_name='__intrinsic_v8_cpu_profile_session',
+    columns=[
+        C('session_id',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('utid',
+          CppUint32(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('start_ts',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('end_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('start_time_us',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('end_time_us',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('start_thread_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('end_thread_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('source',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          One row per V8 CPU profiling session. Used by the JSON exporter to
+          synthesize devtools `Profile`/`ProfileChunk` events from the native
+          stack-sample tables.
+        """,
+        group='v8',
+        columns={
+            'session_id':
+                'V8 profiler session id (unique within a process).',
+            'utid':
+                'Thread that was being profiled.',
+            'start_ts':
+                'Trace timestamp at which the session started.',
+            'end_ts':
+                'Trace timestamp at which the session ended (NULL if the trace'
+                ' was truncated).',
+            'start_time_us':
+                'Wall-clock start time in microseconds, as reported by the'
+                ' V8 profiler.',
+            'end_time_us':
+                'Wall-clock end time in microseconds, as reported by the V8'
+                ' profiler.',
+            'start_thread_ts':
+                'Thread time at session start (NULL if not reported).',
+            'end_thread_ts':
+                'Thread time at session end (NULL if not reported).',
+            'source':
+                'Profile source: "Inspector", "SelfProfiling", "Internal" or'
+                ' "Unspecified".',
+        },
+    ),
+)
+
+V8_CPU_PROFILE_CHUNK = Table(
+    python_module=__file__,
+    class_name='V8CpuProfileChunkTable',
+    sql_name='__intrinsic_v8_cpu_profile_chunk',
+    columns=[
+        C('v8_cpu_profile_session_id',
+          CppTableId(V8_CPU_PROFILE_SESSION),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('ts',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('thread_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          One row per V8CpuProfileChunk packet. Used
+          by the JSON exporter to preserve the legacy emission cadence of one
+          devtools `ProfileChunk` event per packet.
+        """,
+        group='v8',
+        columns={
+            'v8_cpu_profile_session_id': 'Owning profiling session.',
+            'ts': 'Trace timestamp captured by V8 when this chunk was emitted.',
+            'thread_ts': 'Thread time at chunk emission, if reported by V8.',
+        },
+    ),
+)
+
+V8_CPU_PROFILE_NODE = Table(
+    python_module=__file__,
+    class_name='V8CpuProfileNodeTable',
+    sql_name='__intrinsic_v8_cpu_profile_node',
+    columns=[
+        C('v8_cpu_profile_session_id',
+          CppTableId(V8_CPU_PROFILE_SESSION),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('v8_cpu_profile_chunk_id',
+          CppTableId(V8_CPU_PROFILE_CHUNK),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('node_id',
+          CppUint32(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('callsite_id',
+          CppTableId(STACK_PROFILE_CALLSITE_TABLE),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('function_name',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('url',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('script_id',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('line',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('column',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('code_type',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('deopt_reason',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          One row per node in a V8 CPU profile call tree. Carries V8-specific
+          metadata that is not represented in the generic stack_profile_*
+          tables. The `callsite_id` links to the shared callsite/frame tables.
+        """,
+        group='v8',
+        columns={
+            'v8_cpu_profile_session_id':
+                'Owning profiling session.',
+            'v8_cpu_profile_chunk_id':
+                'Chunk packet that introduced this node (for ordered'
+                ' re-emission).',
+            'node_id':
+                'V8-assigned node id, stable within a session.',
+            'callsite_id':
+                'Linked stack profile callsite.',
+            'function_name':
+                'V8 call frame function name (denormalized from frame for'
+                ' easy JSON export).',
+            'url':
+                'V8 call frame source URL (NULL if unknown).',
+            'script_id':
+                'V8 script id of the call frame.',
+            'line':
+                '1-based source line number of the call frame.',
+            'column':
+                '1-based source column number of the call frame.',
+            'code_type':
+                'V8 code type (e.g. "JS", "Wasm", "Builtin", "other").',
+            'deopt_reason':
+                'V8 deopt reason recorded at this node, if any.',
+        },
+    ),
+)
+
+V8_CPU_PROFILE_SAMPLE = Table(
+    python_module=__file__,
+    class_name='V8CpuProfileSampleTable',
+    sql_name='__intrinsic_v8_cpu_profile_sample',
+    columns=[
+        C('cpu_profile_stack_sample_id',
+          CppTableId(CPU_PROFILE_STACK_SAMPLE_TABLE),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('v8_cpu_profile_session_id',
+          CppTableId(V8_CPU_PROFILE_SESSION),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('v8_cpu_profile_chunk_id',
+          CppTableId(V8_CPU_PROFILE_CHUNK),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('node_id',
+          CppUint32(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('line',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('column',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          V8-specific extras for each row in `cpu_profile_stack_sample`
+          produced by a `V8CpuProfileChunk` packet. Stores the V8 node id the
+          sample landed on, plus the source line/column hit positions.
+        """,
+        group='v8',
+        columns={
+            'cpu_profile_stack_sample_id':
+                'Linked row in cpu_profile_stack_sample.',
+            'v8_cpu_profile_session_id':
+                'Owning profiling session.',
+            'v8_cpu_profile_chunk_id':
+                'Chunk packet this sample belongs to.',
+            'node_id':
+                'V8 node id the sample landed on.',
+            'line':
+                '1-based source line number hit at this sample (0 = unknown).',
+            'column':
+                '1-based source column number hit at this sample'
+                ' (0 = unknown).',
+        },
+    ),
+)
+
+V8_CPU_PROFILE_TRACE_ID = Table(
+    python_module=__file__,
+    class_name='V8CpuProfileTraceIdTable',
+    sql_name='__intrinsic_v8_cpu_profile_trace_id',
+    columns=[
+        C('v8_cpu_profile_session_id',
+          CppTableId(V8_CPU_PROFILE_SESSION),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('v8_cpu_profile_chunk_id',
+          CppTableId(V8_CPU_PROFILE_CHUNK),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('trace_id',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('node_id',
+          CppUint32(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          Maps trace event ids to V8 CPU profile node ids, for cross-event
+          correlation.
+        """,
+        group='v8',
+        columns={
+            'v8_cpu_profile_session_id':
+                'Owning profiling session.',
+            'v8_cpu_profile_chunk_id':
+                'Chunk packet that introduced this mapping.',
+            'trace_id':
+                'Trace event id to correlate with.',
+            'node_id':
+                'V8 node id this trace event maps to.',
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     V8_ISOLATE,
@@ -357,4 +650,9 @@ ALL_TABLES = [
     V8_INTERNAL_CODE,
     V8_WASM_CODE,
     V8_REGEXP_CODE,
+    V8_CPU_PROFILE_SESSION,
+    V8_CPU_PROFILE_CHUNK,
+    V8_CPU_PROFILE_NODE,
+    V8_CPU_PROFILE_SAMPLE,
+    V8_CPU_PROFILE_TRACE_ID,
 ]
