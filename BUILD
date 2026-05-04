@@ -18465,6 +18465,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

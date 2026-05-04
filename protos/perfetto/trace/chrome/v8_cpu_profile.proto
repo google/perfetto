@@ -1,0 +1,127 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto2";
+
+package perfetto.protos;
+
+// These are the protos for the V8 CPU profiler data source.
+//
+// A profiling session consists of:
+// 1. One V8CpuProfileChunk with `session_start` set (marks session start)
+// 2. Multiple V8CpuProfileChunks with `nodes`, `samples`, `time_deltas_us`
+// 3. One V8CpuProfileChunk with `session_end` set (marks session end)
+//
+// All chunks in a session share the same `session_id`.
+// Nodes are streamed incrementally — each chunk contains only newly
+// discovered nodes since the last chunk. Samples reference node IDs
+// defined in current or previous chunks.
+
+message V8CpuProfileChunk {
+  // Session ID correlating all chunks in a profiling session.
+  optional uint64 session_id = 1;
+
+  // Process and thread IDs of the profiled thread.
+  optional uint32 pid = 2;
+  optional uint32 tid = 3;
+
+  // Session start marker. Present only in the first chunk of a session.
+  message SessionStart {
+    // Wall-clock start time in microseconds (CLOCK_MONOTONIC).
+    optional int64 start_time_us = 1;
+    // Source of the profiling session.
+    optional ProfileSource source = 2;
+    // Thread time at session start, microseconds. Optional.
+    optional int64 start_thread_time_us = 3;
+  }
+  optional SessionStart session_start = 4;
+
+  // Session end marker. Present only in the final chunk of a session.
+  message SessionEnd {
+    // Wall-clock end time in microseconds (CLOCK_MONOTONIC).
+    optional int64 end_time_us = 1;
+    // Source of the profiling session.
+    optional ProfileSource source = 2;
+    // Thread time at session end, microseconds. Optional.
+    optional int64 end_thread_time_us = 3;
+  }
+  optional SessionEnd session_end = 5;
+
+  enum ProfileSource {
+    PROFILE_SOURCE_UNKNOWN = 0;
+    PROFILE_SOURCE_INSPECTOR = 1;
+    PROFILE_SOURCE_SELF_PROFILING = 2;
+    PROFILE_SOURCE_INTERNAL = 3;
+  }
+
+  // Call tree node. Each node represents a unique call site in the
+  // incrementally-built profile tree. Nodes are defined once and
+  // referenced by ID in subsequent chunks.
+  message Node {
+    // Unique node ID within this session. Stable across chunks.
+    optional uint32 id = 1;
+    // Parent node ID. 0 or absent for root nodes.
+    optional uint32 parent_id = 2;
+
+    message CallFrame {
+      optional string function_name = 1;
+      optional string url = 2;
+      optional int32 script_id = 3;
+      optional int32 line_number = 4;
+      optional int32 column_number = 5;
+      // Code type: "JS", "Wasm", "Builtin", etc.
+      optional string code_type = 6;
+    }
+    optional CallFrame call_frame = 3;
+    optional string deopt_reason = 4;
+  }
+
+  // Newly discovered nodes since the last chunk. Consumers accumulate
+  // nodes across chunks to build the complete call tree.
+  repeated Node nodes = 6;
+
+  // Leaf node IDs for each sample tick. Each entry is a node ID
+  // defined in current or a previous chunk. The consumer reconstructs
+  // full stacks by walking parent_id pointers.
+  repeated uint32 samples = 7 [packed = true];
+
+  // Microsecond deltas between consecutive samples.
+  // For the first chunk in a session, time_deltas_us[0] is relative to
+  // session_start.start_time_us. For subsequent chunks, time_deltas_us[0] is
+  // relative to the timestamp of the previous chunk's last sample.
+  // time_deltas_us[i] for i>0 is relative to the previous sample.
+  repeated int64 time_deltas_us = 8 [packed = true];
+
+  // Source line numbers hit at each sample (1-based, 0 = unknown).
+  repeated int32 lines = 9 [packed = true];
+
+  // Source column numbers hit at each sample (1-based, 0 = unknown).
+  repeated int32 columns = 10 [packed = true];
+
+  // Maps trace event IDs to profile node IDs for cross-event correlation.
+  message TraceIdMapping {
+    optional uint64 trace_id = 1;
+    optional uint32 node_id = 2;
+  }
+  repeated TraceIdMapping trace_id_mappings = 11;
+
+  // Profile source, present on every chunk.
+  optional ProfileSource source = 12;
+
+  // Thread time at chunk emission, microseconds. Optional. When set on a
+  // data-bearing chunk, the JSON exporter forwards it as the legacy DevTools
+  // ProfileChunk event's `tts` field.
+  optional int64 thread_time_us = 13;
+}

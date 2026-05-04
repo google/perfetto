@@ -49,6 +49,7 @@ import "protos/perfetto/trace/chrome/chrome_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_trace_event.proto";
 import "protos/perfetto/trace/chrome/chrome_trigger.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
+import "protos/perfetto/trace/chrome/v8_cpu_profile.proto";
 import "protos/perfetto/trace/clock_snapshot.proto";
 import "protos/perfetto/trace/etw/etw_event_bundle.proto";
 import "protos/perfetto/trace/evdev.proto";
@@ -118,7 +119,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 130.
+// Next id: 131.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -289,6 +290,7 @@ message TracePacket {
     V8WasmCode v8_wasm_code = 101;
     V8RegExpCode v8_reg_exp_code = 102;
     V8CodeMove v8_code_move = 103;
+    V8CpuProfileChunk v8_cpu_profile_chunk = 130;
     // Clock synchronization with remote machines.
     RemoteClockSync remote_clock_sync = 107;
 

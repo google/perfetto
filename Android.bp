@@ -3500,6 +3500,7 @@ filegroup {
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/etw/etw.proto",
         "protos/perfetto/trace/etw/etw_event.proto",
@@ -8516,6 +8517,7 @@ filegroup {
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
     ],
 }
 
@@ -8536,6 +8538,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.gen.cc",
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trigger.gen.cc",
         "external/perfetto/protos/perfetto/trace/chrome/v8.gen.cc",
+        "external/perfetto/protos/perfetto/trace/chrome/v8_cpu_profile.gen.cc",
     ],
 }
 
@@ -8556,6 +8559,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.gen.h",
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trigger.gen.h",
         "external/perfetto/protos/perfetto/trace/chrome/v8.gen.h",
+        "external/perfetto/protos/perfetto/trace/chrome/v8_cpu_profile.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -8572,6 +8576,7 @@ filegroup {
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
     ],
 }
 
@@ -8591,6 +8596,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.pb.cc",
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trigger.pb.cc",
         "external/perfetto/protos/perfetto/trace/chrome/v8.pb.cc",
+        "external/perfetto/protos/perfetto/trace/chrome/v8_cpu_profile.pb.cc",
     ],
 }
 
@@ -8610,6 +8616,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.pb.h",
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trigger.pb.h",
         "external/perfetto/protos/perfetto/trace/chrome/v8.pb.h",
+        "external/perfetto/protos/perfetto/trace/chrome/v8_cpu_profile.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -8626,6 +8633,7 @@ filegroup {
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
     ],
 }
 
@@ -8646,6 +8654,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trigger.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/chrome/v8.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/chrome/v8_cpu_profile.pbzero.cc",
     ],
 }
 
@@ -8666,6 +8675,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h",
         "external/perfetto/protos/perfetto/trace/chrome/chrome_trigger.pbzero.h",
         "external/perfetto/protos/perfetto/trace/chrome/v8.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/chrome/v8_cpu_profile.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -8779,6 +8789,7 @@ genrule {
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/etw/etw.proto",
         "protos/perfetto/trace/etw/etw_event.proto",
@@ -10367,6 +10378,7 @@ genrule {
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
         "protos/perfetto/trace/gpu/gpu_interned_data.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
@@ -19695,6 +19707,7 @@ java_library {
         "protos/perfetto/trace/chrome/chrome_trace_event.proto",
         "protos/perfetto/trace/chrome/chrome_trigger.proto",
         "protos/perfetto/trace/chrome/v8.proto",
+        "protos/perfetto/trace/chrome/v8_cpu_profile.proto",
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/etw/etw.proto",
         "protos/perfetto/trace/etw/etw_event.proto",

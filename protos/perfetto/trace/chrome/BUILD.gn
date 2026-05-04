@@ -21,6 +21,7 @@ perfetto_proto_library("@TYPE@") {
     "chrome_trace_event.proto",
     "chrome_trigger.proto",
     "v8.proto",
+    "v8_cpu_profile.proto",
   ]
 }
 
