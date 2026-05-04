@@ -302,7 +302,14 @@ template("gcc_like_toolchain") {
       } else {
         depfile_args = "-MMD -MF $depfile"
       }
-      command = "$cc_wrapper $cc $depfile_args {{defines}} {{include_dirs}} {{asmflags}} -c {{source}} -o {{output}}"
+
+      # Propagate ${external_cflags} (where extra_cflags + extra_target_cflags
+      # land, including -target for cross-compile) to the assembler. Without
+      # this the cc/cxx tools cross-compile correctly but the asm tool
+      # defaults to the build host's arch, which breaks .S files like
+      # buildtools/android-unwinding/libunwindstack/AsmGetRegsX86_64.S
+      # when cross-compiling Linux x64 from e.g. a macOS arm64 host.
+      command = "$cc_wrapper $cc $depfile_args {{defines}} {{include_dirs}} {{asmflags}} ${external_cflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
       outputs =
           [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
