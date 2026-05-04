@@ -29,10 +29,17 @@ pb_enum!(TracePacketSequenceFlags {
     SEQ_NEEDS_INCREMENTAL_STATE: 2,
 });
 
+pb_msg!(TracePacketDefaults {
+    timestamp_clock_id: u32, primitive, 58,
+    track_event_defaults: TrackEventDefaults, msg, 11,
+});
+
 pb_msg!(TracePacket {
     timestamp: u64, primitive, 8,
     timestamp_clock_id: u32, primitive, 58,
+    trusted_uid: i32, primitive, 3,
     trusted_packet_sequence_id: u32, primitive, 10,
+    trusted_pid: i32, primitive, 79,
     first_packet_on_sequence: bool, primitive, 87,
     clock_snapshot: ClockSnapshot, msg, 6,
     track_event: TrackEvent, msg, 11,
@@ -40,4 +47,5 @@ pb_msg!(TracePacket {
     for_testing: TestEvent, msg, 900,
     interned_data: InternedData, msg, 12,
     sequence_flags: u32, primitive, 13,
+    trace_packet_defaults: TracePacketDefaults, msg, 59,
 });
