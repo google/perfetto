@@ -13,32 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {SliceTrack} from '../../components/tracks/slice_track';
-import {SourceDataset} from '../../trace_processor/dataset';
 import {makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
-import {Section} from '../../widgets/section';
-import {Tree, TreeNode} from '../../widgets/tree';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {Time} from '../../base/time';
-import {DetailsShell} from '../../widgets/details_shell';
-import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {Spinner} from '../../widgets/spinner';
-import {ColorScheme} from '../../base/color_scheme';
+import {Trace} from '../../public/trace';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {createLogTrack} from '../../components/tracks/log_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
-const PRIO_TO_COLOR: Record<number, ColorScheme> = {
-  2: makeColorScheme(new HSLColor({h: 0, s: 0, l: 60})), // V - grey
-  3: makeColorScheme(new HSLColor({h: 217, s: 100, l: 60})), // D - blue
-  4: makeColorScheme(new HSLColor({h: 120, s: 62, l: 55})), // I - green
-  5: makeColorScheme(new HSLColor({h: 38, s: 100, l: 58})), // W - amber
-  6: makeColorScheme(new HSLColor({h: 0, s: 86, l: 60})), // E - red
-  7: makeColorScheme(new HSLColor({h: 268, s: 100, l: 65})), // F - magenta
-};
-const DEFAULT_PRIO_COLOR = makeColorScheme(new HSLColor({h: 0, s: 0, l: 60}));
-
-const EVT_PX = 6; // Width of an event tick in pixels.
+// Android priority depths: prio<=3 -> 0, 4 -> 1, 5 -> 2, 6 -> 3, 7 -> 4.
+const DEPTH_TO_COLOR = [
+  makeColorScheme(new HSLColor({h: 0, s: 0, l: 60})), // prio<=3 V/D — grey
+  makeColorScheme(new HSLColor({h: 120, s: 62, l: 55})), // prio=4  I  — green
+  makeColorScheme(new HSLColor({h: 38, s: 100, l: 58})), // prio=5  W  — amber
+  makeColorScheme(new HSLColor({h: 0, s: 86, l: 60})), // prio=6  E  — red
+  makeColorScheme(new HSLColor({h: 268, s: 100, l: 65})), // prio=7  F  — magenta
+];
 
 const LOGS_SQL = `
   select
@@ -64,113 +60,26 @@ const LOGS_SCHEMA = {
   id: NUM,
   ts: LONG,
   prio: NUM,
-  utid: NUM,
+  utid: NUM_NULL,
   depth: NUM,
   tag: STR_NULL,
   msg: STR_NULL,
 };
 
-const PRIO_LABELS: Record<number, string> = {
-  2: 'Verbose',
-  3: 'Debug',
-  4: 'Info',
-  5: 'Warn',
-  6: 'Error',
-  7: 'Fatal',
-};
-
-function makeDetailsPanel(
-  trace: Trace,
-  row: {
-    id: number;
-    ts: bigint;
-    prio: number;
-    tag: string | null;
-    utid: number;
-  },
-) {
-  // The msg is initially undefined, it'll be filled in when it loads
-  let msg: string | undefined;
-  let threadInfo: string | undefined;
-
-  // Quickly load the log message
-  trace.engine
-    .query(`select msg from android_logs where id = ${row.id}`)
-    .then((result) => {
-      msg = result.maybeFirstRow({msg: STR})?.msg;
-    });
-
-  trace.engine
-    .query(`select tid, name from thread where utid = ${row.utid}`)
-    .then((result) => {
-      const r = result.maybeFirstRow({tid: NUM, name: STR_NULL});
-      threadInfo = r
-        ? r.name
-          ? `${r.name} [${r.tid}]`
-          : `${r.tid}`
-        : `utid=${row.utid}`;
-    });
-
-  const prioLabel = PRIO_LABELS[row.prio] ?? `${row.prio}`;
-
-  return {
-    render() {
-      return m(
-        DetailsShell,
-        {title: `Android Log`},
-        m(
-          GridLayout,
-          m(
-            GridLayoutColumn,
-            m(
-              Section,
-              {title: 'Details'},
-              m(
-                Tree,
-                m(TreeNode, {left: 'ID', right: row.id}),
-                m(TreeNode, {
-                  left: 'Timestamp',
-                  right: m(Timestamp, {trace, ts: Time.fromRaw(row.ts)}),
-                }),
-                m(TreeNode, {left: 'Priority', right: prioLabel}),
-                m(TreeNode, {left: 'Tag', right: row.tag}),
-                m(TreeNode, {
-                  left: 'Thread',
-                  right: threadInfo ?? m(Spinner),
-                }),
-                m(TreeNode, {
-                  left: 'Message',
-                  right: msg !== undefined ? msg : m(Spinner),
-                }),
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-  };
-}
+const EVT_PX = 6;
 
 export function createAndroidLogTrack(trace: Trace, uri: string) {
-  return SliceTrack.create({
-    trace,
-    uri,
-    dataset: new SourceDataset({src: LOGS_SQL, schema: LOGS_SCHEMA}),
-    initialMaxDepth: 4,
-    colorizer: (row) => PRIO_TO_COLOR[row.prio] ?? DEFAULT_PRIO_COLOR,
-    tooltip: (slice) => [m('', m('b', slice.row.tag)), m('', slice.row.msg)],
-    // All log events are instant events, render them as a little box rather
-    // than the default chevron.
-    instantStyle: {
-      width: EVT_PX,
-      render: (ctx, r) => ctx.fillRect(r.x, r.y, r.width, r.height),
+  return createLogTrack(trace, uri, {
+    title: 'Android Log',
+    rootTableName: 'android_logs',
+    sqlSource: LOGS_SQL,
+    depthColors: DEPTH_TO_COLOR,
+    fetchMsg: async (t, id) => {
+      const result = await t.engine.query(
+        `select msg from android_logs where id = ${id}`,
+      );
+      return result.maybeFirstRow({msg: STR})?.msg;
     },
-    // Make rows a little more compact.
-    sliceLayout: {
-      padding: 2,
-      sliceHeight: 7,
-    },
-    detailsPanel: (row) => makeDetailsPanel(trace, row),
   });
 }
 
@@ -182,23 +91,20 @@ export function createPerProcessLogTrack(
   return SliceTrack.create({
     trace,
     uri,
+    rootTableName: 'android_logs',
     dataset: new SourceDataset({
       src: LOGS_SQL,
       schema: LOGS_SCHEMA,
       filter: {col: 'utid', in: utids},
     }),
     initialMaxDepth: 4,
-    colorizer: (row) => PRIO_TO_COLOR[row.prio] ?? DEFAULT_PRIO_COLOR,
+    colorizer: (row) => DEPTH_TO_COLOR[row.depth],
     tooltip: (slice) => [m('', m('b', slice.row.tag)), m('', slice.row.msg)],
     instantStyle: {
       width: EVT_PX,
       render: (ctx, r) => ctx.fillRect(r.x, r.y, r.width, r.height),
     },
-    sliceLayout: {
-      padding: 2,
-      sliceHeight: 7,
-    },
-    detailsPanel: (row) => makeDetailsPanel(trace, row),
+    sliceLayout: {padding: 2, sliceHeight: 7},
   });
 }
 
@@ -217,16 +123,12 @@ export function createPerThreadLogTrack(
       filter: {col: 'utid', eq: utid},
     }),
     initialMaxDepth: 4,
-    colorizer: (row) => PRIO_TO_COLOR[row.prio] ?? DEFAULT_PRIO_COLOR,
+    colorizer: (row) => DEPTH_TO_COLOR[row.depth],
     tooltip: (slice) => [m('', m('b', slice.row.tag)), m('', slice.row.msg)],
     instantStyle: {
       width: EVT_PX,
       render: (ctx, r) => ctx.fillRect(r.x, r.y, r.width, r.height),
     },
-    sliceLayout: {
-      padding: 2,
-      sliceHeight: 7,
-    },
-    detailsPanel: (row) => makeDetailsPanel(trace, row),
+    sliceLayout: {padding: 2, sliceHeight: 7},
   });
 }

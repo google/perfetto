@@ -13,48 +13,25 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {time, Time, TimeSpan} from '../../base/time';
-import {DetailsShell} from '../../widgets/details_shell';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {
-  escapeQuery,
-  escapeSearchQuery,
-  escapeRegexQuery,
-} from '../../trace_processor/query_utils';
-import {Select} from '../../widgets/select';
+  LogPanel as SharedLogPanel,
+  LogPanelConfig,
+  BaseLogFilteringCriteria,
+  LogPanelAttrs as SharedLogPanelAttrs,
+  serializeTags,
+} from '../../components/widgets/log_panel/log_panel';
+import {Store} from '../../base/store';
+import {Trace} from '../../public/trace';
+import {escapeRegexQuery} from '../../trace_processor/query_utils';
 import {
   MultiSelectDiff,
   MultiSelectOption,
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-import {Button} from '../../widgets/button';
-import {TextInput} from '../../widgets/text_input';
-import {
-  Grid,
-  GridColumn,
-  GridRow,
-  GridHeaderCell,
-  GridCell,
-} from '../../widgets/grid';
-import {classNames} from '../../base/classnames';
-import {TagInput} from '../../widgets/tag_input';
-import {Store} from '../../base/store';
-import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
-import {MenuItem} from '../../widgets/menu';
-import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
 
-const ROW_H = 24;
-
-export interface LogFilteringCriteria {
-  readonly minimumLevel: number;
-  readonly tags: string[];
-  readonly isTagRegex?: boolean;
-  readonly textEntry: string;
-  readonly hideNonMatching: boolean;
+export interface LogFilteringCriteria extends BaseLogFilteringCriteria {
   readonly machineExcludeList: number[];
 }
 
@@ -68,216 +45,20 @@ export interface LogPanelAttrs {
   readonly trace: Trace;
 }
 
-interface Pagination {
-  readonly offset: number;
-  readonly count: number;
-}
+// Android log priorities: index = numeric priority value.
+const ANDROID_PRIORITIES = [
+  '-',
+  '-',
+  'Verbose',
+  'Debug',
+  'Info',
+  'Warn',
+  'Error',
+  'Fatal',
+];
 
-interface LogEntries {
-  readonly offset: number;
-  readonly ids: number[];
-  readonly machineIds: number[];
-  readonly timestamps: time[];
-  readonly pids: bigint[];
-  readonly tids: bigint[];
-  readonly priorities: number[];
-  readonly tags: string[];
-  readonly messages: string[];
-  readonly isHighlighted: boolean[];
-  readonly processName: string[];
-  readonly totalEvents: number; // Count of the total number of events within this window
-}
-
-export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
-  private readonly trace: Trace;
-  private readonly executor = new SerialTaskQueue();
-  private readonly viewQuery = new QuerySlot<AsyncDisposable>(this.executor);
-  private readonly entriesQuery = new QuerySlot<LogEntries>(this.executor);
-  private pagination: Pagination = {
-    offset: 0,
-    count: 0,
-  };
-
-  constructor({attrs}: m.CVnode<LogPanelAttrs>) {
-    this.trace = attrs.trace;
-  }
-
-  onremove() {
-    this.viewQuery.dispose();
-    this.entriesQuery.dispose();
-  }
-
-  view({attrs}: m.CVnode<LogPanelAttrs>) {
-    const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const filters = attrs.filterStore.state;
-    const pagination = this.pagination;
-    const engine = attrs.trace.engine;
-
-    // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
-    const viewResult = this.viewQuery.use({
-      key: {filters},
-      queryFn: () => updateLogView(engine, filters),
-    });
-
-    // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
-    const entriesResult = this.entriesQuery.use({
-      key: {
-        filters,
-        viewport: {start: visibleSpan.start, end: visibleSpan.end},
-        pagination,
-      },
-      retainOn: ['pagination', 'viewport'],
-      queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
-      enabled: !!viewResult.data,
-    });
-
-    const entries = entriesResult.data;
-    const totalEvents = entries?.totalEvents ?? 0;
-
-    return m(
-      DetailsShell,
-      {
-        title: 'Android Logs',
-        description: `Total messages: ${totalEvents}`,
-        buttons: m(LogsFilters, {
-          trace: attrs.trace,
-          cache: attrs.cache,
-          store: attrs.filterStore,
-        }),
-      },
-      this.renderGrid(attrs.trace, entries, attrs.cache),
-    );
-  }
-
-  private renderGrid(
-    trace: Trace,
-    entries: LogEntries | undefined,
-    cache: LogPanelCache,
-  ) {
-    if (entries) {
-      const hasMachineIds = cache.uniqueMachineIds.length > 1;
-      const hasProcessNames =
-        entries.processName.filter((name) => name).length > 0;
-
-      const columns: GridColumn[] = [
-        ...(hasMachineIds
-          ? [{key: 'machine', header: m(GridHeaderCell, 'Machine')}]
-          : []),
-        {key: 'timestamp', header: m(GridHeaderCell, 'Timestamp')},
-        {key: 'pid', header: m(GridHeaderCell, 'PID')},
-        {key: 'tid', header: m(GridHeaderCell, 'TID')},
-        {key: 'level', header: m(GridHeaderCell, 'Level')},
-        ...(hasProcessNames
-          ? [{key: 'process', header: m(GridHeaderCell, 'Process')}]
-          : []),
-        {key: 'tag', header: m(GridHeaderCell, 'Tag')},
-        {
-          key: 'message',
-          // Allow the initial width of the message column to expand as needed.
-          maxInitialWidthPx: Infinity,
-          header: m(GridHeaderCell, 'Message'),
-        },
-      ];
-
-      return m(Grid, {
-        className: 'pf-logs-panel',
-        columns,
-        rowData: {
-          data: this.renderRows(entries, hasMachineIds, hasProcessNames),
-          total: entries?.totalEvents ?? 0,
-          offset: entries?.offset ?? 0,
-          onLoadData: (offset, count) => {
-            this.pagination = {offset, count};
-            m.redraw();
-          },
-        },
-        virtualization: {
-          rowHeightPx: ROW_H,
-        },
-        fillHeight: true,
-        onRowHover: (rowIndex) => {
-          // Calculate the actual row index from virtualization offset
-          const actualIndex = rowIndex - (entries?.offset ?? 0);
-          const timestamp = entries?.timestamps[actualIndex];
-          if (timestamp !== undefined) {
-            trace.timeline.hoverCursorTimestamp = timestamp;
-          }
-        },
-        onRowOut: () => {
-          trace.timeline.hoverCursorTimestamp = undefined;
-        },
-      });
-    } else {
-      return null;
-    }
-  }
-
-  private renderRows(
-    entries: LogEntries,
-    hasMachineIds: boolean | undefined,
-    hasProcessNames: boolean | undefined,
-  ): ReadonlyArray<GridRow> {
-    const trace = this.trace;
-    const ids = entries.ids;
-    const machineIds = entries.machineIds;
-    const timestamps = entries.timestamps;
-    const pids = entries.pids;
-    const tids = entries.tids;
-    const priorities = entries.priorities;
-    const tags = entries.tags;
-    const messages = entries.messages;
-    const processNames = entries.processName;
-
-    const rows: GridRow[] = [];
-    for (let i = 0; i < entries.timestamps.length; i++) {
-      const priority = priorities[i];
-      const priorityLetter = LOG_PRIORITIES[priority][0];
-      const ts = timestamps[i];
-      const eventId = ids[i];
-      const priorityClass = `pf-logs-panel__row--${classForPriority(priority)}`;
-      const isHighlighted = entries.isHighlighted[i];
-      const className = classNames(
-        priorityClass,
-        isHighlighted && 'pf-logs-panel__row--highlighted',
-      );
-
-      const row = [
-        hasMachineIds &&
-          m(GridCell, {className, align: 'right'}, machineIds[i]),
-        m(
-          GridCell,
-          {
-            className,
-            menuItems: m(MenuItem, {
-              label: 'Go to event on timeline',
-              icon: Icons.UpdateSelection,
-              onclick: () => {
-                trace.selection.selectSqlEvent('android_logs', eventId, {
-                  scrollToSelection: true,
-                  switchToCurrentSelectionTab: true,
-                });
-              },
-            }),
-          },
-          m(Timestamp, {trace, ts}),
-        ),
-        m(GridCell, {className, align: 'right'}, String(pids[i])),
-        m(GridCell, {className, align: 'right'}, String(tids[i])),
-        m(GridCell, {className}, priorityLetter || '?'),
-        hasProcessNames && m(GridCell, {className}, processNames[i]),
-        m(GridCell, {className}, tags[i]),
-        m(GridCell, {className}, messages[i]),
-      ].filter(Boolean);
-
-      rows.push(row);
-    }
-
-    return rows;
-  }
-}
-
-function classForPriority(priority: number) {
-  switch (priority) {
+function classForPriority(p: number): string | undefined {
+  switch (p) {
     case 2:
       return 'verbose';
     case 3:
@@ -295,342 +76,86 @@ function classForPriority(priority: number) {
   }
 }
 
-export const LOG_PRIORITIES = [
-  '-',
-  '-',
-  'Verbose',
-  'Debug',
-  'Info',
-  'Warn',
-  'Error',
-  'Fatal',
-];
-const IGNORED_STATES = 2;
+function buildAndroidConfig(
+  cache: LogPanelCache,
+  filterStore: Store<LogFilteringCriteria>,
+): LogPanelConfig {
+  return {
+    title: 'Android Logs',
+    priorities: ANDROID_PRIORITIES,
+    ignoredPriorityStates: 2,
+    filteredTableName: 'filtered_logs',
+    classPrefix: 'pf-logs-panel',
+    classForPriority,
+    buildSelectedRows: (
+      filter: BaseLogFilteringCriteria,
+      globMatch: string,
+    ) => {
+      const androidFilter = filter as LogFilteringCriteria;
+      let sql = `select android_logs.id, prio, ts, pid, tid, tag, msg,
+          process.name as process_name,
+          thread.utid as utid, thread.upid as upid,
+          ${globMatch}
+          from android_logs
+          left join thread using(utid)
+          left join process using(upid)
+          where prio >= ${filter.minimumLevel}`;
+      if (filter.tags.length) {
+        sql += filter.isTagRegex
+          ? ` and (${filter.tags.map((p) => `tag glob ${escapeRegexQuery(p)}`).join(' OR ')})`
+          : ` and tag in (${serializeTags(filter.tags)})`;
+      }
+      if (androidFilter.machineExcludeList?.length) {
+        sql += ` and process.machine_id not in (${androidFilter.machineExcludeList.join(',')})`;
+      }
+      return sql;
+    },
+    renderExtraFilters: (store: Store<BaseLogFilteringCriteria>) => {
+      const hasMachineIds = cache.uniqueMachineIds.length > 1;
+      if (!hasMachineIds) return null;
 
-interface LogPriorityWidgetAttrs {
-  readonly trace: Trace;
-  readonly options: string[];
-  readonly selectedIndex: number;
-  readonly onSelect: (id: number) => void;
-}
-
-class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
-  view(vnode: m.Vnode<LogPriorityWidgetAttrs>) {
-    const attrs = vnode.attrs;
-    const optionComponents = [];
-    for (let i = IGNORED_STATES; i < attrs.options.length; i++) {
-      const selected = i === attrs.selectedIndex;
-      optionComponents.push(
-        m('option', {value: i, selected}, attrs.options[i]),
-      );
-    }
-    return m(
-      Select,
-      {
-        onchange: (e: Event) => {
-          const selectionValue = (e.target as HTMLSelectElement).value;
-          attrs.onSelect(Number(selectionValue));
-        },
-      },
-      optionComponents,
-    );
-  }
-}
-
-interface LogTextWidgetAttrs {
-  readonly trace: Trace;
-  readonly onChange: (value: string) => void;
-}
-
-class LogTextWidget implements m.ClassComponent<LogTextWidgetAttrs> {
-  view({attrs}: m.CVnode<LogTextWidgetAttrs>) {
-    return m(TextInput, {
-      leftIcon: 'search',
-      placeholder: 'Search logs...',
-      onkeyup: (e: KeyboardEvent) => {
-        // We want to use the value of the input field after it has been
-        // updated with the latest key (onkeyup).
-        const htmlElement = e.target as HTMLInputElement;
-        attrs.onChange(htmlElement.value);
-      },
-    });
-  }
-}
-
-interface FilterByTextWidgetAttrs {
-  readonly hideNonMatching: boolean;
-  readonly onClick: () => void;
-}
-
-class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
-  view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
-    const icon = attrs.hideNonMatching ? Icons.Filter : Icons.FilterOff;
-    const tooltip = attrs.hideNonMatching
-      ? 'Show all logs and highlight matches'
-      : 'Show only matching logs';
-    return m(Button, {
-      icon,
-      tooltip,
-      onclick: attrs.onClick,
-    });
-  }
-}
-
-interface LogsFiltersAttrs {
-  readonly trace: Trace;
-  readonly cache: LogPanelCache;
-  readonly store: Store<LogFilteringCriteria>;
-}
-
-export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
-  view({attrs}: m.CVnode<LogsFiltersAttrs>) {
-    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
-
-    return [
-      m('span', 'Log Level'),
-      m(LogPriorityWidget, {
-        trace: attrs.trace,
-        options: LOG_PRIORITIES,
-        selectedIndex: attrs.store.state.minimumLevel,
-        onSelect: (minimumLevel) => {
-          attrs.store.edit((draft) => {
-            draft.minimumLevel = minimumLevel;
-          });
-        },
-      }),
-      m(TagInput, {
-        leftIcon: 'label',
-        placeholder: 'Filter by tag...',
-        tags: attrs.store.state.tags,
-        onTagAdd: (tag) => {
-          attrs.store.edit((draft) => {
-            draft.tags.push(tag);
-          });
-        },
-        onTagRemove: (index) => {
-          attrs.store.edit((draft) => {
-            draft.tags.splice(index, 1);
-          });
-        },
-      }),
-      m(Button, {
-        icon: 'regular_expression',
-        tooltip: 'Use regex',
-        active: !!attrs.store.state.isTagRegex,
-        onclick: () => {
-          attrs.store.edit((draft) => {
-            draft.isTagRegex = !draft.isTagRegex;
-          });
-        },
-      }),
-      m(LogTextWidget, {
-        trace: attrs.trace,
-        onChange: (text) => {
-          attrs.store.edit((draft) => {
-            draft.textEntry = text;
-          });
-        },
-      }),
-      m(FilterByTextWidget, {
-        hideNonMatching: attrs.store.state.hideNonMatching,
-        onClick: () => {
-          attrs.store.edit((draft) => {
-            draft.hideNonMatching = !draft.hideNonMatching;
-          });
-        },
-      }),
-      hasMachineIds && this.renderFilterPanel(attrs),
-    ];
-  }
-
-  private renderFilterPanel(attrs: LogsFiltersAttrs) {
-    const machineExcludeList = attrs.store.state.machineExcludeList;
-    const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds.map(
-      (uMachineId) => {
-        return {
+      const androidStore = store as Store<LogFilteringCriteria>;
+      const machineExcludeList = androidStore.state.machineExcludeList ?? [];
+      const options: MultiSelectOption[] = cache.uniqueMachineIds.map(
+        (uMachineId) => ({
           id: String(uMachineId),
           name: `Machine ${uMachineId}`,
-          checked: !machineExcludeList.some(
-            (excluded: number) => excluded === uMachineId,
-          ),
-        };
-      },
-    );
-
-    return m(PopupMultiSelect, {
-      label: 'Filter by machine',
-      icon: Icons.Filter,
-      position: PopupPosition.Top,
-      options,
-      onChange: (diffs: MultiSelectDiff[]) => {
-        const newList = new Set<number>(machineExcludeList);
-        diffs.forEach(({checked, id}) => {
-          const machineId = Number(id);
-          if (checked) {
-            newList.delete(machineId);
-          } else {
-            newList.add(machineId);
-          }
-        });
-        attrs.store.edit((draft) => {
-          draft.machineExcludeList = Array.from(newList);
-        });
-      },
-    });
-  }
-}
-
-async function updateLogEntries(
-  engine: Engine,
-  span: TimeSpan,
-  pagination: Pagination,
-): Promise<LogEntries> {
-  const rowsResult = await engine.query(`
-        select
-          id,
-          ts,
-          pid,
-          tid,
-          prio,
-          ifnull(tag, '[NULL]') as tag,
-          ifnull(msg, '[NULL]') as msg,
-          is_msg_highlighted as isMsgHighlighted,
-          is_process_highlighted as isProcessHighlighted,
-          ifnull(process_name, '') as processName,
-          machine_id as machineId
-        from filtered_logs
-        where ts >= ${span.start} and ts <= ${span.end}
-        order by ts
-        limit ${pagination.offset}, ${pagination.count}
-    `);
-
-  const ids: number[] = [];
-  const machineIds = [];
-  const timestamps: time[] = [];
-  const pids = [];
-  const tids = [];
-  const priorities = [];
-  const tags = [];
-  const messages = [];
-  const isHighlighted = [];
-  const processName = [];
-
-  const it = rowsResult.iter({
-    id: NUM,
-    ts: LONG,
-    pid: LONG,
-    tid: LONG,
-    prio: NUM,
-    tag: STR,
-    msg: STR,
-    isMsgHighlighted: NUM_NULL,
-    isProcessHighlighted: NUM,
-    processName: STR,
-    machineId: NUM,
-  });
-  for (; it.valid(); it.next()) {
-    ids.push(it.id);
-    timestamps.push(Time.fromRaw(it.ts));
-    pids.push(it.pid);
-    tids.push(it.tid);
-    priorities.push(it.prio);
-    tags.push(it.tag);
-    messages.push(it.msg);
-    isHighlighted.push(
-      it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1,
-    );
-    processName.push(it.processName);
-    machineIds.push(it.machineId);
-  }
-
-  const queryRes = await engine.query(`
-    select
-      count(*) as totalEvents
-    from filtered_logs
-    where ts >= ${span.start} and ts <= ${span.end}
-  `);
-  const {totalEvents} = queryRes.firstRow({totalEvents: NUM});
-
-  return {
-    offset: pagination.offset,
-    ids,
-    machineIds,
-    timestamps,
-    pids,
-    tids,
-    priorities,
-    tags,
-    messages,
-    isHighlighted,
-    processName,
-    totalEvents,
-  };
-}
-
-async function updateLogView(
-  engine: Engine,
-  filter: LogFilteringCriteria,
-): Promise<AsyncDisposable> {
-  const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
-  let selectedRows = `select android_logs.id, prio, ts, pid, tid, tag, msg,
-      process.name as process_name,
-      process.machine_id as machine_id, ${globMatch}
-      from android_logs
-      left join thread using(utid)
-      left join process using(upid)
-      where prio >= ${filter.minimumLevel}`;
-  if (filter.tags.length) {
-    if (filter.isTagRegex) {
-      const tagGlobClauses = filter.tags.map(
-        (pattern) => `tag glob ${escapeRegexQuery(pattern)}`,
+          checked: !machineExcludeList.some((x) => x === uMachineId),
+        }),
       );
-      selectedRows += ` and (${tagGlobClauses.join(' OR ')})`;
-    } else {
-      selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
-    }
-  }
-  if (filter.machineExcludeList.length) {
-    selectedRows += ` and process.machine_id not in (${filter.machineExcludeList.join(',')})`;
-  }
 
-  // We extract only the rows which will be visible.
-  await engine.query(`create perfetto table filtered_logs as select *
-    from (${selectedRows})
-    where is_msg_chosen is 1 or is_process_chosen is 1`);
-
-  return {
-    async [Symbol.asyncDispose]() {
-      await engine.query('drop table filtered_logs');
+      return m(PopupMultiSelect, {
+        label: 'Filter by machine',
+        icon: Icons.Filter,
+        position: PopupPosition.Top,
+        options,
+        onChange: (diffs: MultiSelectDiff[]) => {
+          const newList = new Set<number>(machineExcludeList);
+          diffs.forEach(({checked, id}) => {
+            const machineId = Number(id);
+            if (checked) {
+              newList.delete(machineId);
+            } else {
+              newList.add(machineId);
+            }
+          });
+          filterStore.edit((draft) => {
+            draft.machineExcludeList = Array.from(newList);
+          });
+        },
+      });
     },
   };
 }
 
-function serializeTags(tags: string[]) {
-  return tags.map((tag) => escapeQuery(tag)).join();
-}
-
-function composeGlobMatch(isCollaped: boolean, textEntry: string) {
-  if (isCollaped) {
-    // If the entries are collapsed, we won't highlight any lines.
-    return `msg glob ${escapeSearchQuery(textEntry)} as is_msg_chosen,
-      (process.name is not null and process.name glob ${escapeSearchQuery(
-        textEntry,
-      )}) as is_process_chosen,
-      0 as is_msg_highlighted,
-      0 as is_process_highlighted`;
-  } else if (!textEntry) {
-    // If there is no text entry, we will show all lines, but won't highlight.
-    // any.
-    return `1 as is_msg_chosen,
-      1 as is_process_chosen,
-      0 as is_msg_highlighted,
-      0 as is_process_highlighted`;
-  } else {
-    return `1 as is_msg_chosen,
-      1 as is_process_chosen,
-      msg glob ${escapeSearchQuery(textEntry)} as is_msg_highlighted,
-      (process.name is not null and process.name glob ${escapeSearchQuery(
-        textEntry,
-      )}) as is_process_highlighted`;
+export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
+  view({attrs}: m.CVnode<LogPanelAttrs>): m.Children {
+    const config = buildAndroidConfig(attrs.cache, attrs.filterStore);
+    const panelAttrs: SharedLogPanelAttrs = {
+      config,
+      filterStore: attrs.filterStore as Store<BaseLogFilteringCriteria>,
+      trace: attrs.trace,
+    };
+    return m(SharedLogPanel, panelAttrs);
   }
 }
