@@ -43,6 +43,8 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -473,8 +475,14 @@ void AndroidProbesParser::ParseAndroidLogEvent(int64_t ts,
 
   // Log events are NOT required to be sorted by trace_time. The virtual table
   // will take care of sorting on-demand.
-  context_->storage->mutable_android_log_table()->Insert(
-      {ts, utid, prio, tag_id, msg_id});
+  tables::LogTable::Row row;
+  row.ts = ts;
+  row.utid = tid ? std::make_optional(utid) : std::nullopt;
+  row.prio = static_cast<uint32_t>(prio);
+  row.log_source = context_->storage->InternString("android");
+  row.tag = evt.has_tag() ? std::make_optional(tag_id) : std::nullopt;
+  row.msg = msg_id;
+  context_->storage->mutable_log_table()->Insert(row);
 }
 
 void AndroidProbesParser::ParseAndroidLogStats(protozero::ConstBytes blob) {

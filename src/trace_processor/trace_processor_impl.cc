@@ -142,6 +142,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
 #include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
+#include "src/trace_processor/tables/log_tables_py.h"       // IWYU pragma: keep
 #include "src/trace_processor/tables/memory_tables_py.h"    // IWYU pragma: keep
 #include "src/trace_processor/tables/metadata_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
@@ -441,7 +442,7 @@ uint64_t GetBoundsMutationCount(const TraceStorage& storage) {
          storage.slice_table().mutations() +
          storage.heap_profile_allocation_table().mutations() +
          storage.thread_state_table().mutations() +
-         storage.android_log_table().mutations() +
+         storage.log_table().mutations() +
          storage.heap_graph_object_table().mutations() +
          storage.perf_sample_table().mutations() +
          storage.instruments_sample_table().mutations() +
@@ -479,7 +480,7 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts() + it.dur(), end_ns);
   }
-  for (auto it = storage.android_log_table().IterateRows(); it; ++it) {
+  for (auto it = storage.log_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
@@ -1121,7 +1122,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_android_dumpstate_table());
   AddStaticTable(tables,
                  storage->mutable_android_game_intervenion_list_table());
-  AddStaticTable(tables, storage->mutable_android_log_table());
+  AddStaticTable(tables, storage->mutable_log_table());
   AddStaticTable(tables, storage->mutable_build_flags_table());
   AddStaticTable(tables, storage->mutable_modules_table());
   AddStaticTable(tables, storage->mutable_clock_snapshot_table());

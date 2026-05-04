@@ -14,9 +14,9 @@
 -- limitations under the License.
 --
 SELECT count(*) AS cnt FROM android_logs UNION ALL
-SELECT count(*) AS cnt FROM android_logs WHERE prio = 3 UNION ALL
-SELECT count(*) AS cnt FROM android_logs WHERE prio > 4 UNION ALL
-SELECT count(*) AS cnt FROM android_logs WHERE tag = 'screen_toggled' UNION ALL
-SELECT count(*) AS cnt FROM android_logs WHERE tag GLOB '*_pss' UNION ALL
-SELECT count(*) AS cnt FROM android_logs WHERE msg GLOB '*i2c?write*' OR msg GLOB '*I2C?Write*' UNION ALL
-SELECT count(*) AS cnt FROM android_logs WHERE ts >= 1510113924391 AND ts < 1512610021879;
+SELECT count(*) AS cnt FROM android_logs AND prio = 3 UNION ALL
+SELECT count(*) AS cnt FROM android_logs AND prio > 4 UNION ALL
+SELECT count(*) AS cnt FROM android_logs AND tag = 'screen_toggled' UNION ALL
+SELECT count(*) AS cnt FROM android_logs AND tag GLOB '*_pss' UNION ALL
+SELECT count(*) AS cnt FROM android_logs AND msg GLOB '*i2c?write*' OR msg GLOB '*I2C?Write*' UNION ALL
+SELECT count(*) AS cnt FROM android_logs AND ts >= 1510113924391 AND ts < 1512610021879;

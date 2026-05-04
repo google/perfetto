@@ -290,21 +290,96 @@ SELECT
   id AS perf_session_id
 FROM __intrinsic_perf_session;
 
--- Log entries from Android logcat.
+-- Log entries from all sources (Android logcat, journald, etc.).
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW logs (
+  -- Which row in the table the log corresponds to.
+  id ID,
+  -- Timestamp of the log entry.
+  ts TIMESTAMP,
+  -- Thread writing the log entry (nullable).
+  utid JOINID(thread.id),
+  -- Priority. Android: 3=DEBUG..6=ERROR. Journald/syslog: 0=EMERG..7=DEBUG.
+  prio LONG,
+  -- Source of the log entry: 'android' or 'journald'.
+  log_source STRING,
+  -- Tag / SYSLOG_IDENTIFIER of the log entry.
+  tag STRING,
+  -- Content of the log entry.
+  msg STRING,
+  -- Args for source-specific metadata.
+  arg_set_id ARGSETID
+) AS
+SELECT
+  id,
+  ts,
+  utid,
+  prio,
+  log_source,
+  tag,
+  msg,
+  arg_set_id
+FROM __intrinsic_logs;
+
+-- Journald log entries from the linux.journald data source.
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW journald_logs (
+  -- Which row in the table the log corresponds to.
+  id ID,
+  -- Timestamp in nanoseconds.
+  ts TIMESTAMP,
+  -- Thread id in the trace (nullable).
+  utid JOINID(thread.id),
+  -- Syslog priority (0=EMERG, 7=DEBUG).
+  prio LONG,
+  -- SYSLOG_IDENTIFIER (program name / tag, nullable).
+  tag STRING,
+  -- Log message text.
+  msg STRING,
+  -- User ID (nullable).
+  uid LONG,
+  -- Process comm name (nullable).
+  comm STRING,
+  -- Systemd unit name (nullable).
+  systemd_unit STRING,
+  -- Hostname (nullable).
+  hostname STRING,
+  -- Transport method (nullable).
+  transport STRING
+) AS
+SELECT
+  l.id,
+  l.ts,
+  l.utid,
+  l.prio,
+  l.tag,
+  l.msg,
+  CAST(extract_arg(l.arg_set_id, 'uid') AS INTEGER) AS uid,
+  extract_arg(l.arg_set_id, 'comm') AS comm,
+  extract_arg(l.arg_set_id, 'systemd_unit') AS systemd_unit,
+  extract_arg(l.arg_set_id, 'hostname') AS hostname,
+  extract_arg(l.arg_set_id, 'transport') AS transport
+FROM __intrinsic_logs AS l
+WHERE
+  l.log_source = 'journald';
+
+-- Android log entries from logcat or bugreport.
 --
 -- NOTE: this table is not sorted by timestamp.
 CREATE PERFETTO VIEW android_logs (
   -- Which row in the table the log corresponds to.
   id ID,
-  -- Timestamp of log entry.
+  -- Timestamp in nanoseconds.
   ts TIMESTAMP,
-  -- Thread writing the log entry.
+  -- Thread id in the trace (nullable).
   utid JOINID(thread.id),
-  -- Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.
+  -- Android log priority (3=DEBUG, 4=INFO, 5=WARN, 6=ERROR, 7=FATAL).
   prio LONG,
-  -- Tag of the log entry.
+  -- Log tag.
   tag STRING,
-  -- Content of the log entry
+  -- Log message text.
   msg STRING
 ) AS
 SELECT
@@ -314,7 +389,9 @@ SELECT
   prio,
   tag,
   msg
-FROM __intrinsic_android_logs;
+FROM __intrinsic_logs
+WHERE
+  log_source = 'android';
 
 -- Contains flow events linking slices.
 CREATE PERFETTO VIEW flow (

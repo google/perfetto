@@ -30,6 +30,7 @@
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -264,6 +265,10 @@ class ArgsTracker {
 
   BoundInserter AddArgsTo(tables::TraceImportLogsTable::Id id) {
     return AddArgsTo(context_->storage->mutable_trace_import_logs_table(), id);
+  }
+
+  BoundInserter AddArgsTo(tables::LogTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_log_table(), id);
   }
 
   // Returns a CompactArgSet which contains the args inserted into this

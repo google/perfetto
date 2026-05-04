@@ -2320,10 +2320,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   EXPECT_EQ(rr_0->ts(), 1010000);
   EXPECT_EQ(rr_0->track_id(), track);
 
-  EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
-  EXPECT_EQ(context_.storage->android_log_table()[0].ts(), 1010000);
-  EXPECT_EQ(context_.storage->android_log_table()[0].msg(), body_1);
-  EXPECT_EQ(context_.storage->android_log_table()[0].tag(), source_location_id);
+  EXPECT_GT(context_.storage->log_table().row_count(), 0u);
+  EXPECT_EQ(context_.storage->log_table()[0].ts(), 1010000);
+  EXPECT_EQ(context_.storage->log_table()[0].msg(), body_1);
+  EXPECT_EQ(context_.storage->log_table()[0].tag(),
+            std::make_optional(source_location_id));
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {

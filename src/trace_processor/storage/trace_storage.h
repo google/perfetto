@@ -436,11 +436,11 @@ class TraceStorage {
     return mutable_table<tables::AndroidCpuPerUidTrackTable>();
   }
 
-  const tables::AndroidLogTable& android_log_table() const {
-    return table<tables::AndroidLogTable>();
+  const tables::LogTable& log_table() const {
+    return table<tables::LogTable>();
   }
-  tables::AndroidLogTable* mutable_android_log_table() {
-    return mutable_table<tables::AndroidLogTable>();
+  tables::LogTable* mutable_log_table() {
+    return mutable_table<tables::LogTable>();
   }
 
   const tables::AndroidDumpstateTable& android_dumpstate_table() const {
