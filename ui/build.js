@@ -77,6 +77,13 @@ const pjoin = path.join;
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
+const DEFAULT_CONFIG_PATH = pjoin(ROOT_DIR, 'ui/config/default.json');
+const CONFIG_KEYS = new Set([
+  'appTitle',
+  'errorMessage',
+  'faviconPath',
+  'includePlugins',
+]);
 const DEFAULT_PORT = 10000;
 
 const cfg = {
@@ -117,6 +124,8 @@ const cfg = {
   outBigtraceDistDir: '',
   outOpenPerfettoTraceDistDir: '',
   lockFile: '',
+  config: null,
+  configPath: '',
 };
 
 const RULES = [
@@ -166,6 +175,70 @@ function loadDevServerEnvFile() {
     const key = trimmed.slice(0, eqIdx).trim();
     const value = trimmed.slice(eqIdx + 1).trim();
     if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
+// Reads a deployment config JSON, validates that only known keys are used, and
+// fills in defaults from ui/config/default.json. Embedders point --config at
+// their own JSON; missing keys fall back to the defaults so the file only
+// needs to override what the deployment actually changes.
+function loadDeploymentConfig(configPath) {
+  const defaults = JSON.parse(fs.readFileSync(DEFAULT_CONFIG_PATH, 'utf8'));
+  let overrides = {};
+  if (configPath !== DEFAULT_CONFIG_PATH) {
+    if (!fs.existsSync(configPath)) {
+      console.error(`--config: file not found: ${configPath}`);
+      process.exit(1);
+    }
+    overrides = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+  for (const key of Object.keys(overrides)) {
+    if (!CONFIG_KEYS.has(key)) {
+      console.error(`--config: unknown key '${key}' in ${configPath}`);
+      process.exit(1);
+    }
+  }
+  const merged = {...defaults, ...overrides};
+
+  // Resolve includePlugins (if set) against the config-file directory so
+  // embedder configs can reference allowlists with relative paths.
+  if (merged.includePlugins !== null && merged.includePlugins !== undefined) {
+    const resolved = path.resolve(path.dirname(configPath), merged.includePlugins);
+    if (!fs.existsSync(resolved)) {
+      console.error(`--config: includePlugins file not found: ${resolved}`);
+      process.exit(1);
+    }
+    merged.includePluginsPath = resolved;
+    validateIncludePluginsList(resolved);
+  } else {
+    merged.includePluginsPath = null;
+  }
+  return merged;
+}
+
+// Cross-checks every basename listed in the include-list against the union
+// of //ui/src/plugins and //ui/src/core_plugins, so a typo can't silently
+// drop a plugin from the bundle.
+function validateIncludePluginsList(listPath) {
+  const requested = new Set();
+  for (const raw of fs.readFileSync(listPath, 'utf8').split('\n')) {
+    const stripped = raw.split('#', 1)[0].trim();
+    if (stripped) requested.add(stripped);
+  }
+  const available = new Set();
+  for (const dir of ['ui/src/plugins', 'ui/src/core_plugins']) {
+    const abs = pjoin(ROOT_DIR, dir);
+    for (const entry of fs.readdirSync(abs)) {
+      const indexPath = pjoin(abs, entry, 'index.ts');
+      if (fs.existsSync(indexPath)) available.add(entry);
+    }
+  }
+  const missing = [...requested].filter((n) => !available.has(n)).sort();
+  if (missing.length > 0) {
+    console.error(
+        `--config: includePlugins entries do not match any plugin in ` +
+        `ui/src/plugins or ui/src/core_plugins: ${missing.join(', ')}`);
+    process.exit(1);
   }
 }
 
@@ -230,6 +303,9 @@ Env-var overrides:
   });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
+  });
+  parser.add_argument('--config', {
+    help: 'Path to a JSON deployment config (defaults to ui/config/default.json)',
   });
 
   // Load ~/.config/perfetto/ui-dev-server.env defaults, then map any
@@ -309,6 +385,8 @@ Env-var overrides:
   cfg.check = !!args.typecheck;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
+  cfg.configPath = path.resolve(args.config || DEFAULT_CONFIG_PATH);
+  cfg.config = loadDeploymentConfig(cfg.configPath);
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
@@ -485,8 +563,17 @@ function runTests(cfgFile) {
   }
 }
 
-function cpHtml(src, filename) {
+function cpHtml(src, filename, substitutions) {
   let html = fs.readFileSync(src).toString();
+  // Apply deployment-config placeholder substitutions (only for files that
+  // contain the placeholders). Done before the version-map patch so the
+  // archived /v1.2.3/ copy and the live root copy stay in sync.
+  if (substitutions) {
+    for (const [placeholder, value] of Object.entries(substitutions)) {
+      html = html.split(placeholder).join(value);
+    }
+  }
+
   // First copy the html as-is into the dist/v1.2.3/ directory. This is
   // only used for archival purporses, so one can open
   // ui.perfetto.dev/v1.2.3/ to skip the auto-update and channel logic.
@@ -511,7 +598,11 @@ function cpHtml(src, filename) {
 }
 
 function copyIndexHtml(src) {
-  addTask(cpHtml, [src, 'index.html']);
+  addTask(cpHtml, [src, 'index.html', {
+    '__APP_TITLE__': cfg.config.appTitle,
+    '__ERROR_MESSAGE__': cfg.config.errorMessage,
+    '__FAVICON_PATH__': cfg.config.faviconPath,
+  }]);
 }
 
 function copyBigtraceHtml(src) {
@@ -605,6 +696,9 @@ function generateImports(dir, name) {
   const dstTs = pjoin(ROOT_DIR, 'ui/src/gen', name);
   const inputDir = pjoin(ROOT_DIR, dir);
   const args = [GEN_IMPORTS_SCRIPT, inputDir, '--out', dstTs];
+  if (cfg.config.includePluginsPath) {
+    args.push('--include-list', cfg.config.includePluginsPath);
+  }
   addTask(exec, ['python3', args]);
 }
 

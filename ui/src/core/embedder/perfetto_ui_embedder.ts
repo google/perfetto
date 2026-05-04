@@ -24,4 +24,6 @@ export class PerfettoUiEmbedder implements Embedder {
   };
   readonly brandingBadge = undefined;
   readonly defaultPlugins = defaultPlugins;
+  readonly homePage = undefined;
+  readonly brandLogo = undefined;
 }

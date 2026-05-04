@@ -21,4 +21,6 @@ export class DefaultEmbedder implements Embedder {
   readonly extensionServer = undefined;
   readonly brandingBadge = undefined;
   readonly defaultPlugins = defaultPlugins;
+  readonly homePage = undefined;
+  readonly brandLogo = undefined;
 }

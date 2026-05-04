@@ -59,9 +59,23 @@ def plugin_has_css(dir):
   return os.path.isdir(dir) and os.path.exists(os.path.join(dir, 'styles.scss'))
 
 
-def gen_imports(input_dir, output_path):
+def parse_include_list(path):
+  """Reads a plugin allowlist file. One basename per line; blank lines and
+  lines starting with '#' are ignored. Returns the set of allowed names."""
+  allowed = set()
+  with open(path, 'r') as f:
+    for line in f:
+      stripped = line.split('#', 1)[0].strip()
+      if stripped:
+        allowed.add(stripped)
+  return allowed
+
+
+def gen_imports(input_dir, output_path, include_list=None):
   paths = [os.path.join(input_dir, p) for p in os.listdir(input_dir)]
   paths = [p for p in paths if is_plugin_dir(p)]
+  if include_list is not None:
+    paths = [p for p in paths if os.path.basename(p) in include_list]
   paths.sort()
 
   output_dir = os.path.dirname(output_path)
@@ -88,9 +102,11 @@ def gen_imports(input_dir, output_path):
   return True
 
 
-def gen_css_import(input_dir, output_path):
+def gen_css_import(input_dir, output_path, include_list=None):
   paths = [os.path.join(input_dir, p) for p in os.listdir(input_dir)]
   paths = [p for p in paths if plugin_has_css(p)]
+  if include_list is not None:
+    paths = [p for p in paths if os.path.basename(p) in include_list]
   paths.sort()
 
   output_dir = os.path.dirname(output_path)
@@ -112,9 +128,18 @@ def main():
       description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('INPUT')
   parser.add_argument('--out', required=True)
+  parser.add_argument(
+      '--include-list',
+      help='Path to a file listing plugin directory basenames to include '
+      '(one per line; blank lines and # comments allowed). Plugins not '
+      'in the list are silently dropped, so callers must validate the '
+      'list contents themselves.')
   args = parser.parse_args()
   input_dir = args.INPUT
   output_path = args.out
+  include_list = (
+      parse_include_list(args.include_list)
+      if args.include_list is not None else None)
 
   if not os.path.isdir(input_dir):
     print(f'INPUT argument {input_dir} must be a directory')
@@ -128,8 +153,8 @@ def main():
     print(f'--out ({output_path}) should not be a directory')
     exit(1)
 
-  success = gen_imports(input_dir, output_path)
-  success = success | gen_css_import(input_dir, output_path)
+  success = gen_imports(input_dir, output_path, include_list)
+  success = success | gen_css_import(input_dir, output_path, include_list)
   return 0 if success else 1
 
 

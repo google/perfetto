@@ -67,7 +67,7 @@ export class UiMain implements m.ClassComponent {
         state: isSomethingLoading ? 'indeterminate' : 'none',
       }),
       m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
-      m(CookieConsent),
+      app.embedder.analyticsId !== undefined && m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
       showStatusBarFlag.get() && renderStatusBar(app),
       app.perfDebugging.renderPerfStats(),

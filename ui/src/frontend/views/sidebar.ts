@@ -80,7 +80,7 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
       {
         className: `pf-sidebar__header--${getCurrentChannel()}`,
       },
-      m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
+      this.renderBrandLogo(app),
       app.embedder.brandingBadge &&
         m(
           'span.pf-sidebar__branding-badge',
@@ -105,6 +105,14 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
         m(Icon, {icon: 'menu'}),
       ),
     );
+  }
+
+  private renderBrandLogo(app: AppImpl): m.Children {
+    const logo = app.embedder.brandLogo;
+    if (logo === undefined) {
+      return m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`);
+    }
+    return m('img.pf-sidebar__brand', {src: logo.src, alt: logo.alt});
   }
 
   private renderSidebarContent(app: AppImpl) {

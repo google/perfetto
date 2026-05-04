@@ -12,6 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {App} from '../../public/app';
+
+/**
+ * Attrs passed to an embedder-supplied home-page component. Carrying the
+ * `App` instance via Mithril attrs lets embedders use commands/settings
+ * without importing `AppImpl`, which would form a circular import (the
+ * embedder is referenced from `AppImpl` via `createEmbedder`).
+ */
+export interface HomePageAttrs {
+  readonly app: App;
+}
+
 /**
  * Configuration for an embedder-provided default extension server.
  */
@@ -62,4 +75,14 @@ export interface Embedder {
 
   // Returns the list of plugin IDs that should be enabled by default.
   readonly defaultPlugins: ReadonlyArray<string>;
+
+  // Mithril component rendered at route '/'. Receives the running App via
+  // attrs so embedder-supplied components can reach commands/settings/the
+  // router without importing AppImpl. Undefined falls back to the
+  // built-in HomePage.
+  readonly homePage: m.ComponentTypes<HomePageAttrs> | undefined;
+
+  // Sidebar wordmark image. Undefined falls back to the bundled Perfetto
+  // wordmark; embedders override to swap it out.
+  readonly brandLogo: {readonly src: string; readonly alt?: string} | undefined;
 }

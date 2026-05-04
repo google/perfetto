@@ -358,7 +358,11 @@ function onCssLoaded(app: AppImpl) {
   document.body.innerHTML = '';
 
   const pages = app.pages;
-  pages.registerPage({route: '/', render: () => m(HomePage)});
+  const homePage = app.embedder.homePage;
+  pages.registerPage({
+    route: '/',
+    render: () => (homePage ? m(homePage, {app}) : m(HomePage)),
+  });
   const router = new Router();
   router.onRouteChanged = routeChange;
 
