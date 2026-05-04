@@ -15,13 +15,19 @@
 import {Embedder} from './embedder';
 import {DefaultEmbedder} from './default_embedder';
 import {PerfettoUiEmbedder} from './perfetto_ui_embedder';
+import {EXTERNAL_EMBEDDER} from './external_embedder';
 
 /**
- * Returns the appropriate Embedder based on the current origin.
- * Uses PerfettoUiEmbedder when running on ui.perfetto.dev or localhost,
- * and DefaultEmbedder otherwise.
+ * Returns the appropriate Embedder. A deployment-supplied external
+ * embedder (provided by overriding the contents of external_embedder.ts)
+ * is used unconditionally when present. Otherwise selects between
+ * PerfettoUiEmbedder for ui.perfetto.dev / localhost and
+ * DefaultEmbedder for everything else.
  */
 export function createEmbedder(): Embedder {
+  if (EXTERNAL_EMBEDDER !== undefined) {
+    return EXTERNAL_EMBEDDER;
+  }
   const origin = self.location?.origin ?? '';
   if (
     origin.endsWith('.perfetto.dev') ||
