@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/v8_additional_modules.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -56,6 +57,7 @@ namespace perfetto::trace_processor {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
     : context_(TraceProcessorContext::CreateRootContext(cfg)) {
+  context()->register_additional_proto_modules = &RegisterV8Modules;
   context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
       kProtoTraceType);
   context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(

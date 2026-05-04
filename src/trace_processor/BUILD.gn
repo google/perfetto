@@ -137,6 +137,7 @@ source_set("storage_minimal") {
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
     "importers/proto:minimal",
+    "importers/proto:v8_importer",
     "importers/systrace:systrace_line",
     "sorter",
     "storage",

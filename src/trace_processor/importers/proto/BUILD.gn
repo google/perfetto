@@ -124,6 +124,42 @@ source_set("minimal") {
   ]
 }
 
+source_set("v8_importer") {
+  sources = [
+    "jit_tracker.cc",
+    "jit_tracker.h",
+    "string_encoding_utils.cc",
+    "string_encoding_utils.h",
+    "v8_additional_modules.cc",
+    "v8_additional_modules.h",
+    "v8_module.cc",
+    "v8_module.h",
+    "v8_sequence_state.cc",
+    "v8_sequence_state.h",
+    "v8_tracker.cc",
+    "v8_tracker.h",
+  ]
+  deps = [
+    ":minimal",
+    ":packet_sequence_state_generation_hdr",
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/chrome:zero",
+    "../../../base",
+    "../../../protozero",
+    "../../containers",
+    "../../storage",
+    "../../tables",
+    "../../types",
+    "../../util:build_id",
+    "../../util:profiler_util",
+    "../common",
+    "../common:parser_types",
+    "../common:v8_profile_parser",
+  ]
+}
+
 source_set("full") {
   sources = [
     "additional_modules.cc",
@@ -162,8 +198,6 @@ source_set("full") {
     "heap_graph_module.h",
     "heap_graph_tracker.cc",
     "heap_graph_tracker.h",
-    "jit_tracker.cc",
-    "jit_tracker.h",
     "metadata_module.cc",
     "metadata_module.h",
     "pigweed_detokenizer.cc",
@@ -176,20 +210,12 @@ source_set("full") {
     "profile_module.h",
     "statsd_module.cc",
     "statsd_module.h",
-    "string_encoding_utils.cc",
-    "string_encoding_utils.h",
     "system_probes_module.cc",
     "system_probes_module.h",
     "system_probes_parser.cc",
     "system_probes_parser.h",
     "translation_table_module.cc",
     "translation_table_module.h",
-    "v8_module.cc",
-    "v8_module.h",
-    "v8_sequence_state.cc",
-    "v8_sequence_state.h",
-    "v8_tracker.cc",
-    "v8_tracker.h",
     "vulkan_memory_tracker.cc",
     "vulkan_memory_tracker.h",
   ]
@@ -199,6 +225,7 @@ source_set("full") {
     ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
+    ":v8_importer",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced:sys_stats_counters",
     "../../../../protos/perfetto/common:zero",
