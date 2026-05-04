@@ -41,7 +41,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/v8_profile_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser.h"
@@ -378,13 +377,13 @@ class SystraceSink : public TraceSorter::Sink<SystraceLine, SystraceSink> {
 };
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
  public:
-  explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
+  explicit V8Sink(V8CpuProfileTracker* tracker) : tracker_(tracker) {}
   void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
     tracker_->Parse(ts, data);
   }
 
  private:
-  LegacyV8CpuProfileTracker* tracker_;
+  V8CpuProfileTracker* tracker_;
 };
 
 }  // namespace
@@ -484,7 +483,7 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
 JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       parser_(ctx),
-      v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(ctx)),
+      v8_tracker_(std::make_unique<V8CpuProfileTracker>(ctx)),
       json_stream_(
           context_->sorter->CreateStream(std::make_unique<JsonSink>(&parser_))),
       systrace_stream_(context_->sorter->CreateStream(

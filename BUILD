@@ -4862,7 +4862,6 @@ perfetto_cc_library(
         "src/trace_processor/importers/common/gpu_tracker.cc",
         "src/trace_processor/importers/common/import_logs_tracker.cc",
         "src/trace_processor/importers/common/jit_cache.cc",
-        "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.cc",
         "src/trace_processor/importers/common/machine_tracker.cc",
         "src/trace_processor/importers/common/mapping_tracker.cc",
         "src/trace_processor/importers/common/metadata_tracker.cc",
@@ -4879,6 +4878,7 @@ perfetto_cc_library(
         "src/trace_processor/importers/common/trace_file_tracker.cc",
         "src/trace_processor/importers/common/track_compressor.cc",
         "src/trace_processor/importers/common/track_tracker.cc",
+        "src/trace_processor/importers/common/v8_cpu_profile_tracker.cc",
         "src/trace_processor/importers/common/virtual_memory_mapping.cc",
     ],
     hdrs = [
@@ -4898,7 +4898,6 @@ perfetto_cc_library(
         "src/trace_processor/importers/common/gpu_tracker.h",
         "src/trace_processor/importers/common/import_logs_tracker.h",
         "src/trace_processor/importers/common/jit_cache.h",
-        "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h",
         "src/trace_processor/importers/common/machine_tracker.h",
         "src/trace_processor/importers/common/mapping_tracker.h",
         "src/trace_processor/importers/common/metadata_tracker.h",
@@ -4919,6 +4918,7 @@ perfetto_cc_library(
         "src/trace_processor/importers/common/tracks.h",
         "src/trace_processor/importers/common/tracks_common.h",
         "src/trace_processor/importers/common/tracks_internal.h",
+        "src/trace_processor/importers/common/v8_cpu_profile_tracker.h",
         "src/trace_processor/importers/common/virtual_memory_mapping.h",
     ],
     deps = [

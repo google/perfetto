@@ -25,8 +25,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -110,7 +110,7 @@ class TrackEventTokenizer {
   TrackEventTracker* const track_event_tracker_;
   ProtoImporterModuleContext* const module_context_;
 
-  std::unique_ptr<LegacyV8CpuProfileTracker> v8_tracker_;
+  std::unique_ptr<V8CpuProfileTracker> v8_tracker_;
   std::unique_ptr<TraceSorter::Stream<LegacyV8CpuProfileEvent>> v8_stream_;
 
   const StringId counter_name_thread_time_id_;

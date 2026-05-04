@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_LEGACY_V8_CPU_PROFILE_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_LEGACY_V8_CPU_PROFILE_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_V8_CPU_PROFILE_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_V8_CPU_PROFILE_TRACKER_H_
 
 #include <cstdint>
 #include <optional>
@@ -36,12 +36,12 @@
 namespace perfetto::trace_processor {
 
 // Stores interned callsites for given pid for legacy v8 samples.
-class LegacyV8CpuProfileTracker
+class V8CpuProfileTracker
     : public TraceSorter::Sink<LegacyV8CpuProfileEvent,
-                               LegacyV8CpuProfileTracker> {
+                               V8CpuProfileTracker> {
  public:
-  explicit LegacyV8CpuProfileTracker(TraceProcessorContext*);
-  ~LegacyV8CpuProfileTracker() override;
+  explicit V8CpuProfileTracker(TraceProcessorContext*);
+  ~V8CpuProfileTracker() override;
 
   void Parse(int64_t ts, LegacyV8CpuProfileEvent);
 
@@ -92,4 +92,4 @@ class LegacyV8CpuProfileTracker
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_LEGACY_V8_CPU_PROFILE_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_V8_CPU_PROFILE_TRACKER_H_
