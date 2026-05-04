@@ -1,3 +1,17 @@
+-- Copyright 2025 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 -- Provides unified access to Android Audio Track events from ATrace.
 --
 -- Suggested minimal config:
@@ -12,48 +26,7 @@
 --     }
 -- }
 
--- Function to extract a field's value from the audio atrace key-value string.
--- Example format: { key1=value1 key2="value2" event="type" }
--- Updated to handle values without quotes and potential missing spaces more robustly.
-CREATE PERFETTO FUNCTION android_extract_audio_arg(
-    -- The raw atrace payload string containing key-value pairs.
-    atrace_payload STRING,
-    -- The name of the key to extract the value for.
-    key_name STRING
-)
--- @return The extracted argument value as STRING, with quotes trimmed. Returns NULL if the key is not found.
-RETURNS STRING AS
-SELECT
-  trim(
-    replace(
-      substr(
-        substr(
-          $atrace_payload,
-          instr($atrace_payload, $key_name || '=') + length($key_name || '=')
-        ),
-        1,
-        instr(
-          substr(
-            $atrace_payload,
-            instr($atrace_payload, $key_name || '=') + length($key_name || '=')
-          ) || ' ',
-          CASE
-            WHEN substr(
-              $atrace_payload,
-              instr($atrace_payload, $key_name || '=') + length($key_name || '='),
-              1
-            ) = '"'
-            THEN '" '
-            ELSE ' '
-          END
-        ) - 1
-      ),
-      '"',
-      ''
-    )
-  )
-WHERE
-  $atrace_payload GLOB '*' || $key_name || '=*';
+INCLUDE PERFETTO MODULE android.common.utils;
 
 -- Table for raw audio track interval events
 CREATE PERFETTO TABLE android_audio_track_interval_events (
@@ -116,22 +89,22 @@ SELECT
   ts,
   track_name,
   -- Extract common fields
-  android_extract_audio_arg(atrace_payload, 'event') AS event_type,
-  CAST(android_extract_audio_arg(atrace_payload, 'uid') AS LONG) AS uid,
-  CAST(android_extract_audio_arg(atrace_payload, 'pid') AS LONG) AS pid,
-  android_extract_audio_arg(atrace_payload, 'contentType') AS content_type,
-  android_extract_audio_arg(atrace_payload, 'usage') AS usage,
-  android_extract_audio_arg(atrace_payload, 'devices') AS devices,
-  android_extract_audio_arg(atrace_payload, 'flags') AS flags,
-  android_extract_audio_arg(atrace_payload, 'format') AS format,
-  CAST(android_extract_audio_arg(atrace_payload, 'sampleRate') AS LONG) AS sample_rate,
-  CAST(android_extract_audio_arg(atrace_payload, 'channelMask') AS LONG) AS channel_mask,
-  CAST(android_extract_audio_arg(atrace_payload, 'frameCount') AS LONG) AS frame_count,
+  android_common_extract_key_value_arg(atrace_payload, 'event') AS event_type,
+  CAST(android_common_extract_key_value_arg(atrace_payload, 'uid') AS LONG) AS uid,
+  CAST(android_common_extract_key_value_arg(atrace_payload, 'pid') AS LONG) AS pid,
+  android_common_extract_key_value_arg(atrace_payload, 'contentType') AS content_type,
+  android_common_extract_key_value_arg(atrace_payload, 'usage') AS usage,
+  android_common_extract_key_value_arg(atrace_payload, 'devices') AS devices,
+  android_common_extract_key_value_arg(atrace_payload, 'flags') AS flags,
+  android_common_extract_key_value_arg(atrace_payload, 'format') AS format,
+  CAST(android_common_extract_key_value_arg(atrace_payload, 'sampleRate') AS LONG) AS sample_rate,
+  CAST(android_common_extract_key_value_arg(atrace_payload, 'channelMask') AS LONG) AS channel_mask,
+  CAST(android_common_extract_key_value_arg(atrace_payload, 'frameCount') AS LONG) AS frame_count,
   -- Thread specific fields
-  android_extract_audio_arg(atrace_payload, 'thread.type') AS thread_type,
-  CAST(android_extract_audio_arg(atrace_payload, 'thread.id') AS LONG) AS thread_id,
-  CAST(android_extract_audio_arg(atrace_payload, 'thread.sampleRate') AS LONG) AS thread_sample_rate,
-  android_extract_audio_arg(atrace_payload, 'thread.format') AS thread_format
+  android_common_extract_key_value_arg(atrace_payload, 'thread.type') AS thread_type,
+  CAST(android_common_extract_key_value_arg(atrace_payload, 'thread.id') AS LONG) AS thread_id,
+  CAST(android_common_extract_key_value_arg(atrace_payload, 'thread.sampleRate') AS LONG) AS thread_sample_rate,
+  android_common_extract_key_value_arg(atrace_payload, 'thread.format') AS thread_format
 -- Add other fields from the example payload as needed
 FROM android_audio_track_interval_events;
 
