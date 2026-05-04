@@ -21,6 +21,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 # union of the rows in every device folder for that curve type.
 _cpu_1d_csvs = [
   "data/MT6897/cpu_1d.csv",
+  "data/SM8750/cpu_1d.csv",
   "data/SXR2230P/cpu_1d.csv",
   "data/Tensor/cpu_1d.csv",
   "data/Tensor_G4/cpu_1d.csv",
