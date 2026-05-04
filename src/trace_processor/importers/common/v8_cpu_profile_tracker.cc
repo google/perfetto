@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
+#include "src/trace_processor/importers/common/v8_cpu_profile_tracker.h"
 
 #include <cstdint>
 #include <optional>
@@ -38,14 +38,14 @@
 
 namespace perfetto::trace_processor {
 
-LegacyV8CpuProfileTracker::LegacyV8CpuProfileTracker(
+V8CpuProfileTracker::V8CpuProfileTracker(
     TraceProcessorContext* context)
     : context_(context) {}
 
-LegacyV8CpuProfileTracker::~LegacyV8CpuProfileTracker() = default;
+V8CpuProfileTracker::~V8CpuProfileTracker() = default;
 
-void LegacyV8CpuProfileTracker::Parse(int64_t ts,
-                                      LegacyV8CpuProfileEvent event) {
+void V8CpuProfileTracker::Parse(int64_t ts,
+                                LegacyV8CpuProfileEvent event) {
   base::Status status =
       AddSample(ts, event.session_id, event.pid, event.tid, event.callsite_id);
   if (!status.ok()) {
@@ -54,9 +54,9 @@ void LegacyV8CpuProfileTracker::Parse(int64_t ts,
   }
 }
 
-void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
-                                                           uint32_t pid,
-                                                           int64_t ts) {
+void V8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
+                                                     uint32_t pid,
+                                                     int64_t ts) {
   auto [it, inserted] = state_by_session_and_pid_.Insert(
       std::make_pair(session_id, pid),
       State{ts, base::FlatHashMap<uint32_t, CallsiteId>(),
@@ -67,7 +67,7 @@ void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
   }
 }
 
-base::Status LegacyV8CpuProfileTracker::AddCallsite(
+base::Status V8CpuProfileTracker::AddCallsite(
     uint64_t session_id,
     uint32_t pid,
     uint32_t raw_callsite_id,
@@ -158,7 +158,7 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
   return base::OkStatus();
 }
 
-base::StatusOr<int64_t> LegacyV8CpuProfileTracker::AddDeltaAndGetTs(
+base::StatusOr<int64_t> V8CpuProfileTracker::AddDeltaAndGetTs(
     uint64_t session_id,
     uint32_t pid,
     int64_t delta_ts) {
@@ -171,11 +171,11 @@ base::StatusOr<int64_t> LegacyV8CpuProfileTracker::AddDeltaAndGetTs(
   return state->ts;
 }
 
-base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
-                                                  uint64_t session_id,
-                                                  uint32_t pid,
-                                                  uint32_t tid,
-                                                  uint32_t raw_callsite_id) {
+base::Status V8CpuProfileTracker::AddSample(int64_t ts,
+                                            uint64_t session_id,
+                                            uint32_t pid,
+                                            uint32_t tid,
+                                            uint32_t raw_callsite_id) {
   auto* state = state_by_session_and_pid_.Find(std::make_pair(session_id, pid));
   if (!state) {
     return base::ErrStatus("v8 callsite id does not exist: cannot add sample");

@@ -37,7 +37,6 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -70,13 +69,13 @@ using protos::pbzero::CounterDescriptor;
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
  public:
-  explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
+  explicit V8Sink(V8CpuProfileTracker* tracker) : tracker_(tracker) {}
   void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
     tracker_->Parse(ts, data);
   }
 
  private:
-  LegacyV8CpuProfileTracker* tracker_;
+  V8CpuProfileTracker* tracker_;
 };
 
 }  // namespace
@@ -88,7 +87,7 @@ TrackEventTokenizer::TrackEventTokenizer(
     : context_(context),
       track_event_tracker_(track_event_tracker),
       module_context_(module_context),
-      v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(context)),
+      v8_tracker_(std::make_unique<V8CpuProfileTracker>(context)),
       v8_stream_(context->sorter->CreateStream(
           std::make_unique<V8Sink>(v8_tracker_.get()))),
       counter_name_thread_time_id_(

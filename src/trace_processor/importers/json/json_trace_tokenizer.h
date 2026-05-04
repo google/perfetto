@@ -26,8 +26,8 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
@@ -134,7 +134,7 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
   TraceProcessorContext* const context_;
 
   JsonTraceParser parser_;
-  std::unique_ptr<LegacyV8CpuProfileTracker> v8_tracker_;
+  std::unique_ptr<V8CpuProfileTracker> v8_tracker_;
   std::unique_ptr<TraceSorter::Stream<JsonEvent>> json_stream_;
   std::unique_ptr<TraceSorter::Stream<SystraceLine>> systrace_stream_;
   std::unique_ptr<TraceSorter::Stream<LegacyV8CpuProfileEvent>> v8_stream_;

@@ -15721,7 +15721,6 @@ filegroup {
         "src/trace_processor/importers/common/gpu_tracker.cc",
         "src/trace_processor/importers/common/import_logs_tracker.cc",
         "src/trace_processor/importers/common/jit_cache.cc",
-        "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.cc",
         "src/trace_processor/importers/common/machine_tracker.cc",
         "src/trace_processor/importers/common/mapping_tracker.cc",
         "src/trace_processor/importers/common/metadata_tracker.cc",
@@ -15738,6 +15737,7 @@ filegroup {
         "src/trace_processor/importers/common/trace_file_tracker.cc",
         "src/trace_processor/importers/common/track_compressor.cc",
         "src/trace_processor/importers/common/track_tracker.cc",
+        "src/trace_processor/importers/common/v8_cpu_profile_tracker.cc",
         "src/trace_processor/importers/common/virtual_memory_mapping.cc",
     ],
 }

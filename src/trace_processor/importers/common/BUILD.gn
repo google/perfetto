@@ -45,8 +45,6 @@ source_set("common") {
     "import_logs_tracker.h",
     "jit_cache.cc",
     "jit_cache.h",
-    "legacy_v8_cpu_profile_tracker.cc",
-    "legacy_v8_cpu_profile_tracker.h",
     "machine_tracker.cc",
     "machine_tracker.h",
     "mapping_tracker.cc",
@@ -83,6 +81,8 @@ source_set("common") {
     "tracks.h",
     "tracks_common.h",
     "tracks_internal.h",
+    "v8_cpu_profile_tracker.cc",
+    "v8_cpu_profile_tracker.h",
     "virtual_memory_mapping.cc",
     "virtual_memory_mapping.h",
   ]
