@@ -20,3 +20,4 @@ export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 export const SLICE_TRACK_KIND = 'SliceTrack';
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
+export const JOURNALD_LOGS_TRACK_KIND = 'JournaldLogTrack';
