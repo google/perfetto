@@ -16,7 +16,14 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("battery") {
   sources = [
+    "app_wakelocks.sql",
+    "audio.sql",
     "charging_states.sql",
     "doze.sql",
+    "foreground_services.sql",
+    "freezer.sql",
+    "job_scheduler.sql",
+    "process_states.sql",
+    "standby_bucket.sql",
   ]
 }

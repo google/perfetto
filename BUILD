@@ -3689,8 +3689,15 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_battery_battery",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/app_wakelocks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/audio.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery/charging_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery/doze.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/foreground_services.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/freezer.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/job_scheduler.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/process_states.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery/standby_bucket.sql",
     ],
 )
 
