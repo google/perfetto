@@ -368,24 +368,29 @@ class TablesSched(TestSuite):
           table_name,
           root_utid
         FROM _thread_executing_span_critical_path_stack((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
-        WHERE ts = 1737500355691
+        WHERE ts = 1739957575056
         ORDER BY utid, id
         """,
         out=Csv("""
         "id","ts","dur","utid","stack_depth","name","table_name","root_utid"
-        4271,1737500355691,1456753,1477,5,"bindApplication","slice",1477
-        13120,1737500355691,1456753,1477,0,"thread_state: S","thread_state",1477
-        13120,1737500355691,1456753,1477,1,"[NULL]","thread_state",1477
-        13120,1737500355691,1456753,1477,2,"[NULL]","thread_state",1477
-        13120,1737500355691,1456753,1477,3,"process_name: com.android.providers.media.module","thread_state",1477
-        13120,1737500355691,1456753,1477,4,"thread_name: rs.media.module","thread_state",1477
-        4800,1737500355691,1456753,1498,11,"HIDL::IComponentStore::getStructDescriptors::client","slice",1477
-        4801,1737500355691,1456753,1498,12,"binder transaction","slice",1477
-        13648,1737500355691,1456753,1498,6,"blocking thread_state: R+","thread_state",1477
-        13648,1737500355691,1456753,1498,7,"blocking process_name: com.android.providers.media.module","thread_state",1477
-        13648,1737500355691,1456753,1498,8,"blocking thread_name: CodecLooper","thread_state",1477
-        13648,1737500355691,1456753,1498,9,"[NULL]","thread_state",1477
-        13648,1737500355691,1456753,1498,10,"[NULL]","thread_state",1477
+        14077,1739957575056,2459,649,12,"binder reply","slice",1477
+        14078,1739957575056,2459,649,13,"AIDL::java::IJobScheduler::enqueue::server","slice",1477
+        14101,1739957575056,2459,649,14,"bindService:{com.android.providers.media.module/com.android.providers.media.MediaService}","slice",1477
+        14122,1739957575056,2459,649,15,"updateOomAdj_bindService","slice",1477
+        14165,1739957575056,2459,649,16,"Lock contention on linear alloc (owner tid: 1675)","slice",1477
+        24168,1739957575056,2459,649,7,"blocking thread_state: Running","thread_state",1477
+        24168,1739957575056,2459,649,8,"blocking process_name: system_server","thread_state",1477
+        24168,1739957575056,2459,649,9,"blocking thread_name: binder:642_E","thread_state",1477
+        24168,1739957575056,2459,649,10,"[NULL]","thread_state",1477
+        24168,1739957575056,2459,649,11,"[NULL]","thread_state",1477
+        24168,1739957575056,2459,649,17,"cpu: 0","thread_state",1477
+        14129,1739957575056,2459,1477,5,"serviceBind","slice",1477
+        14146,1739957575056,2459,1477,6,"binder transaction","slice",1477
+        24125,1739957575056,2459,1477,0,"thread_state: S","thread_state",1477
+        24125,1739957575056,2459,1477,1,"[NULL]","thread_state",1477
+        24125,1739957575056,2459,1477,2,"[NULL]","thread_state",1477
+        24125,1739957575056,2459,1477,3,"process_name: com.android.providers.media.module","thread_state",1477
+        24125,1739957575056,2459,1477,4,"thread_name: rs.media.module","thread_state",1477
         """))
 
   def test_thread_executing_span_critical_path_graph(self):

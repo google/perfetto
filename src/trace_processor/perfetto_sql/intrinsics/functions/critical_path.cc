@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -97,10 +98,14 @@ struct WakeupGraphAgg : public sqlite::AggregateFunction<WakeupGraphAgg> {
 
 // Attribute time during `[window_start, window_end)` using `node_id`
 // at chain `depth` from the root. `parent_node_id` is the layer one
-// level above this frame in the attribution hierarchy (the root for
-// depth-0 frames) and propagates into every emitted row's `parent_id`
-// so `_intervals_flatten` can collapse overlapping layers to the
-// deepest active blocker per `(root, ts)`.
+// level above this frame in the attribution hierarchy: for a frame
+// at depth N this is the wakeup-graph node id of the depth-(N-1)
+// thread that descended into us via `waker_id`. At depth 0 it is the
+// root id (self-reference). It propagates into every emitted row's
+// `parent_id` so callers can drill the chain by following the
+// (parent_id → node_id) edge — without the per-frame update below
+// `parent_id` would always equal `root_id` and the lineage would be
+// invisible.
 struct Frame {
   uint32_t node_id;
   int64_t window_start;
@@ -145,23 +150,13 @@ void WalkOneRoot(const WakeupGraph& graph,
     int64_t eff_start = std::max(f.window_start, node_idle_start);
     int64_t eff_end = std::min(f.window_end, node_run_end);
 
-    // Time predating this node's idle: descend into `prev_id` at the
-    // same depth to keep the same-thread chain going backwards.
-    if (n.idle_dur.has_value() && f.window_start < node_idle_start &&
-        n.prev_id) {
-      int64_t prev_window_end = std::min(f.window_end, node_idle_start);
-      stack.push_back({*n.prev_id, f.window_start, prev_window_end, f.depth,
-                       f.parent_node_id});
-    }
-
     if (eff_start >= eff_end) {
       continue;
     }
 
-    // Idle portion of the effective window. With no `waker_id` (IRQ
-    // context, no thread chain to walk) the woken thread is in kernel
-    // and self-attributes; otherwise descend into `waker_id` at
-    // depth+1 to chain through the cross-thread waker.
+    // Idle portion. With no `waker_id` (IRQ context) the woken
+    // thread self-attributes in kernel; otherwise descend into the
+    // waker at depth+1.
     int64_t idle_clip_start = eff_start;
     int64_t idle_clip_end = std::min(eff_end, n.ts);
     if (idle_clip_start < idle_clip_end) {
@@ -176,8 +171,13 @@ void WalkOneRoot(const WakeupGraph& graph,
         row.parent_id = f.parent_node_id;
         out.Insert(row);
       } else if (n.waker_id) {
+        // Descending into the cross-thread waker bumps depth by 1 and
+        // makes *this* frame's node the parent of the new one — that
+        // is the lineage information drill-down callers need. Keeping
+        // `f.parent_node_id` here would leave every depth's parent
+        // glued to the root and erase all per-hop ancestry.
         stack.push_back({*n.waker_id, idle_clip_start, idle_clip_end,
-                         f.depth + 1, f.parent_node_id});
+                         f.depth + 1, f.node_id});
       }
     }
 
@@ -197,16 +197,18 @@ void WalkOneRoot(const WakeupGraph& graph,
   }
 }
 
-// Args, in order: WakeupGraph* (from `__intrinsic_wakeup_graph_agg`),
-// IntArray* of root ids (from `__intrinsic_array_agg`). Returns a
-// `Dataframe*` tagged "TABLE", consumed via `__intrinsic_table_ptr`.
+// Args, in order:
+//   WakeupGraph* (from `__intrinsic_wakeup_graph_agg`),
+//   IntArray*    (from `__intrinsic_array_agg`, root ids).
+// Returns a `Dataframe*` tagged "TABLE", consumed via
+// `__intrinsic_table_ptr`.
 struct CriticalPathWalk : public sqlite::AggregateFunction<CriticalPathWalk> {
   static constexpr char kName[] = "__intrinsic_critical_path_walk";
   static constexpr int kArgCount = 2;
   using UserData = StringPool;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-    PERFETTO_DCHECK(argc == kArgCount);
+    PERFETTO_DCHECK(argc == 2);
     auto out =
         std::make_unique<tables::CriticalPathWalkTable>(GetUserData(ctx));
 
