@@ -15,9 +15,9 @@
 
 -- sqlformat file off
 
--- Replaces all occurrences of a regular expression with a constant 
+-- Replaces all occurrences of a regular expression with a constant
 -- replacement string.
--- Note that there is no way to substitute matching groups into the 
+-- Note that there is no way to substitute matching groups into the
 -- replacement, and all matching is case-sensitive.
 CREATE PERFETTO FUNCTION regexp_replace_simple(
   -- The input string to match against.

@@ -93,9 +93,7 @@ SELECT
   cuj_name
 FROM _android_critical_blocking_calls AS bc
 JOIN _extended_frame_boundary AS frame
-  ON (
-    bc.utid = frame.ui_thread_utid OR bc.utid = frame.render_thread_utid
-  )
+  ON (bc.utid = frame.ui_thread_utid OR bc.utid = frame.render_thread_utid)
 -- The following condition to accommodate blocking call crossing frame boundary. The blocking
 -- call starts in a frame or ends in a frame. It can either be the same frame or a different
 -- frame.
