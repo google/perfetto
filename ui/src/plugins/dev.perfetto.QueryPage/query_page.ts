@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Engine} from 'syntaqlite';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
@@ -90,6 +91,28 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   // Track previous query results to detect changes
   private prevQueryResults = new Map<string, QueryResponse | undefined>();
+
+  // Lazily-initialized SQL formatter engine, scoped to this component instance.
+  private formatterEnginePromise?: Promise<Engine>;
+
+  private getFormatterEngine(): Promise<Engine> {
+    if (this.formatterEnginePromise === undefined) {
+      const engine = new Engine({
+        runtimeJsPath: 'assets/syntaqlite-runtime.js',
+        runtimeWasmPath: 'assets/syntaqlite-runtime.wasm',
+      });
+      this.formatterEnginePromise = (async () => {
+        await engine.load();
+        const binding = await engine.loadDialectFromUrl(
+          'assets/syntaqlite-perfetto.wasm',
+          'syntaqlite_perfetto_dialect_template',
+        );
+        engine.setDialectPointer(binding.ptr);
+        return engine;
+      })();
+    }
+    return this.formatterEnginePromise;
+  }
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
@@ -219,6 +242,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
+          m(Button, {
+            label: 'Format',
+            icon: 'format_align_left',
+            title: 'Auto-format the SQL query',
+            onclick: () => this.formatSql(attrs, tab.id, tab.editorText),
+          }),
           trace.isInternalUser &&
             m(Button, {
               icon: 'wand_stars',
@@ -284,6 +313,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         text: tab.editorText,
         onUpdate: (content) => attrs.onEditorContentUpdate?.(tab.id, content),
         onExecute: (query) => attrs.onExecute?.(tab.id, query),
+        onFormat: (text) => this.formatSql(attrs, tab.id, text),
       }),
     ]);
 
@@ -361,5 +391,25 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   private hidePerfettoSqlAgentBanner() {
     localStorage.setItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY, 'true');
+  }
+
+  private async formatSql(attrs: QueryPageAttrs, tabId: string, text: string) {
+    try {
+      const engine = await this.getFormatterEngine();
+      const result = engine.runFmt(text, {
+        lineWidth: 80,
+        indentWidth: 2,
+        keywordCase: 1,
+        semicolons: true,
+      });
+      if (result.ok) {
+        attrs.onEditorContentUpdate?.(tabId, result.text);
+        m.redraw();
+      } else {
+        console.error('SQL formatting failed', result.text);
+      }
+    } catch (e) {
+      console.error('SQL formatting failed', e);
+    }
   }
 }

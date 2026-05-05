@@ -172,10 +172,13 @@ inline TransformMatrix GetTransformMatrix(const LayerDecoder& layer_decoder) {
     if (transform::IsSimpleTransform(type)) {
       matrix = transform::GetTransformMatrix(type, matrix.tx, matrix.ty);
     } else {
+      // Adjust transform matrix to correct for layer transforms incorrectly
+      // written to proto using LayerProtoHelper#writeToProtoDeprecated. See
+      // frameworks/native/services/surfaceflinger/LayerProtoHelper.cpp.
       matrix.dsdx = static_cast<double>(transform.dsdx());
-      matrix.dtdx = static_cast<double>(transform.dtdx());
+      matrix.dtdx = static_cast<double>(transform.dsdy());
       matrix.dsdy = static_cast<double>(transform.dtdy());
-      matrix.dtdy = static_cast<double>(transform.dsdy());
+      matrix.dtdy = static_cast<double>(transform.dtdx());
     }
   }
   return matrix;
@@ -249,8 +252,25 @@ inline TransformMatrix GetTransformMatrix(
     } else {
       matrix.dsdx = static_cast<double>(transform.dsdx());
       matrix.dtdx = static_cast<double>(transform.dtdx());
-      matrix.dsdy = static_cast<double>(transform.dtdy());
-      matrix.dtdy = static_cast<double>(transform.dsdy());
+      matrix.dsdy = static_cast<double>(transform.dsdy());
+      matrix.dtdy = static_cast<double>(transform.dtdy());
+    }
+
+    // Apply translation according to Transform::set, used in platform to
+    // reconstruct display transforms from type, width, and height. See
+    // frameworks/native/libs/ui/Transform.cpp.
+    if (transform.has_type() && display_decoder.has_layer_stack_space_rect()) {
+      const auto& layer_stack_space_rect =
+          display::MakeLayerStackSpaceRect(display_decoder);
+
+      if (transform::IsRotated180(type)) {
+        matrix.tx = layer_stack_space_rect.w;
+        matrix.ty = layer_stack_space_rect.h;
+      } else if (transform::IsRotated270(type)) {
+        matrix.tx = layer_stack_space_rect.w;
+      } else if (transform::IsRotated90(type)) {
+        matrix.ty = layer_stack_space_rect.h;
+      }
     }
   }
 

@@ -25,23 +25,18 @@ INCLUDE PERFETTO MODULE wattson.tpu.estimates;
 
 -- Need to use SPAN_OUTER_JOIN because depending on the trace points enabled,
 -- it's possible one of the tables is empty
-CREATE VIRTUAL TABLE _cpu_gpu_system_state_mw USING SPAN_OUTER_JOIN (_cpu_estimates_mw, _gpu_estimates_mw);
+CREATE VIRTUAL TABLE _cpu_gpu_system_state_mw USING SPAN_OUTER_JOIN(_cpu_estimates_mw, _gpu_estimates_mw);
 
-CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN (_cpu_gpu_system_state_mw, _tpu_estimates_mw);
+CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN(_cpu_gpu_system_state_mw, _tpu_estimates_mw);
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
 CREATE PERFETTO TABLE _system_state_mw AS
-SELECT
-  *
-FROM _cpu_gpu_tpu_system_state_mw;
+SELECT * FROM _cpu_gpu_tpu_system_state_mw;
 
 -- API to get power from each system state in an arbitrary time window
-CREATE PERFETTO FUNCTION _windowed_system_state_mw(
-    ts TIMESTAMP,
-    dur LONG
-)
-RETURNS TABLE (
+CREATE PERFETTO FUNCTION _windowed_system_state_mw(ts TIMESTAMP, dur LONG)
+RETURNS TABLE(
   cpu0_mw DOUBLE,
   cpu1_mw DOUBLE,
   cpu2_mw DOUBLE,
@@ -53,7 +48,8 @@ RETURNS TABLE (
   dsu_scu_mw DOUBLE,
   gpu_mw DOUBLE,
   tpu_mw DOUBLE
-) AS
+)
+AS
 SELECT
   sum(ss.cpu0_mw * ii.dur) / sum(ii.dur) AS cpu0_mw,
   sum(ss.cpu1_mw * ii.dur) / sum(ii.dur) AS cpu1_mw,

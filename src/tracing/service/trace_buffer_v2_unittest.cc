@@ -2441,13 +2441,20 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
       .PadTo(512)
       .CopyIntoTraceBuffer(/*chunk_complete=*/false);
 
-  // Drain and verify: 'b' recovered, 'a' not duplicated.
+  // Drain and verify: 'b' recovered, 'a' not duplicated. The recovered 'b'
+  // must not be flagged with previous_packet_dropped — the re-admit landed
+  // on the same chunk_id as last_consumed, and the gap check in
+  // ChunkSeqReader must treat that as gapless rather than firing spuriously.
   trace_buffer()->BeginRead();
   std::vector<std::vector<FakePacketFragment>> packets;
+  bool b_dropped = false;
   for (;;) {
-    auto p = ReadPacket();
+    bool dropped = false;
+    auto p = ReadPacket(/*sequence_properties=*/nullptr, &dropped);
     if (p.empty())
       break;
+    if (p.size() == 1 && p[0] == FakePacketFragment(30, 'b'))
+      b_dropped = dropped;
     packets.push_back(std::move(p));
   }
 
@@ -2461,6 +2468,8 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
       found_c = true;
   }
   EXPECT_TRUE(found_b) << "Packet 'b' not found after rescrape re-admission";
+  EXPECT_FALSE(b_dropped) << "Re-admitted 'b' falsely flagged as dropped — "
+                             "ChunkSeqReader gap check fired on re-admit.";
   EXPECT_FALSE(found_a) << "Packet 'a' duplicated after rescrape re-admission";
   EXPECT_FALSE(found_c)
       << "Packet 'c' should still be dropped (chunk incomplete)";
@@ -2663,6 +2672,237 @@ TEST_F(TraceBufferV2Test, ScrapeRecommitPreservesIncomplete) {
               ElementsAre(FakePacketFragment(20, 'e')));
   EXPECT_FALSE(previous_packet_dropped);
 
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Whole-packet path: the consumer reads the only packet of a chunk, returns,
+// and pauses (mimicking the kApproxBytesPerTask=32KB break taken by
+// ReadBuffersIntoConsumer in tracing_service_impl.cc). The chunk's
+// payload_avail is now 0 but it has not been erased to padding yet. A
+// concurrent producer wrap then incorrectly counts it in bytes_overwritten.
+TEST_F(TraceBufferV2Test, BytesOverwritten_ConsumedWholePacketCountedAsLost) {
+  ResetBuffer(4096);
+
+  // chunkX: a single whole packet on sequence {1,1}.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(512 - 16, 'a')
+      .CopyIntoTraceBuffer();
+
+  // Read the packet but do NOT call ReadNextTracePacket again. After the call
+  // ChunkSeqReader::ConsumeFragment has set payload_avail=0 on chunkX, but
+  // EraseCurrentChunk has not run, so chunkX is still a non-padding chunk
+  // sitting in seq.chunks.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(512 - 16, 'a')));
+
+  // Sanity: the chunk has been credited as bytes_read; nothing overwritten
+  // yet.
+  EXPECT_EQ(512u, trace_buffer()->stats().bytes_read());
+  EXPECT_EQ(0u, trace_buffer()->stats().bytes_overwritten());
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_overwritten());
+
+  // Fill the buffer with chunks the consumer never reads, then write a chunk
+  // that wraps and clobbers chunkX along with the new fillers.
+  // wr_ goes 512 -> 1536 -> 2560 -> wraps to 0 to fit the 2048B chunk.
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(1024 - 16, 'b')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
+      .AddPacket(1024 - 16, 'c')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(3), ChunkID(0))
+      .AddPacket(2048 - 16, 'd')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+
+  // chunkX (offset 0, 512B) had no unread data when overwritten, so it must
+  // not contribute to bytes_overwritten or chunks_overwritten. Only chunkY
+  // and chunkZ (1024B each, never read) legitimately carry data loss.
+  EXPECT_EQ(2u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(2048u, trace_buffer()->stats().bytes_overwritten());
+}
+
+// Reassembly path: a fragmented packet split across N chunks. After
+// ReassembleFragmentedPacket succeeds, ConsumeFragment runs on every chunk
+// (payload_avail -> 0 on each), but ChunkSeqReader's seq_iter_ is still on
+// the kFragBegin chunk. A producer wrap before the consumer next iterates
+// counts ALL N chunks as overwritten, even though no data was lost.
+TEST_F(TraceBufferV2Test,
+       BytesOverwritten_ConsumedFragmentedPacketCountedAsLost) {
+  ResetBuffer(4096);
+
+  // A fragmented packet split across 3 chunks of 512B each.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(512 - 16, 'a', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(512 - 16, 'b', kContFromPrevChunk | kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(512 - 16, 'c', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  // Reassemble + read the packet. All 3 chunks have payload_avail=0 after
+  // this, but none have been erased into padding chunks.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(512 - 16, 'a'),
+                                        FakePacketFragment(512 - 16, 'b'),
+                                        FakePacketFragment(512 - 16, 'c')));
+
+  EXPECT_EQ(3u * 512u, trace_buffer()->stats().bytes_read());
+  EXPECT_EQ(0u, trace_buffer()->stats().bytes_overwritten());
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_overwritten());
+
+  // Add one big chunk to take used_size_ near the end, then a chunk that
+  // forces a wrap and lands on chunks A, B, C.
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(2048 - 16, 'd')
+      .CopyIntoTraceBuffer();  // wr_=3584
+  CreateChunk(ProducerID(1), WriterID(3), ChunkID(0))
+      .AddPacket(1536 - 16, 'e')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+
+  // None of A, B, C had unread data when they were overwritten (the consumer
+  // already read the reassembled packet). Hence no chunks should be reported
+  // as overwritten and bytes_overwritten should be 0.
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(0u, trace_buffer()->stats().bytes_overwritten());
+}
+
+// Same bug as ConsumedWholePacketCountedAsLost, but the cleanup gap stretches
+// across a BeginRead() boundary — mimicking the consumer flow where
+// ReadBuffersIntoConsumer (tracing_service_impl.cc:2507) yields after
+// ~kApproxBytesPerTask=32KB of packet bytes and the next IPC task starts a
+// fresh BeginRead. BeginRead does chunk_seq_reader_.reset(), so the
+// "consumed-but-not-padded" chunk survives across reads until the new
+// buffer-order walk happens to step on it again. If a producer wraps in
+// between, bytes_overwritten still counts the chunk.
+TEST_F(TraceBufferV2Test,
+       BytesOverwritten_ConsumedChunkSurvivesBeginReadBoundary) {
+  ResetBuffer(4096);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(512 - 16, 'a')
+      .CopyIntoTraceBuffer();
+
+  // First read cycle: reads the packet, then the consumer stops.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(512 - 16, 'a')));
+
+  // Second BeginRead before any cleanup happens. This resets
+  // chunk_seq_reader_ — the previously consumed chunkX is left in the
+  // buffer with payload_avail=0 and is_padding()==false, but no read
+  // iterator is keeping track of it.
+  trace_buffer()->BeginRead();
+
+  // Now a producer wrap arrives before the consumer's new walk reaches
+  // chunkX. Same arithmetic as the simple test: 512 + 1024 + 1024 = 2560,
+  // then a 2048B wrap clobbers the head.
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(1024 - 16, 'b')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
+      .AddPacket(1024 - 16, 'c')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(3), ChunkID(0))
+      .AddPacket(2048 - 16, 'd')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+
+  // chunkX was already drained before the BeginRead boundary. Only chunkY
+  // and chunkZ legitimately had unread data.
+  EXPECT_EQ(2u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(2048u, trace_buffer()->stats().bytes_overwritten());
+}
+
+// A kFragBegin chunk pending a patch (kChunkNeedsPatching) whose patch never
+// arrives gets evicted by a subsequent wrap. ReassembleFragmentedPacket
+// returns kNotEnoughData on this chain and — unlike the kDataLoss branch —
+// does NOT call ConsumeFragment on the frags it walked. As a result the
+// kFragBegin chunk's data loss is not credited in bytes_overwritten /
+// chunks_overwritten. The continuation chunkB is still credited because the
+// outer DeleteNextChunksFor loop reaches it and the kFragEnd switch case in
+// ReadNextPacketInSeqOrder calls ConsumeFragment directly.
+TEST_F(TraceBufferV2Test,
+       BytesOverwritten_PendingPatchChunkOverwrittenIsCounted) {
+  ResetBuffer(4096);
+
+  // chunkA: kFragBegin + kChunkNeedsPatching. Continuation chunkB exists, but
+  // the patch never arrives, so the consumer can't reassemble the packet.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(1024 - 16, 'a', kContOnNextChunk | kChunkNeedsPatching)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(1024 - 16, 'b', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  // The reader can't deliver this fragmented packet because A needs a patch.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Wrap so chunkA and chunkB get evicted before the patch arrives.
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
+      .AddPacket(2048 - 16, 'c')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(3), WriterID(1), ChunkID(0))
+      .AddPacket(2048 - 16, 'd')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+
+  // Both chunkA (kFragBegin pending patch) and chunkB (kFragEnd nobody read)
+  // carried unread data when overwritten. Both should be counted.
+  EXPECT_EQ(2u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(2048u, trace_buffer()->stats().bytes_overwritten());
+}
+
+// chunks_overwritten / bytes_overwritten must not be incremented for a chunk
+// that the reader already drained but hadn't yet "stepped past". The
+// kFragWholePacket branch in ReadNextPacketInSeqOrder() decrements
+// payload_avail to 0 and returns the packet to the consumer without erasing
+// the chunk; the chunk only becomes a padding chunk on the next read call,
+// when NextFragmentInChunk() returns nullopt and EraseCurrentChunk() runs.
+// If a write forces a wrap in that gap, DeleteNextChunksFor() encounters a
+// non-padding chunk and (incorrectly) bumps the overwrite counters, even
+// though there is nothing left to lose. Mirrors NoDataLossIfReaderCatchesUp
+// above, which exercises the same pattern but doesn't assert on the stats.
+TEST_F(TraceBufferV2Test, NoOverwriteCountIfReaderCatchesUp) {
+  ResetBuffer(4096);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(2000, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(1000, 'b')
+      .CopyIntoTraceBuffer();
+
+  // Read 'a' with a single ReadPacket(). Crucially, do not call ReadPacket()
+  // again — that follow-up call is what would turn ChunkID(0) into a padding
+  // chunk via EraseCurrentChunk().
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(2000, 'a')));
+
+  // ChunkID(2) doesn't fit in the tail, so wr_ wraps to 0 and
+  // DeleteNextChunksFor() walks ChunkID(0). ChunkID(0) has no unread bytes,
+  // so this is not an overwrite.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(2000, 'c')
+      .CopyIntoTraceBuffer();
+
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(0u, trace_buffer()->stats().bytes_overwritten());
+
+  // Sanity check: the surviving packets are still readable and the consumer
+  // is not signalled any data loss — confirming that the increment above (if
+  // it fires) is bogus rather than a real overwrite reported elsewhere.
+  trace_buffer()->BeginRead();
+  bool dropped = false;
+  ASSERT_THAT(ReadPacket(nullptr, &dropped),
+              ElementsAre(FakePacketFragment(1000, 'b')));
+  EXPECT_FALSE(dropped);
+  ASSERT_THAT(ReadPacket(nullptr, &dropped),
+              ElementsAre(FakePacketFragment(2000, 'c')));
+  EXPECT_FALSE(dropped);
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 

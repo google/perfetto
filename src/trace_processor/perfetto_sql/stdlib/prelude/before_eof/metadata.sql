@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Contains metadata about the trace and the system it was collected from.
-CREATE PERFETTO VIEW metadata (
+CREATE PERFETTO VIEW metadata(
   -- Unique identifier for this metadata row.
   id ID,
   -- Name of the metadata entry.
@@ -29,13 +29,7 @@ CREATE PERFETTO VIEW metadata (
   machine_id JOINID(machine.id),
   -- Trace identifier.
   trace_id LONG
-) AS
-SELECT
-  id,
-  name,
-  key_type,
-  int_value,
-  str_value,
-  machine_id,
-  trace_id
+)
+AS
+SELECT id, name, key_type, int_value, str_value, machine_id, trace_id
 FROM __intrinsic_metadata;

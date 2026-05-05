@@ -26,20 +26,21 @@ import {
   countRenderer,
   RowCounter,
 } from '../components';
-import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
-import {dumpFilterSql} from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly initialRootClass?: string;
 }
 
 const PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation';
 
-function buildQuery(): string {
+function buildQuery(activeDump: HeapDump): string {
   return `
     SELECT
       type_name AS cls,
@@ -50,7 +51,7 @@ function buildQuery(): string {
       dominated_native_size_bytes AS retained_native,
       dominated_obj_count AS retained_count
     FROM android_heap_graph_class_aggregation a
-    WHERE a.reachable_obj_count > 0 AND ${dumpFilterSql('a')}
+    WHERE a.reachable_obj_count > 0 AND ${dumpFilterSql(activeDump, 'a')}
   `;
 }
 
@@ -106,14 +107,20 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
 
 function ClassesView(): m.Component<ClassesViewAttrs> {
   let dataSource: SQLDataSource | null = null;
+  let alive = true;
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
-  async function applyNavFilter(engine: Engine, root: string | undefined) {
+  async function applyNavFilter(
+    engine: Engine,
+    activeDump: HeapDump,
+    root: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!root) return;
     clearNavParam('rootClass');
-    const names = await queries.getSubclassNames(engine, root);
-    if (names.length === 0) return;
+    const names = await queries.getSubclassNames(engine, activeDump, root);
+    if (!alive || names.length === 0) return;
     filters = [{field: 'cls', op: 'in' as const, value: names}];
     counter.onFiltersChanged(filters);
     m.redraw();
@@ -121,8 +128,8 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
-      const query = buildQuery();
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
         sqlSchema: createSimpleSchema(query),
@@ -130,12 +137,23 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
         preamble: PREAMBLE,
       });
       counter.init(engine, query, PREAMBLE);
-      applyNavFilter(engine, vnode.attrs.initialRootClass).catch(console.error);
+      applyNavFilter(
+        engine,
+        activeDump,
+        vnode.attrs.initialRootClass,
+        vnode.attrs.clearNavParam,
+      ).catch(console.error);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.engine, vnode.attrs.initialRootClass).catch(
-        console.error,
-      );
+      applyNavFilter(
+        vnode.attrs.engine,
+        vnode.attrs.activeDump,
+        vnode.attrs.initialRootClass,
+        vnode.attrs.clearNavParam,
+      ).catch(console.error);
+    },
+    onremove() {
+      alive = false;
     },
     view(vnode) {
       const {navigate} = vnode.attrs;

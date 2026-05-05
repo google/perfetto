@@ -20,7 +20,10 @@ import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {assertExists, assertUnreachable} from '../../base/assert';
 import {Trace} from '../../public/trace';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {
+  SegmentedButton,
+  SegmentedButtons,
+} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
@@ -480,13 +483,19 @@ function renderV2Result(
     '.pf-metricsv2-result',
     m(
       '.pf-metricsv2-result__header',
-      m(SegmentedButtons, {
-        options: [{label: 'Table'}, {label: 'JSON'}],
-        selectedOption: viewMode === 'table' ? 0 : 1,
-        onOptionSelected: (num) => {
-          onViewModeChange(num === 0 ? 'table' : 'json');
+      m(
+        SegmentedButtons,
+        {
+          selectedValue: viewMode,
+          onOptionSelected: (value) => {
+            onViewModeChange(value === 'table' ? 'table' : 'json');
+          },
         },
-      }),
+        [
+          m(SegmentedButton, {value: 'table'}, 'Table'),
+          m(SegmentedButton, {value: 'json'}, 'JSON'),
+        ],
+      ),
     ),
     viewMode === 'json'
       ? m(CodeSnippet, {language: 'json', text})
@@ -674,30 +683,41 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
       '.pf-metrics-page',
       m(
         '',
-        m(SegmentedButtons, {
-          options: [{label: 'Metric v1'}, {label: 'Metric v2'}],
-          selectedOption: this.mode === 'V1' ? 0 : 1,
-          onOptionSelected: (num) => {
-            if (num === 0) {
-              this.mode = 'V1';
-            } else {
-              this.mode = 'V2';
-            }
+        m(
+          SegmentedButtons,
+          {
+            selectedValue: this.mode === 'V1' ? 'v1' : 'v2',
+            onOptionSelected: (value) => {
+              this.mode = value === 'v1' ? 'V1' : 'V2';
+            },
           },
-        }),
+          [
+            m(SegmentedButton, {value: 'v1'}, 'Metric v1'),
+            m(SegmentedButton, {value: 'v2'}, 'Metric v2'),
+          ],
+        ),
       ),
       this.mode === 'V2' &&
         m(
           '',
-          m(SegmentedButtons, {
-            options: [{label: 'Metric Spec'}, {label: 'Full Summary'}],
-            selectedOption: this.v2Mode === 'metric-spec' ? 0 : 1,
-            onOptionSelected: (num) => {
-              this.v2Mode = num === 0 ? 'metric-spec' : 'full-trace-summary';
-              this.showV2MetricExample = false;
-              this.v2Result = undefined;
+          m(
+            SegmentedButtons,
+            {
+              selectedValue: this.v2Mode,
+              onOptionSelected: (value) => {
+                this.v2Mode =
+                  value === 'metric-spec'
+                    ? 'metric-spec'
+                    : 'full-trace-summary';
+                this.showV2MetricExample = false;
+                this.v2Result = undefined;
+              },
             },
-          }),
+            [
+              m(SegmentedButton, {value: 'metric-spec'}, 'Metric Spec'),
+              m(SegmentedButton, {value: 'full-trace-summary'}, 'Full Summary'),
+            ],
+          ),
         ),
       this.mode === 'V1' &&
         m(MetricV1Fetcher, {

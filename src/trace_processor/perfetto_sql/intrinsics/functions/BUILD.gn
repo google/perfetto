@@ -34,6 +34,8 @@ source_set("functions") {
     "create_intervals.h",
     "create_view_function.cc",
     "create_view_function.h",
+    "critical_path.cc",
+    "critical_path.h",
     "dominator_tree.cc",
     "dominator_tree.h",
     "graph_scan.cc",

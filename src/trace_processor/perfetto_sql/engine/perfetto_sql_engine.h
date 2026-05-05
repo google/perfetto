@@ -244,6 +244,21 @@ class PerfettoSqlEngine {
   sql_modules::RegisteredPackage* FindPackage(const std::string& name) {
     return packages_.Find(name);
   }
+  const sql_modules::RegisteredPackage* FindPackage(
+      const std::string& name) const {
+    return packages_.Find(name);
+  }
+
+  // Returns (package_name, module_key) pairs for every registered module.
+  std::vector<std::pair<std::string, std::string>> GetModules() const {
+    std::vector<std::pair<std::string, std::string>> result;
+    for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
+      for (auto mod = pkg.value().modules.GetIterator(); mod; ++mod) {
+        result.emplace_back(pkg.key(), mod.key());
+      }
+    }
+    return result;
+  }
 
   // Finds a package that owns the given module key (i.e., whose name is a
   // prefix of the key).

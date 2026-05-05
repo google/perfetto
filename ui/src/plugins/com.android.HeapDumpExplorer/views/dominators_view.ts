@@ -28,14 +28,15 @@ import {
   SQL_PREAMBLE,
   RowCounter,
 } from '../components';
-import {dumpFilterSql} from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
 }
 
-function buildQuery(): string {
+function buildQuery(activeDump: HeapDump): string {
   return `
     SELECT
       o.id,
@@ -55,7 +56,7 @@ function buildQuery(): string {
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
     WHERE d.idom_id IS NULL
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
   `;
 }
 
@@ -141,8 +142,8 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
-      const query = buildQuery();
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
         sqlSchema: createSimpleSchema(query),

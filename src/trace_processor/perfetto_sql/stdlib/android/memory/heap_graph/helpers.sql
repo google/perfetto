@@ -21,11 +21,9 @@ INCLUDE PERFETTO MODULE graphs.scan;
 --
 -- This allows an SQL aggregation of all nodes which have the same hash to
 -- build a "class-tree" instead of the object tree.
-CREATE PERFETTO MACRO _heap_graph_type_path_hash(
-    tab TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _heap_graph_type_path_hash(tab TableOrSubquery)
+RETURNS TableOrSubquery
+AS (
   SELECT
     id,
     path_hash,
@@ -79,11 +77,9 @@ RETURNS TableOrSubquery AS
 -- (see _heap_graph_type_path_hash macro), aggregates together all nodes
 -- with the same hash and also splits out "native size" as a separate node under
 -- the nodes which contain the native size.
-CREATE PERFETTO MACRO _heap_graph_path_hash_aggregate(
-    tab TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _heap_graph_path_hash_aggregate(tab TableOrSubquery)
+RETURNS TableOrSubquery
+AS (
   WITH
     x AS (
       SELECT
@@ -143,11 +139,9 @@ RETURNS TableOrSubquery AS
 --
 -- Note that |tab| *must* be a Perfetto (e.g. not a subquery) for this macro
 -- to work.
-CREATE PERFETTO MACRO _heap_graph_path_hashes_to_class_tree(
-    tab TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _heap_graph_path_hashes_to_class_tree(tab TableOrSubquery)
+RETURNS TableOrSubquery
+AS (
   SELECT
     graph_sample_ts,
     upid,

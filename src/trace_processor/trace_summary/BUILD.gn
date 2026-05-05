@@ -66,21 +66,23 @@ source_set("unittests") {
   ]
 }
 
-source_set("integrationtests") {
-  testonly = true
-  sources = [ "summary_integrationtest.cc" ]
-  deps = [
-    ":gen_cc_trace_summary_descriptor",
-    ":trace_summary",
-    "../../../gn:default_deps",
-    "../../../gn:gtest_and_gmock",
-    "../../../include/perfetto/trace_processor",
-    "../../base",
-    "../../base:test_support",
-    "../util:descriptors",
-  ]
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtests") {
+    testonly = true
+    sources = [ "summary_integrationtest.cc" ]
+    deps = [
+      ":gen_cc_trace_summary_descriptor",
+      ":trace_summary",
+      "../../../gn:default_deps",
+      "../../../gn:gtest_and_gmock",
+      "../../../include/perfetto/trace_processor",
+      "../../base",
+      "../../base:test_support",
+      "../util:descriptors",
+    ]
 
-  if (enable_perfetto_zlib) {
-    deps += [ "../../../gn:zlib" ]
+    if (enable_perfetto_zlib) {
+      deps += [ "../../../gn:zlib" ]
+    }
   }
 }

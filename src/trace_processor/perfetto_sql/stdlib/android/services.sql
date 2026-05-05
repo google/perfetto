@@ -24,15 +24,13 @@ INCLUDE PERFETTO MODULE graphs.search;
 CREATE PERFETTO TABLE _bind_dispatch AS
 WITH
   next_sibling AS MATERIALIZED (
-    SELECT
-      *
-    FROM graph_next_sibling!(
-          (
-            SELECT id AS node_id, parent_id AS node_parent_id, ts AS sort_key
-            FROM slice
-            WHERE dur = 0
-          )
-      )
+    SELECT *
+    FROM graph_next_sibling!((
+        SELECT id AS node_id, parent_id AS node_parent_id, ts AS sort_key
+        FROM slice
+        WHERE
+          dur = 0
+      ))
   ),
   service AS (
     SELECT
@@ -56,7 +54,8 @@ SELECT
   cast_int!(STR_SPLIT(STR_SPLIT(bind_seq_name, 'bindSeq=', 1), ' ', 0)) AS bind_seq
 FROM service
 WHERE
-  bind_seq_name GLOB 'requestServiceBinding*' AND name = 'binder transaction async';
+  bind_seq_name GLOB 'requestServiceBinding*'
+  AND name = 'binder transaction async';
 
 -- Details of all Service#onBind received events.
 CREATE PERFETTO TABLE _bind_receive AS
@@ -75,7 +74,7 @@ WHERE
   name GLOB 'serviceBind:*';
 
 -- All service bindings from client app to server app.
-CREATE PERFETTO TABLE android_service_bindings (
+CREATE PERFETTO TABLE android_service_bindings(
   -- OOM score of client process making the binding.
   client_oom_score LONG,
   -- Name of client process making the binding.
@@ -122,7 +121,8 @@ CREATE PERFETTO TABLE android_service_bindings (
   flg STRING,
   -- Monotonically increasing id for the service binding.
   bind_seq LONG
-) AS
+)
+AS
 SELECT
   coalesce(client_binder.client_oom_score, server_binder.client_oom_score) AS client_oom_score,
   coalesce(client_binder.client_process, server_binder.client_process) AS client_process,
@@ -155,4 +155,5 @@ LEFT JOIN android_binder_txns AS server_binder
 LEFT JOIN ancestor_slice(dispatch.id) AS anc
   ON anc.depth = 0
 LEFT JOIN android_binder_txns AS client_binder
-  ON client_binder.server_ts = anc.ts AND dispatch.utid = client_binder.server_utid;
+  ON client_binder.server_ts = anc.ts
+  AND dispatch.utid = client_binder.server_utid;

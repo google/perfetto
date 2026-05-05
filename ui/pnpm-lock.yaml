@@ -119,6 +119,9 @@ dependencies:
   protobufjs-cli:
     specifier: ^1.1.2
     version: 1.1.2(protobufjs@7.3.2)
+  syntaqlite:
+    specifier: ^0.5.6
+    version: 0.5.6
   util:
     specifier: ^0.12.5
     version: 0.12.5
@@ -6011,6 +6014,10 @@ packages:
       '@pkgr/core': 0.1.1
       tslib: 2.6.3
     dev: true
+
+  /syntaqlite@0.5.6:
+    resolution: {integrity: sha512-Y2DZ2799KdxJBNnPOIuPja4dXgjK41smrUBpIsM1rC4Xve22hU9sFzVpdK4Tw/lktnk2bFxPfo6uVXqfU3yYXw==}
+    dev: false
 
   /tar-fs@3.1.1:
     resolution: {integrity: sha512-LZA0oaPOc2fVo82Txf3gw+AkEd38szODlptMYejQUhndHMLQ9M059uXR+AfS7DNo0NpINvSqDsvyaCrBVkptWg==}
