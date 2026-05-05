@@ -34,6 +34,7 @@ class TracePacket_Decoder;
 
 namespace perfetto::trace_processor {
 
+class V8CpuProfileTracker;
 class PacketSequenceState;
 struct TracePacketData;
 class V8Tracker;
@@ -78,6 +79,9 @@ class V8Module : public ProtoImporterModule {
   void ParseV8CodeMove(protozero::ConstBytes bytes,
                        int64_t ts,
                        const TracePacketData& data);
+  void ParseV8CpuProfileChunk(protozero::ConstBytes bytes,
+                              int64_t ts,
+                              const TracePacketData& data);
 
   // Determine the utid for a code event.
   // If the passed in decoder has no tid field this method will try the
@@ -90,6 +94,7 @@ class V8Module : public ProtoImporterModule {
       PacketSequenceStateGeneration& generation) const;
   TraceProcessorContext* const context_;
   std::unique_ptr<V8Tracker> v8_tracker_;
+  std::unique_ptr<V8CpuProfileTracker> cpu_profile_tracker_;
   // Caches isolate to pid associations. Used to compute the utid for code
   // events.
   base::FlatHashMap<tables::V8IsolateTable::Id, uint32_t> isolate_to_pid_;

@@ -38,14 +38,12 @@
 
 namespace perfetto::trace_processor {
 
-V8CpuProfileTracker::V8CpuProfileTracker(
-    TraceProcessorContext* context)
+V8CpuProfileTracker::V8CpuProfileTracker(TraceProcessorContext* context)
     : context_(context) {}
 
 V8CpuProfileTracker::~V8CpuProfileTracker() = default;
 
-void V8CpuProfileTracker::Parse(int64_t ts,
-                                LegacyV8CpuProfileEvent event) {
+void V8CpuProfileTracker::Parse(int64_t ts, LegacyV8CpuProfileEvent event) {
   base::Status status =
       AddSample(ts, event.session_id, event.pid, event.tid, event.callsite_id);
   if (!status.ok()) {
@@ -60,7 +58,8 @@ void V8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
   auto [it, inserted] = state_by_session_and_pid_.Insert(
       std::make_pair(session_id, pid),
       State{ts, base::FlatHashMap<uint32_t, CallsiteId>(),
-            base::FlatHashMap<uint32_t, uint32_t>(), nullptr});
+            base::FlatHashMap<uint32_t, uint32_t>(), nullptr, std::nullopt,
+            std::nullopt, std::nullopt});
   it->ts = ts;
   if (inserted) {
     it->mapping = &context_->mapping_tracker->CreateDummyMapping("");
@@ -188,6 +187,209 @@ base::Status V8CpuProfileTracker::AddSample(int64_t ts,
   auto* samples = context_->storage->mutable_cpu_profile_stack_sample_table();
   samples->Insert({ts, *id, utid, 0});
   return base::OkStatus();
+}
+
+void V8CpuProfileTracker::BeginSession(uint64_t session_id,
+                                       uint32_t pid,
+                                       uint32_t tid,
+                                       int64_t start_ts,
+                                       std::optional<int64_t> start_time_us,
+                                       std::optional<int64_t> start_thread_ts,
+                                       std::optional<base::StringView> source) {
+  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
+
+  tables::V8CpuProfileSessionTable::Row row;
+  row.session_id = static_cast<int64_t>(session_id);
+  row.utid = utid;
+  row.start_ts = start_ts;
+  if (start_time_us) {
+    row.start_time_us = *start_time_us;
+  }
+  if (start_thread_ts) {
+    row.start_thread_ts = *start_thread_ts;
+  }
+  if (source) {
+    row.source = context_->storage->InternString(*source);
+  }
+  auto session_row_id =
+      context_->storage->mutable_v8_cpu_profile_session_table()->Insert(row).id;
+
+  auto [it, inserted] = state_by_session_and_pid_.Insert(
+      std::make_pair(session_id, pid),
+      State{start_ts, base::FlatHashMap<uint32_t, CallsiteId>(),
+            base::FlatHashMap<uint32_t, uint32_t>(), nullptr, session_row_id,
+            std::nullopt, std::nullopt});
+  it->ts = start_ts;
+  it->session_row_id = session_row_id;
+  it->current_chunk_row_id = std::nullopt;
+  it->pending_chunk = std::nullopt;
+  if (inserted || !it->mapping) {
+    it->mapping = &context_->mapping_tracker->CreateDummyMapping("");
+  }
+}
+
+void V8CpuProfileTracker::EndSession(uint64_t session_id,
+                                     uint32_t pid,
+                                     int64_t end_ts,
+                                     std::optional<int64_t> end_time_us,
+                                     std::optional<int64_t> end_thread_ts) {
+  auto* state = state_by_session_and_pid_.Find(std::make_pair(session_id, pid));
+  if (!state || !state->session_row_id) {
+    return;
+  }
+  auto rr = context_->storage->mutable_v8_cpu_profile_session_table()->FindById(
+      *state->session_row_id);
+  if (!rr) {
+    return;
+  }
+  rr->set_end_ts(end_ts);
+  if (end_time_us) {
+    rr->set_end_time_us(*end_time_us);
+  }
+  if (end_thread_ts) {
+    rr->set_end_thread_ts(*end_thread_ts);
+  }
+}
+
+void V8CpuProfileTracker::BeginChunk(uint64_t session_id,
+                                     uint32_t pid,
+                                     int64_t ts,
+                                     std::optional<int64_t> thread_ts) {
+  auto* state = state_by_session_and_pid_.Find(std::make_pair(session_id, pid));
+  if (!state || !state->session_row_id) {
+    return;
+  }
+  // Defer the chunk row insert until we actually see content for this chunk.
+  // Chunks with no nodes, samples, or trace_id_mappings are dropped.
+  state->current_chunk_row_id = std::nullopt;
+  state->pending_chunk = State::PendingChunk{ts, thread_ts};
+}
+
+bool V8CpuProfileTracker::EnsureChunkRow(State* state) {
+  if (state->current_chunk_row_id) {
+    return true;
+  }
+  if (!state->session_row_id || !state->pending_chunk) {
+    return false;
+  }
+  tables::V8CpuProfileChunkTable::Row row;
+  row.v8_cpu_profile_session_id = *state->session_row_id;
+  row.ts = state->pending_chunk->ts;
+  if (state->pending_chunk->thread_ts) {
+    row.thread_ts = *state->pending_chunk->thread_ts;
+  }
+  state->current_chunk_row_id =
+      context_->storage->mutable_v8_cpu_profile_chunk_table()->Insert(row).id;
+  state->pending_chunk = std::nullopt;
+  return true;
+}
+
+void V8CpuProfileTracker::AddNodeMetadata(
+    uint64_t session_id,
+    uint32_t pid,
+    uint32_t raw_callsite_id,
+    std::optional<base::StringView> function_name,
+    std::optional<base::StringView> url,
+    std::optional<int32_t> script_id,
+    std::optional<int32_t> line,
+    std::optional<int32_t> column,
+    std::optional<base::StringView> code_type,
+    std::optional<base::StringView> deopt_reason) {
+  auto* state = state_by_session_and_pid_.Find(std::make_pair(session_id, pid));
+  if (!state || !state->session_row_id) {
+    return;
+  }
+  if (!EnsureChunkRow(state)) {
+    return;
+  }
+  auto* callsite_id = state->callsites.Find(raw_callsite_id);
+  if (!callsite_id) {
+    return;
+  }
+
+  tables::V8CpuProfileNodeTable::Row row;
+  row.v8_cpu_profile_session_id = *state->session_row_id;
+  row.v8_cpu_profile_chunk_id = *state->current_chunk_row_id;
+  row.node_id = raw_callsite_id;
+  row.callsite_id = *callsite_id;
+  if (function_name) {
+    row.function_name = context_->storage->InternString(*function_name);
+  }
+  if (url) {
+    row.url = context_->storage->InternString(*url);
+  }
+  if (script_id) {
+    row.script_id = *script_id;
+  }
+  if (line) {
+    row.line = *line;
+  }
+  if (column) {
+    row.column = *column;
+  }
+  if (code_type) {
+    row.code_type = context_->storage->InternString(*code_type);
+  }
+  if (deopt_reason) {
+    row.deopt_reason = context_->storage->InternString(*deopt_reason);
+  }
+  context_->storage->mutable_v8_cpu_profile_node_table()->Insert(row);
+}
+
+base::Status V8CpuProfileTracker::AddSampleWithMeta(
+    int64_t ts,
+    uint64_t session_id,
+    uint32_t pid,
+    uint32_t tid,
+    uint32_t raw_callsite_id,
+    std::optional<int32_t> line,
+    std::optional<int32_t> column) {
+  auto* state = state_by_session_and_pid_.Find(std::make_pair(session_id, pid));
+  if (!state) {
+    return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
+  }
+  auto* id = state->callsites.Find(raw_callsite_id);
+  if (!id) {
+    return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
+  }
+  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
+  auto* samples = context_->storage->mutable_cpu_profile_stack_sample_table();
+  auto sample_id = samples->Insert({ts, *id, utid, 0}).id;
+
+  if (state->session_row_id && EnsureChunkRow(state)) {
+    tables::V8CpuProfileSampleTable::Row meta;
+    meta.cpu_profile_stack_sample_id = sample_id;
+    meta.v8_cpu_profile_session_id = *state->session_row_id;
+    meta.v8_cpu_profile_chunk_id = *state->current_chunk_row_id;
+    meta.node_id = raw_callsite_id;
+    if (line) {
+      meta.line = *line;
+    }
+    if (column) {
+      meta.column = *column;
+    }
+    context_->storage->mutable_v8_cpu_profile_sample_table()->Insert(meta);
+  }
+  return base::OkStatus();
+}
+
+void V8CpuProfileTracker::AddTraceIdMapping(uint64_t session_id,
+                                            uint32_t pid,
+                                            uint64_t trace_id,
+                                            uint32_t node_id) {
+  auto* state = state_by_session_and_pid_.Find(std::make_pair(session_id, pid));
+  if (!state || !state->session_row_id) {
+    return;
+  }
+  if (!EnsureChunkRow(state)) {
+    return;
+  }
+  tables::V8CpuProfileTraceIdTable::Row row;
+  row.v8_cpu_profile_session_id = *state->session_row_id;
+  row.v8_cpu_profile_chunk_id = *state->current_chunk_row_id;
+  row.trace_id = static_cast<int64_t>(trace_id);
+  row.node_id = node_id;
+  context_->storage->mutable_v8_cpu_profile_trace_id_table()->Insert(row);
 }
 
 }  // namespace perfetto::trace_processor
