@@ -32,6 +32,7 @@ import ClassesView from './views/classes_view';
 import StringsView from './views/strings_view';
 import ArraysView from './views/arrays_view';
 import FlamegraphObjectsView from './views/flamegraph_objects_view';
+import FlamegraphView from './views/flamegraph_view';
 import type {HeapDumpExplorerSession} from './session';
 
 interface HeapDumpPageAttrs {
@@ -117,6 +118,24 @@ function buildTabs(
       content: m(OverviewView, {overview, navigate: navigateWithTabs}),
     },
     {
+      key: 'flamegraph',
+      title: 'Flamegraph',
+      content: m(FlamegraphView, {
+        trace,
+        upid: activeDump.upid,
+        ts: Time.fromRaw(activeDump.ts),
+        state: session.flamegraphPanelState,
+        onStateChange: session.setFlamegraphPanelState,
+        onShowObjects: (pathHashes, isDominator) =>
+          session.openFlamegraph({
+            pathHashes,
+            isDominator,
+            upid: activeDump.upid,
+            ts: activeDump.ts,
+          }),
+      }),
+    },
+    {
       key: 'classes',
       title: 'Classes',
       content: m(ClassesView, {
@@ -193,8 +212,8 @@ function buildTabs(
       key: fgTabKey(fg.id),
       title:
         fg.count !== null
-          ? `Flamegraph (${fg.count.toLocaleString()})`
-          : 'Flamegraph',
+          ? `Flamegraph objects (${fg.count.toLocaleString()})`
+          : 'Flamegraph objects',
       closeButton: true,
       content: m(FlamegraphObjectsView, {
         engine,
@@ -216,6 +235,7 @@ function buildTabs(
         activeDump,
         heaps: overview.heaps,
         navigate: navigateWithTabs,
+        openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
         params: {id: obj.objId},
       }),
     });

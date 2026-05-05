@@ -223,8 +223,13 @@
   border: 1px solid var(--pf-color-border);
 }
 
+.ah-section__header {
+  display: flex;
+  align-items: stretch;
+}
+
 .ah-section__toggle {
-  width: 100%;
+  flex: 1;
   padding: 0.5rem 1rem;
   display: flex;
   justify-content: space-between;
@@ -233,6 +238,14 @@
   &:hover {
     background: var(--pf-color-background-secondary);
   }
+}
+
+.ah-section__actions {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  gap: 0.5rem;
+  border-left: 1px solid var(--pf-color-border-secondary);
 }
 
 .ah-section__title {
