@@ -46,14 +46,7 @@ if (perfetto_build_standalone) {
     # `visibility("default")`, exporting the public C API (including the
     # `syntaqlite_perfetto_dialect_template` entry point the CLI dlsyms)
     # while the `visibility_hidden` config keeps everything else hidden.
-    #
-    # `SYNTAQLITE_OMIT_RUNTIME` drops the runtime from this .so — the CLI
-    # provides it. The extent-hook callsites in the generated Lemon parser
-    # (yy_shift/yy_reduce) remain and are resolved by the dlopen host.
-    defines = [
-      "SYNTAQLITE_SHARED",
-      "SYNTAQLITE_OMIT_RUNTIME",
-    ]
+    defines = [ "SYNTAQLITE_SHARED" ]
     if (is_mac) {
       ldflags = [ "-Wl,-undefined,dynamic_lookup" ]
     }
