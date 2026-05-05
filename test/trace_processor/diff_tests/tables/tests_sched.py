@@ -353,6 +353,117 @@ class TablesSched(TestSuite):
         12521,1477,12521,1737407641875,1830015,1477
         """))
 
+  # parent_id on each with-depth frame is the wakeup-graph node id of the
+  # depth-(N-1) thread that descended into this frame via waker_id.
+  # Validates that every depth-N row's parent_id resolves to a row at
+  # depth N-1 within the same root_id — i.e. (id, parent_id) forms a
+  # proper tree the UI can drill by `WHERE parent_id IN (...)`. At
+  # depth 0 parent_id == id (self-reference).
+  def test_thread_executing_span_critical_path_parent_id_tree(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
+        WITH cp AS (
+          SELECT
+            root_id,
+            depth,
+            id,
+            parent_id
+          FROM _critical_path_with_depth_by_roots!(
+            (SELECT id AS root_node_id FROM _wakeup_graph LIMIT 200),
+            _wakeup_graph)
+        ),
+        joined AS (
+          SELECT
+            a.depth AS depth,
+            (SELECT b.depth FROM cp b
+             WHERE b.id = a.parent_id AND b.root_id = a.root_id LIMIT 1) AS parent_depth,
+            (a.depth = 0 AND a.parent_id = a.id) AS depth0_self,
+            (a.depth > 0 AND a.parent_id != a.id) AS deeper_real_parent
+          FROM cp a
+        )
+        SELECT
+          depth,
+          COUNT(*) AS rows_at_depth,
+          SUM(CASE WHEN depth = 0 THEN depth0_self ELSE deeper_real_parent END) AS rows_with_valid_link,
+          SUM(CASE WHEN depth > 0 AND parent_depth = depth - 1 THEN 1 ELSE 0 END) AS rows_with_parent_one_shallower
+        FROM joined
+        GROUP BY depth
+        ORDER BY depth
+        """,
+        out=Csv("""
+        "depth","rows_at_depth","rows_with_valid_link","rows_with_parent_one_shallower"
+        0,224,224,0
+        1,159,159,159
+        2,99,99,99
+        3,34,34,34
+        4,10,10,10
+        """))
+
+  # `_critical_path_next_blockers!` is the per-track drill query the
+  # UI emits: given the with-depth critical-path output and a set of
+  # anchor row ids, return the depth-(N+1) frames that immediately
+  # block the anchor frames within the same chain. The track label
+  # is the anchor (blocked) thread; the slices come from this macro.
+  #
+  # This test mirrors the UI's exact SQL shape — build the with-depth frames
+  # perfetto table the same way, anchor on the root utid's depth-0
+  # frames, then call _critical_path_next_blockers! and join thread.
+  def test_critical_path_next_blockers(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
+
+        CREATE PERFETTO TABLE _frames AS
+        SELECT
+          row_number() OVER (ORDER BY cr.depth, cr.ts) AS id,
+          cr.root_id AS root_id,
+          cr.id AS node_id,
+          cr.parent_id AS parent_node_id,
+          cr.depth AS depth,
+          cr.ts AS ts,
+          ifnull(CAST(cr.dur AS INT), -1) AS dur,
+          cr.utid AS utid
+        FROM _critical_path_with_depth_by_intervals!(
+               (SELECT
+                  (SELECT utid FROM thread WHERE tid = 3487) AS utid,
+                  start_ts AS ts,
+                  end_ts - start_ts AS dur
+                FROM trace_bounds),
+               _wakeup_graph) AS cr;
+
+        WITH anchors AS (
+          SELECT id FROM _frames
+          WHERE depth = 0
+            AND utid = (SELECT utid FROM thread WHERE tid = 3487)
+        )
+        SELECT
+          blocker.depth,
+          blocker.ts,
+          blocker.dur,
+          blocker.utid,
+          thread.name AS thread_name
+        FROM _critical_path_next_blockers!(_frames, anchors) AS blocker
+        JOIN thread USING (utid)
+        ORDER BY blocker.ts, blocker.utid
+        LIMIT 10
+        """,
+        out=Csv("""
+        "depth","ts","dur","utid","thread_name"
+        1,1737357107000,547583,1480,"Signal Catcher"
+        1,1737366085345,50400,91,"servicemanager"
+        1,1737372771672,12594070,1488,"binder:3487_1"
+        1,1737385365742,204244,1488,"binder:3487_1"
+        1,1737407400608,241267,91,"servicemanager"
+        1,1737409471890,68590,91,"servicemanager"
+        1,1737461767363,436324,649,"binder:642_E"
+        1,1737462291210,245422,649,"binder:642_E"
+        1,1737463573333,393487,649,"binder:642_E"
+        1,1737464047330,251025,649,"binder:642_E"
+        """))
+
   def test_thread_executing_span_critical_path_stack(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
