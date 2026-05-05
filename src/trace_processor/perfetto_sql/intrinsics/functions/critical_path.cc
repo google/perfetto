@@ -96,11 +96,11 @@ struct WakeupGraphAgg : public sqlite::AggregateFunction<WakeupGraphAgg> {
 };
 
 // Attribute time during `[window_start, window_end)` using `node_id`
-// at chain `depth` from the root. `parent_node_id` is the layer one
-// level above this frame in the attribution hierarchy (the root for
-// depth-0 frames) and propagates into every emitted row's `parent_id`
-// so `_intervals_flatten` can collapse overlapping layers to the
-// deepest active blocker per `(root, ts)`.
+// at chain `depth` from the root. `parent_node_id` is the
+// wakeup-graph node id of the depth-(N-1) thread that descended into
+// this frame; at depth 0 it equals the root id (self-reference).
+// Propagated into every emitted row's `parent_id` so callers can
+// drill the chain by following the (parent_id -> node_id) edge.
 struct Frame {
   uint32_t node_id;
   int64_t window_start;
@@ -158,10 +158,9 @@ void WalkOneRoot(const WakeupGraph& graph,
       continue;
     }
 
-    // Idle portion of the effective window. With no `waker_id` (IRQ
-    // context, no thread chain to walk) the woken thread is in kernel
-    // and self-attributes; otherwise descend into `waker_id` at
-    // depth+1 to chain through the cross-thread waker.
+    // Idle portion. With no `waker_id` (IRQ context) the woken
+    // thread self-attributes in kernel; otherwise descend into the
+    // waker at depth+1.
     int64_t idle_clip_start = eff_start;
     int64_t idle_clip_end = std::min(eff_end, n.ts);
     if (idle_clip_start < idle_clip_end) {
@@ -176,8 +175,10 @@ void WalkOneRoot(const WakeupGraph& graph,
         row.parent_id = f.parent_node_id;
         out.Insert(row);
       } else if (n.waker_id) {
+        // Cross-thread descent: this frame becomes the parent of the
+        // pushed one so per-hop lineage is preserved.
         stack.push_back({*n.waker_id, idle_clip_start, idle_clip_end,
-                         f.depth + 1, f.parent_node_id});
+                         f.depth + 1, f.node_id});
       }
     }
 
@@ -197,9 +198,11 @@ void WalkOneRoot(const WakeupGraph& graph,
   }
 }
 
-// Args, in order: WakeupGraph* (from `__intrinsic_wakeup_graph_agg`),
-// IntArray* of root ids (from `__intrinsic_array_agg`). Returns a
-// `Dataframe*` tagged "TABLE", consumed via `__intrinsic_table_ptr`.
+// Args, in order:
+//   WakeupGraph* (from `__intrinsic_wakeup_graph_agg`),
+//   IntArray*    (from `__intrinsic_array_agg`, root ids).
+// Returns a `Dataframe*` tagged "TABLE", consumed via
+// `__intrinsic_table_ptr`.
 struct CriticalPathWalk : public sqlite::AggregateFunction<CriticalPathWalk> {
   static constexpr char kName[] = "__intrinsic_critical_path_walk";
   static constexpr int kArgCount = 2;
