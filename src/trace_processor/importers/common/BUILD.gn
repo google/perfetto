@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/test.gni")
 
 source_set("common") {
   sources = [
@@ -146,7 +147,7 @@ source_set("v8_profile_parser") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   sources = [
     "address_range_unittest.cc",
     "args_translation_table_unittest.cc",

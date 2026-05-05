@@ -50,7 +50,7 @@ perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {
   descriptor_target = "../../../protos/perfetto/trace_summary:descriptor"
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [ "summarizer_unittest.cc" ]
   deps = [
