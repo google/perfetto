@@ -19,6 +19,7 @@ import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin} from '../../public/plugin';
 import {asUtid, Utid} from '../../components/sql_utils/core_types';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
+import SchedPlugin from '../dev.perfetto.Sched';
 import {showModal} from '../../widgets/modal';
 import {
   CRITICAL_PATH_CMD,
@@ -60,19 +61,24 @@ const sliceColumns = {ts: 'ts', dur: 'dur', name: 'name'};
 const sliceColumnNames = ['id', 'utid', 'ts', 'dur', 'name', 'table_name'];
 
 function getFirstUtidOfSelectionOrVisibleWindow(trace: Trace): number {
+  return getThreadStateTracksInArea(trace)[0]?.utid ?? 0;
+}
+
+function getThreadStateTracksInArea(
+  trace: Trace,
+): ReadonlyArray<{utid: number; uri: string}> {
   const selection = trace.selection.selection;
-  if (selection.kind === 'area') {
-    for (const trackDesc of selection.tracks) {
-      if (
-        trackDesc?.tags?.kinds?.includes(THREAD_STATE_TRACK_KIND) &&
-        trackDesc?.tags?.utid !== undefined
-      ) {
-        return trackDesc.tags.utid;
-      }
+  if (selection.kind !== 'area') return [];
+  const out: {utid: number; uri: string}[] = [];
+  for (const trackDesc of selection.tracks) {
+    if (
+      trackDesc?.tags?.kinds?.includes(THREAD_STATE_TRACK_KIND) &&
+      trackDesc?.tags?.utid !== undefined
+    ) {
+      out.push({utid: trackDesc.tags.utid, uri: trackDesc.uri});
     }
   }
-
-  return 0;
+  return out;
 }
 
 function showModalErrorAreaSelectionRequired() {
@@ -88,6 +94,15 @@ function showModalErrorThreadStateRequired() {
     title: 'Error: thread state selection required',
     content: 'This command requires a thread state slice to be selected.',
   });
+}
+
+// URI of the thread state track currently holding the selected slice.
+function getSelectedThreadStateTrackUri(trace: Trace): string | undefined {
+  const selection = trace.selection.selection;
+  if (selection.kind !== 'track_event') return undefined;
+  const track = trace.tracks.getTrack(selection.trackUri);
+  if (!track?.tags?.kinds?.includes(THREAD_STATE_TRACK_KIND)) return undefined;
+  return selection.trackUri;
 }
 
 // If utid is undefined, returns the utid for the selected thread state track,
@@ -138,7 +153,7 @@ async function getUtid(trace: Trace): Promise<Utid | undefined> {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CriticalPath';
-  static readonly dependencies = [QueryPagePlugin];
+  static readonly dependencies = [QueryPagePlugin, SchedPlugin];
   async onTraceLoad(ctx: Trace): Promise<void> {
     // Each command is invoked either from the command palette (utid
     // resolved from the current selection) or via runCommand(utid)
@@ -231,6 +246,8 @@ export default class implements PerfettoPlugin {
       callback: async (utidArg) => {
         const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utidArg);
         if (thdInfo === undefined) return showModalErrorThreadStateRequired();
+        const parentUri = getSelectedThreadStateTrackUri(ctx);
+        if (parentUri === undefined) return showModalErrorThreadStateRequired();
         const tb = await ctx.engine.query(
           `SELECT start_ts AS s, end_ts AS e FROM trace_bounds`,
         );
@@ -241,6 +258,7 @@ export default class implements PerfettoPlugin {
           thdInfo.name ?? `utid ${thdInfo.utid}`,
           tbRow.s,
           tbRow.e - tbRow.s,
+          parentUri,
         ).pin();
       },
     });
@@ -249,17 +267,20 @@ export default class implements PerfettoPlugin {
       id: 'dev.perfetto.CriticalPathTree_AreaSelection',
       name: 'Critical path tree (over area selection)',
       callback: async () => {
-        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
+        const parents = getThreadStateTracksInArea(ctx);
+        if (parents.length === 0) return showModalErrorAreaSelectionRequired();
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
-        if (trackUtid === 0) return showModalErrorAreaSelectionRequired();
-        const thdInfo = await getThreadInfo(ctx.engine, trackUtid as Utid);
-        await new CriticalPathTreePin(
-          ctx,
-          trackUtid,
-          thdInfo.name ?? `utid ${trackUtid}`,
-          window.start,
-          window.end - window.start,
-        ).pin();
+        for (const parent of parents) {
+          const thdInfo = await getThreadInfo(ctx.engine, parent.utid as Utid);
+          await new CriticalPathTreePin(
+            ctx,
+            parent.utid,
+            thdInfo.name ?? `utid ${parent.utid}`,
+            window.start,
+            window.end - window.start,
+            parent.uri,
+          ).pin();
+        }
       },
     });
 

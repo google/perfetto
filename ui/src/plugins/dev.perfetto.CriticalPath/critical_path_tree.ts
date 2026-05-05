@@ -67,6 +67,7 @@ export class CriticalPathTreePin {
     private readonly rootName: string,
     private readonly windowTs: bigint,
     private readonly windowDur: bigint,
+    private readonly parentTrackUri: string,
   ) {}
 
   async pin(): Promise<void> {
@@ -99,8 +100,11 @@ export class CriticalPathTreePin {
       });
     }
 
+    const parent = this.ctx.currentWorkspace.getTrackByUri(this.parentTrackUri);
+    if (parent === undefined) return;
     const rootNode = await this.makeRootNode(rootAnchors);
-    this.ctx.currentWorkspace.pinnedTracksNode.addChildLast(rootNode);
+    parent.addChildLast(rootNode);
+    parent.expand();
   }
 
   // One row per chain frame: each `(depth, utid)` frame in the
@@ -401,7 +405,7 @@ export class CriticalPathTreePin {
   private async makeRootNode(rootAnchors: number[]): Promise<TrackNode> {
     return this.makeThreadTrack(
       0,
-      this.rootName,
+      `Critical path of ${this.rootName}`,
       rootAnchors,
       /* removable=*/ true,
     );
