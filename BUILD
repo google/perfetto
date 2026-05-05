@@ -4426,6 +4426,7 @@ perfetto_filegroup(
     name = "src_trace_processor_plugins_wattson_wattson",
     srcs = [
         "src/trace_processor/plugins/wattson/plugin.cc",
+        "src/trace_processor/plugins/wattson/register.h",
         "src/trace_processor/plugins/wattson/table_function.cc",
         "src/trace_processor/plugins/wattson/table_function.h",
     ],
