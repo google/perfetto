@@ -73,13 +73,17 @@ std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
     if (tokens.size() <= num_cpus)
       continue;
 
-    // First token must be "IRQ_NUM:".
+    // First token must be numeric "IRQ_NUM:". Non-numeric pseudo-IRQ rollup
+    // lines are intentionally skipped (e.g. "NMI: Non-maskable interrupts",
+    // "LOC: Local timer interrupts").
     const std::string& id_token = tokens[0];
-    char* endptr;
-    uint32_t irq_id =
-        static_cast<uint32_t>(strtoul(id_token.c_str(), &endptr, 10));
-    if (endptr == id_token.c_str() || *endptr != ':')
+    if (id_token.empty() || id_token.back() != ':')
       continue;
+    auto irq_id_opt =
+        base::CStringToUInt32(id_token.substr(0, id_token.size() - 1).c_str());
+    if (!irq_id_opt)
+      continue;
+    uint32_t irq_id = *irq_id_opt;
 
     // Find the trigger token to anchor the name. ARM GIC uses standalone
     // "Level"/"Edge"; x86 IO-APIC embeds the trigger in the hw-irq field
