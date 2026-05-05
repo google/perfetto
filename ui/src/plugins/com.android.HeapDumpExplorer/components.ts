@@ -95,6 +95,9 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
 interface SectionAttrs {
   readonly title: string;
   readonly defaultOpen?: boolean;
+  // Optional inline actions rendered to the right of the title. Action
+  // clicks are isolated from the section toggle.
+  readonly actions?: m.Children;
 }
 export function Section(): m.Component<SectionAttrs> {
   let open = true;
@@ -107,28 +110,42 @@ export function Section(): m.Component<SectionAttrs> {
         'div',
         {class: 'ah-section'},
         m(
-          'button',
-          {
-            'class': 'ah-section__toggle',
-            'onclick': () => {
-              open = !open;
-            },
-            'aria-expanded': open,
-          },
-          m('span', {class: 'ah-section__title'}, vnode.attrs.title),
+          'div',
+          {class: 'ah-section__header'},
           m(
-            'svg',
+            'button',
             {
-              class: `ah-section__chevron${open ? ' ah-section__chevron--open' : ''}`,
-              viewBox: '0 0 20 20',
-              fill: 'currentColor',
+              'class': 'ah-section__toggle',
+              'onclick': () => {
+                open = !open;
+              },
+              'aria-expanded': open,
             },
-            m('path', {
-              'fill-rule': 'evenodd',
-              'd': 'M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z',
-              'clip-rule': 'evenodd',
-            }),
+            m('span', {class: 'ah-section__title'}, vnode.attrs.title),
+            m(
+              'svg',
+              {
+                class: `ah-section__chevron${open ? ' ah-section__chevron--open' : ''}`,
+                viewBox: '0 0 20 20',
+                fill: 'currentColor',
+              },
+              m('path', {
+                'fill-rule': 'evenodd',
+                'd': 'M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z',
+                'clip-rule': 'evenodd',
+              }),
+            ),
           ),
+          vnode.attrs.actions !== undefined
+            ? m(
+                'div',
+                {
+                  class: 'ah-section__actions',
+                  onclick: (e: Event) => e.stopPropagation(),
+                },
+                vnode.attrs.actions,
+              )
+            : null,
         ),
         open ? m('div', {class: 'ah-section__body'}, vnode.children) : null,
       );
