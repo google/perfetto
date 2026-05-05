@@ -20,10 +20,10 @@
 -- The most common use case will be to use this data to help symbolize the addresses in order to map instructions back to the code that caused them.
 -- To get ETM data you need to have enabled enable_perfetto_etm_importer in your gn args.
 CREATE PERFETTO FUNCTION _linux_perf_etm_metadata(
-    -- ID of the chunk.
-    chunk_id LONG
+  -- ID of the chunk.
+  chunk_id LONG
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Name of the file containing the instruction.
   file_name STRING,
   -- Relative program counter of the instruction.
@@ -32,15 +32,20 @@ RETURNS TABLE (
   mapping_id LONG,
   -- The address of the instruction.
   address LONG
-) AS
+)
+AS
 SELECT
   __intrinsic_file.name AS file_name,
-  __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc,
+  __intrinsic_etm_iterate_instruction_range.address
+  - stack_profile_mapping.start
+  + stack_profile_mapping.exact_offset
+  + __intrinsic_elf_file.load_bias AS rel_pc,
   __intrinsic_etm_decode_chunk.mapping_id AS mapping_id,
   __intrinsic_etm_iterate_instruction_range.address AS address
 FROM __intrinsic_etm_decode_chunk($chunk_id)
 JOIN __intrinsic_etm_iterate_instruction_range
-  ON __intrinsic_etm_decode_chunk.instruction_range = __intrinsic_etm_iterate_instruction_range.instruction_range
+  ON __intrinsic_etm_decode_chunk.instruction_range
+  = __intrinsic_etm_iterate_instruction_range.instruction_range
 JOIN stack_profile_mapping
   ON __intrinsic_etm_decode_chunk.mapping_id = stack_profile_mapping.id
 JOIN __intrinsic_elf_file

@@ -27,33 +27,25 @@ INCLUDE PERFETTO MODULE sched.states;
 
 -- Create a table with unique startup events, including thread and process information.
 CREATE PERFETTO TABLE _mipmap_startup AS
-SELECT
-  android_startups.startup_id AS id,
-  android_startups.*,
-  upid,
-  utid
+SELECT android_startups.startup_id AS id, android_startups.*, upid, utid
 FROM android_startups
-JOIN android_startup_processes
-  USING (startup_id)
-JOIN thread
-  USING (upid)
-JOIN android_process_metadata
-  USING (upid)
+JOIN android_startup_processes USING (startup_id)
+JOIN thread USING (upid)
+JOIN android_process_metadata USING (upid)
 WHERE
-  dur > 0 AND is_main_thread
+  dur > 0
+  AND is_main_thread
 ORDER BY
   ts;
 
 -- Flatten slices that occur within the startups.
 CREATE PERFETTO TABLE _mipmap_flat_slice AS
-SELECT
-  _slice_flattened.*
+SELECT _slice_flattened.*
 FROM _slice_flattened
-JOIN _mipmap_startup
-  USING (utid);
+JOIN _mipmap_startup USING (utid);
 
 -- Span join flattened slices with thread states to get thread state information for each slice.
-CREATE VIRTUAL TABLE _mipmap_flat_slice_thread_states_and_slices_sp USING SPAN_LEFT_JOIN (
+CREATE VIRTUAL TABLE _mipmap_flat_slice_thread_states_and_slices_sp USING SPAN_LEFT_JOIN(
     thread_state PARTITIONED utid,
     _mipmap_flat_slice PARTITIONED utid);
 
@@ -117,8 +109,7 @@ JOIN _mipmap_startup AS startup
 -- 1-ms buckets for each startup. These buckets will be used to
 -- aggregate and summarize the startup activity.
 CREATE PERFETTO TABLE _mipmap_startup_buckets_1ms AS
-SELECT
-  *
+SELECT *
 FROM _mipmap_buckets_table!(
   -- Source table for time range
   (SELECT ts, dur, startup_id FROM _mipmap_startup_slice),
@@ -158,7 +149,7 @@ ORDER BY
 -- mipmap of the startup slices. The mipmap provides a summarized view of the
 -- startup, with a resolution of 1 ms. The table contains merged slices
 -- representing the dominant event in each time bucket.
-CREATE PERFETTO TABLE _android_startup_mipmap_1ms (
+CREATE PERFETTO TABLE _android_startup_mipmap_1ms(
   -- timestamp of the merged slice
   ts TIMESTAMP,
   -- duration of the merged slice
@@ -183,7 +174,8 @@ CREATE PERFETTO TABLE _android_startup_mipmap_1ms (
   io_wait LONG,
   -- blocked function
   blocked_function STRING
-) AS
+)
+AS
 SELECT
   mm.ts,
   mm.dur,
@@ -204,5 +196,4 @@ FROM _mipmap_merged!(
   startup_id,
   1e6  -- 1ms buckets
 ) AS mm
-JOIN _mipmap_startup_slices_with_ids AS s
-  USING (id);
+JOIN _mipmap_startup_slices_with_ids AS s USING (id);

@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- Android power rails counters data.
 -- For details see: https://perfetto.dev/docs/data-sources/battery-counters#odpm
 -- NOTE: Requires dedicated hardware - table is only populated on Pixels.
-CREATE PERFETTO TABLE android_power_rails_counters (
+CREATE PERFETTO TABLE android_power_rails_counters(
   -- `counter.id`
   id ID(counter.id),
   -- Timestamp of the energy measurement.
@@ -47,11 +47,11 @@ CREATE PERFETTO TABLE android_power_rails_counters (
   track_id JOINID(track.id),
   -- DEPRECATED. Use `energy_since_boot` instead.
   value DOUBLE
-) AS
+)
+AS
 WITH
   counter_table AS (
-    SELECT
-      c.*
+    SELECT c.*
     FROM counter AS c
     JOIN counter_track AS t
       ON c.track_id = t.id
@@ -66,11 +66,7 @@ SELECT
   extract_arg(source_arg_set_id, 'raw_name') AS raw_power_rail_name,
   c.value AS energy_since_boot,
   c.next_value AS energy_since_boot_at_end,
-  1e6 * (
-    (
-      c.next_value - c.value
-    ) / c.dur
-  ) AS average_power,
+  1e6 * ((c.next_value - c.value) / c.dur) AS average_power,
   c.delta_value AS energy_delta,
   c.track_id,
   c.value
@@ -79,7 +75,7 @@ JOIN counter_track AS t
   ON c.track_id = t.id;
 
 -- High level metadata about each of the power rails.
-CREATE PERFETTO TABLE android_power_rails_metadata (
+CREATE PERFETTO TABLE android_power_rails_metadata(
   -- Power rail name. Alias of `counter_track.name`.
   power_rail_name STRING,
   -- Raw power rail name from the hardware.
@@ -92,7 +88,8 @@ CREATE PERFETTO TABLE android_power_rails_metadata (
   subsystem_name STRING,
   -- The device the power rail is associated with.
   machine_id JOINID(machine.id)
-) AS
+)
+AS
 SELECT
   t.name AS power_rail_name,
   extract_arg(t.source_arg_set_id, 'raw_name') AS raw_power_rail_name,

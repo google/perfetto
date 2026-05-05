@@ -30,48 +30,106 @@ SELECT
   extract_arg(arg_set_id, 'scheduled_job_state_changed.internal_stop_reason') AS internal_stop_reason,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.public_stop_reason') AS public_stop_reason,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.effective_priority') AS effective_priority,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.has_battery_not_low_constraint') AS has_battery_not_low_constraint,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.has_battery_not_low_constraint'
+  ) AS has_battery_not_low_constraint,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.has_charging_constraint') AS has_charging_constraint,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.has_connectivity_constraint') AS has_connectivity_constraint,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.has_content_trigger_constraint') AS has_content_trigger_constraint,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.has_connectivity_constraint'
+  ) AS has_connectivity_constraint,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.has_content_trigger_constraint'
+  ) AS has_content_trigger_constraint,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.has_deadline_constraint') AS has_deadline_constraint,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.has_idle_constraint') AS has_idle_constraint,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.has_storage_not_low_constraint') AS has_storage_not_low_constraint,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.has_timing_delay_constraint') AS has_timing_delay_constraint,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.has_storage_not_low_constraint'
+  ) AS has_storage_not_low_constraint,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.has_timing_delay_constraint'
+  ) AS has_timing_delay_constraint,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.is_prefetch') = 1 AS is_prefetch,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.is_requested_expedited_job') AS is_requested_expedited_job,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.is_running_as_expedited_job') AS is_running_as_expedited_job,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.is_requested_expedited_job'
+  ) AS is_requested_expedited_job,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.is_running_as_expedited_job'
+  ) AS is_running_as_expedited_job,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.job_id') AS job_id,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.num_previous_attempts') AS num_previous_attempts,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.requested_priority') AS requested_priority,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.standby_bucket') AS standby_bucket,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.is_periodic') AS is_periodic,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.is_periodic') AS has_flex_constraint,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.is_requested_as_user_initiated_job') AS is_requested_as_user_initiated_job,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.is_running_as_user_initiated_job') AS is_running_as_user_initiated_job,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.is_requested_as_user_initiated_job'
+  ) AS is_requested_as_user_initiated_job,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.is_running_as_user_initiated_job'
+  ) AS is_running_as_user_initiated_job,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.deadline_ms') AS deadline_ms,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.job_start_latency_ms') AS job_start_latency_ms,
-  extract_arg(arg_set_id, 'scheduled_job_state_changed.num_uncompleted_work_items') AS num_uncompleted_work_items,
+  extract_arg(
+    arg_set_id,
+    'scheduled_job_state_changed.num_uncompleted_work_items'
+  ) AS num_uncompleted_work_items,
   extract_arg(arg_set_id, 'scheduled_job_state_changed.proc_state') AS proc_state
 FROM track AS t
-JOIN slice AS s
-  ON (
-    s.track_id = t.id
-  )
+JOIN slice AS s ON (s.track_id = t.id)
 WHERE
-  t.name = 'Statsd Atoms' AND s.name = 'scheduled_job_state_changed';
+  t.name = 'Statsd Atoms'
+  AND s.name = 'scheduled_job_state_changed';
 
 CREATE PERFETTO TABLE _job_started AS
 WITH
   cte AS (
     SELECT
       *,
-      lead(state, 1) OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) AS lead_state,
-      lead(ts, 1, trace_end()) OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) AS ts_lead,
+      lead(state, 1) OVER (
+        PARTITION BY
+          uid,
+          job_name,
+          job_id
+        ORDER BY uid, job_name, job_id, ts
+      ) AS lead_state,
+      lead(ts, 1, trace_end()) OVER (
+        PARTITION BY
+          uid,
+          job_name,
+          job_id
+        ORDER BY uid, job_name, job_id, ts
+      ) AS ts_lead,
       --- Filter out statsd lossy issue.
-      lead(ts, 1) OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) IS NULL AS is_end_slice,
-      lead(internal_stop_reason, 1, 'INTERNAL_STOP_REASON_UNKNOWN') OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) AS lead_internal_stop_reason,
-      lead(public_stop_reason, 1, 'PUBLIC_STOP_REASON_UNKNOWN') OVER (PARTITION BY uid, job_name, job_id ORDER BY uid, job_name, job_id, ts) AS lead_public_stop_reason
+      lead(ts, 1) OVER (
+        PARTITION BY
+          uid,
+          job_name,
+          job_id
+        ORDER BY uid, job_name, job_id, ts
+      ) IS NULL AS is_end_slice,
+      lead(internal_stop_reason, 1, 'INTERNAL_STOP_REASON_UNKNOWN') OVER (
+        PARTITION BY
+          uid,
+          job_name,
+          job_id
+        ORDER BY uid, job_name, job_id, ts
+      ) AS lead_internal_stop_reason,
+      lead(public_stop_reason, 1, 'PUBLIC_STOP_REASON_UNKNOWN') OVER (
+        PARTITION BY
+          uid,
+          job_name,
+          job_id
+        ORDER BY uid, job_name, job_id, ts
+      ) AS lead_public_stop_reason
     FROM _job_states
     WHERE
       state != 'CANCELLED'
@@ -82,17 +140,18 @@ SELECT
   -- 2. Only tag is present:  <tag>:<package name>
   -- 3. Only namespace is present: @<namespace>@<package name>/<class name>
   CASE
-    WHEN substr(job_name, 1, 1) = '@'
-    THEN CASE
-      WHEN substr(str_split(job_name, '/', 1), 1, 3) = 'com'
-      THEN str_split(job_name, '/', 1)
+    WHEN substr(job_name, 1, 1) = '@' THEN CASE
+      WHEN substr(str_split(job_name, '/', 1), 1, 3) = 'com' THEN str_split(
+        job_name,
+        '/',
+        1
+      )
       ELSE str_split(str_split(job_name, '/', 0), '@', 2)
     END
     ELSE str_split(job_name, '/', 0)
   END AS package_name,
   CASE
-    WHEN substr(job_name, 1, 1) = '@'
-    THEN str_split(job_name, '@', 1)
+    WHEN substr(job_name, 1, 1) = '@' THEN str_split(job_name, '@', 1)
     ELSE str_split(job_name, '/', 1)
   END AS job_namespace,
   ts_lead - ts AS dur,
@@ -101,9 +160,7 @@ SELECT
 FROM cte
 WHERE
   is_end_slice = FALSE
-  AND (
-    ts_lead - ts
-  ) > 0
+  AND (ts_lead - ts) > 0
   AND state = 'STARTED'
   AND lead_state IN ('FINISHED', 'SCHEDULED');
 
@@ -134,7 +191,7 @@ JOIN android_screen_state AS s
 -- See documentation for the `android_job_scheduler_with_screen_charging_states`
 -- for how tables in this module differ from `android_job_scheduler_events`
 -- table in the `android.job_scheduler` module and how to populate this table.
-CREATE PERFETTO TABLE android_job_scheduler_states (
+CREATE PERFETTO TABLE android_job_scheduler_states(
   -- Unique identifier for job scheduler state.
   id ID,
   -- Timestamp of job state slice.
@@ -207,7 +264,8 @@ CREATE PERFETTO TABLE android_job_scheduler_states (
   internal_stop_reason STRING,
   -- Public stop reason for a job.
   public_stop_reason STRING
-) AS
+)
+AS
 SELECT
   row_number() OVER (ORDER BY ts) AS id,
   ts,
@@ -266,7 +324,7 @@ FROM _job_started;
 -- This table is preferred over `android_job_scheduler_events`
 -- since it contains more information and should be used whenever
 -- `ATOM_SCHEDULED_JOB_STATE_CHANGED` is available in a trace.
-CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states (
+CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states(
   -- Timestamp of job.
   ts TIMESTAMP,
   -- Duration of slice in ns.
@@ -345,7 +403,8 @@ CREATE PERFETTO TABLE android_job_scheduler_with_screen_charging_states (
   internal_stop_reason STRING,
   -- Public stop reason for a job.
   public_stop_reason STRING
-) AS
+)
+AS
 SELECT
   ii.ts,
   ii.dur,

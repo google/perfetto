@@ -283,12 +283,11 @@ export async function addAndConnectTable(
 
   // Create the table node with the specific table (bypass the modal)
   const newNode = descriptor.factory(
+    {sqlTable: tableName},
     {
-      sqlTable,
-      sqlModules: deps.sqlModules,
-      trace: deps.trace,
+      allNodes: state.rootNodes,
+      context: {sqlModules: deps.sqlModules, trace: deps.trace},
     },
-    {allNodes: state.rootNodes},
   );
 
   // Add connection from the new table node to the target node

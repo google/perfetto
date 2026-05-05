@@ -20,28 +20,21 @@ CREATE PERFETTO TABLE _wattson_markers_window AS
 WITH
   markers AS (
     SELECT
-      min(ts) FILTER(WHERE
-        name = 'wattson_start') AS start,
-      max(ts) FILTER(WHERE
-        name = 'wattson_stop') AS stop
+      min(ts) FILTER (WHERE name = 'wattson_start') AS start,
+      max(ts) FILTER (WHERE name = 'wattson_stop') AS stop
     FROM slice
     WHERE
       name IN ('wattson_start', 'wattson_stop')
   )
-SELECT
-  start AS ts,
-  stop - start AS dur,
-  'Markers window' AS name
+SELECT start AS ts, stop - start AS dur, 'Markers window' AS name
 FROM markers
 WHERE
   start IS NOT NULL;
 
 -- Helper macro for using Perfetto table with interval intersect
-CREATE PERFETTO MACRO _ii_subquery(
-    tab TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _ii_subquery(tab TableOrSubquery)
+RETURNS TableOrSubquery
+AS (
   SELECT
     _auto_id AS id,
     *
@@ -50,5 +43,5 @@ RETURNS TableOrSubquery AS
 
 -- DSU dependency policy
 CREATE PERFETTO MACRO _dsu_dep()
-RETURNS Expr AS
-255;
+RETURNS Expr
+AS 255;

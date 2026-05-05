@@ -28,18 +28,18 @@
 -- )
 -- ```
 CREATE PERFETTO MACRO _interval_create(
-    -- Table or subquery containing start timestamps (must have a `ts` column).
-    starts_table TableOrSubquery,
-    -- Table or subquery containing end timestamps (must have a `ts` column).
-    ends_table TableOrSubquery
+  -- Table or subquery containing start timestamps (must have a `ts` column).
+  starts_table TableOrSubquery,
+  -- Table or subquery containing end timestamps (must have a `ts` column).
+  ends_table TableOrSubquery
 )
 -- Table with the schema:
 -- ts TIMESTAMP,
 --     The start timestamp.
 -- dur DURATION,
 --     The duration from start to the matched end.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS ts,
     c1 AS dur

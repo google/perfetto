@@ -509,9 +509,9 @@ struct CounterPerTrackAgg
         new_rows_track->last_equal_id = id;
         new_rows_track->last_equal_ts = ts;
         new_rows_track->last_equal_val = val;
-        // TODO(mayzner): In the future we should also support "lagging" - if
-        // the next one has the same value as the previous, we should remove the
-        // previous.
+        // TODO(b/509816724): In the future we should also support "lagging" -
+        // if the next one has the same value as the previous, we should remove
+        // the previous.
         return;
       } else {
         if (new_rows_track->last_equal_ts != 0) {

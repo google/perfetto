@@ -267,6 +267,62 @@ TEST_P(SharedMemoryArbiterImplTest, UseShmemEmulation) {
       arbiter_->shmem_abi_for_testing()->GetChunkState(page_idx, chunk_idx));
 }
 
+// Verifies that ScrapeEmulatedSharedMemoryBuffer commits the scraped chunks
+// via the producer endpoint and leaves the chunk state untouched (the writer
+// still owns it).
+TEST_P(SharedMemoryArbiterImplTest, ScrapeEmulatedSharedMemoryBuffer) {
+  arbiter_.reset(new SharedMemoryArbiterImpl(
+      buf(), buf_size(), ShmemMode::kShmemEmulation, page_size(),
+      &mock_producer_endpoint_, task_runner_.get()));
+
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
+      SharedMemoryABI::PageLayout::kPageDiv1);
+
+  constexpr WriterID kWriterId = 7;
+  constexpr BufferID kTargetBuffer = 42;
+
+  size_t page_idx;
+  size_t chunk_idx;
+  auto* abi = arbiter_->shmem_abi_for_testing();
+
+  // Acquire a chunk and leave it in kChunkBeingWritten state with at least 2
+  // packets, so that ForEachScrapableChunk() picks it up as scrapable.
+  SharedMemoryABI::ChunkHeader header = {};
+  header.writer_id.store(kWriterId, std::memory_order_relaxed);
+  header.chunk_id.store(0, std::memory_order_relaxed);
+  header.packets.store({}, std::memory_order_relaxed);
+  SharedMemoryABI::Chunk chunk =
+      arbiter_->GetNewChunk(header, BufferExhaustedPolicy::kStall);
+  std::tie(page_idx, chunk_idx) = abi->GetPageAndChunkIndex(chunk);
+  ASSERT_TRUE(chunk.is_valid());
+  chunk.IncrementPacketCount();
+  chunk.IncrementPacketCount();
+
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce([&](const CommitDataRequest& req,
+                    MockProducerEndpoint::CommitDataCallback) {
+        ASSERT_EQ(1, req.chunks_to_move_size());
+
+        ASSERT_EQ(page_idx, req.chunks_to_move()[0].page());
+        ASSERT_EQ(chunk_idx, req.chunks_to_move()[0].chunk());
+        ASSERT_EQ(kTargetBuffer, req.chunks_to_move()[0].target_buffer());
+
+        // The chunk is still being written, so it must be flagged as
+        // incomplete and the data must be inlined in the request.
+        ASSERT_TRUE(req.chunks_to_move()[0].chunk_incomplete());
+        ASSERT_TRUE(req.chunks_to_move()[0].has_data());
+      });
+
+  std::map<WriterID, BufferID> buffer_for_writers = {
+      {kWriterId, kTargetBuffer}};
+  arbiter_->ScrapeEmulatedSharedMemoryBuffer(buffer_for_writers);
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+
+  // Scraping must not disturb the chunk: the writer still owns it.
+  ASSERT_EQ(SharedMemoryABI::kChunkBeingWritten,
+            abi->GetChunkState(page_idx, chunk_idx));
+}
+
 // Check that we can create up to many TraceWriter(s).
 TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   constexpr size_t kBigWriterCount = (1 << 12);

@@ -14,5 +14,4 @@
 
 source_set("traceconv") {
   sources = [ "traceconv.h" ]
-  public_deps = [ "../../base" ]
 }

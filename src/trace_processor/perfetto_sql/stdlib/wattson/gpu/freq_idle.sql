@@ -24,14 +24,15 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 INCLUDE PERFETTO MODULE wattson.utils;
 
 -- GPU power state which is analogous to CPU idle state
-CREATE PERFETTO TABLE _pvr_gpu_power_state (
+CREATE PERFETTO TABLE _pvr_gpu_power_state(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
   dur DURATION,
   -- GPU power state
   power_state LONG
-) AS
+)
+AS
 SELECT
   s.ts,
   iif(s.dur = -1, trace_end() - s.ts, s.dur) AS dur,
@@ -57,9 +58,9 @@ WITH
       gpu_id
     FROM android_gpu_frequency
     WHERE
-      gpu_id = (
-        SELECT
-          gpu_id
+      gpu_id
+      = (
+        SELECT gpu_id
         FROM _gpuid_map
         JOIN _wattson_device
           ON _gpuid_map.device = _wattson_device.name
@@ -74,32 +75,22 @@ WITH
       gpu_id
     FROM android_gpu_frequency
     WHERE
-      gpu_id = (
-        SELECT
-          gpu_id
+      gpu_id
+      = (
+        SELECT gpu_id
         FROM _gpuid_map
         JOIN _wattson_device
           ON _gpuid_map.device = _wattson_device.name
       )
   )
-SELECT
-  *
-FROM nominal_freqs;
+SELECT * FROM nominal_freqs;
 
 -- A single source for GPU power state information
 -- from either mali or pvr which are mutually exclusive
 CREATE PERFETTO VIEW _gpu_power_state AS
-SELECT
-  ts,
-  dur,
-  power_state
-FROM android_mali_gpu_power_state
+SELECT ts, dur, power_state FROM android_mali_gpu_power_state
 UNION ALL
-SELECT
-  ts,
-  dur,
-  power_state
-FROM _pvr_gpu_power_state;
+SELECT ts, dur, power_state FROM _pvr_gpu_power_state;
 
 -- Gapless time slices of GPU idle from trace_start() to trace_end()
 CREATE PERFETTO TABLE _gapless_gpu_power_state AS
@@ -112,15 +103,9 @@ WITH
       NULL AS power_state
     FROM _gpu_power_state
     UNION ALL
-    SELECT
-      ts,
-      dur,
-      power_state
-    FROM _gpu_power_state
+    SELECT ts, dur, power_state FROM _gpu_power_state
   )
-SELECT
-  *
-FROM nominal_power_states;
+SELECT * FROM nominal_power_states;
 
 CREATE PERFETTO TABLE _gpu_freq_idle AS
 WITH
@@ -154,6 +139,11 @@ SELECT
   -- and converts the GPU power state to be same scale as CPU idle state for
   -- consistency. (smaller numbers correspond to deeper idle states on Mali, and
   -- larger numbers correspond to deeper idle state on CPUs).
-  iif(power_state = 2 AND freq = 0, iif(prev_freq = 0, next_freq, prev_freq), freq) AS freq,
+  iif(
+    power_state = 2
+    AND freq = 0,
+    iif(prev_freq = 0, next_freq, prev_freq),
+    freq
+  ) AS freq,
   iif(power_state = 2 AND freq = 0, 1, power_state) AS power_state
 FROM base;

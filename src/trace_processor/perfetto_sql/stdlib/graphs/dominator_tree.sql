@@ -47,37 +47,37 @@
 -- );
 -- ```
 CREATE PERFETTO MACRO graph_dominator_tree(
-    -- A table/view/subquery corresponding to a directed flow-graph on which the
-    -- dominator tree should be computed. This table must have the columns
-    -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
-    -- either end of the edges in the graph.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    --
-    -- Note: this means that the graph *must* be a single fully connected
-    -- component with |root_node_id| (see below) being the "entry node" for this
-    -- component. Specifically, all nodes *must* be reachable by following paths
-    -- from the root node. Failing to adhere to this property will result in
-    -- undefined behaviour.
-    --
-    -- If working with a "forest"-like structure, a dummy node should be added which
-    -- links all the roots of the forest together into a single component; an example
-    -- of this can be found in the heap graph example query above.
-    graph_table TableOrSubquery,
-    -- The entry node to |graph_table| which will be the root of the dominator
-    -- tree.
-    root_node_id Expr
+  -- A table/view/subquery corresponding to a directed flow-graph on which the
+  -- dominator tree should be computed. This table must have the columns
+  -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
+  -- either end of the edges in the graph.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  --
+  -- Note: this means that the graph *must* be a single fully connected
+  -- component with |root_node_id| (see below) being the "entry node" for this
+  -- component. Specifically, all nodes *must* be reachable by following paths
+  -- from the root node. Failing to adhere to this property will result in
+  -- undefined behaviour.
+  --
+  -- If working with a "forest"-like structure, a dummy node should be added which
+  -- links all the roots of the forest together into a single component; an example
+  -- of this can be found in the heap graph example query above.
+  graph_table TableOrSubquery,
+  -- The entry node to |graph_table| which will be the root of the dominator
+  -- tree.
+  root_node_id Expr
 )
 -- The returned table has the schema (node_id LONG, dominator_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |dominator_node_id|
 -- is the id of the node in the input flow-graph which is the "dominator" of
 -- |node_id|.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
   SELECT
     c0 AS node_id,
