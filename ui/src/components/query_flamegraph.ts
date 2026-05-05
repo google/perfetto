@@ -176,11 +176,6 @@ interface QueryFlamegraphAttrs {
   readonly onStateChange: (state: FlamegraphState) => void;
 }
 
-export interface QueryFlamegraphWithMetrics {
-  flamegraph: QueryFlamegraph;
-  metrics: ReadonlyArray<QueryFlamegraphMetric>;
-}
-
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
 // data for the widget by querying an `Engine`.
 export class QueryFlamegraph implements AsyncDisposable {

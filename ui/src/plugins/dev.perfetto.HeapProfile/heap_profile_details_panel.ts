@@ -17,10 +17,10 @@ import m from 'mithril';
 import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
 import {
-  QueryFlamegraph,
   QueryFlamegraphMetric,
   metricsFromTableOrSubquery,
 } from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
@@ -52,7 +52,6 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private flamegraph: QueryFlamegraph;
   private readonly props: Props;
   private flamegraphModalDismissed = false;
 
@@ -85,7 +84,6 @@ export class HeapProfileFlamegraphDetailsPanel
     }) => void,
   ) {
     this.props = {ts, type: profileDescriptor.type};
-    this.flamegraph = new QueryFlamegraph(trace);
     this.metrics = flamegraphMetrics(
       this.trace,
       this.profileDescriptor,
@@ -141,7 +139,8 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ]),
         },
-        this.flamegraph.render({
+        m(FlamegraphPanel, {
+          trace: this.trace,
           metrics: this.metrics,
           state: this.state,
           onStateChange: (state) => {
