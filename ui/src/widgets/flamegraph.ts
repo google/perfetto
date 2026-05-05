@@ -160,6 +160,8 @@ const FLAMEGRAPH_VIEW_SCHEMA = z
     z.object({
       kind: z.literal('PIVOT').readonly(),
       pivot: z.string().readonly(),
+      // Display text for the pivot chip; SQL match still uses `pivot`.
+      displayLabel: z.string().optional().readonly(),
     }),
   ])
   .readonly();
@@ -1506,7 +1508,9 @@ function toTags(state: FlamegraphState): ReadonlyArray<string> {
   };
   const filters = state.filters.map((x) => toString(x));
   return filters.concat(
-    state.view.kind === 'PIVOT' ? ['Pivot: ' + state.view.pivot] : [],
+    state.view.kind === 'PIVOT'
+      ? ['Pivot: ' + (state.view.displayLabel ?? state.view.pivot)]
+      : [],
   );
 }
 
