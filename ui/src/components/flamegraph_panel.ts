@@ -19,12 +19,28 @@ import {FlamegraphState} from '../widgets/flamegraph';
 
 export interface FlamegraphPanelAttrs {
   readonly trace: Trace;
+
+  // The metrics to render. Undefined shows a loading state.
   readonly metrics?: ReadonlyArray<QueryFlamegraphMetric>;
+
+  // Caller-owned flamegraph state (filters, view, selected metric). When
+  // `metrics` change, pass `Flamegraph.updateState(state, metrics)` to keep
+  // the selected metric valid. Undefined shows an empty pending state.
   readonly state?: FlamegraphState;
+
   readonly onStateChange: (state: FlamegraphState) => void;
+
+  // Perfetto tables / indices the metric SQL depends on. The panel forwards
+  // them to the inner `QueryFlamegraph`, which disposes them along with
+  // itself on unmount or when the array reference changes.
   readonly dependencies?: ReadonlyArray<AsyncDisposable>;
 }
 
+// Mithril wrapper around `QueryFlamegraph` that owns the inner instance's
+// lifetime: it is created on first render and disposed on unmount or when
+// `trace` / `dependencies` identity changes. Lets area-selection tabs and
+// details panels render a flamegraph without managing `[Symbol.asyncDispose]`
+// themselves.
 export class FlamegraphPanel implements m.ClassComponent<FlamegraphPanelAttrs> {
   private flamegraph?: QueryFlamegraph;
   private lastTrace?: Trace;
