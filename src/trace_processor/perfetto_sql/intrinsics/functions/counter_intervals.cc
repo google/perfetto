@@ -61,7 +61,7 @@ struct CounterIntervals : public sqlite::Function<CounterIntervals> {
           ctx, "interval intersect: column list cannot be null");
     }
 
-    // TODO(mayzner): Support 'lagging'.
+    // TODO(b/509816724): Support 'lagging'.
     if (base::CaseInsensitiveEqual("lagging", leading_str)) {
       return sqlite::result::Error(
           ctx, "interval intersect: 'lagging' is not implemented");
