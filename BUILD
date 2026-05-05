@@ -78,9 +78,8 @@ perfetto_cc_binary(
         "src/ipc/protoc_plugin/ipc_plugin.cc",
     ],
     deps = [
-               ":src_base_base",
-           ] + PERFETTO_CONFIG.deps.protobuf_full +
-           PERFETTO_CONFIG.deps.protoc_lib,
+        ":src_base_base",
+    ] + PERFETTO_CONFIG.deps.protoc_lib,
 )
 
 # GN target: //src/ipc:perfetto_ipc
@@ -115,9 +114,8 @@ perfetto_cc_binary(
         "src/protozero/protoc_plugin/cppgen_plugin.cc",
     ],
     deps = [
-               ":src_base_base",
-           ] + PERFETTO_CONFIG.deps.protobuf_full +
-           PERFETTO_CONFIG.deps.protoc_lib,
+        ":src_base_base",
+    ] + PERFETTO_CONFIG.deps.protoc_lib,
 )
 
 # GN target: //src/protozero/protoc_plugin:protozero_plugin
@@ -127,9 +125,8 @@ perfetto_cc_binary(
         "src/protozero/protoc_plugin/protozero_plugin.cc",
     ],
     deps = [
-               ":src_base_base",
-           ] + PERFETTO_CONFIG.deps.protobuf_full +
-           PERFETTO_CONFIG.deps.protoc_lib,
+        ":src_base_base",
+    ] + PERFETTO_CONFIG.deps.protoc_lib,
 )
 
 # GN target: //src/protozero:protozero
@@ -302,36 +299,35 @@ perfetto_cc_binary(
         "src/tools/proto_filter/proto_filter.cc",
     ],
     deps = [
-               ":protos_perfetto_common_cpp",
-               ":protos_perfetto_common_semantic_type_cpp",
-               ":protos_perfetto_common_semantic_type_lite",
-               ":protos_perfetto_common_semantic_type_zero",
-               ":protos_perfetto_config_android_cpp",
-               ":protos_perfetto_config_cpp",
-               ":protos_perfetto_config_ftrace_cpp",
-               ":protos_perfetto_config_gpu_cpp",
-               ":protos_perfetto_config_inode_file_cpp",
-               ":protos_perfetto_config_interceptors_cpp",
-               ":protos_perfetto_config_power_cpp",
-               ":protos_perfetto_config_priority_boost_cpp",
-               ":protos_perfetto_config_process_stats_cpp",
-               ":protos_perfetto_config_profiling_cpp",
-               ":protos_perfetto_config_protovm_cpp",
-               ":protos_perfetto_config_qnx_cpp",
-               ":protos_perfetto_config_statsd_cpp",
-               ":protos_perfetto_config_sys_stats_cpp",
-               ":protos_perfetto_config_system_info_cpp",
-               ":protos_perfetto_config_track_event_cpp",
-               ":protos_perfetto_proto_filtering_lite",
-               ":protos_perfetto_protovm_cpp",
-               ":protozero",
-               ":src_base_base",
-               ":src_base_regex_regex",
-               ":src_base_version",
-               ":src_proto_utils_gen_cc_config_descriptor",
-               ":src_proto_utils_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.protobuf_full +
-           PERFETTO_CONFIG.deps.protoc_lib,
+        ":protos_perfetto_common_cpp",
+        ":protos_perfetto_common_semantic_type_cpp",
+        ":protos_perfetto_common_semantic_type_lite",
+        ":protos_perfetto_common_semantic_type_zero",
+        ":protos_perfetto_config_android_cpp",
+        ":protos_perfetto_config_cpp",
+        ":protos_perfetto_config_ftrace_cpp",
+        ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_inode_file_cpp",
+        ":protos_perfetto_config_interceptors_cpp",
+        ":protos_perfetto_config_power_cpp",
+        ":protos_perfetto_config_priority_boost_cpp",
+        ":protos_perfetto_config_process_stats_cpp",
+        ":protos_perfetto_config_profiling_cpp",
+        ":protos_perfetto_config_protovm_cpp",
+        ":protos_perfetto_config_qnx_cpp",
+        ":protos_perfetto_config_statsd_cpp",
+        ":protos_perfetto_config_sys_stats_cpp",
+        ":protos_perfetto_config_system_info_cpp",
+        ":protos_perfetto_config_track_event_cpp",
+        ":protos_perfetto_proto_filtering_lite",
+        ":protos_perfetto_protovm_cpp",
+        ":protozero",
+        ":src_base_base",
+        ":src_base_regex_regex",
+        ":src_base_version",
+        ":src_proto_utils_gen_cc_config_descriptor",
+        ":src_proto_utils_gen_cc_trace_summary_descriptor",
+    ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
 # GN target: //src/tools/proto_merger:proto_merger
@@ -350,10 +346,9 @@ perfetto_cc_binary(
         "src/tools/proto_merger/proto_merger.h",
     ],
     deps = [
-               ":src_base_base",
-               ":src_base_version",
-           ] + PERFETTO_CONFIG.deps.protobuf_full +
-           PERFETTO_CONFIG.deps.protoc_lib,
+        ":src_base_base",
+        ":src_base_version",
+    ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
 # GN target: //src/trace_processor/rpc:trace_processor_rpc
@@ -823,7 +818,6 @@ perfetto_cc_library(
                ":src_traceconv_gen_cc_winscope_descriptor",
            ] + PERFETTO_CONFIG.deps.linenoise +
            PERFETTO_CONFIG.deps.protobuf_full +
-           PERFETTO_CONFIG.deps.protoc_lib +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +

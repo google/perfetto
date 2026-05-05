@@ -262,15 +262,12 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
         output_group = "h",
     )
 
-    # Generated .ipc.{cc,h} include perfetto/ext/ipc/*.h directly, so under
-    # layering_check the ipc header target must be a direct dep (transitive
-    # visibility through :perfetto_ipc is not enough).
     perfetto_cc_library(
         name = name,
         srcs = [":" + name + "_src"],
         hdrs = [":" + name + "_h"],
         deps = [
-            PERFETTO_CONFIG.root + ":include_perfetto_ext_ipc_ipc",
+            # Generated .ipc.{cc,h} depend on this and protozero.
             PERFETTO_CONFIG.root + ":perfetto_ipc",
             PERFETTO_CONFIG.root + ":protozero",
         ] + _cc_deps,
@@ -319,18 +316,11 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
     # The headers from the gen plugin have implicit dependencies
     # on each other so will fail when compiled independently. Use
     # textual_hdrs to indicate this to Bazel.
-    #
-    # The generated .gen.cc/.gen.h files include perfetto/base/export.h and
-    # perfetto/protozero/*.h directly, so under layering_check the protozero
-    # and base header targets must be direct deps (transitive visibility
-    # through :protozero is not enough).
     perfetto_cc_library(
         name = name,
         srcs = [":" + name + "_gen"],
         textual_hdrs = [":" + name + "_gen_h"],
         deps = [
-            PERFETTO_CONFIG.root + ":include_perfetto_base_base",
-            PERFETTO_CONFIG.root + ":include_perfetto_protozero_protozero",
             PERFETTO_CONFIG.root + ":protozero",
         ] + _cc_deps,
         **kwargs

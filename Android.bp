@@ -533,7 +533,6 @@ cc_binary_host {
         "src/ipc/protoc_plugin/ipc_plugin.cc",
     ],
     static_libs: [
-        "libprotobuf-cpp-full",
         "libprotoc",
     ],
     defaults: [
@@ -14871,7 +14870,6 @@ cc_binary_host {
         "src/protozero/protoc_plugin/cppgen_plugin.cc",
     ],
     static_libs: [
-        "libprotobuf-cpp-full",
         "libprotoc",
     ],
     defaults: [
@@ -17890,9 +17888,6 @@ cc_library_static {
         ":perfetto_src_traceconv_utils",
         "src/trace_processor/trace_processor_shell.cc",
     ],
-    shared_libs: [
-        "libprotoc",
-    ],
     static_libs: [
         "perfetto_src_trace_processor_demangle",
     ],
@@ -20491,7 +20486,6 @@ cc_test {
         "libprocinfo",
         "libprotobuf-cpp-full",
         "libprotobuf-cpp-lite",
-        "libprotoc",
         "libsqlite",
         "libunwindstack",
         "libutils",
@@ -21139,7 +21133,6 @@ cc_binary_host {
         "src/protozero/protoc_plugin/protozero_plugin.cc",
     ],
     static_libs: [
-        "libprotobuf-cpp-full",
         "libprotoc",
     ],
     defaults: [
@@ -21545,9 +21538,6 @@ cc_binary {
     name: "trace_processor_shell",
     srcs: [
         "src/trace_processor/trace_processor_shell_main.cc",
-    ],
-    shared_libs: [
-        "libprotoc",
     ],
     static_libs: [
         "perfetto_src_trace_processor_demangle",
@@ -22491,7 +22481,6 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotobuf-cpp-full",
-        "libprotoc",
         "libz",
     ],
     generated_headers: [
