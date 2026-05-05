@@ -580,7 +580,6 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
-    alwayslink = True,
 )
 
 # GN target: //src/trace_processor:trace_processor_shell_lib
@@ -830,7 +829,6 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
-    alwayslink = True,
 )
 
 # GN target: //src/traceconv:libpprofbuilder
@@ -9491,7 +9489,6 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
-    alwayslink = True,
 )
 
 # GN target: //src/trace_processor:trace_processor_shell

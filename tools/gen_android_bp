@@ -713,13 +713,6 @@ class Module(object):
     self.jni_uses_platform_apis: Optional[bool] = None
     self.jarjar_rules: Optional[str] = None
     self.visibility = set()
-    # When True, this module carries static-init objects (directly via a
-    # source_set tagged `perfetto_force_alwayslink` in GN, or transitively
-    # from absorbing such a filegroup or static lib) that the linker must
-    # not strip. cc_library_static consumers inherit the flag and pull this
-    # module in via `whole_static_libs` rather than `static_libs` / `srcs`,
-    # so the .o files survive every link boundary up to the final binary.
-    self.force_alwayslink = False
 
   def to_string(self, output):
     if self.comment:
@@ -1104,32 +1097,19 @@ def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
 
 
 def create_sql_source_set_module(blueprint: Blueprint, target: GnParser.Target):
-  # Emit one Soong filegroup per `perfetto_sql_source_set` whose srcs are
-  # flattened to the leaf .sql files (own inputs + every transitive
-  # sql_source_set's inputs). create_modules_from_target's action branch does
-  # not recurse into deps, so sub-sets are never materialised as their own
-  # modules; flattening avoids dangling `:foo` references and keeps a single
-  # filegroup per top-level set, matching the pre-5ff30c245a behaviour.
-  CHROME_SQL_PREFIX = (
-      '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql')
-  CHROME_SQL_GLOB = 'src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql'
-
+  # Emit a Soong filegroup for each `perfetto_sql_source_set`. Filegroups
+  # nest, so the cpp_blob_header genrule (the SQL amalgamation) can pull
+  # them in via its direct deps and Soong resolves transitively.
   module = Module('filegroup', label_to_module_name(target.name), target.name)
-
-  def add_inputs(t: GnParser.Target):
-    # The chrome stdlib SQL list is autorolled from Chromium; use a glob so
-    # the filegroup does not need regenerating on every roll. Mirrors the
-    # `target_overrides` precedent in tools/gen_bazel.
-    if t.name.startswith(CHROME_SQL_PREFIX):
-      module.srcs.add(CHROME_SQL_GLOB)
-    else:
-      module.srcs.update(gn_utils.label_to_path(s) for s in t.inputs)
-
-  add_inputs(target)
-  for dep in target.transitive_deps:
-    if dep.custom_action_type == 'sql_source_set':
-      add_inputs(dep)
-
+  # The chrome stdlib SQL list is autorolled from Chromium. Use a glob so
+  # the filegroup does not need to be regenerated on every roll. This
+  # mirrors the `target_overrides` for `:chrome_sql` in tools/gen_bazel.
+  if target.name.startswith(
+      '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
+    module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
+  else:
+    module.srcs.update(gn_utils.label_to_path(s) for s in target.inputs)
+  module.srcs.update(':' + label_to_module_name(d.name) for d in target.deps)
   blueprint.add_module(module)
   return module
 
@@ -1440,25 +1420,6 @@ def _add_additional_args(module: Module):
                   (type(add_val), key))
 
 
-def _absorb_static_dep(module: 'Module', dep_module: 'Module'):
-  """Wires a cc_library_static `dep_module` into `module`.
-
-  Force-alwayslink deps must reach the final link via `whole_static_libs` at
-  every boundary, otherwise the next link step dead-strips the static-init
-  .o files. So when we absorb such a dep, we also flag the consumer (if it
-  is itself a cc_library_static) as force_alwayslink, propagating the
-  property virally up the static-archive chain until it terminates at a
-  cc_test / cc_binary / cc_library_shared (which is the final link).
-  """
-  if dep_module.force_alwayslink:
-    module.whole_static_libs.add(dep_module.name)
-    if module.type in ('cc_library_static', 'cc_library'):
-      module.force_alwayslink = True
-  else:
-    module.static_libs.add(dep_module.name)
-  module.add_static_library_transitive_deps(dep_module)
-
-
 def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                                gn_target_name: str) -> Optional[Module]:
   """Generate module(s) for a given GN target.
@@ -1499,12 +1460,6 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     module = Module(bp_type, bp_module_name, gn_target_name)
   elif target.type == 'source_set':
     module = Module('filegroup', bp_module_name, gn_target_name)
-    # `force_alwayslink` is sticky: any cc_library_static that flattens this
-    # filegroup into its srcs inherits the flag (see the filegroup branch
-    # of the dep walker below) and in turn forces its own consumers to pull
-    # it in via whole_static_libs, preserving static-init objects across
-    # every link boundary on the way to the final binary.
-    module.force_alwayslink = target.force_alwayslink
   elif target.type == 'group':
     # "group" targets are resolved recursively by gn_utils.get_target().
     # There's nothing we need to do at this level for them.
@@ -1627,26 +1582,20 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if dep_module.type == 'cc_library_shared':
       module.shared_libs.add(dep_module.name)
     elif dep_module.type == 'cc_library_static':
-      _absorb_static_dep(module, dep_module)
+      module.static_libs.add(dep_module.name)
+      module.add_static_library_transitive_deps(dep_module)
     elif dep_module.type == 'cc_library':
       dep_gn_target = gn.get_target(dep_name)
       if dep_gn_target.type == 'shared_library':
         module.shared_libs.add(dep_module.name)
       elif dep_gn_target.type == 'static_library':
-        _absorb_static_dep(module, dep_module)
+        module.static_libs.add(dep_module.name)
+        module.add_static_library_transitive_deps(dep_module)
       else:
         raise Error('Unknown gn type %s for cc_library dep %s' %
                     (dep_gn_target.type, dep_module.name))
     elif dep_module.type == 'filegroup':
       module.srcs.add(':' + dep_module.name)
-      # Inlining a force_alwayslink filegroup means its static-init .o files
-      # land in *this* cc_library_static; if our own consumers pulled us in
-      # via plain `static_libs`, those .o files would dead-strip at the next
-      # link step. Mark ourselves force_alwayslink so the chain virally
-      # propagates whole_static_libs all the way to the final binary.
-      if dep_module.force_alwayslink and module.type in ('cc_library_static',
-                                                         'cc_library'):
-        module.force_alwayslink = True
       # Filegroup sources are flattened into the module, but the filegroup's
       # own GN deps (e.g. //gn:pcre2 on the regex source_set) are not
       # automatically walked. Recurse into them to pick up any builtin_deps.

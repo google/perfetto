@@ -115,12 +115,4 @@ source_set("wattson") {
     "../../types",
     "../../util:gzip",
   ]
-
-  # plugin.cc self-registers through a global static initializer, which the
-  # linker drops when this target is consumed as a static archive. Generators
-  # translate this metadata into `alwayslink = True` (Bazel) and
-  # `whole_static_libs` (Soong).
-  metadata = {
-    perfetto_force_alwayslink = [ true ]
-  }
 }
