@@ -24,18 +24,24 @@ export function setTracedSocket(socket: string) {
   tracedSocket = socket;
 }
 
-export async function createAdbTracingSession(
+export function createAdbTracingSession(
   adbDevice: AdbDevice,
   traceConfig: protos.ITraceConfig,
 ): Promise<Result<ConsumerIpcTracingSession>> {
+  return ConsumerIpcTracingSession.create(
+    () => openAdbConsumerIpc(adbDevice),
+    traceConfig,
+  );
+}
+
+async function openAdbConsumerIpc(
+  adbDevice: AdbDevice,
+): Promise<Result<TracingProtocol>> {
   const streamStatus = await adbDevice.createStream(
     getTracedConsumerSocketAddressForAdb(),
   );
   if (!streamStatus.ok) return streamStatus;
-  const stream = streamStatus.value;
-  const consumerIpc = await TracingProtocol.create(stream);
-  const session = new ConsumerIpcTracingSession(consumerIpc, traceConfig);
-  return okResult(session);
+  return okResult(await TracingProtocol.create(streamStatus.value));
 }
 
 export async function getAdbTracingServiceState(
@@ -56,71 +62,6 @@ export async function getAdbTracingServiceState(
     return errResult('Failed to decode QueryServiceStateResponse');
   }
   return okResult(resp.serviceState);
-}
-
-// Clones an in-progress tracing session identified by `uniqueSessionName` and
-// returns the cloned trace as a single concatenated byte array.
-//
-// Opens a fresh consumer connection rather than reusing an existing one: the
-// CloneSession RPC attaches the consumer to the cloned session, so sharing a
-// connection would detach any in-progress recording on the original session.
-// The connection is closed before this function returns.
-export async function cloneAdbTracingSession(
-  adbDevice: AdbDevice,
-  uniqueSessionName: string,
-): Promise<Result<Uint8Array>> {
-  // Create a new connection for the clone operation
-  const streamStatus = await adbDevice.createStream(
-    getTracedConsumerSocketAddressForAdb(),
-  );
-  if (!streamStatus.ok) return streamStatus;
-  const stream = streamStatus.value;
-  const consumerIpc = await TracingProtocol.create(stream);
-
-  try {
-    // Clone the session by name
-    const cloneResp = await consumerIpc.invoke(
-      'CloneSession',
-      new protos.CloneSessionRequest({uniqueSessionName}),
-    );
-
-    if (!cloneResp.success) {
-      consumerIpc.close();
-      return errResult(cloneResp.error || 'CloneSession failed');
-    }
-
-    // Read the cloned trace data
-    const traceData = await readClonedData(consumerIpc);
-    consumerIpc.close();
-    return okResult(traceData);
-  } catch (e) {
-    consumerIpc.close();
-    return errResult(`CloneSession error: ${e}`);
-  }
-}
-
-function readClonedData(consumerIpc: TracingProtocol): Promise<Uint8Array> {
-  return new Promise((resolve) => {
-    const chunks: Uint8Array[] = [];
-    const stream = consumerIpc.invokeStreaming(
-      'ReadBuffers',
-      new protos.ReadBuffersRequest({}),
-    );
-    stream.onTraceData = (data: Uint8Array, hasMore: boolean) => {
-      chunks.push(data);
-      if (!hasMore) {
-        // Concatenate all chunks
-        const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
-        const result = new Uint8Array(totalLen);
-        let offset = 0;
-        for (const chunk of chunks) {
-          result.set(chunk, offset);
-          offset += chunk.length;
-        }
-        resolve(result);
-      }
-    };
-  });
 }
 
 // Return the fully formed ADB socket address according to the settings

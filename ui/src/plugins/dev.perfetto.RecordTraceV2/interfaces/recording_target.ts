@@ -46,8 +46,4 @@ export interface RecordingTarget extends WithPreflightChecks {
   startTracing(
     traceConfig: protos.ITraceConfig,
   ): Promise<Result<TracingSession>>;
-
-  // Optional: clone an active tracing session by its unique name and return
-  // the snapshot data. Creates a new connection for the clone operation.
-  cloneSession?(uniqueSessionName: string): Promise<Result<Uint8Array>>;
 }

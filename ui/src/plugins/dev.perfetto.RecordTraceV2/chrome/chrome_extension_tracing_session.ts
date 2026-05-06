@@ -23,6 +23,7 @@ import {
 } from '../interfaces/tracing_session';
 import {ChromeExtensionTarget} from './chrome_extension_target';
 import {defer, Deferred} from '../../../base/deferred';
+import {errResult, Result} from '../../../base/result';
 
 export class ChromeExtensionTracingSession implements TracingSession {
   private _state: TracingSessionState = 'RECORDING';
@@ -130,6 +131,10 @@ export class ChromeExtensionTracingSession implements TracingSession {
 
   get state(): TracingSessionState {
     return this._state;
+  }
+
+  async snapshot(): Promise<Result<Uint8Array>> {
+    return errResult('snapshot() is not supported for chrome tracing sessions');
   }
 
   private setState(newState: TracingSessionState) {
