@@ -18,12 +18,16 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
@@ -686,6 +690,57 @@ void ProbesProducer::OnFlushTimeout(FlushRequestID flush_request_id) {
   PERFETTO_ELOG("Flush(%" PRIu64 ") timed out", flush_request_id);
   pending_flushes_.erase(flush_request_id);
   endpoint_->NotifyFlushComplete(flush_request_id);
+}
+
+// Called when the watchdgog is about to kill us. This is to better debug
+// traced_probes' wdog crashes. This function has nothing to do with
+// protocol-level flushes.
+void ProbesProducer::FlushForWatchdogAndCrash(base::WatchdogCrashInfo info) {
+  PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, WATCHDOG_CRASH_REASON,
+                             static_cast<int32_t>(info.reason));
+  PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, WATCHDOG_CRASH_ACTUAL_MONO,
+                             info.actual_mono_s);
+  PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, WATCHDOG_CRASH_ACTUAL_BOOT,
+                             info.actual_boot_s);
+  PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, WATCHDOG_CRASH_ACTUAL_CPU,
+                             info.actual_cpu_s);
+
+  // shared_ptr as this is passed around the various callbacks to tell when
+  // we are done.
+  auto ds_to_flush = std::make_shared<base::FlatSet<ProbesDataSource*>>();
+
+  // We are only interested in ftrace data sources. Trying to flush other data
+  // sources might cause cascading problems.
+  int ftrace_sessions = 0;
+  for (auto& kv : data_sources_) {
+    ProbesDataSource* ds = kv.second.get();
+    if (!ds || !ds->started ||
+        (ds->descriptor != &FtraceDataSource::descriptor &&
+         ds->descriptor != &MetatraceDataSource::descriptor)) {
+      continue;
+    }
+    ds_to_flush->insert(ds);
+    ftrace_sessions += ds->descriptor == &FtraceDataSource::descriptor ? 1 : 0;
+  }
+  PERFETTO_METATRACE_COUNTER(TAG_FTRACE, FTRACE_SESSIONS, ftrace_sessions);
+
+  if (ds_to_flush->empty()) {
+    PERFETTO_FATAL("No active data sources found. Crashing now.");
+  }
+
+  PERFETTO_LOG("FlushWatchdogAndCrash(): Flushing %zu ftrace data sources",
+               ds_to_flush->size());
+  auto flush_callback = [ds_to_flush](ProbesDataSource* ds) {
+    ds_to_flush->erase(ds);
+    if (ds_to_flush->empty()) {
+      PERFETTO_FATAL("Done flushing data sources. Crashing now.");
+    }
+  };
+
+  for (ProbesDataSource* ds : *ds_to_flush) {
+    const FlushRequestID kFlushId = UINT64_MAX;
+    ds->Flush(kFlushId, std::bind(flush_callback, ds));
+  }
 }
 
 void ProbesProducer::ClearIncrementalState(
