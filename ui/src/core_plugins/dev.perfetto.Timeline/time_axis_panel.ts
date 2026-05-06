@@ -17,7 +17,6 @@ import {canvasClip} from '../../base/canvas_utils';
 import {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/assert';
 import {Time, time, formatDate} from '../../base/time';
-import {formatDuration} from '../../components/time_utils';
 import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';
 import {Trace} from '../../public/trace';
@@ -60,59 +59,66 @@ export class TimeAxisPanel {
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = COLOR_TEXT_MUTED;
-    const {start, end} = this.trace.traceInfo;
-    const dur = formatDuration(this.trace, Time.diff(end, start));
-    this.renderLabelAndValue(ctx, 'Start: ', this.formatStart(), 6, 10);
-    this.renderLabelAndValue(ctx, 'Duration: ', dur, 6, 20);
-  }
-
-  private formatStart(): string {
-    const {start, tzOffMin} = this.trace.traceInfo;
-    const {timestampFormat: fmt, customTimezoneOffset} = this.trace.timeline;
-    switch (fmt) {
-      case TimestampFormat.Timecode:
-        return Time.toTimecode(start).dhhmmss;
-      case TimestampFormat.UTC:
-        return this.formatStartAsWallClock(0);
-      case TimestampFormat.CustomTimezone:
-        return this.formatStartAsWallClock(customTimezoneOffset);
-      case TimestampFormat.TraceTz:
-        return this.formatStartAsWallClock(tzOffMin);
-      case TimestampFormat.Seconds:
-        return Time.formatSeconds(start);
-      case TimestampFormat.Milliseconds:
-        return Time.formatMilliseconds(start);
-      case TimestampFormat.Microseconds:
-        return Time.formatMicroseconds(start);
+    const timeAxisOrigin = this.trace.timeline.getTimeAxisOrigin();
+    const timestampFormat = this.trace.timeline.timestampFormat;
+    switch (timestampFormat) {
       case TimestampFormat.TraceNs:
-        return start.toString();
       case TimestampFormat.TraceNsLocale:
-        return start.toLocaleString();
+        break;
+      case TimestampFormat.Seconds:
+      case TimestampFormat.Milliseconds:
+      case TimestampFormat.Microseconds:
+      case TimestampFormat.Timecode:
+        const width = this.renderTimestamp(
+          ctx,
+          timeAxisOrigin,
+          6,
+          10,
+          MIN_PX_PER_STEP,
+        );
+        ctx.fillText('+', 6 + width + 2, 10, 6);
+        break;
+      case TimestampFormat.UTC:
+        {
+          const originAsDate = Time.toDate(
+            timeAxisOrigin,
+            this.trace.traceInfo.unixOffset,
+          );
+          const originDate = formatDate(originAsDate, {printTime: false});
+          ctx.fillText(originDate, 6, 10);
+        }
+        break;
+      case TimestampFormat.CustomTimezone:
+        {
+          const originAsDate = Time.toDate(
+            timeAxisOrigin,
+            this.trace.traceInfo.unixOffset,
+          );
+          const tzOffsetMins = this.trace.timeline.customTimezoneOffset;
+          const originDate = formatDate(originAsDate, {
+            tzOffsetMins,
+            printTime: false,
+          });
+          ctx.fillText(originDate, 6, 10);
+        }
+        break;
+      case TimestampFormat.TraceTz:
+        {
+          const originAsDate = Time.toDate(
+            timeAxisOrigin,
+            this.trace.traceInfo.unixOffset,
+          );
+          const tzOffsetMins = this.trace.traceInfo.tzOffMin;
+          const originDate = formatDate(originAsDate, {
+            tzOffsetMins,
+            printTime: false,
+          });
+          ctx.fillText(originDate, 6, 10);
+        }
+        break;
       default:
-        assertUnreachable(fmt);
+        assertUnreachable(timestampFormat);
     }
-  }
-
-  private formatStartAsWallClock(tzOffsetMins: number): string {
-    const {start, unixOffset} = this.trace.traceInfo;
-    const date = Time.toDate(start, unixOffset);
-    const str = formatDate(date, {printTimezone: false, tzOffsetMins});
-    // Drop sub-second precision; it's noisy.
-    return str.split('.')[0];
-  }
-
-  private renderLabelAndValue(
-    ctx: CanvasRenderingContext2D,
-    label: string,
-    value: string,
-    x: number,
-    y: number,
-  ): void {
-    ctx.font = `bold 11px ${FONT_COMPACT}`;
-    const labelWidth = ctx.measureText(label).width;
-    ctx.fillText(label, x, y);
-    ctx.font = `11px ${FONT_COMPACT}`;
-    ctx.fillText(value, x + labelWidth, y);
   }
 
   private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
