@@ -334,9 +334,7 @@ WITH
       spans.root_utid
     FROM relevant_spans AS spans
     LEFT JOIN slice AS sl
-      ON sl.id = spans.self_slice_id
-    ORDER BY
-      stack_depth
+      ON sl.id = spans.self_slice_id ORDER BY stack_depth
   ),
   -- Prepares for stage 2 in building the entire stack.
   -- Computes the starting depth for each stack. This is necessary because
@@ -464,9 +462,7 @@ WITH
       cps.root_utid
     FROM critical_path_span AS cps
     LEFT JOIN slice AS sl
-      ON sl.id = cps.slice_id
-    ORDER BY
-      stack_depth
+      ON sl.id = cps.slice_id ORDER BY stack_depth
   ),
   -- Prepares for stage 3 in building the entire stack.
   -- Computes the starting depth for each stack using the deepest stack_depth between

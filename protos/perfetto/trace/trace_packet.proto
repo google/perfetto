@@ -81,6 +81,7 @@ import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/range_of_interest.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
+import "protos/perfetto/trace/v8/v8_cpu_profile_session.proto";
 import "protos/perfetto/trace/track_event/track_descriptor.proto";
 import "protos/perfetto/trace/track_event/track_event.proto";
 import "protos/perfetto/trace/translation/translation_table.proto";
@@ -111,7 +112,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 136.
+// Next id: 137.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -274,6 +275,7 @@ message TracePacket {
     V8WasmCode v8_wasm_code = 101;
     V8RegExpCode v8_reg_exp_code = 102;
     V8CodeMove v8_code_move = 103;
+    V8CpuProfileSession v8_cpu_profile_session = 136;
     // Clock synchronization with remote machines.
     RemoteClockSync remote_clock_sync = 107;
 

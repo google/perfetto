@@ -201,6 +201,10 @@ struct alignas(8) StreamingProfileSampleEvent {
   RefPtr<PacketSequenceStateGeneration> sequence_state;
   uint64_t callstack_iid;
   int32_t process_priority;
+  std::optional<int32_t> v8_sample_kind;
+  std::optional<uint32_t> v8_leaf_line;
+  std::optional<uint32_t> v8_leaf_column;
+  std::optional<uint64_t> v8_session_id;
 };
 static_assert(sizeof(StreamingProfileSampleEvent) % 8 == 0);
 

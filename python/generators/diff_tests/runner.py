@@ -150,7 +150,8 @@ class DiffTestsRunner:
     extension_descriptor_paths = [
         self.config.chrome_extensions, self.config.test_extensions,
         self.config.winscope_extensions, self.config.gpu_extensions,
-        self.config.gpu_interned_data_extensions
+        self.config.gpu_interned_data_extensions,
+        self.config.v8_profile_extensions
     ]
     gen_trace_file = generate_trace_file(test, trace_descriptor_path,
                                          extension_descriptor_paths,

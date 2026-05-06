@@ -30,6 +30,7 @@
 namespace perfetto::trace_processor {
 
 class ForwardingTraceParser;
+class PerfettoSqlConnection;
 
 class TraceProcessorStorageImpl : public TraceProcessorStorage {
  public:
@@ -46,6 +47,8 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   void DestroyContext();
 
   TraceProcessorContext* context() { return &context_; }
+
+  virtual PerfettoSqlConnection* engine() { return nullptr; }
 
  protected:
   base::FnvHasher trace_hash_;

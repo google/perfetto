@@ -780,6 +780,25 @@ class TraceStorage {
     return mutable_table<tables::V8RegexpCodeTable>();
   }
 
+  const tables::V8StackProfileFrameTable& v8_stack_profile_frame_table() const {
+    return table<tables::V8StackProfileFrameTable>();
+  }
+  tables::V8StackProfileFrameTable* mutable_v8_stack_profile_frame_table() {
+    return mutable_table<tables::V8StackProfileFrameTable>();
+  }
+  const tables::V8CpuProfileSampleTable& v8_cpu_profile_sample_table() const {
+    return table<tables::V8CpuProfileSampleTable>();
+  }
+  tables::V8CpuProfileSampleTable* mutable_v8_cpu_profile_sample_table() {
+    return mutable_table<tables::V8CpuProfileSampleTable>();
+  }
+  const tables::V8CpuProfileSessionTable& v8_cpu_profile_session_table() const {
+    return table<tables::V8CpuProfileSessionTable>();
+  }
+  tables::V8CpuProfileSessionTable* mutable_v8_cpu_profile_session_table() {
+    return mutable_table<tables::V8CpuProfileSessionTable>();
+  }
+
   const tables::EtmV4ConfigurationTable& etm_v4_configuration_table() const {
     return table<tables::EtmV4ConfigurationTable>();
   }

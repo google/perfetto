@@ -50,11 +50,17 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
 #include "src/trace_processor/util/json_value.h"
+
+#if defined(PERFETTO_EXPORT_JSON_HAS_SQL_ENGINE)
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#endif
 
 namespace perfetto::trace_processor::json {
 
@@ -133,8 +139,10 @@ class JsonExporter {
                OutputWriter* output,
                ArgumentFilterPredicate argument_filter,
                MetadataFilterPredicate metadata_filter,
-               LabelFilterPredicate label_filter)
+               LabelFilterPredicate label_filter,
+               PerfettoSqlConnection* engine)
       : storage_(storage),
+        engine_(engine),
         args_builder_(storage_),
         writer_(output,
                 std::move(argument_filter),
@@ -152,6 +160,7 @@ class JsonExporter {
     RETURN_IF_ERROR(ExportMetadata());
     RETURN_IF_ERROR(ExportStats());
     RETURN_IF_ERROR(ExportMemorySnapshots());
+    RETURN_IF_ERROR(ExportV8CpuProfile());
     return base::OkStatus();
   }
 
@@ -1581,6 +1590,286 @@ class JsonExporter {
     return base::OkStatus();
   }
 
+  // Synthesizes legacy devtools "Profile" / "ProfileChunk" trace events by
+  // running the v8.cpu_profile stdlib export views through the SQL engine.
+  base::Status ExportV8CpuProfile() {
+#if !defined(PERFETTO_EXPORT_JSON_HAS_SQL_ENGINE)
+    return base::ErrStatus(
+        "ExportJson: V8 CPU profile export requires building with the "
+        "trace_processor SQL engine (enable_perfetto_trace_processor_sqlite)");
+#else
+    if (storage_->v8_cpu_profile_session_table().row_count() == 0) {
+      return base::OkStatus();
+    }
+    if (engine_ == nullptr) {
+      return base::ErrStatus(
+          "ExportJson: V8 CPU profile export requires a SQL engine;");
+    }
+    constexpr char kCategory[] = "disabled-by-default-v8.cpu_profiler";
+    constexpr char kPhase[] = "P";
+
+    struct SessionRow {
+      int64_t v8_cpu_profile_session_id;
+      int64_t session_id;
+      UniqueTid utid;
+      int64_t start_ts;
+      std::optional<int64_t> end_ts;
+      std::optional<int64_t> start_time_us;
+      std::optional<int64_t> end_time_us;
+      std::optional<int64_t> start_thread_ts;
+      std::optional<int64_t> end_thread_ts;
+      std::optional<std::string> source;
+    };
+    struct NodeRow {
+      int64_t node_id;
+      std::optional<int64_t> parent_node_id;
+      std::string function_name;
+      std::optional<std::string> url;
+      std::optional<int64_t> line_number;
+      std::optional<int64_t> column_number;
+      std::optional<int64_t> script_id;
+      std::string code_type;
+      std::optional<std::string> deopt_reason;
+    };
+    struct SampleRow {
+      int64_t node_id;
+      int64_t delta_us;
+      int64_t leaf_line;
+      int64_t leaf_column;
+    };
+
+    auto column_text = [](sqlite3_stmt* s, int i) -> std::string {
+      const auto* p = reinterpret_cast<const char*>(sqlite3_column_text(s, i));
+      return p ? std::string(p) : std::string();
+    };
+    auto column_int_opt = [](sqlite3_stmt* s, int i) -> std::optional<int64_t> {
+      if (sqlite3_column_type(s, i) == SQLITE_NULL)
+        return std::nullopt;
+      return sqlite3_column_int64(s, i);
+    };
+    auto column_text_opt = [](sqlite3_stmt* s,
+                              int i) -> std::optional<std::string> {
+      if (sqlite3_column_type(s, i) == SQLITE_NULL)
+        return std::nullopt;
+      const auto* p = reinterpret_cast<const char*>(sqlite3_column_text(s, i));
+      return p ? std::optional<std::string>(p) : std::nullopt;
+    };
+
+    std::vector<SessionRow> sessions;
+    {
+      auto res = engine_->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation(
+              "INCLUDE PERFETTO MODULE v8.cpu_profile;\n"
+              "SELECT v8_cpu_profile_session_id, session_id, utid, start_ts, "
+              "       end_ts, start_time_us, end_time_us, start_thread_ts, "
+              "       end_thread_ts, source "
+              "FROM _v8_cpu_profile_legacy_export_session"));
+      RETURN_IF_ERROR(res.status());
+      if (!res->stmt.IsDone()) {
+        do {
+          auto* s = res->stmt.sqlite_stmt();
+          SessionRow r;
+          r.v8_cpu_profile_session_id = sqlite3_column_int64(s, 0);
+          r.session_id = sqlite3_column_int64(s, 1);
+          r.utid = static_cast<UniqueTid>(sqlite3_column_int64(s, 2));
+          r.start_ts = sqlite3_column_int64(s, 3);
+          r.end_ts = column_int_opt(s, 4);
+          r.start_time_us = column_int_opt(s, 5);
+          r.end_time_us = column_int_opt(s, 6);
+          r.start_thread_ts = column_int_opt(s, 7);
+          r.end_thread_ts = column_int_opt(s, 8);
+          r.source = column_text_opt(s, 9);
+          sessions.push_back(std::move(r));
+        } while (res->stmt.Step());
+        RETURN_IF_ERROR(res->stmt.status());
+      }
+    }
+    if (sessions.empty()) {
+      return base::OkStatus();
+    }
+
+    std::map<int64_t, std::vector<NodeRow>> nodes_by_session;
+    {
+      auto res = engine_->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation(
+              "INCLUDE PERFETTO MODULE v8.cpu_profile;\n"
+              "SELECT v8_cpu_profile_session_id, node_id, parent_node_id, "
+              "       function_name, url, line_number, column_number, "
+              "       script_id, code_type, deopt_reason "
+              "FROM _v8_cpu_profile_legacy_export_node"));
+      RETURN_IF_ERROR(res.status());
+      if (!res->stmt.IsDone()) {
+        do {
+          auto* s = res->stmt.sqlite_stmt();
+          int64_t sid = sqlite3_column_int64(s, 0);
+          NodeRow r;
+          r.node_id = sqlite3_column_int64(s, 1);
+          r.parent_node_id = column_int_opt(s, 2);
+          r.function_name = column_text(s, 3);
+          r.url = column_text_opt(s, 4);
+          r.line_number = column_int_opt(s, 5);
+          r.column_number = column_int_opt(s, 6);
+          r.script_id = column_int_opt(s, 7);
+          r.code_type = column_text(s, 8);
+          r.deopt_reason = column_text_opt(s, 9);
+          nodes_by_session[sid].push_back(std::move(r));
+        } while (res->stmt.Step());
+        RETURN_IF_ERROR(res->stmt.status());
+      }
+    }
+
+    std::map<int64_t, std::vector<SampleRow>> samples_by_session;
+    {
+      auto res = engine_->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation(
+              "INCLUDE PERFETTO MODULE v8.cpu_profile;\n"
+              "SELECT v8_cpu_profile_session_id, node_id, delta_us, "
+              "       leaf_line, leaf_column "
+              "FROM _v8_cpu_profile_legacy_export_sample"));
+      RETURN_IF_ERROR(res.status());
+      if (!res->stmt.IsDone()) {
+        do {
+          auto* s = res->stmt.sqlite_stmt();
+          int64_t sid = sqlite3_column_int64(s, 0);
+          SampleRow r;
+          r.node_id = sqlite3_column_int64(s, 1);
+          r.delta_us = sqlite3_column_int64(s, 2);
+          r.leaf_line = sqlite3_column_int64(s, 3);
+          r.leaf_column = sqlite3_column_int64(s, 4);
+          samples_by_session[sid].push_back(std::move(r));
+        } while (res->stmt.Step());
+        RETURN_IF_ERROR(res->stmt.status());
+      }
+    }
+
+    for (const auto& sr : sessions) {
+      auto pid_and_tid = UtidToPidAndTid(sr.utid);
+      uint64_t session_id = static_cast<uint64_t>(sr.session_id);
+      int64_t start_ts = sr.start_ts;
+
+      Dom profile_event(Type::kObject);
+      profile_event["pid"] = static_cast<int>(pid_and_tid.first);
+      profile_event["tid"] = static_cast<int>(pid_and_tid.second);
+      profile_event["ts"] = start_ts / 1000;
+      if (sr.start_thread_ts)
+        profile_event["tts"] = *sr.start_thread_ts / 1000;
+      profile_event["ph"] = kPhase;
+      profile_event["cat"] = kCategory;
+      profile_event["name"] = "Profile";
+      profile_event["dur"] = static_cast<int64_t>(0);
+      profile_event["tdur"] = static_cast<int64_t>(0);
+      profile_event["id"] = base::Uint64ToHexString(session_id);
+
+      Dom profile_data(Type::kObject);
+      if (sr.start_time_us)
+        profile_data["startTime"] = *sr.start_time_us;
+      if (sr.source)
+        profile_data["source"] = *sr.source;
+      Dom profile_args(Type::kObject);
+      profile_args["data"] = std::move(profile_data);
+      profile_event["args"] = std::move(profile_args);
+      writer_.WriteCommonEvent(profile_event);
+
+      const auto& nodes = nodes_by_session[sr.v8_cpu_profile_session_id];
+      const auto& samples = samples_by_session[sr.v8_cpu_profile_session_id];
+      if (!nodes.empty() || !samples.empty()) {
+        Dom nodes_array(Type::kArray);
+        for (const auto& n : nodes) {
+          Dom node_dom(Type::kObject);
+          node_dom["id"] = n.node_id;
+          if (n.parent_node_id)
+            node_dom["parent"] = *n.parent_node_id;
+          Dom call_frame(Type::kObject);
+          call_frame["functionName"] = n.function_name;
+          call_frame["scriptId"] = n.script_id.value_or(0);
+          if (n.url && !n.url->empty()) {
+            call_frame["url"] = *n.url;
+            call_frame["lineNumber"] = n.line_number.value_or(0);
+            call_frame["columnNumber"] = n.column_number.value_or(0);
+          }
+          call_frame["codeType"] = n.code_type;
+          node_dom["callFrame"] = std::move(call_frame);
+          if (n.deopt_reason && !n.deopt_reason->empty())
+            node_dom["deoptReason"] = *n.deopt_reason;
+          nodes_array.Append(std::move(node_dom));
+        }
+
+        Dom samples_array(Type::kArray);
+        Dom deltas_array(Type::kArray);
+        Dom lines_array(Type::kArray);
+        Dom columns_array(Type::kArray);
+        bool has_non_zero_lines = false;
+        for (const auto& s : samples) {
+          samples_array.Append(s.node_id);
+          deltas_array.Append(s.delta_us);
+          if (s.leaf_line != 0)
+            has_non_zero_lines = true;
+          lines_array.Append(s.leaf_line);
+          columns_array.Append(s.leaf_column);
+        }
+
+        Dom cpu_profile(Type::kObject);
+        cpu_profile["nodes"] = std::move(nodes_array);
+        cpu_profile["samples"] = std::move(samples_array);
+
+        Dom data(Type::kObject);
+        data["cpuProfile"] = std::move(cpu_profile);
+        if (has_non_zero_lines)
+          data["lines"] = std::move(lines_array);
+        if (has_non_zero_lines)
+          data["columns"] = std::move(columns_array);
+        if (sr.source)
+          data["source"] = *sr.source;
+        data["timeDeltas"] = std::move(deltas_array);
+
+        Dom args(Type::kObject);
+        args["data"] = std::move(data);
+        Dom chunk_event(Type::kObject);
+        chunk_event["pid"] = static_cast<int>(pid_and_tid.first);
+        chunk_event["tid"] = static_cast<int>(pid_and_tid.second);
+        chunk_event["ts"] = start_ts / 1000;
+        if (sr.start_thread_ts)
+          chunk_event["tts"] = *sr.start_thread_ts / 1000;
+        chunk_event["ph"] = kPhase;
+        chunk_event["cat"] = kCategory;
+        chunk_event["name"] = "ProfileChunk";
+        chunk_event["dur"] = static_cast<int64_t>(0);
+        chunk_event["tdur"] = static_cast<int64_t>(0);
+        chunk_event["id"] = base::Uint64ToHexString(session_id);
+        chunk_event["args"] = std::move(args);
+        writer_.WriteCommonEvent(chunk_event);
+      }
+
+      if (sr.end_ts) {
+        Dom end_event(Type::kObject);
+        end_event["pid"] = static_cast<int>(pid_and_tid.first);
+        end_event["tid"] = static_cast<int>(pid_and_tid.second);
+        end_event["ts"] = *sr.end_ts / 1000;
+        if (sr.end_thread_ts)
+          end_event["tts"] = *sr.end_thread_ts / 1000;
+        end_event["ph"] = kPhase;
+        end_event["cat"] = kCategory;
+        end_event["name"] = "ProfileChunk";
+        end_event["dur"] = static_cast<int64_t>(0);
+        end_event["tdur"] = static_cast<int64_t>(0);
+        end_event["id"] = base::Uint64ToHexString(session_id);
+
+        Dom end_data(Type::kObject);
+        if (sr.end_time_us)
+          end_data["endTime"] = *sr.end_time_us;
+        if (sr.source)
+          end_data["source"] = *sr.source;
+
+        Dom end_args(Type::kObject);
+        end_args["data"] = std::move(end_data);
+        end_event["args"] = std::move(end_args);
+        writer_.WriteCommonEvent(end_event);
+      }
+    }
+    return base::OkStatus();
+#endif  // PERFETTO_EXPORT_JSON_HAS_SQL_ENGINE
+  }
+
   int64_t UpidToPid(UniquePid upid) {
     auto pid_it = upids_to_exported_pids_.find(upid);
     PERFETTO_DCHECK(pid_it != upids_to_exported_pids_.end());
@@ -1671,6 +1960,7 @@ class JsonExporter {
   }
 
   const TraceStorage* storage_;
+  [[maybe_unused]] PerfettoSqlConnection* engine_;
   ArgsBuilder args_builder_;
   TraceFormatWriter writer_;
 
@@ -1698,9 +1988,11 @@ base::Status ExportJson(const TraceStorage* storage,
                         OutputWriter* output,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
-                        LabelFilterPredicate label_filter) {
+                        LabelFilterPredicate label_filter,
+                        PerfettoSqlConnection* engine) {
   JsonExporter exporter(storage, output, std::move(argument_filter),
-                        std::move(metadata_filter), std::move(label_filter));
+                        std::move(metadata_filter), std::move(label_filter),
+                        engine);
   return exporter.Export();
 }
 
@@ -1709,16 +2001,18 @@ base::Status ExportJson(TraceProcessorStorage* tp,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
-  const TraceStorage* storage = reinterpret_cast<TraceProcessorStorageImpl*>(tp)
-                                    ->context()
-                                    ->storage.get();
+  auto* impl = reinterpret_cast<TraceProcessorStorageImpl*>(tp);
+  const TraceStorage* storage = impl->context()->storage.get();
   return ExportJson(storage, output, std::move(argument_filter),
-                    std::move(metadata_filter), std::move(label_filter));
+                    std::move(metadata_filter), std::move(label_filter),
+                    impl->engine());
 }
 
-base::Status ExportJson(const TraceStorage* storage, FILE* output) {
+base::Status ExportJson(const TraceStorage* storage,
+                        FILE* output,
+                        PerfettoSqlConnection* engine) {
   FileWriter writer(output);
-  return ExportJson(storage, &writer, nullptr, nullptr, nullptr);
+  return ExportJson(storage, &writer, nullptr, nullptr, nullptr, engine);
 }
 
 }  // namespace perfetto::trace_processor::json

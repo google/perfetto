@@ -141,6 +141,8 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
+  PerfettoSqlConnection* engine() override { return engine_.get(); }
+
  private:
   // Needed for iterators to be able to access the context.
   friend class SqliteIteratorImpl;

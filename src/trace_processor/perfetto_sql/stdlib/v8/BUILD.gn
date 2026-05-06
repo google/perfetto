@@ -15,5 +15,8 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("v8") {
-  sources = [ "jit.sql" ]
+  sources = [
+    "cpu_profile.sql",
+    "jit.sql",
+  ]
 }

@@ -78,12 +78,15 @@ source_set("minimal") {
     "track_event_tracker.h",
     "user_tracker.cc",
     "user_tracker.h",
+    "v8_cpu_profile_module.cc",
+    "v8_cpu_profile_module.h",
   ]
   public_deps = [ ":proto_importer_module" ]
   deps = [
     ":gen_cc_chrome_track_event_descriptor",
     ":gen_cc_gpu_track_event_descriptor",
     ":gen_cc_track_event_descriptor",
+    ":gen_cc_v8_profile_extensions_descriptor",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../../protos/perfetto/common:zero",
@@ -104,6 +107,8 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/perfetto/trace/translation:zero",
+    "../../../../protos/perfetto/trace/v8:v8_profile_extensions_zero",
+    "../../../../protos/perfetto/trace/v8:zero",
     "../../../../protos/third_party/android/connectivity:connectivity_network_trace_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_interned_data_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
@@ -232,6 +237,8 @@ source_set("full") {
     "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/translation:zero",
+    "../../../../protos/perfetto/trace/v8:v8_profile_extensions_zero",
+    "../../../../protos/perfetto/trace/v8:zero",
     "../../../../protos/third_party/android/art:art_heap_graph_zero",
     "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../../../../protos/third_party/android/packages/modules/bluetooth/tracing:bluetooth_tracing_zero",
@@ -338,6 +345,12 @@ perfetto_cc_proto_descriptor("gen_cc_gpu_interned_data_descriptor") {
   descriptor_name = "gpu_interned_data.descriptor"
   descriptor_target =
       "../../../../protos/perfetto/trace/gpu:gpu_interned_data_descriptor"
+}
+
+perfetto_cc_proto_descriptor("gen_cc_v8_profile_extensions_descriptor") {
+  descriptor_name = "v8_profile_extensions.descriptor"
+  descriptor_target =
+      "../../../../protos/perfetto/trace/v8:v8_profile_extensions_descriptor"
 }
 
 source_set("unittests") {
