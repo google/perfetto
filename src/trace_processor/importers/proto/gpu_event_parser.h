@@ -155,10 +155,6 @@ class GpuEventParser {
   base::FlatHashMap<TrackId, std::optional<tables::CounterTable::Id>>
       gpu_counter_last_id_;
 
-  // Tracks which interned counter descriptors have had their custom groups
-  // inserted, to avoid duplicates. Key: counter_descriptor_iid.
-  base::FlatHashMap<uint64_t, bool> gpu_custom_groups_inserted_;
-
   // For GpuRenderStageEvent
   struct HwQueueInfo {
     StringId name;
