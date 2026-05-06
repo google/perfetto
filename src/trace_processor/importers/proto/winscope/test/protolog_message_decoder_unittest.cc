@@ -67,14 +67,11 @@ TEST_F(ProtologMessageDecoderTest,
   ASSERT_TRUE(decoded.has_value());
   EXPECT_EQ(decoded->log_level, ProtoLogLevel::INFO);
   EXPECT_EQ(decoded->group_tag, default_tag);
-  EXPECT_THAT(decoded->message,
-              testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
-  EXPECT_THAT(decoded->message,
-              testing::HasSubstr(") RESOLVED: 'Value: 123'>"));
+  EXPECT_THAT(decoded->message, "Value: 123");
   EXPECT_EQ(decoded->location, "Some Location");
   EXPECT_EQ(context_->storage->GetStats(
                 stats::winscope_protolog_view_config_collision),
-            1);
+            0);
   EXPECT_EQ(context_->storage->GetStats(
                 stats::winscope_protolog_view_config_collision_resolved),
             1);

@@ -97,15 +97,14 @@ void ProtoLogMessageDecoder::TrackMessage(
   for (const auto& existing_msg : existing_messages) {
     if (existing_msg.message == new_tracked_message.message &&
         existing_msg.level == new_tracked_message.level &&
-        existing_msg.group_id == new_tracked_message.group_id) {
+        existing_msg.group_id == new_tracked_message.group_id &&
+        existing_msg.location == new_tracked_message.location) {
       message_already_tracked = true;
       break;
     }
   }
 
   if (!message_already_tracked) {
-    context_->storage->IncrementStats(
-        stats::winscope_protolog_view_config_collision);
     existing_messages.emplace_back(new_tracked_message);
   }
 }
@@ -336,19 +335,13 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
     }
   }
 
-  std::string collision_message =
-      "<PROTOLOG COLLISION (id=0x" + base::Uint64ToHexString(message_id) + ") ";
   if (potential_matches.size() == 1) {
     context_->storage->IncrementStats(
         stats::winscope_protolog_view_config_collision_resolved);
 
-    collision_message += "RESOLVED: ";
-
     auto formatted_message =
         FormatMessage(potential_matches[0].message, sint64_params,
                       double_params, boolean_params, string_params);
-    collision_message += "'" + formatted_message + "'";
-    collision_message += ">";
 
     auto group = tracked_groups_.Find(potential_matches[0].group_id);
     std::string group_tag;
@@ -359,8 +352,13 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
     }
 
     return DecodedMessage{potential_matches[0].level, group_tag,
-                          collision_message, potential_matches[0].location};
+                          formatted_message, potential_matches[0].location};
   } else {
+    context_->storage->IncrementStats(
+        stats::winscope_protolog_view_config_collision);
+    std::string collision_message = "<PROTOLOG COLLISION (id=0x" +
+                                    base::Uint64ToHexString(message_id) + ") ";
+
     if (potential_matches.empty()) {
       collision_message += "NO TYPE MATCH >";
     } else {
