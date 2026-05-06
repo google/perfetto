@@ -48,13 +48,18 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     auto message = tracked_message.message;
 
     auto group = tracked_groups_.Find(tracked_message.group_id);
+    std::string_view group_tag;
     if (group == nullptr) {
-      return std::nullopt;
+      group_tag = kUnknownGroupTag;
+      context_->storage->IncrementStats(
+          stats::winscope_protolog_group_tag_missing);
+    } else {
+      group_tag = group->tag;
     }
 
     auto formatted_message = FormatMessage(
         message, sint64_params, double_params, boolean_params, string_params);
-    return DecodedMessage{tracked_message.level, group->tag, formatted_message,
+    return DecodedMessage{tracked_message.level, group_tag, formatted_message,
                           tracked_message.location};
   } else {
     return DecodeCollidingMessageIds(messages, message_id, sint64_params,
@@ -63,13 +68,19 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
   }
 }
 
-void ProtoLogMessageDecoder::TrackGroup(uint32_t id, const std::string& tag) {
+void ProtoLogMessageDecoder::TrackGroup(uint32_t id,
+                                        const std::string_view tag) {
   auto tracked_group = tracked_groups_.Find(id);
-  if (tracked_group != nullptr && tracked_group->tag != tag) {
-    context_->storage->IncrementStats(
-        stats::winscope_protolog_view_config_collision);
+  if (tracked_group != nullptr) {
+    if (tracked_group->tag != tag) {
+      context_->storage->IncrementStats(
+          stats::winscope_protolog_group_tag_collision);
+
+      tracked_groups_[id] = TrackedGroup{kCollisionGroupTag};
+    }
+  } else {
+    tracked_groups_.Insert(id, TrackedGroup{tag});
   }
-  tracked_groups_.Insert(id, TrackedGroup{tag});
 }
 
 void ProtoLogMessageDecoder::TrackMessage(
@@ -337,16 +348,18 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
 
   if (potential_matches.size() == 1) {
     context_->storage->IncrementStats(
-        stats::winscope_protolog_view_config_collision_resolved);
+        stats::winscope_protolog_message_collision_resolved);
 
     auto formatted_message =
         FormatMessage(potential_matches[0].message, sint64_params,
                       double_params, boolean_params, string_params);
 
     auto group = tracked_groups_.Find(potential_matches[0].group_id);
-    std::string group_tag;
+    std::string_view group_tag;
     if (group == nullptr) {
-      group_tag = "UNKNOWN TAG";
+      group_tag = kUnknownGroupTag;
+      context_->storage->IncrementStats(
+          stats::winscope_protolog_group_tag_missing);
     } else {
       group_tag = group->tag;
     }
@@ -355,12 +368,12 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
                           formatted_message, potential_matches[0].location};
   } else {
     context_->storage->IncrementStats(
-        stats::winscope_protolog_view_config_collision);
+        stats::winscope_protolog_message_collision);
     std::string collision_message = "<PROTOLOG COLLISION (id=0x" +
                                     base::Uint64ToHexString(message_id) + ") ";
 
     if (potential_matches.empty()) {
-      collision_message += "NO TYPE MATCH >";
+      collision_message += "NO TYPE MATCH>";
     } else {
       collision_message += "MULTIPLE TYPE MATCHES : ";
       for (size_t i = 0; i < potential_matches.size(); ++i) {

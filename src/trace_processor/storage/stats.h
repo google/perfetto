@@ -523,12 +523,18 @@ namespace perfetto::trace_processor::stats {
   F(winscope_protolog_message_decoding_failed,                                 \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Failed to decode ProtoLog message."),                                   \
-  F(winscope_protolog_view_config_collision,                                   \
+  F(winscope_protolog_message_collision,                                       \
                                           kSingle,  kInfo,     kAnalysis,      \
-      "Got a viewer config collision!"),                                       \
-  F(winscope_protolog_view_config_collision_resolved,                                   \
+      "Got a message collision!"),                                             \
+  F(winscope_protolog_message_collision_resolved,                              \
                                           kSingle,  kInfo,     kAnalysis,      \
-      "Got a viewer config collision resolved!"),                                       \
+      "Got a message collision resolved!"),                                    \
+  F(winscope_protolog_group_tag_collision,                                     \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Got a group tag collision!"),                                           \
+  F(winscope_protolog_group_tag_missing,                                       \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Got a group tag missing!"),                                             \
   F(winscope_protolog_param_mismatch,                                          \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Message had mismatching parameters!"),                                  \

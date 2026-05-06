@@ -43,7 +43,7 @@ class ProtoLogParser {
  private:
   void PopulateReservedRowWithMessage(tables::ProtoLogTable::Id table_row_id,
                                       winscope::ProtoLogLevel level,
-                                      std::string& group_tag,
+                                      std::string_view group_tag,
                                       std::string& formatted_message,
                                       std::optional<StringId> stacktrace,
                                       std::optional<std::string>& location);
