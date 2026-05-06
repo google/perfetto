@@ -13,14 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Time} from '../base/time';
-import {formatDuration} from '../components/time_utils';
 import {featureFlags} from '../core/feature_flags';
-import {App} from '../public/app';
-import {Trace} from '../public/trace';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {TaskStatus} from './task_status';
+import {App} from '../public/app';
 
 const SHOW_TASK_TRACKER_FLAG = featureFlags.register({
   id: 'showTaskTracker',
@@ -33,11 +30,10 @@ const SHOW_TASK_TRACKER_FLAG = featureFlags.register({
  * A persistent status bar component typically rendered at the bottom of the UI.
  */
 export function renderStatusBar(app: App): m.Children {
-  const trace = app.trace;
   return m(
     '.pf-statusbar',
     SHOW_TASK_TRACKER_FLAG.get() && m(TaskStatus, {app}),
-    trace?.statusbar.statusBarItems.map((item) => {
+    app.trace?.statusbar.statusBarItems.map((item) => {
       const {icon, label, intent, onclick} = item.renderItem();
       const popupContent = item.popupContent?.();
       const itemContent = m(Button, {
@@ -60,14 +56,5 @@ export function renderStatusBar(app: App): m.Children {
         return itemContent;
       }
     }),
-    trace && renderTraceDuration(trace),
-  );
-}
-
-function renderTraceDuration(trace: Trace): m.Children {
-  const {start, end} = trace.traceInfo;
-  return m(
-    '.pf-statusbar__trace-duration',
-    `Duration: ${formatDuration(trace, Time.diff(end, start))}`,
   );
 }

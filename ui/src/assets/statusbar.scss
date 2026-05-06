@@ -21,15 +21,10 @@
   background: var(--pf-sidebar-surface);
   padding: 0px 8px;
   color: var(--pf-sidebar-on-surface);
-  font-family: var(--pf-font-compact);
-  font-size: var(--pf-font-size-s);
+  font-size: var(--pf-font-size-m);
   border-top: solid 1px var(--pf-sidebar-border);
 
   > .pf-button {
     border-radius: unset;
-  }
-
-  &__trace-duration {
-    margin-left: auto;
   }
 }
