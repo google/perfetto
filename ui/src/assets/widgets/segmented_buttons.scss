@@ -61,11 +61,7 @@
     }
 
     &:hover {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 10%
-      );
+      color: var(--pf-color-text);
     }
 
     &.pf-active {

@@ -124,6 +124,13 @@ export interface LineChartAttrs {
   readonly integerY?: boolean;
 
   /**
+   * Minimum interval between Y axis ticks. Use this to align ticks with a
+   * display unit — e.g. pass 1024 so ticks land on whole MB boundaries when
+   * data is in KB.
+   */
+  readonly yAxisMinInterval?: number;
+
+  /**
    * Show legend. Defaults to true when multiple series.
    */
   readonly showLegend?: boolean;
@@ -172,9 +179,16 @@ export interface LineChartAttrs {
    * Note: When stacked, all series must be aligned to the same X values.
    */
   readonly stacked?: boolean;
+
+  /**
+   * Callback when a series is clicked. Called with the series name.
+   */
+  readonly onSeriesClick?: (seriesName: string) => void;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
+  private hoveredSeries: string | undefined;
+
   view({attrs}: m.Vnode<LineChartAttrs>) {
     const {data, height, fillParent, className, onBrush} = attrs;
 
@@ -183,7 +197,9 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
       (data.series.length === 0 ||
         data.series.every((s) => s.points.length === 0));
     const option =
-      data !== undefined && !isEmpty ? buildLineOption(attrs, data) : undefined;
+      data !== undefined && !isEmpty
+        ? buildLineOption(attrs, data, () => this.hoveredSeries)
+        : undefined;
 
     return m(EChartView, {
       option,
@@ -191,7 +207,9 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
       fillParent,
       className,
       empty: isEmpty,
-      eventHandlers: buildLineEventHandlers(attrs, data),
+      eventHandlers: buildLineEventHandlers(attrs, data, (name) => {
+        this.hoveredSeries = name;
+      }),
       activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
     });
   }
@@ -200,6 +218,7 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
 function buildLineOption(
   attrs: LineChartAttrs,
   data: LineChartData,
+  getHoveredSeries: () => string | undefined,
 ): EChartsCoreOption {
   const {
     xAxisLabel,
@@ -209,17 +228,21 @@ function buildLineOption(
     logScale = false,
     integerX = false,
     integerY = false,
+    yAxisMinInterval,
     showLegend,
     showPoints = true,
     lineWidth = 2,
     gridLines,
     stacked = false,
+    legendPosition = 'top',
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
 
   const displayLegend = showLegend ?? data.series.length > 1;
 
+  // When stacking, reverse the series order so that the first series is drawn
+  // on top. This aligns the series order with the legend and tooltip.
   const series = data.series.map((s, i) => {
     const base: Record<string, unknown> = {
       type: 'line',
@@ -233,9 +256,17 @@ function buildLineOption(
       showSymbol: showPoints,
       symbolSize: 6,
       triggerLineEvent: true,
-      emphasis: {focus: 'series', itemStyle: {borderWidth: 2}},
+      legendHoverLink: false,
+      emphasis: stacked
+        ? {focus: 'series', blurScope: 'global' as const}
+        : {focus: 'series', itemStyle: {borderWidth: 2}},
+      blur: stacked
+        ? {lineStyle: {opacity: 0.15}, areaStyle: {opacity: 0.05}}
+        : {lineStyle: {opacity: 0.15}},
       stack: stacked ? 'total' : undefined,
-      areaStyle: stacked ? {} : undefined,
+      areaStyle: stacked ? {opacity: 0.2} : undefined,
+      // invisible wider hitbox
+      silent: false,
     };
 
     // Render selection highlight on the first series only.
@@ -244,10 +275,25 @@ function buildLineOption(
         [{xAxis: attrs.selection.start}, {xAxis: attrs.selection.end}],
       ]);
     }
+
     return base;
   });
 
   const option = buildChartOption({
+    grid: {
+      left: yAxisLabel ? 30 : 10,
+      right: legendPosition === 'right' && displayLegend ? 150 : 10,
+      top: legendPosition === 'top' && displayLegend ? 30 : 10,
+      bottom:
+        legendPosition === 'bottom' && displayLegend
+          ? xAxisLabel
+            ? 70
+            : 55
+          : xAxisLabel
+            ? 40
+            : 25,
+      containLabel: true,
+    },
     xAxis: {
       // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
       // or 'time'. Since we want to support x-values at irregular intervals, we
@@ -269,7 +315,7 @@ function buildLineOption(
         formatYValue !== undefined
           ? (v) => formatYValue(v as number)
           : undefined,
-      minInterval: integerY ? 1 : undefined,
+      minInterval: yAxisMinInterval ?? (integerY ? 1 : undefined),
       scale: attrs.scaleAxes,
       showSplitLine: gridLines === 'horizontal' || gridLines === 'both',
     },
@@ -284,17 +330,30 @@ function buildLineOption(
       ) => {
         if (!Array.isArray(params) || params.length === 0) return '';
         const xVal = params[0].data?.[0];
-        const header = xVal !== undefined ? `X: ${fmtX(xVal)}` : '';
-        const lines = params.map(
-          (p) =>
-            `${p.marker ?? ''} ${p.seriesName ?? ''}: ${fmtY(p.data?.[1] ?? 0)}`,
-        );
+        const header = xVal !== undefined ? fmtX(xVal) : '';
+        const ordered = stacked ? [...params].reverse() : params;
+        const lines = ordered.map((p) => {
+          const text = `${p.marker ?? ''} ${p.seriesName ?? ''}: ${fmtY(p.data?.[1] ?? 0)}`;
+          return p.seriesName === getHoveredSeries() ? `<b>${text}</b>` : text;
+        });
         return [header, ...lines].join('<br>');
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
     legend: displayLegend
-      ? buildLegendOption(attrs.legendPosition)
+      ? {
+          ...buildLegendOption(legendPosition),
+          ...(stacked
+            ? {data: [...data.series].reverse().map((s) => s.name)}
+            : {}),
+          formatter: (name: string) => {
+            const s = data.series.find((sr) => sr.name === name);
+            if (s !== undefined && s.points.length > 0) {
+              return `${name}  ${fmtY(s.points[s.points.length - 1].y)}`;
+            }
+            return name;
+          },
+        }
       : {show: false},
   });
 
@@ -305,19 +364,30 @@ function buildLineOption(
 function buildLineEventHandlers(
   attrs: LineChartAttrs,
   data: LineChartData | undefined,
+  setHoveredSeries: (name: string | undefined) => void,
 ): ReadonlyArray<EChartEventHandler> {
-  if (
-    !attrs.onBrush ||
-    data === undefined ||
-    data.series.length === 0 ||
-    data.series.every((s) => s.points.length === 0)
-  ) {
-    return [];
-  }
-  const onBrush = attrs.onBrush;
+  const handlers: EChartEventHandler[] = [];
 
-  return [
-    {
+  handlers.push({
+    eventName: 'mouseover',
+    handler: (params) => {
+      const p = params as {seriesName?: string};
+      setHoveredSeries(p.seriesName);
+    },
+  });
+  handlers.push({
+    eventName: 'mouseout',
+    handler: () => setHoveredSeries(undefined),
+  });
+
+  if (
+    attrs.onBrush &&
+    data !== undefined &&
+    data.series.length > 0 &&
+    data.series.some((s) => s.points.length > 0)
+  ) {
+    const onBrush = attrs.onBrush;
+    handlers.push({
       eventName: 'brushEnd',
       handler: (params) => {
         const range = extractBrushRange(params);
@@ -326,6 +396,21 @@ function buildLineEventHandlers(
           onBrush({start, end});
         }
       },
-    },
-  ];
+    });
+  }
+
+  if (attrs.onSeriesClick) {
+    const onSeriesClick = attrs.onSeriesClick;
+    handlers.push({
+      eventName: 'click',
+      handler: (params) => {
+        const p = params as {seriesName?: string};
+        if (p.seriesName !== undefined) {
+          onSeriesClick(p.seriesName);
+        }
+      },
+    });
+  }
+
+  return handlers;
 }

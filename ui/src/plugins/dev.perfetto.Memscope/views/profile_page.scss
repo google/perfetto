@@ -1,0 +1,160 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Profile header bar — three zones: status | subject+stats | actions.
+.pf-memscope-profile-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border-secondary);
+  border: 2px solid var(--pf-color-danger);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--pf-color-danger) 20%, transparent);
+}
+
+// Zone 1 — recording status (left).
+.pf-memscope-profile-bar__status {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px 20px;
+}
+
+// "● RECORDING" badge.
+.pf-memscope-profile-bar__rec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--pf-font-size-s);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pf-color-danger);
+
+  &::before {
+    content: "";
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--pf-color-danger);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--pf-color-danger) 25%, transparent);
+    animation: pf-memscope-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+// "Stopping…" text shown while trace is being finalised.
+.pf-memscope-profile-bar__stopping {
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  font-style: italic;
+}
+
+// Data-source row: chips for heapprofd and java_hprof.
+.pf-memscope-profile-bar__sources {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-memscope-profile-bar__source-sep {
+  color: var(--pf-color-border-secondary);
+  margin: 0 2px;
+  align-self: center;
+}
+
+// Individual source chip: name row + stats row stacked vertically.
+.pf-memscope-source-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-memscope-source-chip__name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  color: var(--pf-color-text);
+
+  // Make the material icon match the text cap-height.
+  .pf-icon {
+    font-size: 15px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memscope-source-chip__stats {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--pf-color-text-muted);
+  padding-left: 20px; // align under the text, past the icon
+}
+
+.pf-memscope-source-chip__stat-sep {
+  color: var(--pf-color-border-secondary);
+  margin: 0 1px;
+}
+
+// Zone 2 — process name + stats (center, flex-grows).
+.pf-memscope-profile-bar__subject {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 20px;
+  min-width: 0; // allow truncation
+}
+
+.pf-memscope-profile-bar__process {
+  font-size: var(--pf-font-size-m);
+  font-weight: 600;
+  color: var(--pf-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Secondary row: PID · duration · buffer.
+.pf-memscope-profile-bar__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memscope-profile-bar__meta-sep {
+  margin: 0 3px;
+  color: var(--pf-color-border-secondary);
+}
+
+// Zone 3 — actions (right).
+.pf-memscope-profile-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-left: 1px solid var(--pf-color-border-secondary);
+}

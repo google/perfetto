@@ -176,6 +176,7 @@ export function buildLegendOption(
         show: true,
         type: 'scroll',
         top: 0,
+        icon: 'roundRect',
         textStyle: {fontSize: 10},
       };
     case 'bottom':
@@ -183,6 +184,7 @@ export function buildLegendOption(
         show: true,
         type: 'scroll',
         bottom: 0,
+        icon: 'roundRect',
         textStyle: {fontSize: 10},
       };
     case 'right':
@@ -193,6 +195,7 @@ export function buildLegendOption(
         right: 0,
         top: 20,
         bottom: 20,
+        icon: 'roundRect',
         textStyle: {
           fontSize: 10,
           width: 120,
