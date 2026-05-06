@@ -95,8 +95,8 @@ class ProfilePacketSequenceState final
   void AddCallstack(SourceCallstackId id, const SourceCallstack& callstack);
 
   void StoreAllocation(const SourceAllocation& allocation);
-  void FinalizeProfile();
-  void CommitAllocations();
+  void FinalizeProfile(PacketSequenceStateGeneration* state);
+  void CommitAllocations(PacketSequenceStateGeneration* state);
 
   FrameId GetDatabaseFrameIdForTesting(SourceFrameId);
 
@@ -115,7 +115,8 @@ class ProfilePacketSequenceState final
     }
   };
 
-  void AddAllocation(const SourceAllocation& alloc);
+  void AddAllocation(PacketSequenceStateGeneration* state,
+                     const SourceAllocation& alloc);
 
   // The following methods deal with interned data. In Android version Q we did
   // not intern Mappings, Frames nor Callstacks, instead the profile packed
@@ -127,7 +128,10 @@ class ProfilePacketSequenceState final
   // via the Add* methods), and then, if this lookup fails, in the InternedData
   // instead.
   std::optional<MappingId> FindOrInsertMapping(uint64_t iid);
-  std::optional<CallsiteId> FindOrInsertCallstack(UniquePid upid, uint64_t iid);
+  std::optional<CallsiteId> FindOrInsertCallstack(
+      PacketSequenceStateGeneration* state,
+      UniquePid upid,
+      uint64_t iid);
 
   TraceProcessorContext* const context_;
 

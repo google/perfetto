@@ -40,6 +40,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/proto/gpu_counter_sequence_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -491,10 +492,15 @@ void GpuEventParser::ParseGpuCounterEvent(
       }
     }
 
-    // Insert custom counter groups once per interned descriptor.
+    // Insert custom counter groups once per interned descriptor. The cache
+    // lives on the sequence's IncrementalState (alongside the interned-data
+    // table the descriptor was looked up from), so two producers picking the
+    // same iid on different sequences each get their own cache.
     auto iid = event.counter_descriptor_iid();
-    if (!gpu_custom_groups_inserted_.Find(iid)) {
-      gpu_custom_groups_inserted_.Insert(iid, true);
+    auto* gpu_counter_state =
+        sequence_state->GetCustomState<GpuCounterSequenceState>();
+    if (!gpu_counter_state->custom_groups_inserted.Find(iid)) {
+      gpu_counter_state->custom_groups_inserted.Insert(iid, true);
       base::FlatHashMap<uint32_t, TrackId> counter_id_to_track;
       for (auto spec_it = desc.specs(); spec_it; ++spec_it) {
         GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*spec_it);

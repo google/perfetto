@@ -44,20 +44,35 @@ class StackProfileSequenceState final
   virtual ~StackProfileSequenceState() override;
 
   // Returns `nullptr`if non could be found.
-  VirtualMemoryMapping* FindOrInsertMapping(uint64_t iid);
-  std::optional<CallsiteId> FindOrInsertCallstack(std::optional<UniquePid> upid,
-                                                  uint64_t iid);
+  VirtualMemoryMapping* FindOrInsertMapping(
+      PacketSequenceStateGeneration* state,
+      uint64_t iid);
+  std::optional<CallsiteId> FindOrInsertCallstack(
+      PacketSequenceStateGeneration* state,
+      std::optional<UniquePid> upid,
+      uint64_t iid);
 
  private:
-  std::optional<base::StringView> LookupInternedBuildId(uint64_t iid);
-  std::optional<base::StringView> LookupInternedMappingPath(uint64_t iid);
-  std::optional<base::StringView> LookupInternedFunctionName(uint64_t iid);
-  std::optional<base::StringView> LookupInternedSourcePath(uint64_t iid);
+  std::optional<base::StringView> LookupInternedBuildId(
+      PacketSequenceStateGeneration* state,
+      uint64_t iid);
+  std::optional<base::StringView> LookupInternedMappingPath(
+      PacketSequenceStateGeneration* state,
+      uint64_t iid);
+  std::optional<base::StringView> LookupInternedFunctionName(
+      PacketSequenceStateGeneration* state,
+      uint64_t iid);
+  std::optional<base::StringView> LookupInternedSourcePath(
+      PacketSequenceStateGeneration* state,
+      uint64_t iid);
 
   // Returns `nullptr`if non could be found.
-  VirtualMemoryMapping* FindOrInsertMappingImpl(std::optional<UniquePid> upid,
-                                                uint64_t iid);
-  std::optional<FrameId> FindOrInsertFrame(std::optional<UniquePid> upid,
+  VirtualMemoryMapping* FindOrInsertMappingImpl(
+      PacketSequenceStateGeneration* state,
+      std::optional<UniquePid> upid,
+      uint64_t iid);
+  std::optional<FrameId> FindOrInsertFrame(PacketSequenceStateGeneration* state,
+                                           std::optional<UniquePid> upid,
                                            uint64_t iid);
 
   TraceProcessorContext* const context_;

@@ -39,19 +39,26 @@ class V8SequenceState final
 
   ~V8SequenceState() override;
 
-  std::optional<tables::V8IsolateTable::Id> GetOrInsertIsolate(uint64_t iid);
+  std::optional<tables::V8IsolateTable::Id> GetOrInsertIsolate(
+      PacketSequenceStateGeneration* state,
+      uint64_t iid);
   std::optional<tables::V8JsFunctionTable::Id> GetOrInsertJsFunction(
+      PacketSequenceStateGeneration* state,
       uint64_t iid,
       tables::V8IsolateTable::Id isolate_id);
   std::optional<tables::V8WasmScriptTable::Id> GetOrInsertWasmScript(
+      PacketSequenceStateGeneration* state,
       uint64_t iid,
       tables::V8IsolateTable::Id isolate_id);
 
  private:
   std::optional<tables::V8JsScriptTable::Id> GetOrInsertJsScript(
+      PacketSequenceStateGeneration* state,
       uint64_t iid,
       tables::V8IsolateTable::Id isolate_id);
-  std::optional<StringId> GetOrInsertJsFunctionName(uint64_t iid);
+  std::optional<StringId> GetOrInsertJsFunctionName(
+      PacketSequenceStateGeneration* state,
+      uint64_t iid);
 
   TraceProcessorContext* const context_;
   V8Tracker* const v8_tracker_;
@@ -66,7 +73,7 @@ class V8SequenceState final
 };
 
 template <>
-struct PacketSequenceStateGeneration::CustomStateTraits<V8SequenceState> {
+struct CustomStateTraits<V8SequenceState> {
   using Tracker = V8Tracker;
 };
 
