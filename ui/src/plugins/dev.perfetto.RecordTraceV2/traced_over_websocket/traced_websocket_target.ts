@@ -121,6 +121,60 @@ export class TracedWebsocketTarget implements RecordingTarget {
     return okResult(session);
   }
 
+  async cloneSession(uniqueSessionName: string): Promise<Result<Uint8Array>> {
+    // Create a new connection specifically for the clone operation.
+    // This is needed because CloneSession attaches the consumer to the clone,
+    // and we want to keep the original session running on its own connection.
+    const ipcStatus = await this.createConsumerIpcChannel();
+    if (!ipcStatus.ok) return ipcStatus;
+    const consumerIpc = ipcStatus.value;
+
+    try {
+      // Clone the session by name
+      const cloneResp = await consumerIpc.invoke(
+        'CloneSession',
+        new protos.CloneSessionRequest({uniqueSessionName}),
+      );
+
+      if (!cloneResp.success) {
+        consumerIpc.close();
+        return errResult(cloneResp.error || 'CloneSession failed');
+      }
+
+      // Read the cloned trace data
+      const traceData = await this.readClonedData(consumerIpc);
+      consumerIpc.close();
+      return okResult(traceData);
+    } catch (e) {
+      consumerIpc.close();
+      return errResult(`CloneSession error: ${e}`);
+    }
+  }
+
+  private readClonedData(consumerIpc: TracingProtocol): Promise<Uint8Array> {
+    return new Promise((resolve) => {
+      const chunks: Uint8Array[] = [];
+      const stream = consumerIpc.invokeStreaming(
+        'ReadBuffers',
+        new protos.ReadBuffersRequest({}),
+      );
+      stream.onTraceData = (data: Uint8Array, hasMore: boolean) => {
+        chunks.push(data);
+        if (!hasMore) {
+          // Concatenate all chunks
+          const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
+          const result = new Uint8Array(totalLen);
+          let offset = 0;
+          for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.length;
+          }
+          resolve(result);
+        }
+      };
+    });
+  }
+
   private async createConsumerIpcChannel(): Promise<Result<TracingProtocol>> {
     const maybeSock = await AsyncWebsocket.connect(this.wsUrl);
     if (maybeSock == undefined) {

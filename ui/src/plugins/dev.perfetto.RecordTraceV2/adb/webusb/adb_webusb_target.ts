@@ -17,6 +17,7 @@ import {RecordingTarget} from '../../interfaces/recording_target';
 import {PreflightCheck} from '../../interfaces/connection_check';
 import {AdbKeyManager} from './adb_key_manager';
 import {
+  cloneAdbTracingSession,
   createAdbTracingSession,
   getAdbTracingServiceState,
 } from '../adb_tracing_session';
@@ -85,6 +86,12 @@ export class AdbWebusbTarget implements RecordingTarget {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
     return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+  }
+
+  async cloneSession(uniqueSessionName: string): Promise<Result<Uint8Array>> {
+    const adbDeviceStatus = await this.connectIfNeeded();
+    if (!adbDeviceStatus.ok) return adbDeviceStatus;
+    return cloneAdbTracingSession(adbDeviceStatus.value, uniqueSessionName);
   }
 
   disconnect(): void {
