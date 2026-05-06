@@ -460,6 +460,52 @@ void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp,
       timestamp, utid, std::move(args));
 }
 
+void FileIoTracker::ParseFileIoPathOperation(int64_t timestamp,
+                                             UniqueTid utid,
+                                             ConstBytes blob) {
+  protos::pbzero::FileIoPathOperationEtwEvent::Decoder decoder(blob);
+  SliceTracker::SetArgsCallback args =
+      [this, &decoder](ArgsTracker::BoundInserter* inserter) {
+        if (decoder.has_irp_ptr()) {
+          inserter->AddArg(irp_arg_, Variadic::Pointer(decoder.irp_ptr()));
+        }
+        if (decoder.has_file_object()) {
+          inserter->AddArg(file_object_arg_,
+                           Variadic::Pointer(decoder.file_object()));
+        }
+        if (decoder.has_file_key()) {
+          inserter->AddArg(file_key_arg_,
+                           Variadic::Pointer(decoder.file_key()));
+        }
+        // TODO: How should extra_info be handled?
+        if (decoder.has_extra_info()) {
+          inserter->AddArg(extra_info_arg_,
+                           Variadic::UnsignedInteger(decoder.extra_info()));
+        }
+        if (decoder.has_ttid()) {
+          inserter->AddArg(thread_id_arg_,
+                           Variadic::UnsignedInteger(decoder.ttid()));
+        }
+        if (decoder.has_info_class()) {
+          inserter->AddArg(info_class_arg_,
+                           GetInfoClassValue(static_cast<FileInfoClass>(
+                               decoder.info_class())));
+        }
+        if (decoder.has_file_name()) {
+          inserter->AddArg(enumeration_path_arg_,
+                           Variadic::String(context_->storage->InternString(
+                               decoder.file_name())));
+        }
+      };
+  const StringId name =
+      decoder.has_opcode()
+          ? GetEventName(decoder.opcode()).value_or(unknown_event_)
+          : unknown_event_;
+  StartEvent(
+      decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
+      name, timestamp, utid, std::move(args));
+}
+
 void FileIoTracker::OnEventsFullyExtracted() {
   while (!started_events_.empty()) {
     // `EndUnmatchedStart()` removes the recorded event, so retrieve the first

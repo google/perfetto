@@ -170,6 +170,9 @@ class FileIoTracker {
   void ParseFileIoOpEnd(int64_t timestamp,
                         UniqueTid utid,
                         protozero::ConstBytes);
+  void ParseFileIoPathOperation(int64_t timestamp,
+                                UniqueTid utid,
+                                protozero::ConstBytes);
 
   void OnEventsFullyExtracted();
 
