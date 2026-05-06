@@ -50,6 +50,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -152,6 +153,7 @@ class JsonExporter {
     RETURN_IF_ERROR(ExportMetadata());
     RETURN_IF_ERROR(ExportStats());
     RETURN_IF_ERROR(ExportMemorySnapshots());
+    RETURN_IF_ERROR(ExportV8CpuProfile());
     return base::OkStatus();
   }
 
@@ -1528,6 +1530,267 @@ class JsonExporter {
           event["args"]["dumps"]["allocators_graph"].Append(std::move(edge));
         }
         writer_.WriteCommonEvent(std::move(event));
+      }
+    }
+    return base::OkStatus();
+  }
+
+  // Synthesizes legacy devtools "Profile" / "ProfileChunk" trace events from
+  // the native cpu profile tables populated by the V8CpuProfileChunk proto
+  // importer.
+  base::Status ExportV8CpuProfile() {
+    const auto& sessions = storage_->v8_cpu_profile_session_table();
+    if (sessions.row_count() == 0) {
+      return base::OkStatus();
+    }
+
+    const auto& nodes = storage_->v8_cpu_profile_node_table();
+    const auto& v8_samples = storage_->v8_cpu_profile_sample_table();
+    const auto& trace_ids = storage_->v8_cpu_profile_trace_id_table();
+    const auto& sample_table = storage_->cpu_profile_stack_sample_table();
+    const auto& chunks = storage_->v8_cpu_profile_chunk_table();
+
+    constexpr char kCategory[] = "disabled-by-default-v8.cpu_profiler";
+    constexpr char kPhase[] = "P";
+
+    auto utid_to_pid_and_tid = [&](UniqueTid utid) {
+      auto p = UtidToPidAndTid(utid);
+      return std::pair<int64_t, int64_t>{p.first, p.second};
+    };
+
+    using SessionId = tables::V8CpuProfileSessionTable::Id;
+    using ChunkId = tables::V8CpuProfileChunkTable::Id;
+    base::FlatHashMap<ChunkId, std::vector<uint32_t>> node_rows_by_chunk;
+    base::FlatHashMap<SessionId, base::FlatHashMap<CallsiteId, int64_t>>
+        callsite_to_node_id_by_session;
+    for (auto node_row = nodes.IterateRows(); node_row; ++node_row) {
+      node_rows_by_chunk[node_row.v8_cpu_profile_chunk_id()].push_back(
+          node_row.row_number().row_number());
+      callsite_to_node_id_by_session[node_row.v8_cpu_profile_session_id()]
+          .Insert(node_row.callsite_id(),
+                  static_cast<int64_t>(node_row.node_id()));
+    }
+    std::vector<std::optional<int64_t>> parent_node_id_by_row(
+        nodes.row_count());
+    const auto& callsite_table = storage_->stack_profile_callsite_table();
+    for (auto node_row = nodes.IterateRows(); node_row; ++node_row) {
+      auto callsite_rr = callsite_table.FindById(node_row.callsite_id());
+      if (!callsite_rr) {
+        continue;
+      }
+      auto parent_callsite = callsite_rr->parent_id();
+      if (!parent_callsite) {
+        continue;
+      }
+      auto* session_map = callsite_to_node_id_by_session.Find(
+          node_row.v8_cpu_profile_session_id());
+      if (!session_map) {
+        continue;
+      }
+      if (auto* parent_node_id = session_map->Find(*parent_callsite)) {
+        parent_node_id_by_row[node_row.row_number().row_number()] =
+            *parent_node_id;
+      }
+    }
+    base::FlatHashMap<ChunkId, std::vector<uint32_t>> sample_rows_by_chunk;
+    for (auto sample_row = v8_samples.IterateRows(); sample_row; ++sample_row) {
+      sample_rows_by_chunk[sample_row.v8_cpu_profile_chunk_id()].push_back(
+          sample_row.row_number().row_number());
+    }
+    base::FlatHashMap<SessionId, std::vector<uint32_t>> chunk_rows_by_session;
+    for (auto chunk_row = chunks.IterateRows(); chunk_row; ++chunk_row) {
+      chunk_rows_by_session[chunk_row.v8_cpu_profile_session_id()].push_back(
+          chunk_row.row_number().row_number());
+    }
+    base::FlatHashMap<ChunkId, std::vector<uint32_t>> trace_id_rows_by_chunk;
+    for (auto trace_id_row = trace_ids.IterateRows(); trace_id_row;
+         ++trace_id_row) {
+      trace_id_rows_by_chunk[trace_id_row.v8_cpu_profile_chunk_id()].push_back(
+          trace_id_row.row_number().row_number());
+    }
+
+    for (auto session_row = sessions.IterateRows(); session_row;
+         ++session_row) {
+      SessionId session_row_id = session_row.id();
+      uint64_t session_id = static_cast<uint64_t>(session_row.session_id());
+      auto pid_and_tid = utid_to_pid_and_tid(session_row.utid());
+
+      // Profile event (session start)
+      Dom profile_event(Type::kObject);
+      profile_event["pid"] = static_cast<int>(pid_and_tid.first);
+      profile_event["tid"] = static_cast<int>(pid_and_tid.second);
+      profile_event["ts"] = session_row.start_ts() / 1000;
+      if (auto v = session_row.start_thread_ts(); v) {
+        profile_event["tts"] = *v / 1000;
+      }
+      profile_event["ph"] = kPhase;
+      profile_event["cat"] = kCategory;
+      profile_event["name"] = "Profile";
+      profile_event["dur"] = static_cast<int64_t>(0);
+      profile_event["tdur"] = static_cast<int64_t>(0);
+      profile_event["id"] = base::Uint64ToHexString(session_id);
+
+      Dom profile_data(Type::kObject);
+      if (auto v = session_row.start_time_us(); v) {
+        profile_data["startTime"] = *v;
+      }
+      if (auto v = session_row.source(); v) {
+        profile_data["source"] = storage_->GetString(*v).ToStdString();
+      }
+      profile_data["id"] = static_cast<int64_t>(session_id);
+
+      Dom profile_args(Type::kObject);
+      profile_args["data"] = std::move(profile_data);
+      profile_event["args"] = std::move(profile_args);
+      writer_.WriteCommonEvent(profile_event);
+
+      int64_t prev_ts = session_row.start_ts();
+      if (auto* chunk_row_idxs = chunk_rows_by_session.Find(session_row_id)) {
+        for (uint32_t chunk_row_idx : *chunk_row_idxs) {
+          auto chunk_row = chunks[chunk_row_idx];
+          ChunkId chunk_row_id = chunk_row.id();
+
+          Dom nodes_array(Type::kArray);
+          if (auto* row_idxs = node_rows_by_chunk.Find(chunk_row_id)) {
+            for (uint32_t row_idx : *row_idxs) {
+              auto node_row = nodes[row_idx];
+              Dom node_dom(Type::kObject);
+              Dom call_frame(Type::kObject);
+              call_frame["functionName"] =
+                  node_row.function_name()
+                      ? storage_->GetString(*node_row.function_name())
+                            .ToStdString()
+                      : std::string();
+              if (auto v = node_row.url(); v) {
+                call_frame["url"] = storage_->GetString(*v).ToStdString();
+              }
+              call_frame["scriptId"] =
+                  node_row.script_id() ? *node_row.script_id() : 0;
+              if (auto v = node_row.line(); v) {
+                call_frame["lineNumber"] = *v;
+              }
+              if (auto v = node_row.column(); v) {
+                call_frame["columnNumber"] = *v;
+              }
+              if (auto v = node_row.code_type(); v) {
+                call_frame["codeType"] = storage_->GetString(*v).ToStdString();
+              } else {
+                call_frame["codeType"] = std::string();
+              }
+              node_dom["callFrame"] = std::move(call_frame);
+              node_dom["id"] = static_cast<int64_t>(node_row.node_id());
+              if (auto parent = parent_node_id_by_row[row_idx]; parent) {
+                node_dom["parent"] = *parent;
+              }
+              if (auto v = node_row.deopt_reason(); v) {
+                node_dom["deoptReason"] = storage_->GetString(*v).ToStdString();
+              }
+              nodes_array.Append(std::move(node_dom));
+            }
+          }
+
+          Dom samples_array(Type::kArray);
+          Dom lines_array(Type::kArray);
+          Dom columns_array(Type::kArray);
+          bool has_non_zero_lines = false;
+          Dom deltas_array(Type::kArray);
+          if (auto* row_idxs = sample_rows_by_chunk.Find(chunk_row_id)) {
+            for (uint32_t row_idx : *row_idxs) {
+              auto sample_row = v8_samples[row_idx];
+              samples_array.Append(static_cast<int64_t>(sample_row.node_id()));
+              int64_t line_val = sample_row.line() ? *sample_row.line() : 0;
+              int64_t col_val = sample_row.column() ? *sample_row.column() : 0;
+              if (line_val != 0) {
+                has_non_zero_lines = true;
+              }
+              lines_array.Append(line_val);
+              columns_array.Append(col_val);
+              auto stack_rr = sample_table.FindById(
+                  sample_row.cpu_profile_stack_sample_id());
+              int64_t sample_ts = stack_rr ? stack_rr->ts() : prev_ts;
+              int64_t delta_ns = sample_ts - prev_ts;
+              deltas_array.Append(delta_ns / 1000);
+              prev_ts = sample_ts;
+            }
+          }
+
+          Dom trace_ids_obj(Type::kObject);
+          if (auto* trace_id_row_idxs =
+                  trace_id_rows_by_chunk.Find(chunk_row_id)) {
+            for (uint32_t row_idx : *trace_id_row_idxs) {
+              auto trace_id_row = trace_ids[row_idx];
+              trace_ids_obj[std::to_string(trace_id_row.trace_id())] =
+                  static_cast<int64_t>(trace_id_row.node_id());
+            }
+          }
+
+          Dom cpu_profile(Type::kObject);
+          cpu_profile["nodes"] = std::move(nodes_array);
+          cpu_profile["samples"] = std::move(samples_array);
+          cpu_profile["trace_ids"] = std::move(trace_ids_obj);
+
+          Dom data(Type::kObject);
+          if (auto v = session_row.source(); v) {
+            data["source"] = storage_->GetString(*v).ToStdString();
+          }
+          data["cpuProfile"] = std::move(cpu_profile);
+          data["timeDeltas"] = std::move(deltas_array);
+          if (has_non_zero_lines) {
+            data["lines"] = std::move(lines_array);
+            data["columns"] = std::move(columns_array);
+          }
+          data["id"] = static_cast<int64_t>(session_id);
+
+          Dom args(Type::kObject);
+          args["data"] = std::move(data);
+
+          Dom chunk_event(Type::kObject);
+          chunk_event["pid"] = static_cast<int>(pid_and_tid.first);
+          chunk_event["tid"] = static_cast<int>(pid_and_tid.second);
+          chunk_event["ts"] = chunk_row.ts() / 1000;
+          if (auto v = chunk_row.thread_ts(); v) {
+            chunk_event["tts"] = *v / 1000;
+          }
+          chunk_event["ph"] = kPhase;
+          chunk_event["cat"] = kCategory;
+          chunk_event["name"] = "ProfileChunk";
+          chunk_event["dur"] = static_cast<int64_t>(0);
+          chunk_event["tdur"] = static_cast<int64_t>(0);
+          chunk_event["id"] = base::Uint64ToHexString(session_id);
+          chunk_event["args"] = std::move(args);
+          writer_.WriteCommonEvent(chunk_event);
+        }
+      }
+
+      // Trailing ProfileChunk with endTime, if available.
+      if (auto end_ts = session_row.end_ts(); end_ts) {
+        Dom end_event(Type::kObject);
+        end_event["pid"] = static_cast<int>(pid_and_tid.first);
+        end_event["tid"] = static_cast<int>(pid_and_tid.second);
+        end_event["ts"] = *end_ts / 1000;
+        if (auto v = session_row.end_thread_ts(); v) {
+          end_event["tts"] = *v / 1000;
+        }
+        end_event["ph"] = kPhase;
+        end_event["cat"] = kCategory;
+        end_event["name"] = "ProfileChunk";
+        end_event["dur"] = static_cast<int64_t>(0);
+        end_event["tdur"] = static_cast<int64_t>(0);
+        end_event["id"] = base::Uint64ToHexString(session_id);
+
+        Dom end_data(Type::kObject);
+        if (auto v = session_row.end_time_us(); v) {
+          end_data["endTime"] = *v;
+        }
+        if (auto v = session_row.source(); v) {
+          end_data["source"] = storage_->GetString(*v).ToStdString();
+        }
+        end_data["id"] = static_cast<int64_t>(session_id);
+
+        Dom end_args(Type::kObject);
+        end_args["data"] = std::move(end_data);
+        end_event["args"] = std::move(end_args);
+        writer_.WriteCommonEvent(end_event);
       }
     }
     return base::OkStatus();
