@@ -27,14 +27,14 @@ INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Helper macro to do pivot function
 CREATE PERFETTO MACRO _cpu_stats_subquery(
-    cpu Expr,
-    curve_col ColumnName,
-    static_col ColumnName,
-    freq_col ColumnName,
-    idle_col ColumnName
+  cpu Expr,
+  curve_col ColumnName,
+  static_col ColumnName,
+  freq_col ColumnName,
+  idle_col ColumnName
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     t1.ts,
     t1.dur,
@@ -66,44 +66,28 @@ RETURNS TableOrSubquery AS
 );
 
 CREATE PERFETTO TABLE _stats_cpu0 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(0, cpu0_curve, cpu0_static, freq_0, idle_0);
+SELECT * FROM _cpu_stats_subquery!(0, cpu0_curve, cpu0_static, freq_0, idle_0);
 
 CREATE PERFETTO TABLE _stats_cpu1 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(1, cpu1_curve, cpu1_static, freq_1, idle_1);
+SELECT * FROM _cpu_stats_subquery!(1, cpu1_curve, cpu1_static, freq_1, idle_1);
 
 CREATE PERFETTO TABLE _stats_cpu2 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(2, cpu2_curve, cpu2_static, freq_2, idle_2);
+SELECT * FROM _cpu_stats_subquery!(2, cpu2_curve, cpu2_static, freq_2, idle_2);
 
 CREATE PERFETTO TABLE _stats_cpu3 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(3, cpu3_curve, cpu3_static, freq_3, idle_3);
+SELECT * FROM _cpu_stats_subquery!(3, cpu3_curve, cpu3_static, freq_3, idle_3);
 
 CREATE PERFETTO TABLE _stats_cpu4 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(4, cpu4_curve, cpu4_static, freq_4, idle_4);
+SELECT * FROM _cpu_stats_subquery!(4, cpu4_curve, cpu4_static, freq_4, idle_4);
 
 CREATE PERFETTO TABLE _stats_cpu5 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(5, cpu5_curve, cpu5_static, freq_5, idle_5);
+SELECT * FROM _cpu_stats_subquery!(5, cpu5_curve, cpu5_static, freq_5, idle_5);
 
 CREATE PERFETTO TABLE _stats_cpu6 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(6, cpu6_curve, cpu6_static, freq_6, idle_6);
+SELECT * FROM _cpu_stats_subquery!(6, cpu6_curve, cpu6_static, freq_6, idle_6);
 
 CREATE PERFETTO TABLE _stats_cpu7 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7);
+SELECT * FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7);
 
 -- Does calculations for CPUs that are independent of other CPUs or frequencies
 -- This is the last generic table before going to device specific table calcs
@@ -157,7 +141,10 @@ SELECT
   _stats_cpu6.cpu6_curve,
   _stats_cpu7.cpu7_curve,
   _wattson_dsu_frequency.dsu_freq,
-  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d
+  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static
+  + cpu5_static
+  + cpu6_static
+  + cpu7_static AS static_1d
 FROM _interval_intersect!(
   (
     _ii_subquery!(_stats_cpu0),
@@ -278,62 +265,37 @@ WITH
       d.cpu,
       -- Determine the scoring value (Frequency or Curve) based on device
       CASE v.vote_by_freq
-        WHEN 1
-        THEN CASE d.dep_cpu
-          WHEN 0
-          THEN i.freq_0
-          WHEN 1
-          THEN i.freq_1
-          WHEN 2
-          THEN i.freq_2
-          WHEN 3
-          THEN i.freq_3
-          WHEN 4
-          THEN i.freq_4
-          WHEN 5
-          THEN i.freq_5
-          WHEN 6
-          THEN i.freq_6
-          WHEN 7
-          THEN i.freq_7
+        WHEN 1 THEN CASE d.dep_cpu
+          WHEN 0 THEN i.freq_0
+          WHEN 1 THEN i.freq_1
+          WHEN 2 THEN i.freq_2
+          WHEN 3 THEN i.freq_3
+          WHEN 4 THEN i.freq_4
+          WHEN 5 THEN i.freq_5
+          WHEN 6 THEN i.freq_6
+          WHEN 7 THEN i.freq_7
         END
         ELSE CASE d.dep_cpu
-          WHEN 0
-          THEN i.cpu0_curve
-          WHEN 1
-          THEN i.cpu1_curve
-          WHEN 2
-          THEN i.cpu2_curve
-          WHEN 3
-          THEN i.cpu3_curve
-          WHEN 4
-          THEN i.cpu4_curve
-          WHEN 5
-          THEN i.cpu5_curve
-          WHEN 6
-          THEN i.cpu6_curve
-          WHEN 7
-          THEN i.cpu7_curve
+          WHEN 0 THEN i.cpu0_curve
+          WHEN 1 THEN i.cpu1_curve
+          WHEN 2 THEN i.cpu2_curve
+          WHEN 3 THEN i.cpu3_curve
+          WHEN 4 THEN i.cpu4_curve
+          WHEN 5 THEN i.cpu5_curve
+          WHEN 6 THEN i.cpu6_curve
+          WHEN 7 THEN i.cpu7_curve
         END
       END AS vote_score,
       -- Calculate the Actual Frequency (to be used in the result)
       CASE d.dep_cpu
-        WHEN 0
-        THEN i.freq_0
-        WHEN 1
-        THEN i.freq_1
-        WHEN 2
-        THEN i.freq_2
-        WHEN 3
-        THEN i.freq_3
-        WHEN 4
-        THEN i.freq_4
-        WHEN 5
-        THEN i.freq_5
-        WHEN 6
-        THEN i.freq_6
-        WHEN 7
-        THEN i.freq_7
+        WHEN 0 THEN i.freq_0
+        WHEN 1 THEN i.freq_1
+        WHEN 2 THEN i.freq_2
+        WHEN 3 THEN i.freq_3
+        WHEN 4 THEN i.freq_4
+        WHEN 5 THEN i.freq_5
+        WHEN 6 THEN i.freq_6
+        WHEN 7 THEN i.freq_7
       END AS freq,
       p.policy
     FROM _w_unique_configs AS i
@@ -344,31 +306,19 @@ WITH
       ON d.dep_cpu = p.cpu
     WHERE
       CASE d.dep_cpu
-        WHEN 0
-        THEN i.idle_0
-        WHEN 1
-        THEN i.idle_1
-        WHEN 2
-        THEN i.idle_2
-        WHEN 3
-        THEN i.idle_3
-        WHEN 4
-        THEN i.idle_4
-        WHEN 5
-        THEN i.idle_5
-        WHEN 6
-        THEN i.idle_6
-        WHEN 7
-        THEN i.idle_7
-      END = -1
+        WHEN 0 THEN i.idle_0
+        WHEN 1 THEN i.idle_1
+        WHEN 2 THEN i.idle_2
+        WHEN 3 THEN i.idle_3
+        WHEN 4 THEN i.idle_4
+        WHEN 5 THEN i.idle_5
+        WHEN 6 THEN i.idle_6
+        WHEN 7 THEN i.idle_7
+      END
+      = -1
   ),
   max_voters AS (
-    SELECT
-      config_hash,
-      cpu,
-      freq,
-      policy,
-      max(vote_score)
+    SELECT config_hash, cpu, freq, policy, max(vote_score)
     FROM unpivoted_deps
     GROUP BY
       config_hash,
@@ -440,5 +390,4 @@ SELECT
 FROM _w_unique_configs AS base
 CROSS JOIN dsu_flags AS dsu
 CROSS JOIN default_votes AS defaults
-LEFT JOIN pivoted_results AS pivoted
-  USING (config_hash);
+LEFT JOIN pivoted_results AS pivoted USING (config_hash);

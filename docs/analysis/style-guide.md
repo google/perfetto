@@ -15,18 +15,13 @@ provides guidance on the autoformatter._
 
 ## Autoformatter
 
-PerfettoSQL comes with an auto-formatter as implemented by `tools/format_sql.py`
-Python script. This is a simple script which can be run over any set of files or
-directories and automatically formats the code to adhere to the above rules.
+PerfettoSQL comes with an auto-formatter driven by `tools/format-sql-sources`.
+It shells out to `syntaqlite fmt` using the same PerfettoSQL grammar the trace
+processor itself parses with, loaded as a shared library. The script can be run
+over any set of files or directories and automatically formats the code to
+adhere to the above rules.
 
 This script is _required_ to be run when making contributions to the standard
-library. It's automatically executed as part of running `tools/gen_all` which is
-part of the standard development workflow in Perfetto. Presubmit will check to
-make sure you've done this.
-
-The autoformatter is not perfect by any means and does often have subtle edge
-cases:
-1. It doesn't handle comments in the middle of complex expressions. Prefer
-placing comments at the start of these expressions instead of in the middle.
-2. It doesn't format macro invocations as they have very complex semantics
-in many cases.
+library. It's automatically executed as part of running `tools/gen_all` which
+is part of the standard development workflow in Perfetto. Presubmit will check
+to make sure you've done this.

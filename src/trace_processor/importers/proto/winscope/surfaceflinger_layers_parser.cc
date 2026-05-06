@@ -301,9 +301,7 @@ SurfaceFlingerLayersParser::InsertDisplayRectRow(
   geometry::Rect rect =
       surfaceflinger_layers::display::MakeLayerStackSpaceRect(display_decoder);
 
-  if (display_decoder.has_layer_stack()) {
-    displays_by_layer_stack[display_decoder.layer_stack()] = rect;
-  }
+  displays_by_layer_stack[display_decoder.layer_stack()] = rect;
 
   if (rect.IsEmpty()) {
     const auto& size =

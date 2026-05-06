@@ -23,18 +23,18 @@ INCLUDE PERFETTO MODULE android.monitor_contention;
 -- counter, with the value corresponding to the number of intervals that overlap
 -- the given timestamp and interval until the next timestamp.
 CREATE PERFETTO MACRO intervals_overlap_count(
-    -- Table or subquery containing interval data.
-    segments TableOrSubquery,
-    -- Column containing interval starts (usually `ts`).
-    ts_column ColumnName,
-    -- Column containing interval durations (usually `dur`).
-    dur_column ColumnName
+  -- Table or subquery containing interval data.
+  segments TableOrSubquery,
+  -- Column containing interval starts (usually `ts`).
+  ts_column ColumnName,
+  -- Column containing interval durations (usually `dur`).
+  dur_column ColumnName
 )
 -- The returned table has the schema (ts TIMESTAMP, value LONG).
 -- |ts| is the timestamp when the number of open segments changed. |value| is
 -- the number of open segments.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Algorithm: for each segment, emit a +1 at the start and a -1 at the end.
   -- Then, merge events with the same timestamp and compute a cumulative sum.
   WITH
@@ -86,22 +86,22 @@ RETURNS TableOrSubquery AS
 -- intervals that belong to the same group and overlap the given timestamp and
 -- interval until the next timestamp.
 CREATE PERFETTO MACRO intervals_overlap_count_by_group(
-    -- Table or subquery containing interval data.
-    segments TableOrSubquery,
-    -- Column containing interval starts (usually `ts`).
-    ts_column ColumnName,
-    -- Column containing interval durations (usually `dur`).
-    dur_column ColumnName,
-    -- Column containing group name for grouping.
-    group_column ColumnName
+  -- Table or subquery containing interval data.
+  segments TableOrSubquery,
+  -- Column containing interval starts (usually `ts`).
+  ts_column ColumnName,
+  -- Column containing interval durations (usually `dur`).
+  dur_column ColumnName,
+  -- Column containing group name for grouping.
+  group_column ColumnName
 )
 -- The returned table has the schema (ts INT64, value UINT32, group_name) where
 -- the type of group_name is the same as that in |segments|.
 -- |ts| is the timestamp when the number of open segments changed. |value| is
 -- the number of open segments. |group_name| is the name of a group used for the
 -- overlap calculation.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Algorithm: for each segment, emit a +1 at the start and a -1 at the end.
   -- Then, merge events with the same timestamp and compute a cumulative sum for
   -- each group.
@@ -155,12 +155,12 @@ RETURNS TableOrSubquery AS
 -- checking if provided table/subquery can be used for intervals_intersect
 -- macro.
 CREATE PERFETTO MACRO _intervals_overlap_in_table(
-    -- Table/subquery of intervals with |ts| and |dur| columns.
-    intervals TableOrSubquery
+  -- Table/subquery of intervals with |ts| and |dur| columns.
+  intervals TableOrSubquery
 )
 -- Returns 1 if table contains overlapping intervals. Otherwise returns 0.
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     ts_with_next AS (
       SELECT
@@ -190,17 +190,17 @@ RETURNS Expr AS
 
 -- See: _intervals_merge_root_and_children_by_intersection.
 CREATE PERFETTO MACRO _intervals_merge_root_and_children(
-    -- Table or subquery containing all the root intervals: (id, ts, dur).
-    -- Note that parent_id is not necessary in this table as it will be NULL anyways.
-    roots_table TableOrSubquery,
-    -- Table or subquery containing all the child intervals:
-    -- (root_id, id, parent_id, ts, dur)
-    children_table TableOrSubquery
+  -- Table or subquery containing all the root intervals: (id, ts, dur).
+  -- Note that parent_id is not necessary in this table as it will be NULL anyways.
+  roots_table TableOrSubquery,
+  -- Table or subquery containing all the child intervals:
+  -- (root_id, id, parent_id, ts, dur)
+  children_table TableOrSubquery
 )
 -- The returned table has the schema (root_id LONG, root_ts TIMESTAMP, root_dur, LONG,
 -- id LONG, parent_id LONG, ts TIMESTAMP, dur LONG).
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     _roots AS (
       SELECT
@@ -264,17 +264,17 @@ RETURNS TableOrSubquery AS
 -- root_id shared between the root and the children. Instead an _interval_intersect is
 -- used to derive the root and child relationships.
 CREATE PERFETTO MACRO _intervals_merge_root_and_children_by_intersection(
-    -- Table or subquery containing all the root intervals: (id, ts, dur).
-    -- Note that parent_id is not necessary in this table as it will be NULL anyways.
-    roots_table TableOrSubquery,
-    -- Table or subquery containing all the child intervals:
-    -- (root_id, id, parent_id, ts, dur)
-    children_table TableOrSubquery,
-    -- intersection key used in deriving the root child relationships.
-    key ColumnName
+  -- Table or subquery containing all the root intervals: (id, ts, dur).
+  -- Note that parent_id is not necessary in this table as it will be NULL anyways.
+  roots_table TableOrSubquery,
+  -- Table or subquery containing all the child intervals:
+  -- (root_id, id, parent_id, ts, dur)
+  children_table TableOrSubquery,
+  -- intersection key used in deriving the root child relationships.
+  key ColumnName
 )
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _roots AS (
       SELECT
@@ -320,11 +320,11 @@ RETURNS TableOrSubQuery AS
 -- See _intervals_merge_root_and_children that can be used to generate input to this macro
 -- from two different root and children tables.
 CREATE PERFETTO MACRO _intervals_flatten(
-    children_with_roots_table TableOrSubquery
+  children_with_roots_table TableOrSubquery
 )
 -- The returned table has the schema (root_id LONG, id LONG, ts TIMESTAMP, dur LONG).
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Algorithm: Sort all the start and end timestamps of the children within a root.
   -- The interval duration between one timestamp and the next is one result.
   -- If the timestamp is a start, the id is the id of the interval, if it's an end,
@@ -475,13 +475,13 @@ RETURNS TableOrSubquery AS
 --   (b) if the end point of one interval is within epsilon of the start point
 --       of the other.
 CREATE PERFETTO MACRO interval_merge_overlapping(
-    -- Table or subquery containing interval data.
-    intervals TableOrSubquery,
-    -- Constant expression for a tolerance in testing overlap (usually `0`)
-    epsilon Expr
+  -- Table or subquery containing interval data.
+  intervals TableOrSubquery,
+  -- Constant expression for a tolerance in testing overlap (usually `0`)
+  epsilon Expr
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Algorithm: use intervals_overlap_count to generate a counter track. Pass over
   -- the counter track from left to right, creating an interval when the counter
   -- first becomes non-zero and ending an interval when it becomes zero again.
@@ -522,11 +522,9 @@ RETURNS TableOrSubquery AS
 );
 
 -- Helper to unparenthesize a column list with __intrinsic_token_apply.
-CREATE PERFETTO MACRO _imop_identity(
-    col ColumnName
-)
-RETURNS Expr AS
-$col;
+CREATE PERFETTO MACRO _imop_identity(col ColumnName)
+RETURNS Expr
+AS $col;
 
 -- Merge overlapping intervals within each partition group to generate a minimum
 -- covering set of intervals with no overlap within each partition.
@@ -539,16 +537,16 @@ $col;
 --   Input: (ts=1, dur=10), (ts=5, dur=12)
 --   Output: (ts=1, dur=16)
 CREATE PERFETTO MACRO interval_merge_overlapping_partitioned(
-    -- Table or subquery containing interval data.
-    intervals TableOrSubquery,
-    -- Column name for partition grouping.
-    partition_columns ColumnNameList
+  -- Table or subquery containing interval data.
+  intervals TableOrSubquery,
+  -- Column name for partition grouping.
+  partition_columns ColumnNameList
 )
 -- The returned table has the schema (ts TIMESTAMP, dur DURATION, partitions).
 -- |ts| is the start of the merged interval. |dur| is the duration of the
 -- merged interval. |partitions| is all of the columns in partition_columns.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Algorithm: For each partition, merge overlaps in three steps:
   -- 1. Find the max endpoint for **preceding** slices in the same partition.
   -- 2. Number groups by counting times when a slices timestamp is greater than

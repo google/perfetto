@@ -24,7 +24,7 @@ source_set("pprof") {
     "../../importers/common",
     "../../sorter",
     "../../storage",
-    "../../tables",
+    "../../tables:tables_python",
     "../../types:types",
     "../../util:build_id",
   ]

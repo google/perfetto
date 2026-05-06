@@ -29,7 +29,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 --
 -- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
 -- an accounting issue: see b/418231246 for more details.
-CREATE PERFETTO TABLE android_process_memory_intervals (
+CREATE PERFETTO TABLE android_process_memory_intervals(
   -- The id of the memory counter value
   id JOINID(counter.id),
   -- Timestamp of the memory counter change.
@@ -52,7 +52,8 @@ CREATE PERFETTO TABLE android_process_memory_intervals (
   zygote_adjusted_value LONG,
   -- Whether the track has a spike greater than 100MiB.
   track_has_spike_gt_100mib BOOL
-) AS
+)
+AS
 WITH
   -- Step 1: Prepare memory counter data.
   mem_tracks AS (
@@ -62,7 +63,16 @@ WITH
       upid
     FROM process_counter_track
     WHERE
-      name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.rss.shmem', 'Heap size (KB)', 'mem.dmabuf_rss', 'mem.locked', 'GPU Memory')
+      name IN (
+        'mem.rss.anon',
+        'mem.swap',
+        'mem.rss.file',
+        'mem.rss.shmem',
+        'Heap size (KB)',
+        'mem.dmabuf_rss',
+        'mem.locked',
+        'GPU Memory'
+      )
   ),
   mem_counters AS (
     SELECT
@@ -75,19 +85,12 @@ WITH
       ON c.track_id = t.track_id
   ),
   mem_intervals AS (
-    SELECT
-      ts,
-      dur,
-      id AS counter_id,
-      track_id,
-      value,
-      delta_value
+    SELECT ts, dur, id AS counter_id, track_id, value, delta_value
     FROM counter_leading_intervals!(mem_counters)
   ),
   -- Step 2: Identify tracks with large spikes (spikes > 100MiB).
   spikes AS (
-    SELECT DISTINCT
-      track_id
+    SELECT DISTINCT track_id
     FROM mem_intervals
     WHERE
       abs(delta_value) > 104857600
@@ -96,41 +99,36 @@ WITH
   mem_intervals_clipped AS (
     SELECT
       max(ts, coalesce(p.start_ts, ts)) AS ts,
-      min(i.ts + i.dur, coalesce(p.end_ts, i.ts + i.dur)) - max(i.ts, coalesce(p.start_ts, i.ts)) AS dur,
+      min(i.ts + i.dur, coalesce(p.end_ts, i.ts + i.dur))
+      - max(i.ts, coalesce(p.start_ts, i.ts)) AS dur,
       p.upid,
       t.name AS memory_track_name,
       i.track_id,
       i.counter_id,
       i.value,
-      NOT s.track_id IS NULL AS track_has_spike_gt_100mib
+      NOT (s.track_id IS NULL) AS track_has_spike_gt_100mib
     FROM mem_intervals AS i
     JOIN mem_tracks AS t
       ON i.track_id = t.track_id
-    JOIN process AS p
-      USING (upid)
-    LEFT JOIN spikes AS s
-      USING (track_id)
+    JOIN process AS p USING (upid)
+    LEFT JOIN spikes AS s USING (track_id)
     WHERE
-      (
-        min(i.ts + i.dur, coalesce(p.end_ts, i.ts + i.dur)) - max(i.ts, coalesce(p.start_ts, i.ts))
-      ) > 0
+      (min(i.ts + i.dur, coalesce(p.end_ts, i.ts + i.dur))
+      - max(i.ts, coalesce(p.start_ts, i.ts)))
+      > 0
   ),
   -- Step 4: Calculate zygote memory baseline.
   -- TODO: improve zygote process detection
   zygote_processes AS (
-    SELECT
-      upid
+    SELECT upid
     FROM process
     WHERE
       name IN ('zygote', 'zygote64', 'webview_zygote')
   ),
   zygote_tracks AS (
-    SELECT
-      t.name AS memory_track_name,
-      t.track_id
+    SELECT t.name AS memory_track_name, t.track_id
     FROM mem_tracks AS t
-    JOIN zygote_processes AS z
-      USING (upid)
+    JOIN zygote_processes AS z USING (upid)
     WHERE
       t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.heap')
   ),
@@ -141,12 +139,9 @@ WITH
       max(CASE WHEN memory_track_name = 'mem.rss.file' THEN avg_val END) AS rss_file_base,
       max(CASE WHEN memory_track_name = 'mem.heap' THEN avg_val END) AS heap_base
     FROM (
-      SELECT
-        z.memory_track_name,
-        avg(cast_int!(c.value)) AS avg_val
+      SELECT z.memory_track_name, avg(cast_int!(c.value)) AS avg_val
       FROM mem_counters AS c
-      JOIN zygote_tracks AS z
-        USING (track_id)
+      JOIN zygote_tracks AS z USING (track_id)
       GROUP BY
         z.memory_track_name
     )
@@ -156,14 +151,10 @@ WITH
     SELECT
       c.*,
       CASE
-        WHEN c.memory_track_name = 'mem.rss.anon'
-        THEN zb.rss_anon_base
-        WHEN c.memory_track_name = 'mem.swap'
-        THEN zb.swap_base
-        WHEN c.memory_track_name = 'mem.rss.file'
-        THEN zb.rss_file_base
-        WHEN c.memory_track_name = 'mem.heap'
-        THEN zb.heap_base
+        WHEN c.memory_track_name = 'mem.rss.anon' THEN zb.rss_anon_base
+        WHEN c.memory_track_name = 'mem.swap' THEN zb.swap_base
+        WHEN c.memory_track_name = 'mem.rss.file' THEN zb.rss_file_base
+        WHEN c.memory_track_name = 'mem.heap' THEN zb.heap_base
         ELSE 0
       END AS zygote_baseline_value
     FROM mem_intervals_clipped AS c
@@ -181,40 +172,35 @@ SELECT
   d.track_id,
   d.value,
   CASE
-    WHEN NOT p.upid IS NULL AND NOT p.name IN ('zygote', 'zygote64', 'webview_zygote')
-    THEN max(0, cast_int!(d.value) - cast_int!(COALESCE(d.zygote_baseline_value, 0)))
+    WHEN NOT (p.upid IS NULL)
+    AND NOT (p.name IN ('zygote', 'zygote64', 'webview_zygote')) THEN max(
+      0,
+      cast_int!(d.value) - cast_int!(COALESCE(d.zygote_baseline_value, 0))
+    )
     ELSE cast_int!(d.value)
   END AS zygote_adjusted_value,
   d.track_has_spike_gt_100mib
 FROM mem_intervals_with_zygote_baseline AS d
-LEFT JOIN process AS p
-  USING (upid);
+LEFT JOIN process AS p USING (upid);
 
 -- Create a table containing intervals of OOM adjustment scores.
 -- This table will be used as the right side of a span join.
 CREATE PERFETTO TABLE _memory_breakdown_oom_intervals_prepared AS
 WITH
   process_mem_track_ids AS (
-    SELECT
-      track_id,
-      upid
+    SELECT track_id, upid
     FROM android_process_memory_intervals
     GROUP BY
       track_id,
       upid
   )
-SELECT
-  t.track_id,
-  o.ts,
-  o.dur,
-  o.bucket
+SELECT t.track_id, o.ts, o.dur, o.bucket
 FROM android_oom_adj_intervals AS o
-JOIN process_mem_track_ids AS t
-  USING (upid)
+JOIN process_mem_track_ids AS t USING (upid)
 WHERE
   o.dur > 0;
 
-CREATE VIRTUAL TABLE _memory_breakdown_mem_oom_span_join USING SPAN_LEFT_JOIN (
+CREATE VIRTUAL TABLE _memory_breakdown_mem_oom_span_join USING SPAN_LEFT_JOIN(
   android_process_memory_intervals PARTITIONED track_id,
   _memory_breakdown_oom_intervals_prepared PARTITIONED track_id
 );
@@ -231,7 +217,7 @@ CREATE VIRTUAL TABLE _memory_breakdown_mem_oom_span_join USING SPAN_LEFT_JOIN (
 --
 -- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
 -- an accounting issue: see b/418231246 for more details.
-CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
+CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket(
   -- Id.
   id LONG,
   -- The start timestamp of the interval.
@@ -259,7 +245,8 @@ CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
   zygote_adjusted_value LONG,
   -- Whether the track has a spike greater than 100MiB.
   track_has_spike_gt_100mib BOOL
-) AS
+)
+AS
 SELECT
   row_number() OVER () AS id,
   m.ts,

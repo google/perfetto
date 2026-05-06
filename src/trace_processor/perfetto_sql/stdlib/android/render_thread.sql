@@ -14,13 +14,12 @@
 -- limitations under the License.
 --
 
-CREATE PERFETTO TABLE _render_thread_per_process (
+CREATE PERFETTO TABLE _render_thread_per_process(
   upid JOINID(process.id),
   render_thread_utid JOINID(thread.id)
-) AS
-SELECT
-  upid,
-  utid AS render_thread_utid
+)
+AS
+SELECT upid, utid AS render_thread_utid
 FROM thread
 WHERE
   thread.name = 'RenderThread';

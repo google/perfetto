@@ -26,6 +26,7 @@ const validMetricsTest: {
       process: 'com.android.systemui',
       cujName: 'NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand',
       jankType: 'app_frames',
+      isWeighted: false,
     },
   },
   {
@@ -35,6 +36,7 @@ const validMetricsTest: {
       process: 'com.android.systemui',
       cujName: 'SHADE_DIALOG_OPEN::internet',
       jankType: 'sf_frames',
+      isWeighted: false,
     },
   },
   {
@@ -44,6 +46,17 @@ const validMetricsTest: {
       process: 'com.google.android.apps.nexuslauncher',
       cujName: 'RECENTS_SCROLLING',
       jankType: 'sf_frames',
+      isWeighted: false,
+    },
+  },
+  {
+    inputMetric:
+      'perfetto_cuj_launcher-RECENTS_SCROLLING-trace_metrics-weighted_missed_sf_frames-mean',
+    expectedOutput: {
+      process: 'com.google.android.apps.nexuslauncher',
+      cujName: 'RECENTS_SCROLLING',
+      jankType: 'sf_frames',
+      isWeighted: true,
     },
   },
 ];

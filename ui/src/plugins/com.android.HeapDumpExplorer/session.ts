@@ -27,6 +27,11 @@ import {
   subpageToState,
 } from './nav_state';
 import type {OverviewData} from './types';
+import type {FlamegraphState} from '../../widgets/flamegraph';
+import {
+  METRIC_DOMINATED_OBJECT_SIZE,
+  METRIC_OBJECT_SIZE,
+} from './views/flamegraph_view';
 
 interface FlamegraphSelection {
   readonly pathHashes: string;
@@ -73,6 +78,10 @@ export class HeapDumpExplorerSession {
   private _activeInstanceId: number | null = null;
 
   private _overview: OverviewData | null = null;
+
+  // Persists across tab switches; reset on dump change so a new dump
+  // opens with defaults instead of the prior dump's filters.
+  private _flamegraphPanelState: FlamegraphState | undefined;
 
   constructor(
     readonly trace: Trace,
@@ -282,11 +291,42 @@ export class HeapDumpExplorerSession {
     this._instanceTabs.length = 0;
     this._nextInstanceId = 0;
     this._activeInstanceId = null;
+    this._flamegraphPanelState = undefined;
   }
 
   get cachedOverview(): OverviewData | null {
     return this._overview;
   }
+
+  get flamegraphPanelState(): FlamegraphState | undefined {
+    return this._flamegraphPanelState;
+  }
+
+  readonly setFlamegraphPanelState = (s: FlamegraphState): void => {
+    this._flamegraphPanelState = s;
+  };
+
+  // Open the flamegraph pivoted at `pathHash`. The metric is chosen to
+  // match the tree the hash came from. The chip displays
+  // `<label> (this instance)` since the raw hash regex is unreadable.
+  readonly openFlamegraphPivotedAt = (
+    pathHash: string,
+    label: string,
+    isDominator: boolean,
+  ): void => {
+    this._flamegraphPanelState = {
+      selectedMetricName: isDominator
+        ? METRIC_DOMINATED_OBJECT_SIZE
+        : METRIC_OBJECT_SIZE,
+      filters: [],
+      view: {
+        kind: 'PIVOT',
+        pivot: `^${pathHash}$`,
+        displayLabel: `${label} (this instance)`,
+      },
+    };
+    this.navigate('flamegraph');
+  };
 
   // Pins the dump at fetch start; if the user switches dumps before
   // the result arrives, the result is dropped instead of briefly

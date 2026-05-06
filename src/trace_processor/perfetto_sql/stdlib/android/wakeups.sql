@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE android.suspend;
 -- Certain wakeup events may have multiple causes. When this occurs we
 -- split those causes into multiple rows in this table with the same ts
 -- and raw_wakeup values.
-CREATE PERFETTO TABLE android_wakeups (
+CREATE PERFETTO TABLE android_wakeups(
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration for which we blame the wakeup for wakefulness. This is the
@@ -51,7 +51,8 @@ CREATE PERFETTO TABLE android_wakeups (
   -- Next suspend backoff duration, or NULL. Set if suspend backoff is
   -- triggered.
   backoff_millis LONG
-) AS
+)
+AS
 WITH
   wakeup_reason AS (
     -- wakeup_reason is recorded ASAP after wakeup; its packet timestamp is reliable. It also contains
@@ -84,14 +85,9 @@ WITH
     -- Join reason, attribution, and backoff. reason and attribution contain a timestamp that can be
     -- used as an ID for joining. backoff does not but we know if it occurs at all it will always
     -- occur just before the reason. We therefore "join" with a union+lag() to be efficient.
-    SELECT
-      ts,
-      raw_wakeup,
-      on_device_attribution,
-      NULL AS raw_backoff
+    SELECT ts, raw_wakeup, on_device_attribution, NULL AS raw_backoff
     FROM wakeup_reason AS r
-    LEFT OUTER JOIN wakeup_attribution
-      USING (id_timestamp)
+    LEFT JOIN wakeup_attribution USING (id_timestamp)
     UNION ALL
     SELECT
       ts,
@@ -151,10 +147,8 @@ WITH
     SELECT
       ts,
       CASE suspend_quality
-        WHEN 'good'
-        THEN min(lead(ts, 1, ts + 5e9) OVER (ORDER BY ts) - ts, 5e9)
-        WHEN 'bad'
-        THEN backoff_millis * 1000000
+        WHEN 'good' THEN min(lead(ts, 1, ts + 5e9) OVER (ORDER BY ts) - ts, 5e9)
+        WHEN 'bad' THEN backoff_millis * 1000000
         ELSE 0
       END AS dur,
       raw_wakeup,
@@ -210,28 +204,26 @@ WITH
       backoff_count,
       backoff_millis,
       CASE
-        WHEN raw_wakeup GLOB 'Abort: Pending Wakeup Sources: *'
-        THEN 'abort_pending'
-        WHEN raw_wakeup GLOB 'Abort: Last active Wakeup Source: *'
-        THEN 'abort_last_active'
-        WHEN raw_wakeup GLOB 'Abort: *'
-        THEN 'abort_other'
+        WHEN raw_wakeup GLOB 'Abort: Pending Wakeup Sources: *' THEN 'abort_pending'
+        WHEN raw_wakeup GLOB 'Abort: Last active Wakeup Source: *' THEN 'abort_last_active'
+        WHEN raw_wakeup GLOB 'Abort: *' THEN 'abort_other'
         ELSE 'normal'
       END AS type,
       CASE
-        WHEN raw_wakeup GLOB 'Abort: Pending Wakeup Sources: *'
-        THEN substr(raw_wakeup, 32)
-        WHEN raw_wakeup GLOB 'Abort: Last active Wakeup Source: *'
-        THEN substr(raw_wakeup, 35)
-        WHEN raw_wakeup GLOB 'Abort: *'
-        THEN substr(raw_wakeup, 8)
+        WHEN raw_wakeup GLOB 'Abort: Pending Wakeup Sources: *' THEN substr(
+          raw_wakeup,
+          32
+        )
+        WHEN raw_wakeup GLOB 'Abort: Last active Wakeup Source: *' THEN substr(
+          raw_wakeup,
+          35
+        )
+        WHEN raw_wakeup GLOB 'Abort: *' THEN substr(raw_wakeup, 8)
         ELSE raw_wakeup
       END AS main,
       CASE
-        WHEN raw_wakeup GLOB 'Abort: Pending Wakeup Sources: *'
-        THEN ' '
-        WHEN raw_wakeup GLOB 'Abort: *'
-        THEN 'no delimiter needed'
+        WHEN raw_wakeup GLOB 'Abort: Pending Wakeup Sources: *' THEN ' '
+        WHEN raw_wakeup GLOB 'Abort: *' THEN 'no delimiter needed'
         ELSE ':'
       END AS delimiter
     FROM step5
@@ -324,7 +316,10 @@ SELECT
   on_device_attribution,
   type,
   -- Remove the numeric IRQ, it duplicates the text and is less comprehensible.
-  CASE WHEN type = 'normal' THEN coalesce(str_split(item, ' ', 1), item) ELSE item END AS item,
+  CASE
+    WHEN type = 'normal' THEN coalesce(str_split(item, ' ', 1), item)
+    ELSE item
+  END AS item,
   suspend_quality,
   backoff_state,
   coalesce(backoff_reason, 'none') AS backoff_reason,

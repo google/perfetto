@@ -227,8 +227,6 @@ base::StatusOr<uint32_t> PushPartition(
 
 struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
   static constexpr char kName[] = "__intrinsic_interval_intersect";
-  // Two tables that are being intersected.
-  // TODO(mayzner): Support more tables.
   static constexpr int kArgCount = -1;
 
   struct UserData {
