@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, QueryNodeState, NodeType} from '../query_node';
+import {QueryNode, NodeType} from '../query_node';
 import {SqlModules} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {Trace} from '../../../public/trace';
 
@@ -24,6 +24,8 @@ export interface PreCreateContext {
 // The context provided to the node factory.
 export interface NodeFactoryContext {
   allNodes: QueryNode[];
+  // Runtime context (trace, sqlModules, actions) provided by the caller.
+  context?: import('../query_node').NodeContext;
 }
 
 // The initial state returned by preCreate, which will be merged with
@@ -60,7 +62,7 @@ export interface NodeDescriptor {
   ) => Promise<PreCreateState | PreCreateState[] | null>;
 
   // A function that creates a new instance of the node.
-  factory: (state: QueryNodeState, context?: NodeFactoryContext) => QueryNode;
+  factory: (attrs: PreCreateState, context?: NodeFactoryContext) => QueryNode;
 
   /**
    * Whether this node should be shown on the landing page.
@@ -91,6 +93,7 @@ export interface NodeDescriptor {
     node: QueryNode,
     state: object,
     allNodes: Map<string, QueryNode>,
+    innerNodeIds?: string[],
   ) => void;
 
   // Post-deserialization hook (phase 1). Called after all connections are

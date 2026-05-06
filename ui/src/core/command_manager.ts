@@ -13,9 +13,8 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Registry} from '../base/registry';
-import {Command, CommandManager} from '../public/command';
+import {Command, CommandManager} from '../public/commands';
 import {raf} from './raf_scheduler';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
@@ -62,6 +61,21 @@ export const macroSchema = z.object({
 export type Macro = z.infer<typeof macroSchema>;
 
 /**
+ * Thrown by runCommand() when a command is rejected because it's not on the
+ * startup allowlist and the command manager is currently running startup
+ * commands. Callers driving the startup loop catch this to collect the set
+ * of blocked IDs.
+ */
+export class StartupCommandNotAllowedError extends Error {
+  constructor(readonly commandId: string) {
+    super(
+      `Startup command "${commandId}" is not on the allowlist and was blocked`,
+    );
+    this.name = 'StartupCommandNotAllowedError';
+  }
+}
+
+/**
  * Parses URL commands parameter from route args.
  * @param commandsParam URL commands parameter (JSON-encoded string)
  * @returns Parsed commands array or undefined if parsing fails
@@ -81,10 +95,6 @@ export function parseUrlCommands(
   }
 }
 
-export interface CommandWithMatchInfo extends Command {
-  segments: FuzzySegment[];
-}
-
 export class CommandManagerImpl implements CommandManager {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
   private readonly macros = new Registry<string>((macroId) => macroId);
@@ -92,16 +102,16 @@ export class CommandManagerImpl implements CommandManager {
 
   constructor(private omnibox: OmniboxManagerImpl) {}
 
-  getCommand(commandId: string): Command {
-    return this.registry.get(commandId);
+  getCommand(commandId: string): Command | undefined {
+    return this.registry.tryGet(commandId);
   }
 
   hasCommand(commandId: string): boolean {
     return this.registry.has(commandId);
   }
 
-  get commands(): Command[] {
-    return Array.from(this.registry.values());
+  getCommands(): readonly Command[] {
+    return this.registry.valuesAsArray();
   }
 
   registerCommand(cmd: Command): Disposable {
@@ -110,14 +120,15 @@ export class CommandManagerImpl implements CommandManager {
 
   runCommand(id: string, ...args: unknown[]): unknown {
     if (this.isExecutingStartupCommands && !this.isStartupCommandAllowed(id)) {
-      console.warn(`Command ${id} is not allowed in current execution context`);
-      return;
+      throw new StartupCommandNotAllowedError(id);
     }
     const cmd = this.registry.get(id);
     const res = cmd.callback(...args);
     Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
     return res;
   }
+
+  // Internal API: not part of the public CommandManager interface.
 
   registerMacro({id, name, run}: Macro, source?: string) {
     const stack = new DisposableStack();
@@ -139,16 +150,6 @@ export class CommandManagerImpl implements CommandManager {
       }),
     );
     return stack;
-  }
-
-  // Returns a list of commands that match the search term, along with a list
-  // of segments which describe which parts of the command name match and
-  // which don't.
-  fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
-    const finder = new FuzzyFinder(this.commands, ({name}) => name);
-    return finder.find(searchTerm).map((result) => {
-      return {segments: result.segments, ...result.item};
-    });
   }
 
   setExecutingStartupCommands(isExecuting: boolean) {

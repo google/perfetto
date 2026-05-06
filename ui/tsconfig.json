@@ -5,7 +5,6 @@
     "./node_modules/",
     "./src/test/diff_viewer/",
     "./src/service_worker/",
-    "./src/bigtrace/",
     "./src/gen/",
     "./out"
   ],

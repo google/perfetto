@@ -95,6 +95,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/critical_path.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
@@ -129,8 +130,10 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/stdlib_docs_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
+#include "src/trace_processor/plugins/wattson/register.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -156,6 +159,7 @@
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
+#include "src/trace_processor/util/sql_bundle.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -420,7 +424,7 @@ void InsertIntoModulesTable(tables::ModulesTable* table,
 
 sql_modules::NameToPackage GetStdlibPackages() {
   sql_modules::NameToPackage packages;
-  for (const auto& file_to_sql : stdlib::kFileToSql) {
+  for (const auto& file_to_sql : SqlBundle(stdlib::kStdlib)) {
     std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
     std::string package_name = sql_modules::GetPackageName(module_name);
     packages.Insert(package_name, {})
@@ -510,6 +514,13 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
+  // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
+  // (a global static initializer). That's currently disabled due to build-time
+  // issues, so instead each plugin exposes an explicit Register* function that
+  // we call here before GetPluginSet() builds its cached set. Remove these
+  // explicit calls once the static-init based registration is restored.
+  wattson::RegisterPlugin();
+
   // Initialize plugins using the statically pre-computed PluginSet.
   // Dep indices are resolved once at static init time; here we just
   // instantiate, resolve dep pointers, and register importers.
@@ -666,7 +677,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                 config_.skip_builtin_metric_paths.end(),
                                 "") != config_.skip_builtin_metric_paths.end();
   if (!skip_all_sql) {
-    for (const auto& file_to_sql : sql_metrics::kFileToSql) {
+    for (const auto& file_to_sql :
+         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics)) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
       RegisterMetric(file_to_sql.path, std::string(file_to_sql.sql_view()));
@@ -1260,6 +1272,15 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
       storage->mutable_string_pool(), engine));
 #endif
 
+  fns.emplace_back(std::make_unique<StdlibDocsModules>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsTables>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsFunctions>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsMacros>(
+      storage->mutable_string_pool(), engine));
+
   if (config.enable_dev_features) {
     fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(
         storage->mutable_string_pool()));
@@ -1413,6 +1434,12 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   {
     base::Status status = RegisterGraphTraversalFunctions(
         *engine, *storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status =
+        RegisterCriticalPathFunctions(*engine, *storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

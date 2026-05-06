@@ -44,27 +44,16 @@ WITH
     JOIN _wattson_task_slices AS tasks
       ON tasks._auto_id = id_0
     ORDER BY
-      ii.ts ASC
+      ii.ts
   ),
   -- Since sorted by time, MIN() is fast aggregate function that will return the
   -- first time slice, which will be the utid = 0 slice immediately succeeding the
   -- idle to active transition, and immediately preceding the active task
   first_swapper_slice AS (
-    SELECT
-      ts,
-      dur,
-      cpu,
-      idle_group,
-      min(ts) AS min
+    SELECT ts, dur, cpu, idle_group, min(ts) AS min
     FROM _ii_idle_tasks
     WHERE
-      utid IN (
-        SELECT
-          utid
-        FROM thread
-        WHERE
-          is_idle
-      )
+      utid IN (SELECT utid FROM thread WHERE is_idle)
     GROUP BY
       idle_group
   ),
@@ -72,43 +61,20 @@ WITH
   -- to active transition slice, which means this the the task that causes the
   -- idle exit
   first_non_swapper_slice AS (
-    SELECT
-      idle_group,
-      utid,
-      upid,
-      uid,
-      min(ts) AS min,
-      min(ts) + dur AS next_ts
+    SELECT idle_group, utid, upid, uid, min(ts) AS min, min(ts) + dur AS next_ts
     FROM _ii_idle_tasks
     WHERE
-      NOT utid IN (
-        SELECT
-          utid
-        FROM thread
-        WHERE
-          is_idle
-      )
+      NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
     GROUP BY
       idle_group
   ),
   -- MAX() here will give the last time slice in the group. This will be the
   -- utid = 0 slice immediately preceding the active to idle transition.
   last_swapper_slice AS (
-    SELECT
-      ts,
-      dur,
-      cpu,
-      idle_group,
-      max(ts) AS min
+    SELECT ts, dur, cpu, idle_group, max(ts) AS min
     FROM _ii_idle_tasks
     WHERE
-      utid IN (
-        SELECT
-          utid
-        FROM thread
-        WHERE
-          is_idle
-      )
+      utid IN (SELECT utid FROM thread WHERE is_idle)
     GROUP BY
       idle_group
   )
@@ -120,8 +86,7 @@ SELECT
   task_info.upid,
   task_info.uid
 FROM first_non_swapper_slice AS task_info
-JOIN first_swapper_slice AS swapper_info
-  USING (idle_group)
+JOIN first_swapper_slice AS swapper_info USING (idle_group)
 UNION ALL
 -- Adds the last slice to idle transition attribution IF this is a singleton
 -- task wakeup. This is true if there is only one task between swapper idle
@@ -136,8 +101,7 @@ SELECT
   task_info.upid,
   task_info.uid
 FROM first_non_swapper_slice AS task_info
-JOIN last_swapper_slice AS swapper_info
-  USING (idle_group)
+JOIN last_swapper_slice AS swapper_info USING (idle_group)
 WHERE
   ts = next_ts;
 
@@ -152,22 +116,14 @@ SELECT
   tasks.upid,
   tasks.uid,
   CASE tasks.cpu
-    WHEN 0
-    THEN power.cpu0_mw
-    WHEN 1
-    THEN power.cpu1_mw
-    WHEN 2
-    THEN power.cpu2_mw
-    WHEN 3
-    THEN power.cpu3_mw
-    WHEN 4
-    THEN power.cpu4_mw
-    WHEN 5
-    THEN power.cpu5_mw
-    WHEN 6
-    THEN power.cpu6_mw
-    WHEN 7
-    THEN power.cpu7_mw
+    WHEN 0 THEN power.cpu0_mw
+    WHEN 1 THEN power.cpu1_mw
+    WHEN 2 THEN power.cpu2_mw
+    WHEN 3 THEN power.cpu3_mw
+    WHEN 4 THEN power.cpu4_mw
+    WHEN 5 THEN power.cpu5_mw
+    WHEN 6 THEN power.cpu6_mw
+    WHEN 7 THEN power.cpu7_mw
     ELSE 0
   END AS estimated_mw
 FROM _interval_intersect!(
@@ -185,17 +141,15 @@ JOIN _system_state_mw AS power
 -- Macro for easily filtering idle attribution to a specified time window. This
 -- information can then further be filtered by specific CPU and GROUP BY on
 -- either utid or upid
-CREATE PERFETTO FUNCTION _filter_idle_attribution(
-    ts TIMESTAMP,
-    dur LONG
-)
-RETURNS TABLE (
+CREATE PERFETTO FUNCTION _filter_idle_attribution(ts TIMESTAMP, dur LONG)
+RETURNS TABLE(
   idle_cost_mws DOUBLE,
   utid JOINID(task.id),
   upid JOINID(process.id),
   uid LONG,
   cpu JOINID(cpu.id)
-) AS
+)
+AS
 -- Give the negative sum of idle costs to the swapper thread, which by
 -- definition has a utid = 0, upid = 0, and by definition will not be defined,
 -- so need to UNION to manually add swapper thread
@@ -213,13 +167,7 @@ WITH
     JOIN _idle_transition_cost AS cost
       ON cost._auto_id = id
   )
-SELECT
-  idle_cost_mws,
-  utid,
-  upid,
-  uid,
-  cpu
-FROM base
+SELECT idle_cost_mws, utid, upid, uid, cpu FROM base
 UNION ALL
 SELECT
   -1 * sum(idle_cost_mws) AS idle_cost_mws,

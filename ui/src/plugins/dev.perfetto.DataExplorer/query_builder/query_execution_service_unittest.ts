@@ -52,10 +52,10 @@ describe('QueryExecutionService', () => {
   });
 
   function createTestNode(id: string): QueryNode {
-    const node = new TableSourceNode({
-      trace: mockTrace,
-      sqlModules: mockSqlModules,
-    }) as QueryNode;
+    const node = new TableSourceNode(
+      {},
+      {trace: mockTrace, sqlModules: mockSqlModules},
+    ) as QueryNode;
     // Override nodeId for testing
     Object.defineProperty(node, 'nodeId', {value: id, writable: true});
     return node;
@@ -372,7 +372,7 @@ describe('QueryExecutionService', () => {
 
     it('fires onAnalysisStart on initial load and on user edits, but NOT on column discovery', async () => {
       const node = createTestNode('node1');
-      node.state.autoExecute = false;
+      node.context.autoExecute = false;
       mockInitialLoad('node1');
 
       const analysisStartCalls: number[] = [];
@@ -397,7 +397,7 @@ describe('QueryExecutionService', () => {
 
     it('fires onAnalysisComplete(undefined) on user edit in skip path', async () => {
       const node = createTestNode('node1');
-      node.state.autoExecute = false;
+      node.context.autoExecute = false;
       mockInitialLoad('node1');
 
       // Initialize the node
@@ -419,7 +419,7 @@ describe('QueryExecutionService', () => {
 
     it('fires no callbacks on column discovery in skip path', async () => {
       const node = createTestNode('node1');
-      node.state.autoExecute = false;
+      node.context.autoExecute = false;
       // Successful manual execution populates justExecutedNodes and initializedNodes
       mockSuccessfulExecution('node1');
 
@@ -441,7 +441,7 @@ describe('QueryExecutionService', () => {
 
     it('resetNode forces the next processNode call to re-run initial load', async () => {
       const node = createTestNode('node1');
-      node.state.autoExecute = false;
+      node.context.autoExecute = false;
       // Fresh mock: initial load retrieves existing result, populating
       // justExecutedNodes so the second call is column discovery (no callbacks).
       mockFreshNode('node1');

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_EVENT_H_
 
 #include <cstdint>
+#include <memory>
 #include <variant>
 
 #include "src/trace_processor/containers/string_pool.h"
@@ -35,7 +36,29 @@ struct alignas(8) GeckoEvent {
     uint32_t tid;
     tables::StackProfileCallsiteTable::Id callsite_id;
   };
-  using OneOf = std::variant<ThreadMetadata, StackSample>;
+  // Firefox marker phase. Values match the Firefox profiler's wire-format enum.
+  // `dur` on `Marker` is only meaningful when phase == kInterval; for kInstant
+  // the slice is emitted with dur=0; for kIntervalStart / kIntervalEnd the
+  // slice is paired by name via the slice tracker.
+  enum class MarkerPhase : uint8_t {
+    kInstant = 0,
+    kInterval = 1,
+    kIntervalStart = 2,
+    kIntervalEnd = 3,
+  };
+  struct Marker {
+    uint32_t tid;
+    MarkerPhase phase;
+    StringPool::Id name;
+    StringPool::Id category;
+    int64_t dur;
+    // Raw JSON bytes for the marker `data` payload (the full object/array
+    // including its delimiters). Empty when the marker has no payload. The
+    // bytes are flattened into args at parse time by `AddJsonValueToArgs`.
+    std::unique_ptr<char[]> data_json;
+    uint32_t data_json_size;
+  };
+  using OneOf = std::variant<ThreadMetadata, StackSample, Marker>;
   OneOf oneof;
 };
 

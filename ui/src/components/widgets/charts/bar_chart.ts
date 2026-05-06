@@ -21,6 +21,7 @@ import {
   percentile,
 } from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
+import type {LegendPosition} from './common';
 import {
   buildAxisOption,
   buildGridOption,
@@ -154,6 +155,12 @@ export interface BarChartAttrs {
    * this state — typically by feeding the `onBrush` output back in.
    */
   readonly selection?: ReadonlyArray<string | number>;
+
+  /**
+   * Where the legend sits relative to the chart (stacked charts only).
+   * Defaults to 'top'.
+   */
+  readonly legendPosition?: LegendPosition;
 }
 
 export class BarChart implements m.ClassComponent<BarChartAttrs> {
@@ -261,7 +268,7 @@ function buildBarOption(
     }),
     xAxis: horizontal ? valueAxis : categoryAxis,
     yAxis: horizontal ? categoryAxis : valueAxis,
-    legend: isStacked ? buildLegendOption() : {show: false},
+    legend: isStacked ? buildLegendOption(attrs.legendPosition) : {show: false},
     series: echartsSeries,
   };
 

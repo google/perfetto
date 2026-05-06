@@ -690,7 +690,7 @@ void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
 
   // Due to platform bugs, negative timestamps can creep into into traces.
   // Ensure that it doesn't make it into the tables.
-  // TODO(mayzner): remove the negative check once we have some logic handling
+  // TODO(lalitm): remove the negative check once we have some logic handling
   // this at the sorter level.
   if (timestamp < 0 || IsBadTimestamp(timestamp)) {
     context_->storage->IncrementStats(

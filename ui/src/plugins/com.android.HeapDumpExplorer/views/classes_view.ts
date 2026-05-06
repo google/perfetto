@@ -19,33 +19,41 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
   type NavFn,
   sizeRenderer,
   countRenderer,
   RowCounter,
 } from '../components';
+import * as queries from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
+  readonly initialRootClass?: string;
 }
 
 const PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation';
 
-const QUERY = `
-  SELECT
-    type_name AS cls,
-    reachable_obj_count AS cnt,
-    reachable_size_bytes AS shallow,
-    reachable_native_size_bytes AS native_shallow,
-    dominated_size_bytes AS retained,
-    dominated_native_size_bytes AS retained_native,
-    dominated_obj_count AS retained_count
-  FROM android_heap_graph_class_aggregation
-  WHERE reachable_obj_count > 0
-`;
+function buildQuery(activeDump: HeapDump): string {
+  return `
+    SELECT
+      type_name AS cls,
+      reachable_obj_count AS cnt,
+      reachable_size_bytes AS shallow,
+      reachable_native_size_bytes AS native_shallow,
+      dominated_size_bytes AS retained,
+      dominated_native_size_bytes AS retained_native,
+      dominated_obj_count AS retained_count
+    FROM android_heap_graph_class_aggregation a
+    WHERE a.reachable_obj_count > 0 AND ${dumpFilterSql(activeDump, 'a')}
+  `;
+}
 
 function makeUiSchema(navigate: NavFn): SchemaRegistry {
   return {
@@ -99,18 +107,53 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
 
 function ClassesView(): m.Component<ClassesViewAttrs> {
   let dataSource: SQLDataSource | null = null;
+  let alive = true;
   const counter = new RowCounter();
+  let filters: Filter[] = [];
+
+  async function applyNavFilter(
+    engine: Engine,
+    activeDump: HeapDump,
+    root: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
+    if (!root) return;
+    clearNavParam('rootClass');
+    const names = await queries.getSubclassNames(engine, activeDump, root);
+    if (!alive || names.length === 0) return;
+    filters = [{field: 'cls', op: 'in' as const, value: names}];
+    counter.onFiltersChanged(filters);
+    m.redraw();
+  }
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(QUERY),
+        sqlSchema: createSimpleSchema(query),
         rootSchemaName: 'query',
         preamble: PREAMBLE,
       });
-      counter.init(engine, QUERY, PREAMBLE);
+      counter.init(engine, query, PREAMBLE);
+      applyNavFilter(
+        engine,
+        activeDump,
+        vnode.attrs.initialRootClass,
+        vnode.attrs.clearNavParam,
+      ).catch(console.error);
+    },
+    onupdate(vnode) {
+      applyNavFilter(
+        vnode.attrs.engine,
+        vnode.attrs.activeDump,
+        vnode.attrs.initialRootClass,
+        vnode.attrs.clearNavParam,
+      ).catch(console.error);
+    },
+    onremove() {
+      alive = false;
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -133,8 +176,12 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
             {id: 'retained_native', field: 'retained_native'},
             {id: 'retained_count', field: 'retained_count'},
           ],
+          filters,
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            filters = [...f];
+            counter.onFiltersChanged(f);
+          },
         }),
       ]);
     },

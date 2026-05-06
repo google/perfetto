@@ -1,12 +1,63 @@
-Unreleased:
+v55.0 - 2026-04-29:
   Tracing service and probes:
-    * Added `android.aflags` data source and associated Trace Processor and UI
-      support for capturing and visualizing Android aconfig flags.
+    * Breaking change: Renamed the `TraceMetadata` proto to `TraceAttributes`.
+    * Extended `tid` field in `thread_descriptor.proto` to `int64` to support
+      large thread IDs, useful on Windows.
+    * Added `android.aflags` data source for capturing Android aconfig flags
+      (with associated Trace Processor and UI support).
+    * Added `/proc/slabinfo` polling support to the `sys_stats` data source.
+    * `traced_perf`: added a CPU filter for restricting per-CPU sampling, and
+      allowed raw perf events to specify a dynamic PMU by name.
+    * Added the ability to attach generic trace-level metadata to a trace.
+    * GPU: added `InstrumentedSamplingConfig` and custom counter groups to
+      `GpuCounterConfig`; added CUDA and HIP to the GPU graphics context APIs.
   Trace Processor:
-   *
+    * Major: new `trace_processor_shell` architecture based on subcommands
+      (`query`, `interactive`, `server`, `metrics`, `summarize`, `export`,
+      `convert`). The classic CLI is preserved through a translation layer.
+    * Added support for the ART Method v2 streaming trace format.
+    * Multi-GPU support: new `gpu` and `gpu_context` tables enabling
+      per-GPU and multi-machine attribution across slice and memory tracks.
+    * HPROF importer: support for primitive fields, array contents, and
+      Bitmap-specific fields; closer ahat parity.
+    * Added polars DataFrame support to the Python TraceProcessor API.
   UI:
-   * Dev server: support overriding CLI flags via PERFETTO_UI_<FLAG> env or
-     ~/.config/perfetto/ui-dev-server.env.
+    * WebGL rendering for GPU-accelerated visualization of slice and counter
+      tracks with significant performance improvements on large traces.
+    * Virtual track scrolling, only rendering visible tracks for smoother
+      navigation on traces with many tracks.
+    * Breaking: legacy trace actions have been moved to the `dev.perfetto.Catapult`
+      plugin, disabled by default.
+    * Added the Heap Dump Explorer plugin with object view, class hierarchy,
+      duplicate-array detection, GC-root shortest-path, and bitmap gallery.
+      Java Flamegraph entries can navigate into the explorer.
+    * New plugins: GpuCompute (GPU kernel performance analysis), CoarseCpu
+      (per-CPU `/proc/stat` counters), Android monitor lock contention
+      (replaces the removed `com.android.LockContention` plugin), and an
+      Android logs track breakdown.
+    * Charts and aggregations: added Sankey chart, stats widget, percentile
+      and count-distinct aggregations; line charts now support stacking,
+      series hovering, and selection alongside brushing.
+    * Instances and flamegraph views now open as closable tabs.
+    * Counters: improved detail panel to reflect counter mode and handle
+      rate-delta counters for Android GPU events.
+    * Data Explorer: added dashboard functionality (labels, drivers and
+      consumers, import/export tabs, in-sidebar chart editor, smarter graph
+      with cycle detection, modernized charts picker).
+    * Dev server: support overriding CLI flags via `PERFETTO_UI_<FLAG>` env
+      or `~/.config/perfetto/ui-dev-server.env`.
+  SDK:
+    * Java SDK: added support for `@CompileTimeConstant` and static track
+      names.
+  Tools:
+    * `heap_profile`: added a `host` subcommand for memory profiling local
+      Linux processes. The existing Android workflow is preserved under the
+      `android` subcommand.
+  Docs:
+    * Major site refresh: reorganized TOC, filter chips, refreshed visuals.
+    * New or rewritten guides: PerfettoSQL getting-started, GPU data source,
+      symbolization and deobfuscation, Heap Dump Explorer, and `heap_profile`
+      `host`/`android` subcommands.
 
 
 v54.0 - 2026-02-27:

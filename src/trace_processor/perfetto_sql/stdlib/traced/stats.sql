@@ -16,17 +16,17 @@
 
 -- Reports the duration of the flush operation for cloned traces (for each
 -- buffer).
-CREATE PERFETTO TABLE traced_clone_flush_latency (
+CREATE PERFETTO TABLE traced_clone_flush_latency(
   -- Id of the buffer (matches the config).
   buffer_id LONG,
   -- Interval from the start of the clone operation to the end of the flush for
   -- this buffer.
   duration_ns LONG
-) AS
+)
+AS
 WITH
   clone_started_ns AS (
-    SELECT
-      value
+    SELECT value
     FROM stats
     WHERE
       name = 'traced_clone_started_timestamp_ns'
@@ -34,35 +34,27 @@ WITH
   )
 SELECT
   idx AS buffer_id,
-  value - (
-    SELECT
-      value
-    FROM clone_started_ns
-  ) AS duration_ns
+  value - (SELECT value FROM clone_started_ns) AS duration_ns
 FROM stats
 WHERE
   name = 'traced_buf_clone_done_timestamp_ns'
-  AND (
-    SELECT
-      value
-    FROM clone_started_ns
-  ) != 0
+  AND (SELECT value FROM clone_started_ns) != 0
 ORDER BY
   idx;
 
 -- Reports the delay in finalizing the trace from the trigger that causes the
 -- clone operation.
-CREATE PERFETTO TABLE traced_trigger_clone_flush_latency (
+CREATE PERFETTO TABLE traced_trigger_clone_flush_latency(
   -- Id of the buffer.
   buffer_id LONG,
   -- Interval from the trigger that caused the clone operation to the end of
   -- the flush for this buffer.
   duration_ns LONG
-) AS
+)
+AS
 WITH
   clone_trigger_fired_ns AS (
-    SELECT
-      value
+    SELECT value
     FROM stats
     WHERE
       name = 'traced_clone_trigger_timestamp_ns'
@@ -70,18 +62,10 @@ WITH
   )
 SELECT
   idx AS buffer_id,
-  value - (
-    SELECT
-      value
-    FROM clone_trigger_fired_ns
-  ) AS duration_ns
+  value - (SELECT value FROM clone_trigger_fired_ns) AS duration_ns
 FROM stats
 WHERE
   name = 'traced_buf_clone_done_timestamp_ns'
-  AND (
-    SELECT
-      value
-    FROM clone_trigger_fired_ns
-  ) != 0
+  AND (SELECT value FROM clone_trigger_fired_ns) != 0
 ORDER BY
   idx;

@@ -20,7 +20,10 @@ import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {SqlValue} from '../../trace_processor/query_result';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {
+  SegmentedButton,
+  SegmentedButtons,
+} from '../../widgets/segmented_buttons';
 
 export class WattsonProcessSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_process_aggregation';
@@ -69,14 +72,20 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
   }
 
   renderTopbarControls(): m.Children {
-    return m(SegmentedButtons, {
-      options: [{label: 'µW'}, {label: 'mW'}],
-      selectedOption: this.scaleNumericData ? 0 : 1,
-      onOptionSelected: (index) => {
-        this.scaleNumericData = index === 0;
+    return m(
+      SegmentedButtons,
+      {
+        selectedValue: this.scaleNumericData ? 'uw' : 'mw',
+        onOptionSelected: (value) => {
+          this.scaleNumericData = value === 'uw';
+        },
+        title: 'Select power units',
       },
-      title: 'Select power units',
-    });
+      [
+        m(SegmentedButton, {value: 'uw'}, 'µW'),
+        m(SegmentedButton, {value: 'mw'}, 'mW'),
+      ],
+    );
   }
 
   private powerUnits(): string {

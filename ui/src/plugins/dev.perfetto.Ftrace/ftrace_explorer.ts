@@ -89,10 +89,6 @@ async function getFtraceCounters(engine: Engine): Promise<FtraceStat[]> {
   // as it goes through every ftrace event which can be a lot on big traces.
   // Consider if we can have some different UX which avoids needing these
   // counts
-  // TODO(mayzner): the +name below is an awful hack to workaround
-  // extraordinarily slow sorting of strings. However, even with this hack,
-  // this is just a slow query. There are various ways we can improve this
-  // (e.g. with using the vtab_distinct APIs of SQLite).
   const result = await engine.query(`
     select
       name,

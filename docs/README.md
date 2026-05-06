@@ -14,7 +14,8 @@ It consists of:
   many processes on a single machine into a unified trace file for offline
   analysis and visualization.
 - **Low-overhead tracing SDK** for direct userspace-to-userspace tracing of
-  timings and state changes of your C/C++ code.
+  timings and state changes of your C/C++ code. A community-maintained
+  [Rust SDK](/docs/getting-started/rust-sdk.md) is also available.
 - **Extensive OS-level probes on Android and Linux** for capturing wider system
   level (e.g. scheduling states, CPU frequencies, memory profiling, callstack
   sampling) context during the trace.
@@ -57,8 +58,8 @@ reduced level of support.
 Other usecases Perfetto is commonly used for include:
 
 - **Collecting, analysing and visualizing in-app traces** to debug functional
-  and performance issues in C/C++ apps and libraries on Windows, macOS and
-  Linux-based embedded systems.
+  and performance issues in C/C++ and Rust apps and libraries on Windows,
+  macOS and Linux-based embedded systems.
 - **Collecting, analysing and visualizing heap profiles on Linux** to debug high
   memory usage of C/C++/Rust apps and libraries.
 - **Analysing and visualizing CPU profiles (Linux perf profiles) on Linux** to

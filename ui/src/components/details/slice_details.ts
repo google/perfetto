@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {BigintMath} from '../../base/bigint_math';
-import {sqliteString} from '../../base/string_utils';
 import {exists} from '../../base/utils';
 import {SliceDetails} from '../sql_utils/slice';
 import {Anchor} from '../../widgets/anchor';
@@ -31,11 +30,134 @@ import {renderProcessRef} from '../widgets/process';
 import {renderThreadRef} from '../widgets/thread';
 import {Timestamp} from '../widgets/timestamp';
 import {Trace} from '../../public/trace';
-import {extensions} from '../extensions';
-import {SLICE_TABLE} from '../widgets/sql/table_definitions';
+import {
+  DistributionPanelAttrs,
+  openDistributionTab,
+} from '../distribution_panel';
+import {LONG, NUM, Row, STR_NULL} from '../../trace_processor/query_result';
+import {Time} from '../../base/time';
+import {Dataset, UnionDataset} from '../../trace_processor/dataset';
 
-// Renders a widget storing all of the generic details for a slice from the
-// slice table.
+export type DistributionScope = 'track' | 'all';
+
+export function sliceDistributionCellRenderers(
+  trace: Trace,
+): Record<string, (value: Row[string]) => m.Children> {
+  return {
+    ts: (value) =>
+      typeof value === 'bigint'
+        ? m(Timestamp, {trace, ts: Time.fromRaw(value)})
+        : String(value ?? ''),
+    dur: (value) =>
+      typeof value === 'bigint'
+        ? m(DurationWidget, {trace, dur: value})
+        : String(value ?? ''),
+  };
+}
+
+const SLICE_DISTRIBUTION_SCHEMA = {
+  id: NUM,
+  name: STR_NULL,
+  dur: LONG,
+  ts: LONG,
+};
+
+export function findSliceTrackDataset(
+  trace: Trace,
+  trackId: number,
+): Dataset | undefined {
+  const track = trace.tracks.findTrack((t) =>
+    t.tags?.trackIds?.includes(trackId),
+  );
+  const dataset = track?.renderer.getDataset?.();
+  if (dataset === undefined || !dataset.implements(SLICE_DISTRIBUTION_SCHEMA)) {
+    return undefined;
+  }
+  return dataset;
+}
+
+// Mirrors the dataset-union approach used by trace search (core/dataset_search.ts):
+// the "whole trace" scope is the union of what each track exposes rather than a
+// raw query against the slice table.
+export function findWholeTraceSliceDataset(trace: Trace): Dataset | undefined {
+  const datasets: Dataset[] = [];
+  for (const track of trace.tracks.getAllTracks()) {
+    const dataset = track.renderer.getDataset?.();
+    if (dataset?.implements(SLICE_DISTRIBUTION_SCHEMA)) {
+      datasets.push(dataset);
+    }
+  }
+  if (datasets.length === 0) return undefined;
+  if (datasets.length === 1) return datasets[0];
+  return UnionDataset.create(datasets);
+}
+
+export function sliceDistributionConfig(
+  trace: Trace,
+  sliceName: string,
+  dataset: Dataset,
+  scope: DistributionScope,
+): Omit<DistributionPanelAttrs, 'trace'> {
+  const scopeLabel = scope === 'track' ? 'this track' : 'across trace';
+  return {
+    title: `${sliceName} (${scopeLabel})`,
+    dataset,
+    filter: {col: 'name', eq: sliceName},
+    valueColumn: 'dur',
+    idColumn: 'id',
+    sqlTable: 'slice',
+    displayColumns: ['ts', 'dur'],
+    cellRenderers: sliceDistributionCellRenderers(trace),
+  };
+}
+
+function resolveSliceDataset(
+  trace: Trace,
+  trackId: number,
+  scope: DistributionScope,
+): Dataset | undefined {
+  return scope === 'track'
+    ? findSliceTrackDataset(trace, trackId)
+    : findWholeTraceSliceDataset(trace);
+}
+
+function openSliceDistribution(
+  trace: Trace,
+  sliceName: string,
+  trackId: number,
+  scope: DistributionScope,
+): void {
+  const dataset = resolveSliceDataset(trace, trackId, scope);
+  if (dataset === undefined) return;
+  openDistributionTab(
+    trace,
+    sliceDistributionConfig(trace, sliceName, dataset, scope),
+  );
+}
+
+function renderMatchingSlicesMenu(
+  trace: Trace,
+  slice: SliceDetails,
+): m.Children {
+  const sliceName = slice.name;
+  if (sliceName === undefined) {
+    return m(MenuItem, {
+      label: 'Slices with the same name',
+      disabled: true,
+    });
+  }
+  const item = (label: string, scope: DistributionScope) =>
+    m(MenuItem, {
+      label,
+      onclick: () =>
+        openSliceDistribution(trace, sliceName, slice.trackId, scope),
+    });
+  return [
+    item('Slices with the same name (this track)', 'track'),
+    item('Slices with the same name (across trace)', 'all'),
+  ];
+}
+
 export function renderDetails(
   trace: Trace,
   slice: SliceDetails,
@@ -53,23 +175,7 @@ export function renderDetails(
           {
             trigger: m(Anchor, slice.name),
           },
-          m(MenuItem, {
-            label: 'Slices with the same name',
-            onclick: () => {
-              extensions.addLegacySqlTableTab(trace, {
-                table: SLICE_TABLE,
-                filters: [
-                  {
-                    op: (cols) =>
-                      slice.name === undefined
-                        ? `${cols[0]} IS NULL`
-                        : `${cols[0]} = ${sqliteString(slice.name)}`,
-                    columns: ['name'],
-                  },
-                ],
-              });
-            },
-          }),
+          renderMatchingSlicesMenu(trace, slice),
         ),
       }),
       m(TreeNode, {

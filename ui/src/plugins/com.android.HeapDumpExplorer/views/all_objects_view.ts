@@ -29,39 +29,44 @@ import {
   SQL_PREAMBLE,
   RowCounter,
 } from '../components';
-import {clearNavParam} from '../nav_state';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly initialClass?: string;
 }
 
-const QUERY = `
-  SELECT
-    base.*,
-    a.cumulative_size AS reachable_size,
-    a.cumulative_native_size AS reachable_native,
-    a.cumulative_count AS reachable_count
-  FROM (
+function buildQuery(activeDump: HeapDump): string {
+  return `
     SELECT
-      o.id,
-      ifnull(c.deobfuscated_name, c.name) AS cls,
-      o.self_size,
-      o.native_size,
-      ifnull(d.dominated_size_bytes, o.self_size) AS retained,
-      ifnull(d.dominated_native_size_bytes, o.native_size) AS retained_native,
-      ifnull(d.dominated_obj_count, 1) AS retained_count,
-      ifnull(o.heap_type, 'default') AS heap,
-      od.value_string AS str
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
-    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    WHERE o.reachable != 0
-  ) base
-  LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
-`;
+      base.*,
+      a.cumulative_size AS reachable_size,
+      a.cumulative_native_size AS reachable_native,
+      a.cumulative_count AS reachable_count
+    FROM (
+      SELECT
+        o.id,
+        ifnull(c.deobfuscated_name, c.name) AS cls,
+        o.self_size,
+        o.native_size,
+        ifnull(d.dominated_size_bytes, o.self_size) AS retained,
+        ifnull(d.dominated_native_size_bytes, o.native_size) AS retained_native,
+        ifnull(d.dominated_obj_count, 1) AS retained_count,
+        ifnull(o.heap_type, 'default') AS heap,
+        od.value_string AS str
+      FROM heap_graph_object o
+      JOIN heap_graph_class c ON o.type_id = c.id
+      LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
+      LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+      WHERE o.reachable != 0
+        AND ${dumpFilterSql(activeDump, 'o')}
+    ) base
+    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
+  `;
+}
 
 function makeUiSchema(navigate: NavFn): SchemaRegistry {
   return {
@@ -155,7 +160,10 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
-  function applyNavFilter(cls: string | undefined) {
+  function applyNavFilter(
+    cls: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!cls) return;
     filters = [{field: 'cls', op: '=' as const, value: cls}];
     counter.onFiltersChanged(filters);
@@ -164,18 +172,19 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(QUERY),
+        sqlSchema: createSimpleSchema(query),
         rootSchemaName: 'query',
         preamble: SQL_PREAMBLE,
       });
-      counter.init(engine, QUERY, SQL_PREAMBLE);
-      applyNavFilter(vnode.attrs.initialClass);
+      counter.init(engine, query, SQL_PREAMBLE);
+      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialClass);
+      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     view(vnode) {
       const {navigate} = vnode.attrs;

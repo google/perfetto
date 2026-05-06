@@ -26,19 +26,39 @@
     transparent,
     var(--pf-color-interactive-base) 10%
   );
+  user-select: none;
+
+  &[disabled] {
+    filter: opacity(50%);
+    cursor: not-allowed;
+
+    // Make everything inside the disabled container non-interactive.
+    * {
+      pointer-events: none;
+    }
+  }
 
   &--fill-width {
     display: flex;
 
-    .pf-button {
+    .pf-segmented-button {
       flex: 1;
     }
   }
 
-  .pf-button {
+  .pf-segmented-button {
     border-radius: $border-radius;
     background: transparent;
     color: var(--pf-color-text-muted);
+    display: inline-flex;
+    align-items: baseline;
+    padding: 3px 8px;
+    cursor: pointer;
+
+    .pf-icon {
+      margin-right: 4px;
+      align-self: center;
+    }
 
     &:hover {
       background: color-mix(
@@ -52,5 +72,25 @@
       background: var(--pf-color-background);
       color: var(--pf-color-text);
     }
+  }
+
+  &.pf-intent-primary .pf-active {
+    background: var(--pf-color-primary);
+    color: var(--pf-color-text-on-primary);
+  }
+
+  &.pf-intent-success .pf-active {
+    background: var(--pf-color-success);
+    color: var(--pf-color-text-on-success);
+  }
+
+  &.pf-intent-warning .pf-active {
+    background: var(--pf-color-warning);
+    color: var(--pf-color-text-on-warning);
+  }
+
+  &.pf-intent-danger .pf-active {
+    background: var(--pf-color-danger);
+    color: var(--pf-color-text-on-danger);
   }
 }

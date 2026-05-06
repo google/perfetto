@@ -18,21 +18,15 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.helpers;
 INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;
 
 CREATE PERFETTO TABLE _heap_graph_dominator_path_hashes AS
-SELECT
-  *
+SELECT *
 FROM _heap_graph_type_path_hash!((
-  SELECT id, idom_id AS parent_id
-  FROM _raw_heap_graph_dominator_tree
-));
+    SELECT id, idom_id AS parent_id FROM _raw_heap_graph_dominator_tree
+  ));
 
 CREATE PERFETTO TABLE _heap_graph_dominator_path_hashes_aggregated AS
-SELECT
-  *
+SELECT *
 FROM _heap_graph_path_hash_aggregate!(_heap_graph_dominator_path_hashes);
 
 CREATE PERFETTO TABLE _heap_graph_dominator_class_tree AS
-SELECT
-  *
-FROM _heap_graph_path_hashes_to_class_tree!(
-  _heap_graph_dominator_path_hashes_aggregated
-);
+SELECT *
+FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_dominator_path_hashes_aggregated);

@@ -744,7 +744,13 @@ export function createGroupFromSelection(
   const outerNodes = endNode.nextNodes.filter((n) => !innerSet.has(n.nodeId));
 
   // Create the GroupNode (no mutations yet).
-  const groupNode = new GroupNode(innerNodes, endNode, externalConnections);
+  const groupNode = new GroupNode(
+    {name: 'Group'},
+    {},
+    innerNodes,
+    endNode,
+    externalConnections,
+  );
   groupNode.nextNodes = [...outerNodes];
 
   return okResult(groupNode);

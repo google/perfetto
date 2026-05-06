@@ -68,9 +68,9 @@ export function renderTypeSelector(
     return null;
   }
 
-  const currentType = col.column.type;
+  const currentType = col.type;
   const currentTypeStr = perfettoSqlTypeToString(currentType);
-  const originalType = col.column.type;
+  const originalType = col.type;
 
   // Build the list of menu items
   const menuItems: m.Child[] = [];

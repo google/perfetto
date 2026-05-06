@@ -15,10 +15,7 @@
 import {
   ColumnInfo,
   columnInfoFromSqlColumn,
-  columnInfoFromName,
-  legacyDeserializeType,
   newColumnInfo,
-  newColumnInfoList,
 } from './column_info';
 import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {
@@ -47,9 +44,8 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn);
 
       expect(result.name).toBe('id');
-      expect(result.column.type).toEqual(PerfettoSqlTypes.INT);
+      expect(result.type).toEqual(PerfettoSqlTypes.INT);
       expect(result.checked).toBe(false);
-      expect(result.column).toBe(sqlColumn);
       expect(result.alias).toBeUndefined();
     });
 
@@ -62,9 +58,8 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn, true);
 
       expect(result.name).toBe('name');
-      expect(result.column.type).toEqual(PerfettoSqlTypes.STRING);
+      expect(result.type).toEqual(PerfettoSqlTypes.STRING);
       expect(result.checked).toBe(true);
-      expect(result.column).toBe(sqlColumn);
     });
 
     it('should handle timestamp type', () => {
@@ -76,35 +71,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn, false);
 
       expect(result.name).toBe('ts');
-      expect(result.column.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
-      expect(result.checked).toBe(false);
-    });
-  });
-
-  describe('columnInfoFromName', () => {
-    it('should create ColumnInfo from name with default unchecked', () => {
-      const result = columnInfoFromName('test_column');
-
-      expect(result.name).toBe('test_column');
-      expect(result.column.type).toBeUndefined();
-      expect(result.checked).toBe(false);
-      expect(result.column.name).toBe('test_column');
-      expect(result.column.type).toBe(undefined);
-    });
-
-    it('should create ColumnInfo with checked=true when specified', () => {
-      const result = columnInfoFromName('another_column', true);
-
-      expect(result.name).toBe('another_column');
-      expect(result.column.type).toBeUndefined();
-      expect(result.checked).toBe(true);
-    });
-
-    it('should handle empty name', () => {
-      const result = columnInfoFromName('');
-
-      expect(result.name).toBe('');
-      expect(result.column.type).toBeUndefined();
+      expect(result.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
       expect(result.checked).toBe(false);
     });
   });
@@ -114,17 +81,17 @@ describe('column_info utilities', () => {
       const original: ColumnInfo = {
         name: 'id',
         checked: false,
-        column: {name: 'id', type: intType},
+        type: intType,
       };
 
       const result = newColumnInfo(original);
 
       expect(result.name).toBe('id');
-      expect(result.column.type).toEqual(PerfettoSqlTypes.INT);
+      expect(result.type).toEqual(PerfettoSqlTypes.INT);
       expect(result.checked).toBe(false);
       // column is now a copy with name updated (not same reference)
-      expect(result.column.name).toBe('id');
-      expect(result.column.type).toBe(intType);
+      expect(result.name).toBe('id');
+      expect(result.type).toBe(intType);
       expect(result.alias).toBeUndefined();
     });
 
@@ -132,16 +99,16 @@ describe('column_info utilities', () => {
       const original: ColumnInfo = {
         name: 'id',
         checked: false,
-        column: {name: 'id', type: intType},
+        type: intType,
         alias: 'identifier',
       };
 
       const result = newColumnInfo(original);
 
       expect(result.name).toBe('identifier');
-      expect(result.column.type).toEqual(PerfettoSqlTypes.INT);
+      expect(result.type).toEqual(PerfettoSqlTypes.INT);
       // column.name should also be replaced with the alias so child nodes see the aliased name
-      expect(result.column.name).toBe('identifier');
+      expect(result.name).toBe('identifier');
       expect(result.alias).toBeUndefined();
     });
 
@@ -149,7 +116,7 @@ describe('column_info utilities', () => {
       const original: ColumnInfo = {
         name: 'name',
         checked: false,
-        column: {name: 'name', type: stringType},
+        type: stringType,
       };
 
       const result = newColumnInfo(original, true);
@@ -162,7 +129,7 @@ describe('column_info utilities', () => {
       const original: ColumnInfo = {
         name: 'name',
         checked: true,
-        column: {name: 'name', type: stringType},
+        type: stringType,
       };
 
       const result = newColumnInfo(original);
@@ -174,7 +141,7 @@ describe('column_info utilities', () => {
       const original: ColumnInfo = {
         name: 'ts',
         checked: true,
-        column: {name: 'ts', type: timestampType},
+        type: timestampType,
       };
 
       const result = newColumnInfo(original, undefined);
@@ -186,191 +153,13 @@ describe('column_info utilities', () => {
       const original: ColumnInfo = {
         name: 'id',
         checked: false,
-        column: {name: 'id', type: intType},
+        type: intType,
         alias: 'identifier',
       };
 
       const result = newColumnInfo(original);
 
       expect(result.alias).toBeUndefined();
-    });
-  });
-
-  describe('newColumnInfoList', () => {
-    it('should create new list preserving all columns', () => {
-      const original: ColumnInfo[] = [
-        {
-          name: 'id',
-          checked: false,
-          column: {name: 'id', type: intType},
-        },
-        {
-          name: 'name',
-          checked: false,
-          column: {name: 'name', type: stringType},
-        },
-        {
-          name: 'ts',
-          checked: true,
-          column: {name: 'ts', type: timestampType},
-        },
-      ];
-
-      const result = newColumnInfoList(original);
-
-      expect(result.length).toBe(3);
-      expect(result[0].name).toBe('id');
-      expect(result[0].checked).toBe(false);
-      expect(result[1].name).toBe('name');
-      expect(result[1].checked).toBe(false);
-      expect(result[2].name).toBe('ts');
-      expect(result[2].checked).toBe(true);
-    });
-
-    it('should override checked state for all columns when specified', () => {
-      const original: ColumnInfo[] = [
-        {
-          name: 'id',
-          checked: false,
-          column: {name: 'id', type: intType},
-        },
-        {
-          name: 'name',
-          checked: false,
-          column: {name: 'name', type: stringType},
-        },
-      ];
-
-      const result = newColumnInfoList(original, true);
-
-      expect(result.length).toBe(2);
-      expect(result[0].checked).toBe(true);
-      expect(result[1].checked).toBe(true);
-    });
-
-    it('should handle empty list', () => {
-      const result = newColumnInfoList([]);
-
-      expect(result).toEqual([]);
-    });
-
-    it('should handle aliases', () => {
-      const original: ColumnInfo[] = [
-        {
-          name: 'id',
-          checked: false,
-          column: {name: 'id', type: intType},
-          alias: 'identifier',
-        },
-        {
-          name: 'name',
-          checked: false,
-          column: {name: 'full_name', type: stringType},
-          alias: 'name',
-        },
-      ];
-
-      const result = newColumnInfoList(original);
-
-      expect(result.length).toBe(2);
-      expect(result[0].name).toBe('identifier');
-      expect(result[0].alias).toBeUndefined();
-      expect(result[1].name).toBe('name');
-      expect(result[1].alias).toBeUndefined();
-    });
-
-    it('should create independent copies', () => {
-      const original: ColumnInfo[] = [
-        {
-          name: 'id',
-          checked: false,
-          column: {name: 'id', type: intType},
-        },
-      ];
-
-      const result = newColumnInfoList(original, true);
-
-      expect(original[0].checked).toBe(false);
-      expect(result[0].checked).toBe(true);
-    });
-  });
-
-  describe('legacyDeserializeType', () => {
-    it('should return undefined for undefined input', () => {
-      expect(legacyDeserializeType(undefined)).toBeUndefined();
-    });
-
-    it('should pass through valid PerfettoSqlType objects', () => {
-      expect(legacyDeserializeType(intType)).toEqual(intType);
-      expect(legacyDeserializeType(stringType)).toEqual(stringType);
-      expect(legacyDeserializeType(timestampType)).toEqual(timestampType);
-    });
-
-    it('should pass through ID types', () => {
-      const idType: PerfettoSqlType = {
-        kind: 'id',
-        source: {table: 'thread', column: 'id'},
-      };
-      expect(legacyDeserializeType(idType)).toEqual(idType);
-    });
-
-    it('should pass through JOINID types', () => {
-      const joinidType: PerfettoSqlType = {
-        kind: 'joinid',
-        source: {table: 'thread', column: 'id'},
-      };
-      expect(legacyDeserializeType(joinidType)).toEqual(joinidType);
-    });
-
-    it('should convert legacy string types to PerfettoSqlType', () => {
-      expect(
-        legacyDeserializeType('INT' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'int'});
-      expect(
-        legacyDeserializeType('STRING' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'string'});
-      expect(
-        legacyDeserializeType('TIMESTAMP' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'timestamp'});
-      expect(
-        legacyDeserializeType('DURATION' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'duration'});
-      expect(
-        legacyDeserializeType('DOUBLE' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'double'});
-      expect(
-        legacyDeserializeType('BOOLEAN' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'boolean'});
-      expect(
-        legacyDeserializeType('BYTES' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'bytes'});
-      expect(
-        legacyDeserializeType('ARG_SET_ID' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'arg_set_id'});
-    });
-
-    it('should handle lowercase legacy string types', () => {
-      expect(
-        legacyDeserializeType('int' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'int'});
-      expect(
-        legacyDeserializeType('string' as unknown as PerfettoSqlType),
-      ).toEqual({kind: 'string'});
-    });
-
-    it('should return undefined for unrecognized legacy strings', () => {
-      expect(
-        legacyDeserializeType('UNKNOWN' as unknown as PerfettoSqlType),
-      ).toBeUndefined();
-      expect(
-        legacyDeserializeType('NA' as unknown as PerfettoSqlType),
-      ).toBeUndefined();
-    });
-
-    it('should return undefined for objects without kind', () => {
-      expect(
-        legacyDeserializeType({} as unknown as PerfettoSqlType),
-      ).toBeUndefined();
     });
   });
 });

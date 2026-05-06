@@ -39,6 +39,8 @@ source_set("table_functions") {
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
+    "stdlib_docs_table_function.cc",
+    "stdlib_docs_table_function.h",
     "table_info.cc",
     "table_info.h",
   ]
@@ -69,6 +71,9 @@ source_set("table_functions") {
     "../../../types",
     "../../../util:descriptors",
     "../../../util:proto_to_args_parser",
+    "../../../util:simple_json_serializer",
+    "../../../util:sql_module_doc_parser",
+    "../../../util:stdlib",
     "../../engine",
   ]
   if (enable_perfetto_winscope) {

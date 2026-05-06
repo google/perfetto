@@ -89,10 +89,9 @@ with TraceProcessor(trace='my_trace.pftrace') as tp:
 TAB: Command-line shell
 
 ```bash
-trace_processor_shell --summary \
-  --summary-spec spec.textproto \
-  --summary-metrics-v2 memory_per_process \
-  my_trace.pftrace
+trace_processor_shell summarize \
+  --metrics-v2 memory_per_process \
+  my_trace.pftrace spec.textproto
 ```
 
 </tabs?>
@@ -181,10 +180,9 @@ with TraceProcessor(trace='my_trace.pftrace') as tp:
 TAB: Command-line shell
 
 ```bash
-trace_processor_shell --summary \
-  --summary-spec spec.textproto \
-  --summary-metrics-v2 memory_per_process_min_rss_and_swap,memory_per_process_max_rss_and_swap,memory_per_process_avg_rss_and_swap \
-  my_trace.pftrace
+trace_processor_shell summarize \
+  --metrics-v2 memory_per_process_min_rss_and_swap,memory_per_process_max_rss_and_swap,memory_per_process_avg_rss_and_swap \
+  my_trace.pftrace spec.textproto
 ```
 
 </tabs?>
@@ -357,15 +355,14 @@ with TraceProcessor(trace='my_trace.pftrace', config=config) as tp:
 
 TAB: Command-line shell
 
-Use the `--add-sql-package` flag. You can list the metrics explicitly or use
-the `all` keyword.
+Use the global `--add-sql-package` flag. You can list the metrics explicitly
+or use the `all` keyword.
 
 ```bash
-trace_processor_shell --summary \
+trace_processor_shell summarize \
   --add-sql-package ./my_sql_modules \
-  --summary-spec spec.textproto \
-  --summary-metrics-v2 game_frame_min_duration_ns,game_frame_max_duration_ns,game_frame_avg_duration_ns \
-  my_trace.pftrace
+  --metrics-v2 game_frame_min_duration_ns,game_frame_max_duration_ns,game_frame_avg_duration_ns \
+  my_trace.pftrace spec.textproto
 ```
 
 </tabs?>
@@ -555,14 +552,13 @@ summary = tp.trace_summary(
 
 TAB: Command-line shell
 
-Use both `--summary-metrics-v2` and `--summary-metadata-query`:
+Use both `--metrics-v2` and `--metadata-query`:
 
 ```bash
-trace_processor_shell --summary \\
-  --summary-spec spec.textproto \\
-  --summary-metrics-v2 game_frame_avg_duration_ns \\
-  --summary-metadata-query device_info_query \\
-  my_trace.pftrace
+trace_processor_shell summarize \\
+  --metrics-v2 game_frame_avg_duration_ns \\
+  --metadata-query device_info_query \\
+  my_trace.pftrace spec.textproto
 ```
 
 </tabs?>
@@ -694,27 +690,31 @@ The `trace_summary` method takes the following arguments:
 
 TAB: Command-line shell
 
-The `trace_processor_shell` allows you to compute trace summaries from a trace
-file using dedicated flags.
+The `trace_processor_shell` exposes summaries via the `summarize` subcommand.
+The trace file is the first positional argument; spec files follow as
+additional positionals.
 
 - **Run specific metrics by ID:** Provide a comma-separated list of metric IDs
-  using the `--summary-metrics-v2` flag.
+  using the `--metrics-v2` flag.
   ```bash
-  trace_processor_shell --summary \\
-    --summary-spec YOUR_SPEC_FILE \\
-    --summary-metrics-v2 METRIC_ID_1,METRIC_ID_2 \\
-    TRACE_FILE
+  trace_processor_shell summarize \\
+    --metrics-v2 METRIC_ID_1,METRIC_ID_2 \\
+    TRACE_FILE YOUR_SPEC_FILE
   ```
 - **Run all metrics defined in the spec:** Use the keyword `all`.
   ```bash
-  trace_processor_shell --summary \\
-    --summary-spec YOUR_SPEC_FILE \\
-    --summary-metrics-v2 all \\
-    TRACE_FILE
+  trace_processor_shell summarize \\
+    --metrics-v2 all \\
+    TRACE_FILE YOUR_SPEC_FILE
   ```
-- **Output Format:** Control the output format with `--summary-format`.
+- **Output Format:** Control the output format with `--format`.
   - `text`: Human-readable text protobuf (default).
   - `binary`: Binary protobuf.
+
+NOTE: The classic `--summary --summary-spec FILE --summary-metrics-v2 IDS
+--summary-format FORMAT` invocation is still supported and produces identical
+output. See [Trace Processor → Subcommand interface](trace-processor.md#subcommands)
+for details on the new CLI.
 
 </tabs?>
 

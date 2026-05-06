@@ -14,15 +14,18 @@ SSE on modern x86_64 machines.
 ```bash
 curl -LO https://get.perfetto.dev/trace_processor
 chmod +x ./trace_processor
-./trace_processor --httpd /path/to/trace.pftrace
+./trace_processor server http /path/to/trace.pftrace
 ```
 
 Then open https://ui.perfetto.dev as usual.
 
 The Perfetto UI will automatically detect the presence of
-`trace_processor --httpd` by probing http://127.0.0.1:9001 . When detected it
-will prompt a dialog that asks if you want to use the external accelerator via
-a WebSocket or the built-in WebAssembly runtime that runs in the browser.
+`trace_processor server http` by probing http://127.0.0.1:9001 . When detected
+it will prompt a dialog that asks if you want to use the external accelerator
+via a WebSocket or the built-in WebAssembly runtime that runs in the browser.
+
+NOTE: The classic `./trace_processor --httpd /path/to/trace.pftrace` invocation
+is still supported and behaves identically.
 
 ## Using more than one instance in parallel
 
@@ -39,9 +42,9 @@ need to do this only once. If the flag is not displayed, the CL above has not
 made it into the release channel you are using (try Canary or Autopush)
 
 ```bash
-./trace_processor --httpd --http-port 9001 trace1.pftrace
-./trace_processor --httpd --http-port 9002 trace2.pftrace
-./trace_processor --httpd --http-port 9003 trace3.pftrace
+./trace_processor server http --port 9001 trace1.pftrace
+./trace_processor server http --port 9002 trace2.pftrace
+./trace_processor server http --port 9003 trace3.pftrace
 ```
 
 Then open the UI in three tabs as follows:

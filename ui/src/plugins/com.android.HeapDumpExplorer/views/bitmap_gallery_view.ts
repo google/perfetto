@@ -18,6 +18,7 @@ import type {SqlValue} from '../../../trace_processor/query_result';
 import type {Row} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {EmptyState} from '../../../widgets/empty_state';
+import {Select} from '../../../widgets/select';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
@@ -32,8 +33,8 @@ import {
   renderPath,
 } from '../components';
 import type {PathEntry} from '../types';
-import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
+import type {HeapDump} from '../queries';
 
 const SUMMARY_SCHEMA: SchemaRegistry = {
   query: {
@@ -153,10 +154,19 @@ function makeBitmapListSchema(navigate: NavFn): SchemaRegistry {
   };
 }
 
+type PathMode = 'none' | 'shortest' | 'dominator';
+
+const PATH_HEADING: Record<Exclude<PathMode, 'none'>, string> = {
+  shortest: 'Shortest Path',
+  dominator: 'Dominator Path',
+};
+
 interface BitmapCardAttrs {
   readonly row: BitmapListRow;
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly pathMode: PathMode;
   readonly pathData?: PathEntry[] | null;
 }
 
@@ -164,11 +174,11 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
   let obs: IntersectionObserver | null = null;
   let bitmap: InstanceDetail['bitmap'] | null | 'loading' | 'error' = null;
 
-  function load(engine: Engine, id: number) {
+  function load(engine: Engine, activeDump: HeapDump, id: number) {
     if (bitmap !== null) return;
     bitmap = 'loading';
     queries
-      .getBitmapPixels(engine, id)
+      .getBitmapPixels(engine, activeDump, id)
       .then((result) => {
         bitmap = result ?? 'error';
         m.redraw();
@@ -185,7 +195,11 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
       obs = new IntersectionObserver(
         ([entry]) => {
           if (entry.isIntersecting) {
-            load(vnode.attrs.engine, vnode.attrs.row.row.id);
+            load(
+              vnode.attrs.engine,
+              vnode.attrs.activeDump,
+              vnode.attrs.row.row.id,
+            );
             obs!.disconnect();
           }
         },
@@ -270,10 +284,17 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
             'Details',
           ),
         ),
-        vnode.attrs.pathData !== undefined && vnode.attrs.pathData !== null
+        vnode.attrs.pathMode !== 'none' &&
+          vnode.attrs.pathData !== undefined &&
+          vnode.attrs.pathData !== null
           ? m(
               'div',
               {class: 'ah-bitmap-card__path'},
+              m(
+                'div',
+                {class: 'ah-muted-heading'},
+                PATH_HEADING[vnode.attrs.pathMode],
+              ),
               vnode.attrs.pathData.length > 0
                 ? renderPath(vnode.attrs.pathData, navigate)
                 : m('span', {class: 'ah-muted'}, 'No path to GC root.'),
@@ -286,7 +307,9 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
 
 interface BitmapGalleryViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly hasFieldValues?: boolean;
   readonly filterKey?: string;
 }
@@ -294,28 +317,47 @@ interface BitmapGalleryViewAttrs {
 function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
   let rows: BitmapListRow[] | null = null;
   let alive = true;
-  let showPaths = false;
-  let pathsFetched = false;
-  const pathMap = new Map<number, PathEntry[]>();
+  let pathMode: PathMode = 'none';
+  const pathsFetched: Record<Exclude<PathMode, 'none'>, boolean> = {
+    shortest: false,
+    dominator: false,
+  };
+  const pathMaps: Record<
+    Exclude<PathMode, 'none'>,
+    Map<number, PathEntry[]>
+  > = {
+    shortest: new Map(),
+    dominator: new Map(),
+  };
   let filters: Filter[] = [];
 
-  function fetchAllPaths(engine: Engine, bitmaps: BitmapListRow[]) {
+  function fetchPaths(
+    engine: Engine,
+    bitmaps: BitmapListRow[],
+    mode: Exclude<PathMode, 'none'>,
+  ) {
     const ids = bitmaps.map((b) => b.row.id);
     if (ids.length === 0) return;
-    queries
-      .fetchPathsFromRoot(engine, ids)
+    const fetcher =
+      mode === 'shortest'
+        ? queries.fetchShortestPaths
+        : queries.fetchDominatorPaths;
+    fetcher(engine, ids)
       .then((paths) => {
         if (!alive) return;
         for (const id of ids) {
-          pathMap.set(id, paths.get(id) ?? []);
+          pathMaps[mode].set(id, paths.get(id) ?? []);
         }
-        pathsFetched = true;
+        pathsFetched[mode] = true;
         m.redraw();
       })
       .catch(console.error);
   }
 
-  function applyNavFilter(fk: string | undefined) {
+  function applyNavFilter(
+    fk: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!fk) return;
     filters = [{field: 'buffer_hash', op: '=' as const, value: fk}];
     clearNavParam('filterKey');
@@ -323,9 +365,9 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
 
   return {
     oninit(vnode) {
-      applyNavFilter(vnode.attrs.filterKey);
+      applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
       queries
-        .getBitmapList(vnode.attrs.engine)
+        .getBitmapList(vnode.attrs.engine, vnode.attrs.activeDump)
         .then((r) => {
           if (!alive) return;
           rows = r;
@@ -344,13 +386,13 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         .catch(console.error);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.filterKey);
+      applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
     },
     onremove() {
       alive = false;
     },
     view(vnode) {
-      const {engine, navigate} = vnode.attrs;
+      const {engine, activeDump, navigate} = vnode.attrs;
 
       if (!rows) {
         return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
@@ -401,17 +443,39 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
             `Bitmaps (${rows.length.toLocaleString()})`,
           ),
           m(
-            'button',
-            {
-              class: 'ah-link--alt',
-              onclick: () => {
-                showPaths = !showPaths;
-                if (showPaths && !pathsFetched) {
-                  fetchAllPaths(engine, rows!);
-                }
+            'label',
+            {class: 'ah-heading-control'},
+            m('span', {class: 'ah-heading-control__label'}, 'Path'),
+            m(
+              Select,
+              {
+                onchange: (e: Event) => {
+                  const value = (e.target as HTMLSelectElement)
+                    .value as PathMode;
+                  pathMode = value;
+                  if (value !== 'none' && !pathsFetched[value]) {
+                    fetchPaths(engine, rows!, value);
+                  }
+                },
               },
-            },
-            showPaths ? 'Hide Paths' : 'Show Paths',
+              [
+                m(
+                  'option',
+                  {value: 'none', selected: pathMode === 'none'},
+                  'None',
+                ),
+                m(
+                  'option',
+                  {value: 'shortest', selected: pathMode === 'shortest'},
+                  'Shortest path',
+                ),
+                m(
+                  'option',
+                  {value: 'dominator', selected: pathMode === 'dominator'},
+                  'Dominator path',
+                ),
+              ],
+            ),
           ),
         ]),
         m('div', {class: 'ah-card ah-mb-4'}, [
@@ -445,8 +509,13 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                   key: r.row.id,
                   row: r,
                   engine,
+                  activeDump,
                   navigate,
-                  pathData: showPaths ? pathMap.get(r.row.id) ?? null : null,
+                  pathMode,
+                  pathData:
+                    pathMode === 'none'
+                      ? undefined
+                      : pathMaps[pathMode].get(r.row.id) ?? null,
                 }),
               ),
             )

@@ -46,6 +46,18 @@ namespace perfetto::trace_processor {
 // RETURN_IF_ERROR(r.status());
 class PerfettoSqlParser {
  public:
+  // True if this parser delegates macro expansion + statement splitting to
+  // syntaqlite, false if it uses the handwritten PerfettoSqlPreprocessor.
+  // Exposed so tests can gate path-specific assertions; will be removed
+  // along with the legacy implementation when the cutover completes.
+  static constexpr bool kUsesSyntaqliteMacros = false;
+
+  // A CREATE PERFETTO MACRO definition. Aliased to the preprocessor type so
+  // engine code can spell `PerfettoSqlParser::Macro` instead of reaching into
+  // the preprocessor; the alias also reserves the name for future
+  // implementations that own the macro struct directly.
+  using Macro = PerfettoSqlPreprocessor::Macro;
+
   // Indicates that the specified SQLite SQL was extracted directly from a
   // PerfettoSQL statement and should be directly executed with SQLite.
   struct SqliteSql {};
@@ -128,9 +140,8 @@ class PerfettoSqlParser {
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
-  explicit PerfettoSqlParser(
-      SqlSource,
-      const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&);
+  explicit PerfettoSqlParser(SqlSource,
+                             const base::FlatHashMap<std::string, Macro>&);
 
   ~PerfettoSqlParser();
 

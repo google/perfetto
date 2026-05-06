@@ -1,10 +1,10 @@
-# Recording memory profiles with Perfetto
+# Profiling memory usage and allocations with Perfetto
 
 In this guide, you'll learn how to:
 
-- Record native and Java heap profiles with Perfetto.
-- Visualize and analyze heap profiles in the Perfetto UI.
 - Understand the different memory profiling modes and when to use them.
+- Record native and Java heap profiles with Perfetto.
+- Visualize and analyze allocation profiles in the Perfetto UI.
 
 The memory use of a process plays a key role in the performance of processes and
 impact on overall system stability. Understanding where and how your process is
@@ -14,7 +14,7 @@ running slower than you expect or just help make your program more efficient.
 When it comes to apps and memory, there are mainly two ways a process can use
 memory:
 
-- **Native C/C++/Rust processes**: typically allocate memory via libc's
+- **Native C/C++/Rust code**: typically allocate memory via libc's
   malloc/free (or wrappers on top of it like C++'s new/delete). Note that native
   allocations are still possible (and quite frequent) when using Java APIs that
   are backed by JNI counterparts. A canonical example is
@@ -22,21 +22,19 @@ memory:
   Java heap and **native memory** due to the underlying use of native regex
   libraries.
 
-- **Java/KT Apps**: a good portion of the memory footprint of an app lives in
+- **Java/KT code**: a good portion of the memory footprint of an app lives in
   the **managed heap** (in the case of Android, managed by ART's garbage
   collector). This is where every `new X()` object lives.
 
-Perfetto offers two complementary techniques for debugging the above:
+Perfetto offers multiple complementary techniques for debugging the above:
 
-- [**heap profiling**](#native-c-c-rust-heap-profling) for native code: this is
-  based on sampling callstacks when a malloc/free happens and showing aggregated
-  flamegraphs to break down memory usage by call site.
+Tool | Language | What is instrumented | Usage
+-----|----------|----------------------|------
+[ART Heap Dumps](#art-heap-dumps) | Java/Kotlin | Reference graph of all allocated objects | Breakdown memory usage, and find leaks.
+[Native Allocation Profiling](#native-heap-profiling) | Native C/C++/Rust | `malloc` + `free` | Reduce native allocation churn, breakdown memory usage and find leaks **after profiling started**.
+[ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#java-heap-sampling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
 
-- [**heap dumps**](#java-managed-heap-dumps) for Java/managed code: this is
-  based on creating heap retention graphs that show retention dependencies
-  between objects (but no call-sites).
-
-## Native (C/C++/Rust) Heap Profiling
+## {#native-heap-profiling} Native (C/C++/Rust) Allocation Profiling (aka native heap profiling)
 
 Native languages like C/C++/Rust commonly allocate and deallocate memory at the
 lowest level by using the libc family of `malloc`/`free` functions. Native heap
@@ -63,7 +61,7 @@ anecdotal experience is that if you are chasing a memory leak, there is a good
 chance that the leak will keep happening over time and hence you will be able to
 see future increments.
 
-### Collecting your first heap profile
+### Collecting your first Native Allocation Profile
 
 <?tabs>
 
@@ -102,8 +100,8 @@ implementation.
 
 TAB: Android (Command line)
 
-On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
-implementation.
+On Android Perfetto native heap profiling hooks are seamlessly integrated into
+the libc implementation.
 
 #### Prerequisites
 
@@ -139,11 +137,15 @@ Download the `tools/heap_profile` (if you don't have a perfetto checkout):
 curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile
 ```
 
-Then start the profile:
+Then start the profile using the `android` subcommand:
 
 ```bash
-python3 heap_profile -n com.google.android.apps.nexuslauncher
+python3 heap_profile android -n com.google.android.apps.nexuslauncher
 ```
+
+The bare invocation (`python3 heap_profile -n ...`) still works and is
+equivalent to the `android` subcommand - it is kept for backwards
+compatibility. New scripts should use the explicit subcommand form.
 
 Run your test patterns, interact with the process and press Ctrl-C when done
 (or pass `-d 10000` for a time-limited profiling)
@@ -160,64 +162,73 @@ TAB: Linux (Command line)
 
 #### Prerequisites
 
-* You need to build the `libheapprofd_glibc_preload.so` library from a Perfetto
-  checkout ([instructions](/docs/data-sources/native-heap-profiler#-non-android-linux-support))
+* A Linux machine on x86_64, ARM, or ARM64.
 
 #### Instructions
 
-Download tracebox and the heap_profile script
+Download the `heap_profile` script:
+
 ```bash
-curl -LO https://get.perfetto.dev/tracebox
 curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile
-chmod +x tracebox heap_profile
+chmod +x heap_profile
 ```
 
-Start the tracing service
+Then run the `host` subcommand, passing the binary you want to profile after
+`--`:
+
 ```bash
-./tracebox traced &
+./heap_profile host -- ./my_binary --some-flag
 ```
 
-Generate the heapprofd config and start the tracing session.
+The script:
+
+1. Auto-downloads `tracebox` and `libheapprofd_glibc_preload.so` into
+   `~/.local/share/perfetto/prebuilts/` on first run.
+2. Starts a bundled `traced` daemon and opens a tracing session.
+3. Launches your binary with `LD_PRELOAD` set to the preload library and
+   `PERFETTO_HEAPPROFD_BLOCKING_INIT=1`. heapprofd would otherwise
+   initialize lazily and miss startup allocations; this env var blocks the
+   first `malloc` until it has attached, so every allocation is captured.
+
+When your binary exits (or you press `Ctrl-C` to stop early) the script
+runs `traceconv` to produce gzipped pprof files alongside the raw trace and
+prints the output directory. A typical end-to-end run looks like this:
+
+```text
+$ ./heap_profile host -- ./my_binary
+[762.189] ctory_standalone.cc:161 Child disconnected.
+[762.190] approfd_producer.cc:580 Stopping data source 1
+[762.190] pprofd_producer.cc:1230 1752951 disconnected from heapprofd (ds shutting down: 1).
+[762.190] approfd_producer.cc:346 Shutting down child heapprofd (status 0).
+Waiting for profiler shutdown...
+Wrote profiles to /tmp/f8f102 (symlink /tmp/heap_profile-latest)
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
+```
+
+The output directory contains a `raw-trace` file (the binary Perfetto trace)
+and one `heap_dump.*.pb.gz` file per registered heap. Upload `raw-trace` to
+the [Perfetto UI](https://ui.perfetto.dev) and click the chevron on the
+"Native heap profile" track to get a flamegraph identical in shape to the
+Android flow described below:
+
+![Linux host-mode heap profile flamegraph](/docs/images/heapprofd-host-flamegraph.png)
+
+If `-n` / `--name` is omitted, the process name defaults to the basename of
+the binary you passed after `--`.
+
+To override the auto-downloaded preload library with a local build, build
+`heapprofd_glibc_preload` from a Perfetto checkout and pass its path via
+`--preload-library`:
+
 ```bash
-# Replace trace_processor_shell with with the name of the process you want to
-# profile.
-./heap_profile -n trace_processor_shell --print-config | \
-  ./tracebox perfetto --txt -c - -o ~/trace_processor_memory.pftrace
+tools/ninja -C out/linux_clang_release heapprofd_glibc_preload
+./heap_profile host \
+  --preload-library out/linux_clang_release/libheapprofd_glibc_preload.so \
+  -- ./my_binary --some-flag
 ```
 
-Open another terminal (or tab), start the process you want to profile,
-preloading the heapprofd's .so. Example:
-```bash
-PERFETTO_HEAPPROFD_BLOCKING_INIT=1 \
-LD_PRELOAD=out/lnx/libheapprofd_glibc_preload.so \
-trace_processor_shell /dev/null
-
-# Typing this will cause a 40MB allocation.
-> CREATE TABLE x as SELECT randomblob(40000000) as data
-```
-
-By default, heapprofd lazily initalizes to avoid blocking your program's
-main thread. However, if your program makes memory allocations on startup,
-these can be missed. To avoid this from happening, set the enironment variable
-`PERFETTO_HEAPPROFD_BLOCKING_INIT=1`; on the first malloc, your program will
-be blocked until heapprofd initializes fully but means every allocation will
-be correctly tracked.
-
-At this point:
-
-* If your process terminates first, it will flush all the profiling data into
-  the tracing buffer.
-* If not, you can request a flush of the profiling data by stopping the trace.
-
-In either case: press Ctrl-C on the `tracebox perfetto` command of the previous
-step. That will write the trace file (e.g. `~/trace_processor_memory.pftrace`)
-which you can then open with the Perfetto UI.
-
-Remember also to kill the `tracebox traced` service once you are done.
-```bash
-fg
-# Ctrl-C
-```
+See [(non-Android) Linux support](/docs/data-sources/native-heap-profiler.md#non-android-linux-support)
+for more details.
 </tabs?>
 
 ### Visualizing your first heap profile
@@ -294,7 +305,7 @@ FROM android_heap_graph_class_aggregation;
 
 you can see a summary of the reachable aggregate object sizes and object counts.
 
-## Java/Managed Heap Dumps
+## ART Heap Dumps
 
 Java—and managed languages built on top of it, like Kotlin—use a runtime
 environment to handle memory management and garbage collection. In these
@@ -303,9 +314,9 @@ object references: objects retain other objects, and memory is automatically
 reclaimed by the garbage collector once objects become unreachable. There is no
 free() call as in manual memory management.
 
-As a result, most profiling tools for managed languages work by capturing and
-analyzing a complete heap dump, which includes all live objects and their
-retaining relationships—a full object graph.
+As a result, most profiling tools for the heap of a managed languages work by
+capturing and analyzing a complete heap dump, which includes all live objects
+and their retaining relationships—a full object graph.
 
 This approach has the advantage of retroactive analysis: it provides a
 consistent snapshot of the entire heap without requiring prior instrumentation.
@@ -314,7 +325,7 @@ others alive, you typically cannot see the exact call sites where those objects
 were allocated. This can make it harder to reason about memory usage, especially
 when the same type of object is allocated from multiple locations in the code.
 
-NOTE: Java heap dumps with Perfetto only works on Android. This is due to the
+NOTE: ART heap dumps with Perfetto only works on Android. This is due to the
 deep integration with the JVM (Android Runtime - ART) required to efficiently
 capture a heap dump without impacting the performance of the process.
 
@@ -402,7 +413,7 @@ This can be viewed using https://ui.perfetto.dev.
 ```
 </tabs?>
 
-### Visualizing your first heap dump
+### Visualizing your first ART heap dump
 
 Open the `/tmp/xxxx` file in the Perfetto UI and click on the chevron marker in
 the UI track labeled "Heap profile".

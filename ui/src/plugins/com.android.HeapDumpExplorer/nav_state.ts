@@ -12,27 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Internal navigation state for the Heapdump Explorer plugin.
-
-import m from 'mithril';
-
 export type NavState =
   | {view: 'overview'; params: Record<string, never>}
-  | {view: 'classes'; params: Record<string, never>}
+  | {view: 'classes'; params: {rootClass?: string}}
   | {view: 'dominators'; params: Record<string, never>}
   | {view: 'objects'; params: {cls?: string}}
   | {view: 'object'; params: {id: number; label?: string}}
   | {view: 'bitmaps'; params: {id?: number; filterKey?: string}}
   | {view: 'strings'; params: {q?: string}}
   | {view: 'arrays'; params: {arrayHash?: string}}
-  | {view: 'flamegraph-objects'; params: {name?: string}};
+  | {view: 'flamegraph-objects'; params: {name?: string}}
+  | {view: 'flamegraph'; params: Record<string, never>};
+
+export type NavView = NavState['view'];
 
 export function stateToSubpage(state: NavState): string {
   switch (state.view) {
     case 'overview':
       return '';
-    case 'classes':
-      return 'classes';
+    case 'classes': {
+      const root = state.params.rootClass;
+      return root ? `classes?root=${encodeURIComponent(root)}` : 'classes';
+    }
     case 'dominators':
       return 'dominators';
     case 'objects': {
@@ -62,6 +63,8 @@ export function stateToSubpage(state: NavState): string {
         ? `flamegraph_objects_${encodeURIComponent(n)}`
         : 'flamegraph_objects';
     }
+    case 'flamegraph':
+      return 'flamegraph';
   }
 }
 
@@ -88,8 +91,10 @@ export function subpageToState(subpage: string | undefined): NavState {
     case '':
     case 'overview':
       return {view: 'overview', params: {}};
-    case 'classes':
-      return {view: 'classes', params: {}};
+    case 'classes': {
+      const root = sp.get('root') ?? undefined;
+      return {view: 'classes', params: root ? {rootClass: root} : {}};
+    }
     case 'dominators':
       return {view: 'dominators', params: {}};
     case 'objects': {
@@ -127,52 +132,9 @@ export function subpageToState(subpage: string | undefined): NavState {
       const n = param ? decodeURIComponent(param) : undefined;
       return {view: 'flamegraph-objects', params: n ? {name: n} : {}};
     }
+    case 'flamegraph':
+      return {view: 'flamegraph', params: {}};
     default:
       return {view: 'overview', params: {}};
   }
-}
-
-export let nav: NavState = {view: 'overview', params: {}};
-
-let navigateCallback: ((subpage: string) => void) | undefined;
-
-export function setNavigateCallback(
-  cb: ((subpage: string) => void) | undefined,
-): void {
-  navigateCallback = cb;
-}
-
-export function navigate(
-  v: NavState['view'],
-  p: Record<string, unknown> = {},
-): void {
-  const state = {view: v, params: p} as NavState;
-  nav = state;
-  navigateCallback?.(stateToSubpage(state));
-  m.redraw();
-}
-
-// Clear a single nav param without pushing a history entry.
-// Used after consuming a one-shot param (e.g. a filter from overview).
-export function clearNavParam(key: string): void {
-  const params = {...(nav.params as Record<string, unknown>)};
-  delete params[key];
-  nav = {view: nav.view, params} as NavState;
-}
-
-export function syncFromSubpage(subpage: string | undefined): void {
-  if (subpage?.startsWith('/')) subpage = subpage.slice(1);
-  // Compare path-only: Perfetto's router strips query params from subpage.
-  const currentSubpage = stateToSubpage(nav);
-  const currentPath = currentSubpage.split('?')[0];
-  const incomingPath = (subpage ?? '').split('?')[0];
-  if (incomingPath !== currentPath) {
-    nav = subpageToState(subpage);
-  }
-}
-
-// Shared flag for sidebar sub-item visibility (readable by sidebar callbacks).
-export let hasReadyHprofSession = false;
-export function setHasReadyHprofSession(v: boolean): void {
-  hasReadyHprofSession = v;
 }

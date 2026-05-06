@@ -160,6 +160,10 @@ message InternedData {
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
+
+  // Extension range for domain-specific interned data. See
+  // interned_data_extensions.json for the allocation registry.
+  extensions 1000 to 9999;
 }
 
 message AndroidJobName {

@@ -12,6 +12,16 @@ android_blocking_calls_cuj_metric {
     ts: 2000000
     dur: 15000000
     blocking_calls {
+      name: "CreateGraphicsPipeline"
+      cnt: 1
+      total_dur_ms: 1
+      max_dur_ms: 1
+      min_dur_ms: 1
+      total_dur_ns: 1000000
+      max_dur_ns: 1000000
+      min_dur_ns: 1000000
+    }
+    blocking_calls {
       name: "binder transaction"
       cnt: 4
       total_dur_ms: 6
@@ -34,6 +44,16 @@ android_blocking_calls_cuj_metric {
     }
     ts: 2000000
     dur: 15000000
+    blocking_calls {
+      name: "CreateGraphicsPipeline"
+      cnt: 1
+      total_dur_ms: 1
+      max_dur_ms: 1
+      min_dur_ms: 1
+      total_dur_ns: 1000000
+      max_dur_ns: 1000000
+      min_dur_ns: 1000000
+    }
     blocking_calls {
       name: "binder transaction"
       cnt: 4

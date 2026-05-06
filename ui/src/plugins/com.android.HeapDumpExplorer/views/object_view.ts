@@ -14,8 +14,11 @@
 
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
-import type {SqlValue} from '../../../trace_processor/query_result';
-import type {Row} from '../../../trace_processor/query_result';
+import {
+  STR,
+  type Row,
+  type SqlValue,
+} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {
@@ -36,15 +39,26 @@ import {
   BitmapImage,
 } from '../components';
 import * as queries from '../queries';
+import type {HeapDump} from '../queries';
 
 export interface ObjectParams {
   readonly id: number;
 }
 
+// Open the flamegraph pivoted at the given path. Routed through the
+// session so flamegraph state has a single owner.
+export type OpenFlamegraphPivotedAt = (
+  pathHash: string,
+  label: string,
+  isDominator: boolean,
+) => void;
+
 interface ObjectViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
+  readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
 }
 
@@ -486,7 +500,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
     prevId = attrs.params.id;
     const seq = ++fetchSeq;
     queries
-      .getInstance(attrs.engine, attrs.params.id)
+      .getInstance(attrs.engine, attrs.activeDump, attrs.params.id)
       .then((d) => {
         if (!alive || seq !== fetchSeq) return;
         detail = d;
@@ -554,6 +568,28 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
       const {row} = detail;
 
+      const flamegraphAction = (isDominator: boolean) =>
+        row.className
+          ? m(
+              'button',
+              {
+                class: 'ah-link',
+                title: isDominator
+                  ? 'Open in Flamegraph pivoted on this dominator path'
+                  : 'Open in Flamegraph pivoted on this shortest path',
+                onclick: () =>
+                  openInFlamegraph(
+                    vnode.attrs.engine,
+                    row.id,
+                    row.className,
+                    isDominator,
+                    vnode.attrs.openFlamegraphPivotedAt,
+                  ),
+              },
+              'View in Flamegraph',
+            )
+          : null;
+
       return m('div', {class: 'ah-view-scroll ah-view-stack'}, [
         m('div', [
           m(
@@ -612,21 +648,55 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
         m(
           Section,
           {
-            title: detail.isUnreachablePath
-              ? 'Sample Path'
-              : 'Sample Path from GC Root',
+            title: 'Shortest Path from GC Root',
+            actions: detail.shortestPath ? flamegraphAction(false) : null,
           },
-          detail.pathFromRoot
+          detail.shortestPath
             ? m(
                 'div',
                 {class: 'ah-view-stack--tight'},
-                detail.pathFromRoot.map((pe, i) =>
+                detail.shortestPath.map((pe, i) =>
+                  m(
+                    'div',
+                    {
+                      key: i,
+                      class: 'ah-path-entry',
+                      style: {'--ah-depth': String(i)},
+                    },
+                    [
+                      m(
+                        'span',
+                        {class: 'ah-path-arrow'},
+                        i === 0 ? '' : '\u2192',
+                      ),
+                      m(InstanceLink, {row: pe.row, navigate}),
+                      pe.field
+                        ? m('span', {class: 'ah-path-field'}, pe.field)
+                        : null,
+                    ],
+                  ),
+                ),
+              )
+            : m('p', {class: 'ah-muted'}, 'No path to GC root.'),
+        ),
+
+        m(
+          Section,
+          {
+            title: 'Dominator Tree Path',
+            actions: detail.dominatorPath ? flamegraphAction(true) : null,
+          },
+          detail.dominatorPath
+            ? m(
+                'div',
+                {class: 'ah-view-stack--tight'},
+                detail.dominatorPath.map((pe, i) =>
                   m(
                     'div',
                     {
                       key: i,
                       class: `ah-path-entry${pe.isDominator ? ' ah-semibold' : ''}`,
-                      style: {paddingLeft: Math.min(i, 20) * 12},
+                      style: {'--ah-depth': String(i)},
                     },
                     [
                       m(
@@ -715,23 +785,18 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
         detail.isClassObj
           ? m(Section, {title: 'Class Info'}, [
               m('div', {class: 'ah-info-grid ah-mb-3'}, [
-                m('span', {class: 'ah-info-grid__label'}, 'Super Class:'),
-                m(
-                  'span',
-                  detail.superClassObjId != null
-                    ? m(InstanceLink, {
-                        row: {
-                          id: detail.superClassObjId,
-                          display: fmtHex(detail.superClassObjId),
-                        },
-                        navigate,
-                      })
-                    : 'none',
-                ),
                 m('span', {class: 'ah-info-grid__label'}, 'Instance Size:'),
                 m('span', {class: 'ah-mono'}, String(detail.instanceSize)),
               ]),
             ])
+          : null,
+
+        detail.classHierarchy.length > 0
+          ? m(
+              Section,
+              {title: 'Class Hierarchy'},
+              renderClassHierarchy(detail.classHierarchy, navigate),
+            )
           : null,
 
         detail.isClassObj
@@ -934,6 +999,81 @@ function renderArrayGrid(
       showExportButton: true,
     }),
   ]);
+}
+
+// Look up the object's path_hash in the chosen tree (BFS or dominator)
+// and open the flamegraph pivoted on it with the matching metric. The
+// hash is tree-specific so the tree dictates both. No-op if the object
+// has no entry (e.g. unreachable garbage).
+async function openInFlamegraph(
+  engine: Engine,
+  id: number,
+  cls: string,
+  isDominator: boolean,
+  openFlamegraphPivotedAt: OpenFlamegraphPivotedAt,
+): Promise<void> {
+  const moduleName = isDominator
+    ? 'android.memory.heap_graph.dominator_class_tree'
+    : 'android.memory.heap_graph.class_tree';
+  const table = isDominator
+    ? '_heap_graph_dominator_path_hashes'
+    : '_heap_graph_path_hashes';
+  await engine.query(`INCLUDE PERFETTO MODULE ${moduleName};`);
+  const res = await engine.query(
+    `SELECT CAST(path_hash AS TEXT) AS path_hash
+       FROM ${table} WHERE id = ${id} LIMIT 1`,
+  );
+  const it = res.iter({path_hash: STR});
+  if (!it.valid()) return;
+  openFlamegraphPivotedAt(it.path_hash, shortClassName(cls), isDominator);
+}
+
+// `java.lang.Class<Foo>` has no useful subclasses in heap_graph_class; the
+// meaningful filter target is `Foo`.
+const CLASS_OBJ_PREFIX = 'java.lang.Class<';
+function subclassFilterTarget(className: string): string {
+  if (className.startsWith(CLASS_OBJ_PREFIX) && className.endsWith('>')) {
+    return className.slice(CLASS_OBJ_PREFIX.length, -1);
+  }
+  return className;
+}
+
+function classFilterLink(className: string, navigate: NavFn): m.Child {
+  return m(
+    'button',
+    {
+      class: 'ah-link',
+      title: 'Open subclasses of this class',
+      onclick: () =>
+        navigate('classes', {rootClass: subclassFilterTarget(className)}),
+    },
+    className,
+  );
+}
+
+function renderClassHierarchy(
+  hierarchy: string[],
+  navigate: NavFn,
+): m.Children {
+  const topDown = hierarchy.slice().reverse();
+  return m(
+    'div',
+    {class: 'ah-view-stack--tight'},
+    topDown.map((className, i) =>
+      m(
+        'div',
+        {
+          key: className,
+          class: `ah-path-entry${i === topDown.length - 1 ? ' ah-semibold' : ''}`,
+          style: {'--ah-depth': String(i)},
+        },
+        [
+          m('span', {class: 'ah-path-arrow'}, i === 0 ? '' : '→'),
+          classFilterLink(className, navigate),
+        ],
+      ),
+    ),
+  );
 }
 
 export default ObjectView;

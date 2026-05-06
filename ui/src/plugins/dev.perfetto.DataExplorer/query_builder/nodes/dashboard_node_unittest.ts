@@ -27,9 +27,7 @@ import {
 } from '../testing/test_utils';
 
 function makeNode(overrides: {exportName?: string} = {}): DashboardNode {
-  return new DashboardNode({
-    exportName: overrides.exportName,
-  });
+  return new DashboardNode({exportName: overrides.exportName}, {});
 }
 
 describe('DashboardNode', () => {
@@ -121,7 +119,7 @@ describe('DashboardNode', () => {
       const node = makeNode();
       // First validation: fails.
       node.validate();
-      expect(node.state.issues?.queryError).toBeTruthy();
+      expect(node.context.issues?.queryError).toBeTruthy();
 
       // Connect valid input, re-validate: succeeds.
       const source = createMockSourceNode();
@@ -131,9 +129,9 @@ describe('DashboardNode', () => {
 
     test('lazily creates issues object on first error', () => {
       const node = makeNode();
-      expect(node.state.issues).toBeUndefined();
+      expect(node.context.issues).toBeUndefined();
       node.validate();
-      expect(node.state.issues).toBeDefined();
+      expect(node.context.issues).toBeDefined();
     });
   });
 
@@ -164,7 +162,7 @@ describe('DashboardNode', () => {
       const node = makeNode({exportName: 'My Export'});
       const cloned = node.clone() as DashboardNode;
       expect(cloned.nodeId).not.toBe(node.nodeId);
-      expect(cloned.state.exportName).toBe('My Export');
+      expect(cloned.attrs.exportName).toBe('My Export');
     });
 
     test('cloned node has no primary input', () => {
@@ -179,33 +177,14 @@ describe('DashboardNode', () => {
   // --- Serialization ---
 
   describe('serialization', () => {
-    test('serializes exportName', () => {
+    test('attrs preserves exportName', () => {
       const node = makeNode({exportName: 'My Data'});
-      const serialized = node.serializeState();
-      expect(serialized.exportName).toBe('My Data');
+      expect(node.attrs.exportName).toBe('My Data');
     });
 
-    test('serializes undefined exportName', () => {
+    test('attrs exportName is undefined when not set', () => {
       const node = makeNode();
-      const serialized = node.serializeState();
-      expect(serialized.exportName).toBeUndefined();
-    });
-
-    test('deserializeState restores exportName', () => {
-      const state = DashboardNode.deserializeState({exportName: 'Restored'});
-      expect(state.exportName).toBe('Restored');
-    });
-
-    test('deserializeState handles missing exportName', () => {
-      const state = DashboardNode.deserializeState({});
-      expect(state.exportName).toBeUndefined();
-    });
-
-    test('serialize then deserialize round-trip preserves exportName', () => {
-      const node = makeNode({exportName: 'Round Trip'});
-      const serialized = node.serializeState();
-      const restored = DashboardNode.deserializeState(serialized);
-      expect(restored.exportName).toBe('Round Trip');
+      expect(node.attrs.exportName).toBeUndefined();
     });
   });
 
@@ -307,10 +286,13 @@ describe('DashboardNode', () => {
       const mockGetTable = jest.fn().mockResolvedValue('table_42');
       const mockRequest = jest.fn().mockResolvedValue(undefined);
       const source = createMockSourceNode('src-1');
-      const node = new DashboardNode({
-        getTableNameForNode: mockGetTable,
-        requestNodeExecution: mockRequest,
-      });
+      const node = new DashboardNode(
+        {},
+        {
+          getTableNameForNode: mockGetTable,
+          requestNodeExecution: mockRequest,
+        },
+      );
       connectNodes(source, node);
       node.onPrevNodesUpdated();
 
@@ -328,9 +310,12 @@ describe('DashboardNode', () => {
     test('published source includes requestExecution callback', () => {
       const mockRequest = jest.fn().mockResolvedValue(undefined);
       const source = createMockSourceNode('src-1');
-      const node = new DashboardNode({
-        requestNodeExecution: mockRequest,
-      });
+      const node = new DashboardNode(
+        {},
+        {
+          requestNodeExecution: mockRequest,
+        },
+      );
       connectNodes(source, node);
       node.onPrevNodesUpdated();
 
