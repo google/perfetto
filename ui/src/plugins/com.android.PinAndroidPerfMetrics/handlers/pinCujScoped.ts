@@ -96,7 +96,8 @@ class PinCujScopedJank implements MetricHandler {
       SELECT
         f.vsync as id,
         f.ts AS ts,
-        f.dur as dur
+        f.dur as dur,
+        f.jank_score as jank_score
       FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
       WHERE cuj.process_name = "${processName}"
       AND cuj_name = "${cuj}" ${jankTypeFilter}
@@ -105,7 +106,7 @@ class PinCujScopedJank implements MetricHandler {
     await ctx.engine.query(createJankyCujFrameTable);
 
     const jankyFramesDuringCujQuery = `
-      SELECT id, ts, dur
+      SELECT id, ts, dur, jank_score
       FROM ${tableWithJankyFramesName}
     `;
 
@@ -114,10 +115,14 @@ class PinCujScopedJank implements MetricHandler {
     const cujScopedJankSlice = {
       data: {
         sqlSource: jankyFramesDuringCujQuery,
-        columns: ['id', 'ts', 'dur'],
+        columns: ['id', 'ts', 'dur', 'jank_score'],
       },
-      columns: {ts: 'ts', dur: 'dur', name: 'id'},
-      argColumns: ['id', 'ts', 'dur'],
+      columns: {
+        ts: 'ts',
+        dur: 'dur',
+        name: metricData.isWeighted ? 'jank_score' : 'id',
+      },
+      argColumns: ['id', 'ts', 'dur', 'jank_score'],
       title: trackName,
     };
 
