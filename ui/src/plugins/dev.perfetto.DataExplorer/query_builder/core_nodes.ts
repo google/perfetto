@@ -147,8 +147,11 @@ export function registerCoreNodes() {
       }
       return null;
     },
-    factory: (_attrs) =>
-      new TableSourceNode(_attrs as TableSourceNodeAttrs, {}),
+    factory: (_attrs, factoryCtx) =>
+      new TableSourceNode(
+        _attrs as TableSourceNodeAttrs,
+        factoryCtx?.context ?? {},
+      ),
     deserialize: (_attrs, trace, sqlModules) =>
       new TableSourceNode(_attrs as TableSourceNodeAttrs, {trace, sqlModules}),
   });
@@ -246,10 +249,16 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Columns',
     nodeType: NodeType.kModifyColumns,
-    factory: (_attrs) =>
-      new ModifyColumnsNode(_attrs as unknown as ModifyColumnsNodeAttrs, {}),
-    deserialize: (_attrs, _trace, _sqlModules) =>
-      new ModifyColumnsNode(_attrs as ModifyColumnsNodeAttrs, {}),
+    factory: (_attrs, factoryCtx) =>
+      new ModifyColumnsNode(
+        _attrs as unknown as ModifyColumnsNodeAttrs,
+        factoryCtx?.context ?? {},
+      ),
+    deserialize: (_attrs, trace, sqlModules) =>
+      new ModifyColumnsNode(_attrs as ModifyColumnsNodeAttrs, {
+        trace,
+        sqlModules,
+      }),
   });
 
   nodeRegistry.register('aggregation', {
@@ -495,8 +504,11 @@ export function registerCoreNodes() {
     type: 'export',
     nodeType: NodeType.kTraceSummary,
     allowedChildren: [],
-    factory: (_attrs) =>
-      new TraceSummaryNode(_attrs as TraceSummaryNodeAttrs, {}),
+    factory: (_attrs, factoryCtx) =>
+      new TraceSummaryNode(
+        _attrs as TraceSummaryNodeAttrs,
+        factoryCtx?.context ?? {},
+      ),
     deserialize: (_attrs, trace) =>
       new TraceSummaryNode(_attrs as TraceSummaryNodeAttrs, {trace}),
   });
