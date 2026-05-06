@@ -51,9 +51,9 @@ constexpr std::pair<EventType, const char*> kEventTypeNames[] = {
     {EventType::kFilesystemControlEvent, "FilesystemControlEvent"},
     {EventType::kEndOperation, "EndOperation"},
     {EventType::kDirectoryNotification, "DirectoryNotification"},
-    {EventType::kPathOperation79, "kPathOperation79"},
-    {EventType::kPathOperation80, "kPathOperation80"},
-    {EventType::kFltRead, "FltRead-FooBar"},
+    {EventType::kDeletePath, "DeletePath"},
+    {EventType::kRenamePath, "RenamePath"},
+    {EventType::kFltRead, "FltRead"},
     {EventType::kFltWrite, " FltWrite"},
     {EventType::kFltSetInfo, "FltSetInfo"},
     {EventType::kFltQueryInfo, "FltQueryInfo"}};

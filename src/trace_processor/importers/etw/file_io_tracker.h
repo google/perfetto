@@ -49,8 +49,8 @@ enum class EventType : uint32_t {
   kFilesystemControlEvent = 75,
   kEndOperation = 76,
   kDirectoryNotification = 77,
-  kPathOperation79 = 79,  // DirEnum
-  kPathOperation80 = 80,  // DirNotify?
+  kDeletePath = 79,
+  kRenamePath = 80,
   kFltRead = 83,
   kFltWrite = 84,
   kFltSetInfo = 85,
