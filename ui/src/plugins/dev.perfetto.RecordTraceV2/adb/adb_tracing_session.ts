@@ -18,15 +18,18 @@ import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
 import {errResult, okResult, Result} from '../../../base/result';
 import {exists} from '../../../base/utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
-import {RecordTraceV2Settings} from '../settings';
+
+let tracedSocket = '/dev/socket/traced_consumer';
+export function setTracedSocket(socket: string) {
+  tracedSocket = socket;
+}
 
 export async function createAdbTracingSession(
   adbDevice: AdbDevice,
   traceConfig: protos.ITraceConfig,
-  settings: RecordTraceV2Settings,
 ): Promise<Result<ConsumerIpcTracingSession>> {
   const streamStatus = await adbDevice.createStream(
-    settings.getTracedConsumerSocketAddressForAdb(),
+    getTracedConsumerSocketAddressForAdb(),
   );
   if (!streamStatus.ok) return streamStatus;
   const stream = streamStatus.value;
@@ -37,15 +40,12 @@ export async function createAdbTracingSession(
 
 export async function getAdbTracingServiceState(
   adbDevice: AdbDevice,
-  settings: RecordTraceV2Settings,
 ): Promise<Result<protos.ITracingServiceState>> {
   const status = await adbDevice.createStream(
-    settings.getTracedConsumerSocketAddressForAdb(),
+    getTracedConsumerSocketAddressForAdb(),
   );
   if (!status.ok) {
-    return errResult(
-      `Failed to connect to ${settings.getTracedConsumerSocketAddress()}: ${status.error}`,
-    );
+    return errResult(`Failed to connect to ${tracedSocket}: ${status.error}`);
   }
   const stream = status.value;
   using consumerPort = await TracingProtocol.create(stream);
@@ -56,4 +56,13 @@ export async function getAdbTracingServiceState(
     return errResult('Failed to decode QueryServiceStateResponse');
   }
   return okResult(resp.serviceState);
+}
+
+// Return the fully formed ADB socket address according to the settings
+// The address is of the form <type>:<address>
+function getTracedConsumerSocketAddressForAdb() {
+  if (tracedSocket.startsWith('@')) {
+    return `localabstract:${tracedSocket.slice(1)}`;
+  }
+  return `localfilesystem:${tracedSocket}`;
 }
