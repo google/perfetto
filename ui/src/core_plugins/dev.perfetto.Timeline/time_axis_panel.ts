@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {canvasClip} from '../../base/canvas_utils';
+import {canvasClip, canvasSave} from '../../base/canvas_utils';
 import {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/assert';
 import {Time, time, formatDate} from '../../base/time';
@@ -44,7 +44,7 @@ export class TimeAxisPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.textAlign = 'left';
+    using _ = canvasSave(ctx);
     ctx.font = `11px ${FONT_COMPACT}`;
 
     this.renderOffsetTimestamp(ctx);
@@ -58,6 +58,7 @@ export class TimeAxisPanel {
   }
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {
+    ctx.textAlign = 'left';
     ctx.fillStyle = COLOR_TEXT_MUTED;
     const timeAxisOrigin = this.trace.timeline.getTimeAxisOrigin();
     const timestampFormat = this.trace.timeline.timestampFormat;
@@ -130,6 +131,10 @@ export class TimeAxisPanel {
     const timespan = visibleWindow.toTimeSpan();
     const offset = this.trace.timeline.getTimeAxisOrigin();
 
+    // Align timestamps to the left of the ticks, otherwise the first one is
+    // simply 0 which is useless.
+    ctx.textAlign = 'right';
+
     // Draw time axis.
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
@@ -144,7 +149,7 @@ export class TimeAxisPanel {
           this.renderTimestamp(
             ctx,
             domainTime,
-            position + 5,
+            position - 3,
             10,
             MIN_PX_PER_STEP,
           );
