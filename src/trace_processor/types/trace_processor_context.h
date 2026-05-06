@@ -47,7 +47,6 @@ class BlobPacketWriter;
 class GlobalArgsTracker;
 class GlobalMetadataTracker;
 class ImportLogsTracker;
-class IrqTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -210,7 +209,6 @@ class TraceProcessorContext {
   PerMachinePtr<CpuTracker> cpu_tracker;
   PerMachinePtr<GpuTracker> gpu_tracker;
   PerMachinePtr<UserTracker> user_tracker;
-  PerMachinePtr<IrqTracker> irq_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================

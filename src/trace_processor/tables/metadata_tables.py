@@ -526,7 +526,7 @@ GPU_TABLE = Table(
 INTERRUPT_MAPPING_TABLE = Table(
     python_module=__file__,
     class_name='InterruptMappingTable',
-    sql_name='__intrinsic_interrupt_mapping',
+    sql_name='_linux_interrupt_mapping',
     columns=[
         C('irq_id', CppUint32()),
         C('name', CppString()),

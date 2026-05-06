@@ -40,7 +40,6 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
-#include "src/trace_processor/importers/common/irq_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -1238,10 +1237,15 @@ void SystemProbesParser::ParseInterruptInfo(ConstBytes blob) {
   protos::pbzero::InterruptInfo::Decoder packet(blob);
   for (auto it = packet.irq_mapping(); it; ++it) {
     protos::pbzero::InterruptInfo::InterruptMapping::Decoder mapping(*it);
-    if (mapping.has_irq_id() && mapping.has_name()) {
-      auto name_id = context_->storage->InternString(mapping.name());
-      context_->irq_tracker->SetIrqName(mapping.irq_id(), name_id);
-    }
+    if (!mapping.has_irq_id() || !mapping.has_name())
+      continue;
+    if (!irq_ids_.Insert(mapping.irq_id(), true).second)
+      continue;
+    tables::InterruptMappingTable::Row row;
+    row.irq_id = mapping.irq_id();
+    row.name = context_->storage->InternString(mapping.name());
+    row.machine_id = context_->machine_tracker->machine_id();
+    context_->storage->mutable_interrupt_mapping_table()->Insert(row);
   }
 }
 

@@ -86,4 +86,4 @@ CREATE PERFETTO VIEW linux_interrupt_mapping(
   machine_id JOINID(machine.id)
 )
 AS
-SELECT * FROM __intrinsic_interrupt_mapping;
+SELECT * FROM _linux_interrupt_mapping;

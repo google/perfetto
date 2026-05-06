@@ -40,8 +40,6 @@ struct InterruptMapping {
   std::string name;
 };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
   std::vector<InterruptMapping> mappings;
 
@@ -87,9 +85,10 @@ std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
 
     // Find the trigger token to anchor the name. ARM GIC uses standalone
     // "Level"/"Edge"; x86 IO-APIC embeds the trigger in the hw-irq field
-    // (e.g. "16-fasteoi", "2-edge"). Searching rather than using a fixed
-    // offset handles multi-word chip names (e.g. "cs40l26 IRQ1 Controller").
-    // Falls back to num_cpus+3 for any unrecognised format.
+    // (e.g. "16-fasteoi", "2-edge"). Searching backwards is efficient since
+    // the trigger appears within a few tokens of the end. Handles multi-word
+    // chip names (e.g. "cs40l26 IRQ1 Controller"). Falls back to the last
+    // token when no trigger is recognised.
     auto is_trigger = [](const std::string& t) {
       return t == "Level" || t == "Edge" || base::EndsWith(t, "-edge") ||
              base::EndsWith(t, "-fasteoi") || base::EndsWith(t, "-level") ||
@@ -97,7 +96,7 @@ std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
     };
 
     ssize_t trigger_idx = -1;
-    for (size_t i = num_cpus + 1; i < tokens.size(); ++i) {
+    for (size_t i = tokens.size() - 1; i > num_cpus; --i) {
       if (is_trigger(tokens[i])) {
         trigger_idx = static_cast<ssize_t>(i);
         break;
@@ -106,9 +105,9 @@ std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
 
     size_t name_start = (trigger_idx != -1)
                             ? static_cast<size_t>(trigger_idx + 1)
-                            : num_cpus + 3;
+                            : tokens.size() - 1;
 
-    if (name_start >= tokens.size())
+    if (name_start >= tokens.size() || name_start < num_cpus + 2)
       continue;
 
     InterruptMapping mapping;
@@ -125,7 +124,6 @@ std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
 
   return mappings;
 }
-#endif
 
 }  // namespace
 
@@ -192,8 +190,6 @@ void SystemInfoDataSource::Start() {
   packet->Finalize();
 
   if (include_irq_mapping_) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     auto mappings = ReadInterruptMappings(ReadFile("/proc/interrupts"));
     if (!mappings.empty()) {
       auto irq_packet = writer_->NewTracePacket();
@@ -206,7 +202,6 @@ void SystemInfoDataSource::Start() {
         irq_proto->set_name(mapping.name);
       }
     }
-#endif
   }
   writer_->Flush();
 }

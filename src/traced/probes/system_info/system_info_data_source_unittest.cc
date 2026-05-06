@@ -40,8 +40,10 @@ static const uint32_t CPU_COUNT = 8;
 //   - Multi-word name after trigger (irq 701: "cs40l26 IRQ1 Controller")
 //   - Multi-word chip name with Level trigger (irq 702: "GPIO1 rise")
 //   - PCI-MSI with standalone Edge (irq 762)
+//   - Unknown trigger → last-token fallback (irq 999: "fallback_device")
+//   - Too few tokens: only IRQ_NUM + CPU counts (irq 888, skipped)
+//   - Too few tokens: controller only, no name (irq 889, skipped)
 //   - Non-numeric IPI row (skipped)
-//   - Unknown trigger format → num_cpus+3 fallback (irq 999)
 const char kArmProcInterrupts[] =
     "           CPU0       CPU1       CPU2       CPU3       CPU4       CPU5    "
     "   CPU6       \n"
@@ -59,6 +61,10 @@ const char kArmProcInterrupts[] =
     "      0   PCI-MSI 524319 Edge      msix31-01000\n"
     "999:          0          0          0          0          0          0    "
     "      0  CUSTOM-CTRL  42  fallback_device\n"
+    "888:          0          0          0          0          0          0    "
+    "      0\n"
+    "889:          0          0          0          0          0          0    "
+    "      0  GIC-400\n"
     "IPI0:   1976106    2709737     366791     328045     337128     402772    "
     " 148385       Rescheduling interrupts\n";
 
@@ -66,8 +72,10 @@ const char kArmProcInterrupts[] =
 //   - IO-APIC with -edge embedded trigger
 //   - IO-APIC with -fasteoi embedded trigger
 //   - IR-PCI-MSI with -edge and multi-word name
+//   - Unknown trigger → last-token fallback (irq 200: "fallback_device")
+//   - Too few tokens: only IRQ_NUM + CPU counts (irq 888, skipped)
+//   - Too few tokens: controller only, no name (irq 889, skipped)
 //   - Non-numeric rows NMI/LOC (skipped)
-//   - Unknown trigger format → num_cpus+3 fallback (irq 200)
 const char kX86ProcInterrupts[] =
     "           CPU0       CPU1       CPU2       CPU3       \n"
     "   0:         42          0          0          0 IR-IO-APIC    2-edge    "
@@ -78,6 +86,8 @@ const char kX86ProcInterrupts[] =
     "   0-edge      PCIe PME, PCIe bwctrl\n"
     " 200:          0          0          0          0  CUSTOM-CTRL  42  "
     "fallback_device\n"
+    " 888:          0          0          0          0\n"
+    " 889:          0          0          0          0  CTRL\n"
     "NMI:      12968       4678       3377       3532   Non-maskable "
     "interrupts\n"
     "LOC:  470006507  556112258  531573082  543196117   Local timer "
@@ -303,7 +313,7 @@ TEST_F(SystemInfoDataSourceTest, IrqMappingArm) {
   // irq 762: PCI-MSI with standalone Edge
   EXPECT_EQ(irq_info->irq_mapping()[5].irq_id(), 762u);
   EXPECT_EQ(irq_info->irq_mapping()[5].name(), "msix31-01000");
-  // irq 999: no recognised trigger token → num_cpus+3 fallback
+  // irq 999: no recognised trigger → last-token fallback
   EXPECT_EQ(irq_info->irq_mapping()[6].irq_id(), 999u);
   EXPECT_EQ(irq_info->irq_mapping()[6].name(), "fallback_device");
 }
@@ -338,7 +348,7 @@ TEST_F(SystemInfoDataSourceTest, IrqMappingX86) {
   // irq 31: IR-PCI-MSI -edge with multi-word name
   EXPECT_EQ(irq_info->irq_mapping()[2].irq_id(), 31u);
   EXPECT_EQ(irq_info->irq_mapping()[2].name(), "PCIe PME, PCIe bwctrl");
-  // irq 200: no recognised trigger token → num_cpus+3 fallback
+  // irq 200: no recognised trigger → last-token fallback
   EXPECT_EQ(irq_info->irq_mapping()[3].irq_id(), 200u);
   EXPECT_EQ(irq_info->irq_mapping()[3].name(), "fallback_device");
 }
