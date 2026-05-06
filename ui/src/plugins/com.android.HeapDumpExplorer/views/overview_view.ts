@@ -20,6 +20,7 @@ import type {OverviewData} from '../types';
 import {fmtSize} from '../format';
 import type {NavState} from '../nav_state';
 import {type NavFn, sizeRenderer} from '../components';
+import type {HeapDump} from '../queries';
 
 const HEAP_SCHEMA: SchemaRegistry = {
   query: {
@@ -238,12 +239,13 @@ function renderDuplicateSection(
 
 interface OverviewViewAttrs {
   readonly overview: OverviewData;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
 }
 function OverviewView(): m.Component<OverviewViewAttrs> {
   return {
     view(vnode) {
-      const {overview, navigate} = vnode.attrs;
+      const {overview, activeDump, navigate} = vnode.attrs;
       const heapIndices: number[] = [];
       for (let i = 0; i < overview.heaps.length; i++) {
         const h = overview.heaps[i];
@@ -270,12 +272,20 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
         })),
       ];
 
+      const processLabel =
+        (activeDump.processName ?? '<unknown>') +
+        (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
       const infoRows: Row[] = [
+        {property: 'Process', value: processLabel},
+        {property: 'Classes', value: overview.classCount.toLocaleString()},
         {
-          property: 'Instances',
-          value: overview.instanceCount.toLocaleString(),
+          property: 'Reachable instances',
+          value: overview.reachableInstanceCount.toLocaleString(),
         },
-        {property: 'Heaps', value: heaps.map((h) => h.name).join(', ')},
+        {
+          property: 'Unreachable instances',
+          value: overview.unreachableInstanceCount.toLocaleString(),
+        },
       ];
 
       return m('div', {class: 'ah-view-scroll'}, [

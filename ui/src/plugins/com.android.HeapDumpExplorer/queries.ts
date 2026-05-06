@@ -244,11 +244,22 @@ export async function getOverview(
   activeDump: HeapDump,
 ): Promise<OverviewData> {
   const dumpFilter = dumpFilterSql(activeDump, 'o');
-  const countRes = await engine.query(
-    `SELECT count(*) as cnt FROM heap_graph_object o
-     WHERE o.reachable != 0 AND ${dumpFilter}`,
-  );
-  const instanceCount = countRes.iter({cnt: NUM}).cnt;
+  const countRes = await engine.query(`
+    SELECT
+      sum(iif(o.reachable, 1, 0)) AS reachable,
+      sum(iif(NOT o.reachable, 1, 0)) AS unreachable,
+      count(DISTINCT o.type_id) AS classes
+    FROM heap_graph_object o
+    WHERE ${dumpFilter}
+  `);
+  const countIt = countRes.iter({
+    reachable: NUM,
+    unreachable: NUM,
+    classes: NUM,
+  });
+  const reachableInstanceCount = countIt.reachable;
+  const unreachableInstanceCount = countIt.unreachable;
+  const classCount = countIt.classes;
 
   const heapRes = await engine.query(`
     SELECT
@@ -452,7 +463,9 @@ export async function getOverview(
   }
 
   return {
-    instanceCount,
+    reachableInstanceCount,
+    unreachableInstanceCount,
+    classCount,
     heaps,
     duplicateBitmaps:
       duplicateBitmaps.length > 0 ? duplicateBitmaps : undefined,

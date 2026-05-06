@@ -22,6 +22,8 @@ import type {Engine} from '../../trace_processor/engine';
 import type {InstanceRow, PathEntry, PrimOrRef} from './types';
 import {fmtSize} from './format';
 import type {NavState} from './nav_state';
+import {Tooltip} from '../../widgets/tooltip';
+import {Icon} from '../../widgets/icon';
 
 export type NavFn = (
   view: NavState['view'],
@@ -185,6 +187,50 @@ export function shortClassName(full: string): string {
     return dot >= 0 ? tok.slice(dot + 1) : tok;
   });
   return short + suffix;
+}
+
+// Hover-help text for size/count columns, shared across HDE views.
+export const COL_INFO = {
+  shallow:
+    'Java memory used by this object alone, excluding referenced objects.',
+  shallowNative:
+    'Native memory attributed to this object alone (e.g. a Bitmap pixel ' +
+    'buffer). Zero for most plain Java objects.',
+  retained:
+    'Java size of every object exclusively held by this one (dominator ' +
+    'subtree, self inclusive). If something is reachable from multiple ' +
+    'paths, it is not retained here — it is retained higher up at the ' +
+    'common ancestor.',
+  retainedNative:
+    'Native size of every object exclusively held by this one (dominator ' +
+    'subtree, self inclusive). Often zero in multi-rooted graphs where ' +
+    'native-bearing objects (e.g. Bitmaps) are reachable via multiple ' +
+    'paths — try Reachable Native if you expected a non-zero value.',
+  retainedCount:
+    'Number of objects exclusively held by this one (dominator subtree, ' +
+    'self inclusive).',
+  reachable:
+    'Java size of every object reachable from this one along the heap ' +
+    "graph's BFS shortest-path tree. Includes objects also reachable via " +
+    'other paths. Matches the flamegraph "Object Size" cumulative.',
+  reachableNative:
+    'Native size of every object reachable from this one (BFS tree). ' +
+    'Includes objects also reachable via other paths.',
+  reachableCount: 'Count of objects reachable from this one (BFS tree).',
+} as const;
+
+// Label + info icon for DataGrid column titles.
+export function colHeader(label: string, info: m.Children): m.Children {
+  return m(
+    'span',
+    {class: 'ah-col-header'},
+    label,
+    m(
+      Tooltip,
+      {trigger: m(Icon, {className: 'ah-col-header__info', icon: 'info'})},
+      info,
+    ),
+  );
 }
 
 /** SQL preamble that includes dominator tree and object tree modules. */
