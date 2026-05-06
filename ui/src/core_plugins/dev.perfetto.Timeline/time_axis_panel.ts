@@ -71,7 +71,7 @@ export class TimeAxisPanel {
     const {timestampFormat: fmt, customTimezoneOffset} = this.trace.timeline;
     switch (fmt) {
       case TimestampFormat.Timecode:
-        return Time.toTimecode(start).dhhmmss;
+        return Time.toTimecode(start).toString(' ');
       case TimestampFormat.UTC:
         return this.formatStartAsWallClock(0);
       case TimestampFormat.CustomTimezone:
@@ -96,9 +96,7 @@ export class TimeAxisPanel {
   private formatStartAsWallClock(tzOffsetMins: number): string {
     const {start, unixOffset} = this.trace.traceInfo;
     const date = Time.toDate(start, unixOffset);
-    const str = formatDate(date, {printTimezone: false, tzOffsetMins});
-    // Drop sub-second precision; it's noisy.
-    return str.split('.')[0];
+    return formatDate(date, {printTimezone: false, tzOffsetMins});
   }
 
   private renderLabelAndValue(
