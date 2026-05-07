@@ -33,6 +33,11 @@ import {errResult, okResult, Result} from '../../../base/result';
 // snapshot() since CloneSession requires a separate consumer connection.
 export type ConsumerIpcFactory = () => Promise<Result<TracingProtocol>>;
 
+export interface ConsumerIpcTracingSessionArgs {
+  readonly ipcFactory: ConsumerIpcFactory;
+  readonly traceConfig: protos.ITraceConfig;
+}
+
 export class ConsumerIpcTracingSession implements TracingSession {
   private consumerIpc: TracingProtocol;
   private _state: TracingSessionState = 'RECORDING';
@@ -46,17 +51,19 @@ export class ConsumerIpcTracingSession implements TracingSession {
    * Starts a fresh tracing session: opens a consumer connection, sends
    * EnableTracing, and drives the lifecycle through to FINISHED.
    *
-   * @param ipcFactory Opens a consumer-side TracingProtocol channel. Called
-   *   once here for the recording itself, and again later by snapshot() if
-   *   invoked, since CloneSession requires a separate consumer connection.
-   * @param traceConfig The TraceConfig to start tracing with. Its
+   * @param args.ipcFactory Opens a consumer-side TracingProtocol channel.
+   *   Called once here for the recording itself, and again later by snapshot()
+   *   if invoked, since CloneSession requires a separate consumer connection.
+   * @param args.traceConfig The TraceConfig to start tracing with. Its
    *   `uniqueSessionName` (if any) is captured so a later snapshot() call
    *   knows which session to snapshot.
    */
-  static async create(
-    ipcFactory: ConsumerIpcFactory,
-    traceConfig: protos.ITraceConfig,
-  ): Promise<Result<ConsumerIpcTracingSession>> {
+  static async create({
+    ipcFactory,
+    traceConfig,
+  }: ConsumerIpcTracingSessionArgs): Promise<
+    Result<ConsumerIpcTracingSession>
+  > {
     const ipcStatus = await ipcFactory();
     if (!ipcStatus.ok) return ipcStatus;
     const session = new ConsumerIpcTracingSession(

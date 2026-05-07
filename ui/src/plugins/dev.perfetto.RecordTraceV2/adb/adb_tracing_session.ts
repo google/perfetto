@@ -28,10 +28,10 @@ export function createAdbTracingSession(
   adbDevice: AdbDevice,
   traceConfig: protos.ITraceConfig,
 ): Promise<Result<ConsumerIpcTracingSession>> {
-  return ConsumerIpcTracingSession.create(
-    () => openAdbConsumerIpc(adbDevice),
+  return ConsumerIpcTracingSession.create({
+    ipcFactory: () => openAdbConsumerIpc(adbDevice),
     traceConfig,
-  );
+  });
 }
 
 async function openAdbConsumerIpc(
