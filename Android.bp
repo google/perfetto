@@ -1601,6 +1601,24 @@ cc_binary {
     ],
 }
 
+// GN: //ai/skills:skills
+genrule {
+    name: "perfetto_ai_skills_skills",
+    srcs: [
+        "ai/skills/perfetto-infra-getting-trace-processor/SKILL.md",
+        "ai/skills/perfetto-infra-querying-traces/SKILL.md",
+        "ai/skills/perfetto-workflow-android-heap-dump/SKILL.md",
+    ],
+    cmd: "$(location ai/skills/gen_skill_bundle.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::ai_skills $(in)",
+    out: [
+        "ai/skills/skills.h",
+    ],
+    tool_files: [
+        "ai/skills/gen_skill_bundle.py",
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
 // GN: //src/base:perfetto_base_default_platform
 filegroup {
     name: "perfetto_base_default_platform",
@@ -17546,6 +17564,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_shell_shell",
     srcs: [
+        "src/trace_processor/shell/ai_subcommand.cc",
         "src/trace_processor/shell/common_flags.cc",
         "src/trace_processor/shell/convert_subcommand.cc",
         "src/trace_processor/shell/export_subcommand.cc",
@@ -17968,6 +17987,7 @@ cc_library_static {
     ],
     host_supported: true,
     generated_headers: [
+        "perfetto_ai_skills_skills",
         "perfetto_protos_perfetto_common_cpp_gen_headers",
         "perfetto_protos_perfetto_common_semantic_type_zero_gen_headers",
         "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -18049,6 +18069,7 @@ cc_library_static {
         "perfetto_src_traceconv_gen_cc_winscope_descriptor",
     ],
     export_generated_headers: [
+        "perfetto_ai_skills_skills",
         "perfetto_protos_perfetto_common_cpp_gen_headers",
         "perfetto_protos_perfetto_common_semantic_type_zero_gen_headers",
         "perfetto_protos_perfetto_common_zero_gen_headers",

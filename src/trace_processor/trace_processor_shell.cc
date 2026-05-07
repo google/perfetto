@@ -52,6 +52,7 @@
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/shell/ai_subcommand.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
 #include "src/trace_processor/shell/export_subcommand.h"
@@ -776,10 +777,11 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::ExportSubcommand export_subcommand;
     shell::MetricsSubcommand metrics_subcommand;
     shell::ConvertSubcommand convert_subcommand;
+    shell::AiSubcommand ai_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
         &query_subcommand,     &interactive_subcommand, &server_subcommand,
         &summarize_subcommand, &export_subcommand,      &metrics_subcommand,
-        &convert_subcommand,
+        &convert_subcommand,   &ai_subcommand,
     };
 
     // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.

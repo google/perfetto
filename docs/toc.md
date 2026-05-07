@@ -46,6 +46,10 @@
     - [Clock Synchronization](concepts/clock-sync.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome}
     - [Concurrent Sessions](concepts/concurrent-tracing-sessions.md) {.tag-android .tag-linux .tag-cpp-rust}
 
+  - [AI in Perfetto](#)
+
+    - [Overview](ai/overview.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+
   - [Recording](#)
 
     - [Tracing in Background](learning-more/tracing-in-background.md) {.tag-android .tag-linux}

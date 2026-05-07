@@ -131,6 +131,7 @@ Commands:
   export        Export a trace to a database file.
   metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
   convert       Convert trace format.
+  ai            AI-related actions (today: list/search/install skills).
 
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
@@ -248,6 +249,22 @@ Subcommand flags:
 
 Spec files are auto-detected as binary or text based on extension
 (`.pb` → binary, `.textproto` → text) with a content-sniffing fallback.
+
+#### {#subcommand-ai} `ai` — AI-related actions
+
+Umbrella for AI-related functionality. Today the actions under it
+list, search, and install Perfetto's bundled set of [Agent
+Skills](https://agentskills.io) into a coding agent's discovery
+directory:
+
+```bash
+trace_processor ai list-skills
+trace_processor ai search-skills 'heap dump'
+trace_processor ai install-skills claudecode
+```
+
+See [AI in Perfetto](/docs/ai/overview.md) for the full set of
+how-to guides.
 
 #### {#global-flags} Global flags (apply to every subcommand)
 

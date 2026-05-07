@@ -729,6 +729,7 @@ perfetto_cc_library(
         ":include_perfetto_trace_processor_util",
     ],
     deps = [
+               ":ai_skills_skills",
                ":protos_perfetto_common_cpp",
                ":protos_perfetto_common_semantic_type_zero",
                ":protos_perfetto_common_zero",
@@ -1121,6 +1122,25 @@ perfetto_cc_library(
         ":src_protovm_protovm",
     ] + PERFETTO_CONFIG.deps.zlib,
     linkstatic = True,
+)
+
+# GN target: //ai/skills:skills
+perfetto_cpp_blob_header(
+    name = "ai_skills_skills",
+    script = ":ai_skills_gen_skill_bundle_py",
+    deps = [
+        "ai/skills/perfetto-infra-getting-trace-processor/SKILL.md",
+        "ai/skills/perfetto-infra-querying-traces/SKILL.md",
+        "ai/skills/perfetto-workflow-android-heap-dump/SKILL.md",
+    ],
+    outs = [
+        "ai/skills/skills.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto::trace_processor::ai_skills",
+    ],
 )
 
 # GN target: //include/perfetto/base:base
@@ -4468,6 +4488,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_shell_shell",
     srcs = [
+        "src/trace_processor/shell/ai_subcommand.cc",
+        "src/trace_processor/shell/ai_subcommand.h",
         "src/trace_processor/shell/common_flags.cc",
         "src/trace_processor/shell/common_flags.h",
         "src/trace_processor/shell/convert_subcommand.cc",
@@ -9782,6 +9804,16 @@ perfetto_build_config_cc_library(
     name = "build_config_hdr",
     hdrs = [build_config_dir_ + "/perfetto_build_flags.h"],
     includes = [build_config_dir_],
+)
+
+perfetto_py_binary(
+    name = "ai_skills_gen_skill_bundle_py",
+    srcs = [
+        "ai/skills/gen_skill_bundle.py",
+    ],
+    main = "ai/skills/gen_skill_bundle.py",
+    deps = [perfetto_label("python:cpp_blob_emitter")],
+    python_version = "PY3",
 )
 
 perfetto_py_binary(

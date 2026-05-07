@@ -16,6 +16,8 @@ import("../../../gn/perfetto.gni")
 
 source_set("shell") {
   sources = [
+    "ai_subcommand.cc",
+    "ai_subcommand.h",
     "common_flags.cc",
     "common_flags.h",
     "convert_subcommand.cc",
@@ -47,6 +49,7 @@ source_set("shell") {
   ]
   deps = [
     ":subcommands",
+    "../../../ai/skills",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
@@ -60,6 +63,8 @@ source_set("shell") {
     "../rpc:stdiod",
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
+    "../util:gzip",
+    "../util:sql_bundle",
     "../util:stdlib",
     "../util/deobfuscation:deobfuscator",
     "../util/symbolizer",

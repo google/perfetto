@@ -703,6 +703,8 @@ def gen_cpp_blob_header(target: GnParser.Target):
   # bazel/rules.bzl prepends `PERFETTO_CONFIG.root` to make the label work in
   # both standalone and embedded builds.
   script_to_bazel_label = {
+      'ai/skills/gen_skill_bundle.py':
+          ':ai_skills_gen_skill_bundle_py',
       'python/tools/cpp_blob_emitter.py':
           'python:cpp_blob_emitter_bin',
       'src/trace_processor/plugins/wattson/gen_wattson_curves.py':

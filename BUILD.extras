@@ -9,6 +9,16 @@ perfetto_build_config_cc_library(
 )
 
 perfetto_py_binary(
+    name = "ai_skills_gen_skill_bundle_py",
+    srcs = [
+        "ai/skills/gen_skill_bundle.py",
+    ],
+    main = "ai/skills/gen_skill_bundle.py",
+    deps = [perfetto_label("python:cpp_blob_emitter")],
+    python_version = "PY3",
+)
+
+perfetto_py_binary(
     name = "gen_amalgamated_sql_py",
     srcs = [
         "tools/gen_amalgamated_sql.py",

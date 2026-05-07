@@ -22,8 +22,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
@@ -31,6 +33,28 @@ namespace perfetto::trace_processor {
 
 // Forward declaration.
 class TraceProcessorShell_PlatformInterface;
+
+// Describes a coding agent that `trace_processor ai install-skills` can
+// target. Three agents are always built in (claudecode, geminicli, codex);
+// embedders that wrap trace_processor for restricted environments (e.g.
+// Google internal) can register additional agents — for instance one that
+// installs into an internal config root — by overriding
+// TraceProcessorShell_PlatformInterface::GetExtraAiAgents().
+struct AiAgentSpec {
+  // The token the user passes on the command line, e.g. "claudecode".
+  // Must be unique across builtins and embedder-supplied agents; if a
+  // collision occurs the embedder's spec wins.
+  std::string cli_name;
+
+  // Human-readable name shown in install logs and help text, e.g.
+  // "Anthropic Claude Code".
+  std::string description;
+
+  // Returns the absolute on-disk install root for this agent's skills,
+  // or an error if it cannot be resolved (e.g. $HOME unset). Called
+  // once when the agent is selected, before any files are written.
+  std::function<base::StatusOr<std::string>()> resolve_install_dir;
+};
 
 // Class for implementing a trace processor shell.
 //
@@ -87,6 +111,14 @@ class TraceProcessorShell_PlatformInterface {
       TraceProcessor* trace_processor,
       const std::string& path,
       std::function<void(size_t)> progress_callback) = 0;
+
+  // Additional agents the `trace_processor ai install-skills` subcommand
+  // should accept on top of the built-in claudecode/geminicli/codex set.
+  // Default returns empty; override to register environment-specific
+  // agents. cli_name collisions resolve in favour of the override (so
+  // embedders can also redirect a built-in agent to a different install
+  // path).
+  virtual std::vector<AiAgentSpec> GetExtraAiAgents() const { return {}; }
 };
 
 int PERFETTO_EXPORT_COMPONENT TraceProcessorShellMain(int argc, char** argv);
