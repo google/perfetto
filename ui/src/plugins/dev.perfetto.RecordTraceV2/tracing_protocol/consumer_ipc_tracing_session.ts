@@ -64,7 +64,7 @@ export class ConsumerIpcTracingSession implements TracingSession {
       ipcFactory,
       traceConfig.uniqueSessionName ?? undefined,
     );
-    session.startLive(traceConfig);
+    session.start(traceConfig);
     return okResult(session);
   }
 
@@ -83,7 +83,7 @@ export class ConsumerIpcTracingSession implements TracingSession {
     return this._state;
   }
 
-  private async startLive(traceConfig: protos.ITraceConfig): Promise<void> {
+  private async start(traceConfig: protos.ITraceConfig): Promise<void> {
     const req = new protos.EnableTracingRequest({traceConfig});
     this.log(`Starting trace, durationMs: ${traceConfig.durationMs}`);
     const resp = await this.consumerIpc.invoke('EnableTracing', req);
