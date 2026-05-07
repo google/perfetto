@@ -187,8 +187,6 @@ export interface LineChartAttrs {
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
-  private hoveredSeries: string | undefined;
-
   view({attrs}: m.Vnode<LineChartAttrs>) {
     const {data, height, fillParent, className, onBrush} = attrs;
 
@@ -197,9 +195,7 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
       (data.series.length === 0 ||
         data.series.every((s) => s.points.length === 0));
     const option =
-      data !== undefined && !isEmpty
-        ? buildLineOption(attrs, data, () => this.hoveredSeries)
-        : undefined;
+      data !== undefined && !isEmpty ? buildLineOption(attrs, data) : undefined;
 
     return m(EChartView, {
       option,
@@ -207,9 +203,7 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
       fillParent,
       className,
       empty: isEmpty,
-      eventHandlers: buildLineEventHandlers(attrs, data, (name) => {
-        this.hoveredSeries = name;
-      }),
+      eventHandlers: buildLineEventHandlers(attrs, data),
       activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
     });
   }
@@ -218,7 +212,6 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
 function buildLineOption(
   attrs: LineChartAttrs,
   data: LineChartData,
-  getHoveredSeries: () => string | undefined,
 ): EChartsCoreOption {
   const {
     xAxisLabel,
@@ -332,10 +325,10 @@ function buildLineOption(
         const xVal = params[0].data?.[0];
         const header = xVal !== undefined ? fmtX(xVal) : '';
         const ordered = stacked ? [...params].reverse() : params;
-        const lines = ordered.map((p) => {
-          const text = `${p.marker ?? ''} ${p.seriesName ?? ''}: ${fmtY(p.data?.[1] ?? 0)}`;
-          return p.seriesName === getHoveredSeries() ? `<b>${text}</b>` : text;
-        });
+        const lines = ordered.map(
+          (p) =>
+            `${p.marker ?? ''} ${p.seriesName ?? ''}: ${fmtY(p.data?.[1] ?? 0)}`,
+        );
         return [header, ...lines].join('<br>');
       },
     },
@@ -364,21 +357,8 @@ function buildLineOption(
 function buildLineEventHandlers(
   attrs: LineChartAttrs,
   data: LineChartData | undefined,
-  setHoveredSeries: (name: string | undefined) => void,
 ): ReadonlyArray<EChartEventHandler> {
   const handlers: EChartEventHandler[] = [];
-
-  handlers.push({
-    eventName: 'mouseover',
-    handler: (params) => {
-      const p = params as {seriesName?: string};
-      setHoveredSeries(p.seriesName);
-    },
-  });
-  handlers.push({
-    eventName: 'mouseout',
-    handler: () => setHoveredSeries(undefined),
-  });
 
   if (
     attrs.onBrush &&
