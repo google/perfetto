@@ -703,6 +703,8 @@ void ProbesProducer::FlushForWatchdogAndCrash(base::WatchdogCrashInfo info) {
                              info.actual_boot_s);
   PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, WATCHDOG_CRASH_ACTUAL_CPU,
                              info.actual_cpu_s);
+  PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, WATCHDOG_CRASH_TIME_BOOT_MS,
+                             info.alarm_time_ms);
 
   std::vector<ProbesDataSource*> ds_to_flush;
 
@@ -737,7 +739,7 @@ void ProbesProducer::FlushForWatchdogAndCrash(base::WatchdogCrashInfo info) {
   };
 
   for (ProbesDataSource* ds : ds_to_flush) {
-    const FlushRequestID kFlushId = UINT64_MAX;
+    constexpr FlushRequestID kFlushId = UINT64_MAX;
     ds->Flush(kFlushId, flush_callback);
   }
 }
