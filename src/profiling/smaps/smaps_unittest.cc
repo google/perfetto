@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <string>
 
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/profiling/smaps_config.gen.h"
 #include "protos/perfetto/trace/profiling/smaps.gen.h"
@@ -30,10 +31,18 @@ namespace profiling {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 
 struct MemFile {
   explicit MemFile(const std::string& data) {
-    file = fmemopen(const_cast<char*>(data.data()), data.size(), "r");
+    // fmemopen not available on android api < 23, use pipe instead
+    auto pipe = base::Pipe::Create();
+    if (!data.empty()) {
+      ssize_t res = write(pipe.wr.get(), data.data(), data.size());
+      PERFETTO_CHECK(res == static_cast<ssize_t>(data.size()));
+    }
+    pipe.wr.reset();
+    file = fdopen(pipe.rd.release(), "r");
     PERFETTO_CHECK(file);
   }
   ~MemFile() {
@@ -266,14 +275,10 @@ TEST(SmapsParserTest, CustomConfigFields) {
   auto packet = ParseAndGetGenPacket(kTestSmapsCustomConfig, config);
   const auto& packed = packet.packed_entries();
 
-  ASSERT_EQ(packed.size_kb().size(), 1u);
-  EXPECT_EQ(packed.size_kb()[0], 10u);
-
-  ASSERT_EQ(packed.swap_kb().size(), 1u);
-  EXPECT_EQ(packed.swap_kb()[0], 20u);
-
+  EXPECT_THAT(packed.size_kb(), ElementsAre(10u));
+  EXPECT_THAT(packed.swap_kb(), ElementsAre(20u));
   // no rss_kb since not requested
-  EXPECT_EQ(packed.rss_kb().size(), 0u);
+  EXPECT_THAT(packed.rss_kb(), IsEmpty());
 }
 
 constexpr char kTestSmapsUnaggregated[] =
@@ -290,23 +295,13 @@ TEST(SmapsParserTest, UnaggregatedMode) {
   auto packet = ParseAndGetGenPacket(kTestSmapsUnaggregated, config);
   const auto& packed = packet.packed_entries();
 
-  // string_table
-  ASSERT_EQ(packed.string_table().size(), 2u);
-  EXPECT_EQ(packed.string_table()[0], "");
-  EXPECT_EQ(packed.string_table()[1], "/lib/libc.so");
-
+  EXPECT_THAT(packed.string_table(), ElementsAre("", "/lib/libc.so"));
   // two separate entries, both with same name_id
-  ASSERT_EQ(packed.name_id().size(), 2u);
-  EXPECT_EQ(packed.string_table()[packed.name_id()[0]], "/lib/libc.so");
-  EXPECT_EQ(packed.string_table()[packed.name_id()[1]], "/lib/libc.so");
-
+  EXPECT_THAT(packed.name_id(), ElementsAre(1u, 1u));
   // separate size_kb
-  ASSERT_EQ(packed.size_kb().size(), 2u);
-  EXPECT_EQ(packed.size_kb()[0], 10u);
-  EXPECT_EQ(packed.size_kb()[1], 20u);
-
+  EXPECT_THAT(packed.size_kb(), ElementsAre(10u, 20u));
   // aggregate_count not written
-  EXPECT_EQ(packed.aggregate_count().size(), 0u);
+  EXPECT_THAT(packed.aggregate_count(), IsEmpty());
 }
 
 }  // namespace

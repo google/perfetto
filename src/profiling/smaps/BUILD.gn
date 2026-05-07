@@ -40,6 +40,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/profiling:cpp",
     "../../../protos/perfetto/trace/profiling:zero",
+    "../../../src/base",
     "../../protozero",
   ]
   sources = [ "smaps_unittest.cc" ]
