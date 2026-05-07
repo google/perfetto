@@ -36,6 +36,20 @@ import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_webs
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 import m from 'mithril';
 import {RecordTraceV2Settings} from './settings';
+import {RecordSubpage} from './config/config_interfaces';
+
+export type RecordSubpageProvider = (
+  recMgr: RecordingManager,
+  app: App,
+) => RecordSubpage;
+
+const recordSubpageProviders: RecordSubpageProvider[] = [];
+
+export function registerRecordSubpageProvider(
+  provider: RecordSubpageProvider,
+): void {
+  recordSubpageProviders.push(provider);
+}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
@@ -111,6 +125,7 @@ export default class implements PerfettoPlugin {
         stackSamplingRecordSection(),
         networkRecordSection(),
         advancedRecordSection(),
+        ...recordSubpageProviders.map((provider) => provider(recMgr, app)),
       );
       recMgr.restorePluginStateFromLocalstorage();
     }
