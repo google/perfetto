@@ -692,7 +692,7 @@ void ProbesProducer::OnFlushTimeout(FlushRequestID flush_request_id) {
   endpoint_->NotifyFlushComplete(flush_request_id);
 }
 
-// Called when the watchdgog is about to kill us. This is to better debug
+// Called when the watchdog is about to kill us. This is to better debug
 // traced_probes' wdog crashes. This function has nothing to do with
 // protocol-level flushes.
 void ProbesProducer::FlushForWatchdogAndCrash(base::WatchdogCrashInfo info) {

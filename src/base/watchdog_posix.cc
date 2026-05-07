@@ -51,7 +51,7 @@ namespace {
 
 constexpr uint32_t kDefaultPollingInterval = 30 * 1000;
 
-// Grace period given to a fatal handler installed via SetFatalHandler() to
+// Grace period given to a fatal handler (passed to Start()) to
 // crash the process on its own before the watchdog force-kills it.
 constexpr uint32_t kFatalHandlerGraceMs = 60 * 1000;
 
