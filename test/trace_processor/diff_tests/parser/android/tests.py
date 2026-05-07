@@ -290,3 +290,145 @@ class AndroidParser(TestSuite):
           "ScreenState",0,1000,2.000000
           "ScreenState",1,2000,1.000000
         """))
+
+  def test_video_frame_basic(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          timestamp_clock_id: 6
+          video_frame {
+            frame_number: 0
+            track_name: "Front Camera"
+            track_id: 1
+          }
+        }
+        packet {
+          timestamp: 1033333333
+          timestamp_clock_id: 6
+          video_frame {
+            frame_number: 1
+            track_name: "Front Camera"
+            track_id: 1
+          }
+        }
+        packet {
+          timestamp: 1066666666
+          timestamp_clock_id: 6
+          video_frame {
+            frame_number: 2
+            track_name: "Rear Camera"
+            track_id: 2
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.video_frames;
+        SELECT ts, frame_number, track_name, track_id
+        FROM android_video_frames
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","frame_number","track_name","track_id"
+        1000000000,0,"Front Camera",1
+        1033333333,1,"Front Camera",1
+        1066666666,2,"Rear Camera",2
+        """))
+
+  def test_video_frame_no_track_fields(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          timestamp_clock_id: 6
+          video_frame {
+            frame_number: 0
+          }
+        }
+        packet {
+          timestamp: 1033333333
+          timestamp_clock_id: 6
+          video_frame {
+            frame_number: 1
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.video_frames;
+        SELECT ts, frame_number, track_name, track_id
+        FROM android_video_frames
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","frame_number","track_name","track_id"
+        1000000000,0,"[NULL]","[NULL]"
+        1033333333,1,"[NULL]","[NULL]"
+        """))
+
+  def test_video_frame_trace_bounds(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          timestamp_clock_id: 6
+          video_frame {
+            frame_number: 0
+            track_id: 1
+          }
+        }
+        packet {
+          timestamp: 2000000000
+          timestamp_clock_id: 6
+          video_frame {
+            frame_number: 1
+            track_id: 1
+          }
+        }
+        """),
+        query="""
+        SELECT trace_start() AS s, trace_end() AS e, trace_dur() AS d;
+        """,
+        out=Csv("""
+        "s","e","d"
+        1000000000,2000000000,1000000000
+        """))
+
+  def test_video_frame_multi_stream_grouping(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          timestamp_clock_id: 6
+          video_frame { frame_number: 0  track_name: "A"  track_id: 1 }
+        }
+        packet {
+          timestamp: 1000000000
+          timestamp_clock_id: 6
+          video_frame { frame_number: 0  track_name: "B"  track_id: 2 }
+        }
+        packet {
+          timestamp: 1033333333
+          timestamp_clock_id: 6
+          video_frame { frame_number: 1  track_name: "A"  track_id: 1 }
+        }
+        packet {
+          timestamp: 1033333333
+          timestamp_clock_id: 6
+          video_frame { frame_number: 1  track_name: "B"  track_id: 2 }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.video_frames;
+        SELECT
+          COALESCE(track_id, 0) AS tid,
+          COALESCE(track_name, 'Video Frames') AS tname,
+          COUNT(*) AS cnt
+        FROM android_video_frames
+        GROUP BY tid
+        ORDER BY tid;
+        """,
+        out=Csv("""
+        "tid","tname","cnt"
+        1,"A",2
+        2,"B",2
+        """))

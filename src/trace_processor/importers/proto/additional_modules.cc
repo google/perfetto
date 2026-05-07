@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
+#include "src/trace_processor/importers/proto/video_frame_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
@@ -89,6 +90,8 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
       new AppWakelockModule(module_context, context));
   module_context->modules.emplace_back(
       new GenericKernelModule(module_context, context));
+  module_context->modules.emplace_back(
+      new VideoFrameModule(module_context, context));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   module_context->modules.emplace_back(

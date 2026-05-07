@@ -398,6 +398,33 @@ ANDROID_AFLAGS_TABLE = Table(
     ),
 )
 
+ANDROID_VIDEO_FRAMES_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidVideoFramesTable',
+    sql_name='__intrinsic_video_frames',
+    columns=[
+        C('ts',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('frame_number', CppInt64()),
+        C('track_name', CppOptional(CppString())),
+        C('track_id', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Video frames captured from the device display.
+          JPEG image data is stored separately and accessed via the
+          video_frame_image() SQL function.
+        ''',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the frame capture.',
+            'frame_number': 'Sequential frame number within the session.',
+            'track_name': 'Display name for the track in the UI.',
+            'track_id': 'Unique identifier for the stream.',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_AFLAGS_TABLE,
@@ -409,4 +436,5 @@ ALL_TABLES = [
     ANDROID_LOG_TABLE,
     ANDROID_MOTION_EVENTS_TABLE,
     ANDROID_USER_LIST_TABLE,
+    ANDROID_VIDEO_FRAMES_TABLE,
 ]

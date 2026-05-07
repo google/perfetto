@@ -1,0 +1,39 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// A captured video frame (screenshot) from the device display.
+// Used by the android.video_frames data source for continuous frame capture.
+message VideoFrame {
+  // Sequential frame number within the capture session.
+  optional uint64 frame_number = 1;
+
+  // JPEG-compressed image data.
+  optional bytes jpg_image = 2;
+
+  // Display name for the track in the UI (e.g. "Front Camera").
+  optional string track_name = 3;
+
+  // Unique identifier for the stream. Frames with the same track_id are
+  // grouped into the same track.
+  optional uint32 track_id = 4;
+
+  // WebP-compressed image data. Used when jpg_image is not set.
+  optional bytes webp_image = 5;
+}
