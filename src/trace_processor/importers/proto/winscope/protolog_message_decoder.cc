@@ -48,9 +48,9 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     auto message = tracked_message.message;
 
     auto group = tracked_groups_.Find(tracked_message.group_id);
-    std::string_view group_tag;
+    std::string group_tag;
     if (group == nullptr) {
-      group_tag = kUnknownGroupTag;
+      group_tag = std::string(kUnknownGroupTag);
       context_->storage->IncrementStats(
           stats::winscope_protolog_group_tag_missing);
     } else {
@@ -68,18 +68,17 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
   }
 }
 
-void ProtoLogMessageDecoder::TrackGroup(uint32_t id,
-                                        const std::string_view tag) {
+void ProtoLogMessageDecoder::TrackGroup(uint32_t id, std::string_view tag) {
   auto tracked_group = tracked_groups_.Find(id);
   if (tracked_group != nullptr) {
     if (tracked_group->tag != tag) {
       context_->storage->IncrementStats(
           stats::winscope_protolog_group_tag_collision);
 
-      tracked_groups_[id] = TrackedGroup{kCollisionGroupTag};
+      tracked_groups_[id] = TrackedGroup{std::string(kCollisionGroupTag)};
     }
   } else {
-    tracked_groups_.Insert(id, TrackedGroup{tag});
+    tracked_groups_.Insert(id, TrackedGroup{std::string(tag)});
   }
 }
 
@@ -355,9 +354,9 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
                       double_params, boolean_params, string_params);
 
     auto group = tracked_groups_.Find(potential_matches[0].group_id);
-    std::string_view group_tag;
+    std::string group_tag;
     if (group == nullptr) {
-      group_tag = kUnknownGroupTag;
+      group_tag = std::string(kUnknownGroupTag);
       context_->storage->IncrementStats(
           stats::winscope_protolog_group_tag_missing);
     } else {
@@ -387,7 +386,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
       }
       collision_message += ">";
     }
-    return DecodedMessage{ProtoLogLevel::WARN, kCollisionGroupTag,
+    return DecodedMessage{ProtoLogLevel::WARN, std::string(kCollisionGroupTag),
                           collision_message, std::nullopt};
   }
 }

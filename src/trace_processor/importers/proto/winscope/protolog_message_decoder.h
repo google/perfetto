@@ -43,13 +43,13 @@ enum ProtoLogLevel : int32_t {
 
 struct DecodedMessage {
   ProtoLogLevel log_level;
-  std::string_view group_tag;
+  std::string group_tag;
   std::string message;
   std::optional<std::string> location;
 };
 
 struct TrackedGroup {
-  std::string_view tag;
+  std::string tag;
 };
 
 struct TrackedMessage {
@@ -71,7 +71,7 @@ class ProtoLogMessageDecoder {
       const std::vector<bool>& boolean_params,
       const std::vector<std::string>& string_params);
 
-  void TrackGroup(uint32_t id, const std::string_view tag);
+  void TrackGroup(uint32_t id, std::string_view tag);
 
   void TrackMessage(uint64_t message_id,
                     ProtoLogLevel level,
