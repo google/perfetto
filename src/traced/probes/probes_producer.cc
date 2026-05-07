@@ -22,7 +22,6 @@
 #include <memory>
 #include <string>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -705,9 +704,7 @@ void ProbesProducer::FlushForWatchdogAndCrash(base::WatchdogCrashInfo info) {
   PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, WATCHDOG_CRASH_ACTUAL_CPU,
                              info.actual_cpu_s);
 
-  // shared_ptr as this is passed around the various callbacks to tell when
-  // we are done.
-  auto ds_to_flush = std::make_shared<base::FlatSet<ProbesDataSource*>>();
+  std::vector<ProbesDataSource*> ds_to_flush;
 
   // We are only interested in ftrace data sources. Trying to flush other data
   // sources might cause cascading problems.
@@ -719,27 +716,29 @@ void ProbesProducer::FlushForWatchdogAndCrash(base::WatchdogCrashInfo info) {
          ds->descriptor != &MetatraceDataSource::descriptor)) {
       continue;
     }
-    ds_to_flush->insert(ds);
+    ds_to_flush.emplace_back(ds);
     ftrace_sessions += ds->descriptor == &FtraceDataSource::descriptor ? 1 : 0;
   }
+
   PERFETTO_METATRACE_COUNTER(TAG_FTRACE, FTRACE_SESSIONS, ftrace_sessions);
 
-  if (ds_to_flush->empty()) {
+  if (ds_to_flush.empty()) {
     PERFETTO_FATAL("No active data sources found. Crashing now.");
   }
 
   PERFETTO_LOG("FlushWatchdogAndCrash(): Flushing %zu ftrace data sources",
-               ds_to_flush->size());
-  auto flush_callback = [ds_to_flush](ProbesDataSource* ds) {
-    ds_to_flush->erase(ds);
-    if (ds_to_flush->empty()) {
+               ds_to_flush.size());
+  // shared_ptr as this is passed around the various callbacks.
+  auto flushes_pending = std::make_shared<size_t>(ds_to_flush.size());
+  auto flush_callback = [flushes_pending]() {
+    if (--*(flushes_pending) == 0) {
       PERFETTO_FATAL("Done flushing data sources. Crashing now.");
     }
   };
 
-  for (ProbesDataSource* ds : *ds_to_flush) {
+  for (ProbesDataSource* ds : ds_to_flush) {
     const FlushRequestID kFlushId = UINT64_MAX;
-    ds->Flush(kFlushId, std::bind(flush_callback, ds));
+    ds->Flush(kFlushId, flush_callback);
   }
 }
 
