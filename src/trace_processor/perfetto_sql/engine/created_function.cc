@@ -35,13 +35,13 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -317,11 +317,11 @@ class Memoizer {
 //   the computation.
 class RecursiveCallUnroller {
  public:
-  RecursiveCallUnroller(PerfettoSqlEngine* engine,
+  RecursiveCallUnroller(PerfettoSqlConnection* connection,
                         sqlite3_stmt* stmt,
                         const FunctionPrototype& prototype,
                         Memoizer& memoizer)
-      : engine_(engine),
+      : engine_(connection),
         stmt_(stmt),
         prototype_(prototype),
         memoizer_(memoizer) {}
@@ -424,7 +424,7 @@ class RecursiveCallUnroller {
     RETURN_IF_ERROR(MaybeBindIntArgument(stmt_, prototype_.function_name,
                                          prototype_.arguments[0], args));
     base::StatusOr<SqlValue> result = EvaluateScalarStatement(
-        stmt_, engine_->sqlite_engine()->db(), prototype_);
+        stmt_, engine_->sqlite_connection()->db(), prototype_);
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     RETURN_IF_ERROR(result.status());
@@ -434,7 +434,7 @@ class RecursiveCallUnroller {
     return std::optional<int64_t>(result->long_value);
   }
 
-  PerfettoSqlEngine* engine_;
+  PerfettoSqlConnection* engine_;
   sqlite3_stmt* stmt_;
   const FunctionPrototype& prototype_;
   Memoizer& memoizer_;
@@ -466,14 +466,14 @@ class RecursiveCallUnroller {
 // of the function (e.g. when the function is called recursively).
 class State : public CreatedFunction::UserData {
  public:
-  explicit State(PerfettoSqlEngine* engine) : engine_(engine) {}
+  explicit State(PerfettoSqlConnection* connection) : engine_(connection) {}
   ~State() override;
 
   // Prepare a statement and push it into the stack of allocated statements
   // for this function.
   base::Status PrepareStatement() {
-    SqliteEngine::PreparedStatement stmt =
-        engine_->sqlite_engine()->PrepareStatement(*sql_);
+    SqliteConnection::PreparedStatement stmt =
+        engine_->sqlite_connection()->PrepareStatement(*sql_);
     RETURN_IF_ERROR(stmt.status());
     is_valid_ = true;
     stmts_.push_back(std::move(stmt));
@@ -567,8 +567,8 @@ class State : public CreatedFunction::UserData {
     while (!empty_stmts_to_validate_.empty()) {
       sqlite3_stmt* stmt = empty_stmts_to_validate_.back();
       empty_stmts_to_validate_.pop_back();
-      RETURN_IF_ERROR(
-          CheckNoMoreRows(stmt, engine_->sqlite_engine()->db(), prototype_));
+      RETURN_IF_ERROR(CheckNoMoreRows(stmt, engine_->sqlite_connection()->db(),
+                                      prototype_));
     }
     return base::OkStatus();
   }
@@ -579,7 +579,7 @@ class State : public CreatedFunction::UserData {
     return memoizer_.EnableMemoization(prototype_);
   }
 
-  PerfettoSqlEngine* engine() const { return engine_; }
+  PerfettoSqlConnection* connection() const { return engine_; }
 
   const FunctionPrototype& prototype() const { return prototype_; }
 
@@ -592,7 +592,7 @@ class State : public CreatedFunction::UserData {
   Memoizer& memoizer() { return memoizer_; }
 
  private:
-  PerfettoSqlEngine* engine_;
+  PerfettoSqlConnection* engine_;
   FunctionPrototype prototype_;
   sql_argument::Type return_type_;
   std::optional<SqlSource> sql_;
@@ -600,7 +600,7 @@ class State : public CreatedFunction::UserData {
   // the stack requires a dedicated statement, we maintain a stack of prepared
   // statements and use the top one for each new call (allocating a new one if
   // needed).
-  std::vector<SqliteEngine::PreparedStatement> stmts_;
+  std::vector<SqliteConnection::PreparedStatement> stmts_;
   // A list of statements to verify to ensure that they don't have more rows
   // in VerifyPostConditions.
   std::vector<sqlite3_stmt*> empty_stmts_to_validate_;
@@ -618,17 +618,17 @@ class State : public CreatedFunction::UserData {
 State::~State() = default;
 
 std::unique_ptr<CreatedFunction::UserData> CreatedFunction::MakeContext(
-    PerfettoSqlEngine* engine) {
-  return std::make_unique<State>(engine);
+    PerfettoSqlConnection* connection) {
+  return std::make_unique<State>(connection);
 }
 
 bool CreatedFunction::IsValid(UserData* ctx) {
   return static_cast<State*>(ctx)->is_valid();
 }
 
-void CreatedFunction::Reset(UserData* ctx, PerfettoSqlEngine* engine) {
+void CreatedFunction::Reset(UserData* ctx, PerfettoSqlConnection* connection) {
   ctx->~UserData();
-  new (ctx) State(engine);
+  new (ctx) State(connection);
 }
 
 void CreatedFunction::Step(sqlite3_context* ctx,
@@ -725,9 +725,9 @@ void CreatedFunction::Step(sqlite3_context* ctx,
     return sqlite::utils::SetError(ctx, status.c_message());
   }
 
-  auto result = EvaluateScalarStatement(state->CurrentStatement(),
-                                        state->engine()->sqlite_engine()->db(),
-                                        state->prototype());
+  auto result = EvaluateScalarStatement(
+      state->CurrentStatement(), state->connection()->sqlite_connection()->db(),
+      state->prototype());
   if (!result.ok()) {
     return sqlite::utils::SetError(ctx, result.status().c_message());
   }

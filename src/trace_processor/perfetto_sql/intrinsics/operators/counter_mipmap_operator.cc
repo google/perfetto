@@ -94,7 +94,7 @@ int CounterMipmapOperator::Create(sqlite3* db,
 
   std::string sql = "SELECT ts, value FROM ";
   sql.append(argv[3]);
-  auto res = ctx->engine->ExecuteUntilLastStatement(
+  auto res = ctx->connection->ExecuteUntilLastStatement(
       SqlSource::FromTraceProcessorImplementation(std::move(sql)));
   if (!res.ok()) {
     *zErr = sqlite3_mprintf("%s", res.status().c_message());

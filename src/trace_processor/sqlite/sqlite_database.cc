@@ -14,19 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_FUNCTIONS_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_FUNCTIONS_H_
+#include "src/trace_processor/sqlite/sqlite_database.h"
 
-#include "perfetto/base/status.h"
+#include <atomic>
+#include <cstdint>
+
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto::trace_processor {
+namespace {
 
-class PerfettoSqlConnection;
-class StringPool;
+uint64_t NextDatabaseId() {
+  static std::atomic<uint64_t> next{0};
+  return next.fetch_add(1, std::memory_order_relaxed);
+}
 
-base::Status RegisterTreeFunctions(PerfettoSqlConnection& connection,
-                                   StringPool& pool);
+}  // namespace
+
+SqliteDatabase::SqliteDatabase()
+    : shared_filename_("file:/perfetto-" +
+                       base::Uint64ToHexStringNoPrefix(NextDatabaseId()) +
+                       "?vfs=memdb") {}
+
+SqliteDatabase::~SqliteDatabase() = default;
 
 }  // namespace perfetto::trace_processor
-
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_FUNCTIONS_H_

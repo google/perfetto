@@ -36,7 +36,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -214,7 +214,7 @@ std::string SpanJoinOperatorModule::Vtab::BestIndexStrForDefinition(
 }
 
 base::Status SpanJoinOperatorModule::TableDefinition::Create(
-    PerfettoSqlEngine* engine,
+    PerfettoSqlConnection* connection,
     const TableDescriptor& desc,
     EmitShadowType emit_shadow_type,
     TableDefinition* defn) {
@@ -227,7 +227,7 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
 
   std::vector<std::pair<SqlValue::Type, std::string>> cols;
   RETURN_IF_ERROR(sqlite::utils::GetColumnsForTable(
-      engine->sqlite_engine()->db(), desc.name, cols));
+      connection->sqlite_connection()->db(), desc.name, cols));
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();
@@ -447,7 +447,7 @@ base::Status SpanJoinOperatorModule::Query::NextSliceState() {
 }
 
 base::Status SpanJoinOperatorModule::Query::Rewind() {
-  auto res = vtab_->engine->sqlite_engine()->PrepareStatement(
+  auto res = vtab_->connection->sqlite_connection()->PrepareStatement(
       SqlSource::FromTraceProcessorImplementation(sql_query_));
   cursor_eof_ = false;
   RETURN_IF_ERROR(res.status());
@@ -614,7 +614,7 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
 
   auto* context = GetContext(ctx);
   std::unique_ptr<Vtab> vtab = std::make_unique<Vtab>();
-  vtab->engine = context->engine;
+  vtab->connection = context->connection;
   vtab->module_name = argv[0];
 
   TableDescriptor t1_desc;
@@ -667,7 +667,7 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   } else {
     t1_shadow_type = EmitShadowType::kNone;
   }
-  status = TableDefinition::Create(vtab->engine, t1_desc, t1_shadow_type,
+  status = TableDefinition::Create(vtab->connection, t1_desc, t1_shadow_type,
                                    &vtab->t1_defn);
   if (!status.ok()) {
     *pzErr = sqlite3_mprintf("%s", status.c_message());
@@ -685,7 +685,7 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   } else {
     t2_shadow_type = EmitShadowType::kNone;
   }
-  status = TableDefinition::Create(vtab->engine, t2_desc, t2_shadow_type,
+  status = TableDefinition::Create(vtab->connection, t2_desc, t2_shadow_type,
                                    &vtab->t2_defn);
   if (!status.ok()) {
     *pzErr = sqlite3_mprintf("%s", status.c_message());

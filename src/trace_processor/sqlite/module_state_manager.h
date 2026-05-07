@@ -23,12 +23,18 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/sqlite/committed_state_manager.h"
 
 namespace perfetto::trace_processor::sqlite {
 
 // Base class for ModuleStateManager. Used to reduce the binary size of
 // ModuleStateManager and also provide a type-erased interface for the
-// engines to hold onto (e.g. to call OnCommit, OnRollback, etc).
+// connections to hold onto (e.g. to call OnCommit, OnRollback, etc).
+//
+// Active and savepoint state are per-connection and live on this class.
+// The committed state lives in an external |CommittedStateManager| supplied
+// at construction so it can be shared across connections (e.g. via
+// PerfettoSqlDatabase).
 class ModuleStateManagerBase {
  public:
   // Per-vtab state. The pointer to this class should be stored in the Vtab.
@@ -43,10 +49,7 @@ class ModuleStateManagerBase {
     // most recent commit) or null (indicating that the vtab has been dropped).
     std::shared_ptr<void> active_state;
 
-    // The state of the vtab which has been "committed" by SQLite.
-    std::shared_ptr<void> committed_state;
-
-    // All the "saved" states of the vtab. This function will be modified by
+    // All the "saved" states of the vtab. This vector will be modified by
     // savepoint/rollback to/release callbacks from SQLite.
     std::vector<std::shared_ptr<void>> savepoint_states;
 
@@ -58,13 +61,13 @@ class ModuleStateManagerBase {
     ModuleStateManagerBase* manager;
   };
 
-  // Called by the engine when a transaction is committed.
+  // Called by the connection when a transaction is committed.
   //
   // This is used to finalize all the destroys performed since a previous
   // rollback or commit.
   void OnCommit();
 
-  // Called by the engine when a transaction is rolled back.
+  // Called by the connection when a transaction is rolled back.
   //
   // This is used to undo the effects of all the destroys performed since a
   // previous rollback or commit.
@@ -72,7 +75,11 @@ class ModuleStateManagerBase {
 
  protected:
   // Enforce that anyone who wants to use this class inherits from it.
-  ModuleStateManagerBase() = default;
+  // |committed_store| is non-owning and must outlive the manager; it holds
+  // the committed view of the per-vtab state and is typically shared across
+  // connections by the owning database.
+  explicit ModuleStateManagerBase(CommittedStateManager& committed_store)
+      : committed_store_(&committed_store) {}
 
   // Type-erased counterparts of ModuleStateManager functions. See below for
   // documentation of these functions.
@@ -94,6 +101,7 @@ class ModuleStateManagerBase {
       base::FlatHashMap<std::string, std::unique_ptr<PerVtabState>>;
 
   StateMap state_by_name_;
+  CommittedStateManager* committed_store_;
 };
 
 // Helper class which abstracts away management of per-vtab state of an SQLite
@@ -105,8 +113,11 @@ class ModuleStateManagerBase {
 //
 // Usage of this class:
 // struct MyModule : sqlite::Module<MyModule> {
-//   // Make the context object inherit from ModuleStateManager.
+//   // Make the context object inherit from ModuleStateManager and forward
+//   // a CommittedStateManager& to the base.
 //   struct Context : ModuleStateManager<MyModule> {
+//     explicit Context(sqlite::CommittedStateManager& store)
+//         : ModuleStateManager<MyModule>(store) {}
 //     ... (other fields)
 //   }
 //   struct Vtab : sqlite::Module<MyModule>::Vtab {
@@ -205,7 +216,9 @@ class ModuleStateManager : public ModuleStateManagerBase {
 
  protected:
   // Enforce that anyone who wants to use this class inherits from it.
-  ModuleStateManager() = default;
+  // |committed_store| is non-owning and must outlive the manager.
+  explicit ModuleStateManager(CommittedStateManager& committed_store)
+      : ModuleStateManagerBase(committed_store) {}
 };
 
 }  // namespace perfetto::trace_processor::sqlite

@@ -24,7 +24,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 class TraceProcessorContext;
 
 // Registers the following functions:
@@ -50,7 +50,7 @@ class TraceProcessorContext;
 //
 // Return Value:
 //   The string with replaced hex sequences.
-base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
+base::Status RegisterStripHexFunction(PerfettoSqlConnection* connection,
                                       TraceProcessorContext* context);
 
 // Implementation of __intrinsic_strip_hex function

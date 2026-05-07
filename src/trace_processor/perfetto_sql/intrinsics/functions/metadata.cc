@@ -23,7 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -140,15 +140,15 @@ void ExtractExactMetadata::Step(sqlite3_context* ctx,
   }
 }
 
-base::Status RegisterMetadataFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterMetadataFunctions(PerfettoSqlConnection& connection,
                                        TraceStorage* storage) {
-  RETURN_IF_ERROR(engine.RegisterFunction<ExtractMetadata>(
+  RETURN_IF_ERROR(connection.RegisterFunction<ExtractMetadata>(
       std::make_unique<ExtractMetadata::Context>(storage)));
-  RETURN_IF_ERROR(engine.RegisterFunction<ExtractMetadataForMachine>(
+  RETURN_IF_ERROR(connection.RegisterFunction<ExtractMetadataForMachine>(
       std::make_unique<ExtractMetadataForMachine::Context>(storage)));
-  RETURN_IF_ERROR(engine.RegisterFunction<ExtractMetadataForTrace>(
+  RETURN_IF_ERROR(connection.RegisterFunction<ExtractMetadataForTrace>(
       std::make_unique<ExtractMetadataForTrace::Context>(storage)));
-  return engine.RegisterFunction<ExtractExactMetadata>(
+  return connection.RegisterFunction<ExtractExactMetadata>(
       std::make_unique<ExtractExactMetadata::Context>(storage));
 }
 
