@@ -101,6 +101,37 @@ class GlobalStatsTracker {
     });
   }
 
+  // Eagerly emits a value=0 row for every kSingle stat of `scope`, scoped to
+  // `(machine_id, trace_id)`. Must be called exactly once per (scope,
+  // context) — typically from the owning tracker's constructor:
+  //   * GlobalStatsTracker ctor zeroes kGlobal stats with (nullopt, nullopt).
+  //   * StatsTracker ctor zeroes kMachineAndTrace stats with the context's
+  //     (machine_id, trace_id).
+  //
+  // Why this exists: the legacy stats storage was a single
+  // std::array<Stats, kNumKeys> default-constructed inside TraceStorage. As a
+  // side effect, every kSingle stat was always visible in the `stats` SQL
+  // view (and the JSON export's metadata.trace_processor_stats block) at
+  // value=0 even if it was never written. Existing consumers depend on this:
+  //   * metrics/sql/trace_stats.sql serializes every row in `stats`.
+  //   * _stat_key_to_severity_and_name (prelude/after_eof/views.sql) does
+  //     SELECT DISTINCT key, severity, name FROM stats ORDER BY key, joined
+  //     against __intrinsic_trace_import_logs.stat_key — a missing stat row
+  //     silently drops the join row.
+  //   * export_json.cc writes one JSON key per kSingle stat (legacy
+  //     contract: every key present, even at zero).
+  //
+  // In the new columnar StatsTable rows only exist when something is
+  // written. Eagerly inserting at construction time preserves the legacy
+  // contract regardless of whether any stat is ever touched. Cost:
+  // O(kNumKeys) inserts per context (typically <300 rows per bucket).
+  //
+  // kIndexed stats are NOT pre-zeroed — the legacy IndexMap was sparse too
+  // (default-empty), so absence in the new table matches.
+  void ZeroSingleStatsForContext(stats::Scope scope,
+                                 std::optional<MachineId> machine_id,
+                                 std::optional<TraceId> trace_id);
+
  private:
   // Side-index entry: identifies a unique row in the StatsTable.
   struct StatsEntry {
@@ -145,33 +176,6 @@ class GlobalStatsTracker {
                                                    std::optional<int> index,
                                                    const ContextIds& ctx);
 
-  // Idempotently materializes every kSingle stat (of `scope`) as a value=0
-  // row for `ctx`, the first time a write reaches that context.
-  //
-  // Why this exists: the legacy stats storage was a single
-  // std::array<Stats, kNumKeys> default-constructed inside TraceStorage. As
-  // a side effect, every kSingle stat was always visible in the `stats` SQL
-  // view (and the JSON export's metadata.trace_processor_stats block) at
-  // value=0 even if it was never written. Existing consumers depend on this:
-  //   * metrics/sql/trace_stats.sql serializes every row in `stats`.
-  //   * _stat_key_to_severity_and_name (prelude/after_eof/views.sql) does
-  //     SELECT DISTINCT key, severity, name FROM stats ORDER BY key, and is
-  //     joined against __intrinsic_trace_import_logs.stat_key — a missing
-  //     stat row silently drops the join row.
-  //   * export_json.cc writes one JSON key per kSingle stat (legacy contract:
-  //     every key present, even at zero).
-  //
-  // In the new columnar StatsTable, rows only exist when something is
-  // written. To preserve the legacy contract we eagerly insert every
-  // kSingle stat at value=0 the first time a context of the matching scope
-  // is touched. Cost: O(kNumKeys) one-time inserts per touched context
-  // (typically <300 rows per bucket).
-  //
-  // kIndexed stats are NOT pre-materialized — the legacy IndexMap was
-  // sparse too (default-empty), so absence in the new table matches.
-  void MaterializeKSingleRowsForContext(stats::Scope scope,
-                                        const ContextIds& ctx);
-
   TraceStorage* const storage_;
 
   // Pre-interned constant strings, keyed by stats:: enum values.
@@ -181,12 +185,6 @@ class GlobalStatsTracker {
   std::array<StringId, stats::kNumSources> source_ids_;
 
   base::FlatHashMap<StatsEntry, tables::StatsTable::Id> id_by_entry_;
-
-  // Set of contexts whose kSingle rows have been pre-materialized (see
-  // MaterializeKSingleRowsForContext above). We don't have FlatHashSet so
-  // we (ab)use FlatHashMap with a noop value, matching the convention in
-  // src/trace_processor/perfetto_sql/generator/structured_query_generator.h.
-  base::FlatHashMap<ContextIds, std::nullptr_t> materialized_contexts_;
 };
 
 }  // namespace perfetto::trace_processor

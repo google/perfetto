@@ -65,9 +65,9 @@ TEST(VirtualAddressSpaceTest, Empty) {
   context.trace_state =
       TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
           TraceProcessorContext::TraceState{TraceId{0}});
-  context.stats_tracker = std::make_unique<StatsTracker>(&context);
   context.machine_tracker =
       std::make_unique<MachineTracker>(&context, kDefaultMachineId);
+  context.stats_tracker = std::make_unique<StatsTracker>(&context);
   VirtualAddressSpace vs = VirtualAddressSpace::Builder(&context).Build();
 
   EXPECT_THAT(vs.FindMapping(0, 5), IsNull());

@@ -114,10 +114,8 @@ TEST_F(GlobalStatsTrackerTest, GetStatsReturnsZeroForUnset) {
 }
 
 // Writing the same stat to two distinct (machine, trace) contexts produces
-// rows in both contexts. Note: row count is not 2 — each context lazily
-// materializes all kSingle stats of the scope on first write (legacy
-// "every kSingle stat visible at value=0" contract). What we verify here
-// is that GetStats sees both written values back, scoped per-context.
+// rows in both contexts. We verify that GetStats sees both written values
+// back, scoped per-context.
 TEST_F(GlobalStatsTrackerTest, EachContextProducesOneRow) {
   tracker_.SetStats(MachineId(1), TraceId(1), stats::android_log_num_failed,
                     10);

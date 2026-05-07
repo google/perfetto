@@ -37,6 +37,11 @@ GlobalStatsTracker::GlobalStatsTracker(TraceStorage* storage)
   severity_ids_[stats::kError] = storage->InternString("error");
   source_ids_[stats::kTrace] = storage->InternString("trace");
   source_ids_[stats::kAnalysis] = storage->InternString("analysis");
+
+  // Pre-emit value=0 rows for every kGlobal kSingle stat so they are visible
+  // in SQL/JSON regardless of whether anything ever writes them. See
+  // ZeroSingleStatsForContext for the rationale.
+  ZeroSingleStatsForContext(stats::Scope::kGlobal, std::nullopt, std::nullopt);
 }
 
 void GlobalStatsTracker::SetStats(std::optional<MachineId> machine_id,
@@ -175,11 +180,6 @@ tables::StatsTable::RowReference GlobalStatsTracker::FindOrInsertRow(
     size_t key,
     std::optional<int> index,
     const ContextIds& ctx) {
-  // Preserve the legacy "every kSingle stat visible in SQL/JSON" contract by
-  // materializing all kSingle stats of this scope as value=0 rows the first
-  // time any write reaches this context.
-  MaterializeKSingleRowsForContext(stats::kScopes[key], ctx);
-
   auto& table = *storage_->mutable_stats_table();
   StatsEntry entry{key, index, ctx.machine_id, ctx.trace_id};
   if (auto* id_ptr = id_by_entry_.Find(entry)) {
@@ -200,14 +200,10 @@ tables::StatsTable::RowReference GlobalStatsTracker::FindOrInsertRow(
   return table[id_and_row.row];
 }
 
-void GlobalStatsTracker::MaterializeKSingleRowsForContext(
+void GlobalStatsTracker::ZeroSingleStatsForContext(
     stats::Scope scope,
-    const ContextIds& ctx) {
-  if (materialized_contexts_.Find(ctx)) {
-    return;
-  }
-  materialized_contexts_.Insert(ctx, nullptr);
-
+    std::optional<MachineId> machine_id,
+    std::optional<TraceId> trace_id) {
   auto& table = *storage_->mutable_stats_table();
   for (size_t k = 0; k < stats::kNumKeys; ++k) {
     if (stats::kScopes[k] != scope) {
@@ -224,12 +220,11 @@ void GlobalStatsTracker::MaterializeKSingleRowsForContext(
     row.source = source_ids_[stats::kSources[k]];
     row.value = 0;
     row.description = description_ids_[k];
-    row.machine_id = ctx.machine_id;
-    row.trace_id = ctx.trace_id;
+    row.machine_id = machine_id;
+    row.trace_id = trace_id;
     auto id_and_row = table.Insert(row);
-    id_by_entry_.Insert(
-        StatsEntry{k, std::nullopt, ctx.machine_id, ctx.trace_id},
-        id_and_row.id);
+    id_by_entry_.Insert(StatsEntry{k, std::nullopt, machine_id, trace_id},
+                        id_and_row.id);
   }
 }
 

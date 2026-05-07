@@ -48,9 +48,9 @@ class SchedEventTrackerTest : public ::testing::Test {
     context.trace_state =
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
-    context.stats_tracker = std::make_unique<StatsTracker>(&context);
     context.machine_tracker =
         std::make_unique<MachineTracker>(&context, kDefaultMachineId);
+    context.stats_tracker = std::make_unique<StatsTracker>(&context);
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
     context.event_tracker = std::make_unique<EventTracker>(&context);

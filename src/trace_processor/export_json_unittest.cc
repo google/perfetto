@@ -93,6 +93,9 @@ class ExportJsonTest : public ::testing::Test {
         std::make_unique<GlobalStatsTracker>(context_.storage.get());
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
@@ -101,9 +104,6 @@ class ExportJsonTest : public ::testing::Test {
     context_.cpu_tracker.reset(new CpuTracker(&context_));
     context_.global_metadata_tracker.reset(
         new GlobalMetadataTracker(context_.storage.get()));
-    context_.trace_state =
-        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
-            TraceProcessorContext::TraceState{TraceId(0)});
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.process_track_translation_table.reset(

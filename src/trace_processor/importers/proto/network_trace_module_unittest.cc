@@ -71,7 +71,6 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     context_.global_stats_tracker =
         std::make_unique<GlobalStatsTracker>(context_.storage.get());
-    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     storage_ = context_.storage.get();
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
@@ -80,6 +79,7 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.trace_state =
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId(0)});
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.import_logs_tracker =
         std::make_unique<ImportLogsTracker>(&context_, TraceId(1));

@@ -52,9 +52,9 @@ class TrackCompressorUnittest : public testing::Test {
     context_.trace_state =
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
-    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);

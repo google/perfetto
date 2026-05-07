@@ -47,7 +47,6 @@ class ClockTrackerTest : public ::testing::Test {
     context_.storage.reset(new TraceStorage());
     context_.global_stats_tracker =
         std::make_unique<GlobalStatsTracker>(context_.storage.get());
-    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
     context_.global_metadata_tracker.reset(
@@ -55,11 +54,12 @@ class ClockTrackerTest : public ::testing::Test {
     context_.trace_state =
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId(0)});
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.import_logs_tracker.reset(
         new ImportLogsTracker(&context_, TraceId(1)));
-    context_.machine_tracker =
-        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.trace_time_state = std::make_unique<TraceTimeState>(
         ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
     primary_sync_ = std::make_unique<ClockSynchronizer>(

@@ -31,7 +31,15 @@ namespace perfetto::trace_processor {
 // machine_id and trace_id.
 class StatsTracker {
  public:
-  explicit StatsTracker(TraceProcessorContext* context) : context_(context) {}
+  explicit StatsTracker(TraceProcessorContext* context) : context_(context) {
+    // Pre-emit value=0 rows for every kMachineAndTrace kSingle stat so they
+    // are visible in SQL/JSON for this (machine, trace) regardless of
+    // whether anything ever writes them. See
+    // GlobalStatsTracker::ZeroSingleStatsForContext.
+    context_->global_stats_tracker->ZeroSingleStatsForContext(
+        stats::Scope::kMachineAndTrace, context_->machine_id(),
+        context_->trace_id());
+  }
 
   void SetStats(size_t key, int64_t value) {
     context_->global_stats_tracker->SetStats(context_->machine_id(),
