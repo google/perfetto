@@ -104,7 +104,7 @@ void DeobfuscationTracker::BuildJavaFrameMaps(
         context_->storage->GetString(mapping->name());
 
     std::optional<std::string> package =
-        PackageFromLocation(context_->storage.get(), mapping_name);
+        PackageFromLocation(context_->global_stats_tracker.get(), mapping_name);
 
     if (package) {
       // Found package from mapping path

@@ -23,9 +23,11 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -65,12 +67,18 @@ class SliceTrackerTest : public ::testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(context_.storage.get());
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(context_.storage.get());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
   }
 
  protected:

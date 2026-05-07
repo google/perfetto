@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
@@ -287,7 +288,7 @@ ModuleResult AndroidProbesModule::ParseEnergyDescriptor(
     protos::pbzero::AndroidEnergyConsumer::Decoder consumer(*it);
 
     if (!consumer.has_energy_consumer_id()) {
-      context_->storage->IncrementStats(stats::energy_descriptor_invalid);
+      context_->stats_tracker->IncrementStats(stats::energy_descriptor_invalid);
       continue;
     }
 
@@ -302,10 +303,10 @@ ModuleResult AndroidProbesModule::ParseEnergyDescriptor(
 ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
     protozero::ConstBytes blob) {
   protos::pbzero::PackagesList::Decoder pkg_list(blob.data, blob.size);
-  context_->storage->SetStats(stats::packages_list_has_read_errors,
-                              pkg_list.read_error());
-  context_->storage->SetStats(stats::packages_list_has_parse_errors,
-                              pkg_list.parse_error());
+  context_->stats_tracker->SetStats(stats::packages_list_has_read_errors,
+                                    pkg_list.read_error());
+  context_->stats_tracker->SetStats(stats::packages_list_has_parse_errors,
+                                    pkg_list.parse_error());
 
   for (auto it = pkg_list.packages(); it; ++it) {
     protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
@@ -327,7 +328,7 @@ ModuleResult AndroidProbesModule::ParseAndroidUserList(
   protos::pbzero::AndroidUserList::Decoder user_list(blob.data, blob.size);
 
   if (user_list.error() < 0) {
-    context_->storage->IncrementStats(stats::user_list_errors);
+    context_->stats_tracker->IncrementStats(stats::user_list_errors);
   }
 
   for (auto it = user_list.users(); it; ++it) {
@@ -350,7 +351,7 @@ void AndroidProbesModule::ParseEntityStateDescriptor(
         entity_state(*it);
 
     if (!entity_state.has_entity_index() || !entity_state.has_state_index()) {
-      context_->storage->IncrementStats(stats::energy_descriptor_invalid);
+      context_->stats_tracker->IncrementStats(stats::energy_descriptor_invalid);
       continue;
     }
     tracker_->SetEntityStateDescriptor(

@@ -22,6 +22,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -33,7 +34,7 @@ class ViewCaptureArgsParser : public ArgsParser {
 
   ViewCaptureArgsParser(int64_t packet_timestamp,
                         ArgsTracker::BoundInserter& inserter,
-                        TraceStorage& storage,
+                        TraceProcessorContext& context,
                         PacketSequenceStateGeneration* sequence_state,
                         tables::ViewCaptureTable::RowReference* snapshot_row,
                         tables::ViewCaptureViewTable::RowReference* view_row);
@@ -54,7 +55,7 @@ class ViewCaptureArgsParser : public ArgsParser {
   DeinternString(uint64_t, RowRef*, void (RowRef::*setter)(StringPool::Id));
 
   const base::StringView ERROR_MSG{"STRING DE-INTERNING ERROR"};
-  TraceStorage& storage_;
+  TraceProcessorContext& context_;
   tables::ViewCaptureTable::RowReference* snapshot_row_;
   tables::ViewCaptureViewTable::RowReference* view_row_;
 };

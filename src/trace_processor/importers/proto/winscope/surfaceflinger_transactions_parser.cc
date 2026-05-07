@@ -23,6 +23,7 @@
 #include "protos/perfetto/trace/android/surfaceflinger_transactions.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
@@ -60,7 +61,7 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
           tables::SurfaceFlingerTransactionsTable::Name()),
       nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::winscope_sf_transactions_parse_errors);
   }
 
@@ -377,7 +378,7 @@ void SurfaceFlingerTransactionsParser::AddArgs(
   base::Status status = args_parser_.ParseMessage(
       blob, message_type, nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::winscope_sf_transactions_parse_errors);
   }
   if (transaction.has_value()) {
