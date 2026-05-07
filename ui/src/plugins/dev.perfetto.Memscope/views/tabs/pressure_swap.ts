@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 import {
-  LineChart,
+  LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts/line_chart';
+} from '../../../../components/widgets/charts_svg/line_chart_svg';
 import {LiveSession, type SnapshotData} from '../../sessions/live_session';
 import {formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
 import {Panel} from '../../components/panel';
@@ -238,7 +238,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           '"some" = at least one task stalled, "full" = all tasks stalled.',
       },
       psiChartData
-        ? m(LineChart, {
+        ? m(LineChartSvg, {
             data: psiChartData,
             height: 200,
             xAxisLabel: 'Time (s)',
@@ -264,7 +264,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           'Minor (pgfault) = page in RAM but not in TLB. Major (pgmajfault) = page must be read from disk.',
       },
       pageFaultChartData
-        ? m(LineChart, {
+        ? m(LineChartSvg, {
             data: pageFaultChartData,
             height: 200,
             xAxisLabel: 'Time (s)',
@@ -289,7 +289,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
             'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached. ' +
             'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
         },
-        m(LineChart, {
+        m(LineChartSvg, {
           data: swapChartData,
           height: 200,
           xAxisMin: data.xMin,
@@ -317,7 +317,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
             'Source: /proc/vmstat counters pswpin, pswpout. ' +
             'Derived: cumulative page counts converted to pages/s rate.',
         },
-        m(LineChart, {
+        m(LineChartSvg, {
           data: vmstatChartData,
           xAxisMin: data.xMin,
           xAxisMax: data.xMax,

@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 import {
-  LineChart,
+  LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts/line_chart';
+} from '../../../../components/widgets/charts_svg/line_chart_svg';
 import {LiveSession, SnapshotData} from '../../sessions/live_session';
 import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
 import {Billboard} from '../../components/billboard';
@@ -236,7 +236,7 @@ export function renderSystemTab(session: LiveSession): m.Children {
           'Unaccounted = MemTotal \u2212 sum of all other categories.',
       },
       chartData
-        ? m(LineChart, {
+        ? m(LineChartSvg, {
             data: chartData,
             height: 400,
             xAxisLabel: 'Time (s)',

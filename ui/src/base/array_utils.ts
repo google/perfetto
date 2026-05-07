@@ -85,3 +85,15 @@ export function intersperse<T, S>(arr: T[], separator: S): (T | S)[] {
     i < arr.length - 1 ? [item, separator] : [item],
   );
 }
+
+export function min(xs: ReadonlyArray<number>): number {
+  let r = Infinity;
+  for (const x of xs) if (x < r) r = x;
+  return r === Infinity ? 0 : r;
+}
+
+export function max(xs: ReadonlyArray<number>): number {
+  let r = -Infinity;
+  for (const x of xs) if (x > r) r = x;
+  return r === -Infinity ? 1 : r;
+}

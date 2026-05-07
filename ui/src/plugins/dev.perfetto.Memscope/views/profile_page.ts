@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {
-  LineChart,
+  LineChartSvg,
   LineChartData,
-} from '../../../components/widgets/charts/line_chart';
+} from '../../../components/widgets/charts_svg/line_chart_svg';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {Intent} from '../../../widgets/common';
@@ -208,7 +208,7 @@ function renderBreakdownChart(attrs: ProfilePageAttrs): m.Children {
       ),
     ),
     attrs.chartData
-      ? m(LineChart, {
+      ? m(LineChartSvg, {
           data: {
             series: attrs.chartData.series,
           },

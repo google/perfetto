@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 import {
-  LineChart,
+  LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts/line_chart';
+} from '../../../../components/widgets/charts_svg/line_chart_svg';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
@@ -450,6 +450,19 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         ? buildCategoryTimeSeries(data, t0, counters)
         : buildOomScoreTimeSeries(data, t0, counters);
 
+    // Pin x-axis to the exact data range so the plot edges line up with the
+    // first and last sample.
+    let chartXMin: number | undefined;
+    let chartXMax: number | undefined;
+    if (chartData !== undefined) {
+      for (const s of chartData.series) {
+        for (const p of s.points) {
+          if (chartXMin === undefined || p.x < chartXMin) chartXMin = p.x;
+          if (chartXMax === undefined || p.x > chartXMax) chartXMax = p.x;
+        }
+      }
+    }
+
     const latestProcesses = buildLatestProcessMemory(data);
 
     const processes =
@@ -578,7 +591,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         m(
           '.pf-memscope-panel__body',
           chartData
-            ? m(LineChart, {
+            ? m(LineChartSvg, {
                 data: chartData,
                 height: 350,
                 xAxisLabel: 'Time (s)',
@@ -587,6 +600,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 showPoints: false,
                 stacked: true,
                 gridLines: 'both',
+                xAxisMin: chartXMin,
+                xAxisMax: chartXMax,
                 formatXValue: (v: number) => `${v.toFixed(0)}s`,
                 formatYValue: (v: number) => formatKb(v),
                 yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),

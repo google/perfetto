@@ -21,7 +21,6 @@ import {
 import {ColumnInfo} from '../column_info';
 import {BarChart} from '../../../../components/widgets/charts/bar_chart';
 import {Histogram} from '../../../../components/widgets/charts/histogram';
-import {LineChart} from '../../../../components/widgets/charts/line_chart';
 import {Scatterplot} from '../../../../components/widgets/charts/scatterplot';
 import {PieChart} from '../../../../components/widgets/charts/pie_chart';
 import {
@@ -46,6 +45,7 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 import {Engine} from '../../../../trace_processor/engine';
 import {isIntegerColumn, getNumericFormatter} from './chart_column_formatters';
 import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+import {LineChartSvg} from '../../../../components/widgets/charts_svg/line_chart_svg';
 
 /**
  * Formats a human-readable measure label for chart axes.
@@ -363,7 +363,7 @@ export function renderLineChart(
     ? getNumericFormatter(ctx.node, config.yColumn)
     : undefined;
 
-  return m(LineChart, {
+  return m(LineChartSvg, {
     data,
     height: 250,
     xAxisLabel: config.column,
@@ -536,7 +536,7 @@ export function renderCdf(
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
 
-  return m(LineChart, {
+  return m(LineChartSvg, {
     data,
     height: 250,
     xAxisLabel: config.column,

@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 import {
-  LineChart,
+  LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts/line_chart';
+} from '../../../../components/widgets/charts_svg/line_chart_svg';
 import {LiveSession, type SnapshotData} from '../../sessions/live_session';
 import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
 import {Billboard} from '../../components/billboard';
@@ -244,7 +244,7 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
           'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
       },
       pageCacheChartData
-        ? m(LineChart, {
+        ? m(LineChartSvg, {
             data: pageCacheChartData,
             height: 250,
             xAxisLabel: 'Time (s)',
@@ -275,7 +275,7 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
           'Scanned = pgscan_file (pages considered for reclaim).',
       },
       fileCacheActivityData
-        ? m(LineChart, {
+        ? m(LineChartSvg, {
             data: fileCacheActivityData,
             height: 200,
             xAxisLabel: 'Time (s)',
