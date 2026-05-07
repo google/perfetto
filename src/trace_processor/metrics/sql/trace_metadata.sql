@@ -85,13 +85,16 @@ SELECT TraceMetadata(
   'suspend_count', (
     SELECT COUNT() FROM android_suspend_state WHERE power_state = 'suspended'
   ),
+  -- The `stats` view can have multiple rows per (name, idx) when a session
+  -- spans multiple (machine_id, trace_id) buckets; COUNT(DISTINCT ...)
+  -- collapses them so a stat that hit on N machines counts once.
   'data_loss_count', (
-      SELECT COUNT()
+      SELECT COUNT(DISTINCT name || '|' || ifnull(idx, ''))
       FROM stats
       WHERE severity = 'data_loss' AND value > 0
   ),
   'error_count', (
-      SELECT COUNT()
+      SELECT COUNT(DISTINCT name || '|' || ifnull(idx, ''))
       FROM stats
       WHERE severity = 'error' AND value > 0
   )

@@ -29,8 +29,6 @@ source_set("sqlite") {
     "sqlite_engine.h",
     "sqlite_utils.cc",
     "sqlite_utils.h",
-    "stats_table.cc",
-    "stats_table.h",
   ]
   deps = [
     "..:metatrace",
@@ -66,6 +64,10 @@ perfetto_unittest_source_set("unittests") {
     "../../../include/perfetto/trace_processor:basic_types",
     "../../base",
     "../../base:test_support",
+    "../containers",
+    "../importers/common:stats_tracker",
+    "../perfetto_sql/engine",
+    "../storage",
   ]
 }
 
