@@ -52,9 +52,16 @@ export default class implements PerfettoPlugin {
       icon: 'memory',
     });
 
-    // Any trace with heap-graph rows defaults to the Heapdump
-    // Explorer (the early-return above gates this listener on
-    // heap_graph_object > 0).
-    ctx.onTraceReady.addListener(() => ctx.navigate('#!/heapdump'));
+    if (!(await traceHasTimelineData(ctx))) {
+      session.autoNavigated = true;
+      ctx.onTraceReady.addListener(() => ctx.navigate('#!/heapdump'));
+    }
   }
+}
+
+async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
+  const res = await ctx.engine.query(
+    `SELECT EXISTS(SELECT 1 FROM slice) OR EXISTS(SELECT 1 FROM sched) AS res`,
+  );
+  return res.firstRow({res: NUM}).res > 0;
 }

@@ -119,6 +119,8 @@ function buildTabs(
         overview,
         activeDump,
         navigate: navigateWithTabs,
+        showDefaultChangedHint: session.autoNavigated,
+        onBackToTimeline: () => trace.navigate('#!/viewer'),
       }),
     },
     {
