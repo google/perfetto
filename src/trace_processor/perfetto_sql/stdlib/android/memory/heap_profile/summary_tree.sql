@@ -38,12 +38,10 @@ SELECT
   coalesce(m.self_size, 0) AS self_size,
   coalesce(m.self_alloc_size, 0) AS self_alloc_size
 FROM _callstacks_for_stack_profile_samples!(metrics) AS c
-LEFT JOIN metrics AS m
-  USING (callsite_id);
+LEFT JOIN metrics AS m USING (callsite_id);
 
 CREATE PERFETTO TABLE _android_heap_profile_cumulatives AS
-SELECT
-  a.*
+SELECT a.*
 FROM _graph_aggregating_scan!(
   (
     SELECT id AS source_node_id, parent_id AS dest_node_id
@@ -84,7 +82,7 @@ FROM _graph_aggregating_scan!(
 --
 -- Note: this table collapses data from all processes together
 -- into a single table.
-CREATE PERFETTO TABLE android_heap_profile_summary_tree (
+CREATE PERFETTO TABLE android_heap_profile_summary_tree(
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
   id LONG,
@@ -112,7 +110,8 @@ CREATE PERFETTO TABLE android_heap_profile_summary_tree (
   -- anywhere on the callstack. This may include memory which was
   -- later freed.
   cumulative_alloc_size LONG
-) AS
+)
+AS
 SELECT
   id,
   parent_id,
@@ -125,5 +124,4 @@ SELECT
   self_alloc_size,
   cumulative_alloc_size
 FROM _android_heap_profile_raw_callstacks AS r
-JOIN _android_heap_profile_cumulatives AS a
-  USING (id);
+JOIN _android_heap_profile_cumulatives AS a USING (id);

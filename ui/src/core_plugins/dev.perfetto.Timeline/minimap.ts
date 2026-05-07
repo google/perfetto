@@ -22,7 +22,11 @@ import {colorForCpu} from '../../components/colorizer';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {COLOR_TEXT_MUTED, FONT_COMPACT, COLOR_BORDER} from '../../frontend/css_constants';
+import {
+  COLOR_TEXT_MUTED,
+  FONT_COMPACT,
+  COLOR_BORDER,
+} from '../../frontend/css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -30,6 +34,7 @@ import {
   TickType,
 } from './gridline_helper';
 import {findRef} from '../../base/dom_utils';
+import {startDragGesture} from '../../base/mithril_utils';
 
 const HEADER_HEIGHT_PX = 20;
 const HANDLE_SIZE_PX = 5;
@@ -269,58 +274,39 @@ interface SelectionAreaAttrs extends m.Attributes {
 }
 
 function SelectionArea(): m.Component<SelectionAreaAttrs> {
-  let dragStartX: number | undefined;
-
   return {
     view({attrs}: m.Vnode<SelectionAreaAttrs>) {
       return m('div', {
-        onpointerdown: (e: PointerEvent) => {
-          const target = e.target as HTMLElement;
-          target.setPointerCapture(e.pointerId);
-          const rect = target.getBoundingClientRect();
-          dragStartX = e.clientX - rect.left;
-        },
-        onpointerup: (e: PointerEvent) => {
-          const target = e.target as HTMLElement;
-          target.releasePointerCapture(e.pointerId);
-          dragStartX = undefined;
-        },
-        onpointermove: (e: PointerEvent) => {
-          if (dragStartX !== undefined) {
-            const target = e.target as HTMLElement;
-            const rect = target.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            attrs.onDrag(dragStartX, currentX);
-          }
-        },
         class: 'pf-minimap__selection-area',
+        onpointerdown: (e: PointerEvent) => {
+          const target = e.currentTarget as HTMLElement;
+          const rect = target.getBoundingClientRect();
+          const dragStartX = e.clientX - rect.left;
+          startDragGesture({
+            e,
+            onDrag: (ev) => {
+              attrs.onDrag(dragStartX, ev.clientX - rect.left);
+            },
+          });
+        },
       });
     },
   };
 }
 
 function DragHandle(): m.Component<DragHandleAttrs> {
-  let lastClientX: number | undefined;
-
   return {
     view({attrs}: m.Vnode<DragHandleAttrs>) {
       return m('span.pf-minimap__drag-handle', {
         onpointerdown: (e: PointerEvent) => {
-          const target = e.target as HTMLElement;
-          target.setPointerCapture(e.pointerId);
-          lastClientX = e.clientX;
-        },
-        onpointerup: (e: PointerEvent) => {
-          const target = e.target as HTMLElement;
-          target.releasePointerCapture(e.pointerId);
-          lastClientX = undefined;
-        },
-        onpointermove: (e: PointerEvent) => {
-          if (lastClientX !== undefined) {
-            const deltaX = e.clientX - lastClientX;
-            lastClientX = e.clientX;
-            attrs.onDrag(deltaX);
-          }
+          let lastClientX = e.clientX;
+          startDragGesture({
+            e,
+            onDrag: (ev) => {
+              attrs.onDrag(ev.clientX - lastClientX);
+              lastClientX = ev.clientX;
+            },
+          });
         },
         style: {
           position: 'absolute',
@@ -335,34 +321,25 @@ function DragHandle(): m.Component<DragHandleAttrs> {
 }
 
 function Brush(): m.Component<BrushAttrs> {
-  let dragging = false;
-
   return {
     view({attrs}: m.Vnode<BrushAttrs>) {
       return m(
         '.pf-minimap__brush',
         {
           onpointerdown: (e: PointerEvent) => {
-            const target = e.currentTarget as HTMLElement;
-            target.setPointerCapture(e.pointerId);
-            dragging = true;
-          },
-          onpointerup: (e: PointerEvent) => {
-            const target = e.currentTarget as HTMLElement;
-            target.releasePointerCapture(e.pointerId);
-            dragging = false;
-          },
-          onpointermove: (e: PointerEvent) => {
-            if (dragging) {
-              const brushElement = e.currentTarget as HTMLElement;
-              const parentRect =
-                brushElement.offsetParent!.getBoundingClientRect();
-              const x = Math.max(
-                attrs.minX,
-                Math.min(attrs.maxX, e.clientX - parentRect.left),
-              );
-              attrs.onDrag(x);
-            }
+            const brushElement = e.currentTarget as HTMLElement;
+            const parentRect =
+              brushElement.offsetParent!.getBoundingClientRect();
+            startDragGesture({
+              e,
+              onDrag: (ev) => {
+                const x = Math.max(
+                  attrs.minX,
+                  Math.min(attrs.maxX, ev.clientX - parentRect.left),
+                );
+                attrs.onDrag(x);
+              },
+            });
           },
           style: {
             position: 'absolute',

@@ -1097,19 +1097,26 @@ def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
 
 
 def create_sql_source_set_module(blueprint: Blueprint, target: GnParser.Target):
-  # Emit a Soong filegroup for each `perfetto_sql_source_set`. Filegroups
-  # nest, so the cpp_blob_header genrule (the SQL amalgamation) can pull
-  # them in via its direct deps and Soong resolves transitively.
+  CHROME_SQL_PREFIX = (
+      '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql')
+  CHROME_SQL_GLOB = 'src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql'
+
   module = Module('filegroup', label_to_module_name(target.name), target.name)
-  # The chrome stdlib SQL list is autorolled from Chromium. Use a glob so
-  # the filegroup does not need to be regenerated on every roll. This
-  # mirrors the `target_overrides` for `:chrome_sql` in tools/gen_bazel.
-  if target.name.startswith(
-      '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
-    module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
-  else:
-    module.srcs.update(gn_utils.label_to_path(s) for s in target.inputs)
-  module.srcs.update(':' + label_to_module_name(d.name) for d in target.deps)
+
+  def add_inputs(t: GnParser.Target):
+    # The chrome stdlib SQL list is autorolled from Chromium; use a glob so
+    # the filegroup does not need regenerating on every roll. Mirrors the
+    # `target_overrides` precedent in tools/gen_bazel.
+    if t.name.startswith(CHROME_SQL_PREFIX):
+      module.srcs.add(CHROME_SQL_GLOB)
+    else:
+      module.srcs.update(gn_utils.label_to_path(s) for s in t.inputs)
+
+  add_inputs(target)
+  for dep in target.transitive_deps:
+    if dep.custom_action_type == 'sql_source_set':
+      add_inputs(dep)
+
   blueprint.add_module(module)
   return module
 

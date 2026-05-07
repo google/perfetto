@@ -143,7 +143,6 @@ from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TEST
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.export.tests import ExportTests
-from diff_tests.stdlib.graphs.critical_path_tests import CriticalPathTests
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
@@ -185,6 +184,7 @@ from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
+from diff_tests.syntax.stdlib_docs_tests import StdlibDocs
 from diff_tests.syntax.structured_query_tests import StructuredQueryTests
 from diff_tests.syntax.table_function_tests import PerfettoTableFunction
 from diff_tests.syntax.table_tests import PerfettoTable
@@ -320,7 +320,6 @@ def fetch_all_diff_tests(
       LinuxCpu,
       LinuxTests,
       DominatorTree,
-      CriticalPathTests,
       GraphScanTests,
       TreeRoundtrip,
       TreeFilter,
@@ -371,6 +370,7 @@ def fetch_all_diff_tests(
       PerfettoTable,
       PerfettoTableFunction,
       PerfettoView,
+      StdlibDocs,
       StructuredQueryTests,
   ]
 

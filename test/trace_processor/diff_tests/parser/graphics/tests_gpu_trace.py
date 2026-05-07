@@ -640,3 +640,38 @@ class GraphicsGpuTrace(TestSuite):
           "slice_name","kernel_name","grid_x","grid_y","grid_z","wg_x","wg_y","wg_z","regs","shmem"
           "vectorAdd","_Z9vectorAddPfS_S_i",256,1,1,128,1,1,32,4096
         '''))
+
+  def test_gpu_frequency_event(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            timestamp: 1000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 1500000
+            }
+          }
+          packet {
+            timestamp: 2000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 2100000
+            }
+          }
+        """),
+        query='''
+          SELECT
+            t.name AS track_name,
+            t.type AS track_type,
+            c.ts,
+            c.value
+          FROM counter c
+          JOIN counter_track t ON c.track_id = t.id
+          WHERE t.type = 'gpu_frequency'
+          ORDER BY c.ts;
+        ''',
+        out=Csv('''
+          "track_name","track_type","ts","value"
+          "gpufreq","gpu_frequency",1000,1500000.000000
+          "gpufreq","gpu_frequency",2000,2100000.000000
+        '''))

@@ -25,48 +25,44 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- Root nodes are sorted by class name before traversal to make the output
 -- more deterministic.
 CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
-SELECT
-  node_id AS id,
-  parent_node_id AS parent_id
-FROM graph_reachable_bfs!(
-  (
+SELECT node_id AS id, parent_node_id AS parent_id
+FROM graph_reachable_bfs!((
     SELECT owner_id AS source_node_id, owned_id AS dest_node_id
-    FROM heap_graph_reference ref
-    WHERE ref.id NOT IN _excluded_refs AND ref.owned_id IS NOT NULL
-    ORDER BY ref.owned_id
-  ),
-  (
+    FROM heap_graph_reference AS ref
+    WHERE
+      ref.id NOT IN _excluded_refs
+      AND ref.owned_id IS NOT NULL
+    ORDER BY
+      ref.owned_id
+  ), (
     SELECT o.id AS node_id
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    WHERE o.root_type IS NOT NULL
-    ORDER BY c.name, o.id
-  )
-)
+    FROM heap_graph_object AS o
+    JOIN heap_graph_class AS c ON o.type_id = c.id
+    WHERE
+      o.root_type IS NOT NULL
+    ORDER BY
+      c.name,
+      o.id
+  ))
 ORDER BY
   id;
 
 CREATE PERFETTO TABLE _heap_graph_path_hashes AS
-SELECT
-  *
-FROM _heap_graph_type_path_hash!(_heap_graph_object_min_depth_tree);
+SELECT * FROM _heap_graph_type_path_hash!(_heap_graph_object_min_depth_tree);
 
 CREATE PERFETTO TABLE _heap_graph_path_hashes_aggregated AS
-SELECT
-  *
-FROM _heap_graph_path_hash_aggregate!(_heap_graph_path_hashes);
+SELECT * FROM _heap_graph_path_hash_aggregate!(_heap_graph_path_hashes);
 
 CREATE PERFETTO TABLE _heap_graph_class_tree AS
-SELECT
-  *
+SELECT *
 FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_path_hashes_aggregated);
 
 CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
+  path_hashes TableOrSubquery,
+  path_hash_values TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
@@ -106,11 +102,11 @@ RETURNS TableOrSubquery AS
 );
 
 CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
+  path_hashes TableOrSubquery,
+  path_hash_values TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     coalesce(c.deobfuscated_name, c.name) AS class_name,
     o.heap_type,
@@ -150,10 +146,10 @@ RETURNS TableOrSubquery AS
 );
 
 CREATE PERFETTO MACRO _heap_graph_duplicate_objects_agg(
-    path_hashes TableOrSubquery
+  path_hashes TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     count(DISTINCT path_hash) AS path_count,
     count() AS object_count,

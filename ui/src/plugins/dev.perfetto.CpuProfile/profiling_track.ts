@@ -16,9 +16,9 @@ import m from 'mithril';
 import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraph,
   QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, time} from '../../base/time';
@@ -113,8 +113,6 @@ export function createProfilingTrack(
     sliceName: () => config.sliceName,
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
-      // Create flamegraph, metrics, and initial state once per panel, not on every render
-      const flamegraph = new QueryFlamegraph(trace);
       const ts = Time.fromRaw(row.ts);
       const metrics: ReadonlyArray<QueryFlamegraphMetric> =
         metricsFromTableOrSubquery({
@@ -169,7 +167,6 @@ export function createProfilingTrack(
               state = newState;
               onDetailsPanelStateChange(newState);
             },
-            flamegraph,
             metrics,
           ),
         // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
@@ -193,7 +190,6 @@ function renderProfilingDetailsPanel(
   config: ProfilingTrackConfig,
   state: FlamegraphState,
   onStateChange: (state: FlamegraphState) => void,
-  flamegraph: QueryFlamegraph,
   metrics: ReadonlyArray<QueryFlamegraphMetric>,
 ): m.Children {
   return m(
@@ -205,11 +201,7 @@ function renderProfilingDetailsPanel(
         title: config.panelTitle,
         buttons: m('span', 'Timestamp: ', m(Timestamp, {trace, ts})),
       },
-      flamegraph.render({
-        metrics,
-        state,
-        onStateChange,
-      }),
+      m(FlamegraphPanel, {trace, metrics, state, onStateChange}),
     ),
   );
 }

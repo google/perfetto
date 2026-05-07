@@ -15,7 +15,12 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
-import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
+import {
+  type ThemeColors,
+  EChartView,
+  EChartEventHandler,
+  EChartClickParams,
+} from './echart_view';
 import {buildTooltipOption} from './chart_option_builder';
 
 export interface SankeyNode {
@@ -63,6 +68,7 @@ export class Sankey implements m.ClassComponent<SankeyChartAttrs> {
       className,
       empty: isEmpty,
       eventHandlers: buildSankeyEventHandlers(attrs, data),
+      resolveOption: applySankeyTheme,
     });
   }
 }
@@ -131,6 +137,7 @@ function buildSankeyOption(
         emphasis: {
           focus: 'adjacency',
         },
+        draggable: false,
         nodeWidth: 24,
         nodeGap: 16,
         layoutIterations: 0,
@@ -141,6 +148,28 @@ function buildSankeyOption(
       },
     ],
   };
+}
+
+interface SankeySeries {
+  type?: string;
+  label?: {color?: unknown};
+}
+
+function applySankeyTheme(
+  option: EChartsCoreOption,
+  colors: ThemeColors,
+): EChartsCoreOption {
+  const series = (option as {series?: unknown[]}).series;
+  if (!Array.isArray(series) || series.length === 0) return option;
+
+  const sankey = series[0] as SankeySeries;
+  if (sankey.type !== 'sankey') return option;
+
+  if (sankey.label) {
+    sankey.label.color = colors.textColor;
+  }
+
+  return option;
 }
 
 function buildSankeyEventHandlers(

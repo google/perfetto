@@ -24,6 +24,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -155,6 +156,8 @@ void LinuxPowerSysfsDataSource::Start() {
 }
 
 void LinuxPowerSysfsDataSource::Tick() {
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, LINUX_POWER_SYSFS_TICK);
+
   // Post next task.
   auto now_ms = base::GetWallTimeMs().count();
   auto weak_this = weak_factory_.GetWeakPtr();

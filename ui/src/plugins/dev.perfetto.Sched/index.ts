@@ -80,7 +80,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       name: 'Thread State by CPU Aggregation',
       description:
         'Add a new area selection aggregation tab showing thread states broken down by CPU.',
-      defaultValue: false,
+      defaultValue: true,
     });
   }
 

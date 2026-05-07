@@ -80,26 +80,7 @@ ExtractDisplayTransforms(const SnapshotDecoder& snapshot_decoder) {
 
   for (auto it = snapshot_decoder.displays(); it; ++it) {
     protos::pbzero::DisplayProto::Decoder display(*it);
-    auto matrix = display.has_layer_stack()
-                      ? display::GetTransformMatrix(display)
-                      : geometry::TransformMatrix{};
-
-    protos::pbzero::TransformProto::Decoder transform(display.transform());
-
-    if (transform.has_type() && display.has_layer_stack_space_rect()) {
-      const auto& layer_stack_space_rect =
-          display::MakeLayerStackSpaceRect(display);
-      auto transform_type = transform.type();
-
-      if (transform::IsRotated180(transform_type)) {
-        matrix.tx = layer_stack_space_rect.w;
-        matrix.ty = layer_stack_space_rect.h;
-      } else if (transform::IsRotated270(transform_type)) {
-        matrix.tx = layer_stack_space_rect.w;
-      } else if (transform::IsRotated90(transform_type)) {
-        matrix.ty = layer_stack_space_rect.h;
-      }
-    }
+    auto matrix = display::GetTransformMatrix(display);
     transforms[display.layer_stack()] = matrix;
   }
 
@@ -287,11 +268,9 @@ std::optional<TraceRectTableId> RectComputation::TryInsertInputRect(
   auto layer_transform = layer::GetTransformMatrix(layer);
   auto inverse_layer_transform = layer_transform.Inverse();
   std::optional<geometry::TransformMatrix> display_transform;
-  if (layer.has_layer_stack()) {
-    auto pos = display_transforms.find(layer.layer_stack());
-    if (pos != display_transforms.end()) {
-      display_transform = pos->second;
-    }
+  auto pos = display_transforms.find(layer.layer_stack());
+  if (pos != display_transforms.end()) {
+    display_transform = pos->second;
   }
 
   auto frame_rect = MakeFrameRect(input_window_info, display_transform,
@@ -302,20 +281,18 @@ std::optional<TraceRectTableId> RectComputation::TryInsertInputRect(
   bool should_crop_to_display = false;
   std::optional<geometry::Rect> display;
 
-  if (layer.has_layer_stack()) {
-    auto display_pos = displays_by_layer_stack_.find(layer.layer_stack());
-    if (display_pos != displays_by_layer_stack_.end()) {
-      display = display_pos->second;
-      should_crop_to_display =
-          frame_rect.IsEmpty() ||
-          (input_config & InputConfig::IS_WALLPAPER) != 0 ||
-          std::find_if(invalid_bounds.begin(), invalid_bounds.end(),
-                       [&](const geometry::Rect& bounds) {
-                         return frame_rect.IsAlmostEqual(bounds);
-                       }) != invalid_bounds.end();
-      if (should_crop_to_display) {
-        frame_rect = frame_rect.CropRect(display.value());
-      }
+  auto display_pos = displays_by_layer_stack_.find(layer.layer_stack());
+  if (display_pos != displays_by_layer_stack_.end()) {
+    display = display_pos->second;
+    should_crop_to_display =
+        frame_rect.IsEmpty() ||
+        (input_config & InputConfig::IS_WALLPAPER) != 0 ||
+        std::find_if(invalid_bounds.begin(), invalid_bounds.end(),
+                     [&](const geometry::Rect& bounds) {
+                       return frame_rect.IsAlmostEqual(bounds);
+                     }) != invalid_bounds.end();
+    if (should_crop_to_display) {
+      frame_rect = frame_rect.CropRect(display.value());
     }
   }
 

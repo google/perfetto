@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Perfetto trace processor protobuf bindings.
-//!
-//! This crate provides Rust bindings for Perfetto trace processor protos,
-//! enabling communication with `trace_processor_shell -D` via HTTP.
-
+#![doc = include_str!("../README.md")]
 #![allow(clippy::module_inception)]
 
 /// Re-export pb_msg macro from this crate.

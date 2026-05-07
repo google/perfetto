@@ -16,6 +16,7 @@ import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
   sources = [
+    "generic_gpu_frequency.proto",
     "generic_power.proto",
     "generic_task.proto",
   ]

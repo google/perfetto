@@ -37,34 +37,27 @@ SELECT
   coalesce(t.rank, 0) AS rank,
   t.description
 FROM extracted AS t
-LEFT JOIN extracted AS p
-  ON t.parent_id = p.id;
+LEFT JOIN extracted AS p ON t.parent_id = p.id;
 
 CREATE PERFETTO TABLE _min_ts_per_track AS
-SELECT
-  track_id AS id,
-  min(ts) AS min_ts
+SELECT track_id AS id, min(ts) AS min_ts
 FROM counter
-JOIN _track_event_tracks_unordered AS t
-  ON counter.track_id = t.id
+JOIN _track_event_tracks_unordered AS t ON counter.track_id = t.id
 GROUP BY
   track_id
 UNION ALL
-SELECT
-  track_id AS id,
-  min(ts) AS min_ts
+SELECT track_id AS id, min(ts) AS min_ts
 FROM slice
-JOIN _track_event_tracks_unordered AS t
-  ON slice.track_id = t.id
+JOIN _track_event_tracks_unordered AS t ON slice.track_id = t.id
 GROUP BY
   track_id;
 
 CREATE PERFETTO TABLE _track_event_has_children AS
-SELECT DISTINCT
-  t.parent_id AS id
+SELECT DISTINCT t.parent_id AS id
 FROM track AS t
 WHERE
-  t.type GLOB '*_track_event' AND t.parent_id IS NOT NULL;
+  t.type GLOB '*_track_event'
+  AND t.parent_id IS NOT NULL;
 
 CREATE PERFETTO TABLE _track_event_tracks_ordered_groups AS
 WITH
@@ -74,7 +67,8 @@ WITH
       row_number() OVER (PARTITION BY parent_id ORDER BY name) AS order_id
     FROM _track_event_tracks_unordered AS t
     WHERE
-      t.parent_ordering = 'lexicographic' OR t.parent_ordering IS NULL
+      t.parent_ordering = 'lexicographic'
+      OR t.parent_ordering IS NULL
   ),
   explicit AS (
     SELECT
@@ -89,26 +83,16 @@ WITH
       t.id,
       row_number() OVER (PARTITION BY t.parent_id ORDER BY m.min_ts) AS order_id
     FROM _track_event_tracks_unordered AS t
-    LEFT JOIN _min_ts_per_track AS m
-      USING (id)
+    LEFT JOIN _min_ts_per_track AS m USING (id)
     WHERE
       t.parent_ordering = 'chronological'
   ),
   unioned AS (
-    SELECT
-      id,
-      order_id
-    FROM lexicographic_and_none
+    SELECT id, order_id FROM lexicographic_and_none
     UNION ALL
-    SELECT
-      id,
-      order_id
-    FROM explicit
+    SELECT id, order_id FROM explicit
     UNION ALL
-    SELECT
-      id,
-      order_id
-    FROM chronological
+    SELECT id, order_id FROM chronological
   )
 SELECT
   extract_arg(track.dimension_arg_set_id, 'upid') AS upid,
@@ -127,16 +111,11 @@ SELECT
   GROUP_CONCAT(unioned.id) AS track_ids,
   min(unioned.order_id) AS order_id
 FROM unioned
-JOIN track
-  USING (id)
-LEFT JOIN counter_track
-  USING (id)
-LEFT JOIN _track_event_has_children AS c
-  USING (id)
-LEFT JOIN _min_ts_per_track AS m
-  USING (id)
-LEFT JOIN _track_event_tracks_with_callstacks AS cs
-  ON cs.track_id = unioned.id
+JOIN track USING (id)
+LEFT JOIN counter_track USING (id)
+LEFT JOIN _track_event_has_children AS c USING (id)
+LEFT JOIN _min_ts_per_track AS m USING (id)
+LEFT JOIN _track_event_tracks_with_callstacks AS cs ON cs.track_id = unioned.id
 GROUP BY
   track.track_group_id,
   coalesce(track.track_group_id, track.id)

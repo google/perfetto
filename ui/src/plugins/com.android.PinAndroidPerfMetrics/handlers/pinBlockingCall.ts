@@ -99,7 +99,7 @@ class BlockingCallMetricHandler implements MetricHandler {
     // TODO: b/296349525 - Migrate jank tables from run metrics to stdlib
     const blockingCallDuringCujQuery = `
   SELECT name, ts, dur
-  FROM main_thread_slices_scoped_to_cujs
+  FROM blocking_call_slices_scoped_to_cujs
   WHERE process_name = "${processName}"
       AND cuj_name = "${cuj}"
       AND name = "${blockingCallName}"

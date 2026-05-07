@@ -72,7 +72,7 @@ namespace {
 // cases when a mature process calls execve, or when the target gets descheduled
 // (since this is a naive walltime wait).
 // The proper fix is in the platform, see bug for progress.
-constexpr uint32_t kProcDescriptorsAndroidDelayMs = 50;
+constexpr uint32_t kProcDescriptorsAndroidDelayMs = 250;
 
 constexpr uint32_t kMemoryLimitCheckPeriodMs = 1000;
 

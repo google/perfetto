@@ -13,32 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SegmentedButtons} from '../../../widgets/segmented_buttons';
-import {renderWidgetShowcase} from '../widgets_page_utils';
-
-interface DemoAttrs {
-  disabled: boolean;
-  fillWidth: boolean;
-  showInlineText: boolean;
-}
-
-function SegmentedButtonsDemo() {
-  let selectedIdx = 0;
-  return {
-    view: ({attrs}: m.Vnode<DemoAttrs>) => {
-      const {showInlineText, ...rest} = attrs;
-      const buttons = m(SegmentedButtons, {
-        ...rest,
-        options: [{label: 'Yes'}, {label: 'Maybe'}, {label: 'No'}],
-        selectedOption: selectedIdx,
-        onOptionSelected: (num) => {
-          selectedIdx = num;
-        },
-      });
-      return showInlineText ? m('span', 'Inline ', buttons, ' text') : buttons;
-    },
-  };
-}
+import {
+  SegmentedButton,
+  SegmentedButtons,
+} from '../../../widgets/segmented_buttons';
+import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
+import {Intent} from '../../../widgets/common';
 
 export function segmentedButtons(): m.Children {
   return [
@@ -53,12 +33,23 @@ export function segmentedButtons(): m.Children {
 
     renderWidgetShowcase({
       renderWidget: (opts) => {
-        return m(SegmentedButtonsDemo, opts);
+        const {showInlineText, icons, ...rest} = opts;
+        const icon = icons ? 'add' : undefined;
+        const buttons = m(SegmentedButtons, rest, [
+          m(SegmentedButton, {icon, value: 'yes'}, 'Yes'),
+          m(SegmentedButton, {icon, value: 'no'}, 'No'),
+          m(SegmentedButton, {icon, value: 'maybe'}, 'Maybe'),
+        ]);
+        return showInlineText
+          ? m('span', 'Inline ', buttons, ' text')
+          : buttons;
       },
       initialOpts: {
         disabled: false,
         fillWidth: false,
         showInlineText: false,
+        intent: new EnumOption(Intent.None, Object.values(Intent)),
+        icons: false,
       },
     }),
   ];

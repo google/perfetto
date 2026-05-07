@@ -27,7 +27,7 @@ INCLUDE PERFETTO MODULE prelude.after_eof.views;
 -- "timeline" for events of the same type and with the same context. See
 -- https://perfetto.dev/docs/analysis/trace-processor#tracks for a more
 -- detailed explanation, with examples.
-CREATE PERFETTO VIEW track (
+CREATE PERFETTO VIEW track(
   -- Unique identifier for this track. Identical to |track_id|, prefer using
   -- |track_id| instead.
   id ID,
@@ -66,7 +66,8 @@ CREATE PERFETTO VIEW track (
   -- distinction doesn't matter and all tracks with the same `track_group_id`
   -- should be merged together into a single logical "UI track".
   track_group_id LONG
-) AS
+)
+AS
 SELECT
   id,
   name,
@@ -79,7 +80,7 @@ SELECT
 FROM __intrinsic_track;
 
 -- Tracks which are associated to a single thread.
-CREATE PERFETTO TABLE thread_track (
+CREATE PERFETTO TABLE thread_track(
   -- Unique identifier for this thread track.
   id ID(track.id),
   -- Name of the track.
@@ -102,7 +103,8 @@ CREATE PERFETTO TABLE thread_track (
   machine_id JOINID(machine.id),
   -- The utid that the track is associated with.
   utid JOINID(thread.id)
-) AS
+)
+AS
 SELECT
   t.id,
   t.name,
@@ -115,10 +117,11 @@ FROM __intrinsic_track AS t
 JOIN args AS a
   ON t.dimension_arg_set_id = a.arg_set_id
 WHERE
-  t.event_type = 'slice' AND a.key = 'utid';
+  t.event_type = 'slice'
+  AND a.key = 'utid';
 
 -- Tracks which are associated to a single process.
-CREATE PERFETTO TABLE process_track (
+CREATE PERFETTO TABLE process_track(
   -- Unique identifier for this process track.
   id ID(track.id),
   -- Name of the track.
@@ -141,7 +144,8 @@ CREATE PERFETTO TABLE process_track (
   machine_id JOINID(machine.id),
   -- The upid that the track is associated with.
   upid JOINID(process.id)
-) AS
+)
+AS
 SELECT
   t.id,
   t.name,
@@ -154,10 +158,11 @@ FROM __intrinsic_track AS t
 JOIN args AS a
   ON t.dimension_arg_set_id = a.arg_set_id
 WHERE
-  t.event_type = 'slice' AND a.key = 'upid';
+  t.event_type = 'slice'
+  AND a.key = 'upid';
 
 -- Tracks which are associated to a single CPU.
-CREATE PERFETTO TABLE cpu_track (
+CREATE PERFETTO TABLE cpu_track(
   -- Unique identifier for this cpu track.
   id ID(track.id),
   -- Name of the track.
@@ -180,7 +185,8 @@ CREATE PERFETTO TABLE cpu_track (
   machine_id JOINID(machine.id),
   -- The CPU that the track is associated with.
   cpu LONG
-) AS
+)
+AS
 SELECT
   t.id,
   t.name,
@@ -193,7 +199,8 @@ FROM __intrinsic_track AS t
 JOIN args AS a
   ON t.dimension_arg_set_id = a.arg_set_id
 WHERE
-  t.event_type = 'slice' AND a.key = 'cpu';
+  t.event_type = 'slice'
+  AND a.key = 'cpu';
 
 -- Table containing tracks which are loosely tied to a GPU.
 --
@@ -201,7 +208,7 @@ WHERE
 -- other track tables (e.g. not having a GPU column, mixing a bunch of different
 -- tracks which are barely related). Please use the track table directly
 -- instead.
-CREATE PERFETTO TABLE gpu_track (
+CREATE PERFETTO TABLE gpu_track(
   -- Unique identifier for this cpu track.
   id ID(track.id),
   -- Name of the track.
@@ -231,7 +238,8 @@ CREATE PERFETTO TABLE gpu_track (
   description STRING,
   -- The context id for the GPU this track is associated to.
   context_id LONG
-) AS
+)
+AS
 SELECT
   id,
   name,
@@ -245,4 +253,13 @@ SELECT
   extract_arg(dimension_arg_set_id, 'context_id') AS context_id
 FROM __intrinsic_track
 WHERE
-  type IN ('drm_vblank', 'drm_sched_ring', 'drm_fence', 'mali_mcu_state', 'gpu_render_stage', 'vulkan_events', 'gpu_log', 'graphics_frame_event');
+  type IN (
+    'drm_vblank',
+    'drm_sched_ring',
+    'drm_fence',
+    'mali_mcu_state',
+    'gpu_render_stage',
+    'vulkan_events',
+    'gpu_log',
+    'graphics_frame_event'
+  );

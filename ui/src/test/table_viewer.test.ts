@@ -65,7 +65,7 @@ test('slices with same name', async () => {
   await page
     .locator('.pf-details-shell a.pf-anchor', {hasText: sliceName})
     .click();
-  await pth.clickMenuItem('Slices with the same name');
+  await pth.clickMenuItem('Slices with the same name (across trace)');
   await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
   await pth.waitForIdleAndScreenshot(`slices-with-same-name.png`, {
