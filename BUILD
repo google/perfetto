@@ -2860,6 +2860,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/deobfuscation_tracker.h",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.cc",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.h",
+        "src/trace_processor/importers/proto/gpu_counter_sequence_state.cc",
+        "src/trace_processor/importers/proto/gpu_counter_sequence_state.h",
         "src/trace_processor/importers/proto/gpu_event_parser.cc",
         "src/trace_processor/importers/proto/gpu_event_parser.h",
         "src/trace_processor/importers/proto/graphics_event_module.cc",
@@ -4319,6 +4321,7 @@ perfetto_cpp_blob_header(
     script = ":src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     deps = [
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/SM8750/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_1d.csv",

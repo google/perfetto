@@ -427,3 +427,25 @@
 .ah-mt-4 {
   margin-top: 1rem;
 }
+
+.ah-col-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ah-col-header__info {
+  color: var(--pf-color-fg-muted, #888);
+  font-size: 14px;
+  cursor: help;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.ah-col-header:hover .ah-col-header__info {
+  opacity: 1;
+}
+
+.ah-col-header__info:hover {
+  color: var(--pf-color-fg, #333);
+}

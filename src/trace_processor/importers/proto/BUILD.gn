@@ -152,6 +152,8 @@ source_set("full") {
     "deobfuscation_tracker.h",
     "frame_timeline_event_parser.cc",
     "frame_timeline_event_parser.h",
+    "gpu_counter_sequence_state.cc",
+    "gpu_counter_sequence_state.h",
     "gpu_event_parser.cc",
     "gpu_event_parser.h",
     "graphics_event_module.cc",
