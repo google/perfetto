@@ -37,6 +37,8 @@ import {
   Section,
   PrimOrRefCell,
   BitmapImage,
+  COL_INFO,
+  colHeader,
 } from '../components';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
@@ -183,11 +185,28 @@ function nullableSizeRenderer(value: SqlValue): CellRenderResult {
   };
 }
 
+// Per-row info for the Object Size grid; the row label carries the metric.
+const METRIC_INFO: Record<string, string> = {
+  Shallow: 'Memory used by this object alone, excluding referenced objects.',
+  Retained:
+    'Memory exclusively held by this object (dominator subtree, self ' +
+    'inclusive). The Native column is often zero in multi-rooted graphs ' +
+    'where Bitmaps are reachable via multiple paths — see Reachable below.',
+  Reachable:
+    "Memory reachable from this object along the heap graph's BFS " +
+    'shortest-path tree. Includes objects also reachable via other paths.',
+};
+
 const SIZE_SCHEMA: SchemaRegistry = {
   query: {
     metric: {
       title: 'Metric',
       columnType: 'text',
+      cellRenderer: (value: SqlValue): CellRenderResult => {
+        const label = String(value ?? '');
+        const info = METRIC_INFO[label];
+        return {content: info ? colHeader(label, info) : label};
+      },
     },
     java: {
       title: 'Java',
@@ -254,42 +273,50 @@ function makeInstanceSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained #',
+        title: colHeader('Retained #', COL_INFO.retainedCount),
+        titleString: 'Retained #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -356,37 +383,44 @@ function makeFieldSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       shallow: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       shallow_native: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -439,37 +473,44 @@ function makeArraySchema(
         },
       },
       shallow: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       shallow_native: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
