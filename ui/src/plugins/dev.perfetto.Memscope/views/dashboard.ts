@@ -124,117 +124,17 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const {session} = attrs;
     return m(
       '.pf-memscope-title-bar',
-      // Left: title + device identity.
+      // Left: title + session pill (device + snapshot counter + pause/play).
       m(
         '.pf-memscope-title-bar__left',
         m('h1', 'Memscope'),
         m('.pf-memscope-title-bar__sep'),
-        m(
-          '.pf-memscope-title-bar__device',
-          m('.pf-memscope-status-bar__dot', {
-            class: session.isPaused
-              ? 'pf-memscope-status-bar__dot--paused'
-              : '',
-          }),
-          m('span', session.deviceName),
-          session.data?.isUserDebug &&
-            m(Chip, {label: 'userdebug', intent: Intent.Warning}),
-        ),
+        this.renderSessionPill(attrs),
       ),
 
-      // Right: info controls + action buttons.
+      // Right: action buttons.
       m(
         '.pf-memscope-title-bar__actions',
-        // Snapshot chip with timing tooltip.
-        m(
-          Tooltip,
-          {
-            trigger: m(Button, {
-              label: `Snapshot #${session.snapshotCount}`,
-              icon: 'photo_camera',
-              variant: ButtonVariant.Filled,
-            }),
-            position: PopupPosition.Bottom,
-          },
-          m(
-            '.pf-memscope-snapshot-info',
-            session.lastSnapshotMs > 0
-              ? [
-                  m('.pf-memscope-snapshot-info__heading', 'Snapshot'),
-                  m(
-                    '.pf-memscope-snapshot-info__row',
-                    m('span', 'Size'),
-                    m('span', `${session.lastSnapshotSizeKb.toFixed(0)}kB`),
-                  ),
-                  session.lastBufferUsagePct !== undefined &&
-                    m(
-                      '.pf-memscope-snapshot-info__row',
-                      m('span', 'Buffer usage'),
-                      m('span', `${session.lastBufferUsagePct.toFixed(1)}%`),
-                    ),
-                  session.data !== undefined && [
-                    m('.pf-memscope-snapshot-info__heading', 'Counter range'),
-                    m(
-                      '.pf-memscope-snapshot-info__row',
-                      m('span', 'First sample'),
-                      m('span', `${session.data.xMin.toFixed(1)}s`),
-                    ),
-                    m(
-                      '.pf-memscope-snapshot-info__row',
-                      m('span', 'Last sample'),
-                      m('span', `${session.data.xMax.toFixed(1)}s`),
-                    ),
-                  ],
-                  m('.pf-memscope-snapshot-info__heading', 'Timings'),
-                  m(
-                    '.pf-memscope-snapshot-info__row',
-                    m('span', 'Clone'),
-                    m('span', `${session.lastCloneMs}ms`),
-                  ),
-                  m(
-                    '.pf-memscope-snapshot-info__row',
-                    m('span', 'Parse'),
-                    m('span', `${session.lastParseMs}ms`),
-                  ),
-                  m(
-                    '.pf-memscope-snapshot-info__row',
-                    m('span', 'Query'),
-                    m('span', `${session.lastQueryMs}ms`),
-                  ),
-                  m(
-                    '.pf-memscope-snapshot-info__row',
-                    m('span', 'Extract'),
-                    m('span', `${session.lastExtractMs}ms`),
-                  ),
-                  m(
-                    '.pf-memscope-snapshot-info__row.pf-memscope-snapshot-info__sum',
-                    m('span', 'Total'),
-                    m('span', `${session.lastSnapshotMs}ms`),
-                  ),
-                  session.snapshotOverrun &&
-                    m(
-                      '.pf-memscope-snapshot-info__overrun',
-                      m('span.material-icons', 'warning'),
-                      'Exceeds interval — increase snapshot rate',
-                    ),
-                ]
-              : m(
-                  '.pf-memscope-snapshot-info__empty',
-                  'Waiting for snapshot\u2026',
-                ),
-          ),
-        ),
-        // Pause / Resume.
-        m(Button, {
-          label: session.isPaused ? 'Resume' : 'Pause',
-          icon: session.isPaused ? 'play_arrow' : 'pause',
-          intent: session.isPaused ? Intent.Success : Intent.Warning,
-          variant: ButtonVariant.Filled,
-          onclick: () => {
-            session.togglePause();
-            m.redraw();
-          },
-        }),
         // Stop & open trace (only when not profiling).
         opts.showStopAndOpen &&
           m(Button, {
@@ -253,6 +153,114 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           onclick: () => attrs.onStopped(),
         }),
       ),
+    );
+  }
+
+  private renderSessionPill(attrs: DashboardAttrs): m.Children {
+    const {session} = attrs;
+    return m(
+      '.pf-memscope-session-pill',
+      // Device identity.
+      m(
+        '.pf-memscope-session-pill__device',
+        m('.pf-memscope-status-bar__dot', {
+          class: session.isPaused ? 'pf-memscope-status-bar__dot--paused' : '',
+        }),
+        m('span', session.deviceName),
+        session.data?.isUserDebug &&
+          m(Chip, {label: 'userdebug', intent: Intent.Warning}),
+      ),
+      m('.pf-memscope-session-pill__sep'),
+      // Snapshot counter with timing tooltip.
+      m(
+        Tooltip,
+        {
+          trigger: m(
+            '.pf-memscope-session-pill__snapshot',
+            m('span.material-icons', 'photo_camera'),
+            m('span', `#${session.snapshotCount}`),
+          ),
+          position: PopupPosition.Bottom,
+        },
+        m(
+          '.pf-memscope-snapshot-info',
+          session.lastSnapshotMs > 0
+            ? [
+                m('.pf-memscope-snapshot-info__heading', 'Snapshot'),
+                m(
+                  '.pf-memscope-snapshot-info__row',
+                  m('span', 'Size'),
+                  m('span', `${session.lastSnapshotSizeKb.toFixed(0)}kB`),
+                ),
+                session.lastBufferUsagePct !== undefined &&
+                  m(
+                    '.pf-memscope-snapshot-info__row',
+                    m('span', 'Buffer usage'),
+                    m('span', `${session.lastBufferUsagePct.toFixed(1)}%`),
+                  ),
+                session.data !== undefined && [
+                  m('.pf-memscope-snapshot-info__heading', 'Counter range'),
+                  m(
+                    '.pf-memscope-snapshot-info__row',
+                    m('span', 'First sample'),
+                    m('span', `${session.data.xMin.toFixed(1)}s`),
+                  ),
+                  m(
+                    '.pf-memscope-snapshot-info__row',
+                    m('span', 'Last sample'),
+                    m('span', `${session.data.xMax.toFixed(1)}s`),
+                  ),
+                ],
+                m('.pf-memscope-snapshot-info__heading', 'Timings'),
+                m(
+                  '.pf-memscope-snapshot-info__row',
+                  m('span', 'Clone'),
+                  m('span', `${session.lastCloneMs}ms`),
+                ),
+                m(
+                  '.pf-memscope-snapshot-info__row',
+                  m('span', 'Parse'),
+                  m('span', `${session.lastParseMs}ms`),
+                ),
+                m(
+                  '.pf-memscope-snapshot-info__row',
+                  m('span', 'Query'),
+                  m('span', `${session.lastQueryMs}ms`),
+                ),
+                m(
+                  '.pf-memscope-snapshot-info__row',
+                  m('span', 'Extract'),
+                  m('span', `${session.lastExtractMs}ms`),
+                ),
+                m(
+                  '.pf-memscope-snapshot-info__row.pf-memscope-snapshot-info__sum',
+                  m('span', 'Total'),
+                  m('span', `${session.lastSnapshotMs}ms`),
+                ),
+                session.snapshotOverrun &&
+                  m(
+                    '.pf-memscope-snapshot-info__overrun',
+                    m('span.material-icons', 'warning'),
+                    'Exceeds interval — increase snapshot rate',
+                  ),
+              ]
+            : m(
+                '.pf-memscope-snapshot-info__empty',
+                'Waiting for snapshot\u2026',
+              ),
+        ),
+      ),
+      m('.pf-memscope-session-pill__sep'),
+      // Pause / Resume — embedded inside the pill.
+      m(Button, {
+        label: session.isPaused ? 'Resume' : 'Pause',
+        icon: session.isPaused ? 'play_arrow' : 'pause',
+        intent: session.isPaused ? Intent.Success : Intent.Warning,
+        onclick: () => {
+          session.togglePause();
+          m.redraw();
+        },
+      }),
     );
   }
 

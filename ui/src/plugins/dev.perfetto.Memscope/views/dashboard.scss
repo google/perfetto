@@ -41,6 +41,47 @@
   color: var(--pf-color-text-muted);
 }
 
+// Self-contained session pill: device + snapshot counter + pause/play.
+.pf-memscope-session-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 999px;
+  background: var(--pf-color-surface-variant, transparent);
+}
+
+.pf-memscope-session-pill__device {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--pf-font-size-m);
+  font-weight: 500;
+  color: var(--pf-color-text);
+}
+
+.pf-memscope-session-pill__sep {
+  width: 1px;
+  height: 18px;
+  background: var(--pf-color-border);
+  flex-shrink: 0;
+}
+
+.pf-memscope-session-pill__snapshot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--pf-font-size-s);
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text-muted);
+  cursor: help;
+
+  .material-icons {
+    font-size: 16px;
+  }
+}
+
 .pf-memscope-title-bar__actions {
   display: flex;
   align-items: center;
