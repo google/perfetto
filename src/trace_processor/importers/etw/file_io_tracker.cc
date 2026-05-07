@@ -190,6 +190,7 @@ FileIoTracker::FileIoTracker(TraceProcessorContext* context)
       file_attributes_arg_(context->storage->InternString("File Attributes")),
       file_index_arg_(context->storage->InternString("File Index")),
       file_key_arg_(context->storage->InternString("File Key")),
+      file_name_arg_(context->storage->InternString("File Name")),
       file_object_arg_(context->storage->InternString("File Object")),
       file_size_arg_(context->storage->InternString("File Size")),
       info_class_arg_(context->storage->InternString("Info Class")),
@@ -210,7 +211,8 @@ FileIoTracker::FileIoTracker(TraceProcessorContext* context)
       dir_enum_event_(context->storage->InternString("DirEnum")),
       info_event_(context->storage->InternString("Info")),
       read_write_event_(context->storage->InternString("ReadOrWrite")),
-      simple_op_event_(context->storage->InternString("SimpleOp")) {
+      simple_op_event_(context->storage->InternString("SimpleOp")),
+      path_operation_event_(context->storage->InternString("PathOperation")) {
   for (const auto& event_type : kEventTypeNames) {
     event_types_[GetEventTypeIndex(event_type.first)] =
         context->storage->InternString(event_type.second);
@@ -492,15 +494,16 @@ void FileIoTracker::ParseFileIoPathOperation(int64_t timestamp,
                                decoder.info_class())));
         }
         if (decoder.has_file_name()) {
-          inserter->AddArg(enumeration_path_arg_,
+          inserter->AddArg(file_name_arg_,
                            Variadic::String(context_->storage->InternString(
                                decoder.file_name())));
         }
       };
+  // Get event name from the opcode if possible, otherwise use a generic name.
   const StringId name =
       decoder.has_opcode()
-          ? GetEventName(decoder.opcode()).value_or(unknown_event_)
-          : unknown_event_;
+          ? GetEventName(decoder.opcode()).value_or(path_operation_event_)
+          : path_operation_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
       name, timestamp, utid, std::move(args));
