@@ -39,6 +39,7 @@ export interface ChartThemeColors {
   readonly backgroundColor: string;
   readonly accentColor: string;
   readonly chartColors: readonly string[];
+  readonly fontFamily: string;
 }
 
 /**
@@ -60,5 +61,7 @@ export function getChartThemeColors(el: Element): ChartThemeColors {
     backgroundColor: style.getPropertyValue('--pf-color-background').trim(),
     accentColor: style.getPropertyValue('--pf-color-accent').trim(),
     chartColors,
+    fontFamily:
+      style.getPropertyValue('--pf-font-compact').trim() || 'sans-serif',
   };
 }

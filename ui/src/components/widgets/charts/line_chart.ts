@@ -349,9 +349,9 @@ function buildLineOption(
           formatter: (name: string) => {
             const s = data.series.find((sr) => sr.name === name);
             if (s !== undefined && s.points.length > 0) {
-              return `${name}  ${fmtY(s.points[s.points.length - 1].y)}`;
+              return `{name|${name}}  {value|${fmtY(s.points[s.points.length - 1].y)}}`;
             }
-            return name;
+            return `{name|${name}}`;
           },
         }
       : {show: false},
