@@ -399,7 +399,7 @@ GetTypesFromSelectStatement(
 
 std::unique_ptr<PerfettoSqlConnection>
 PerfettoSqlConnection::CreateConnectionToNewDatabase(StringPool* pool,
-                                                    bool enable_extra_checks) {
+                                                     bool enable_extra_checks) {
   return std::unique_ptr<PerfettoSqlConnection>(new PerfettoSqlConnection(
       std::make_shared<PerfettoSqlDatabase>(pool), enable_extra_checks));
 }

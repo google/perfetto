@@ -70,12 +70,13 @@ struct CounterMipmapOperator : sqlite::Module<CounterMipmapOperator> {
   };
   struct Context : sqlite::ModuleStateManager<CounterMipmapOperator> {
     explicit Context(PerfettoSqlConnection* _connection)
-        : sqlite::ModuleStateManager<CounterMipmapOperator>(committed_store_),
+        : sqlite::ModuleStateManager<CounterMipmapOperator>(
+              owned_committed_store_),
           connection(_connection) {}
     PerfettoSqlConnection* connection;
 
    private:
-    sqlite::CommittedStateManager committed_store_;
+    sqlite::CommittedStateManager owned_committed_store_;
   };
   struct Vtab : sqlite::Module<CounterMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<CounterMipmapOperator>::PerVtabState* state;

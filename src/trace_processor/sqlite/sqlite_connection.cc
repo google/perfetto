@@ -114,7 +114,8 @@ constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
 
 }  // namespace
 
-std::unique_ptr<SqliteConnection> SqliteConnection::CreateConnectionToNewDatabase() {
+std::unique_ptr<SqliteConnection>
+SqliteConnection::CreateConnectionToNewDatabase() {
   return std::make_unique<SqliteConnection>(std::make_shared<SqliteDatabase>());
 }
 

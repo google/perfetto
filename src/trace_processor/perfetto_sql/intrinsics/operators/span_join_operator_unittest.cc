@@ -46,10 +46,9 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
   void PrepareValidStatement(const std::string& sql) {
     int size = static_cast<int>(sql.size());
     sqlite3_stmt* stmt;
-    ASSERT_EQ(
-        sqlite3_prepare_v2(connection_->sqlite_connection()->db(), sql.c_str(),
-                           size, &stmt, nullptr),
-        SQLITE_OK);
+    ASSERT_EQ(sqlite3_prepare_v2(connection_->sqlite_connection()->db(),
+                                 sql.c_str(), size, &stmt, nullptr),
+              SQLITE_OK);
     stmt_.reset(stmt);
   }
 

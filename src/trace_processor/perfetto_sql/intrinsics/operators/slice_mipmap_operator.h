@@ -71,12 +71,13 @@ struct SliceMipmapOperator : sqlite::Module<SliceMipmapOperator> {
   };
   struct Context : sqlite::ModuleStateManager<SliceMipmapOperator> {
     explicit Context(PerfettoSqlConnection* _connection)
-        : sqlite::ModuleStateManager<SliceMipmapOperator>(committed_store_),
+        : sqlite::ModuleStateManager<SliceMipmapOperator>(
+              owned_committed_store_),
           connection(_connection) {}
     PerfettoSqlConnection* connection;
 
    private:
-    sqlite::CommittedStateManager committed_store_;
+    sqlite::CommittedStateManager owned_committed_store_;
   };
   struct Vtab : sqlite::Module<SliceMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<SliceMipmapOperator>::PerVtabState* state;
