@@ -4321,6 +4321,7 @@ perfetto_cpp_blob_header(
     script = ":src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     deps = [
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/SM8750/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_1d.csv",

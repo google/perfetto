@@ -45,10 +45,14 @@ bool ReadProcStat(int fd, ProcStat* out);
 class Watchdog {
  public:
   struct TimerData {
-    TimeMillis deadline{};     // Absolute deadline, CLOCK_MONOTONIC.
-    uint32_t duration_ms = 0;  // Relative deadline in ms (for debugging only).
-    int thread_id = 0;         // The tid we'll send a SIGABRT to on expiry.
+    TimeMillis deadline{};  // Absolute deadline, CLOCK_MONOTONIC.
+    int thread_id = 0;      // The tid we'll send a SIGABRT to on expiry.
     WatchdogCrashReason crash_reason{};  // Becomes a crash key.
+
+    // The fields below are for debugging / logging purposes only.
+    TimeMillis ctime_mono{};  // Creation time in CLOCK_MONOTONIC.
+    TimeMillis ctime_boot{};  // Creation time in CLOCK_BOOTTIME.
+    TimeMillis ctime_cpu{};   // Creation time in CLOCK_PROCESS_CPUTIME_ID.
 
     TimerData() = default;
     TimerData(TimeMillis d, int t) : deadline(d), thread_id(t) {}

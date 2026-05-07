@@ -62,6 +62,7 @@ void InitializeTime();
 
 TimeNanos GetWallTimeNs();
 TimeNanos GetThreadCPUTimeNs();
+TimeNanos GetProcessCPUTimeNs();
 inline TimeNanos GetWallTimeRawNs() {
   return GetWallTimeNs();
 }
@@ -139,10 +140,49 @@ inline TimeNanos GetThreadCPUTimeNs() {
                    info.system_time.seconds * 1000000000LL +
                    info.system_time.microseconds * 1000LL);
 }
+
+inline TimeNanos GetProcessCPUTimeNs() {
+  // task_basic_info gives CPU time accumulated by terminated threads only.
+  // task_thread_times_info gives CPU time of currently-live threads. The sum
+  // of the two is the equivalent of CLOCK_PROCESS_CPUTIME_ID.
+  task_basic_info_data_t past_threads{};
+  mach_msg_type_number_t basic_count = TASK_BASIC_INFO_COUNT;
+  kern_return_t kr =
+      task_info(mach_task_self(), TASK_BASIC_INFO,
+                reinterpret_cast<task_info_t>(&past_threads), &basic_count);
+  if (kr != KERN_SUCCESS) {
+    PERFETTO_DFATAL("Failed to get process CPU time (basic).");
+    return TimeNanos(0);
+  }
+
+  task_thread_times_info_data_t cur_threads{};
+  mach_msg_type_number_t times_count = TASK_THREAD_TIMES_INFO_COUNT;
+  kr = task_info(mach_task_self(), TASK_THREAD_TIMES_INFO,
+                 reinterpret_cast<task_info_t>(&cur_threads), &times_count);
+  if (kr != KERN_SUCCESS) {
+    PERFETTO_DFATAL("Failed to get process CPU time (thread times).");
+    return TimeNanos(0);
+  }
+
+  return TimeNanos(past_threads.user_time.seconds * 1000000000LL +
+                   past_threads.user_time.microseconds * 1000LL +
+                   past_threads.system_time.seconds * 1000000000LL +
+                   past_threads.system_time.microseconds * 1000LL +
+                   cur_threads.user_time.seconds * 1000000000LL +
+                   cur_threads.user_time.microseconds * 1000LL +
+                   cur_threads.system_time.seconds * 1000000000LL +
+                   cur_threads.system_time.microseconds * 1000LL);
+}
 #else
 inline TimeNanos GetThreadCPUTimeNs() {
   struct timespec ts = {};
   PERFETTO_CHECK(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0);
+  return FromPosixTimespec(ts);
+}
+
+inline TimeNanos GetProcessCPUTimeNs() {
+  struct timespec ts = {};
+  PERFETTO_CHECK(clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0);
   return FromPosixTimespec(ts);
 }
 #endif
@@ -158,6 +198,10 @@ inline TimeNanos GetWallTimeRawNs() {
 }
 
 inline TimeNanos GetThreadCPUTimeNs() {
+  return TimeNanos(0);
+}
+
+inline TimeNanos GetProcessCPUTimeNs() {
   return TimeNanos(0);
 }
 
@@ -181,6 +225,10 @@ inline TimeNanos GetWallTimeRawNs() {
 }
 
 inline TimeNanos GetThreadCPUTimeNs() {
+  return TimeNanos(0);
+}
+
+inline TimeNanos GetProcessCPUTimeNs() {
   return TimeNanos(0);
 }
 
@@ -208,6 +256,10 @@ inline TimeNanos GetWallTimeRawNs() {
 
 inline TimeNanos GetThreadCPUTimeNs() {
   return GetTimeInternalNs(CLOCK_THREAD_CPUTIME_ID);
+}
+
+inline TimeNanos GetProcessCPUTimeNs() {
+  return GetTimeInternalNs(CLOCK_PROCESS_CPUTIME_ID);
 }
 
 // TODO: Clock that counts time during suspend is not implemented on QNX.
@@ -254,6 +306,10 @@ inline TimeNanos GetWallTimeRawNs() {
 
 inline TimeNanos GetThreadCPUTimeNs() {
   return GetTimeInternalNs(CLOCK_THREAD_CPUTIME_ID);
+}
+
+inline TimeNanos GetProcessCPUTimeNs() {
+  return GetTimeInternalNs(CLOCK_PROCESS_CPUTIME_ID);
 }
 #endif
 
