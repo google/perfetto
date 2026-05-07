@@ -591,6 +591,11 @@ namespace perfetto::trace_processor::stats {
         "Number of references encountered."),                                  \
   F(hprof_record_counter,                  kSingle,  kInfo,   kAnalysis,       \
         "Total number of records parsed."),                                    \
+  F(hprof_segment_overshoot_counter,       kSingle,  kInfo,   kAnalysis,       \
+        "Number of HEAP_DUMP_SEGMENTs whose last sub-record extended past "    \
+        "the declared segment end. Benign: the sub-record's own length is "    \
+        "authoritative and the parser keeps going. Reported for visibility "   \
+        "into how a producer framed the dump."),                               \
   F(hprof_field_value_errors,              kSingle,  kError,   kAnalysis,      \
       "Number of field value parsing errors. This indicates a malformed "      \
       "hprof file. Check if the hprof opens correctly in a tool like "         \

@@ -250,23 +250,23 @@ bool HeapGraphBuilder::ParseClassDefinition() {
 bool HeapGraphBuilder::ParseHeapDump(size_t length) {
   size_t end_position = iterator_->GetPosition() + length;
 
-  // Parse heap dump records until we reach the end of the segment
+  // Parse heap dump records until we reach the end of the segment.
+  //
+  // Note: a single sub-record (e.g. CLASS_DUMP) is allowed to extend past
+  // the declared segment end. AHAT (the reference parser) reads sub-records
+  // by their own internal length and does not enforce the segment boundary,
+  // and some producers split segments at arbitrary byte boundaries that
+  // bisect a sub-record. We mirror that lenient behavior here.
   while (iterator_->GetPosition() < end_position) {
     if (!ParseHeapDumpRecord()) {
       return false;
     }
   }
 
-  // Ensure we're at the exact end position
-  if (iterator_->GetPosition() != end_position) {
-    size_t current = iterator_->GetPosition();
-    if (current < end_position) {
-      // Skip any remaining bytes
-      iterator_->SkipBytes(end_position - current);
-    } else {
-      // We went too far, which is an error
-      return false;
-    }
+  if (iterator_->GetPosition() < end_position) {
+    iterator_->SkipBytes(end_position - iterator_->GetPosition());
+  } else if (iterator_->GetPosition() > end_position) {
+    context_->storage->IncrementStats(stats::hprof_segment_overshoot_counter);
   }
 
   return true;
