@@ -147,30 +147,31 @@ TEST_F(GlobalStatsTrackerTest, SetStatsUpdatesExistingRow) {
 // passing nullopt for either should crash via PERFETTO_CHECK. This documents
 // (and pins) the strictness, and matches GlobalMetadataTracker's contract.
 TEST_F(GlobalStatsTrackerTest, MachineAndTraceRequiresMachineId) {
-  EXPECT_DEATH(tracker_.SetStats(std::nullopt, TraceId(1),
-                                 stats::android_log_num_failed, 1),
-               "");
+  EXPECT_DEATH_IF_SUPPORTED(tracker_.SetStats(std::nullopt, TraceId(1),
+                                              stats::android_log_num_failed, 1),
+                            "");
 }
 
 TEST_F(GlobalStatsTrackerTest, MachineAndTraceRequiresTraceId) {
-  EXPECT_DEATH(tracker_.SetStats(MachineId(1), std::nullopt,
-                                 stats::android_log_num_failed, 1),
-               "");
+  EXPECT_DEATH_IF_SUPPORTED(tracker_.SetStats(MachineId(1), std::nullopt,
+                                              stats::android_log_num_failed, 1),
+                            "");
 }
 
 // Calling SetStats on an indexed-type key, or SetIndexedStats on a
 // single-type key, is a programmer error and must crash.
 TEST_F(GlobalStatsTrackerTest, SetStatsOnIndexedKeyCrashes) {
-  EXPECT_DEATH(tracker_.SetStats(MachineId(1), TraceId(1),
-                                 stats::ftrace_cpu_bytes_begin, 1),
-               "");
+  EXPECT_DEATH_IF_SUPPORTED(tracker_.SetStats(MachineId(1), TraceId(1),
+                                              stats::ftrace_cpu_bytes_begin, 1),
+                            "");
 }
 
 TEST_F(GlobalStatsTrackerTest, SetIndexedStatsOnSingleKeyCrashes) {
-  EXPECT_DEATH(tracker_.SetIndexedStats(MachineId(1), TraceId(1),
-                                        stats::android_log_num_failed,
-                                        /*index=*/0, 1),
-               "");
+  EXPECT_DEATH_IF_SUPPORTED(
+      tracker_.SetIndexedStats(MachineId(1), TraceId(1),
+                               stats::android_log_num_failed,
+                               /*index=*/0, 1),
+      "");
 }
 
 // kMachine and kTrace scopes are declared in stats.h but currently no real
