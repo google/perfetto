@@ -258,6 +258,14 @@ class SamplePrograms {
     return program;
   }
 
+  static perfetto::protos::VmProgram Merge_DelIfSrcEmpty() {
+    perfetto::protos::VmProgram program;
+    auto* instruction = program.add_instructions();
+    auto* merge = instruction->mutable_merge();
+    merge->set_del_if_src_empty(true);
+    return program;
+  }
+
   static perfetto::protos::VmProgram Set() {
     perfetto::protos::VmProgram program;
     program.add_instructions()->mutable_set();

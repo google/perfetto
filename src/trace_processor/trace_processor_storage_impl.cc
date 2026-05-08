@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -84,8 +85,9 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
         &context_, context()->trace_file_tracker->AddFile());
   }
 
-  auto scoped_trace = context()->storage->TraceExecutionTimeIntoStats(
-      stats::parse_trace_duration_ns);
+  auto scoped_trace =
+      context()->global_stats_tracker->TraceExecutionTimeIntoStats(
+          stats::parse_trace_duration_ns);
 
   if (hash_input_size_remaining_ > 0 &&
       !context()->uuid_state->uuid_found_in_trace) {

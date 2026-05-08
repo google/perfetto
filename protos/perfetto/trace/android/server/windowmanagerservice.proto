@@ -39,6 +39,17 @@ import "protos/perfetto/trace/android/view/enums.proto";
 
 package perfetto.protos;
 
+message WindowManagerServicePatchProto {
+  optional int32 version = 1;
+  optional EmptyMessage clear_incremental_state_if_present = 2;
+  optional WindowManagerPolicyProto policy = 3;
+  optional RootWindowContainerProto root_window_container = 4;
+  repeated WindowContainerChildProto window_containers = 5;
+  repeated int32 removed_window_container_tokens = 6;
+
+  message EmptyMessage {};
+}
+
 message WindowManagerServiceDumpProto {
   optional WindowManagerPolicyProto policy = 1;
   // window hierarchy root
@@ -46,7 +57,7 @@ message WindowManagerServiceDumpProto {
   optional IdentifierProto focused_window = 3;
   optional string focused_app = 4;
   optional IdentifierProto input_method_window = 5;
-  optional bool display_frozen = 6;
+  optional bool display_frozen = 6 [deprecated = true];
   optional int32 rotation = 7 [
     (.perfetto.protos.typedef) = "android.view.Surface.Rotation",
     deprecated = true
@@ -60,6 +71,8 @@ message WindowManagerServiceDumpProto {
   optional bool hard_keyboard_available = 10;
   optional bool window_frames_valid = 11;
   optional BackNavigationProto back_navigation = 12;
+  optional int32 version = 13;
+  repeated WindowContainerChildProto window_containers = 14;
 }
 
 // represents RootWindowContainer object
@@ -153,7 +166,7 @@ message WindowManagerPolicyProto {
   optional IdentifierProto top_fullscreen_opaque_or_dimming_window = 11
       [deprecated = true];
   optional bool keyguard_occluded = 12;
-  optional bool keyguard_occluded_changed = 13;
+  optional bool keyguard_occluded_changed = 13 [deprecated = true];
   optional bool keyguard_occluded_pending = 14;
   optional bool force_status_bar = 15 [deprecated = true];
   optional bool force_status_bar_from_keyguard = 16 [deprecated = true];
@@ -608,6 +621,7 @@ message WindowContainerProto {
   optional IdentifierProto identifier = 6;
   optional SurfaceControlProto surface_control = 7;
   optional bool visible_requested = 8;
+  repeated int32 child_tokens = 9;
 }
 
 // represents a generic child of a WindowContainer
@@ -633,6 +647,9 @@ message WindowContainerChildProto {
   optional WindowStateProto window = 8;
   // represents a TaskFragment child
   optional TaskFragmentProto task_fragment = 9;
+  // Same token as in WindowContainerProto.identifier.
+  // Redundancy here to be efficiently processed by the ProtoVM.
+  optional int32 token = 10;
 }
 
 // represents ConfigurationContainer
@@ -640,6 +657,7 @@ message ConfigurationContainerProto {
   optional ConfigurationProto override_configuration = 1;
   optional ConfigurationProto full_configuration = 2;
   optional ConfigurationProto merged_override_configuration = 3;
+  optional ConfigurationProto resolved_override_configuration = 4;
 }
 
 // represents WindowFrames

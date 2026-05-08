@@ -39,7 +39,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_tree.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/counter.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
@@ -590,25 +590,28 @@ struct SymbolizeAgg
 
 }  // namespace
 
-base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterTypeBuilderFunctions(PerfettoSqlConnection& connection,
                                           StringPool* pool) {
-  RETURN_IF_ERROR(engine.RegisterAggregateFunction<ArrayAgg>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterFunction<Struct>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterAggregateFunction<RowDataframeAgg>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterAggregateFunction<ArrayAgg>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterFunction<Struct>(nullptr));
+  RETURN_IF_ERROR(
+      connection.RegisterAggregateFunction<RowDataframeAgg>(nullptr));
   // Use a static UserData since aggregate functions don't take ownership.
   static auto interval_tree_user_data =
       perfetto_sql::PartitionedTable::UserData{pool};
-  RETURN_IF_ERROR(engine.RegisterAggregateFunction<IntervalTreeIntervalsAgg>(
-      &interval_tree_user_data));
   RETURN_IF_ERROR(
-      engine.RegisterAggregateFunction<CounterPerTrackAgg>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterAggregateFunction<TimestampSetAgg>(nullptr));
+      connection.RegisterAggregateFunction<IntervalTreeIntervalsAgg>(
+          &interval_tree_user_data));
+  RETURN_IF_ERROR(
+      connection.RegisterAggregateFunction<CounterPerTrackAgg>(nullptr));
+  RETURN_IF_ERROR(
+      connection.RegisterAggregateFunction<TimestampSetAgg>(nullptr));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
-  RETURN_IF_ERROR(engine.RegisterAggregateFunction<SymbolizeAgg>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterAggregateFunction<SymbolizeAgg>(nullptr));
 #endif
 
-  return engine.RegisterAggregateFunction<NodeAgg>(nullptr);
+  return connection.RegisterAggregateFunction<NodeAgg>(nullptr);
 }
 
 }  // namespace perfetto::trace_processor

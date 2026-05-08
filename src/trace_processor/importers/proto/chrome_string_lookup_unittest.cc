@@ -54,6 +54,9 @@ TEST_F(ChromeStringLookupTest, PredefinedStrings) {
   EXPECT_STREQ(
       LookupString(strings.GetThreadName(chrome_enums::THREAD_BROWSER_MAIN)),
       "CrBrowserMain");
+  EXPECT_STREQ(
+      LookupString(strings.GetThreadName(chrome_enums::THREAD_BROWSER_VSYNC)),
+      "VSyncThread");
 }
 
 TEST_F(ChromeStringLookupTest, GeneratedStrings) {

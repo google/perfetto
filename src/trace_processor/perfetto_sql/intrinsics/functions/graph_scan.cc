@@ -36,7 +36,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h"
@@ -50,7 +50,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -130,11 +130,12 @@ base::Status InitToOutputAndStepTable(StringPool* pool,
   return base::OkStatus();
 }
 
-base::Status SqliteToOutputAndStepTable(StringPool* pool,
-                                        SqliteEngine::PreparedStatement& stmt,
-                                        const perfetto_sql::Graph& graph,
-                                        dataframe::AdhocDataframeBuilder& step,
-                                        dataframe::AdhocDataframeBuilder& out) {
+base::Status SqliteToOutputAndStepTable(
+    StringPool* pool,
+    SqliteConnection::PreparedStatement& stmt,
+    const perfetto_sql::Graph& graph,
+    dataframe::AdhocDataframeBuilder& step,
+    dataframe::AdhocDataframeBuilder& out) {
   std::vector<uint32_t> empty_edges;
   auto get_edges = [&](uint32_t id) {
     return id < graph.size() ? graph[id].outgoing_edges : empty_edges;
@@ -205,8 +206,8 @@ base::Status SqliteToOutputAndStepTable(StringPool* pool,
   return stmt.status();
 }
 
-base::StatusOr<SqliteEngine::PreparedStatement> PrepareStatement(
-    PerfettoSqlEngine& engine,
+base::StatusOr<SqliteConnection::PreparedStatement> PrepareStatement(
+    PerfettoSqlConnection& connection,
     const std::vector<std::string>& cols,
     const std::string& sql) {
   std::vector<std::string> select_cols;
@@ -228,7 +229,7 @@ base::StatusOr<SqliteEngine::PreparedStatement> PrepareStatement(
   raw_sql = base::ReplaceAll(raw_sql, "$cols", base::Join(select_cols, ","));
   raw_sql = base::ReplaceAll(raw_sql, "$where", base::Join(bind_cols, " AND "));
   std::string res = base::ReplaceAll(sql, "$table", raw_sql);
-  return engine.PrepareSqliteStatement(
+  return connection.PrepareSqliteStatement(
       SqlSource::FromTraceProcessorImplementation("SELECT * FROM " + res));
 }
 
@@ -251,7 +252,7 @@ struct GraphAggregatingScanner {
   uint32_t DfsAndComputeMaxDepth(std::vector<uint32_t> stack);
   base::Status PushDownStartingAggregates(
       dataframe::AdhocDataframeBuilder& res);
-  base::Status PushDownAggregates(SqliteEngine::PreparedStatement& agg_stmt,
+  base::Status PushDownAggregates(SqliteConnection::PreparedStatement& agg_stmt,
                                   uint32_t agg_col_count,
                                   dataframe::AdhocDataframeBuilder& res);
 
@@ -259,7 +260,7 @@ struct GraphAggregatingScanner {
     return id < graph.size() ? graph[id].outgoing_edges : empty_edges;
   }
 
-  PerfettoSqlEngine* engine;
+  PerfettoSqlConnection* connection;
   StringPool* pool;
   const perfetto_sql::Graph& graph;
   const perfetto_sql::RowDataframe& inits;
@@ -316,7 +317,7 @@ uint32_t GraphAggregatingScanner::DfsAndComputeMaxDepth(
 }
 
 base::Status GraphAggregatingScanner::PushDownAggregates(
-    SqliteEngine::PreparedStatement& agg_stmt,
+    SqliteConnection::PreparedStatement& agg_stmt,
     uint32_t agg_col_count,
     dataframe::AdhocDataframeBuilder& res) {
   while (agg_stmt.Step()) {
@@ -494,7 +495,7 @@ base::StatusOr<dataframe::Dataframe> GraphAggregatingScanner::Run() {
   //      table builder for the initial nodes
   //   3) It would allow code deduplication between the initial query, the step
   //      query and also CREATE PERFETTO TABLE: the code here is very similar to
-  //      the code in PerfettoSqlEngine.
+  //      the code in PerfettoSqlConnection.
 
   dataframe::AdhocDataframeBuilder res(
       inits.column_names, pool,
@@ -510,8 +511,9 @@ base::StatusOr<dataframe::Dataframe> GraphAggregatingScanner::Run() {
   }
 
   RETURN_IF_ERROR(PushDownStartingAggregates(res));
-  ASSIGN_OR_RETURN(auto agg_stmt, PrepareStatement(*engine, inits.column_names,
-                                                   std::string(reduce)));
+  ASSIGN_OR_RETURN(
+      auto agg_stmt,
+      PrepareStatement(*connection, inits.column_names, std::string(reduce)));
   RETURN_IF_ERROR(agg_stmt.status());
 
   uint32_t agg_col_count = sqlite::column::Count(agg_stmt.sqlite_stmt());
@@ -551,7 +553,7 @@ struct GraphAggregatingScan : public sqlite::Function<GraphAggregatingScan> {
   static constexpr char kName[] = "__intrinsic_graph_aggregating_scan";
   static constexpr int kArgCount = 4;
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
     StringPool* pool;
   };
 
@@ -603,7 +605,7 @@ struct GraphAggregatingScan : public sqlite::Function<GraphAggregatingScan> {
     const auto* nodes =
         sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
     GraphAggregatingScanner scanner{
-        user_data->engine,
+        user_data->connection,
         user_data->pool,
         nodes ? *nodes : perfetto_sql::Graph(),
         *init,
@@ -626,7 +628,7 @@ struct GraphScan : public sqlite::Function<GraphScan> {
   static constexpr char kName[] = "__intrinsic_graph_scan";
   static constexpr int kArgCount = 4;
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
     StringPool* pool;
   };
 
@@ -687,7 +689,7 @@ struct GraphScan : public sqlite::Function<GraphScan> {
     }
     SQLITE_ASSIGN_OR_RETURN(
         ctx, auto agg_stmt,
-        PrepareStatement(*user_data->engine, init->column_names, step_sql));
+        PrepareStatement(*user_data->connection, init->column_names, step_sql));
     while (step_table->row_count() > 0) {
       int err = sqlite::stmt::Reset(agg_stmt.sqlite_stmt());
       if (err != SQLITE_OK) {
@@ -720,14 +722,14 @@ struct GraphScan : public sqlite::Function<GraphScan> {
 
 }  // namespace
 
-base::Status RegisterGraphScanFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterGraphScanFunctions(PerfettoSqlConnection& connection,
                                         StringPool* pool) {
-  RETURN_IF_ERROR(
-      engine.RegisterFunction<GraphScan>(std::make_unique<GraphScan::UserData>(
-          GraphScan::UserData{&engine, pool})));
-  return engine.RegisterFunction<GraphAggregatingScan>(
+  RETURN_IF_ERROR(connection.RegisterFunction<GraphScan>(
+      std::make_unique<GraphScan::UserData>(
+          GraphScan::UserData{&connection, pool})));
+  return connection.RegisterFunction<GraphAggregatingScan>(
       std::make_unique<GraphAggregatingScan::UserData>(
-          GraphAggregatingScan::UserData{&engine, pool}));
+          GraphAggregatingScan::UserData{&connection, pool}));
 }
 
 }  // namespace perfetto::trace_processor

@@ -48,6 +48,19 @@ message TracingServiceState {
     // Returns true if the process appears to be frozen (Android only).
     // Introduced in Perfetto V49 / Android 24Q4.
     optional bool frozen = 6;
+
+    // Identifies the machine this producer is connected from in multi-machine
+    // tracing setups (e.g. when going through traced_relay). Unset (or zero)
+    // means the producer is connected from the local/host machine where the
+    // tracing service is running.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional uint32 machine_id = 7;
+
+    // Human-readable name of the machine, as advertised by the relay (usually
+    // the value of PERFETTO_MACHINE_NAME on the remote, falling back to the
+    // remote's `uname -s`). Only set when machine_id is non-zero.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional string machine_name = 8;
   }
 
   // Describes a data source registered by a producer. Data sources are listed

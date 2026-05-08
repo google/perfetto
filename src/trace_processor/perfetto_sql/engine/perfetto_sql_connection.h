@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -33,6 +33,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -43,7 +44,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "src/trace_processor/util/sql_modules.h"
 
@@ -52,7 +53,7 @@ namespace perfetto::trace_processor {
 // Intermediary class which translates high-level concepts and algorithms used
 // in trace processor into lower-level concepts and functions can be understood
 // by and executed against SQLite.
-class PerfettoSqlEngine {
+class PerfettoSqlConnection {
  public:
   struct ExecutionStats {
     uint32_t column_count = 0;
@@ -60,16 +61,32 @@ class PerfettoSqlEngine {
     uint32_t statement_count_with_output = 0;
   };
   struct ExecutionResult {
-    SqliteEngine::PreparedStatement stmt;
+    SqliteConnection::PreparedStatement stmt;
     ExecutionStats stats;
   };
   struct StaticTable {
     dataframe::Dataframe* dataframe;
     std::string name;
   };
-  PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
+  // Creates a fresh |PerfettoSqlDatabase| and returns a connection attached
+  // to it. The database lives only as long as some connection has it open.
+  static std::unique_ptr<PerfettoSqlConnection> CreateConnectionToNewDatabase(
+      StringPool* pool,
+      bool enable_extra_checks);
 
-  // Initializes the static tables and functions in the engine.
+  ~PerfettoSqlConnection();
+
+  PerfettoSqlConnection(const PerfettoSqlConnection&) = delete;
+  PerfettoSqlConnection& operator=(const PerfettoSqlConnection&) = delete;
+
+  // Returns a new connection attached to the same |PerfettoSqlDatabase| as
+  // this one. The new connection has its own underlying |SqliteConnection|
+  // and per-connection state (vtab modules, registered functions etc.); only
+  // the database-scoped state (packages, macros, committed vtab state) is
+  // shared.
+  std::unique_ptr<PerfettoSqlConnection> Fork();
+
+  // Initializes the static tables and functions in the connection.
   base::Status InitializeStaticTablesAndFunctions(
       const std::vector<StaticTable>& tables,
       std::vector<std::unique_ptr<StaticTableFunction>> functions);
@@ -96,7 +113,7 @@ class PerfettoSqlEngine {
   //
   // Returns an error if the preparation of the statement failed or if there was
   // no valid SQL to run.
-  base::StatusOr<SqliteEngine::PreparedStatement> PrepareSqliteStatement(
+  base::StatusOr<SqliteConnection::PreparedStatement> PrepareSqliteStatement(
       SqlSource sql);
 
   // Registers a virtual table module with the given name.
@@ -117,7 +134,8 @@ class PerfettoSqlEngine {
                                     typename Module::Context>) {
       virtual_module_state_managers_.push_back(ctx);
     }
-    engine_->RegisterVirtualTableModule(name, &Module::kModule, ctx, nullptr);
+    connection_->RegisterVirtualTableModule(name, &Module::kModule, ctx,
+                                            nullptr);
   }
 
   // Registers a virtual table module with the given name.
@@ -138,7 +156,7 @@ class PerfettoSqlEngine {
                                     typename Module::Context>) {
       virtual_module_state_managers_.push_back(ctx.get());
     }
-    engine_->RegisterVirtualTableModule(
+    connection_->RegisterVirtualTableModule(
         name, &Module::kModule, ctx.release(),
         [](void* ptr) { delete static_cast<typename Module::Context*>(ptr); });
   }
@@ -153,7 +171,7 @@ class PerfettoSqlEngine {
       virtual_module_state_managers_.push_back(
           static_cast<sqlite::ModuleStateManagerBase*>(ctx));
     }
-    engine_->RegisterVirtualTableModule(name, module, ctx, destructor);
+    connection_->RegisterVirtualTableModule(name, module, ctx, destructor);
   }
 
   // Registers a trace processor C++ function to be runnable from SQL.
@@ -228,41 +246,36 @@ class PerfettoSqlEngine {
   // Enables memoization for the given SQL function.
   base::Status EnableSqlFunctionMemoization(const std::string& name);
 
-  SqliteEngine* sqlite_engine() { return engine_.get(); }
+  SqliteConnection* sqlite_connection() { return connection_.get(); }
 
   // Makes new SQL package available to include.
   void RegisterPackage(const std::string& name,
                        sql_modules::RegisteredPackage package) {
-    packages_.Erase(name);
-    packages_.Insert(name, std::move(package));
+    database_->RegisterPackage(name, std::move(package));
   }
 
   // Removes a SQL package.
-  void ErasePackage(const std::string& name) { packages_.Erase(name); }
+  void ErasePackage(const std::string& name) { database_->ErasePackage(name); }
 
   // Fetches registered SQL package.
   sql_modules::RegisteredPackage* FindPackage(const std::string& name) {
-    return packages_.Find(name);
+    return database_->FindPackage(name);
   }
   const sql_modules::RegisteredPackage* FindPackage(
       const std::string& name) const {
-    return packages_.Find(name);
+    return database_->FindPackage(name);
   }
 
   // Returns (package_name, module_key) pairs for every registered module.
   std::vector<std::pair<std::string, std::string>> GetModules() const {
-    std::vector<std::pair<std::string, std::string>> result;
-    for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
-      for (auto mod = pkg.value().modules.GetIterator(); mod; ++mod) {
-        result.emplace_back(pkg.key(), mod.key());
-      }
-    }
-    return result;
+    return database_->GetModules();
   }
 
   // Finds a package that owns the given module key (i.e., whose name is a
   // prefix of the key).
-  sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key);
+  sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key) {
+    return database_->FindPackageForModule(key);
+  }
 
   // Returns the number of objects (tables, views, functions etc) registered
   // with SQLite.
@@ -285,10 +298,10 @@ class PerfettoSqlEngine {
     // The missing objects from the above query are functions and macros.
     // Add those in now.
     return query_count + function_count_ + window_function_count_ +
-           aggregate_function_count_ + macros_.size();
+           aggregate_function_count_ + database_->macro_count();
   }
 
-  // Find dataframe registered with engine with provided name.
+  // Find dataframe registered with this connection with provided name.
   const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
 
   // Registers a function with the prototype |prototype| which returns a value
@@ -319,7 +332,7 @@ class PerfettoSqlEngine {
     SqlSource sql_source;
     std::unique_ptr<PerfettoSqlParser> parser;
     ExecutionStats accumulated_stats;
-    std::optional<SqliteEngine::PreparedStatement> current_stmt;
+    std::optional<SqliteConnection::PreparedStatement> current_stmt;
 
     // For include frames: metadata needed to complete the include
     std::string include_key;
@@ -345,9 +358,9 @@ class PerfettoSqlEngine {
   base::Status RegisterFunctionAndAddToRegistry(
       const char* name,
       int argc,
-      SqliteEngine::Fn* func,
+      SqliteConnection::Fn* func,
       void* ctx,
-      SqliteEngine::FnCtxDestructor* ctx_destructor,
+      SqliteConnection::FnCtxDestructor* ctx_destructor,
       bool deterministic);
 
   base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
@@ -369,7 +382,7 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteCreateTableUsingRuntimeTable(
       const PerfettoSqlParser::CreateTable& create_table,
-      SqliteEngine::PreparedStatement stmt,
+      SqliteConnection::PreparedStatement stmt,
       const std::vector<std::string>& column_names,
       const std::vector<sql_argument::ArgumentDefinition>& effective_schema);
 
@@ -417,10 +430,14 @@ class PerfettoSqlEngine {
   // transactions in SQLite.
   void OnRollback();
 
+  PerfettoSqlConnection(std::shared_ptr<PerfettoSqlDatabase> database,
+                        bool enable_extra_checks);
+
+  std::shared_ptr<PerfettoSqlDatabase> database_;
   StringPool* pool_ = nullptr;
 
-  // If true, engine will perform additional consistency checks when e.g.
-  // creating tables and views.
+  // If true, this connection will perform additional consistency checks when
+  // e.g. creating tables and views.
   const bool enable_extra_checks_;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
@@ -439,13 +456,11 @@ class PerfettoSqlEngine {
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
-  base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
-  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 
   // Registry of intrinsic functions that can be aliased
   // Maps intrinsic_name -> (function_ptr, argc, ctx, deterministic)
   struct IntrinsicFunctionInfo {
-    SqliteEngine::Fn* func;
+    SqliteConnection::Fn* func;
     int argc;
     void* ctx;
     bool deterministic;
@@ -453,7 +468,7 @@ class PerfettoSqlEngine {
   base::FlatHashMap<std::string, IntrinsicFunctionInfo>
       intrinsic_function_registry_;
 
-  std::unique_ptr<SqliteEngine> engine_;
+  std::unique_ptr<SqliteConnection> connection_;
 };
 
 // The rest of this file is just implementation details which we need
@@ -461,7 +476,7 @@ class PerfettoSqlEngine {
 // like this to keep the API people actually care about easy to read.
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterFunction(
+base::Status PerfettoSqlConnection::RegisterFunction(
     typename Function::UserData* ctx,
     const RegisterFunctionArgs& args) {
   function_count_++;
@@ -472,7 +487,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterFunction(
+base::Status PerfettoSqlConnection::RegisterFunction(
     std::unique_ptr<typename Function::UserData> ctx,
     const RegisterFunctionArgs& args) {
   function_count_++;
@@ -488,27 +503,27 @@ base::Status PerfettoSqlEngine::RegisterFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterAggregateFunction(
+base::Status PerfettoSqlConnection::RegisterAggregateFunction(
     typename Function::UserData* ctx,
     bool deterministic) {
   aggregate_function_count_++;
-  return engine_->RegisterAggregateFunction(
+  return connection_->RegisterAggregateFunction(
       Function::kName, Function::kArgCount, Function::Step, Function::Final,
       ctx, nullptr, deterministic);
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterWindowFunction(
+base::Status PerfettoSqlConnection::RegisterWindowFunction(
     const char* name,
     int argc,
     typename Function::Context* ctx,
     bool deterministic) {
   window_function_count_++;
-  return engine_->RegisterWindowFunction(
+  return connection_->RegisterWindowFunction(
       name, argc, Function::Step, Function::Inverse, Function::Value,
       Function::Final, ctx, nullptr, deterministic);
 }
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_

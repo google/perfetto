@@ -40,6 +40,7 @@
 
 namespace perfetto::trace_processor {
 
+class GlobalStatsTracker;
 class TraceProcessorContext;
 
 struct NormalizedType {
@@ -88,6 +89,12 @@ class HeapGraphTracker : public Destructible {
     // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
     // this is the value of its `size` field.
     std::optional<int64_t> native_allocation_registry_size;
+
+    // Bitmap-specific fields
+    std::optional<int64_t> bitmap_id;
+    std::optional<int64_t> bitmap_source_id;
+    std::optional<uint32_t> bitmap_width;
+    std::optional<uint32_t> bitmap_height;
   };
 
   struct SourceRoot {
@@ -95,7 +102,7 @@ class HeapGraphTracker : public Destructible {
     std::vector<uint64_t> object_ids;
   };
 
-  explicit HeapGraphTracker(TraceStorage* storage);
+  HeapGraphTracker(TraceStorage* storage, GlobalStatsTracker* stats_tracker);
 
   static HeapGraphTracker* Get(TraceProcessorContext* context) {
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
@@ -251,6 +258,7 @@ class HeapGraphTracker : public Destructible {
                         PathFromRoot* path);
 
   TraceStorage* const storage_;
+  GlobalStatsTracker* const global_stats_tracker_;
   std::map<uint32_t, SequenceState> sequence_state_;
 
   tables::HeapGraphClassTable::Cursor class_cursor_;

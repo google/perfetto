@@ -28,6 +28,8 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
 
@@ -100,42 +102,50 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Native',
+        title: colHeader('Native', COL_INFO.shallowNative),
+        titleString: 'Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained #',
+        title: colHeader('Retained #', COL_INFO.retainedCount),
+        titleString: 'Retained #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
