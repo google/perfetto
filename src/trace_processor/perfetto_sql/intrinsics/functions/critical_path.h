@@ -21,7 +21,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 class StringPool;
 
 // Registers the SQLite intrinsics backing
@@ -33,7 +33,7 @@ class StringPool;
 //       (root_id, depth, ts, dur, blocker_id, blocker_utid, parent_id);
 //       callers collapse to one blocker per `(root_id, ts)` via
 //       `_intervals_flatten`.
-base::Status RegisterCriticalPathFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterCriticalPathFunctions(PerfettoSqlConnection& connection,
                                            StringPool& pool);
 
 }  // namespace perfetto::trace_processor

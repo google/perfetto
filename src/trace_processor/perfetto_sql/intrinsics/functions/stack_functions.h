@@ -23,7 +23,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 class TraceProcessorContext;
 
 // Registers the stack manipulation related functions:
@@ -47,7 +47,7 @@ class TraceProcessorContext;
 // it generates a fake Frame
 //
 // See protos/perfetto/trace_processor/stack.proto
-base::Status RegisterStackFunctions(PerfettoSqlEngine* engine,
+base::Status RegisterStackFunctions(PerfettoSqlConnection* connection,
                                     TraceProcessorContext* context);
 
 }  // namespace perfetto::trace_processor

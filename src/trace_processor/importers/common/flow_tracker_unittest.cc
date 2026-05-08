@@ -16,9 +16,11 @@
 
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -33,8 +35,14 @@ class FlowTrackerTest : public ::testing::Test {
  public:
   FlowTrackerTest() {
     context_.storage = std::make_unique<TraceStorage>();
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(context_.storage.get());
     context_.slice_translation_table =

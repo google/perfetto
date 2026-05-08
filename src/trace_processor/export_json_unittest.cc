@@ -37,10 +37,12 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -87,8 +89,14 @@ class ExportJsonTest : public ::testing::Test {
  public:
   ExportJsonTest() {
     context_.storage.reset(new TraceStorage());
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
     context_.event_tracker.reset(new EventTracker(&context_));
@@ -96,9 +104,6 @@ class ExportJsonTest : public ::testing::Test {
     context_.cpu_tracker.reset(new CpuTracker(&context_));
     context_.global_metadata_tracker.reset(
         new GlobalMetadataTracker(context_.storage.get()));
-    context_.trace_state =
-        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
-            TraceProcessorContext::TraceState{TraceId(0)});
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.process_track_translation_table.reset(
@@ -389,13 +394,18 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   int64_t kBufferSize1 = 2000;
   int64_t kFtraceBegin = 3000;
 
-  context_.storage->SetStats(stats::traced_producers_connected, kProducers);
-  context_.storage->SetIndexedStats(stats::traced_buf_buffer_size, 0,
-                                    kBufferSize0);
-  context_.storage->SetIndexedStats(stats::traced_buf_buffer_size, 1,
-                                    kBufferSize1);
-  context_.storage->SetIndexedStats(stats::ftrace_cpu_bytes_begin, 0,
-                                    kFtraceBegin);
+  // The fixture has machine_tracker (kDefaultMachineId) and trace_state
+  // (TraceId(0)) wired up, so going through the per-context tracker
+  // exercises the natural path: stats land under the (machine, trace) the
+  // fixture represents.
+  context_.stats_tracker->SetStats(stats::traced_producers_connected,
+                                   kProducers);
+  context_.stats_tracker->SetIndexedStats(stats::traced_buf_buffer_size, 0,
+                                          kBufferSize0);
+  context_.stats_tracker->SetIndexedStats(stats::traced_buf_buffer_size, 1,
+                                          kBufferSize1);
+  context_.stats_tracker->SetIndexedStats(stats::ftrace_cpu_bytes_begin, 0,
+                                          kFtraceBegin);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");

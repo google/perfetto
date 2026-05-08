@@ -55,6 +55,8 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     std::vector<std::string> named_indexes;
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
+    explicit Context(sqlite::CommittedStateManager& store)
+        : sqlite::ModuleStateManager<DataframeModule>(store) {}
     std::unique_ptr<State> temporary_create_state;
   };
   struct SqliteValueFetcher : dataframe::ValueFetcher {

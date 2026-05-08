@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/ext/base/platform.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/watchdog.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
@@ -35,6 +36,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/crash_keys.h"
@@ -49,8 +51,15 @@ namespace {
 
 constexpr uint32_t kDefaultPollingInterval = 30 * 1000;
 
+// Grace period given to a fatal handler (passed to Start()) to
+// crash the process on its own before the watchdog force-kills it.
+constexpr uint32_t kFatalHandlerGraceMs = 60 * 1000;
+
 base::CrashKey g_crash_key_reason("wdog_reason");
-base::CrashKey g_crash_key_timer_ms("wdog_ms");
+base::CrashKey g_crash_key_timeout("wdog_timeout");
+base::CrashKey g_crash_key_actual_mono("wdog_actual_mono");
+base::CrashKey g_crash_key_actual_boot("wdog_actual_boot");
+base::CrashKey g_crash_key_actual_cpu("wdog_actual_cpu");
 
 bool IsMultipleOf(uint32_t number, uint32_t divisor) {
   return number >= divisor && number % divisor == 0;
@@ -102,11 +111,10 @@ Watchdog::~Watchdog() {
   }
   PERFETTO_DCHECK(enabled_);
   enabled_ = false;
-
   // Rearm the timer to 1ns from now. This will cause the watchdog thread to
   // wakeup from the poll() and see |enabled_| == false.
-  // This code path is used only in tests. In production code the watchdog is
-  // a singleton and is never destroyed.
+  // This code path is used only in tests. In production code the watchdog
+  // is a singleton and is never destroyed.
   struct itimerspec ts{};
   ts.it_value.tv_sec = 0;
   ts.it_value.tv_nsec = 1;
@@ -165,12 +173,19 @@ void Watchdog::RearmTimerFd_Locked() {
   PERFETTO_DCHECK(res == 0);
 }
 
-void Watchdog::Start() {
+void Watchdog::Start(TaskRunner* task_runner,
+                     std::function<void(WatchdogCrashInfo)> fatal_handler) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (thread_.joinable()) {
     PERFETTO_DCHECK(enabled_);
   } else {
     PERFETTO_DCHECK(!enabled_);
+
+    // |fatal_handler_*| are written here, before the watchdog thread is
+    // created. The watchdog thread is the only reader, so no locking is
+    // needed when accessing them from ThreadMain().
+    fatal_handler_task_runner_ = task_runner;
+    fatal_handler_ = std::move(fatal_handler);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -215,7 +230,10 @@ void Watchdog::SetCpuLimit(uint32_t percentage, uint32_t window_ms) {
 void Watchdog::ThreadMain() {
   // Register crash keys explicitly to avoid running out of slots at crash time.
   g_crash_key_reason.Register();
-  g_crash_key_timer_ms.Register();
+  g_crash_key_timeout.Register();
+  g_crash_key_actual_boot.Register();
+  g_crash_key_actual_mono.Register();
+  g_crash_key_actual_cpu.Register();
 
   base::ScopedFile stat_fd(base::OpenFile("/proc/self/stat", O_RDONLY));
   if (!stat_fd) {
@@ -256,27 +274,41 @@ void Watchdog::ThreadMain() {
     auto res = PERFETTO_EINTR(read(*timer_fd_, &expired, sizeof(expired)));
     PERFETTO_DCHECK((res < 0 && (errno == EAGAIN)) ||
                     (res == sizeof(expired) && expired > 0));
-    const auto now = GetWallTimeMs();
+    const TimeMillis now_mono_ms = GetWallTimeMs();
 
     // Check if any of the timers expired.
-    int tid_to_kill = 0;
-    uint32_t wdog_timer_ms = 0;
-    WatchdogCrashReason crash_reason{};
+    WatchdogCrashInfo info{};
     {
       std::lock_guard<std::mutex> guard(mutex_);
       for (const auto& timer : timers_) {
-        if (now >= timer.deadline) {
-          tid_to_kill = timer.thread_id;
-          crash_reason = timer.crash_reason;
-          wdog_timer_ms = timer.duration_ms;
+        if (now_mono_ms >= timer.deadline) {
+          info.thread_id = timer.thread_id;
+          info.reason = timer.crash_reason;
+          const TimeMillis now_boot_ms = GetBootTimeMs();
+          info.alarm_time_ms = now_boot_ms.count();
+          info.timeout_s =
+              static_cast<int>(std::chrono::duration_cast<TimeSeconds>(
+                                   timer.deadline - timer.ctime_mono)
+                                   .count());
+          info.actual_mono_s =
+              static_cast<int>(std::chrono::duration_cast<TimeSeconds>(
+                                   now_mono_ms - timer.ctime_mono)
+                                   .count());
+          info.actual_boot_s =
+              static_cast<int>(std::chrono::duration_cast<TimeSeconds>(
+                                   now_boot_ms - timer.ctime_boot)
+                                   .count());
+          info.actual_cpu_s =
+              static_cast<int>(std::chrono::duration_cast<TimeSeconds>(
+                                   GetProcessCPUTimeNs() - timer.ctime_cpu)
+                                   .count());
           break;
         }
       }
     }
 
-    if (tid_to_kill) {
-      g_crash_key_timer_ms.Set(static_cast<int>(wdog_timer_ms));
-      SerializeLogsAndKillThread(tid_to_kill, crash_reason);
+    if (info.thread_id) {
+      SerializeLogsAndKillThread(info.thread_id, info);
     }
 
     // Check CPU and memory guardrails (if enabled).
@@ -289,6 +321,7 @@ void Watchdog::ThreadMain() {
         static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize();
 
     bool threshold_exceeded = false;
+    WatchdogCrashReason crash_reason{};
     {
       std::lock_guard<std::mutex> guard(mutex_);
       if (CheckMemory_Locked(rss_bytes) && !IsSyncMemoryTaggingEnabled()) {
@@ -300,14 +333,40 @@ void Watchdog::ThreadMain() {
       }
     }
 
-    if (threshold_exceeded)
-      SerializeLogsAndKillThread(getpid(), crash_reason);
+    if (threshold_exceeded) {
+      info.reason = crash_reason;
+      // No associated timer: info.actual_*_s remain 0.
+      SerializeLogsAndKillThread(getpid(), info);
+    }
   }
 }
 
 void Watchdog::SerializeLogsAndKillThread(int tid,
-                                          WatchdogCrashReason crash_reason) {
-  g_crash_key_reason.Set(static_cast<int>(crash_reason));
+                                          const WatchdogCrashInfo& info) {
+  g_crash_key_timeout.Set(info.timeout_s);
+  g_crash_key_actual_mono.Set(info.actual_mono_s);
+  g_crash_key_actual_boot.Set(info.actual_boot_s);
+  g_crash_key_actual_cpu.Set(info.actual_cpu_s);
+  g_crash_key_reason.Set(static_cast<int>(info.reason));
+
+  // If the embedder installed a fatal handler, give it a chance to run (e.g.
+  // to flush in-flight state) before we force-kill the process. The handler
+  // is expected to crash the process on its own (e.g. via PERFETTO_FATAL once
+  // it's done). If it doesn't crash within |kFatalHandlerGraceMs|, we proceed
+  // and force-kill from here.
+  // |fatal_handler_*| are set in Start() before the watchdog thread is
+  // created, so no locking is needed. Clearing them after invocation prevents
+  // re-posting if the same expired condition is observed again.
+  if (fatal_handler_ && fatal_handler_task_runner_) {
+    fatal_handler_task_runner_->PostTask(
+        [h = std::move(fatal_handler_), info] { h(info); });
+    fatal_handler_ = nullptr;
+    fatal_handler_task_runner_ = nullptr;
+    if (!disable_kill_failsafe_for_testing_) {
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(kFatalHandlerGraceMs));
+    }
+  }
 
   // We are about to die. Serialize the logs into the crash buffer so the
   // debuggerd crash handler picks them up and attaches to the bugreport.
@@ -419,8 +478,13 @@ Watchdog::Timer::Timer(Watchdog* watchdog,
     : watchdog_(watchdog) {
   if (!ms)
     return;  // No-op timer created when the watchdog is disabled.
-  timer_data_.deadline = GetWallTimeMs() + std::chrono::milliseconds(ms);
-  timer_data_.duration_ms = ms;
+
+  TimeMillis now_mono = GetWallTimeMs();
+  timer_data_.deadline = now_mono + std::chrono::milliseconds(ms);
+  timer_data_.ctime_mono = now_mono;
+  timer_data_.ctime_boot = GetBootTimeMs();
+  timer_data_.ctime_cpu =
+      std::chrono::duration_cast<TimeMillis>(GetProcessCPUTimeNs());
   timer_data_.thread_id = GetThreadId();
   timer_data_.crash_reason = crash_reason;
   PERFETTO_DCHECK(watchdog_);

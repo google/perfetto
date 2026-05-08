@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/trace/android/viewcapture.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_rect_computation.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.h"
@@ -50,8 +51,9 @@ void ViewCaptureParser::Parse(int64_t timestamp,
 
   ArgsTracker args_tracker(context_->trace_processor_context_);
   auto inserter = args_tracker.AddArgsTo(snapshot_id);
-  ViewCaptureArgsParser writer(timestamp, inserter, *storage, seq_state,
-                               &row_ref, nullptr);
+  ViewCaptureArgsParser writer(timestamp, inserter,
+                               *context_->trace_processor_context_, seq_state,
+                               /*snapshot_row=*/&row_ref, /*view_row=*/nullptr);
   const auto table_name = tables::ViewCaptureTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
@@ -61,7 +63,8 @@ void ViewCaptureParser::Parse(int64_t timestamp,
 
   AddDeinternedData(writer, row.base64_proto_id.value());
   if (!status.ok()) {
-    storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_viewcapture_parse_errors);
   }
 
   auto views_top_to_bottom =
@@ -110,8 +113,9 @@ void ViewCaptureParser::ParseView(
 
   ArgsTracker tracker(context_->trace_processor_context_);
   auto inserter = tracker.AddArgsTo(row_id);
-  ViewCaptureArgsParser writer(timestamp, inserter, *storage, seq_state,
-                               nullptr, &row_ref);
+  ViewCaptureArgsParser writer(timestamp, inserter,
+                               *context_->trace_processor_context_, seq_state,
+                               /*snapshot_row=*/nullptr, /*view_row=*/&row_ref);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
@@ -120,7 +124,8 @@ void ViewCaptureParser::ParseView(
 
   AddDeinternedData(writer, view.base64_proto_id.value());
   if (!status.ok()) {
-    storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_viewcapture_parse_errors);
   }
 }
 

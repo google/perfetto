@@ -423,6 +423,34 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   ASSERT_EQ(svc_state.producers_size(), 0);
 }
 
+TEST_F(TracingServiceImplTest, QueryServiceStateReportsMachine) {
+  std::unique_ptr<MockProducer> host_producer = CreateMockProducer();
+  std::unique_ptr<MockProducer> guest_producer = CreateMockProducer();
+
+  host_producer->Connect(svc.get(), "host_producer", /*uid=*/123, /*pid=*/100);
+  guest_producer->Connect(svc.get(), "guest_producer", /*uid=*/42, /*pid=*/1025,
+                          /*machine_id=*/1234, "guest_machine");
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TracingServiceState svc_state = consumer->QueryServiceState();
+  ASSERT_EQ(svc_state.producers_size(), 2);
+
+  // The host producer must report no machine_id and no machine_name (so callers
+  // can distinguish host from relay-connected producers without parsing
+  // strings).
+  const auto& host = svc_state.producers().at(0);
+  EXPECT_EQ(host.name(), "host_producer");
+  EXPECT_FALSE(host.has_machine_id());
+  EXPECT_FALSE(host.has_machine_name());
+
+  const auto& guest = svc_state.producers().at(1);
+  EXPECT_EQ(guest.name(), "guest_producer");
+  EXPECT_EQ(guest.machine_id(), 1234u);
+  EXPECT_EQ(guest.machine_name(), "guest_machine");
+}
+
 TEST_F(TracingServiceImplTest, EnableAndDisableTracing) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());

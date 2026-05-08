@@ -35,7 +35,6 @@ import {Time, Timecode} from '../../base/time';
 import {base64Decode, base64Encode} from '../../base/string_utils';
 
 import {getPresetsForPlatform} from './presets';
-import {RecordTraceV2Settings} from './settings';
 
 const LOCALSTORAGE_KEY = 'recordPlugin';
 
@@ -64,10 +63,7 @@ export class RecordingManager {
   private _customTraceConfig?: protos.TraceConfig;
   private _customConfigFileName?: string;
 
-  constructor(
-    readonly app: App,
-    readonly settings: RecordTraceV2Settings,
-  ) {}
+  constructor(readonly app: App) {}
 
   registerPage(...pages: RecordSubpage[]) {
     for (const page of pages) {

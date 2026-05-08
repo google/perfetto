@@ -24,7 +24,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -203,9 +203,9 @@ The inverse step is not supported: the window clause should be
 
 }  // namespace
 
-base::Status RegisterLayoutFunctions(PerfettoSqlEngine& engine) {
-  return engine.RegisterWindowFunction<InternalLayout>(kFunctionName, 2,
-                                                       nullptr);
+base::Status RegisterLayoutFunctions(PerfettoSqlConnection& connection) {
+  return connection.RegisterWindowFunction<InternalLayout>(kFunctionName, 2,
+                                                           nullptr);
 }
 
 }  // namespace perfetto::trace_processor

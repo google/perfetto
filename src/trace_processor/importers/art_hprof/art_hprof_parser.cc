@@ -38,6 +38,7 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -61,7 +62,7 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
   parser_->PushBlob(std::move(blob));
 
   if (is_init && !parser_->ParseHeader()) {
-    context_->storage->IncrementStats(stats::hprof_header_errors);
+    context_->stats_tracker->IncrementStats(stats::hprof_header_errors);
   }
 
   parser_->Parse();
@@ -339,7 +340,7 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
 
     auto* class_name_it = class_name_map_.Find(obj->GetClassId());
     if (!class_name_it) {
-      context_->storage->IncrementStats(stats::hprof_class_errors);
+      context_->stats_tracker->IncrementStats(stats::hprof_class_errors);
       continue;
     }
 
@@ -376,13 +377,13 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
     if (obj.GetObjectType() == ObjectType::kClass) {
       type_id = FindClassObjectId(obj.GetId());
       if (!type_id) {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->stats_tracker->IncrementStats(stats::hprof_class_errors);
         continue;
       }
     } else {
       type_id = FindClassId(obj.GetClassId());
       if (!type_id && obj.GetObjectType() != ObjectType::kPrimitiveArray) {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->stats_tracker->IncrementStats(stats::hprof_class_errors);
         continue;
       }
     }

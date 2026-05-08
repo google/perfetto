@@ -30,6 +30,8 @@ import {
   countRenderer,
   SQL_PREAMBLE,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
@@ -100,7 +102,8 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
@@ -118,22 +121,26 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         columnType: 'text',
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable native',
+        title: colHeader('Reachable native', COL_INFO.reachableNative),
+        titleString: 'Reachable native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable count',
+        title: colHeader('Reachable count', COL_INFO.reachableCount),
+        titleString: 'Reachable count',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },

@@ -25,6 +25,8 @@ import {
   sizeRenderer,
   countRenderer,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
@@ -77,27 +79,32 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         cellRenderer: countRenderer,
       },
       shallow: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_shallow: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained #',
+        title: colHeader('Retained #', COL_INFO.retainedCount),
+        titleString: 'Retained #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },

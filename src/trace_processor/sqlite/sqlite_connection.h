@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_ENGINE_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_ENGINE_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_CONNECTION_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_CONNECTION_H_
 
 #include <sqlite3.h>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -33,7 +34,9 @@
 
 namespace perfetto::trace_processor {
 
-// Wrapper class around SQLite C API.
+class SqliteDatabase;
+
+// Wrapper class around a single |sqlite3*| connection.
 //
 // The goal of this class is to provide a one-stop-shop mechanism to use SQLite.
 // Benefits of this include:
@@ -41,7 +44,7 @@ namespace perfetto::trace_processor {
 //    and tables and keeps track of this for later lookup.
 // 2) Allows easily auditing the SQLite APIs we use making it easy to determine
 //    what functionality we rely on.
-class SqliteEngine {
+class SqliteConnection {
  public:
   using Fn = void(sqlite3_context* ctx, int argc, sqlite3_value** argv);
   using AggregateFnStep = void(sqlite3_context* ctx,
@@ -71,7 +74,7 @@ class SqliteEngine {
     sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }
 
    private:
-    friend class SqliteEngine;
+    friend class SqliteConnection;
 
     explicit PreparedStatement(ScopedStmt, SqlSource);
 
@@ -81,11 +84,26 @@ class SqliteEngine {
     base::Status status_ = base::OkStatus();
   };
 
-  SqliteEngine();
-  ~SqliteEngine();
+  // Creates a fresh |SqliteDatabase| and returns a connection attached to it.
+  // The database lives only as long as some connection has it open.
+  static std::unique_ptr<SqliteConnection> CreateConnectionToNewDatabase();
 
-  SqliteEngine(SqliteEngine&&) noexcept = delete;
-  SqliteEngine& operator=(SqliteEngine&&) = delete;
+  // Constructs a connection attached to an existing |SqliteDatabase|. Most
+  // callers should prefer |CreateConnectionToNewDatabase| or |Fork|; this is
+  // the "raw" entry point used by higher-level wrappers (e.g.
+  // |PerfettoSqlConnection|) that already own a shared database handle.
+  explicit SqliteConnection(std::shared_ptr<SqliteDatabase> database);
+
+  ~SqliteConnection();
+
+  SqliteConnection(SqliteConnection&&) noexcept = delete;
+  SqliteConnection& operator=(SqliteConnection&&) = delete;
+
+  // Returns a new connection attached to the same |SqliteDatabase| as this
+  // one. The new connection has its own |sqlite3*| handle and its own
+  // per-connection state (registered functions, vtab modules etc.); only the
+  // underlying in-memory store is shared.
+  std::unique_ptr<SqliteConnection> Fork();
 
   // Prepares a SQLite statement for the given SQL.
   PreparedStatement PrepareStatement(SqlSource);
@@ -158,9 +176,10 @@ class SqliteEngine {
                     void*,
                     base::MurmurHash<std::pair<std::string, int>>>
       fn_ctx_;
+  std::shared_ptr<SqliteDatabase> database_;
   ScopedDb db_;
 };
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_ENGINE_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_CONNECTION_H_

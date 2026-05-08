@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,10 +30,11 @@
 namespace perfetto::trace_processor {
 namespace {
 
-class PerfettoSqlEngineTest : public ::testing::Test {
+class PerfettoSqlConnectionTest : public ::testing::Test {
  protected:
   StringPool pool_;
-  PerfettoSqlEngine engine_{&pool_, true};
+  std::unique_ptr<PerfettoSqlConnection> connection_ =
+      PerfettoSqlConnection::CreateConnectionToNewDatabase(&pool_, true);
 };
 
 sql_modules::RegisteredPackage CreateTestPackage(
@@ -45,26 +47,26 @@ sql_modules::RegisteredPackage CreateTestPackage(
   return result;
 }
 
-// These are the smoke tests for the perfetto SQL engine, focusing on
+// These are the smoke tests for the perfetto SQL connection, focusing on
 // ensuring that the correct statements do not return an error and that
 // incorrect statements do.
 //
 // Functional tests are covered by the diff tests in
 // test/trace_processor/diff_tests/syntax/perfetto_sql.
 
-TEST_F(PerfettoSqlEngineTest, Function_Create) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Function_Create) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS INT AS select 1"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(
+  res = connection_->Execute(
       SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
                                   "RETURNS INT AS select $x + $y"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Function_CreateWithArgs) {
-  auto res = engine_.ExecuteUntilLastStatement(
+TEST_F(PerfettoSqlConnectionTest, Function_CreateWithArgs) {
+  auto res = connection_->ExecuteUntilLastStatement(
       SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
                                   "RETURNS INT AS select $x + $y;"
                                   "SELECT foo(1, 2)"));
@@ -74,93 +76,93 @@ TEST_F(PerfettoSqlEngineTest, Function_CreateWithArgs) {
   ASSERT_FALSE(res->stmt.Step());
 }
 
-TEST_F(PerfettoSqlEngineTest, Function_Invalid) {
-  auto res = engine_.ExecuteUntilLastStatement(
+TEST_F(PerfettoSqlConnectionTest, Function_Invalid) {
+  auto res = connection_->ExecuteUntilLastStatement(
       SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
                                   "AS select $x + $y;"
                                   "SELECT foo(1, 2)"));
   ASSERT_FALSE(res.ok());
 }
 
-TEST_F(PerfettoSqlEngineTest, Function_Duplicates) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Function_Duplicates) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS INT AS SELECT 1"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS INT AS SELECT 2"));
   ASSERT_FALSE(res.ok());
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS INT AS SELECT 3"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, TableFunction_Create) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, TableFunction_Create) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
       "select 1 AS x"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, TableFunction_Duplicates) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, TableFunction_Duplicates) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
       "select 1 AS x"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
       "select 1 AS x"));
   ASSERT_FALSE(res.ok());
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
       "select 2 AS x"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_Create) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Table_Create) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_StringColumns) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Table_StringColumns) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_Schema) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Table_Schema) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo2(bar INT) AS SELECT 42 AS bar; SELECT 1"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_Schema_EmptyTable) {
+TEST_F(PerfettoSqlConnectionTest, Table_Schema_EmptyTable) {
   // This test checks that the type checks correctly work on empty tables (and
   // that columns with no data do not default to "int").
-  auto res = engine_.Execute(
+  auto res = connection_->Execute(
       SqlSource::FromExecuteQuery("CREATE PERFETTO TABLE foo(bar STRING) AS "
                                   "SELECT 'bar' as bar WHERE bar = 'foo'"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_Schema_NullColumn) {
+TEST_F(PerfettoSqlConnectionTest, Table_Schema_NullColumn) {
   // This test checks that the type checks correctly work on columns without
   // data (and that columns with no non-NULL data do not default to "int").
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(bar STRING) AS SELECT NULL as bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_MissingColumn) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Table_IncorrectSchema_MissingColumn) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(x INT) AS SELECT 1 as y"));
   ASSERT_FALSE(res.ok());
   EXPECT_THAT(
@@ -170,8 +172,8 @@ TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_MissingColumn) {
                         "following columns exist, but are not declared: y"));
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_IncorrectType) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Table_IncorrectSchema_IncorrectType) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(x INT) AS SELECT '1' as x"));
   ASSERT_FALSE(res.ok());
   EXPECT_THAT(
@@ -180,57 +182,58 @@ TEST_F(PerfettoSqlEngineTest, Table_IncorrectSchema_IncorrectType) {
                         "LONG in the schema, but STRING found"));
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_Drop) {
-  auto res_create = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Table_Drop) {
+  auto res_create = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
   ASSERT_TRUE(res_create.ok());
 
   auto res_drop =
-      engine_.Execute(SqlSource::FromExecuteQuery("DROP TABLE foo"));
+      connection_->Execute(SqlSource::FromExecuteQuery("DROP TABLE foo"));
   ASSERT_TRUE(res_drop.ok());
 }
 
-TEST_F(PerfettoSqlEngineTest, Table_Duplicates) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Table_Duplicates) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 1 as bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 1 as bar"));
   ASSERT_FALSE(res.ok());
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO TABLE foo AS SELECT 1 as bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, View_Create) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, View_Create) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, View_Schema) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, View_Schema) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo(bar INT) AS SELECT 42 AS bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo2(bar INT) AS SELECT 42 AS bar; SELECT 1"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, View_Drop) {
-  auto res_create = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, View_Drop) {
+  auto res_create = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 'foo' AS bar"));
   ASSERT_TRUE(res_create.ok());
 
-  auto res_drop = engine_.Execute(SqlSource::FromExecuteQuery("DROP VIEW foo"));
+  auto res_drop =
+      connection_->Execute(SqlSource::FromExecuteQuery("DROP VIEW foo"));
   ASSERT_TRUE(res_drop.ok());
 }
 
-TEST_F(PerfettoSqlEngineTest, View_IncorrectSchema) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, View_IncorrectSchema) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo(x INT) AS SELECT 1 as y"));
   ASSERT_FALSE(res.ok());
   EXPECT_THAT(
@@ -240,31 +243,31 @@ TEST_F(PerfettoSqlEngineTest, View_IncorrectSchema) {
                         "following columns exist, but are not declared: y"));
 }
 
-TEST_F(PerfettoSqlEngineTest, View_Duplicates) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, View_Duplicates) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 1 as bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 1 as bar"));
   ASSERT_FALSE(res.ok());
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO VIEW foo AS SELECT 1 as bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
-TEST_F(PerfettoSqlEngineTest, Macro_Create) {
-  auto res_create = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Macro_Create) {
+  auto res_create = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO MACRO foo() RETURNS TableOrSubquery AS select 42 AS x"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
 
-  res_create = engine_.Execute(SqlSource::FromExecuteQuery(
+  res_create = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO MACRO bar(x TableOrSubquery) RETURNS TableOrSubquery AS "
       "select * from $x"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
 
-  auto res = engine_.ExecuteUntilLastStatement(
+  auto res = connection_->ExecuteUntilLastStatement(
       SqlSource::FromExecuteQuery("bar!((foo!()))"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
   ASSERT_FALSE(res->stmt.IsDone());
@@ -272,59 +275,59 @@ TEST_F(PerfettoSqlEngineTest, Macro_Create) {
   ASSERT_FALSE(res->stmt.Step());
 }
 
-TEST_F(PerfettoSqlEngineTest, Macro_Duplicates) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+TEST_F(PerfettoSqlConnectionTest, Macro_Duplicates) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO MACRO foo() RETURNS TableOrSubquery AS select 42 AS x"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 
-  res = engine_.Execute(SqlSource::FromExecuteQuery(
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO MACRO foo() RETURNS TableOrSubquery AS select 42 AS x"));
   ASSERT_FALSE(res.ok());
 
-  res = engine_.Execute(
+  res = connection_->Execute(
       SqlSource::FromExecuteQuery("CREATE OR REPLACE PERFETTO MACRO foo() "
                                   "RETURNS TableOrSubquery AS select 42 AS x"));
   ASSERT_TRUE(res.ok());
 }
 
-TEST_F(PerfettoSqlEngineTest, Include_All) {
-  engine_.RegisterPackage(
+TEST_F(PerfettoSqlConnectionTest, Include_All) {
+  connection_->RegisterPackage(
       "foo", CreateTestPackage(
                  {{"foo.foo", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}}));
-  engine_.RegisterPackage(
+  connection_->RegisterPackage(
       "bar",
       CreateTestPackage(
           {{"bar.bar", "CREATE PERFETTO TABLE bar AS SELECT 42 AS x "}}));
 
-  auto res_create =
-      engine_.Execute(SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE *"));
+  auto res_create = connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE *"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo"].included);
-  ASSERT_TRUE(engine_.FindPackage("bar")->modules["bar.bar"].included);
+  ASSERT_TRUE(connection_->FindPackage("foo")->modules["foo.foo"].included);
+  ASSERT_TRUE(connection_->FindPackage("bar")->modules["bar.bar"].included);
 }
 
-TEST_F(PerfettoSqlEngineTest, Include_Module) {
-  engine_.RegisterPackage(
+TEST_F(PerfettoSqlConnectionTest, Include_Module) {
+  connection_->RegisterPackage(
       "foo", CreateTestPackage({
                  {"foo.foo1", "CREATE PERFETTO TABLE foo1 AS SELECT 42 AS x"},
                  {"foo.foo2", "CREATE PERFETTO TABLE foo2 AS SELECT 42 AS x"},
              }));
-  engine_.RegisterPackage(
+  connection_->RegisterPackage(
       "bar",
       CreateTestPackage(
           {{"bar.bar", "CREATE PERFETTO TABLE bar AS SELECT 42 AS x "}}));
 
-  auto res_create = engine_.Execute(
+  auto res_create = connection_->Execute(
       SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.*"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo1"].included);
-  ASSERT_TRUE(engine_.FindPackage("foo")->modules["foo.foo2"].included);
-  ASSERT_FALSE(engine_.FindPackage("bar")->modules["bar.bar"].included);
+  ASSERT_TRUE(connection_->FindPackage("foo")->modules["foo.foo1"].included);
+  ASSERT_TRUE(connection_->FindPackage("foo")->modules["foo.foo2"].included);
+  ASSERT_FALSE(connection_->FindPackage("bar")->modules["bar.bar"].included);
 }
 
-TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_TargetNotFound) {
+TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_TargetNotFound) {
   // Test error when target function doesn't exist in registry
-  auto res = engine_.Execute(
+  auto res = connection_->Execute(
       SqlSource::FromExecuteQuery("CREATE PERFETTO FUNCTION my_alias() RETURNS "
                                   "INT DELEGATES TO nonexistent_func"));
   ASSERT_FALSE(res.ok());
@@ -333,23 +336,23 @@ TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_TargetNotFound) {
                   "Target function 'nonexistent_func' not found in registry"));
 }
 
-TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_ReplaceRequired) {
+TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_ReplaceRequired) {
   // First, we need to register a target function for aliasing
   // Since we can't easily access the intrinsic registry in tests,
   // let's test the replace logic with a regular function first
-  auto res1 = engine_.Execute(SqlSource::FromExecuteQuery(
+  auto res1 = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION test_func() RETURNS INT AS SELECT 42"));
   ASSERT_TRUE(res1.ok()) << res1.status().c_message();
 
   // Try to create same function without replace - should fail
-  auto res2 = engine_.Execute(SqlSource::FromExecuteQuery(
+  auto res2 = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION test_func() RETURNS INT AS SELECT 43"));
   ASSERT_FALSE(res2.ok());
   EXPECT_THAT(res2.status().c_message(),
               testing::HasSubstr("function already exists"));
 
   // Try with OR REPLACE - should succeed
-  auto res3 = engine_.Execute(
+  auto res3 = connection_->Execute(
       SqlSource::FromExecuteQuery("CREATE OR REPLACE PERFETTO FUNCTION "
                                   "test_func() RETURNS INT AS SELECT 44"));
   ASSERT_TRUE(res3.ok()) << res3.status().c_message();
@@ -373,20 +376,20 @@ TEST(SqlModulesTest, IsPackagePrefixOf) {
   EXPECT_FALSE(sql_modules::IsPackagePrefixOf("foo.bar.baz", "foo.bar"));
 }
 
-TEST_F(PerfettoSqlEngineTest, FindPackageForModule_MultiLevel) {
+TEST_F(PerfettoSqlConnectionTest, FindPackageForModule_MultiLevel) {
   // Register a multi-level package
-  engine_.RegisterPackage(
+  connection_->RegisterPackage(
       "foo.bar",
       CreateTestPackage(
           {{"foo.bar.baz", "CREATE PERFETTO TABLE t AS SELECT 1 AS x"}}));
 
   // FindPackageForModule should find it
-  EXPECT_NE(engine_.FindPackageForModule("foo.bar.baz"), nullptr);
-  EXPECT_NE(engine_.FindPackageForModule("foo.bar.baz.qux"), nullptr);
+  EXPECT_NE(connection_->FindPackageForModule("foo.bar.baz"), nullptr);
+  EXPECT_NE(connection_->FindPackageForModule("foo.bar.baz.qux"), nullptr);
 
   // But not for unrelated modules
-  EXPECT_EQ(engine_.FindPackageForModule("foo.other"), nullptr);
-  EXPECT_EQ(engine_.FindPackageForModule("other.bar"), nullptr);
+  EXPECT_EQ(connection_->FindPackageForModule("foo.other"), nullptr);
+  EXPECT_EQ(connection_->FindPackageForModule("other.bar"), nullptr);
 }
 
 }  // namespace

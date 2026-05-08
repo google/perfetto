@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -60,7 +61,7 @@ void SystraceParser::ParsePrintEvent(int64_t ts,
       ParseSystracePoint(ts, pid, point);
       break;
     case systrace_utils::SystraceParseResult::kFailure:
-      context_->storage->IncrementStats(stats::systrace_parse_failure);
+      context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
       break;
     case systrace_utils::SystraceParseResult::kUnsupported:
       // Silently ignore unsupported results.
@@ -91,7 +92,7 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
   } else if ((flag & kSystraceEventInt64) != 0) {
     point.phase = 'C';
   } else {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
   // Note: for counter (C) events, we cannot assume that pid is within tgid.
@@ -119,7 +120,7 @@ void SystraceParser::ParseKernelTracingMarkWrite(int64_t ts,
              trace_type == 'I') {
     point.phase = trace_type;
   } else {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 

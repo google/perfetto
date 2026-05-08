@@ -56,19 +56,29 @@ registerCoreNodes() {
 **TimeRangeSourceNode** - Generates time intervals
 
 ### 2. Single-Input Modification Nodes
-**FilterNode** - Adds WHERE conditions
+**FilterNode** - Adds WHERE conditions (autoExecute=false when in 'sql' mode)
 **SortNode** - Adds ORDER BY clauses
 **AggregationNode** - GROUP BY with aggregate functions
 **ModifyColumnsNode** - Renames/removes columns
 **AddColumnsNode** - Adds columns from secondary source via LEFT JOIN and/or computed expressions
 **LimitAndOffsetNode** - Pagination
+**CounterToIntervalsNode** - Converts counter events to time intervals
+**MetricsNode** - Runs pre-defined trace metrics
+**VisualisationNode** - Visualizes query output as a chart
+**TraceSummaryNode** - Renders trace summary data
 
 ### 3. Multi-Input Nodes
 **UnionNode** - Combines rows from multiple sources
-**JoinNode** - Combines columns via JOIN conditions
+**JoinNode** - Combines columns via JOIN conditions (autoExecute=false by default; switches to true when conditionType is 'equality')
 **IntervalIntersectNode** - Finds overlapping time intervals
 **FilterDuringNode** - Filters using secondary interval input
 **CreateSlicesNode** - Pairs start/end events from two secondary sources into slices
+
+### 4. Grouping Nodes
+**GroupNode** - Encapsulates an inner sub-graph, exposing it as a single node; inner connections are preserved through serialization
+
+### 5. Dashboard Nodes
+**DashboardNode** - Connects a query node output to a dashboard visualization
 
 ## UI Components
 
@@ -92,7 +102,7 @@ registerCoreNodes() {
 - Triggers query analysis on state changes
 - Manages execution flow via QueryExecutionService
 
-**DataExplorer** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/data_explorer.ts`)
+**ResultsPanel** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/results_panel.ts`)
 - Bottom drawer showing query results
 - Server-side pagination via SQLDataSource
 - Column-based filtering and sorting
@@ -204,7 +214,7 @@ async processNode(node: QueryNode): Promise<void> {
 | false       | false  | Skip - show "Run Query" button        |
 | false       | true   | Analyze + execute (user clicked)      |
 
-Auto-execute disabled for: SqlSourceNode, IntervalIntersectNode, UnionNode, FilterDuringNode, CreateSlicesNode
+Auto-execute disabled for: SqlSourceNode (always), JoinNode (default; switches to true for equality joins), FilterNode (when in 'sql' mode)
 
 ### State Management
 
@@ -482,8 +492,8 @@ Modules:
 - **node_actions.ts** — Closure-based callbacks for node→graph interaction (`NodeActionHandlers`)
 
 ### 7. GraphCallbacks Interface (Prop Drilling Reduction)
-14 callbacks flow from `data_explorer.ts` → `Builder` → `Graph`:
-- `GraphCallbacks` interface defined in `graph.ts` groups all 14 callbacks
+16 callbacks flow from `data_explorer.ts` → `Builder` → `Graph` (14 required, 2 optional):
+- `GraphCallbacks` interface defined in `graph.ts` groups all 16 callbacks
 - `BuilderAttrs` has a single `graphCallbacks: GraphCallbacks` field
 - Builder spreads `...attrs.graphCallbacks` directly into `Graph` component
 - Eliminates manual forwarding of each callback through Builder
@@ -491,7 +501,8 @@ Modules:
 ## File Path Reference
 
 **Core Infrastructure**:
-- `ui/src/plugins/dev.perfetto.DataExplorer/data_explorer.ts` - Main plugin, state management, keyboard handling, deps construction
+- `ui/src/plugins/dev.perfetto.DataExplorer/index.ts` - Plugin entry point, lifecycle hooks, route registration, localStorage/permalink persistence
+- `ui/src/plugins/dev.perfetto.DataExplorer/data_explorer.ts` - Main component, tab management, state management, keyboard handling, deps construction
 - `ui/src/plugins/dev.perfetto.DataExplorer/query_node.ts` - Node abstraction and type definitions
 - `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts` - Main UI component (receives `GraphCallbacks`)
 - `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/query_execution_service.ts` - Execution coordination
@@ -511,7 +522,7 @@ Modules:
 **UI Components**:
 - `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/graph/graph.ts` - Visual graph canvas (defines `GraphCallbacks`)
 - `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/node_panel.ts` - Node sidebar
-- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/data_explorer.ts` - Results drawer
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/results_panel.ts` - Results drawer (server-side pagination, column/filter/sort)
 
 **Utilities**:
 - `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/graph_utils.ts` - Graph traversal and connection management
