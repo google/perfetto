@@ -102,7 +102,6 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":full",
-    "../../common",
     "../../../../../gn:default_deps",
     "../../../../../gn:gtest_and_gmock",
     "../../../../../protos/perfetto/trace/android:winscope_common_cpp",
@@ -110,6 +109,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../../protos/perfetto/trace/android:winscope_extensions_zero",
     "../../../../../protos/perfetto/trace/android:winscope_regular_cpp",
     "../../../../../src/protozero",
+    "../../common",
   ]
   sources = [
     "surfaceflinger_layers_extractor_unittest.cc",
