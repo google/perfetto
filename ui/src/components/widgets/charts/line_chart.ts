@@ -179,6 +179,11 @@ export interface LineChartAttrs {
    * Note: When stacked, all series must be aligned to the same X values.
    */
   readonly stacked?: boolean;
+
+  /**
+   * Callback when a series is clicked. Called with the series name.
+   */
+  readonly onSeriesClick?: (seriesName: string) => void;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -314,18 +319,16 @@ function buildLineEventHandlers(
   attrs: LineChartAttrs,
   data: LineChartData | undefined,
 ): ReadonlyArray<EChartEventHandler> {
-  if (
-    !attrs.onBrush ||
-    data === undefined ||
-    data.series.length === 0 ||
-    data.series.every((s) => s.points.length === 0)
-  ) {
-    return [];
-  }
-  const onBrush = attrs.onBrush;
+  const handlers: EChartEventHandler[] = [];
 
-  return [
-    {
+  if (
+    attrs.onBrush &&
+    data !== undefined &&
+    data.series.length > 0 &&
+    data.series.some((s) => s.points.length > 0)
+  ) {
+    const onBrush = attrs.onBrush;
+    handlers.push({
       eventName: 'brushEnd',
       handler: (params) => {
         const range = extractBrushRange(params);
@@ -334,6 +337,21 @@ function buildLineEventHandlers(
           onBrush({start, end});
         }
       },
-    },
-  ];
+    });
+  }
+
+  if (attrs.onSeriesClick) {
+    const onSeriesClick = attrs.onSeriesClick;
+    handlers.push({
+      eventName: 'click',
+      handler: (params) => {
+        const p = params as {seriesName?: string};
+        if (p.seriesName !== undefined) {
+          onSeriesClick(p.seriesName);
+        }
+      },
+    });
+  }
+
+  return handlers;
 }
