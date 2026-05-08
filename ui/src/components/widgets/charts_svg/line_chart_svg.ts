@@ -38,6 +38,7 @@ import {
   pointMarker,
   rangeWithFixedBounds,
 } from './common';
+import {assertIsInstance} from '../../../base/assert';
 
 export type {
   LineChartAttrs,
@@ -115,10 +116,10 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
   onupdate({dom, attrs}: m.CVnodeDOM<LineChartAttrs>) {
     // Re-query: Mithril may have replaced the container node if siblings
     // changed (e.g. legend appeared/disappeared).
-    const container = dom.querySelector(
-      '.pf-chart-svg__container',
-    ) as HTMLElement | null;
-    if (!container) return;
+    const container = assertIsInstance(
+      dom.querySelector('.pf-chart-svg__container'),
+      HTMLElement,
+    );
     this.container = container;
     this.currentAttrs = attrs;
     const {width, height} = container.getBoundingClientRect();
@@ -171,9 +172,14 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
     } else if (isEmpty) {
       inner = m('.pf-chart-svg__empty', 'No data to display');
     } else {
-      inner = this.renderChart(attrs, data!, width, height);
+      inner = this.renderChart(attrs, data, width, height);
     }
 
+    // Mithril's render() function actually takes a hidden third parameter which
+    // is a function called whenever an event triggers a redraw from within the
+    // rendered vnodes. Here we can use this to hook up the events triggered
+    // from within the rendered SVG code to trigger a global redraw. This is the
+    // same technique used in raf.ts.
     const renderWithRedraw = m.render as (
       el: Element,
       vnodes: m.Children,
@@ -194,14 +200,14 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
     // measured dimensions on the very first paint and on every attrs change.
     // The legend is plain Mithril and lives outside the imperative subtree.
     const legend =
-      showLegend && data !== undefined
-        ? renderLegend(
-            data,
-            attrs.formatYValue ?? defaultFmt,
-            this.hiddenSeries,
-            (name: string) => this.toggleSeries(name),
-          )
-        : null;
+      showLegend &&
+      data !== undefined &&
+      renderLegend(
+        data,
+        attrs.formatYValue ?? defaultFmt,
+        this.hiddenSeries,
+        (name: string) => this.toggleSeries(name),
+      );
     const chart = m('.pf-chart-svg__container', {key: 'chart'});
 
     const seriesHover = data?.series
@@ -216,14 +222,14 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
       });
 
     const tooltip =
-      this.hover !== undefined && seriesHover !== undefined
-        ? renderTooltip(
-            attrs.stacked ? [...seriesHover].reverse() : seriesHover,
-            this.hover.index,
-            attrs.formatXValue ?? defaultFmt,
-            attrs.formatYValue ?? defaultFmt,
-          )
-        : null;
+      this.hover !== undefined &&
+      seriesHover !== undefined &&
+      renderTooltip(
+        attrs.stacked ? [...seriesHover].reverse() : seriesHover,
+        this.hover.index,
+        attrs.formatXValue ?? defaultFmt,
+        attrs.formatYValue ?? defaultFmt,
+      );
 
     return m(
       '.pf-line-chart-svg',
@@ -289,21 +295,22 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
       allY.push(0);
     }
 
+    const xMin = min(allX) ?? NaN;
+    const xMax = max(allX) ?? NaN;
+    const yMin = min(allY) ?? NaN;
+    const yMax = max(allY) ?? NaN;
     const xRange =
       attrs.xAxisMin !== undefined || attrs.xAxisMax !== undefined
-        ? rangeWithFixedBounds(
-            attrs.xAxisMin ?? min(allX),
-            attrs.xAxisMax ?? max(allX),
-          )
-        : niceRange(min(allX), max(allX), {integer: integerX});
+        ? rangeWithFixedBounds(attrs.xAxisMin ?? xMin, attrs.xAxisMax ?? xMax)
+        : niceRange(xMin, xMax, {integer: integerX});
     const yRange = logScale
       ? logRange(
           // Log scale needs strictly-positive bounds; clamp data to a small
           // floor.
-          Math.max(min(allY.filter((v) => v > 0)), 1e-9),
-          Math.max(max(allY), 1e-9),
+          Math.max(min(allY.filter((v) => v > 0)) ?? NaN, 1e-9),
+          Math.max(yMax, 1e-9),
         )
-      : niceRange(min(allY), max(allY), {
+      : niceRange(yMin, yMax, {
           integer: integerY,
           minInterval: yMinInterval,
         });
@@ -345,21 +352,22 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         width: width,
         height: height,
         viewBox: `0 0 ${width} ${height}`,
-        style: attrs.onBrush ? {cursor: 'crosshair'} : undefined,
+        style: attrs.onBrush && {cursor: 'crosshair'},
         oncontextmenu: (e: Event) => {
           // Chrome has a bug where right click to bring up the context menu
           // breaks pointer capture - simply disable context menus for the
           // chart.
           e.preventDefault();
         },
-        onpointerdown: attrs.onBrush
-          ? (e: PointerEvent) => this.handleBrushDown(e, padLeft, plotW, xRange)
-          : undefined,
+        onpointerdown:
+          attrs.onBrush &&
+          ((e: PointerEvent) =>
+            this.handleBrushDown(e, padLeft, plotW, xRange)),
         onpointermove: (e: PointerEvent) =>
           this.handlePointerMove(e, seriesPlots, padLeft, plotW, xRange),
-        onpointerup: attrs.onBrush
-          ? (e: PointerEvent) => this.handleBrushUp(e, attrs.onBrush!)
-          : undefined,
+        onpointerup:
+          attrs.onBrush &&
+          ((e: PointerEvent) => this.handleBrushUp(e, attrs.onBrush!)),
         onpointerleave: () => {
           if (this.brushing) return; // capture keeps the drag alive.
           if (this.hover !== undefined) {
@@ -382,34 +390,32 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         ),
       ),
       // Y axis name (rotated)
-      yName
-        ? m(
-            'text',
-            {
-              'x': AXIS_NAME_FONT_SIZE,
-              'y': padTop + plotH / 2,
-              'fill': TEXT_COLOR,
-              'font-size': AXIS_NAME_FONT_SIZE,
-              'text-anchor': 'middle',
-              'transform': `rotate(-90 ${AXIS_NAME_FONT_SIZE} ${padTop + plotH / 2})`,
-            },
-            yName,
-          )
-        : null,
+      yName &&
+        m(
+          'text',
+          {
+            'x': AXIS_NAME_FONT_SIZE,
+            'y': padTop + plotH / 2,
+            'fill': TEXT_COLOR,
+            'font-size': AXIS_NAME_FONT_SIZE,
+            'text-anchor': 'middle',
+            'transform': `rotate(-90 ${AXIS_NAME_FONT_SIZE} ${padTop + plotH / 2})`,
+          },
+          yName,
+        ),
       // X axis name
-      xName
-        ? m(
-            'text',
-            {
-              'x': padLeft + plotW / 2,
-              'y': height - 4,
-              'fill': TEXT_COLOR,
-              'font-size': AXIS_NAME_FONT_SIZE,
-              'text-anchor': 'middle',
-            },
-            xName,
-          )
-        : null,
+      xName &&
+        m(
+          'text',
+          {
+            'x': padLeft + plotW / 2,
+            'y': height - 4,
+            'fill': TEXT_COLOR,
+            'font-size': AXIS_NAME_FONT_SIZE,
+            'text-anchor': 'middle',
+          },
+          xName,
+        ),
       // Plot border + axes
       m('line', {
         x1: padLeft,
@@ -426,47 +432,44 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         stroke: BORDER_COLOR,
       }),
       // Gridlines (drawn before series so they sit underneath).
-      showHGrid
-        ? yRange.ticks.map((t) =>
-            m('line', {
-              'x1': padLeft,
-              'y1': yToPx(t),
-              'x2': padLeft + plotW,
-              'y2': yToPx(t),
-              'stroke': BORDER_COLOR,
-              'stroke-opacity': 0.3,
-            }),
-          )
-        : null,
-      showVGrid
-        ? xRange.ticks.map((t) =>
-            m('line', {
-              'x1': xToPx(t),
-              'y1': padTop,
-              'x2': xToPx(t),
-              'y2': padTop + plotH,
-              'stroke': BORDER_COLOR,
-              'stroke-opacity': 0.3,
-            }),
-          )
-        : null,
+      showHGrid &&
+        yRange.ticks.map((t) =>
+          m('line', {
+            'x1': padLeft,
+            'y1': yToPx(t),
+            'x2': padLeft + plotW,
+            'y2': yToPx(t),
+            'stroke': BORDER_COLOR,
+            'stroke-opacity': 0.3,
+          }),
+        ),
+      showVGrid &&
+        xRange.ticks.map((t) =>
+          m('line', {
+            'x1': xToPx(t),
+            'y1': padTop,
+            'x2': xToPx(t),
+            'y2': padTop + plotH,
+            'stroke': BORDER_COLOR,
+            'stroke-opacity': 0.3,
+          }),
+        ),
       // Static selection overlay (driven by attrs.selection).
-      attrs.selection !== undefined
-        ? m('rect', {
-            'x': xToPx(clamp(attrs.selection.start, xRange.min, xRange.max)),
-            'y': padTop,
-            'width': Math.max(
-              0,
-              xToPx(clamp(attrs.selection.end, xRange.min, xRange.max)) -
-                xToPx(clamp(attrs.selection.start, xRange.min, xRange.max)),
-            ),
-            'height': plotH,
-            'fill': 'rgba(0, 120, 212, 0.08)',
-            'stroke': 'rgba(0, 120, 212, 0.3)',
-            'stroke-width': 1,
-            'pointer-events': 'none',
-          })
-        : null,
+      attrs.selection !== undefined &&
+        m('rect', {
+          'x': xToPx(clamp(attrs.selection.start, xRange.min, xRange.max)),
+          'y': padTop,
+          'width': Math.max(
+            0,
+            xToPx(clamp(attrs.selection.end, xRange.min, xRange.max)) -
+              xToPx(clamp(attrs.selection.start, xRange.min, xRange.max)),
+          ),
+          'height': plotH,
+          'fill': 'rgba(0, 120, 212, 0.08)',
+          'stroke': 'rgba(0, 120, 212, 0.3)',
+          'stroke-width': 1,
+          'pointer-events': 'none',
+        }),
       // Y ticks + labels
       yRange.ticks.map((t) =>
         m('g', [
@@ -521,24 +524,22 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         // Series areas (stacked) — drawn back-to-front so the topmost
         // series sits on top. The area path is also the hit target for
         // hover emphasis.
-        stacked
-          ? seriesPlots.map((s, i) => {
-              const dim =
-                this.hoveredSeries !== undefined && this.hoveredSeries !== i;
-              return m('path', {
-                'd': areaPath(s, seriesPlots, i, xToPx, yToPx, padTop + plotH),
-                'fill': s.color,
-                'fill-opacity': dim ? 0.05 : 0.2,
-                'stroke': 'none',
-                'style': attrs.onSeriesClick ? {cursor: 'pointer'} : undefined,
-                'onmouseenter': () => this.setHoveredSeries(i),
-                'onmouseleave': () => this.clearHoveredSeries(i),
-                'onclick': attrs.onSeriesClick
-                  ? () => attrs.onSeriesClick!(s.name)
-                  : undefined,
-              });
-            })
-          : null,
+        stacked &&
+          seriesPlots.map((s, i) => {
+            const dim =
+              this.hoveredSeries !== undefined && this.hoveredSeries !== i;
+            return m('path', {
+              'd': areaPath(s, seriesPlots, i, xToPx, yToPx, padTop + plotH),
+              'fill': s.color,
+              'fill-opacity': dim ? 0.4 : 0.8,
+              'stroke': 'none',
+              'style': attrs.onSeriesClick && {cursor: 'pointer'},
+              'onmouseenter': () => this.setHoveredSeries(i),
+              'onmouseleave': () => this.clearHoveredSeries(i),
+              'onclick':
+                attrs.onSeriesClick && (() => attrs.onSeriesClick!(s.name)),
+            });
+          }),
         // Series lines (visible stroke).
         seriesPlots.map((s, i) => {
           const dim =
@@ -548,87 +549,83 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
             'fill': 'none',
             'stroke': s.color,
             'stroke-width': lineWidth,
-            'opacity': dim ? 0.2 : 1,
+            'opacity': dim ? 0.6 : 1,
             'pointer-events': 'none',
           });
         }),
         // Wider invisible hit target per series so hovering near a thin
         // line counts. Drawn after visible lines and before points so it
         // sits above for hit-testing without occluding visuals.
-        stacked
-          ? null
-          : seriesPlots.map((s, i) =>
-              m('path', {
-                'd': linePath(s, xToPx, yToPx),
-                'fill': 'none',
-                'stroke': 'transparent',
-                'stroke-width': 12,
-                'pointer-events': 'stroke',
-                'style': attrs.onSeriesClick ? {cursor: 'pointer'} : undefined,
-                'onmouseenter': () => this.setHoveredSeries(i),
-                'onmouseleave': () => this.clearHoveredSeries(i),
-                'onclick': attrs.onSeriesClick
-                  ? () => attrs.onSeriesClick!(s.name)
-                  : undefined,
-              }),
-            ),
+        !stacked &&
+          seriesPlots.map((s, i) =>
+            m('path', {
+              'd': linePath(s, xToPx, yToPx),
+              'fill': 'none',
+              'stroke': 'transparent',
+              'stroke-width': 12,
+              'pointer-events': 'stroke',
+              'style': attrs.onSeriesClick && {cursor: 'pointer'},
+              'onmouseenter': () => this.setHoveredSeries(i),
+              'onmouseleave': () => this.clearHoveredSeries(i),
+              'onclick':
+                attrs.onSeriesClick && (() => attrs.onSeriesClick!(s.name)),
+            }),
+          ),
         // Series points
-        showPoints
-          ? seriesPlots.map((s, i) => {
-              const dim =
-                this.hoveredSeries !== undefined && this.hoveredSeries !== i;
-              return m(
-                'g',
-                {
-                  'opacity': dim ? 0.2 : 1,
-                  'pointer-events': 'none',
-                },
-                s.points.map((p) =>
-                  pointMarker(xToPx(p.x), yToPx(p.y), s.color, 3),
-                ),
-              );
-            })
-          : null,
+        showPoints &&
+          seriesPlots.map((s, i) => {
+            const dim =
+              this.hoveredSeries !== undefined && this.hoveredSeries !== i;
+            return m(
+              'g',
+              {
+                'opacity': dim ? 0.2 : 1,
+                'pointer-events': 'none',
+              },
+              s.points.map((p) =>
+                pointMarker(xToPx(p.x), yToPx(p.y), s.color, 3),
+              ),
+            );
+          }),
         // Hover guide line + dots. pointer-events: none so they don't
         // steal mouseenter/leave from the per-series hit targets
         // underneath.
-        hoverIdx !== undefined && seriesPlots[0]?.points[hoverIdx] !== undefined
-          ? m('g', {'pointer-events': 'none'}, [
-              m('line', {
-                'x1': xToPx(seriesPlots[0].points[hoverIdx].x),
-                'y1': padTop,
-                'x2': xToPx(seriesPlots[0].points[hoverIdx].x),
-                'y2': padTop + plotH,
-                'stroke': TEXT_COLOR,
-                'stroke-dasharray': '3 3',
-              }),
-              ...seriesPlots.flatMap((s) => {
-                const p = s.points[hoverIdx];
-                if (p === undefined) return [];
-                return [pointMarker(xToPx(p.x), yToPx(p.y), s.color, 4)];
-              }),
-            ])
-          : null,
+        hoverIdx !== undefined &&
+          seriesPlots[0]?.points[hoverIdx] !== undefined &&
+          m('g', {'pointer-events': 'none'}, [
+            m('line', {
+              'x1': xToPx(seriesPlots[0].points[hoverIdx].x),
+              'y1': padTop,
+              'x2': xToPx(seriesPlots[0].points[hoverIdx].x),
+              'y2': padTop + plotH,
+              'stroke': TEXT_COLOR,
+              'stroke-dasharray': '3 3',
+            }),
+            ...seriesPlots.flatMap((s) => {
+              const p = s.points[hoverIdx];
+              if (p === undefined) return [];
+              return [pointMarker(xToPx(p.x), yToPx(p.y), s.color, 4)];
+            }),
+          ]),
       ]),
       // Active brush drag rect (drawn on top of everything else).
-      this.brushing
-        ? (() => {
-            const a = clamp(this.brushing.start, xRange.min, xRange.max);
-            const b = clamp(this.brushing.current, xRange.min, xRange.max);
-            const lo = Math.min(a, b);
-            const hi = Math.max(a, b);
-            return m('rect', {
-              'x': xToPx(lo),
-              'y': padTop,
-              'width': Math.max(0, xToPx(hi) - xToPx(lo)),
-              'height': plotH,
-              'fill': 'rgba(0, 120, 212, 0.15)',
-              'stroke': 'rgba(0, 120, 212, 0.5)',
-              'stroke-width': 1,
-              'pointer-events': 'none',
-            });
-          })()
-        : null,
+      this.brushing &&
+        (() => {
+          const a = clamp(this.brushing!.start, xRange.min, xRange.max);
+          const b = clamp(this.brushing!.current, xRange.min, xRange.max);
+          const lo = Math.min(a, b);
+          const hi = Math.max(a, b);
+          return m('rect', {
+            'x': xToPx(lo),
+            'y': padTop,
+            'width': Math.max(0, xToPx(hi) - xToPx(lo)),
+            'height': plotH,
+            'fill': 'rgba(0, 120, 212, 0.15)',
+            'stroke': 'rgba(0, 120, 212, 0.5)',
+            'stroke-width': 1,
+            'pointer-events': 'none',
+          });
+        })(),
       // Tooltip (HTML-overlaid via foreignObject would be cleaner, but a
       // sibling absolutely-positioned div is simpler and gets real CSS).
     );
@@ -734,17 +731,17 @@ function buildSeriesPlots(
   const cum = new Map<number, number>();
   for (let i = 0; i < series.length; i++) {
     const s = series[i];
-    const stacked: {x: number; y: number; raw: number}[] = [];
+    const stackedPoints: {x: number; y: number; raw: number}[] = [];
     for (const p of s.points) {
       const prev = cum.get(p.x) ?? 0;
       const next = prev + p.y;
       cum.set(p.x, next);
-      stacked.push({x: p.x, y: next, raw: p.y});
+      stackedPoints.push({x: p.x, y: next, raw: p.y});
     }
     result.push({
       name: s.name,
       color: s.color ?? chartColorVar(i),
-      points: stacked,
+      points: stackedPoints,
     });
   }
   return result;

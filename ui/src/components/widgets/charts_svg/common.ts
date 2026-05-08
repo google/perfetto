@@ -23,7 +23,6 @@ export function chartColorVar(i: number): string {
 }
 
 export const TEXT_COLOR = 'var(--pf-color-text)';
-export const BG_COLOR = 'var(--pf-color-background)';
 export const BORDER_COLOR = 'var(--pf-color-border)';
 
 // Default approximate tick count used when picking nice axis steps.
@@ -51,13 +50,15 @@ export function round(v: number, step: number): number {
 }
 
 // Rough text width estimate at 10px monospace-ish font (~6px per char).
+// TODO(stevegolton): Replace this with proper text measurement - measureText()
+// or maybe https://github.com/chenglou/pretext.
 export function estimateLabelWidth(labels: ReadonlyArray<string>): number {
-  let m = 0;
-  for (const l of labels) {
-    const w = l.length * 6;
-    if (w > m) m = w;
+  let maxWidth = 0;
+  for (const label of labels) {
+    const width = label.length * 6;
+    if (width > maxWidth) maxWidth = width;
   }
-  return m;
+  return maxWidth;
 }
 
 // Axis range with exact bounds (no rounding to "nice" numbers). Tick
@@ -139,14 +140,13 @@ export function logRange(rawMin: number, rawMax: number): AxisRange {
   return {min: Math.pow(10, lo), max: Math.pow(10, hi), ticks};
 }
 
-// A point marker: a dot filled with the page background, ringed in the
-// series color.
+// A point marker: a white dot ringed in the series color.
 export function pointMarker(cx: number, cy: number, color: string, r: number) {
   return m('circle', {
     'cx': cx,
     'cy': cy,
     'r': r,
-    'fill': BG_COLOR,
+    'fill': '#fff',
     'stroke': color,
     'stroke-width': 2,
   });
