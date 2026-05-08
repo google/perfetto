@@ -101,12 +101,16 @@ void ProtoLogMessageDecoder::TrackMessage(
   base::SmallVector<TrackedMessage, 1>& existing_messages =
       *existing_messages_ptr;
 
-  for (const auto& existing_msg : existing_messages) {
-    if (existing_msg.message == message && existing_msg.level == level &&
-        existing_msg.group_id == group_id &&
-        existing_msg.location == location) {
-      return;
-    }
+  auto it = std::find_if(existing_messages.begin(), existing_messages.end(),
+                         [&](const TrackedMessage& existing_msg) {
+                           return existing_msg.level == level &&
+                                  existing_msg.group_id == group_id &&
+                                  existing_msg.message == message &&
+                                  existing_msg.location == location;
+                         });
+
+  if (it != existing_messages.end()) {
+    return;
   }
 
   existing_messages.emplace_back(TrackedMessage{
@@ -128,8 +132,8 @@ std::string ProtoLogMessageDecoder::FormatMessage(
   auto str_params_itr = string_params.begin();
 
   for (size_t i = 0; i < message.length();) {
-    if (message.at(i) == '%' && i + 1 < message.length()) {
-      switch (message.at(i + 1)) {
+    if (message[i] == '%' && i + 1 < message.length()) {
+      switch (message[i + 1]) {
         case '%':
           formatted_message.push_back('%');
           break;
@@ -255,8 +259,8 @@ base::SmallVector<char, 8> ProtoLogMessageDecoder::GetParameterSignature(
     const std::string& message) {
   base::SmallVector<char, 8> signature;
   for (size_t i = 0; i < message.length(); ++i) {
-    if (message.at(i) == '%' && i + 1 < message.length()) {
-      switch (message.at(i + 1)) {
+    if (message[i] == '%' && i + 1 < message.length()) {
+      switch (message[i + 1]) {
         case 'd':
         case 'o':
         case 'x':
