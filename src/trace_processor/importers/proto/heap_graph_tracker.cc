@@ -497,6 +497,48 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     sequence_state.nar_size_by_obj_id[owner_id] =
         *obj.native_allocation_registry_size;
   }
+
+  bool has_bitmap_fields =
+      obj.bitmap_id.has_value() || obj.bitmap_source_id.has_value() ||
+      obj.bitmap_width.has_value() || obj.bitmap_height.has_value();
+
+  if (has_bitmap_fields) {
+    auto* prim_table = storage_->mutable_heap_graph_primitive_table();
+    uint32_t field_set_id = prim_table->row_count();
+
+    auto insert_primitive =
+        [&](const char* name, const char* type, auto value,
+            std::optional<int64_t> tables::HeapGraphPrimitiveTable::Row::*
+                column) {
+          if (value.has_value()) {
+            tables::HeapGraphPrimitiveTable::Row row;
+            row.field_set_id = field_set_id;
+            row.field_name = storage_->InternString(name);
+            row.field_type = storage_->InternString(type);
+            row.*column = static_cast<int64_t>(*value);
+            prim_table->Insert(row);
+          }
+        };
+
+    insert_primitive("android.graphics.Bitmap.mId", "long", obj.bitmap_id,
+                     &tables::HeapGraphPrimitiveTable::Row::long_value);
+    insert_primitive("android.graphics.Bitmap.mSourceId", "long",
+                     obj.bitmap_source_id,
+                     &tables::HeapGraphPrimitiveTable::Row::long_value);
+    insert_primitive("android.graphics.Bitmap.mWidth", "int", obj.bitmap_width,
+                     &tables::HeapGraphPrimitiveTable::Row::int_value);
+    insert_primitive("android.graphics.Bitmap.mHeight", "int",
+                     obj.bitmap_height,
+                     &tables::HeapGraphPrimitiveTable::Row::int_value);
+
+    // Link to object data
+    auto* data_table = storage_->mutable_heap_graph_object_data_table();
+    tables::HeapGraphObjectDataTable::Row data_row;
+    data_row.field_set_id = field_set_id;
+    auto data_id = data_table->Insert(data_row).id;
+
+    owner_row_ref.set_object_data_id(data_id.value);
+  }
 }
 
 void HeapGraphTracker::AddRoot(uint32_t seq_id,

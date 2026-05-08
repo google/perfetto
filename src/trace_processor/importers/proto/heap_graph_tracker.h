@@ -89,6 +89,12 @@ class HeapGraphTracker : public Destructible {
     // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
     // this is the value of its `size` field.
     std::optional<int64_t> native_allocation_registry_size;
+
+    // Bitmap-specific fields
+    std::optional<int64_t> bitmap_id;
+    std::optional<int64_t> bitmap_source_id;
+    std::optional<uint32_t> bitmap_width;
+    std::optional<uint32_t> bitmap_height;
   };
 
   struct SourceRoot {

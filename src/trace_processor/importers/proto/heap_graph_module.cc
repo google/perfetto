@@ -154,6 +154,19 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
           object.native_allocation_registry_size_field();
     }
 
+    if (object.has_bitmap_id_field()) {
+      obj.bitmap_id = object.bitmap_id_field();
+    }
+    if (object.has_bitmap_source_id_field()) {
+      obj.bitmap_source_id = object.bitmap_source_id_field();
+    }
+    if (object.has_bitmap_width_field()) {
+      obj.bitmap_width = object.bitmap_width_field();
+    }
+    if (object.has_bitmap_height_field()) {
+      obj.bitmap_height = object.bitmap_height_field();
+    }
+
     if (parse_error) {
       context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
