@@ -75,7 +75,7 @@ TEST_F(ParserTest, Del) {
 }
 
 TEST_F(ParserTest, Merge) {
-  EXPECT_CALL(executor_, Merge(testing::_, false, false))
+  EXPECT_CALL(executor_, Merge(testing::_, Executor::MergeFlags::kNone))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
   auto program = SamplePrograms::Merge().SerializeAsString();
@@ -84,7 +84,8 @@ TEST_F(ParserTest, Merge) {
 }
 
 TEST_F(ParserTest, Merge_DelIfSrcEmpty) {
-  EXPECT_CALL(executor_, Merge(testing::_, false, true))
+  EXPECT_CALL(executor_,
+              Merge(testing::_, Executor::MergeFlags::kDelIfSrcEmpty))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
   auto program = SamplePrograms::Merge_DelIfSrcEmpty().SerializeAsString();

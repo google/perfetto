@@ -131,8 +131,8 @@ message VmOpMerge {
   //
   // This can be used to replicate the removal of a subobject within the
   // producer's state. E.g.
-  //  This event on the producer side: mProducerState.mSubobject = nullptr
-  //  can be represented by this patch: { producer_state { subobject {} }}
+  // This event on the producer side: mProducerState.mSubobject = nullptr
+  // can be represented by this patch: { producer_state { subobject {} }}
   optional bool del_if_src_empty = 2;
 }
 

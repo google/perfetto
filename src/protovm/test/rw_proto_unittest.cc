@@ -693,13 +693,13 @@ TEST_F(RwProtoTest, Merge_IncompatibleWireType) {
   auto cursor = data_trace_entry_with_two_elements_.GetRoot();
   cursor.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0);
   cursor.EnterField(protos::Element::kIdFieldNumber);
-  ASSERT_TRUE(cursor.Merge(bytes_empty_, false, false).IsAbort());
+  ASSERT_TRUE(cursor.Merge(bytes_empty_, RwProto::Cursor::kNone).IsAbort());
 }
 
 TEST_F(RwProtoTest, Merge_EmptySrc) {
   auto cursor = data_trace_entry_with_two_elements_.GetRoot();
   cursor.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0);
-  ASSERT_TRUE(cursor.Merge(bytes_empty_, false, false).IsOk());
+  ASSERT_TRUE(cursor.Merge(bytes_empty_, RwProto::Cursor::kNone).IsOk());
   CheckProtoWithTwoElements(
       SerializeAsString(data_trace_entry_with_two_elements_));
 }
@@ -712,7 +712,7 @@ TEST_F(RwProtoTest, Merge_EmptyDst) {
   element.set_id(1);
   element.set_value(11);
   auto proto = element.SerializeAsString();
-  ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), false, false).IsOk());
+  ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), RwProto::Cursor::kNone).IsOk());
 
   protos::TraceEntry entry;
   entry.ParseFromString(SerializeAsString(data_empty_));
@@ -730,7 +730,8 @@ TEST_F(RwProtoTest, Merge_FieldsUnion) {
     protos::Element element;
     element.set_id(1);
     auto proto = element.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), false, false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(proto), RwProto::Cursor::kNone).IsOk());
   }
 
   // merge with element = {value: 11}
@@ -738,7 +739,8 @@ TEST_F(RwProtoTest, Merge_FieldsUnion) {
     protos::Element element;
     element.set_value(11);
     auto proto = element.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), false, false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(proto), RwProto::Cursor::kNone).IsOk());
   }
 
   protos::TraceEntry entry;
@@ -767,7 +769,8 @@ TEST_F(RwProtoTest, Merge_FieldsReplacement) {
     element.set_id(1);
     element.set_value(11);
     auto bytes = element.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(bytes), false, false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(bytes), RwProto::Cursor::kNone).IsOk());
   }
 
   protos::TraceEntry entry;
@@ -806,7 +809,8 @@ TEST_F(RwProtoTest, Merge_RepeatedField) {
     element1->set_value(20);
 
     auto bytes = entry.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(bytes), false, false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(bytes), RwProto::Cursor::kNone).IsOk());
   }
 
   // check
@@ -830,7 +834,8 @@ TEST_F(RwProtoTest, Merge_RepeatedField) {
     element0->set_value(1);
 
     auto bytes = entry.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(bytes), false, false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(bytes), RwProto::Cursor::kNone).IsOk());
   }
 
   // check
@@ -880,7 +885,7 @@ TEST_F(RwProtoTest, Merge_SkipSubmessages) {
   // merge root with skip_submessages = true
   ASSERT_TRUE(cursor
                   .Merge(AsConstBytes(root_patch.SerializeAsString()),
-                         /* skip_submessages */ true, false)
+                         RwProto::Cursor::kSkipSubmessages)
                   .IsOk());
 
   protos::TraceEntry entry;
@@ -908,8 +913,8 @@ TEST_F(RwProtoTest, Merge_DelIfSrcEmpty_SingleField) {
   patch.mutable_single_element();
 
   // Merge
-  ASSERT_TRUE(root.Merge(AsConstBytes(patch.SerializeAsString()), false,
-                         /*del_if_src_empty*/ true)
+  ASSERT_TRUE(root.Merge(AsConstBytes(patch.SerializeAsString()),
+                         RwProto::Cursor::kDelIfSrcEmpty)
                   .IsOk());
 
   // Check root = {}
@@ -926,8 +931,8 @@ TEST_F(RwProtoTest, Merge_DelIfSrcEmpty_RepeatedField) {
   protos::TraceEntry patch;
   patch.add_elements();
 
-  root.Merge(AsConstBytes(patch.SerializeAsString()), false,
-             /* del_if_src_empty */ true);
+  root.Merge(AsConstBytes(patch.SerializeAsString()),
+             RwProto::Cursor::kDelIfSrcEmpty);
 
   // Check root = {}
   protos::TraceEntry entry;

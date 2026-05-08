@@ -208,8 +208,7 @@ StatusOr<void> RwProtoCursor::SetScalar(Scalar scalar) {
 }
 
 StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
-                                    bool skip_submessages,
-                                    bool del_if_src_empty) {
+                                    uint32_t flags) {
   PERFETTO_DCHECK(node_);
 
   if (bool is_compatible = node_->GetIf<Node::Empty>() ||
@@ -234,12 +233,14 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
        field = decoder.ReadField()) {
     auto it = message->field_id_to_node.Find(field.id());
 
+    bool skip_submessages = (flags & kSkipSubmessages) != 0;
     if (skip_submessages && it && it->value->GetIf<Node::Message>()) {
       // Implements deep merge semantics: skip this message that was already
       // merged by a previous operation
       continue;
     }
 
+    bool del_if_src_empty = (flags & kDelIfSrcEmpty) != 0;
     if (it && del_if_src_empty &&
         field.type() ==
             protozero::proto_utils::ProtoWireType::kLengthDelimited &&

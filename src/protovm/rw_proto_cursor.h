@@ -28,6 +28,12 @@ namespace protovm {
 
 class RwProtoCursor {
  public:
+  enum MergeFlags : uint32_t {
+    kNone = 0,
+    kSkipSubmessages = 1 << 0,
+    kDelIfSrcEmpty = 1 << 1,
+  };
+
   class RepeatedFieldIterator {
    public:
     RepeatedFieldIterator();
@@ -91,9 +97,7 @@ class RwProtoCursor {
   // from 'data'. Fields present in 'data' but not in the cursor's message are
   // added/created. If skip_submessages is set to true, any message node already
   // resolved in the dst are skipped, thus not overwritten by the parent merge.
-  StatusOr<void> Merge(protozero::ConstBytes data,
-                       bool skip_submessages,
-                       bool del_if_src_empty);
+  StatusOr<void> Merge(protozero::ConstBytes data, uint32_t flags);
 
   StatusOr<void> Delete();
 
