@@ -19,6 +19,8 @@
 
 INCLUDE PERFETTO MODULE graphs.scan;
 
+INCLUDE PERFETTO MODULE std.metasql.unparenthesize;
+
 CREATE PERFETTO MACRO _viz_flamegraph_hash_coalesce(col ColumnName)
 RETURNS Expr
 AS IFNULL($col, 0);
@@ -300,10 +302,6 @@ AS (
   ORDER BY hash
 );
 
-CREATE PERFETTO MACRO _col_list_id(a ColumnName)
-RETURNS Expr
-AS $a;
-
 -- Converts a table of hashes and paretn hashes into ids and parent
 -- ids, grouping all hashes together.
 CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
@@ -326,8 +324,8 @@ AS (
     -- The grouping columns should be passed through as-is because the
     -- hash took them into account: we would not merged any nodes where
     -- the grouping columns were different.
-    __intrinsic_token_apply!(_col_list_id, $grouping),
-    __intrinsic_token_apply!(_col_list_id, $grouped_agged_exprs),
+    metasql_unparenthesize_exprlist!($grouping),
+    metasql_unparenthesize_exprlist!($grouped_agged_exprs),
     SUM(value) AS value,
     SUM(cumulativeValue) AS cumulativeValue
   FROM $hashed c

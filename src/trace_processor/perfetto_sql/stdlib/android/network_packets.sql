@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE std.metasql.unparenthesize;
+
 -- Android network packet events (from android.network_packets data source).
 CREATE PERFETTO VIEW android_network_packets(
   -- Id of the slice.
@@ -80,13 +82,6 @@ SELECT
 FROM __intrinsic_android_network_packets
 JOIN slice USING (id);
 
--- This helper is used to unparenthesize a column list expression. Currently,
--- the the pre-processor is unable to do both steps in one macro, so this macro
--- must be passed to __intrinsic_token_apply at the callsite.
-CREATE PERFETTO MACRO _np_identity(x Expr)
-RETURNS Expr
-AS $x;
-
 -- Finds groups of overlapping slices and assigns them group ids.
 --
 -- An overlap group is a set of slices (or instants) that contiguously have >=1
@@ -112,12 +107,12 @@ AS (
     _max_endpoint AS (
       SELECT
         *,
-        max(ts + dur) OVER (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_end_so_far
+        max(ts + dur) OVER (PARTITION BY metasql_unparenthesize_exprlist!($partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_end_so_far
       FROM $src
     )
   SELECT
     *,
-    sum(coalesce(ts > max_end_so_far, TRUE)) OVER (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns) ORDER BY ts) AS group_id
+    sum(coalesce(ts > max_end_so_far, TRUE)) OVER (PARTITION BY metasql_unparenthesize_exprlist!($partition_columns) ORDER BY ts) AS group_id
   FROM _max_endpoint
 );
 
@@ -144,25 +139,25 @@ AS (
   WITH
     _quantized AS (
       SELECT
-        __intrinsic_token_apply!(_np_identity, $partition_columns),
+        metasql_unparenthesize_exprlist!($partition_columns),
         min(ts) AS ts,
         max(ts + dur + $timeout) - min(ts) AS dur,
         sum(packet_count) AS packet_count,
         sum(packet_length) AS packet_length
       FROM $src
       GROUP BY
-        __intrinsic_token_apply!(_np_identity, $partition_columns),
+        metasql_unparenthesize_exprlist!($partition_columns),
         CAST(ts / $timeout AS LONG)
     )
   SELECT
-    __intrinsic_token_apply!(_np_identity, $partition_columns),
+    metasql_unparenthesize_exprlist!($partition_columns),
     min(ts) AS ts,
     max(ts + dur) - min(ts) AS dur,
     sum(packet_count) AS packet_count,
     sum(packet_length) AS packet_length
   FROM _add_overlap_group_id!(_quantized, $partition_columns)
   GROUP BY
-    __intrinsic_token_apply!(_np_identity, $partition_columns),
+    metasql_unparenthesize_exprlist!($partition_columns),
     group_id
 );
 
@@ -219,7 +214,7 @@ AS (
         sum(packet_count) OVER group_window AS group_packets,
         max(ts + dur) OVER group_window - min(ts) OVER group_window AS group_dur
       FROM _add_overlap_group_id!($src, $partition_columns)
-      WINDOW group_window AS (PARTITION BY __intrinsic_token_apply!(_np_identity, $partition_columns), group_id)
+      WINDOW group_window AS (PARTITION BY metasql_unparenthesize_exprlist!($partition_columns), group_id)
     ),
     _cost_parts AS (
       SELECT

@@ -17259,6 +17259,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/perfetto_sql/stdlib/std/metasql:metasql
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_stdlib_std_metasql_metasql",
+    srcs: [
+        "src/trace_processor/perfetto_sql/stdlib/std/metasql/unparenthesize.sql",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/stdlib/std/traceinfo:traceinfo
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
@@ -17299,6 +17307,7 @@ genrule {
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
+        ":perfetto_src_trace_processor_perfetto_sql_stdlib_std_metasql_metasql",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_time_time",
