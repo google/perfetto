@@ -19,9 +19,9 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
-base::Status RegisterBase64Functions(PerfettoSqlEngine& engine);
+base::Status RegisterBase64Functions(PerfettoSqlConnection& connection);
 
 }  // namespace perfetto::trace_processor
 

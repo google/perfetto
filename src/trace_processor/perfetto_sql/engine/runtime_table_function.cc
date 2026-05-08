@@ -29,7 +29,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
@@ -193,7 +193,8 @@ int RuntimeTableFunctionModule::Filter(sqlite3_vtab_cursor* cur,
     // new one.
     ResetStatement(c->stmt->sqlite_stmt());
   } else {
-    auto stmt = s->engine->sqlite_engine()->PrepareStatement(s->sql_defn_str);
+    auto stmt =
+        s->connection->sqlite_connection()->PrepareStatement(s->sql_defn_str);
     c->stmt = std::move(stmt);
     if (const auto& status = c->stmt->status(); !status.ok()) {
       return sqlite::utils::SetError(t, status.c_message());

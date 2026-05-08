@@ -3334,20 +3334,24 @@ class DataSourceDescriptor(_message.Message):
 class TracingServiceState(_message.Message):
     __slots__ = ("producers", "data_sources", "tracing_sessions", "supports_tracing_sessions", "num_sessions", "num_sessions_started", "tracing_service_version")
     class Producer(_message.Message):
-        __slots__ = ("id", "name", "pid", "uid", "sdk_version", "frozen")
+        __slots__ = ("id", "name", "pid", "uid", "sdk_version", "frozen", "machine_id", "machine_name")
         ID_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
         PID_FIELD_NUMBER: _ClassVar[int]
         UID_FIELD_NUMBER: _ClassVar[int]
         SDK_VERSION_FIELD_NUMBER: _ClassVar[int]
         FROZEN_FIELD_NUMBER: _ClassVar[int]
+        MACHINE_ID_FIELD_NUMBER: _ClassVar[int]
+        MACHINE_NAME_FIELD_NUMBER: _ClassVar[int]
         id: int
         name: str
         pid: int
         uid: int
         sdk_version: str
         frozen: bool
-        def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., pid: _Optional[int] = ..., uid: _Optional[int] = ..., sdk_version: _Optional[str] = ..., frozen: bool = ...) -> None: ...
+        machine_id: int
+        machine_name: str
+        def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., pid: _Optional[int] = ..., uid: _Optional[int] = ..., sdk_version: _Optional[str] = ..., frozen: bool = ..., machine_id: _Optional[int] = ..., machine_name: _Optional[str] = ...) -> None: ...
     class DataSource(_message.Message):
         __slots__ = ("ds_descriptor", "producer_id")
         DS_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]

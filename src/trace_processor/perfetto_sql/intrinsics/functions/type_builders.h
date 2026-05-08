@@ -21,7 +21,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 class StringPool;
 
 // Registers the following PerfettoSQL type related functions with SQLite:
@@ -34,7 +34,7 @@ class StringPool;
 //    creates a data structure allowing efficient lookups of rows by id.
 // TODO(lalitm): once we have some stability here, expand the comments
 // here.
-base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterTypeBuilderFunctions(PerfettoSqlConnection& connection,
                                           StringPool* pool);
 
 }  // namespace perfetto::trace_processor

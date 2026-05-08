@@ -30,23 +30,23 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
 // __intrinsic_stdlib_modules() — lists all (module, package) pairs.
 class StdlibDocsModules : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(StringPool*, const PerfettoSqlEngine*);
+    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:
     StringPool* string_pool_ = nullptr;
-    const PerfettoSqlEngine* engine_ = nullptr;
+    const PerfettoSqlConnection* engine_ = nullptr;
     tables::StdlibDocsModulesTable table_;
   };
 
-  explicit StdlibDocsModules(StringPool*, const PerfettoSqlEngine*);
+  explicit StdlibDocsModules(StringPool*, const PerfettoSqlConnection*);
   std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
   dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
@@ -54,7 +54,7 @@ class StdlibDocsModules : public StaticTableFunction {
 
  private:
   StringPool* string_pool_ = nullptr;
-  const PerfettoSqlEngine* engine_ = nullptr;
+  const PerfettoSqlConnection* engine_ = nullptr;
 };
 
 // __intrinsic_stdlib_tables(module) — table/view metadata for a module.
@@ -62,16 +62,16 @@ class StdlibDocsTables : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(StringPool*, const PerfettoSqlEngine*);
+    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:
     StringPool* string_pool_ = nullptr;
-    const PerfettoSqlEngine* engine_ = nullptr;
+    const PerfettoSqlConnection* engine_ = nullptr;
     tables::StdlibDocsTablesTable table_;
   };
 
-  explicit StdlibDocsTables(StringPool*, const PerfettoSqlEngine*);
+  explicit StdlibDocsTables(StringPool*, const PerfettoSqlConnection*);
   std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
   dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
@@ -79,7 +79,7 @@ class StdlibDocsTables : public StaticTableFunction {
 
  private:
   StringPool* string_pool_ = nullptr;
-  const PerfettoSqlEngine* engine_ = nullptr;
+  const PerfettoSqlConnection* engine_ = nullptr;
 };
 
 // __intrinsic_stdlib_functions(module) — function metadata for a module.
@@ -87,16 +87,16 @@ class StdlibDocsFunctions : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(StringPool*, const PerfettoSqlEngine*);
+    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:
     StringPool* string_pool_ = nullptr;
-    const PerfettoSqlEngine* engine_ = nullptr;
+    const PerfettoSqlConnection* engine_ = nullptr;
     tables::StdlibDocsFunctionsTable table_;
   };
 
-  explicit StdlibDocsFunctions(StringPool*, const PerfettoSqlEngine*);
+  explicit StdlibDocsFunctions(StringPool*, const PerfettoSqlConnection*);
   std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
   dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
@@ -104,7 +104,7 @@ class StdlibDocsFunctions : public StaticTableFunction {
 
  private:
   StringPool* string_pool_ = nullptr;
-  const PerfettoSqlEngine* engine_ = nullptr;
+  const PerfettoSqlConnection* engine_ = nullptr;
 };
 
 // __intrinsic_stdlib_macros(module) — macro metadata for a module.
@@ -112,16 +112,16 @@ class StdlibDocsMacros : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(StringPool*, const PerfettoSqlEngine*);
+    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:
     StringPool* string_pool_ = nullptr;
-    const PerfettoSqlEngine* engine_ = nullptr;
+    const PerfettoSqlConnection* engine_ = nullptr;
     tables::StdlibDocsMacrosTable table_;
   };
 
-  explicit StdlibDocsMacros(StringPool*, const PerfettoSqlEngine*);
+  explicit StdlibDocsMacros(StringPool*, const PerfettoSqlConnection*);
   std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
   dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
@@ -129,7 +129,7 @@ class StdlibDocsMacros : public StaticTableFunction {
 
  private:
   StringPool* string_pool_ = nullptr;
-  const PerfettoSqlEngine* engine_ = nullptr;
+  const PerfettoSqlConnection* engine_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor

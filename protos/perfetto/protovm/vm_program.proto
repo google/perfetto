@@ -125,6 +125,15 @@ message VmOpMerge {
   // the deepest submessages first, then moving up to the parent
   // message and merging it with skip_submessages = true.
   optional bool skip_submessages = 1;
+
+  // When true, the merge operation will remove the dst field if the src field
+  // is empty.
+  //
+  // This can be used to replicate the removal of a subobject within the
+  // producer's state. E.g.
+  // This event on the producer side: mProducerState.mSubobject = nullptr
+  // can be represented by this patch: { producer_state { subobject {} }}
+  optional bool del_if_src_empty = 2;
 }
 
 // Copies SRC into DST. If a message, replaces the DST node, discarding any

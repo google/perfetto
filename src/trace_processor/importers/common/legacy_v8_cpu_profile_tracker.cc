@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -49,7 +50,7 @@ void LegacyV8CpuProfileTracker::Parse(int64_t ts,
   base::Status status =
       AddSample(ts, event.session_id, event.pid, event.tid, event.callsite_id);
   if (!status.ok()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::legacy_v8_cpu_profile_invalid_sample);
   }
 }

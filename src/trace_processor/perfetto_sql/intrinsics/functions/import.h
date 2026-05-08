@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_IMPORT_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_IMPORT_H_
 
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -29,7 +29,7 @@ struct Import : public sqlite::Function<Import> {
   static constexpr char kName[] = "import";
   static constexpr int kArgCount = 1;
 
-  using UserData = PerfettoSqlEngine;
+  using UserData = PerfettoSqlConnection;
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 

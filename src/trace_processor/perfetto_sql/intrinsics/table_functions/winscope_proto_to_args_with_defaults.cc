@@ -43,7 +43,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -337,11 +337,12 @@ base::Status InsertRows(
 }
 }  // namespace
 
-WinscopeProtoToArgsWithDefaults::Cursor::Cursor(StringPool* string_pool,
-                                                const PerfettoSqlEngine* engine,
-                                                TraceProcessorContext* context)
+WinscopeProtoToArgsWithDefaults::Cursor::Cursor(
+    StringPool* string_pool,
+    const PerfettoSqlConnection* connection,
+    TraceProcessorContext* context)
     : string_pool_(string_pool),
-      engine_(engine),
+      engine_(connection),
       context_(context),
       table_(string_pool) {}
 
@@ -359,9 +360,9 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
   if (table_name_str.substr(0, 12) != "__intrinsic_") {
     table_name_str = "__intrinsic_" + table_name_str;
   }
-  const dataframe::Dataframe* static_table_from_engine =
+  const dataframe::Dataframe* static_table_from_connection =
       engine_->GetDataframeOrNull(table_name_str);
-  if (!static_table_from_engine) {
+  if (!static_table_from_connection) {
     return OnFailure(
         base::ErrStatus("Failed to find %s table.", table_name_str.c_str()));
   }
@@ -382,7 +383,7 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
       GetProtoToInternedData(table_name_str, context_->storage.get());
 
   base::Status insert_status =
-      InsertRows(*static_table_from_engine, &table_, *proto_name,
+      InsertRows(*static_table_from_connection, &table_, *proto_name,
                  allowed_fields ? &allowed_fields.value() : nullptr,
                  group_id_col_name ? &group_id_col_name.value() : nullptr,
                  *context_->descriptor_pool_, string_pool_,
@@ -395,9 +396,9 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
 
 WinscopeProtoToArgsWithDefaults::WinscopeProtoToArgsWithDefaults(
     StringPool* string_pool,
-    const PerfettoSqlEngine* engine,
+    const PerfettoSqlConnection* connection,
     TraceProcessorContext* context)
-    : string_pool_(string_pool), engine_(engine), context_(context) {}
+    : string_pool_(string_pool), engine_(connection), context_(context) {}
 
 std::unique_ptr<StaticTableFunction::Cursor>
 WinscopeProtoToArgsWithDefaults::MakeCursor() {

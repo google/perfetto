@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -101,11 +102,11 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   std::optional<int64_t> mm_id) {
   const char* memory_key = GetProcessMemoryKey(member);
   if (!memory_key) {
-    context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
+    context_->stats_tracker->IncrementStats(stats::rss_stat_unknown_keys);
     return;
   }
   if (size < 0) {
-    context_->storage->IncrementStats(stats::rss_stat_negative_size);
+    context_->stats_tracker->IncrementStats(stats::rss_stat_negative_size);
     return;
   }
 
@@ -121,7 +122,8 @@ void RssStatTracker::ParseRssStat(int64_t ts,
         EventTracker::RssStat{memory_key}, ts, static_cast<double>(size),
         *utid);
   } else {
-    context_->storage->IncrementStats(stats::rss_stat_unknown_thread_for_mm_id);
+    context_->stats_tracker->IncrementStats(
+        stats::rss_stat_unknown_thread_for_mm_id);
   }
 }
 

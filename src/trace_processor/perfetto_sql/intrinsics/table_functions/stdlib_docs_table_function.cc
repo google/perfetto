@@ -29,7 +29,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/util/simple_json_serializer.h"
@@ -56,10 +56,10 @@ std::string SerializeEntries(const std::vector<Entry>& entries) {
 }
 
 base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
-    const PerfettoSqlEngine* engine,
+    const PerfettoSqlConnection* connection,
     const std::string& module_key) {
   const auto* package =
-      engine->FindPackage(sql_modules::GetPackageName(module_key));
+      connection->FindPackage(sql_modules::GetPackageName(module_key));
   if (!package) {
     return base::ErrStatus("Module not found: %s", module_key.c_str());
   }
@@ -84,8 +84,8 @@ base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
 // ============================================================================
 
 StdlibDocsModules::Cursor::Cursor(StringPool* pool,
-                                  const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine), table_(pool) {}
+                                  const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection), table_(pool) {}
 
 bool StdlibDocsModules::Cursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.empty());
@@ -100,8 +100,8 @@ bool StdlibDocsModules::Cursor::Run(const std::vector<SqlValue>& arguments) {
 }
 
 StdlibDocsModules::StdlibDocsModules(StringPool* pool,
-                                     const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine) {}
+                                     const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection) {}
 
 std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsModules::MakeCursor() {
   return std::make_unique<Cursor>(string_pool_, engine_);
@@ -124,8 +124,8 @@ uint32_t StdlibDocsModules::GetArgumentCount() const {
 // ============================================================================
 
 StdlibDocsTables::Cursor::Cursor(StringPool* pool,
-                                 const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine), table_(pool) {}
+                                 const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection), table_(pool) {}
 
 bool StdlibDocsTables::Cursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 1);
@@ -157,8 +157,8 @@ bool StdlibDocsTables::Cursor::Run(const std::vector<SqlValue>& arguments) {
 }
 
 StdlibDocsTables::StdlibDocsTables(StringPool* pool,
-                                   const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine) {}
+                                   const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection) {}
 
 std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsTables::MakeCursor() {
   return std::make_unique<Cursor>(string_pool_, engine_);
@@ -181,8 +181,8 @@ uint32_t StdlibDocsTables::GetArgumentCount() const {
 // ============================================================================
 
 StdlibDocsFunctions::Cursor::Cursor(StringPool* pool,
-                                    const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine), table_(pool) {}
+                                    const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection), table_(pool) {}
 
 bool StdlibDocsFunctions::Cursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 1);
@@ -219,9 +219,10 @@ bool StdlibDocsFunctions::Cursor::Run(const std::vector<SqlValue>& arguments) {
   return OnSuccess(&table_.dataframe());
 }
 
-StdlibDocsFunctions::StdlibDocsFunctions(StringPool* pool,
-                                         const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine) {}
+StdlibDocsFunctions::StdlibDocsFunctions(
+    StringPool* pool,
+    const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection) {}
 
 std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsFunctions::MakeCursor() {
   return std::make_unique<Cursor>(string_pool_, engine_);
@@ -244,8 +245,8 @@ uint32_t StdlibDocsFunctions::GetArgumentCount() const {
 // ============================================================================
 
 StdlibDocsMacros::Cursor::Cursor(StringPool* pool,
-                                 const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine), table_(pool) {}
+                                 const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection), table_(pool) {}
 
 bool StdlibDocsMacros::Cursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 1);
@@ -280,8 +281,8 @@ bool StdlibDocsMacros::Cursor::Run(const std::vector<SqlValue>& arguments) {
 }
 
 StdlibDocsMacros::StdlibDocsMacros(StringPool* pool,
-                                   const PerfettoSqlEngine* engine)
-    : string_pool_(pool), engine_(engine) {}
+                                   const PerfettoSqlConnection* connection)
+    : string_pool_(pool), engine_(connection) {}
 
 std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsMacros::MakeCursor() {
   return std::make_unique<Cursor>(string_pool_, engine_);

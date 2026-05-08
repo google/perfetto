@@ -14,8 +14,11 @@
 
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
-import type {SqlValue} from '../../../trace_processor/query_result';
-import type {Row} from '../../../trace_processor/query_result';
+import {
+  STR,
+  type Row,
+  type SqlValue,
+} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {
@@ -34,6 +37,8 @@ import {
   Section,
   PrimOrRefCell,
   BitmapImage,
+  COL_INFO,
+  colHeader,
 } from '../components';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
@@ -42,11 +47,20 @@ export interface ObjectParams {
   readonly id: number;
 }
 
+// Open the flamegraph pivoted at the given path. Routed through the
+// session so flamegraph state has a single owner.
+export type OpenFlamegraphPivotedAt = (
+  pathHash: string,
+  label: string,
+  isDominator: boolean,
+) => void;
+
 interface ObjectViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
+  readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
 }
 
@@ -171,11 +185,28 @@ function nullableSizeRenderer(value: SqlValue): CellRenderResult {
   };
 }
 
+// Per-row info for the Object Size grid; the row label carries the metric.
+const METRIC_INFO: Record<string, string> = {
+  Shallow: 'Memory used by this object alone, excluding referenced objects.',
+  Retained:
+    'Memory exclusively held by this object (dominator subtree, self ' +
+    'inclusive). The Native column is often zero in multi-rooted graphs ' +
+    'where Bitmaps are reachable via multiple paths — see Reachable below.',
+  Reachable:
+    "Memory reachable from this object along the heap graph's BFS " +
+    'shortest-path tree. Includes objects also reachable via other paths.',
+};
+
 const SIZE_SCHEMA: SchemaRegistry = {
   query: {
     metric: {
       title: 'Metric',
       columnType: 'text',
+      cellRenderer: (value: SqlValue): CellRenderResult => {
+        const label = String(value ?? '');
+        const info = METRIC_INFO[label];
+        return {content: info ? colHeader(label, info) : label};
+      },
     },
     java: {
       title: 'Java',
@@ -242,42 +273,50 @@ function makeInstanceSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained #',
+        title: colHeader('Retained #', COL_INFO.retainedCount),
+        titleString: 'Retained #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -344,37 +383,44 @@ function makeFieldSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       shallow: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       shallow_native: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -427,37 +473,44 @@ function makeArraySchema(
         },
       },
       shallow: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       shallow_native: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -556,6 +609,28 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
       const {row} = detail;
 
+      const flamegraphAction = (isDominator: boolean) =>
+        row.className
+          ? m(
+              'button',
+              {
+                class: 'ah-link',
+                title: isDominator
+                  ? 'Open in Flamegraph pivoted on this dominator path'
+                  : 'Open in Flamegraph pivoted on this shortest path',
+                onclick: () =>
+                  openInFlamegraph(
+                    vnode.attrs.engine,
+                    row.id,
+                    row.className,
+                    isDominator,
+                    vnode.attrs.openFlamegraphPivotedAt,
+                  ),
+              },
+              'View in Flamegraph',
+            )
+          : null;
+
       return m('div', {class: 'ah-view-scroll ah-view-stack'}, [
         m('div', [
           m(
@@ -613,7 +688,10 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
         m(
           Section,
-          {title: 'Shortest Path from GC Root'},
+          {
+            title: 'Shortest Path from GC Root',
+            actions: detail.shortestPath ? flamegraphAction(false) : null,
+          },
           detail.shortestPath
             ? m(
                 'div',
@@ -647,6 +725,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
           Section,
           {
             title: 'Dominator Tree Path',
+            actions: detail.dominatorPath ? flamegraphAction(true) : null,
           },
           detail.dominatorPath
             ? m(
@@ -961,6 +1040,33 @@ function renderArrayGrid(
       showExportButton: true,
     }),
   ]);
+}
+
+// Look up the object's path_hash in the chosen tree (BFS or dominator)
+// and open the flamegraph pivoted on it with the matching metric. The
+// hash is tree-specific so the tree dictates both. No-op if the object
+// has no entry (e.g. unreachable garbage).
+async function openInFlamegraph(
+  engine: Engine,
+  id: number,
+  cls: string,
+  isDominator: boolean,
+  openFlamegraphPivotedAt: OpenFlamegraphPivotedAt,
+): Promise<void> {
+  const moduleName = isDominator
+    ? 'android.memory.heap_graph.dominator_class_tree'
+    : 'android.memory.heap_graph.class_tree';
+  const table = isDominator
+    ? '_heap_graph_dominator_path_hashes'
+    : '_heap_graph_path_hashes';
+  await engine.query(`INCLUDE PERFETTO MODULE ${moduleName};`);
+  const res = await engine.query(
+    `SELECT CAST(path_hash AS TEXT) AS path_hash
+       FROM ${table} WHERE id = ${id} LIMIT 1`,
+  );
+  const it = res.iter({path_hash: STR});
+  if (!it.valid()) return;
+  openFlamegraphPivotedAt(it.path_hash, shortClassName(cls), isDominator);
 }
 
 // `java.lang.Class<Foo>` has no useful subclasses in heap_graph_class; the
