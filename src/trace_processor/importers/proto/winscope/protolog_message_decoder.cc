@@ -88,35 +88,29 @@ void ProtoLogMessageDecoder::TrackMessage(
     uint32_t group_id,
     const std::string& message,
     const std::optional<std::string>& location) {
-  TrackedMessage new_tracked_message{level, group_id, message, location,
-                                     GetParameterSignature(message)};
-
   auto* existing_messages_ptr = tracked_messages_.Find(message_id);
 
   if (existing_messages_ptr == nullptr) {
     base::SmallVector<TrackedMessage, 1> single_message_vector;
-    single_message_vector.emplace_back(new_tracked_message);
+    single_message_vector.emplace_back(TrackedMessage{
+        level, group_id, message, location, GetParameterSignature(message)});
     tracked_messages_.Insert(message_id, std::move(single_message_vector));
     return;
   }
 
   base::SmallVector<TrackedMessage, 1>& existing_messages =
       *existing_messages_ptr;
-  bool message_already_tracked = false;
 
   for (const auto& existing_msg : existing_messages) {
-    if (existing_msg.message == new_tracked_message.message &&
-        existing_msg.level == new_tracked_message.level &&
-        existing_msg.group_id == new_tracked_message.group_id &&
-        existing_msg.location == new_tracked_message.location) {
-      message_already_tracked = true;
-      break;
+    if (existing_msg.message == message && existing_msg.level == level &&
+        existing_msg.group_id == group_id &&
+        existing_msg.location == location) {
+      return;
     }
   }
 
-  if (!message_already_tracked) {
-    existing_messages.emplace_back(new_tracked_message);
-  }
+  existing_messages.emplace_back(TrackedMessage{
+      level, group_id, message, location, GetParameterSignature(message)});
 }
 
 std::string ProtoLogMessageDecoder::FormatMessage(
