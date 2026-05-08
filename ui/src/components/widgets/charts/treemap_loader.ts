@@ -26,7 +26,7 @@ import {
   inFilter,
 } from './chart_sql_source';
 import {ChartAggregation} from './chart_utils';
-import {TreemapData, TreemapNode} from './treemap';
+import {TreemapData, TreemapNode, countTreemapLeaves} from './treemap';
 
 /**
  * Configuration for SQLTreemapLoader.
@@ -180,5 +180,9 @@ export class SQLTreemapLoader extends SQLChartLoader<
       nodes.push({name: iter._label ?? '(null)', value: iter._value});
     }
     return {nodes};
+  }
+
+  protected override countShown(data: TreemapData): number {
+    return countTreemapLeaves(data.nodes);
   }
 }

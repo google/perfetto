@@ -26,7 +26,12 @@ import {
   PointColumnSpec,
   rangeFilters,
 } from './chart_sql_source';
-import {LineChartData, LineChartPoint, LineChartSeries} from './line_chart';
+import {
+  LineChartData,
+  LineChartPoint,
+  LineChartSeries,
+  countLineChartShown,
+} from './line_chart';
 
 /**
  * Configuration for SQLLineChartLoader.
@@ -157,6 +162,10 @@ export class SQLLineChartLoader extends SQLChartLoader<
       });
     }
     return {series};
+  }
+
+  protected override countShown(data: LineChartData): number {
+    return countLineChartShown(data);
   }
 
   protected override extraCacheKey(

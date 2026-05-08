@@ -132,6 +132,11 @@ export interface ChartConfig {
    * Optional bubble-size column for scatter charts (numeric).
    */
   sizeColumn?: string;
+  /**
+   * Whether to show a warning icon when the chart is displaying limited
+   * data (i.e. totalCount > shownCount). Defaults to true.
+   */
+  showTruncationWarning?: boolean;
 }
 
 /**
@@ -842,5 +847,65 @@ export class VisualisationNode implements QueryNode {
     }
 
     this.context.onchange?.();
+  }
+
+  serializeState(): object {
+    return {
+      chartConfigs: this.attrs.chartConfigs.map((c) => ({
+        id: c.id,
+        name: c.name,
+        column: c.column,
+        chartType: c.chartType,
+        binCount: c.binCount,
+        orientation: c.orientation,
+        widthPx: c.widthPx,
+        aggregation: c.aggregation,
+        measureColumn: c.measureColumn,
+        yColumn: c.yColumn,
+        groupColumn: c.groupColumn,
+        sizeColumn: c.sizeColumn,
+        showTruncationWarning: c.showTruncationWarning,
+      })),
+      chartFilters: this.attrs.chartFilters?.map((f) => {
+        if ('value' in f) {
+          return {
+            column: f.column,
+            op: f.op,
+            value: f.value,
+            enabled: f.enabled,
+          };
+        } else {
+          return {
+            column: f.column,
+            op: f.op,
+            enabled: f.enabled,
+          };
+        }
+      }),
+    };
+  }
+
+  static deserializeState(
+    state: Partial<VisualisationNodeAttrs>,
+  ): Partial<VisualisationNodeAttrs> {
+    // Convert filter values from strings back to numbers when appropriate.
+    // JSON serialization converts BigInt to string, and we need numeric
+    // values for proper filtering (same logic as FilterNode).
+    const chartFilters = state.chartFilters?.map((f): Partial<UIFilter> => {
+      if ('value' in f && typeof f.value === 'string') {
+        if (!Array.isArray(f.value)) {
+          const parsed = parseFilterValue(f.value);
+          if (parsed !== undefined && parsed !== f.value) {
+            return {...f, value: parsed} as Partial<UIFilter>;
+          }
+        }
+      }
+      return {...f};
+    });
+    return {
+      ...state,
+      chartConfigs: state.chartConfigs?.map((c) => ({...c})) ?? [],
+      chartFilters,
+    };
   }
 }

@@ -16,6 +16,7 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
 import {EChartView} from './echart_view';
+import {maybeWrapWithTruncation} from './chart_truncation_warning';
 import {
   buildAxisOption,
   buildGridOption,
@@ -96,11 +97,25 @@ export interface BoxplotAttrs {
    * Defaults to no grid lines.
    */
   readonly gridLines?: 'horizontal' | 'vertical' | 'both';
+  /** Total row count before LIMIT; when set and shown < total, an overlay warns the user. */
+  readonly totalCount?: number;
+  /** Number of items actually shown; should come from the loader result. */
+  readonly shownCount?: number;
+  /** Show the truncation warning overlay. Defaults to false. */
+  readonly showTruncationWarning?: boolean;
 }
 
 export class BoxplotChart implements m.ClassComponent<BoxplotAttrs> {
   view({attrs}: m.CVnode<BoxplotAttrs>) {
-    const {data, height, fillParent, className} = attrs;
+    const {
+      data,
+      height,
+      fillParent,
+      className,
+      totalCount,
+      shownCount,
+      showTruncationWarning,
+    } = attrs;
 
     const isEmpty = data !== undefined && data.items.length === 0;
     const option =
@@ -108,13 +123,19 @@ export class BoxplotChart implements m.ClassComponent<BoxplotAttrs> {
         ? buildBoxplotOption(attrs, data)
         : undefined;
 
-    return m(EChartView, {
+    const content = m(EChartView, {
       option,
       height,
       fillParent,
       className,
       empty: isEmpty,
     });
+    return maybeWrapWithTruncation(
+      content,
+      shownCount,
+      totalCount,
+      showTruncationWarning,
+    );
   }
 }
 

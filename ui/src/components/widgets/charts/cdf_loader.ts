@@ -14,7 +14,7 @@
 
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, STR, QueryResult} from '../../../trace_processor/query_result';
-import {LineChartData} from './line_chart';
+import {LineChartData, countLineChartShown} from './line_chart';
 import {
   ChartSource,
   SQLChartLoader,
@@ -111,6 +111,10 @@ export class SQLCdfLoader extends SQLChartLoader<
     _config: CdfLoaderConfig,
   ): LineChartData {
     return parseCdfResult(queryResult, this.seriesCol !== undefined);
+  }
+
+  protected override countShown(data: LineChartData): number {
+    return countLineChartShown(data);
   }
 }
 

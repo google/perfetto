@@ -23,8 +23,21 @@ import {
   SQLChartLoader,
   QueryConfig,
   ChartLoaderResult,
+  OTHER_LABEL,
   inFilter,
 } from './chart_sql_source';
+
+// Excludes the synthetic "(Other)" slice so it doesn't inflate the shown count.
+export function countDistinctPieSlices(
+  slices: ReadonlyArray<{readonly label: string}> | undefined,
+): number {
+  if (slices === undefined) return 0;
+  let count = 0;
+  for (const s of slices) {
+    if (s.label !== OTHER_LABEL) count += 1;
+  }
+  return count;
+}
 import {ChartAggregation} from './chart_utils';
 import {PieChartData, PieChartSlice} from './pie_chart';
 
@@ -116,5 +129,9 @@ export class SQLPieChartLoader extends SQLChartLoader<
       slices.push({label: iter._dim ?? '(null)', value: iter._value});
     }
     return {slices};
+  }
+
+  protected override countShown(data: PieChartData): number {
+    return countDistinctPieSlices(data.slices);
   }
 }

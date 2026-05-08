@@ -440,6 +440,11 @@ export class SQLHistogramLoader
     };
   }
 
+  protected override countShown(_data: HistogramData): number {
+    // Histogram queries never apply a LIMIT, so this is never called.
+    return 0;
+  }
+
   protected override extraCacheKey(
     config: HistogramLoaderConfig,
   ): Record<string, string | number | boolean | undefined> {
