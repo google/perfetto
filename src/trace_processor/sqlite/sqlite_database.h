@@ -17,7 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_DATABASE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_DATABASE_H_
 
+#include <atomic>
+#include <cstdint>
 #include <string>
+
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto::trace_processor {
 
@@ -31,8 +35,10 @@ namespace perfetto::trace_processor {
 // as long as any connection that holds onto its URI.
 class SqliteDatabase {
  public:
-  SqliteDatabase();
-  ~SqliteDatabase();
+  SqliteDatabase()
+      : shared_filename_("file:/perfetto-" +
+                         base::Uint64ToHexStringNoPrefix(NextDatabaseId()) +
+                         "?vfs=memdb") {}
 
   SqliteDatabase(const SqliteDatabase&) = delete;
   SqliteDatabase& operator=(const SqliteDatabase&) = delete;
@@ -42,6 +48,11 @@ class SqliteDatabase {
   const std::string& shared_filename() const { return shared_filename_; }
 
  private:
+  static uint64_t NextDatabaseId() {
+    static std::atomic<uint64_t> next{0};
+    return next.fetch_add(1, std::memory_order_relaxed);
+  }
+
   std::string shared_filename_;
 };
 

@@ -29,8 +29,7 @@ namespace perfetto::trace_processor::sqlite {
 void ModuleStateManagerBase::OnCommit() {
   std::vector<std::string> to_erase;
   for (auto it = state_by_name_.GetIterator(); it; ++it) {
-    auto& state = *it.value();
-    if (state.active_state) {
+    if (auto& state = *it.value(); state.active_state) {
       committed_store_->Store(it.key(), state.active_state);
       state.savepoint_states.clear();
     } else {
@@ -46,9 +45,8 @@ void ModuleStateManagerBase::OnCommit() {
 void ModuleStateManagerBase::OnRollback() {
   std::vector<std::string> to_erase;
   for (auto it = state_by_name_.GetIterator(); it; ++it) {
-    auto& state = *it.value();
-    auto committed = committed_store_->Load(it.key());
-    if (committed) {
+    if (auto committed = committed_store_->Load(it.key()); committed) {
+      auto& state = *it.value();
       state.active_state = std::move(committed);
       state.savepoint_states.clear();
     } else {
