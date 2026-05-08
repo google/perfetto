@@ -96,6 +96,7 @@ import {
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
+import {LineChartSvg} from '../../../components/widgets/charts_svg/line_chart_svg';
 
 // Generate sample data with normal distribution
 function generateNormalData(
@@ -169,6 +170,47 @@ export function renderCharts(app: App): m.Children {
           stacked: opts.stacked,
           gridLines: opts.gridLines,
           legendPosition: opts.legendPosition,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
+        logScale: false,
+        showPoints: true,
+        multiSeries: false,
+        stacked: false,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+        legendPosition: new EnumOption('top', [
+          'top',
+          'right',
+          'bottom',
+        ] as const),
+      },
+    }),
+
+    // LineChartSvg section
+    m('h2', {style: {marginTop: '32px'}}, 'LineChartSvg'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(LineChartDemo, {
+          height: opts.height,
+          brushMode: opts.brushMode,
+          logScale: opts.logScale,
+          showPoints: opts.showPoints,
+          multiSeries: opts.multiSeries,
+          stacked: opts.stacked,
+          gridLines: opts.gridLines,
+          legendPosition: opts.legendPosition,
+          useSvg: true,
         });
       },
       initialOpts: {
@@ -517,6 +559,38 @@ function renderSQLDemos(app: App): m.Children[] {
         ] as const),
       },
     }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLLineChartLoader (Svg)'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLLineChartDemo, {
+          trace,
+          height: opts.height,
+          brushMode: opts.brushMode,
+          showPoints: opts.showPoints,
+          maxPoints: opts.maxPoints,
+          scaleAxes: opts.scaleAxes,
+          gridLines: opts.gridLines,
+          useSvg: true,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
+        showPoints: true,
+        maxPoints: 200,
+        scaleAxes: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+      },
+    }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLPieChartLoader'),
     renderWidgetShowcase({
       renderWidget: (opts) => {
@@ -635,6 +709,34 @@ function renderSQLDemos(app: App): m.Children[] {
           maxPoints: opts.maxPoints,
           brushMode: opts.brushMode,
           gridLines: opts.gridLines,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        maxPoints: 500,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLCdfLoader (Svg)'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLCdfDemo, {
+          trace,
+          height: opts.height,
+          maxPoints: opts.maxPoints,
+          brushMode: opts.brushMode,
+          gridLines: opts.gridLines,
+          useSvg: true,
         });
       },
       initialOpts: {
@@ -1146,6 +1248,7 @@ function SQLLineChartDemo(): m.Component<{
   maxPoints: number;
   scaleAxes: boolean;
   gridLines: string;
+  useSvg?: boolean;
 }> {
   let loader: SQLLineChartLoader | undefined;
   let brushedRange: {start: number; end: number} | undefined;
@@ -1171,23 +1274,25 @@ function SQLLineChartDemo(): m.Component<{
       };
       const {data, isPending} = loader.use(config);
 
+      const sqlLineChartProps = {
+        data,
+        height: attrs.height,
+        xAxisLabel: 'Timestamp',
+        yAxisLabel: 'Value',
+        showPoints: attrs.showPoints,
+        scaleAxes: attrs.scaleAxes,
+        gridLines: toGridLines(attrs.gridLines),
+        onBrush:
+          attrs.brushMode !== 'off'
+            ? (range: {start: number; end: number}) => {
+                brushedRange = range;
+              }
+            : undefined,
+        selection: attrs.brushMode === 'select' ? brushedRange : undefined,
+      };
+
       return m('div', [
-        m(LineChart, {
-          data,
-          height: attrs.height,
-          xAxisLabel: 'Timestamp',
-          yAxisLabel: 'Value',
-          showPoints: attrs.showPoints,
-          scaleAxes: attrs.scaleAxes,
-          gridLines: toGridLines(attrs.gridLines),
-          onBrush:
-            attrs.brushMode !== 'off'
-              ? (range) => {
-                  brushedRange = range;
-                }
-              : undefined,
-          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
-        }),
+        m(attrs.useSvg ? LineChartSvg : LineChart, sqlLineChartProps),
         m(
           'pre',
           {
@@ -1336,61 +1441,9 @@ function LineChartDemo(): m.Component<{
   stacked: boolean;
   gridLines: string;
   legendPosition: LegendPosition;
+  useSvg?: boolean;
 }> {
   let brushRange: {start: number; end: number} | undefined;
-
-  // Helper to interpolate Y value between two points at a given X
-  function interpolateY(
-    p1: {x: number; y: number},
-    p2: {x: number; y: number},
-    x: number,
-  ): number {
-    if (p1.x === p2.x) return p1.y;
-    const t = (x - p1.x) / (p2.x - p1.x);
-    return p1.y + t * (p2.y - p1.y);
-  }
-
-  // Filter points to range, with interpolation at boundaries for continuity
-  function filterPointsWithInterpolation(
-    points: ReadonlyArray<{x: number; y: number}>,
-    start: number,
-    end: number,
-  ): Array<{x: number; y: number}> {
-    if (points.length === 0) return [];
-
-    // Sort points by X (should already be sorted, but just in case)
-    const sorted = [...points].sort((a, b) => a.x - b.x);
-
-    const result: Array<{x: number; y: number}> = [];
-
-    // Find points within range and interpolate at boundaries
-    for (let i = 0; i < sorted.length; i++) {
-      const curr = sorted[i];
-      const prev = i > 0 ? sorted[i - 1] : undefined;
-
-      // Add interpolated start point if we're crossing into the range
-      if (prev !== undefined && prev.x < start && curr.x >= start) {
-        if (curr.x > start) {
-          result.push({x: start, y: interpolateY(prev, curr, start)});
-        }
-      }
-
-      // Add current point if within range
-      if (curr.x >= start && curr.x <= end) {
-        result.push({x: curr.x, y: curr.y});
-      }
-
-      // Add interpolated end point if we're leaving the range
-      const next = i < sorted.length - 1 ? sorted[i + 1] : undefined;
-      if (next !== undefined && curr.x <= end && next.x > end) {
-        if (curr.x < end) {
-          result.push({x: end, y: interpolateY(curr, next, end)});
-        }
-      }
-    }
-
-    return result;
-  }
 
   return {
     view: ({attrs}) => {
@@ -1399,43 +1452,33 @@ function LineChartDemo(): m.Component<{
         ? LINE_CHART_MULTI_SERIES_DATA
         : LINE_CHART_SAMPLE_DATA;
 
-      // Filter data to the brushed X range (only in filter mode)
+      // Pass full data through; xAxisMin/xAxisMax handles the visible window.
       const range = brushRange;
-      const data: LineChartData =
-        isFilter && range !== undefined
-          ? {
-              series: fullData.series.map((s) => ({
-                ...s,
-                points: filterPointsWithInterpolation(
-                  s.points,
-                  range.start,
-                  range.end,
-                ),
-              })),
-            }
-          : fullData;
+      const data: LineChartData = fullData;
+
+      const lineChartProps = {
+        data,
+        height: attrs.height,
+        xAxisLabel: 'Time',
+        yAxisLabel: 'Value',
+        logScale: attrs.logScale,
+        showPoints: attrs.showPoints,
+        xAxisMin: isFilter ? range?.start : undefined,
+        xAxisMax: isFilter ? range?.end : undefined,
+        stacked: attrs.stacked,
+        gridLines: toGridLines(attrs.gridLines),
+        legendPosition: attrs.legendPosition,
+        onBrush:
+          attrs.brushMode !== 'off'
+            ? (newRange: {start: number; end: number}) => {
+                brushRange = newRange;
+              }
+            : undefined,
+        selection: attrs.brushMode === 'select' ? brushRange : undefined,
+      };
 
       return m('div', [
-        m(LineChart, {
-          data,
-          height: attrs.height,
-          xAxisLabel: 'Time',
-          yAxisLabel: 'Value',
-          logScale: attrs.logScale,
-          showPoints: attrs.showPoints,
-          xAxisMin: isFilter ? range?.start : undefined,
-          xAxisMax: isFilter ? range?.end : undefined,
-          stacked: attrs.stacked,
-          gridLines: toGridLines(attrs.gridLines),
-          legendPosition: attrs.legendPosition,
-          onBrush:
-            attrs.brushMode !== 'off'
-              ? (newRange) => {
-                  brushRange = newRange;
-                }
-              : undefined,
-          selection: attrs.brushMode === 'select' ? brushRange : undefined,
-        }),
+        m(attrs.useSvg ? LineChartSvg : LineChart, lineChartProps),
         m(
           'pre',
           {
@@ -2290,6 +2333,7 @@ function SQLCdfDemo(): m.Component<{
   maxPoints: number;
   brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
+  useSvg?: boolean;
 }> {
   let loader: SQLCdfLoader | undefined;
   let brushedRange: {start: number; end: number} | undefined;
@@ -2314,23 +2358,25 @@ function SQLCdfDemo(): m.Component<{
       };
       const {data, isPending} = loader.use(config);
 
+      const cdfProps = {
+        data,
+        height: attrs.height,
+        xAxisLabel: 'Duration (ns)',
+        yAxisLabel: 'Cumulative %',
+        showPoints: false,
+        scaleAxes: true,
+        gridLines: toGridLines(attrs.gridLines),
+        onBrush:
+          attrs.brushMode !== 'off'
+            ? (range: {start: number; end: number}) => {
+                brushedRange = range;
+              }
+            : undefined,
+        selection: attrs.brushMode === 'select' ? brushedRange : undefined,
+      };
+
       return m('div', [
-        m(LineChart, {
-          data,
-          height: attrs.height,
-          xAxisLabel: 'Duration (ns)',
-          yAxisLabel: 'Cumulative %',
-          showPoints: false,
-          scaleAxes: true,
-          gridLines: toGridLines(attrs.gridLines),
-          onBrush:
-            attrs.brushMode !== 'off'
-              ? (range) => {
-                  brushedRange = range;
-                }
-              : undefined,
-          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
-        }),
+        m(attrs.useSvg ? LineChartSvg : LineChart, cdfProps),
         m(
           'pre',
           {
