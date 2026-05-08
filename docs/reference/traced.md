@@ -83,8 +83,11 @@ Entities interact with `traced` primarily through two channels:
     <prod_group>:<prod_mode>:<cons_group>:<cons_mode>`: Sets the group ownership
     and permission mode for the producer and consumer sockets. This is important
     for controlling which users and processes can connect to `traced`.
-*   `--enable-relay-endpoint`: Enables an endpoint for multi-machine tracing via
-    `traced_relay`.
+*   `--enable-relay-endpoint`: Enables an endpoint for
+    [multi-machine tracing](/docs/deployment/multi-machine-architecture.md) via
+    `traced_relay`. See
+    [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md)
+    for the host-side setup.
 
 ## Built-in Producer
 

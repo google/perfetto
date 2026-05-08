@@ -27,6 +27,7 @@
 #include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -92,7 +93,7 @@ void ThermalTracker::ParseThermalExynosAcpmBulk(protozero::ConstBytes blob) {
   protos::pbzero::ThermalExynosAcpmBulkFtraceEvent::Decoder event(blob);
   auto tz_id = static_cast<uint32_t>(event.tz_id());
   if (tz_id >= kAcpmThermalZones.size()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::ftrace_thermal_exynos_acpm_unknown_tz_id);
     return;
   }
@@ -127,7 +128,7 @@ void ThermalTracker::ParseThermalExynosAcpmHighOverhead(
   protos::pbzero::ThermalExynosAcpmHighOverheadFtraceEvent::Decoder event(blob);
   auto tz_id = static_cast<uint32_t>(event.tz_id());
   if (tz_id >= kAcpmThermalZones.size()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::ftrace_thermal_exynos_acpm_unknown_tz_id);
     return;
   }

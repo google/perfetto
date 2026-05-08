@@ -83,6 +83,10 @@ export class HeapDumpExplorerSession {
   // opens with defaults instead of the prior dump's filters.
   private _flamegraphPanelState: FlamegraphState | undefined;
 
+  // Set when the plugin auto-redirected to HDE on load; gates the
+  // "default view changed" hint on the overview.
+  autoNavigated = false;
+
   constructor(
     readonly trace: Trace,
     readonly engine: Engine,
