@@ -29,6 +29,7 @@
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
@@ -95,7 +96,7 @@ void ProtoLogParser::ParseProtoLogMessage(
         // This shouldn't happen since we already checked the incremental
         // state is valid.
         string_params.emplace_back("<ERROR>");
-        storage->IncrementStats(
+        context_->trace_processor_context_->stats_tracker->IncrementStats(
             stats::winscope_protolog_missing_interned_arg_parse_errors);
         continue;
       }
@@ -113,7 +114,7 @@ void ProtoLogParser::ParseProtoLogMessage(
       // This shouldn't happen since we already checked the incremental
       // state is valid.
       string_params.emplace_back("<ERROR>");
-      storage->IncrementStats(
+      context_->trace_processor_context_->stats_tracker->IncrementStats(
           stats::winscope_protolog_missing_interned_stacktrace_parse_errors);
     } else {
       stacktrace = storage->InternString(
@@ -141,7 +142,8 @@ void ProtoLogParser::ParseProtoLogMessage(
     // This shouldn't happen since we should have processed all viewer config
     // messages in the tokenization state, and process the protolog messages
     // only in the parsing state.
-    storage->IncrementStats(stats::winscope_protolog_message_decoding_failed);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_protolog_message_decoding_failed);
   }
 }
 

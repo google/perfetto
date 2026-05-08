@@ -299,9 +299,9 @@ base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
   return column_names;
 }
 
-constexpr std::array<std::string_view, 6> kTokensAllowedInMacro{
-    "ColumnNameList", "_ProjectionFragment", "_TableNameList", "ColumnName",
-    "Expr",           "TableOrSubquery",
+constexpr std::array<std::string_view, 8> kTokensAllowedInMacro{
+    "ColumnNameList", "_ProjectionFragment", "_TableNameList",  "ColumnName",
+    "Expr",           "TableOrSubquery",     "UnparenExprList", "ExprList",
 };
 
 bool IsTokenAllowedInMacro(const std::string& str) {

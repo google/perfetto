@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -102,7 +103,7 @@ void GraphicsFrameEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   protos::pbzero::GraphicsFrameEvent::BufferEvent::Decoder event(
       frame_event.buffer_event());
   if (!event.has_buffer_id()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::graphics_frame_event_parser_errors);
     return;
   }
@@ -146,7 +147,7 @@ void GraphicsFrameEventParser::CreateBufferEvent(
       it->latch_ts = timestamp;
       break;
     default:
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::graphics_frame_event_parser_errors);
       break;
   }

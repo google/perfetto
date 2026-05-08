@@ -376,6 +376,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
@@ -602,6 +603,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
@@ -2450,6 +2452,16 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/common:stats_tracker
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_stats_tracker",
+    srcs = [
+        "src/trace_processor/importers/common/global_stats_tracker.cc",
+        "src/trace_processor/importers/common/global_stats_tracker.h",
+        "src/trace_processor/importers/common/stats_tracker.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/common:synthetic_tid_hdr
 perfetto_filegroup(
     name = "src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -4083,6 +4095,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/tables.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/trace_bounds.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/views.sql",
@@ -4151,6 +4164,14 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/std/gpu/context.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std/metasql:metasql
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_std_metasql_metasql",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/metasql/unparenthesize.sql",
     ],
 )
 
@@ -4279,6 +4300,7 @@ perfetto_cpp_blob_header(
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
         ":src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
+        ":src_trace_processor_perfetto_sql_stdlib_std_metasql_metasql",
         ":src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
         ":src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
@@ -4551,8 +4573,6 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sqlite_engine.h",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/sqlite_utils.h",
-        "src/trace_processor/sqlite/stats_table.cc",
-        "src/trace_processor/sqlite/stats_table.h",
     ],
 )
 
@@ -9290,6 +9310,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
@@ -9546,6 +9567,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",

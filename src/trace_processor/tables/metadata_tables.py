@@ -745,6 +745,86 @@ TRACE_FILE_TABLE = Table(
                 '''Whether the file is a container (e.g. zip, gzip)''',
         }))
 
+STATS_TABLE = Table(
+    python_module=__file__,
+    class_name='StatsTable',
+    sql_name='__intrinsic_stats',
+    columns=[
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'key',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'idx',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'severity',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'source',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'value',
+            CppInt64(),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'description',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'machine_id',
+            CppOptional(CppTableId(MACHINE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'trace_id',
+            CppOptional(CppTableId(TRACE_FILE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Diagnostic stats and parser errors, one row per
+            (key, idx, machine_id, trace_id) combination. Written by
+            GlobalStatsTracker; exposed via the `stats` SQL view.
+        ''',
+        group='Misc',
+        columns={
+            'name': 'Stat name (e.g. ftrace_cpu_overrun_begin).',
+            'key': 'Numeric stat key (stats::KeyIDs enum value).',
+            'idx': 'Per-stat index for kIndexed stats; NULL for kSingle.',
+            'severity': '"info" | "data_loss" | "error".',
+            'source': '"trace" (recorded on-device) or "analysis" (TP).',
+            'value': 'Stat value.',
+            'description': 'Human-readable description.',
+            'machine_id': 'Machine that produced this stat (NULL for kGlobal).',
+            'trace_id': 'Trace that produced this stat (NULL for kGlobal).',
+        }))
+
 METADATA_TABLE = Table(
     python_module=__file__,
     class_name='MetadataTable',
@@ -987,6 +1067,7 @@ ALL_TABLES = [
     TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
+    STATS_TABLE,
     MODULES_TABLE,
     PROCESS_TABLE,
     THREAD_TABLE,

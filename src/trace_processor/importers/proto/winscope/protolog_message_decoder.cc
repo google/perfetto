@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -139,7 +140,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
           break;
         case 'd': {
           if (sint64_params_itr == sint64_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -151,7 +152,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
         }
         case 'o': {
           if (sint64_params_itr == sint64_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -164,7 +165,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
         }
         case 'x': {
           if (sint64_params_itr == sint64_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -177,7 +178,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
         }
         case 'f': {
           if (double_params_itr == double_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -189,7 +190,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
         }
         case 'e': {
           if (double_params_itr == double_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -201,7 +202,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
         }
         case 'g': {
           if (double_params_itr == double_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -213,7 +214,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
         }
         case 's': {
           if (str_params_itr == string_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -224,7 +225,7 @@ std::string ProtoLogMessageDecoder::FormatMessage(
         }
         case 'b': {
           if (boolean_params_itr == boolean_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -249,7 +250,8 @@ std::string ProtoLogMessageDecoder::FormatMessage(
       double_params_itr != double_params.end() ||
       boolean_params_itr != boolean_params.end() ||
       str_params_itr != string_params.end()) {
-    context_->storage->IncrementStats(stats::winscope_protolog_param_mismatch);
+    context_->stats_tracker->IncrementStats(
+        stats::winscope_protolog_param_mismatch);
   }
 
   return formatted_message;

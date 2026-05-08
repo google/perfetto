@@ -139,7 +139,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
-#include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
 #include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
@@ -612,8 +611,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   //
   // TODO(lalitm): remove heap graph tracker from global context and get rid
   // of this.
-  context()->heap_graph_tracker =
-      std::make_unique<HeapGraphTracker>(context()->storage.get());
+  context()->heap_graph_tracker = std::make_unique<HeapGraphTracker>(
+      context()->storage.get(), context()->global_stats_tracker.get());
 
   // Initialize deobfuscation tracker.
   context()->deobfuscation_tracker =
@@ -1230,6 +1229,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_counter_table());
   AddStaticTable(tables, storage->mutable_android_network_packets_table());
   AddStaticTable(tables, storage->mutable_metadata_table());
+  AddStaticTable(tables, storage->mutable_stats_table());
   AddStaticTable(tables, storage->mutable_slice_table());
   AddStaticTable(tables, storage->mutable_track_event_callstacks_table());
   AddStaticTable(tables, storage->mutable_flow_table());
@@ -1514,7 +1514,6 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 
   // Legacy tables.
   engine->RegisterVirtualTableModule<SqlStatsModule>("sqlstats", storage);
-  engine->RegisterVirtualTableModule<StatsModule>("stats", storage);
   engine->RegisterVirtualTableModule<TablePointerModule>(
       "__intrinsic_table_ptr", nullptr);
 

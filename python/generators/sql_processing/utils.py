@@ -39,6 +39,7 @@ ALLOWED_PREFIXES = {
     'linux': ['cpu', 'memory'],
     'stacks': ['cpu_profiling'],
     'std/gpu': ['gpu'],
+    'std/metasql': ['metasql'],
 }
 
 # Allows for nonstandard object names.
@@ -72,6 +73,8 @@ COLUMN_TYPES = [
 MACRO_ARG_TYPES = [
     'TABLEORSUBQUERY',
     'EXPR',
+    'EXPRLIST',
+    'UNPARENEXPRLIST',
     'COLUMNNAME',
     'COLUMNNAMELIST',
     # Internal macro arg types for advanced use cases
