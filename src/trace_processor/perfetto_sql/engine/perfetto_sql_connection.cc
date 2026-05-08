@@ -557,11 +557,21 @@ PerfettoSqlConnection::ExecuteUntilLastStatement(SqlSource sql_source) {
 
   auto result = ExecuteUntilLastStatementImpl(std::move(sql_source));
 
-  // Unwind the stack back to our entry point. For include frames,
-  // add their traceback info to any error that occurred.
+  // Unwind the stack back to our entry point. For include frames on the
+  // error path, decorate the result with traceback info AND mark the
+  // module poisoned so future INCLUDEs of the same key short-circuit
+  // with the same error rather than re-running the broken body. Poison
+  // walks up the stack naturally because every ancestor INCLUDE frame
+  // also hits this branch on its way out.
+  //
+  // Poison the module with the error context as it stands BEFORE we
+  // prepend this frame's own traceback. The stored reason therefore
+  // shows what failed inside this module (descendant tracebacks) but
+  // not where this module was called from (ancestor tracebacks).
   while (execution_stack_.size() > stack_base) {
     auto& frame = execution_stack_.back();
-    if (!result.ok() && frame.type == FrameType::kInclude) {
+    if (frame.type == FrameType::kInclude && !result.ok()) {
+      frame.include_claim.ReleasePoisoned(result.status().message());
       std::string traceback = frame.traceback_sql.AsTraceback(0);
       result = base::ErrStatus("%s%s", traceback.c_str(),
                                result.status().c_message());
@@ -576,34 +586,46 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   // Handle wildcard frames specially - they just push include frames
   if (execution_stack_[frame_idx].type == FrameType::kWildcard) {
     auto& frame = execution_stack_[frame_idx];
-    // Find next module to include (skip already included ones)
     while (frame.wildcard_index < frame.wildcard_modules.size()) {
-      auto& module_pair = frame.wildcard_modules[frame.wildcard_index];
-      const std::string& key = module_pair.first;
-      auto* file_ptr = module_pair.second;
-      frame.wildcard_index++;
+      auto& slot = frame.wildcard_modules[frame.wildcard_index++];
+      std::string key = std::move(slot.first);
+      std::string sql = std::move(slot.second);
 
-      if (!file_ptr->included) {
-        PERFETTO_TP_TRACE(
-            metatrace::Category::QUERY_TIMELINE,
-            "Include (expanded from wildcard)",
-            [&key](metatrace::Record* r) { r->AddArg("Module", key); });
+      PERFETTO_TP_TRACE(
+          metatrace::Category::QUERY_TIMELINE,
+          "Include (expanded from wildcard)",
+          [&key](metatrace::Record* r) { r->AddArg("Module", key); });
 
-        // Copy traceback before push_back which may invalidate frame ref
-        SqlSource traceback = frame.wildcard_traceback_sql;
-
-        // Push include frame for this module
-        execution_stack_.push_back(
-            {FrameType::kInclude,
-             SqlSource::FromModuleInclude(file_ptr->sql, key),
-             /*parser=*/nullptr, /*accumulated_stats=*/{},
-             /*current_stmt=*/std::nullopt, key, file_ptr, std::move(traceback),
-             /*wildcard_modules=*/{},
-             /*wildcard_index=*/0,
-             /*wildcard_traceback_sql=*/
-             SqlSource::FromTraceProcessorImplementation("")});
-        return FrameResult::kContinue;
+      if (IsKeyOnIncludeStack(key)) {
+        std::string traceback = frame.wildcard_traceback_sql.AsTraceback(0);
+        return base::ErrStatus(
+            "%sINCLUDE: cycle detected — module '%s' is already mid-import "
+            "in this execution.",
+            traceback.c_str(), key.c_str());
       }
+      auto res = database_->TryClaimInclude(key);
+      if (res.already_included) {
+        continue;
+      }
+      if (res.poisoned) {
+        std::string traceback = frame.wildcard_traceback_sql.AsTraceback(0);
+        return base::ErrStatus(
+            "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
+            traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+      }
+
+      // Copy traceback before push_back which may invalidate frame ref.
+      SqlSource traceback = frame.wildcard_traceback_sql;
+      execution_stack_.push_back(
+          {FrameType::kInclude, SqlSource::FromModuleInclude(sql, key),
+           /*parser=*/nullptr, /*accumulated_stats=*/{},
+           /*current_stmt=*/std::nullopt, key, std::move(traceback),
+           /*include_claim=*/std::move(res.claim),
+           /*wildcard_modules=*/{},
+           /*wildcard_index=*/0,
+           /*wildcard_traceback_sql=*/
+           SqlSource::FromTraceProcessorImplementation("")});
+      return FrameResult::kContinue;
     }
     // No more modules to process
     return FrameResult::kFrameDone;
@@ -735,7 +757,7 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   if (frame.accumulated_stats.statement_count_with_output > 0) {
     return base::ErrStatus("INCLUDE: Included module returning values.");
   }
-  frame.file_ptr->included = true;
+  frame.include_claim.ReleaseSuccess();
   return FrameResult::kFrameDone;
 }
 
@@ -768,8 +790,9 @@ PerfettoSqlConnection::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
   execution_stack_.push_back(
       {FrameType::kRoot, std::move(sql_source), /*parser=*/nullptr,
        /*accumulated_stats=*/{}, /*current_stmt=*/std::nullopt,
-       /*include_key=*/{}, /*file_ptr=*/nullptr,
+       /*include_key=*/{},
        /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
+       /*include_claim=*/{},
        /*wildcard_modules=*/{}, /*wildcard_index=*/0,
        /*wildcard_traceback_sql=*/
        SqlSource::FromTraceProcessorImplementation("")});
@@ -1091,62 +1114,81 @@ base::Status PerfettoSqlConnection::IncludePackageImpl(
     const std::string& include_key,
     const PerfettoSqlParser& parser) {
   if (!include_key.empty() && include_key.back() == '*') {
-    // If the key ends with a wildcard, collect all matching modules and
-    // push a wildcard frame that will process them one at a time.
+    // If the key ends with a wildcard, collect all matching (key, sql) pairs
+    // and push a wildcard frame that will process them one at a time. The
+    // expander goes through |TryClaimInclude| per module; already-included
+    // modules are skipped silently and poisoned modules surface their
+    // recorded reason.
     std::string prefix = include_key.substr(0, include_key.size() - 1);
-    std::vector<
-        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
-        matching_modules;
+    std::vector<std::pair<std::string, std::string>> matching_modules;
     for (auto module = package.modules.GetIterator(); module; ++module) {
       if (!base::StartsWith(module.key(), prefix))
         continue;
-      // Include both already-included and not-yet-included modules in the list
-      // The wildcard frame will skip already-included ones during iteration
-      matching_modules.emplace_back(module.key(), &module.value());
+      matching_modules.emplace_back(module.key(), module.value());
     }
 
     if (matching_modules.empty()) {
       return base::OkStatus();
     }
 
-    // Push a wildcard frame that will iterate through these modules
     execution_stack_.push_back(
         {FrameType::kWildcard,
          /*sql_source=*/SqlSource::FromTraceProcessorImplementation(""),
          /*parser=*/nullptr, /*accumulated_stats=*/{},
          /*current_stmt=*/std::nullopt,
-         /*include_key=*/{}, /*file_ptr=*/nullptr,
+         /*include_key=*/{},
          /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
-         std::move(matching_modules), /*wildcard_index=*/0,
+         /*include_claim=*/{}, std::move(matching_modules),
+         /*wildcard_index=*/0,
          /*wildcard_traceback_sql=*/parser.statement_sql()});
     return base::OkStatus();
   }
-  auto* module_file = package.modules.Find(include_key);
-  if (!module_file) {
+  auto* module_sql = package.modules.Find(include_key);
+  if (!module_sql) {
     return base::ErrStatus("INCLUDE: unknown module '%s'", include_key.c_str());
   }
-  return IncludeModuleImpl(*module_file, include_key, parser);
+  return IncludeModuleImpl(include_key, *module_sql, parser);
+}
+
+bool PerfettoSqlConnection::IsKeyOnIncludeStack(const std::string& key) const {
+  for (const auto& f : execution_stack_) {
+    if (f.type == FrameType::kInclude && f.include_key == key) {
+      return true;
+    }
+  }
+  return false;
 }
 
 base::Status PerfettoSqlConnection::IncludeModuleImpl(
-    sql_modules::RegisteredPackage::ModuleFile& file,
     const std::string& key,
+    const std::string& sql,
     const PerfettoSqlParser& parser) {
-  // INCLUDE is noop for already included files.
-  if (file.included) {
+  if (IsKeyOnIncludeStack(key)) {
+    std::string traceback = parser.statement_sql().AsTraceback(0);
+    return base::ErrStatus(
+        "%sINCLUDE: cycle detected — module '%s' is already mid-import in "
+        "this execution.",
+        traceback.c_str(), key.c_str());
+  }
+  auto res = database_->TryClaimInclude(key);
+  if (res.already_included) {
     return base::OkStatus();
   }
-
-  // Push include frame onto execution stack. The main loop will process it.
+  if (res.poisoned) {
+    std::string traceback = parser.statement_sql().AsTraceback(0);
+    return base::ErrStatus(
+        "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
+        traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+  }
   execution_stack_.push_back({FrameType::kInclude,
-                              SqlSource::FromModuleInclude(file.sql, key),
+                              SqlSource::FromModuleInclude(sql, key),
                               /*parser=*/nullptr, /*accumulated_stats=*/{},
-                              /*current_stmt=*/std::nullopt, key, &file,
+                              /*current_stmt=*/std::nullopt, key,
                               /*traceback_sql=*/parser.statement_sql(),
+                              /*include_claim=*/std::move(res.claim),
                               /*wildcard_modules=*/{}, /*wildcard_index=*/0,
                               /*wildcard_traceback_sql=*/
                               SqlSource::FromTraceProcessorImplementation("")});
-
   return base::OkStatus();
 }
 

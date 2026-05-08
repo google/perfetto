@@ -277,8 +277,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
           "Module name '%s' must start with package name '%s.' as prefix.",
           module_name.c_str(), name.c_str());
     }
-    new_package.modules.Insert(module_name,
-                               {module_name_and_sql.second, false});
+    new_package.modules.Insert(module_name, module_name_and_sql.second);
   }
   return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
@@ -837,8 +836,7 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   // Save the name before moving sql_package
   std::string pkg_name = name;
   registered_sql_packages_.emplace_back(std::move(sql_package));
-  engine_->RegisterPackage(pkg_name, std::move(new_package));
-  return base::OkStatus();
+  return engine_->RegisterPackage(pkg_name, std::move(new_package));
 }
 
 // =================================================================
@@ -1548,7 +1546,11 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     if (!new_package.ok()) {
       PERFETTO_FATAL("%s", new_package.status().c_message());
     }
-    connection->RegisterPackage(package.name, std::move(*new_package));
+    auto status =
+        connection->RegisterPackage(package.name, std::move(*new_package));
+    if (!status.ok()) {
+      PERFETTO_FATAL("%s", status.c_message());
+    }
   }
 
   // Import prelude package.

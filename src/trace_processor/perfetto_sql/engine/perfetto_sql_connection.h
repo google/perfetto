@@ -248,10 +248,15 @@ class PerfettoSqlConnection {
 
   SqliteConnection* sqlite_connection() { return connection_.get(); }
 
-  // Makes new SQL package available to include.
-  void RegisterPackage(const std::string& name,
-                       sql_modules::RegisteredPackage package) {
-    database_->RegisterPackage(name, std::move(package));
+  // Test-only accessor for the |PerfettoSqlDatabase| backing this connection.
+  PerfettoSqlDatabase* database_for_testing() { return database_.get(); }
+
+  // Makes new SQL package available to include. Fails if any module key in
+  // the new package has already been included or poisoned on the underlying
+  // database; see |PerfettoSqlDatabase::RegisterPackage|.
+  base::Status RegisterPackage(const std::string& name,
+                               sql_modules::RegisteredPackage package) {
+    return database_->RegisterPackage(name, std::move(package));
   }
 
   // Removes a SQL package.
@@ -334,15 +339,17 @@ class PerfettoSqlConnection {
     ExecutionStats accumulated_stats;
     std::optional<SqliteConnection::PreparedStatement> current_stmt;
 
-    // For include frames: metadata needed to complete the include
+    // For include frames: metadata needed to complete the include.
+    // |include_claim| owns the cross-connection in-flight slot for the
+    // module key; ReleaseSuccess is called on clean completion, and the
+    // unwind path on error calls ReleasePoisoned so subsequent attempts
+    // short-circuit with the recorded reason.
     std::string include_key;
-    sql_modules::RegisteredPackage::ModuleFile* file_ptr = nullptr;
     SqlSource traceback_sql;
+    PerfettoSqlDatabase::IncludeClaim include_claim;
 
-    // For wildcard frames: modules to include (processed in order)
-    std::vector<
-        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
-        wildcard_modules;
+    // For wildcard frames: (key, sql) pairs to expand one at a time.
+    std::vector<std::pair<std::string, std::string>> wildcard_modules;
     size_t wildcard_index = 0;
     SqlSource wildcard_traceback_sql;
   };
@@ -401,10 +408,17 @@ class PerfettoSqlConnection {
                                   const std::string& key,
                                   const PerfettoSqlParser&);
 
-  // Include a given module.
-  base::Status IncludeModuleImpl(sql_modules::RegisteredPackage::ModuleFile&,
-                                 const std::string& key,
+  // Include a given module body. Goes through |TryClaimInclude| on the
+  // database; returns OkStatus on already-included, an error on poisoned,
+  // or pushes an include frame on the execution stack on a fresh claim.
+  base::Status IncludeModuleImpl(const std::string& key,
+                                 const std::string& sql,
                                  const PerfettoSqlParser&);
+
+  // Returns true iff |key| is the |include_key| of an active |kInclude|
+  // frame on this connection's execution stack — i.e. a re-entry of |key|
+  // would form an include cycle.
+  bool IsKeyOnIncludeStack(const std::string& key) const;
 
   // Implementation of ExecuteUntilLastStatement. Separated to handle
   // re-entrant Execute() calls from statement handlers.
