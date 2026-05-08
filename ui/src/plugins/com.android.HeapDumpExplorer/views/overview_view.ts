@@ -24,15 +24,8 @@ import type {HeapDump} from '../queries';
 import {Callout} from '../../../widgets/callout';
 import {Button} from '../../../widgets/button';
 
-const HIDE_DEFAULT_CHANGED_KEY = 'hideHeapDumpExplorerDefaultChangedHint';
-
-function shouldShowExplanation(key: string): boolean {
-  return localStorage.getItem(key) !== 'true';
-}
-
-function dismissExplanation(key: string): void {
-  localStorage.setItem(key, 'true');
-}
+export const HIDE_DEFAULT_CHANGED_KEY =
+  'hideHeapDumpExplorerDefaultChangedHint';
 
 const HEAP_SCHEMA: SchemaRegistry = {
   query: {
@@ -255,6 +248,7 @@ interface OverviewViewAttrs {
   readonly navigate: NavFn;
   readonly showDefaultChangedHint: boolean;
   readonly onBackToTimeline: () => void;
+  readonly onDismissDefaultChangedHint: () => void;
 }
 function OverviewView(): m.Component<OverviewViewAttrs> {
   return {
@@ -265,10 +259,9 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
         navigate,
         showDefaultChangedHint,
         onBackToTimeline,
+        onDismissDefaultChangedHint,
       } = vnode.attrs;
-      const showHint =
-        showDefaultChangedHint &&
-        shouldShowExplanation(HIDE_DEFAULT_CHANGED_KEY);
+      const showHint = showDefaultChangedHint;
       const heapIndices: number[] = [];
       for (let i = 0; i < overview.heaps.length; i++) {
         const h = overview.heaps[i];
@@ -320,7 +313,7 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
                 className: 'ah-default-changed-callout',
                 icon: 'info',
                 dismissible: true,
-                onDismiss: () => dismissExplanation(HIDE_DEFAULT_CHANGED_KEY),
+                onDismiss: onDismissDefaultChangedHint,
               },
               m('p', [
                 m(
