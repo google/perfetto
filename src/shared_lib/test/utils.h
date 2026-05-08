@@ -86,6 +86,10 @@ class TracingSession {
       clear_period_ms_ = clear_period_ms;
       return *this;
     }
+    Builder& enable_protovm_config() {
+      enable_protovm_config_ = true;
+      return *this;
+    }
     std::vector<uint8_t> BuildProtoConfig();
 
     TracingSession Build();
@@ -95,6 +99,7 @@ class TracingSession {
     std::vector<std::string> enabled_categories_;
     std::vector<std::string> disabled_categories_;
     uint32_t clear_period_ms_ = 0;
+    bool enable_protovm_config_ = false;
   };
 
   static TracingSession Adopt(struct PerfettoTracingSessionImpl*);

@@ -35,15 +35,32 @@ import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 import m from 'mithril';
-import {RecordTraceV2Settings} from './settings';
+import z from 'zod';
+import {setTracedSocket} from './adb/adb_tracing_session';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
-    const settings = new RecordTraceV2Settings();
-    settings.registerSettings(app.settings);
+    const tracedSetting = app.settings.register({
+      id: 'dev.perfetto.TracedConsumerSocketAddress',
+      name: 'Traced socket address',
+      description: `The recording plugin communicates with traced using a socket. This setting specifies the address the UI connects to.
+      To use a socket in the abstract namespace, prefix its name with "@".`,
+      schema: z.string(),
+      defaultValue: '/dev/socket/traced_consumer',
+      requiresReload: true,
+    });
+
+    // This sets global state, which is typically frowned upon as it introduces
+    // an implicit ordering dependency between this plugin and any other plugins
+    // that use the adb tracing session code.
+    //
+    // TODO (stevegolton): Move this setting to a common plugin that's shared
+    // between this recording plugin and any other plugins that require tracing
+    // capabilities.
+    setTracedSocket(tracedSetting.get());
 
     app.sidebar.addMenuItem({
       section: 'trace_files',
@@ -58,7 +75,7 @@ export default class implements PerfettoPlugin {
         return m(RecordPageV2, {
           subpage,
           app,
-          getRecordingManager: () => this.getRecordingManager(app, settings),
+          getRecordingManager: () => this.getRecordingManager(app),
         });
       },
     });
@@ -66,7 +83,7 @@ export default class implements PerfettoPlugin {
       id: 'dev.perfetto.RecordTraceV2.disconnectTarget',
       name: 'Disconnect the current device',
       callback: () => {
-        const recMgr = this.getRecordingManager(app, settings);
+        const recMgr = this.getRecordingManager(app);
         if (recMgr.currentTarget) {
           recMgr.currentTarget.disconnect();
         }
@@ -77,18 +94,13 @@ export default class implements PerfettoPlugin {
   // Lazily initialize the RecordingManager at first call. This is to prevent
   // providers to connect to sockets / devtools (which in turn can trigger
   // security UX in the browser) before the user has even done anything.
-  private static getRecordingManager(
-    app: App,
-    settings: RecordTraceV2Settings,
-  ): RecordingManager {
+  private static getRecordingManager(app: App): RecordingManager {
     if (this.recordingMgr === undefined) {
-      const recMgr = new RecordingManager(app, settings);
+      const recMgr = new RecordingManager(app);
       this.recordingMgr = recMgr;
-      recMgr.registerProvider(new AdbWebusbTargetProvider(recMgr.settings));
-      recMgr.registerProvider(new AdbWebsocketTargetProvider(recMgr.settings));
-      recMgr.registerProvider(
-        new WebDeviceProxyTargetProvider(recMgr.settings),
-      );
+      recMgr.registerProvider(new AdbWebusbTargetProvider());
+      recMgr.registerProvider(new AdbWebsocketTargetProvider());
+      recMgr.registerProvider(new WebDeviceProxyTargetProvider());
 
       const chromeProvider = new ChromeExtensionTargetProvider();
       recMgr.registerProvider(chromeProvider);

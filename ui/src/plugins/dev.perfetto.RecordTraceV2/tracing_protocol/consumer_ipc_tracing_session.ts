@@ -21,6 +21,7 @@ import {
   TracingSessionState,
 } from '../interfaces/tracing_session';
 import {TracingProtocol} from './tracing_protocol';
+import {errResult, okResult, Result} from '../../../base/result';
 
 /**
  * A concrete implementation of {@link TracingSession} over a
@@ -28,17 +29,61 @@ import {TracingProtocol} from './tracing_protocol';
  * are able to obtain, in a way or another, a byte stream to talk to the traced
  * consumer socket.
  */
+// Factory for opening a fresh consumer-side TracingProtocol channel. Used by
+// snapshot() since CloneSession requires a separate consumer connection.
+export type ConsumerIpcFactory = () => Promise<Result<TracingProtocol>>;
+
+export interface ConsumerIpcTracingSessionArgs {
+  readonly ipcFactory: ConsumerIpcFactory;
+  readonly traceConfig: protos.ITraceConfig;
+}
+
 export class ConsumerIpcTracingSession implements TracingSession {
   private consumerIpc: TracingProtocol;
   private _state: TracingSessionState = 'RECORDING';
   readonly logs = new Array<TracingSessionLogEntry>();
   private traceBuf = new ResizableArrayBuffer(64 * 1024);
   readonly onSessionUpdate = new EvtSource<void>();
+  private readonly uniqueSessionName?: string;
+  private readonly ipcFactory: ConsumerIpcFactory;
 
-  constructor(consumerIpc: TracingProtocol, traceConfig: protos.ITraceConfig) {
+  /**
+   * Starts a fresh tracing session: opens a consumer connection, sends
+   * EnableTracing, and drives the lifecycle through to FINISHED.
+   *
+   * @param args.ipcFactory Opens a consumer-side TracingProtocol channel.
+   *   Called once here for the recording itself, and again later by snapshot()
+   *   if invoked, since CloneSession requires a separate consumer connection.
+   * @param args.traceConfig The TraceConfig to start tracing with. Its
+   *   `uniqueSessionName` (if any) is captured so a later snapshot() call
+   *   knows which session to snapshot.
+   */
+  static async create({
+    ipcFactory,
+    traceConfig,
+  }: ConsumerIpcTracingSessionArgs): Promise<
+    Result<ConsumerIpcTracingSession>
+  > {
+    const ipcStatus = await ipcFactory();
+    if (!ipcStatus.ok) return ipcStatus;
+    const session = new ConsumerIpcTracingSession(
+      ipcStatus.value,
+      ipcFactory,
+      traceConfig.uniqueSessionName ?? undefined,
+    );
+    session.start(traceConfig);
+    return okResult(session);
+  }
+
+  private constructor(
+    consumerIpc: TracingProtocol,
+    ipcFactory: ConsumerIpcFactory,
+    uniqueSessionName?: string,
+  ) {
     this.consumerIpc = consumerIpc;
     this.consumerIpc.onClose = this.onProtocolClose.bind(this);
-    this.start(traceConfig);
+    this.uniqueSessionName = uniqueSessionName;
+    this.ipcFactory = ipcFactory;
   }
 
   get state(): TracingSessionState {
@@ -95,7 +140,6 @@ export class ConsumerIpcTracingSession implements TracingSession {
     }
     // There is nothing more to do if we arrive here via cancel() or an error.
     if (!['STOPPING', 'RECORDING'].includes(this._state)) return;
-
     // We reach this point either:
     // 1. In state == 'RECORDING', if the durationMs expired and the
     //    EnableTracing request is resolved.
@@ -147,4 +191,46 @@ export class ConsumerIpcTracingSession implements TracingSession {
     this.setState('ERRORED');
     this.consumerIpc.close();
   }
+
+  async snapshot(): Promise<Result<Uint8Array>> {
+    const uniqueSessionName = this.uniqueSessionName;
+    if (!uniqueSessionName) {
+      return errResult(
+        'snapshot requires a non-empty unique_session_name in the ' +
+          'original TraceConfig',
+      );
+    }
+    const ipcStatus = await this.ipcFactory();
+    if (!ipcStatus.ok) return ipcStatus;
+    const consumerIpc = ipcStatus.value;
+    try {
+      const cloneResp = await consumerIpc.invoke(
+        'CloneSession',
+        new protos.CloneSessionRequest({uniqueSessionName}),
+      );
+      if (!cloneResp.success) {
+        return errResult(cloneResp.error || 'CloneSession failed');
+      }
+      const bytes = await readAllTraceBytes(consumerIpc);
+      return okResult(bytes);
+    } catch (e) {
+      return errResult(`snapshot error: ${e}`);
+    } finally {
+      consumerIpc.close();
+    }
+  }
+}
+
+function readAllTraceBytes(consumerIpc: TracingProtocol): Promise<Uint8Array> {
+  return new Promise((resolve) => {
+    const buf = new ResizableArrayBuffer(64 * 1024);
+    const stream = consumerIpc.invokeStreaming(
+      'ReadBuffers',
+      new protos.ReadBuffersRequest({}),
+    );
+    stream.onTraceData = (data: Uint8Array, hasMore: boolean) => {
+      buf.append(data);
+      if (!hasMore) resolve(buf.get());
+    };
+  });
 }

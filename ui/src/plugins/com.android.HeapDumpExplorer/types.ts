@@ -44,7 +44,9 @@ export interface DuplicateArrayGroup {
 }
 
 export interface OverviewData {
-  instanceCount: number;
+  reachableInstanceCount: number;
+  unreachableInstanceCount: number;
+  classCount: number;
   heaps: HeapInfo[];
   duplicateBitmaps?: DuplicateBitmapGroup[];
   duplicateStrings?: DuplicateStringGroup[];

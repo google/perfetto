@@ -115,7 +115,11 @@ function buildTabs(
     {
       key: 'overview',
       title: 'Overview',
-      content: m(OverviewView, {overview, navigate: navigateWithTabs}),
+      content: m(OverviewView, {
+        overview,
+        activeDump,
+        navigate: navigateWithTabs,
+      }),
     },
     {
       key: 'flamegraph',

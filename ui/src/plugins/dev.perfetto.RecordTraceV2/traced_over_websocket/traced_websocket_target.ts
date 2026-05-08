@@ -114,11 +114,10 @@ export class TracedWebsocketTarget implements RecordingTarget {
   async startTracing(
     traceConfig: protos.ITraceConfig,
   ): Promise<Result<ConsumerIpcTracingSession>> {
-    const ipcStatus = await this.createConsumerIpcChannel();
-    if (!ipcStatus.ok) return ipcStatus;
-    const consumerIpc = ipcStatus.value;
-    const session = new ConsumerIpcTracingSession(consumerIpc, traceConfig);
-    return okResult(session);
+    return ConsumerIpcTracingSession.create({
+      ipcFactory: () => this.createConsumerIpcChannel(),
+      traceConfig,
+    });
   }
 
   private async createConsumerIpcChannel(): Promise<Result<TracingProtocol>> {
