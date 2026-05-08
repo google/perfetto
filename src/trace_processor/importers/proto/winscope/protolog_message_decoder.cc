@@ -52,7 +52,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     std::string group_tag;
     if (group == nullptr) {
       group_tag = std::string(kUnknownGroupTag);
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::winscope_protolog_group_tag_missing);
     } else {
       group_tag = group->tag;
@@ -73,7 +73,7 @@ void ProtoLogMessageDecoder::TrackGroup(uint32_t id, std::string_view tag) {
   auto tracked_group = tracked_groups_.Find(id);
   if (tracked_group != nullptr) {
     if (tracked_group->tag != tag) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::winscope_protolog_group_tag_collision);
 
       tracked_groups_[id] = TrackedGroup{std::string(kCollisionGroupTag)};
@@ -346,7 +346,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
   }
 
   if (potential_matches.size() == 1) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::winscope_protolog_message_collision_resolved);
 
     auto formatted_message =
@@ -357,7 +357,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
     std::string group_tag;
     if (group == nullptr) {
       group_tag = std::string(kUnknownGroupTag);
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::winscope_protolog_group_tag_missing);
     } else {
       group_tag = group->tag;
@@ -366,7 +366,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
     return DecodedMessage{potential_matches[0].level, group_tag,
                           formatted_message, potential_matches[0].location};
   } else {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::winscope_protolog_message_collision);
     std::string collision_message = "<PROTOLOG COLLISION (id=0x" +
                                     base::Uint64ToHexString(message_id) + ") ";
