@@ -15,6 +15,9 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -24,7 +27,15 @@ class ProtologMessageDecoderTest : public ::testing::Test {
  protected:
   void SetUp() override {
     context_ = std::make_unique<TraceProcessorContext>();
-    context_->stats_tracker = std::make_unique<GlobalStatsTracker>();
+    context_->storage = std::make_unique<TraceStorage>();
+    context_->global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_->storage.get());
+    context_->machine_tracker =
+        std::make_unique<MachineTracker>(context_.get(), kDefaultMachineId);
+    context_->trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_->stats_tracker = std::make_unique<StatsTracker>(context_.get());
     decoder_ = std::make_unique<ProtoLogMessageDecoder>(context_.get());
     decoder_->TrackGroup(default_group_id, default_tag);
   }
