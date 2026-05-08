@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
-#include "src/trace_processor/importers/common/stats_tracker.h"
 
 #include "test/gtest_and_gmock.h"
 

@@ -23,7 +23,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto::trace_processor::winscope {
 
