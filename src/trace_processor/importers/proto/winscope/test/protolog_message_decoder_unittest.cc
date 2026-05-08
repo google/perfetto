@@ -47,9 +47,9 @@ TEST_F(ProtologMessageDecoderTest, DecodeSingleMessage) {
   EXPECT_EQ(decoded->group_tag, default_tag);
   EXPECT_EQ(decoded->message, "Test 42 hello");
   EXPECT_EQ(decoded->location, "Some Location");
-  EXPECT_EQ(
-      context_->stats_tracker->GetStats(stats::winscope_protolog_message_collision),
-      0);
+  EXPECT_EQ(context_->stats_tracker->GetStats(
+                stats::winscope_protolog_message_collision),
+            0);
   EXPECT_EQ(context_->stats_tracker->GetStats(
                 stats::winscope_protolog_message_collision_resolved),
             0);
@@ -69,9 +69,9 @@ TEST_F(ProtologMessageDecoderTest,
   EXPECT_EQ(decoded->group_tag, default_tag);
   EXPECT_THAT(decoded->message, "Value: 123");
   EXPECT_EQ(decoded->location, "Some Location");
-  EXPECT_EQ(
-      context_->stats_tracker->GetStats(stats::winscope_protolog_message_collision),
-      0);
+  EXPECT_EQ(context_->stats_tracker->GetStats(
+                stats::winscope_protolog_message_collision),
+            0);
   EXPECT_EQ(context_->stats_tracker->GetStats(
                 stats::winscope_protolog_message_collision_resolved),
             1);
@@ -95,9 +95,9 @@ TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessagesWithSameParameters) {
       testing::HasSubstr(
           ") MULTIPLE TYPE MATCHES : 'Value: 123',\n 'Other Value: 123'>"));
   EXPECT_EQ(decoded->location, std::nullopt);
-  EXPECT_EQ(
-      context_->stats_tracker->GetStats(stats::winscope_protolog_message_collision),
-      1);
+  EXPECT_EQ(context_->stats_tracker->GetStats(
+                stats::winscope_protolog_message_collision),
+            1);
   EXPECT_EQ(context_->stats_tracker->GetStats(
                 stats::winscope_protolog_message_collision_resolved),
             0);
@@ -118,9 +118,9 @@ TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessagesWithNoMatch) {
               testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
   EXPECT_THAT(decoded->message, testing::HasSubstr(") NO TYPE MATCH>"));
   EXPECT_EQ(decoded->location, std::nullopt);
-  EXPECT_EQ(
-      context_->stats_tracker->GetStats(stats::winscope_protolog_message_collision),
-      1);
+  EXPECT_EQ(context_->stats_tracker->GetStats(
+                stats::winscope_protolog_message_collision),
+            1);
   EXPECT_EQ(context_->stats_tracker->GetStats(
                 stats::winscope_protolog_message_collision_resolved),
             0);
@@ -139,9 +139,9 @@ TEST_F(ProtologMessageDecoderTest, GroupTagCollision) {
   EXPECT_EQ(decoded->group_tag, kCollisionGroupTag);
   EXPECT_EQ(decoded->message, "Test 42 hello");
   EXPECT_EQ(decoded->location, "Some Location");
-  EXPECT_EQ(
-      context_->stats_tracker->GetStats(stats::winscope_protolog_group_tag_collision),
-      1);
+  EXPECT_EQ(context_->stats_tracker->GetStats(
+                stats::winscope_protolog_group_tag_collision),
+            1);
 }
 
 TEST_F(ProtologMessageDecoderTest, GroupTagMissing) {
@@ -156,9 +156,9 @@ TEST_F(ProtologMessageDecoderTest, GroupTagMissing) {
   EXPECT_EQ(decoded->group_tag, kUnknownGroupTag);
   EXPECT_EQ(decoded->message, "Test 42 hello");
   EXPECT_EQ(decoded->location, "Some Location");
-  EXPECT_EQ(
-      context_->stats_tracker->GetStats(stats::winscope_protolog_group_tag_missing),
-      1);
+  EXPECT_EQ(context_->stats_tracker->GetStats(
+                stats::winscope_protolog_group_tag_missing),
+            1);
 }
 
 TEST_F(ProtologMessageDecoderTest, MessageParameterMismatch) {
@@ -172,8 +172,9 @@ TEST_F(ProtologMessageDecoderTest, MessageParameterMismatch) {
   EXPECT_EQ(decoded->group_tag, default_tag);
   EXPECT_THAT(decoded->message, "Value: [MISSING_PARAM]");
   EXPECT_EQ(decoded->location, "Some Location");
-  EXPECT_EQ(
-      context_->stats_tracker->GetStats(stats::winscope_protolog_param_mismatch), 1);
+  EXPECT_EQ(context_->stats_tracker->GetStats(
+                stats::winscope_protolog_param_mismatch),
+            1);
 }
 
 }  // namespace perfetto::trace_processor::winscope
