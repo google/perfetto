@@ -102,6 +102,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":full",
+    "../../common",
     "../../../../../gn:default_deps",
     "../../../../../gn:gtest_and_gmock",
     "../../../../../protos/perfetto/trace/android:winscope_common_cpp",
