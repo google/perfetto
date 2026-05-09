@@ -57,18 +57,28 @@ perfetto_proto_library("@TYPE@") {
   }
 
   sources = [
-    "chrome/chrome_config.proto",
-    "chrome/histogram_samples.proto",
-    "chrome/scenario_config.proto",
-    "chrome/system_metrics.proto",
-    "chrome/v8_config.proto",
+    "chrome/chrome_config.proto",  # non-lazy ChromeConfig field on
+                                   # data_source_config
     "data_source_config.proto",
-    "etw/etw_config.proto",
     "interceptor_config.proto",
-    "stress_test_config.proto",
-    "test_config.proto",
+    "test_config.proto",  # non-lazy `for_testing` field
     "trace_config.proto",
   ]
+
+  # Per-data-source / chrome-only configs reachable only via [lazy = true]
+  # fields on data_source_config or via not-importer-of-anything-kept
+  # paths. With cppgen's transitive lazy-import skip, the SDK closure no
+  # longer pulls these in at the .gen.h level.
+  if (!enable_perfetto_minimal_trace_protos) {
+    sources += [
+      "chrome/histogram_samples.proto",  # ChromiumHistogramSamplesConfig (lazy)
+      "chrome/scenario_config.proto",  # no importers
+      "chrome/system_metrics.proto",  # ChromiumSystemMetricsConfig (lazy)
+      "chrome/v8_config.proto",  # V8Config (lazy)
+      "etw/etw_config.proto",  # EtwConfig (lazy)
+      "stress_test_config.proto",  # no importers
+    ]
+  }
 
   generate_descriptor = "config.descriptor"
   generator_visibility = [ "../../../src/proto_utils:gen_cc_config_descriptor" ]
