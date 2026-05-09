@@ -19,25 +19,42 @@ import("../../../gn/proto_library.gni")
 # data_source_config.proto.
 
 perfetto_proto_library("@TYPE@") {
+  # Always-needed deps for the C SDK closure under src/{shared_lib,tracing}/.
+  # Only the configs whose pbzero/gen headers are actually #included by SDK
+  # code (or referenced by a non-`[lazy=true]` field reachable from
+  # data_source_config / trace_config) need to be in this list.
   deps = [
     "../common:@TYPE@",
     "../common:semantic_type_@TYPE@",
-    "android:@TYPE@",
-    "ftrace:@TYPE@",
-    "gpu:@TYPE@",
-    "inode_file:@TYPE@",
     "interceptors:@TYPE@",
-    "power:@TYPE@",
     "priority_boost:@TYPE@",
-    "process_stats:@TYPE@",
-    "profiling:@TYPE@",
     "protovm:@TYPE@",
-    "qnx:@TYPE@",
-    "statsd:@TYPE@",
-    "sys_stats:@TYPE@",
     "system_info:@TYPE@",
     "track_event:@TYPE@",
   ]
+
+  # Per-data-source config protos (FtraceConfig, AndroidLogConfig,
+  # GpuCounterConfig, ...). data_source_config.proto declares these as
+  # `[lazy = true]` fields, which means cppgen treats them as opaque bytes
+  # and never #includes the corresponding .gen.h files (see the matching
+  # transitive lazy-import skip in src/protozero/protoc_plugin/cppgen_plugin.cc).
+  # Drop them under the minimal-protos flag — the C SDK never instantiates
+  # the typed accessors on those fields. ~700 KB of generated code drops out
+  # of the amalgamated SDK source.
+  if (!enable_perfetto_minimal_trace_protos) {
+    deps += [
+      "android:@TYPE@",
+      "ftrace:@TYPE@",
+      "gpu:@TYPE@",
+      "inode_file:@TYPE@",
+      "power:@TYPE@",
+      "process_stats:@TYPE@",
+      "profiling:@TYPE@",
+      "qnx:@TYPE@",
+      "statsd:@TYPE@",
+      "sys_stats:@TYPE@",
+    ]
+  }
 
   sources = [
     "chrome/chrome_config.proto",

@@ -175,16 +175,28 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
   // to check that *all* dependent types for a given import are lazy before
   // excluding that. In practice we don't need that because we don't use imports
   // for both lazy and non-lazy fields.
+  //
+  // Lazy_imports is updated as we walk the dependency graph: when we visit a
+  // transitively-imported file we also collect *its* lazy field referents so
+  // that the transitively-lazy imports are skipped too. Without that, the .cc
+  // generated for an outer .proto (e.g. trace_config.proto) would still pull
+  // in the typed includes for fields declared lazy inside an intermediate
+  // dependency (e.g. data_source_config.proto's [lazy=true] FtraceConfig and
+  // friends), defeating the purpose of [lazy=true] for downstream binaries.
   std::set<std::string> lazy_imports;
-  for (int m = 0; m < file->message_type_count(); m++) {
-    const Descriptor* msg = file->message_type(m);
-    for (int i = 0; i < msg->field_count(); i++) {
-      const FieldDescriptor* field = msg->field(i);
-      if (field->options().lazy()) {
-        lazy_imports.insert(std::string(field->message_type()->file()->name()));
+  auto collect_lazy_imports = [&lazy_imports](const FileDescriptor* f) {
+    for (int m = 0; m < f->message_type_count(); m++) {
+      const Descriptor* msg = f->message_type(m);
+      for (int i = 0; i < msg->field_count(); i++) {
+        const FieldDescriptor* field = msg->field(i);
+        if (field->options().lazy()) {
+          lazy_imports.insert(
+              std::string(field->message_type()->file()->name()));
+        }
       }
     }
-  }
+  };
+  collect_lazy_imports(file);
 
   // Recursively traverse all imports and turn them into #include(s).
   std::vector<const FileDescriptor*> imports_to_visit;
@@ -197,6 +209,7 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
     imports_visited.insert(cur);
     std::string base_name = StripSuffix(std::string(cur->name()), ".proto");
     cc_printer.Print("#include \"$f$.gen.h\"\n", "f", base_name);
+    collect_lazy_imports(cur);
     for (int i = 0; i < cur->dependency_count(); i++) {
       const FileDescriptor* dep = cur->dependency(i);
       if (imports_visited.count(dep) ||

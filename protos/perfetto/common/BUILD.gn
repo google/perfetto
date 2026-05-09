@@ -18,27 +18,39 @@ import("../../../gn/proto_library.gni")
 # Proto messages that are required by the IPC service definitions but have also
 # a C++ counterpart in tracing/core (i.e. are used also for the non-IPC cases).
 perfetto_proto_library("@TYPE@") {
+  # Always-needed common protos for the C SDK closure.
   sources = [
-    "android_energy_consumer_descriptor.proto",
-    "android_log_constants.proto",
     "builtin_clock.proto",
     "commit_data_request.proto",
     "data_source_descriptor.proto",
     "descriptor.proto",
-    "ftrace_descriptor.proto",
-    "gpu_counter_descriptor.proto",
     "interceptor_descriptor.proto",
     "observable_events.proto",
-    "perf_events.proto",
-    "protolog_common.proto",
     "sys_stats_counters.proto",
     "system_info.proto",
-    "trace_attributes.proto",
     "trace_stats.proto",
     "tracing_service_capabilities.proto",
     "tracing_service_state.proto",
     "track_event_descriptor.proto",
   ]
+
+  # Common protos that are referenced only by per-domain trace/config protos
+  # (which are themselves dropped under the same flag) or only via
+  # `[lazy = true]` fields on protos kept above. With the per-domain trace
+  # and config dep edges gated off and the cppgen transitive lazy-skip in
+  # src/protozero/protoc_plugin/cppgen_plugin.cc, nothing in the C SDK
+  # closure references these any longer.
+  if (!enable_perfetto_minimal_trace_protos) {
+    sources += [
+      "android_energy_consumer_descriptor.proto",
+      "android_log_constants.proto",
+      "ftrace_descriptor.proto",
+      "gpu_counter_descriptor.proto",
+      "perf_events.proto",
+      "protolog_common.proto",
+      "trace_attributes.proto",
+    ]
+  }
   proto_generators = [
     "lite",
     "zero",
