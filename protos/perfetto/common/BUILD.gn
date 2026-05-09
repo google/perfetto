@@ -26,7 +26,6 @@ perfetto_proto_library("@TYPE@") {
     "descriptor.proto",
     "interceptor_descriptor.proto",
     "observable_events.proto",
-    "sys_stats_counters.proto",
     "system_info.proto",
     "trace_stats.proto",
     "tracing_service_capabilities.proto",
@@ -48,6 +47,8 @@ perfetto_proto_library("@TYPE@") {
       "gpu_counter_descriptor.proto",
       "perf_events.proto",
       "protolog_common.proto",
+      "sys_stats_counters.proto",  # only referenced by dropped sys_stats config
+                                   # + trace
       "trace_attributes.proto",
     ]
   }
