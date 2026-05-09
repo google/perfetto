@@ -3294,10 +3294,12 @@ class VmOpRegLoad(_message.Message):
     def __init__(self, cursor: _Optional[_Union[VmCursorEnum, str]] = ..., dst_register: _Optional[int] = ...) -> None: ...
 
 class VmOpMerge(_message.Message):
-    __slots__ = ("skip_submessages",)
+    __slots__ = ("skip_submessages", "del_if_src_empty")
     SKIP_SUBMESSAGES_FIELD_NUMBER: _ClassVar[int]
+    DEL_IF_SRC_EMPTY_FIELD_NUMBER: _ClassVar[int]
     skip_submessages: bool
-    def __init__(self, skip_submessages: bool = ...) -> None: ...
+    del_if_src_empty: bool
+    def __init__(self, skip_submessages: bool = ..., del_if_src_empty: bool = ...) -> None: ...
 
 class VmOpSet(_message.Message):
     __slots__ = ()
@@ -3650,7 +3652,7 @@ class AndroidUserListConfig(_message.Message):
     def __init__(self, user_type_filter: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class WindowManagerConfig(_message.Message):
-    __slots__ = ("log_frequency", "log_level")
+    __slots__ = ("log_frequency", "log_level", "log_mode")
     class LogFrequency(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         LOG_FREQUENCY_UNSPECIFIED: _ClassVar[WindowManagerConfig.LogFrequency]
@@ -3671,11 +3673,21 @@ class WindowManagerConfig(_message.Message):
     LOG_LEVEL_VERBOSE: WindowManagerConfig.LogLevel
     LOG_LEVEL_DEBUG: WindowManagerConfig.LogLevel
     LOG_LEVEL_CRITICAL: WindowManagerConfig.LogLevel
+    class LogMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        LOG_MODE_UNSPECIFIED: _ClassVar[WindowManagerConfig.LogMode]
+        LOG_MODE_FULL_STATE: _ClassVar[WindowManagerConfig.LogMode]
+        LOG_MODE_INCREMENTAL: _ClassVar[WindowManagerConfig.LogMode]
+    LOG_MODE_UNSPECIFIED: WindowManagerConfig.LogMode
+    LOG_MODE_FULL_STATE: WindowManagerConfig.LogMode
+    LOG_MODE_INCREMENTAL: WindowManagerConfig.LogMode
     LOG_FREQUENCY_FIELD_NUMBER: _ClassVar[int]
     LOG_LEVEL_FIELD_NUMBER: _ClassVar[int]
+    LOG_MODE_FIELD_NUMBER: _ClassVar[int]
     log_frequency: WindowManagerConfig.LogFrequency
     log_level: WindowManagerConfig.LogLevel
-    def __init__(self, log_frequency: _Optional[_Union[WindowManagerConfig.LogFrequency, str]] = ..., log_level: _Optional[_Union[WindowManagerConfig.LogLevel, str]] = ...) -> None: ...
+    log_mode: WindowManagerConfig.LogMode
+    def __init__(self, log_frequency: _Optional[_Union[WindowManagerConfig.LogFrequency, str]] = ..., log_level: _Optional[_Union[WindowManagerConfig.LogLevel, str]] = ..., log_mode: _Optional[_Union[WindowManagerConfig.LogMode, str]] = ...) -> None: ...
 
 class ChromeConfig(_message.Message):
     __slots__ = ("trace_config", "privacy_filtering_enabled", "convert_to_legacy_json", "client_priority", "json_agent_label_filter", "event_package_name_filter_enabled")
