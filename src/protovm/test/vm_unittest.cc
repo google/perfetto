@@ -201,6 +201,71 @@ TEST_F(VmTest, CloneReadOnly) {
   ASSERT_EQ(cloned_state.elements(1).value(), 11);
 }
 
+TEST_F(VmTest, ApplyPatch_DelInsideSrcSelectAbortsOnAliasedDst) {
+  // The outer select walks dst to a non-root child. The inner select uses
+  // cursor=SRC with a non-empty relative_path, so dst remains pinned at
+  // the outer's child while src walks elsewhere. A nested `del` targets
+  // that pinned dst node. The parser must abort rather than restore a
+  // stale dst pointer.
+  perfetto::protos::VmProgram program;
+  auto* outer = program.add_instructions();
+  auto* outer_select = outer->mutable_select();
+  outer_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+  outer_select->set_create_if_not_exist(true);
+  outer_select->add_relative_path()->set_field_id(1);
+
+  auto* inner = outer->add_nested_instructions();
+  auto* inner_select = inner->mutable_select();
+  inner_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_SRC);
+  inner_select->add_relative_path()->set_field_id(
+      protos::Patch::kElementsToSetFieldNumber);
+  inner->add_nested_instructions()->mutable_del();
+
+  auto serialized = program.SerializeAsString();
+  Vm vm{AsConstBytes(serialized), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  ASSERT_TRUE(status.IsAbort());
+  ASSERT_FALSE(status.stacktrace().empty());
+  ASSERT_NE(status.stacktrace().front().find(
+                "del would invalidate a cursor saved by an enclosing select"),
+            std::string::npos);
+}
+
+TEST_F(VmTest, ApplyPatch_DelInsideEmptyPathSelectAborts) {
+  // The outer select walks dst to a non-root child; the inner select has
+  // an empty relative_path so its snapshot aliases that same child; a
+  // nested `del` then targets the child. The parser must abort rather
+  // than restore a stale dst pointer.
+  perfetto::protos::VmProgram program;
+  auto* outer = program.add_instructions();
+  auto* outer_select = outer->mutable_select();
+  outer_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+  outer_select->set_create_if_not_exist(true);
+  outer_select->add_relative_path()->set_field_id(1);
+
+  auto* inner = outer->add_nested_instructions();
+  auto* inner_select = inner->mutable_select();
+  inner_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+  inner->add_nested_instructions()->mutable_del();
+
+  // A second `del` that, in the buggy version, would operate on the dangling
+  // cursor restored by the inner select and trigger a double-free.
+  outer->add_nested_instructions()->mutable_del();
+
+  auto serialized = program.SerializeAsString();
+  Vm vm{AsConstBytes(serialized), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  ASSERT_TRUE(status.IsAbort());
+  ASSERT_FALSE(status.stacktrace().empty());
+  ASSERT_NE(status.stacktrace().front().find(
+                "del would invalidate a cursor saved by an enclosing select"),
+            std::string::npos);
+}
+
 TEST_F(VmTest, GetMemoryUsage) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
