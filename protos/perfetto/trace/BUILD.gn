@@ -25,19 +25,32 @@ import("../../../gn/proto_library.gni")
 # because build systems don't like two targets having genrules for the same
 # .proto files.
 
-# By default add new protos here.
+# By default add new protos here. The unused-by-SDK list below is split out
+# only so that enable_perfetto_minimal_trace_protos can drop them without
+# affecting anyone else. trace_packet.proto declares typed fields for some
+# of them (e.g. UiState ui_state = 78, EvdevEvent evdev_event = 121,
+# TestEvent for_testing = 900), but trace_packet only generates pbzero
+# headers for the SDK build, which use forward decls and don't require the
+# per-type pbzero.h to be present unless something actually instantiates
+# the type. The matching public C ABI accessors in
+# include/perfetto/public/protos/trace/trace_packet.pzc.h use the same
+# forward-decl pattern.
 proto_sources_non_minimal = [
   "remote_clock_sync.proto",
   "trace_packet_defaults.proto",
-  "test_event.proto",
-  "test_extensions.proto",
   "trace_packet.proto",
   "trace.proto",
   "extension_descriptor.proto",
-  "memory_graph.proto",
-  "ui_state.proto",
-  "evdev.proto",
 ]
+if (!enable_perfetto_minimal_trace_protos) {
+  proto_sources_non_minimal += [
+    "test_event.proto",
+    "test_extensions.proto",
+    "memory_graph.proto",
+    "ui_state.proto",
+    "evdev.proto",
+  ]
+}
 
 proto_sources_minimal = [
   "clock_snapshot.proto",
