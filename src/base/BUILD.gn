@@ -35,13 +35,10 @@ perfetto_component("base") {
   sources = [
     "android_utils.cc",
     "base64.cc",
-    "cpu_info.cc",
     "crash_keys.cc",
-    "ctrl_c_handler.cc",
     "dynamic_string_writer.cc",
     "event_fd.cc",
     "file_utils.cc",
-    "getopt_compat.cc",
     "intrusive_list.cc",
     "intrusive_tree.cc",
     "log_ring_buffer.h",
@@ -70,6 +67,17 @@ perfetto_component("base") {
     "weak_runner.cc",
   ]
 
+  # Sources only used by host tools (perfetto_cmd, trace_processor probes,
+  # tests). Not reachable from any SDK closure entry point — gated under the
+  # same C-SDK-minimal flag used to drop unused per-domain protos.
+  if (!enable_perfetto_minimal_trace_protos) {
+    sources += [
+      "cpu_info.cc",
+      "ctrl_c_handler.cc",
+      "getopt_compat.cc",
+    ]
+  }
+
   if (!is_nacl) {
     sources += [
       "lock_free_task_runner.cc",
@@ -78,7 +86,7 @@ perfetto_component("base") {
     ]
   }
 
-  if (_subprocess_supported) {
+  if (_subprocess_supported && !enable_perfetto_minimal_trace_protos) {
     sources += [
       "subprocess.cc",
       "subprocess_posix.cc",
