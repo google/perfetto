@@ -79,27 +79,44 @@ perfetto_proto_library("non_minimal_@TYPE@") {
     "lite",
     "zero",
   ]
+
+  # Always-needed deps (in particular: any subdir whose generated pbzero
+  # headers are #included by the C SDK closure under src/{shared_lib,tracing}/
+  # and include/perfetto/{public,tracing,ext/tracing}/). Audit by grepping
+  # 'protos/perfetto/.*\.pbzero\.h' under those directories with tests
+  # excluded.
   deps = [
     ":minimal_@TYPE@",
     "../config:@TYPE@",
-    "../protovm:@TYPE@",
-    "android:@TYPE@",
-    "chrome:@TYPE@",
-    "etw:@TYPE@",
-    "filesystem:@TYPE@",
-    "ftrace:@TYPE@",
-    "generic_kernel:@TYPE@",
-    "gpu:@TYPE@",
     "interned_data:@TYPE@",
     "perfetto:@TYPE@",
-    "power:@TYPE@",
-    "profiling:@TYPE@",
-    "ps:@TYPE@",
-    "statsd:@TYPE@",
-    "sys_stats:@TYPE@",
-    "system_info:@TYPE@",
-    "translation:@TYPE@",
   ]
+
+  # Per-domain trace protos. The C SDK build never #includes any of these,
+  # but trace_packet.proto imports the corresponding messages so they're
+  # forward-declared in trace_packet.pbzero.h. Forward decls don't require
+  # the full pbzero.h to be available unless callers invoke accessor
+  # methods (which the SDK doesn't). Drop them under the minimal-protos
+  # flag to save ~4 MB in the amalgamated SDK source.
+  if (!enable_perfetto_minimal_trace_protos) {
+    deps += [
+      "../protovm:@TYPE@",
+      "android:@TYPE@",
+      "chrome:@TYPE@",
+      "etw:@TYPE@",
+      "filesystem:@TYPE@",
+      "ftrace:@TYPE@",
+      "generic_kernel:@TYPE@",
+      "gpu:@TYPE@",
+      "power:@TYPE@",
+      "profiling:@TYPE@",
+      "ps:@TYPE@",
+      "statsd:@TYPE@",
+      "sys_stats:@TYPE@",
+      "system_info:@TYPE@",
+      "translation:@TYPE@",
+    ]
+  }
   sources = proto_sources_non_minimal
   public_deps = [ "track_event:@TYPE@" ]
 }

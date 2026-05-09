@@ -206,6 +206,15 @@ declare_args() {
       perfetto_build_with_android ||
       (perfetto_build_standalone && !is_perfetto_build_generator)
 
+  # Drop per-domain trace proto subdirs (android, chrome, etw, ftrace, gpu,
+  # profiling, ...) from the protos/perfetto/trace:zero|lite|cpp dep graph.
+  # The C SDK build only #includes a small subset of the per-domain protos,
+  # but tools/gen_amalgamated walks proto dep edges (recurse_in_header_deps)
+  # and pulls in all of them, adding ~4 MB to perfetto_c.cc. Enabling this
+  # flag drops them. Producers that legitimately need the full set (e.g.
+  # trace_processor) must leave this off.
+  enable_perfetto_minimal_trace_protos = false
+
   # Misc host executable under tools/.
   enable_perfetto_tools =
       perfetto_build_standalone || perfetto_build_with_android

@@ -749,8 +749,17 @@ def main():
         'header_filter': c_sdk_header_filter
     })
 
+  # When generating only the C SDK, drop the per-domain trace protos
+  # (ftrace/android/chrome/gpu/...) that the C API doesn't reference. See
+  # the comment on enable_perfetto_minimal_trace_protos in gn/perfetto.gni.
+  # We don't apply this to --sdk cpp / --sdk all because the C++ amalgamation
+  # may have consumers that depend on the full proto surface.
+  effective_gn_args = args.gn_args
+  if args.sdk == 'c' and 'enable_perfetto_minimal_trace_protos' not in effective_gn_args:
+    effective_gn_args = effective_gn_args + ' enable_perfetto_minimal_trace_protos=true'
+
   out = gn_utils.prepare_out_directory(
-      args.gn_args, args.out, system_buildtools=args.system_buildtools)
+      effective_gn_args, args.out, system_buildtools=args.system_buildtools)
   if not args.quiet:
     print('Building project...')
   try:
