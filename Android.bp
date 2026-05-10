@@ -20846,6 +20846,7 @@ cc_test {
     ],
     data: [
         "protos/perfetto/trace/**/*",
+        "protos/third_party/android/**/*",
         "src/profiling/memory/test/data/**/*",
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
@@ -21262,6 +21263,30 @@ cc_library_static {
             ],
         },
     },
+}
+
+// GN: //src/protozero/protoc_plugin:protozero_c_plugin
+cc_binary_host {
+    name: "protozero_c_plugin",
+    srcs: [
+        ":perfetto_base_default_platform",
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_src_base_base",
+        "src/protozero/protoc_plugin/protozero_c_plugin.cc",
+    ],
+    static_libs: [
+        "libprotoc",
+    ],
+    defaults: [
+        "perfetto_defaults",
+    ],
+    cflags: [
+        "-DGOOGLE_PROTOBUF_NO_RTTI",
+        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    ],
 }
 
 // GN: //src/protozero/protoc_plugin:protozero_plugin
