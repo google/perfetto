@@ -132,6 +132,8 @@ class RwProtoCursor {
                                              OwnedPtr<Node> map_value);
   StatusOr<uint64_t> ReadScalarField(const Node& node, uint32_t field_id);
 
+  StatusOr<void> CheckIsValid() const;
+
   Node* node_ = nullptr;
   ParentLink parent_link_ = {};
   Allocator* allocator_ = nullptr;
