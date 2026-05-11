@@ -249,9 +249,8 @@ TEST(SmapsParserTest, DefaultAggregatedMode) {
                   "/system/framework/arm64/boot-apache-xml.oat",
                   "/system/framework/arm64/boot-framework.oat", "[anon:.bss]"));
 
-  // Currently, the name_id will end up 1:1 with the string_table (if the
-  // no-name mappings are present), but we still encode it for future-proofness.
-  EXPECT_THAT(packed.name_id(), ElementsAre(0u, 1u, 2u, 3u, 4u));
+  // aggregated -> name_id not written since it's exactly the string_table order
+  EXPECT_THAT(packed.name_id(), IsEmpty());
 
   EXPECT_THAT(packed.aggregate_count(), ElementsAre(1u, 2u, 1u, 2u, 1u));
   EXPECT_THAT(packed.size_kb(), ElementsAre(10476u, 24u, 16u, 8564u, 4u));
