@@ -312,6 +312,7 @@ export function renderCharts(app: App): m.Children {
           brushMode: opts.brushMode,
           logScale: opts.logScale,
           integer: opts.integer,
+          useSvg: false,
         });
       },
       initialOpts: {

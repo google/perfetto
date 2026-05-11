@@ -180,6 +180,11 @@ export interface DistributionSummaryAttrs extends DistributionInputs {
   readonly onBrushChange?: (
     brush: {readonly start: number; readonly end: number} | undefined,
   ) => void;
+
+  // When set, the histogram bucket containing this value is drawn in a
+  // distinct color — used to show "where does this slice's duration fall
+  // in the distribution?".
+  readonly highlightValue?: number;
 }
 
 // Reusable left-half: histogram (with brush) + percentile stats. Materializes
@@ -293,7 +298,11 @@ export class DistributionSummary
       formatXValue: (v) => formatDuration(attrs.trace, BigInt(Math.round(v))),
       onBrush:
         onBrushChange === undefined ? undefined : (r) => onBrushChange(r),
-      selection: attrs.brush,
+      selection:
+        attrs.brush ??
+        (attrs.highlightValue !== undefined
+          ? {start: attrs.highlightValue, end: attrs.highlightValue}
+          : undefined),
     });
   }
 

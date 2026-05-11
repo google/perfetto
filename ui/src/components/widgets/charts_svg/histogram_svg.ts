@@ -242,6 +242,17 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
     const isSelected = (i: number): boolean => {
       if (sel === undefined || i >= buckets.length) return false;
       const b = buckets[i];
+      // Point selection (start == end): highlight the bucket containing it.
+      // Buckets are half-open [start, end) so a value on a boundary belongs
+      // to the next bucket — except the last bucket, which must be inclusive
+      // on its upper edge or a value equal to the data max lands nowhere.
+      if (sel.start === sel.end) {
+        const isLast = i === buckets.length - 1;
+        return (
+          sel.start >= b.start &&
+          (isLast ? sel.start <= b.end : sel.start < b.end)
+        );
+      }
       return b.end > sel.start && b.start < sel.end;
     };
 
