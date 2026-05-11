@@ -272,6 +272,12 @@ std::optional<EventReader> EventReader::ConfigureEvents(
       return std::nullopt;
     }
   }
+
+  // redirect the follower events to the leader's buffer.
+  for (size_t i = 0; i < follower_fds.size(); ++i) {
+    ioctl(follower_fds[i].get(), PERF_EVENT_IOC_SET_OUTPUT, timebase_fd.get());
+  }
+
   return EventReader(cpu, *event_cfg.perf_attr(), std::move(timebase_fd),
                      std::move(follower_fds), std::move(ring_buffer));
 }
@@ -387,7 +393,7 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
   if (event_attr_.sample_type &
       (~uint64_t(PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_STACK_USER |
                  PERF_SAMPLE_REGS_USER | PERF_SAMPLE_CALLCHAIN |
-                 PERF_SAMPLE_READ))) {
+                 PERF_SAMPLE_READ | PERF_SAMPLE_RAW))) {
     PERFETTO_FATAL("Unsupported sampling option");
   }
 
@@ -441,6 +447,15 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     sample.kernel_ips.resize(static_cast<size_t>(chain_len));
     parse_pos = ReadValues<uint64_t>(sample.kernel_ips.data(), parse_pos,
                                      static_cast<size_t>(chain_len));
+  }
+
+  if (event_attr_.sample_type & PERF_SAMPLE_RAW) {
+    uint32_t data_size = 0;
+    parse_pos = ReadValue(&data_size, parse_pos);
+    if (data_size > 0) {
+      sample.raw_data.resize(data_size);
+      memcpy(sample.raw_data.data(), parse_pos, data_size);
+    }
   }
 
   if (event_attr_.sample_type & PERF_SAMPLE_REGS_USER) {

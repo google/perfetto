@@ -56,6 +56,7 @@
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
+#include "src/traced/probes/ftrace/event_info.h"
 
 namespace perfetto {
 namespace profiling {
@@ -450,10 +451,147 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     return tracefs_->ReadEventId(group, name);
   };
 
+  bool has_perf_event_config = !config.perf_event_config_raw().empty();
+  bool has_ftrace_config = !config.ftrace_config_raw().empty();
+
+  if (has_perf_event_config && has_ftrace_config) {
+    PERFETTO_ELOG(
+        "Data source has both perf_event_config and ftrace_config set; not "
+        "supported.");
+    return;
+  }
+
+  std::optional<PreparedDataSource> prep_data_source = std::nullopt;
+  if (has_perf_event_config) {
+    if (auto tmp = PrepareDataSourcePerf(config, tracepoint_id_lookup)) {
+      prep_data_source.emplace(std::move(tmp.value()));
+    }
+  } else if (has_ftrace_config) {
+    if (auto tmp = PrepareDataSourceFtrace(config, tracepoint_id_lookup)) {
+      prep_data_source.emplace(std::move(tmp.value()));
+    }
+  }
+
+  if (!prep_data_source.has_value()) {
+    return;
+  }
+
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  auto writer =
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall);
+
+  // Construct the data source instance.
+  std::map<DataSourceInstanceID, DataSourceState>::iterator ds_it;
+  bool inserted;
+  std::tie(ds_it, inserted) = data_sources_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(ds_id),
+      std::forward_as_tuple(prep_data_source->event_config, tracing_session_id,
+                            std::move(writer),
+                            std::move(prep_data_source->event_readers)));
+  PERFETTO_CHECK(inserted);
+  DataSourceState& ds = ds_it->second;
+
+  // Initialize the ftrace_event_manager if we are capturing any ftrace events.
+  if (prep_data_source->event_config_pb.has_ftrace_events()) {
+    const auto& ftrace_events =
+        prep_data_source->event_config_pb.ftrace_events();
+    bool compact_sched_enabled = true;
+    if (ftrace_events.has_compact_sched()) {
+      compact_sched_enabled = ftrace_events.compact_sched();
+    }
+
+    if (!ftrace_translation_table_) {
+      if (!tracefs_) {
+        if (!(tracefs_ = Tracefs::CreateGuessingMountPoint())) {
+          PERFETTO_ELOG("Failed to locate tracefs mount point");
+          return;
+        }
+      }
+      ftrace_translation_table_ = ProtoTranslationTable::Create(
+          tracefs_.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+      if (!ftrace_translation_table_) {
+        PERFETTO_ELOG("Couldn't initialize Ftrace translation table");
+        return;
+      }
+    }
+
+    ds.ftrace_event_mgr_ = std::make_unique<FtraceEventManager>(
+        ftrace_translation_table_.get(), &ds.event_config,
+        ds.trace_writer.get(), compact_sched_enabled, endpoint_.get(),
+        buffer_id);
+
+    ds.emit_ftrace_event = true;
+    if (ftrace_events.has_read_counter()) {
+      ds.emit_counter = ftrace_events.read_counter();
+    }
+  }
+
+  // Start the configured events.
+  for (auto& per_cpu_reader : ds.per_cpu_readers) {
+    per_cpu_reader.EnableEvents();
+  }
+
+  WritePerfEventDefaultsPacket(ds.event_config, ds.trace_writer.get());
+
+  // Enqueue the periodic read task.
+  auto tick_period_ms = ds.event_config.read_tick_period_ms();
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_this, ds_id] {
+        if (weak_this)
+          weak_this->TickDataSourceRead(ds_id);
+      },
+      TimeToNextReadTickMs(ds_id, tick_period_ms));
+
+  // Polled counters: done with setup.
+  if (prep_data_source->event_config.recording_mode() ==
+      RecordingMode::kPolling) {
+    return;
+  }
+
+  // Additional setup for sampling mode.
+
+  InterningOutputTracker::WriteFixedInterningsPacket(
+      ds_it->second.trace_writer.get(),
+      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+
+  // Inform unwinder of the new data source instance, and optionally start a
+  // periodic task to clear its cached state.
+  auto unwind_mode = (ds.event_config.unwind_mode() ==
+                      protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
+                         ? Unwinder::UnwindMode::kFramePointer
+                         : Unwinder::UnwindMode::kUnwindStack;
+  unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
+                                         unwind_mode);
+  if (ds.event_config.unwind_state_clear_period_ms()) {
+    unwinding_worker_->PostClearCachedStatePeriodic(
+        ds_id, ds.event_config.unwind_state_clear_period_ms());
+  }
+
+  // Optionally kick off periodic memory footprint limit check.
+  uint32_t max_daemon_memory_kb =
+      prep_data_source->event_config_pb.max_daemon_memory_kb();
+  if (max_daemon_memory_kb > 0) {
+    task_runner_->PostDelayedTask(
+        [weak_this, ds_id, max_daemon_memory_kb] {
+          if (weak_this)
+            weak_this->CheckMemoryFootprintPeriodic(ds_id,
+                                                    max_daemon_memory_kb);
+        },
+        kMemoryLimitCheckPeriodMs);
+  }
+}
+
+std::optional<PerfProducer::PreparedDataSource>
+PerfProducer::PrepareDataSourcePerf(
+    const DataSourceConfig& config,
+    const tracepoint_id_fn_t& tracepoint_id_lookup) {
+  uint64_t tracing_session_id = config.tracing_session_id();
+
   protos::gen::PerfEventConfig event_config_pb;
   if (!event_config_pb.ParseFromString(config.perf_event_config_raw())) {
     PERFETTO_ELOG("PerfEventConfig could not be parsed.");
-    return;
+    return std::nullopt;
   }
 
   // Unlikely: handle a callstack sampling option that shares a random decision
@@ -471,13 +609,13 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
       event_config_pb, config, process_sharding, tracepoint_id_lookup);
   if (!event_config.has_value()) {
     PERFETTO_ELOG("PerfEventConfig rejected.");
-    return;
+    return std::nullopt;
   }
 
   std::vector<uint32_t> target_cpus = CreateCpuMask(event_config_pb);
   if (target_cpus.empty()) {
     PERFETTO_ELOG("No valid cpus.");
-    return;
+    return std::nullopt;
   }
 
   std::vector<EventReader> per_cpu_readers;
@@ -518,77 +656,83 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
         continue;
       }
 
-      return;
+      return std::nullopt;
     }
     per_cpu_readers.emplace_back(std::move(event_reader.value()));
   }
+  return PreparedDataSource{std::move(event_config.value()),
+                            std::move(event_config_pb),
+                            std::move(per_cpu_readers)};
+}
 
-  auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  auto writer =
-      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall);
-
-  // Construct the data source instance.
-  std::map<DataSourceInstanceID, DataSourceState>::iterator ds_it;
-  bool inserted;
-  std::tie(ds_it, inserted) = data_sources_.emplace(
-      std::piecewise_construct, std::forward_as_tuple(ds_id),
-      std::forward_as_tuple(event_config.value(), tracing_session_id,
-                            std::move(writer), std::move(per_cpu_readers)));
-  PERFETTO_CHECK(inserted);
-  DataSourceState& ds = ds_it->second;
-
-  // Start the configured events.
-  for (auto& per_cpu_reader : ds.per_cpu_readers) {
-    per_cpu_reader.EnableEvents();
+std::optional<PerfProducer::PreparedDataSource>
+PerfProducer::PrepareDataSourceFtrace(
+    const DataSourceConfig& config,
+    const tracepoint_id_fn_t& tracepoint_id_lookup) {
+  protos::gen::FtraceConfig ftrace_config;
+  if (!ftrace_config.ParseFromString(config.ftrace_config_raw())) {
+    PERFETTO_ELOG("FtraceConfig could not be parsed.");
+    return std::nullopt;
   }
 
-  WritePerfEventDefaultsPacket(ds.event_config, ds.trace_writer.get());
+  protos::gen::PerfEventConfig event_config_pb;
+  auto ftrace = event_config_pb.mutable_ftrace_events();
+  bool compact_sched_enabled = true;
+  if (ftrace_config.has_compact_sched() &&
+      ftrace_config.compact_sched().has_enabled()) {
+    compact_sched_enabled = ftrace_config.compact_sched().enabled();
+  }
+  ftrace->set_compact_sched(compact_sched_enabled);
+  ftrace->set_read_counter(false);
 
-  // Enqueue the periodic read task.
-  auto tick_period_ms = ds.event_config.read_tick_period_ms();
-  auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, ds_id] {
-        if (weak_this)
-          weak_this->TickDataSourceRead(ds_id);
-      },
-      TimeToNextReadTickMs(ds_id, tick_period_ms));
-
-  // Polled counters: done with setup.
-  if (event_config->recording_mode() == RecordingMode::kPolling) {
-    return;
+  for (auto& event_name : ftrace_config.ftrace_events()) {
+    if (event_config_pb.has_timebase()) {
+      auto followers = event_config_pb.mutable_followers();
+      followers->emplace_back();
+      auto& follower = followers->back();
+      follower.set_period(1);
+      follower.set_name(event_name);
+      auto tracepoint = follower.mutable_tracepoint();
+      tracepoint->set_name(event_name);
+    } else {
+      auto timebase = event_config_pb.mutable_timebase();
+      timebase->set_period(1);
+      timebase->set_name(event_name);
+      auto tracepoint = timebase->mutable_tracepoint();
+      tracepoint->set_name(event_name);
+    }
   }
 
-  // Additional setup for sampling mode.
+  std::optional<EventConfig> event_config = EventConfig::Create(
+      event_config_pb, config, std::nullopt /*process sharding*/,
+      tracepoint_id_lookup);
 
-  InterningOutputTracker::WriteFixedInterningsPacket(
-      ds_it->second.trace_writer.get(),
-      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
-
-  // Inform unwinder of the new data source instance, and optionally start a
-  // periodic task to clear its cached state.
-  auto unwind_mode = (ds.event_config.unwind_mode() ==
-                      protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
-                         ? Unwinder::UnwindMode::kFramePointer
-                         : Unwinder::UnwindMode::kUnwindStack;
-  unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
-                                         unwind_mode);
-  if (ds.event_config.unwind_state_clear_period_ms()) {
-    unwinding_worker_->PostClearCachedStatePeriodic(
-        ds_id, ds.event_config.unwind_state_clear_period_ms());
+  if (!event_config.has_value()) {
+    PERFETTO_ELOG("FtraceConfig rejected.");
+    return std::nullopt;
   }
 
-  // Optionally kick off periodic memory footprint limit check.
-  uint32_t max_daemon_memory_kb = event_config_pb.max_daemon_memory_kb();
-  if (max_daemon_memory_kb > 0) {
-    task_runner_->PostDelayedTask(
-        [weak_this, ds_id, max_daemon_memory_kb] {
-          if (weak_this)
-            weak_this->CheckMemoryFootprintPeriodic(ds_id,
-                                                    max_daemon_memory_kb);
-        },
-        kMemoryLimitCheckPeriodMs);
+  std::vector<EventReader> per_cpu_readers;
+  uint32_t num_cpus = NumberOfCpus();
+  for (uint32_t cpu = 0; cpu < num_cpus; cpu++) {
+    // consider cpu0 to always be online
+    if (cpu > 0 && !IsCpuOnline(cpu)) {
+      continue;
+    }
+    std::optional<EventReader> event_reader =
+        EventReader::ConfigureEvents(cpu, event_config.value());
+    if (!event_reader.has_value()) {
+      PERFETTO_ELOG(
+          "Failed to set up perf events for cpu %u"
+          ", discarding data source.",
+          cpu);
+      return std::nullopt;
+    }
+    per_cpu_readers.emplace_back(std::move(event_reader.value()));
   }
+  return PreparedDataSource{std::move(event_config.value()),
+                            std::move(event_config_pb),
+                            std::move(per_cpu_readers)};
 }
 
 void PerfProducer::CheckMemoryFootprintPeriodic(DataSourceInstanceID ds_id,
@@ -637,7 +781,9 @@ void PerfProducer::StopDataSource(DataSourceInstanceID ds_id) {
     return;
   }
   DataSourceState& ds = ds_it->second;
-
+  if (ds.ftrace_event_mgr_) {
+    ds.ftrace_event_mgr_->Flush();
+  }
   if (ds.event_config.recording_mode() == RecordingMode::kPolling) {
     // Polling mode: emit a final reading and ack the stop.
     ReadCounters(ds);
@@ -771,6 +917,17 @@ bool PerfProducer::ReadRingBuffers(DataSourceInstanceID ds_id,
   return true;  // continue reading
 }
 
+void PerfProducer::OnRecordsLost(DataSourceInstanceID ds_id, uint32_t cpu) {
+  auto ds_it = data_sources_.find(ds_id);
+  if (ds_it == data_sources_.end())
+    return;
+  auto& ds = ds_it->second;
+
+  if (ds.ftrace_event_mgr_) {
+    ds.ftrace_event_mgr_->OnEventsLost(cpu);
+  }
+}
+
 bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                                             uint64_t max_samples,
                                             DataSourceInstanceID ds_id,
@@ -780,6 +937,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
   // If the kernel ring buffer dropped data, record it in the trace.
   size_t cpu = reader->cpu();
   auto records_lost_callback = [this, ds_id, cpu](uint64_t records_lost) {
+    OnRecordsLost(ds_id, static_cast<uint32_t>(cpu));
     auto weak_this = weak_factory_.GetWeakPtr();
     task_runner_->PostTask([weak_this, ds_id, cpu, records_lost] {
       if (weak_this)
@@ -791,7 +949,19 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     std::optional<ParsedSample> sample =
         reader->ReadUntilSample(records_lost_callback);
     if (!sample) {
+      if (ds.ftrace_event_mgr_) {
+        ds.ftrace_event_mgr_->Flush(reader->cpu());
+      }
       return false;  // caught up to the writer
+    }
+
+    if (!sample->raw_data.empty()) {
+      if (ds.emit_ftrace_event) {
+        ds.ftrace_event_mgr_->ProcessSample(*sample);
+      }
+    }
+    if (!ds.emit_counter) {
+      continue;
     }
 
     // Counter-only mode: skip the unwinding stage, serialise the sample
@@ -1215,7 +1385,9 @@ void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   }
   DataSourceState& ds = ds_it->second;
   PERFETTO_CHECK(ds.status == DataSourceState::Status::kShuttingDown);
-
+  if (ds.ftrace_event_mgr_) {
+    ds.ftrace_event_mgr_->Flush();
+  }
   ds.trace_writer->Flush();
   data_sources_.erase(ds_it);
 

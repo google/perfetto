@@ -68,7 +68,7 @@ source_set("producer") {
     "../../../protos/perfetto/trace/profiling:zero",
     "../../../src/base",
     "../../../src/base:unix_socket",
-    "../../../src/traced/probes/ftrace:tracefs",
+    "../../../src/traced/probes/ftrace:ftrace",
     "../../../src/tracing/ipc/producer",
     "../common:callstack_trie",
     "../common:interner",
@@ -82,6 +82,8 @@ source_set("producer") {
     "event_config.h",
     "event_reader.cc",
     "event_reader.h",
+    "ftrace_event_manager.cc",
+    "ftrace_event_manager.h",
     "perf_producer.cc",
     "perf_producer.h",
   ]
@@ -154,11 +156,13 @@ source_set("producer_unittests") {
     "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../src/protozero",
+    "../../../src/traced/probes/ftrace:test_support",
     "../../base",
   ]
   sources = [
     "event_config_unittest.cc",
     "frame_pointer_unwinder_unittest.cc",
+    "ftrace_event_manager_unittest.cc",
     "perf_producer_unittest.cc",
     "unwind_queue_unittest.cc",
   ]

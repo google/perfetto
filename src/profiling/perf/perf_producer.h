@@ -35,6 +35,7 @@
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
+#include "src/profiling/perf/ftrace_event_manager.h"
 #include "src/profiling/perf/proc_descriptors.h"
 #include "src/profiling/perf/unwinding.h"
 #include "src/tracing/service/metatrace_writer.h"
@@ -164,6 +165,9 @@ class PerfProducer : public Producer,
     // Additional state for EventConfig.TargetFilter: command lines we have
     // decided to unwind, up to a total of additional_cmdline_count values.
     base::FlatSet<std::string> additional_cmdlines;
+    std::unique_ptr<FtraceEventManager> ftrace_event_mgr_ = nullptr;
+    bool emit_counter = true;
+    bool emit_ftrace_event = false;
   };
 
   // For |EmitSkippedSample|.
@@ -173,6 +177,21 @@ class PerfProducer : public Producer,
     kUnwindStage,        // discarded at unwind stage (any reason)
     kRejected,           // doesn't match target scope from the config
   };
+
+  struct PreparedDataSource {
+    EventConfig event_config;
+    protos::gen::PerfEventConfig event_config_pb;
+    std::vector<EventReader> event_readers;
+  };
+  using tracepoint_id_fn_t =
+      std::function<uint32_t(const std::string&, const std::string&)>;
+
+  std::optional<PreparedDataSource> PrepareDataSourcePerf(
+      const DataSourceConfig& config,
+      const tracepoint_id_fn_t& tracepoint_id_lookup);
+  std::optional<PreparedDataSource> PrepareDataSourceFtrace(
+      const DataSourceConfig& config,
+      const tracepoint_id_fn_t& tracepoint_id_lookup);
 
   void ConnectService();
   void Restart();
@@ -209,6 +228,7 @@ class PerfProducer : public Producer,
                              const CommonSampleData& sample,
                              bool has_process_context);
   void EmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
+  void OnRecordsLost(DataSourceInstanceID ds_id, uint32_t cpu);
   void EmitRingBufferLoss(DataSourceInstanceID ds_id,
                           size_t cpu,
                           uint64_t records_lost);
@@ -285,6 +305,10 @@ class PerfProducer : public Producer,
   // Used for tracepoint name -> id lookups. Initialized lazily, and in general
   // best effort - can be null if tracefs isn't accessible.
   std::unique_ptr<Tracefs> tracefs_;
+
+  // Initialized when ftrace_events are captured. Used to decode raw ftrace
+  // event payloads into FtraceEvent protos.
+  std::unique_ptr<perfetto::ProtoTranslationTable> ftrace_translation_table_;
 
   std::function<void()> all_data_sources_registered_cb_;
 

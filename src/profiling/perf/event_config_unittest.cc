@@ -544,6 +544,98 @@ TEST(EventConfigTest, EventModifiers) {
   EXPECT_TRUE(follower_attr.exclude_hv);
 }
 
+TEST(EventConfigTest, GroupFollowerEventPeriod) {
+  protos::gen::PerfEventConfig cfg;
+  {
+    // leader:
+    auto* mutable_timebase = cfg.mutable_timebase();
+    mutable_timebase->set_name("leader");
+    mutable_timebase->set_period(1);
+    protos::gen::PerfEvents::Tracepoint* mutable_tracepoint =
+        mutable_timebase->mutable_tracepoint();
+    mutable_tracepoint->set_name("sched:sched_switch");
+
+    // associate with period:
+    auto* counter_associate_1 = cfg.add_followers();
+    counter_associate_1->set_name("counter");
+    counter_associate_1->set_counter(protos::gen::PerfEvents::SW_CPU_CLOCK);
+    counter_associate_1->set_period(1000000);
+
+    // associate with frequency:
+    auto* counter_associate_2 = cfg.add_followers();
+    counter_associate_2->set_name("counter");
+    counter_associate_2->set_counter(
+        protos::gen::PerfEvents::HW_BRANCH_INSTRUCTIONS);
+    counter_associate_2->set_frequency(4000);
+  }
+
+  auto id_lookup = [](const std::string& group, const std::string& name) {
+    return (group == "sched" && name == "sched_switch") ? 42 : 0;
+  };
+  std::optional<EventConfig> event_config = CreateEventConfig(cfg, id_lookup);
+  ASSERT_TRUE(event_config.has_value());
+
+  {
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->read_format & PERF_FORMAT_GROUP);
+
+    ASSERT_EQ(event_config->perf_attr_followers().size(), 2u);
+
+    const auto& counter_associate_1 = event_config->perf_attr_followers().at(0);
+    EXPECT_TRUE(counter_associate_1.sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(counter_associate_1.read_format & PERF_FORMAT_GROUP);
+    EXPECT_EQ(counter_associate_1.sample_period, 1000000u);
+    EXPECT_EQ(counter_associate_1.freq, 0u);
+
+    const auto& counter_associate_2 = event_config->perf_attr_followers().at(1);
+    EXPECT_TRUE(counter_associate_2.sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(counter_associate_2.read_format & PERF_FORMAT_GROUP);
+    EXPECT_EQ(counter_associate_2.sample_period, 4000u);
+    EXPECT_EQ(counter_associate_2.freq, 1u);
+  }
+}
+
+TEST(EventConfigTest, EnableFtraceEvents) {
+  {
+    // no ftrace_events
+    protos::gen::PerfEventConfig cfg;
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_FALSE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+  {
+    // ftrace_events{} - sample raw_data and counter
+    protos::gen::PerfEventConfig cfg;
+    auto ftrace = cfg.mutable_ftrace_events();
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_FALSE(ftrace->has_read_counter());
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+  {
+    // ftrace_events {read_counter: true} - sample raw_data and counter
+    protos::gen::PerfEventConfig cfg;
+    auto ftrace = cfg.mutable_ftrace_events();
+    ftrace->set_read_counter(true);
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+  {
+    // ftrace_events {read_counter: false} - sample raw_data and no counter
+    protos::gen::PerfEventConfig cfg;
+    auto ftrace = cfg.mutable_ftrace_events();
+    ftrace->set_read_counter(false);
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_FALSE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
