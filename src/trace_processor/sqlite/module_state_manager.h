@@ -87,6 +87,9 @@ class ModuleStateManagerBase {
       int argc,
       const char* const* argv,
       std::unique_ptr<void, void (*)(void*)> state);
+  // Returns the |PerVtabState| for the vtab name in |argv[2]|, falling back
+  // to state committed by a peer connection via the shared
+  // |CommittedStateManager|. Returns nullptr if the vtab name is unknown.
   [[nodiscard]] PerVtabState* OnConnect(int argc, const char* const* argv);
   static void OnDestroy(PerVtabState* state);
 

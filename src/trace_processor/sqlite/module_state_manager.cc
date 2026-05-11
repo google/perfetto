@@ -78,9 +78,24 @@ ModuleStateManagerBase::PerVtabState* ModuleStateManagerBase::OnCreate(
 ModuleStateManagerBase::PerVtabState* ModuleStateManagerBase::OnConnect(
     int,
     const char* const* argv) {
-  auto* ptr = state_by_name_.Find(argv[2]);
-  PERFETTO_CHECK(ptr);
-  return ptr->get();
+  if (auto* ptr = state_by_name_.Find(argv[2]); ptr) {
+    return ptr->get();
+  }
+  // Cold attach: a peer connection sharing the same |CommittedStateManager|
+  // may have committed state for this vtab. If so, materialise a local
+  // |PerVtabState| pointing at the committed state.
+  auto committed = committed_store_->Load(argv[2]);
+  if (!committed) {
+    return nullptr;
+  }
+  auto [it, inserted] = state_by_name_.Insert(argv[2], nullptr);
+  PERFETTO_CHECK(inserted);
+  *it = std::make_unique<PerVtabState>();
+  auto* s_ptr = it->get();
+  s_ptr->manager = this;
+  s_ptr->name = argv[2];
+  s_ptr->active_state = std::move(committed);
+  return s_ptr;
 }
 
 void ModuleStateManagerBase::OnDestroy(PerVtabState* state) {
