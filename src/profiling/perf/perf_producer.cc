@@ -902,9 +902,6 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       }
 
       // At this point, sampled process is known to be of interest.
-      // Userspace samples (regardless of whether we or the kernel walk the
-      // stack) need the process's /proc/<pid>/{maps,mem} to fill in mapping
-      // info and build IDs for any user frames.
       if (!is_kthread && event_config.user_frames()) {
         // Start resolving the proc-fds. Response is async.
         process_state = ProcessTrackingStatus::kFdsResolving;
@@ -912,8 +909,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                                  event_config.remote_descriptor_timeout_ms());
         // note: fallthrough
       } else {
-        // Either a kernel thread (no userspace state), or a userspace process
-        // for which we're not recording user callstacks.
+        // Either a kernel thread (no need to obtain proc-fds), or a userspace
+        // process but we're not recording userspace callstacks.
         process_state = ProcessTrackingStatus::kAccepted;
         unwinding_worker_->PostRecordNoUserspaceProcess(ds_id, pid);
         // note: fallthrough
