@@ -1673,6 +1673,7 @@ filegroup {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
         "protos/perfetto/config/qnx/qnx_config.proto",
         "protos/perfetto/config/statsd/atom_ids.proto",
@@ -1751,6 +1752,7 @@ java_library {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
         "protos/perfetto/config/qnx/qnx_config.proto",
         "protos/perfetto/config/statsd/atom_ids.proto",
@@ -3417,6 +3419,7 @@ filegroup {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
         "protos/perfetto/config/qnx/qnx_config.proto",
         "protos/perfetto/config/statsd/atom_ids.proto",
@@ -4643,6 +4646,7 @@ genrule {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
         "protos/perfetto/config/qnx/qnx_config.proto",
         "protos/perfetto/config/statsd/atom_ids.proto",
@@ -5728,6 +5732,7 @@ filegroup {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
     ],
 }
 
@@ -5748,6 +5753,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.cc",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.cc",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.gen.cc",
+        "external/perfetto/protos/perfetto/config/profiling/smaps_config.gen.cc",
     ],
 }
 
@@ -5768,6 +5774,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.h",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.h",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.gen.h",
+        "external/perfetto/protos/perfetto/config/profiling/smaps_config.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -5782,6 +5789,7 @@ filegroup {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
     ],
 }
 
@@ -5801,6 +5809,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.cc",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.cc",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pb.cc",
+        "external/perfetto/protos/perfetto/config/profiling/smaps_config.pb.cc",
     ],
 }
 
@@ -5820,6 +5829,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.h",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.h",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pb.h",
+        "external/perfetto/protos/perfetto/config/profiling/smaps_config.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -5834,6 +5844,7 @@ filegroup {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
     ],
 }
 
@@ -5854,6 +5865,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pbzero.cc",
+        "external/perfetto/protos/perfetto/config/profiling/smaps_config.pbzero.cc",
     ],
 }
 
@@ -5874,6 +5886,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pbzero.h",
+        "external/perfetto/protos/perfetto/config/profiling/smaps_config.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -8738,6 +8751,7 @@ genrule {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
         "protos/perfetto/config/qnx/qnx_config.proto",
         "protos/perfetto/config/statsd/atom_ids.proto",
@@ -14581,6 +14595,22 @@ filegroup {
     ],
 }
 
+// GN: //src/profiling/smaps:smaps
+filegroup {
+    name: "perfetto_src_profiling_smaps_smaps",
+    srcs: [
+        "src/profiling/smaps/smaps.cc",
+    ],
+}
+
+// GN: //src/profiling/smaps:unittests
+filegroup {
+    name: "perfetto_src_profiling_smaps_unittests",
+    srcs: [
+        "src/profiling/smaps/smaps_unittest.cc",
+    ],
+}
+
 // GN: //src/proto_utils:gen_cc_config_descriptor
 genrule {
     name: "perfetto_src_proto_utils_gen_cc_config_descriptor",
@@ -19684,6 +19714,7 @@ java_library {
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
         "protos/perfetto/config/qnx/qnx_config.proto",
         "protos/perfetto/config/statsd/atom_ids.proto",
@@ -20328,6 +20359,8 @@ cc_test {
         ":perfetto_src_profiling_perf_producer_unittests",
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_unwinding",
+        ":perfetto_src_profiling_smaps_smaps",
+        ":perfetto_src_profiling_smaps_unittests",
         ":perfetto_src_proto_utils_pb_to_txt",
         ":perfetto_src_proto_utils_txt_to_pb",
         ":perfetto_src_proto_utils_unittests",
