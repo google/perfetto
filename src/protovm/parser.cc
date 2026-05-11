@@ -27,7 +27,7 @@ Parser::Parser(protozero::ConstBytes program, Executor* executor)
 StatusOr<void> Parser::Run(RoCursor src, RwProto::Cursor dst) {
   cursors_.src = src;
   cursors_.dst = dst;
-  innermost_saved_dst_node_ = nullptr;
+  cursors_.innermost_saved_dst = nullptr;
   return ParseInstructions(program_.instructions());
 }
 
@@ -76,12 +76,16 @@ StatusOr<void> Parser::ParseInstruction(
     auto status = ParseRegLoad(instruction);
     PROTOVM_RETURN_IF_NOT_OK(status, "reg_load");
   } else if (instruction.has_del()) {
-    // Refuse to delete a non-root node whose address matches the snapshot
-    // of an enclosing select: restoring that snapshot would otherwise
-    // install a stale pointer.
-    const Node* deleting = cursors_.dst.GetNode();
-    if (deleting != nullptr && !cursors_.dst.IsAtRoot() &&
-        deleting == innermost_saved_dst_node_) {
+    PROTOVM_ASSIGN_OR_RETURN(bool is_root, cursors_.dst.IsRoot());
+    if (cursors_.innermost_saved_dst != nullptr &&
+        cursors_.dst == *cursors_.innermost_saved_dst && !is_root) {
+      // Illegal operation
+      // For each "select" operation we effectively save a snapshot of the
+      // cursors on the stack, so that they can be restored when a frame is
+      // exited. This "del" operation is attempting to delete a "dst" cursor
+      // that is currently aliased in the parent stack frame. This would result
+      // in a dangling pointer when the current frame is exited and the aliased
+      // "dst" is restored.
       PROTOVM_ABORT(
           "del would invalidate a cursor saved by an enclosing select");
     }
@@ -134,8 +138,7 @@ StatusOr<void> Parser::ParseRegLoad(
 StatusOr<void> Parser::ParseSelect(
     const protos::pbzero::VmInstruction::Decoder& instruction) {
   auto saved_cursors = cursors_;
-  const Node* prev_innermost_saved_dst_node = innermost_saved_dst_node_;
-  innermost_saved_dst_node_ = saved_cursors.dst.GetNode();
+  cursors_.innermost_saved_dst = &saved_cursors.dst;
 
   protos::pbzero::VmOpSelect::Decoder select(instruction.select());
   cursors_.selected = !select.has_cursor()
@@ -150,7 +153,6 @@ StatusOr<void> Parser::ParseSelect(
   }
 
   auto status = ParseSelectRec(instruction, select.relative_path());
-  innermost_saved_dst_node_ = prev_innermost_saved_dst_node;
   cursors_ = saved_cursors;
 
   return status;

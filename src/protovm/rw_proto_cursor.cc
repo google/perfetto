@@ -48,6 +48,17 @@ RwProtoCursor::RwProtoCursor() = default;
 RwProtoCursor::RwProtoCursor(Node* node, Allocator* allocator)
     : node_{node}, allocator_{allocator} {}
 
+bool RwProtoCursor::operator==(const RwProtoCursor& other) const {
+  return node_ == other.node_;
+}
+bool RwProtoCursor::operator!=(const RwProtoCursor& other) const {
+  return !(*this == other);
+}
+
+StatusOr<bool> RwProtoCursor::IsRoot() const {
+  return parent_link_.node == nullptr;
+}
+
 StatusOr<bool> RwProtoCursor::HasField(uint32_t field_id) {
   PERFETTO_DCHECK(node_);
 
@@ -305,20 +316,21 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
 StatusOr<void> RwProtoCursor::Delete() {
   PERFETTO_DCHECK(node_);
 
-  bool is_root_node = !parent_link_.node;
-  if (is_root_node) {
+  PROTOVM_ASSIGN_OR_RETURN(bool is_root, IsRoot());
+  if (is_root) {
     node_->value = Node::Empty{};
     return StatusOr<void>::Ok();
   }
 
-  PERFETTO_DCHECK(parent_link_.node);
   PERFETTO_DCHECK(parent_link_.map);
   PERFETTO_DCHECK(parent_link_.map_node);
 
   parent_link_.map->Remove(*parent_link_.map_node);
   allocator_->Delete(&GetOuterNode(*parent_link_.map_node));
 
-  node_ = nullptr;  // Delete operation invalidates cursor
+  // Delete operation invalidates cursor
+  node_ = nullptr;
+  parent_link_ = {};
 
   return StatusOr<void>::Ok();
 }

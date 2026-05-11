@@ -22,7 +22,6 @@
 
 #include "src/protovm/error_handling.h"
 #include "src/protovm/executor.h"
-#include "src/protovm/node.h"
 #include "src/protovm/ro_cursor.h"
 #include "src/protovm/rw_proto.h"
 
@@ -53,12 +52,6 @@ class Parser {
   protos::pbzero::VmProgram::Decoder program_;
   Cursors cursors_;
   Executor* executor_;
-
-  // dst.GetNode() captured by the innermost in-flight ParseSelect frame, or
-  // nullptr when no select is active. Saved positions form a non-strict
-  // descending chain, so any deletion target that matches an outer saved
-  // cursor also matches this one.
-  const Node* innermost_saved_dst_node_ = nullptr;
 };
 
 }  // namespace protovm
