@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "src/trace_processor/sqlite/committed_state_manager.h"
 #include "test/gtest_and_gmock.h"
 
@@ -56,7 +57,7 @@ TEST(ModuleStateManagerTest, ColdAttachReadsPeerCommittedState) {
   TestStateManager writer(store);
   TestStateManager reader(store);
 
-  (void)writer.OnCreate(3, kArgvVt, MakeErasedPayload(42));
+  base::ignore_result(writer.OnCreate(3, kArgvVt, MakeErasedPayload(42)));
   writer.OnCommit();
 
   auto* peer_state = reader.OnConnect(3, kArgvVt);
@@ -80,7 +81,7 @@ TEST(ModuleStateManagerTest, ColdAttachIgnoresUncommittedState) {
   TestStateManager writer(store);
   TestStateManager reader(store);
 
-  (void)writer.OnCreate(3, kArgvVt, MakeErasedPayload(7));
+  base::ignore_result(writer.OnCreate(3, kArgvVt, MakeErasedPayload(7)));
   EXPECT_EQ(reader.OnConnect(3, kArgvVt), nullptr);
 }
 
@@ -90,7 +91,7 @@ TEST(ModuleStateManagerTest, ColdAttachAfterPeerRollback) {
   TestStateManager writer(store);
   TestStateManager reader(store);
 
-  (void)writer.OnCreate(3, kArgvVt, MakeErasedPayload(99));
+  base::ignore_result(writer.OnCreate(3, kArgvVt, MakeErasedPayload(99)));
   writer.OnRollback();
   EXPECT_EQ(reader.OnConnect(3, kArgvVt), nullptr);
 }
@@ -101,7 +102,7 @@ TEST(ModuleStateManagerTest, ColdAttachIsIdempotentOnSecondConnect) {
   TestStateManager writer(store);
   TestStateManager reader(store);
 
-  (void)writer.OnCreate(3, kArgvVt, MakeErasedPayload(1));
+  base::ignore_result(writer.OnCreate(3, kArgvVt, MakeErasedPayload(1)));
   writer.OnCommit();
 
   auto* first = reader.OnConnect(3, kArgvVt);
