@@ -847,9 +847,16 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
 
 base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
-                                            const TracePacketData& data) {
+                                            const FtraceData& data) {
   MaybeOnFirstFtraceEvent();
-  if (PERFETTO_UNLIKELY(ts < drop_ftrace_data_before_ts_)) {
+  // Drop-window checks compare against the original event time. For events
+  // whose tokenizer synthesised a custom ts (e.g. retiming a kgsl
+  // cmdbatch_retired to its GPU start), `data.raw_ts` carries the original
+  // event time so we don't drop in-trace events that were merely placed
+  // earlier on the timeline.
+  const int64_t raw_ts =
+      data.raw_ts == FtraceData::kRawTsUnset ? ts : data.raw_ts;
+  if (PERFETTO_UNLIKELY(raw_ts < drop_ftrace_data_before_ts_)) {
     context_->stats_tracker->IncrementStats(
         stats::ftrace_packet_before_tracing_start);
     return base::OkStatus();
@@ -895,7 +902,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     // this event signifies a beginning of an operation that can end on a
     // different cpu, we could conclude that the operation never ends.
     // See b/192586066.
-    if (PERFETTO_UNLIKELY(ts < soft_drop_ftrace_data_before_ts_)) {
+    if (PERFETTO_UNLIKELY(raw_ts < soft_drop_ftrace_data_before_ts_)) {
       return base::OkStatus();
     }
 

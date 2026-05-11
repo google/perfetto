@@ -100,12 +100,11 @@ class TrackEventSink
  private:
   ProtoTraceParserImpl* parser_;
 };
-class FtraceEventSink
-    : public TraceSorter::Sink<TracePacketData, FtraceEventSink> {
+class FtraceEventSink : public TraceSorter::Sink<FtraceData, FtraceEventSink> {
  public:
   FtraceEventSink(ProtoTraceParserImpl* parser, uint32_t cpu)
       : parser_(parser), cpu_(cpu) {}
-  void Parse(int64_t ts, TracePacketData data) {
+  void Parse(int64_t ts, FtraceData data) {
     parser_->ParseFtraceEvent(cpu_, ts, std::move(data));
   }
 

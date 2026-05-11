@@ -55,6 +55,7 @@ source_set("sqlite") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "module_state_manager_unittest.cc",
     "sql_source_unittest.cc",
     "sqlite_utils_unittest.cc",
   ]
