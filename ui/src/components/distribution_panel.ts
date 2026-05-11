@@ -33,7 +33,7 @@ import {Tooltip} from '../widgets/tooltip';
 import {Tree, TreeNode} from '../widgets/tree';
 import {extensions} from './extensions';
 import {DurationWidget} from './widgets/duration';
-import {Histogram} from './widgets/charts/histogram';
+import {HistogramSvg} from './widgets/charts_svg/histogram_svg';
 import {
   HistogramData,
   SQLHistogramLoader,
@@ -285,7 +285,7 @@ export class DistributionSummary
     data: HistogramData | undefined,
   ): m.Children {
     const onBrushChange = attrs.onBrushChange;
-    return m(Histogram, {
+    return m(HistogramSvg, {
       data,
       height: 220,
       xAxisLabel: attrs.valueColumn,
