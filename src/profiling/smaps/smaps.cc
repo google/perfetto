@@ -91,9 +91,10 @@ enum SmapsField : uint32_t {
   kPssDirty     = 1 << 10,
   kSwapPss      = 1 << 11,
 };
+// clang-format on
 
-// Convenience mapping between config proto enums, implementation bitflags, field
-// offsets, and trace proto field ids.
+// Convenience mapping between config proto enums, implementation bitflags,
+// field offsets, and trace proto field ids.
 struct SmapsFieldDef {
   SmapsField flag;
   uint64_t Vma::* member_ptr;
@@ -102,6 +103,7 @@ struct SmapsFieldDef {
 };
 using SC = protos::gen::SmapsConfig;
 using SP = protos::pbzero::PackedSmaps;
+// clang-format off
 constexpr SmapsFieldDef kSmapsFieldDefs[] = {
   {kSize,         &Vma::size_kb,          SC::VMA_FIELD_SIZE,          SP::kSizeKbFieldNumber},
   {kRss,          &Vma::rss_kb,           SC::VMA_FIELD_RSS,           SP::kRssKbFieldNumber},
@@ -324,23 +326,25 @@ void ParseAndSerializeSmaps(FILE* file,
     packed_smaps->add_string_table(v);
   }
 
-  // name_id
   protozero::PackedVarInt packed;
-  for (const auto& vma : vmas) {
-    packed.Append(static_cast<uint32_t>(vma.name_id));
-  }
-  packed_smaps->set_name_id(packed);
-
-  // aggregate_count (conditional)
+  // If aggregating: write aggregate_count, but skip name_id as a size
+  // optimisation. We write the vmas exactly in string_table order, so the
+  // serialised name_id would be 0, 1, 2, 3, ...
   if (aggregated) {
     packed.Reset();
     for (const auto& vma : vmas) {
       packed.Append(vma.aggregate_count);
     }
     packed_smaps->set_aggregate_count(packed);
+  } else {
+    // Unaggregated: write name_id.
+    for (const auto& vma : vmas) {
+      packed.Append(static_cast<uint32_t>(vma.name_id));
+    }
+    packed_smaps->set_name_id(packed);
   }
 
-  // rest of the fields
+  // write value fields
   for (const auto& field : kSmapsFieldDefs) {
     if (parser_mask & field.flag) {
       packed.Reset();

@@ -41,18 +41,16 @@ message SmapsEntry {
   optional uint64 proportional_resident_kb = 15;
 }
 
-// Structure of arrays style smaps packet of a single process. All packed
+// Structure-of-arrays style smaps packet of a single process. All packed
 // repeated fields, if set, must have the same length.
-// Quirks:
-// * if aggregating, we always emit an entry the empty-named mapping.
-// * if aggregating, name_id is currently 1:1 with string_table, but still
-//   written for potentially sharing the table between packets in the future.
 message PackedSmaps {
   repeated string string_table = 1;
 
   // Interned file paths as an index into |string_table|.
-  // Note: the "(deleted)" suffix is kept, and is to be handled during trace
-  // import stage.
+  // Note: the "(deleted)" suffix is kept as part of the string_table entry, and
+  // is to be handled during trace import stage.
+  // Written only if config.unaggregated == true. Otherwise the string_table is
+  // exactly the ordered names of the aggregated mappings.
   repeated uint32 name_id = 2 [packed = true];
 
   // How many mappings were merged by name, summing the values below.
