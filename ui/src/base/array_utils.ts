@@ -85,3 +85,29 @@ export function intersperse<T, S>(arr: T[], separator: S): (T | S)[] {
     i < arr.length - 1 ? [item, separator] : [item],
   );
 }
+
+// Returns the smallest number in `xs`, or `undefined` if `xs` is empty.
+// Propagates NaN: if any element is NaN the result is NaN (matches
+// Math.min semantics).
+export function min(xs: ReadonlyArray<number>): number | undefined {
+  if (xs.length === 0) return undefined;
+  let r = Infinity;
+  for (const x of xs) {
+    if (Number.isNaN(x)) return NaN;
+    if (x < r) r = x;
+  }
+  return r;
+}
+
+// Returns the largest number in `xs`, or `undefined` if `xs` is empty.
+// Propagates NaN: if any element is NaN the result is NaN (matches
+// Math.max semantics).
+export function max(xs: ReadonlyArray<number>): number | undefined {
+  if (xs.length === 0) return undefined;
+  let r = -Infinity;
+  for (const x of xs) {
+    if (Number.isNaN(x)) return NaN;
+    if (x > r) r = x;
+  }
+  return r;
+}

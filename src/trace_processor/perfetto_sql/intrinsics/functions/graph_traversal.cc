@@ -32,7 +32,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
@@ -199,10 +199,10 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
 
 }  // namespace
 
-base::Status RegisterGraphTraversalFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterGraphTraversalFunctions(PerfettoSqlConnection& connection,
                                              StringPool& pool) {
-  RETURN_IF_ERROR(engine.RegisterFunction<Dfs>(&pool));
-  return engine.RegisterFunction<Bfs>(&pool);
+  RETURN_IF_ERROR(connection.RegisterFunction<Dfs>(&pool));
+  return connection.RegisterFunction<Bfs>(&pool);
 }
 
 }  // namespace perfetto::trace_processor

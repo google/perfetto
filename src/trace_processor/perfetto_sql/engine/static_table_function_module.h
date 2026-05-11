@@ -49,6 +49,8 @@ struct StaticTableFunctionModule : sqlite::Module<StaticTableFunctionModule> {
     std::unique_ptr<StaticTableFunction> function;
   };
   struct Context : sqlite::ModuleStateManager<StaticTableFunctionModule> {
+    explicit Context(sqlite::CommittedStateManager& store)
+        : sqlite::ModuleStateManager<StaticTableFunctionModule>(store) {}
     std::unique_ptr<State> temporary_create_state;
   };
   struct Vtab : sqlite::Module<StaticTableFunctionModule>::Vtab {

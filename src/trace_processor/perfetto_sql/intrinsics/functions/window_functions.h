@@ -22,7 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 
@@ -135,9 +135,10 @@ class LastNonNull : public sqlite::WindowFunction {
   }
 };
 
-inline base::Status RegisterLastNonNullFunction(PerfettoSqlEngine& engine) {
-  return engine.RegisterWindowFunction<LastNonNull>("LAST_NON_NULL", 1,
-                                                    nullptr);
+inline base::Status RegisterLastNonNullFunction(
+    PerfettoSqlConnection& connection) {
+  return connection.RegisterWindowFunction<LastNonNull>("LAST_NON_NULL", 1,
+                                                        nullptr);
 }
 
 }  // namespace perfetto::trace_processor

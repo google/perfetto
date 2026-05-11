@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE android.monitor_contention;
 
+INCLUDE PERFETTO MODULE std.metasql.unparenthesize;
+
 -- Compute the distribution of the overlap of the given intervals over time.
 --
 -- Each interval is a (ts, dur) pair and the overlap represented as a (ts, value)
@@ -521,11 +523,6 @@ AS (
     value = 0
 );
 
--- Helper to unparenthesize a column list with __intrinsic_token_apply.
-CREATE PERFETTO MACRO _imop_identity(col ColumnName)
-RETURNS Expr
-AS $col;
-
 -- Merge overlapping intervals within each partition group to generate a minimum
 -- covering set of intervals with no overlap within each partition.
 --
@@ -557,8 +554,8 @@ AS (
       SELECT
         ts,
         dur,
-        __intrinsic_token_apply!(_imop_identity, $partition_columns),
-        max(ts + dur) OVER (PARTITION BY __intrinsic_token_apply!(_imop_identity, $partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_endpoint_so_far
+        metasql_unparenthesize_exprlist!($partition_columns),
+        max(ts + dur) OVER (PARTITION BY metasql_unparenthesize_exprlist!($partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_endpoint_so_far
       FROM $intervals
       WHERE
         dur >= 0
@@ -566,15 +563,15 @@ AS (
     _numbered_groups AS (
       SELECT
         *,
-        sum(coalesce(ts > max_endpoint_so_far, TRUE)) OVER (PARTITION BY __intrinsic_token_apply!(_imop_identity, $partition_columns) ORDER BY ts) AS overlap_group_number
+        sum(coalesce(ts > max_endpoint_so_far, TRUE)) OVER (PARTITION BY metasql_unparenthesize_exprlist!($partition_columns) ORDER BY ts) AS overlap_group_number
       FROM _max_endpoint_so_far
     )
   SELECT
     min(ts) AS ts,
     max(ts + dur) - min(ts) AS dur,
-    __intrinsic_token_apply!(_imop_identity, $partition_columns)
+    metasql_unparenthesize_exprlist!($partition_columns)
   FROM _numbered_groups
   GROUP BY
-    __intrinsic_token_apply!(_imop_identity, $partition_columns),
+    metasql_unparenthesize_exprlist!($partition_columns),
     overlap_group_number
 );

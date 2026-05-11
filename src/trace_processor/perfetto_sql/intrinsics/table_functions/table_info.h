@@ -26,7 +26,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 
@@ -38,16 +38,17 @@ class TableInfo : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(StringPool* string_pool, const PerfettoSqlEngine* engine);
+    explicit Cursor(StringPool* string_pool,
+                    const PerfettoSqlConnection* connection);
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:
     StringPool* string_pool_ = nullptr;
-    const PerfettoSqlEngine* engine_ = nullptr;
+    const PerfettoSqlConnection* engine_ = nullptr;
     tables::PerfettoTableInfoTable table_;
   };
 
-  explicit TableInfo(StringPool*, const PerfettoSqlEngine*);
+  explicit TableInfo(StringPool*, const PerfettoSqlConnection*);
 
   std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
   dataframe::DataframeSpec CreateSpec() override;
@@ -56,7 +57,7 @@ class TableInfo : public StaticTableFunction {
 
  private:
   StringPool* string_pool_ = nullptr;
-  const PerfettoSqlEngine* engine_ = nullptr;
+  const PerfettoSqlConnection* engine_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor

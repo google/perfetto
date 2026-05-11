@@ -19,21 +19,21 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_conversion.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_filter.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_propagate.h"
 
 namespace perfetto::trace_processor {
 
-base::Status RegisterTreeFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterTreeFunctions(PerfettoSqlConnection& connection,
                                    StringPool& pool) {
-  RETURN_IF_ERROR(engine.RegisterAggregateFunction<TreeFromTable>(&pool));
-  RETURN_IF_ERROR(engine.RegisterFunction<TreeToTable>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterFunction<TreeConstraint>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterFunction<TreeWhereAnd>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterFunction<TreeFilter>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterFunction<TreePropagateDown>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterAggregateFunction<TreeFromTable>(&pool));
+  RETURN_IF_ERROR(connection.RegisterFunction<TreeToTable>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterFunction<TreeConstraint>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterFunction<TreeWhereAnd>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterFunction<TreeFilter>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterFunction<TreePropagateDown>(nullptr));
   return base::OkStatus();
 }
 

@@ -37,7 +37,7 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -146,7 +146,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   void CacheBoundsAndBuildTable();
 
-  struct InitPerfettoSqlEngineArgs {
+  struct InitPerfettoSqlConnectionArgs {
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
@@ -160,26 +160,26 @@ class TraceProcessorImpl : public TraceProcessor,
     std::vector<std::unique_ptr<PluginBase>>& plugins;
   };
 
-  static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
-      const InitPerfettoSqlEngineArgs& args);
+  static std::unique_ptr<PerfettoSqlConnection> InitPerfettoSqlConnection(
+      const InitPerfettoSqlConnectionArgs& args);
 
-  static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
+  static std::vector<PerfettoSqlConnection::StaticTable> GetStaticTables(
       TraceStorage* storage);
 
   static std::vector<std::unique_ptr<StaticTableFunction>>
   CreateStaticTableFunctions(TraceProcessorContext* context,
                              TraceStorage* storage,
                              const Config& config,
-                             PerfettoSqlEngine* engine);
+                             PerfettoSqlConnection* connection);
 
-  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
+  static void IncludeAfterEofPrelude(PerfettoSqlConnection*);
 
   const Config config_;
 
   // Registered plugins, topologically sorted by dependency order.
   std::vector<std::unique_ptr<PluginBase>> plugins_;
 
-  std::unique_ptr<PerfettoSqlEngine> engine_;
+  std::unique_ptr<PerfettoSqlConnection> engine_;
 
   DescriptorPool metrics_descriptor_pool_;
 

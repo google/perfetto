@@ -25,7 +25,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -77,8 +77,8 @@ struct Base64Decode : public sqlite::Function<Base64Decode> {
 
 }  // namespace
 
-base::Status RegisterBase64Functions(PerfettoSqlEngine& engine) {
-  return engine.RegisterFunction<Base64Decode>(nullptr);
+base::Status RegisterBase64Functions(PerfettoSqlConnection& connection) {
+  return connection.RegisterFunction<Base64Decode>(nullptr);
 }
 
 }  // namespace perfetto::trace_processor

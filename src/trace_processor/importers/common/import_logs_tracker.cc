@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -37,7 +38,7 @@ void ImportLogsTracker::RecordImportLog(
     std::optional<int64_t> timestamp,
     std::optional<int64_t> byte_offset,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
-  context_->storage->IncrementStats(stat_key);
+  context_->stats_tracker->IncrementStats(stat_key);
 
   tables::TraceImportLogsTable::Row row;
   row.trace_id = trace_id_;

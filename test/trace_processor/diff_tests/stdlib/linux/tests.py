@@ -279,3 +279,35 @@ class LinuxTests(TestSuite):
         1703001573489,447,"SCHED",46634,"[NULL]",1
         1702673567426,1098,"TIMER",39947,"[NULL]",1
         """))
+
+  def test_linux_interrupt_mapping(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          interrupt_info {
+            irq_mapping { irq_id: 9 name: "vgic" }
+            irq_mapping { irq_id: 11 name: "arch_timer" }
+            irq_mapping { irq_id: 700 name: "u100_power_state" }
+            irq_mapping { irq_id: 701 name: "cs40l26 IRQ1 Controller" }
+            irq_mapping { irq_id: 702 name: "GPIO1 rise" }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE linux.irqs;
+
+        SELECT
+          irq_id,
+          name
+        FROM linux_interrupt_mapping
+        ORDER BY irq_id;
+        """,
+        out=Csv("""
+        "irq_id","name"
+        9,"vgic"
+        11,"arch_timer"
+        700,"u100_power_state"
+        701,"cs40l26 IRQ1 Controller"
+        702,"GPIO1 rise"
+        """))

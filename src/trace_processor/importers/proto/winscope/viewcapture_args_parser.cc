@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
 namespace perfetto::trace_processor::winscope {
@@ -33,12 +34,12 @@ using ConstChars = protozero::ConstChars;
 ViewCaptureArgsParser::ViewCaptureArgsParser(
     int64_t packet_timestamp,
     ArgsTracker::BoundInserter& inserter,
-    TraceStorage& storage,
+    TraceProcessorContext& context,
     PacketSequenceStateGeneration* sequence_state,
     ViewCaptureRow* snapshot_row,
     ViewRow* view_row)
-    : ArgsParser(packet_timestamp, inserter, storage, sequence_state),
-      storage_{storage},
+    : ArgsParser(packet_timestamp, inserter, *context.storage, sequence_state),
+      context_(context),
       snapshot_row_(snapshot_row),
       view_row_(view_row) {}
 
@@ -72,7 +73,7 @@ bool ViewCaptureArgsParser::TryAddDeinternedString(const Key& key,
   if (!deintern_val) {
     ArgsParser::AddString(deintern_key_combined,
                           ConstChars{ERROR_MSG.data(), ERROR_MSG.size()});
-    storage_.IncrementStats(
+    context_.stats_tracker->IncrementStats(
         stats::winscope_viewcapture_missing_interned_string_parse_errors);
     return false;
   }
@@ -80,8 +81,8 @@ bool ViewCaptureArgsParser::TryAddDeinternedString(const Key& key,
   ArgsParser::AddString(deintern_key_combined, *deintern_val);
 
   IidToStringMap& iid_args =
-      flat_key_to_iid_args[storage_.InternString(key.flat_key)];
-  iid_args.Insert(iid, storage_.InternString(*deintern_val));
+      flat_key_to_iid_args[context_.storage->InternString(key.flat_key)];
+  iid_args.Insert(iid, context_.storage->InternString(*deintern_val));
 
   return true;
 }
@@ -124,7 +125,7 @@ std::optional<ConstChars> ViewCaptureArgsParser::DeinternString(
   auto chars = DeinternString<FieldNumber>(iid);
   if (chars && row) {
     base::StringView sv(*chars);
-    (row->*setter)(storage_.mutable_string_pool()->InternString(sv));
+    (row->*setter)(context_.storage->mutable_string_pool()->InternString(sv));
   }
   return chars;
 }

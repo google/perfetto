@@ -259,11 +259,6 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'adreno_gpu_cmdbatch',
-    topLevelGroup: 'GPU',
-    group: 'Adreno Cmdbatch',
-  },
-  {
     type: 'triggers',
     topLevelGroup: 'SYSTEM',
     group: undefined,

@@ -41,6 +41,8 @@ struct Cursors {
 // Executor's methods are virtual to be overridden in tests
 class Executor {
  public:
+  using MergeFlags = RwProto::Cursor::MergeFlags;
+
   virtual ~Executor();
   virtual StatusOr<void> EnterField(Cursors* cursors, uint32_t field_id) const;
   virtual StatusOr<void> EnterRepeatedFieldAt(Cursors* cursors,
@@ -59,7 +61,7 @@ class Executor {
   virtual StatusOr<uint64_t> ReadRegister(uint8_t reg_id) const;
   virtual StatusOr<void> WriteRegister(const Cursors& cursors, uint8_t reg_id);
   virtual StatusOr<void> Delete(RwProto::Cursor* dst) const;
-  virtual StatusOr<void> Merge(Cursors* cursors, bool skip_submessages) const;
+  virtual StatusOr<void> Merge(Cursors* cursors, uint32_t flags) const;
   virtual StatusOr<void> Set(Cursors* cursors) const;
 
  private:

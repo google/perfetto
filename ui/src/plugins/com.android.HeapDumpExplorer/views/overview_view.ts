@@ -21,6 +21,11 @@ import {fmtSize} from '../format';
 import type {NavState} from '../nav_state';
 import {type NavFn, sizeRenderer} from '../components';
 import type {HeapDump} from '../queries';
+import {Callout} from '../../../widgets/callout';
+import {Button} from '../../../widgets/button';
+
+export const HIDE_DEFAULT_CHANGED_KEY =
+  'hideHeapDumpExplorerDefaultChangedHint';
 
 const HEAP_SCHEMA: SchemaRegistry = {
   query: {
@@ -241,11 +246,22 @@ interface OverviewViewAttrs {
   readonly overview: OverviewData;
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly showDefaultChangedHint: boolean;
+  readonly onBackToTimeline: () => void;
+  readonly onDismissDefaultChangedHint: () => void;
 }
 function OverviewView(): m.Component<OverviewViewAttrs> {
   return {
     view(vnode) {
-      const {overview, activeDump, navigate} = vnode.attrs;
+      const {
+        overview,
+        activeDump,
+        navigate,
+        showDefaultChangedHint,
+        onBackToTimeline,
+        onDismissDefaultChangedHint,
+      } = vnode.attrs;
+      const showHint = showDefaultChangedHint;
       const heapIndices: number[] = [];
       for (let i = 0; i < overview.heaps.length; i++) {
         const h = overview.heaps[i];
@@ -290,6 +306,30 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
 
       return m('div', {class: 'ah-view-scroll'}, [
         m('h2', {class: 'ah-view-heading'}, 'Overview'),
+        showHint
+          ? m(
+              Callout,
+              {
+                className: 'ah-default-changed-callout',
+                icon: 'info',
+                dismissible: true,
+                onDismiss: onDismissDefaultChangedHint,
+              },
+              m('p', [
+                m(
+                  'span',
+                  'Heapdump Explorer is now the default view for traces ' +
+                    'with heap-graph data.',
+                ),
+                m(Button, {
+                  label: 'Back to Timeline',
+                  icon: 'arrow_back',
+                  compact: true,
+                  onclick: onBackToTimeline,
+                }),
+              ]),
+            )
+          : null,
 
         m('div', {class: 'ah-card ah-mb-4'}, [
           m('h3', {class: 'ah-sub-heading'}, 'General Information'),

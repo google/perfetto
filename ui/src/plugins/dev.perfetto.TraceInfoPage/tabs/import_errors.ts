@@ -66,6 +66,7 @@ export interface ImportErrorsData {
   errors: StatsSectionRow[];
   categories: ErrorCategory[];
   isMultiTrace: boolean;
+  isMultiMachine: boolean;
 }
 
 export async function loadImportErrorsData(
@@ -78,6 +79,11 @@ export async function loadImportErrorsData(
 
   const traceInfos = await getTraceInfos(engine);
   const isMultiTrace = traceInfos.size > 1;
+  const machineIds = new Set<number>();
+  for (const e of errors) {
+    if (e.machineId !== null) machineIds.add(e.machineId);
+  }
+  const isMultiMachine = machineIds.size > 1;
 
   // Group errors by category and add logs array
   const categories = groupByCategory(errors).map((cat) => ({
@@ -121,7 +127,7 @@ export async function loadImportErrorsData(
     });
   }
 
-  return {errors, categories, isMultiTrace};
+  return {errors, categories, isMultiTrace, isMultiMachine};
 }
 
 export interface ImportErrorsTabAttrs {
@@ -167,7 +173,11 @@ export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
             subtitle: 'Individual import error entries grouped by category',
           },
           categories.map((cat) =>
-            this.renderCategorySection(cat, attrs.data.isMultiTrace),
+            this.renderCategorySection(
+              cat,
+              attrs.data.isMultiTrace,
+              attrs.data.isMultiMachine,
+            ),
           ),
         ),
     );
@@ -176,6 +186,7 @@ export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
   private renderCategorySection(
     category: ErrorCategory,
     isMultiTrace: boolean,
+    isMultiMachine: boolean,
   ): m.Children {
     // Check if we have logs and if the count matches
     const hasMatchingLogs = category.logs.length === category.totalCount;
@@ -187,7 +198,7 @@ export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
       category.description && m('p', category.description),
       hasMatchingLogs
         ? this.renderLogsGrid(category, isMultiTrace)
-        : this.renderStatsGrid(category),
+        : this.renderStatsGrid(category, isMultiTrace, isMultiMachine),
     );
   }
 
@@ -307,22 +318,42 @@ export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
     );
   }
 
-  private renderStatsGrid(category: ErrorCategory): m.Children {
+  private renderStatsGrid(
+    category: ErrorCategory,
+    isMultiTrace: boolean,
+    isMultiMachine: boolean,
+  ): m.Children {
+    const columns = [];
+    if (isMultiTrace) {
+      columns.push({key: 'trace_id', header: m(GridHeaderCell, 'Trace')});
+    }
+    if (isMultiMachine) {
+      columns.push({key: 'machine_id', header: m(GridHeaderCell, 'Machine')});
+    }
+    columns.push(
+      {key: 'idx', header: m(GridHeaderCell, 'Index')},
+      {key: 'value', header: m(GridHeaderCell, 'Count')},
+    );
     return m(Grid, {
-      columns: [
-        {
-          key: 'idx',
-          header: m(GridHeaderCell, 'Index'),
-        },
-        {
-          key: 'value',
-          header: m(GridHeaderCell, 'Count'),
-        },
-      ],
-      rowData: category.entries.map((row) => [
-        m(GridCell, row.idx !== '' ? String(row.idx) : '-'),
-        m(GridCell, String(row.value)),
-      ]),
+      columns,
+      rowData: category.entries.map((row) => {
+        const cells = [];
+        if (isMultiTrace) {
+          cells.push(
+            m(GridCell, row.traceId !== null ? String(row.traceId) : '-'),
+          );
+        }
+        if (isMultiMachine) {
+          cells.push(
+            m(GridCell, row.machineId !== null ? String(row.machineId) : '-'),
+          );
+        }
+        cells.push(
+          m(GridCell, row.idx !== '' ? String(row.idx) : '-'),
+          m(GridCell, String(row.value)),
+        );
+        return cells;
+      }),
     });
   }
 }
