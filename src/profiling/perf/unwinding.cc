@@ -276,10 +276,10 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
     // TODO(rsavitski): start tracking process exits more accurately, either
     // via PERF_RECORD_EXIT records or by checking the validity of the procfs
     // descriptors.
-    if (PERFETTO_UNLIKELY(
-            !entry.sample.regs &&
-            proc_state.status == ProcessState::Status::kFdsResolved &&
-            ds.unwind_mode != UnwindMode::kKernelFramePointer)) {
+    if (PERFETTO_UNLIKELY(!entry.sample.regs &&
+                          proc_state.status ==
+                              ProcessState::Status::kFdsResolved &&
+                          ds.unwind_mode != UnwindMode::kKernelFramePointer)) {
       PERFETTO_DLOG(
           "Unwinder discarding sample for pid [%d]: uspace->kthread pid reuse",
           static_cast<int>(pid));
@@ -468,8 +468,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     unwind = attempt_unwind();
   }
 
-  ret.build_ids.reserve(kernel_frames_size + unwind.frames.size());
-  ret.frames.reserve(kernel_frames_size + unwind.frames.size());
+  ret.build_ids.reserve(ret.frames.size() + unwind.frames.size());
+  ret.frames.reserve(ret.frames.size() + unwind.frames.size());
   for (unwindstack::FrameData& frame : unwind.frames) {
     ret.build_ids.emplace_back(unwind_state->GetBuildId(frame));
     ret.frames.emplace_back(std::move(frame));
