@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
+import type {Setting} from '../../public/settings';
 import {NUM} from '../../trace_processor/query_result';
 
 import {SQL_PREAMBLE} from './components';
@@ -90,6 +91,7 @@ export class HeapDumpExplorerSession {
   constructor(
     readonly trace: Trace,
     readonly engine: Engine,
+    readonly hideDefaultChangedHint: Setting<boolean>,
   ) {}
 
   get dumps(): ReadonlyArray<queries.HeapDump> {
