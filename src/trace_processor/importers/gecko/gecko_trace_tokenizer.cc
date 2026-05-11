@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -84,6 +86,15 @@ struct GeckoThread {
   std::vector<std::optional<uint32_t>> sample_stacks;
   std::vector<double> sample_times;
 
+  // Markers (preprocessed format only). Length is the minimum of the array
+  // sizes below.
+  std::vector<uint32_t> marker_names;      // Index into `strings`.
+  std::vector<double> marker_start_times;  // Milliseconds.
+  std::vector<double> marker_end_times;    // Milliseconds.
+  std::vector<uint8_t> marker_phases;  // 0=Instant, 1=Interval, 2=Start, 3=End.
+  std::vector<uint32_t> marker_categories;  // Index into profile categories.
+  std::vector<std::string> marker_data;  // Raw JSON for `data`; empty for null.
+
   bool is_preprocessed = false;
 };
 
@@ -141,7 +152,180 @@ base::Status ParseOptionalUint32Array(
   });
 }
 
-// Parse a single thread object.
+// Reads a uint that may have been emitted as either a JSON number or a numeric
+// string (Gecko sometimes serializes pids/tids as strings).
+uint32_t ReadUint32OrStringifiedUint32(json::SimpleJsonParser& reader) {
+  if (auto v = reader.GetUint32()) {
+    return *v;
+  }
+  if (auto s = reader.GetString()) {
+    return base::CStringToUInt32(std::string(*s).c_str()).value_or(0);
+  }
+  return 0;
+}
+
+// Parses `frameTable`, which has two on-the-wire shapes:
+//   - Legacy:       { "schema": {...}, "data": [[...], ...] }
+//   - Preprocessed: { "func": [...], ... }
+base::Status ParseFrameTable(json::SimpleJsonParser& reader, GeckoThread& t) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "schema" && reader.IsObject()) {
+      RETURN_IF_ERROR(ParseSchema(reader, t.frame_table.schema_keys,
+                                  t.frame_table.schema_values));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "data" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseDataArray(reader, t.frame_table.data));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "func" && reader.IsArray()) {
+      t.is_preprocessed = true;
+      if (auto r = reader.CollectUint32Array(); r.ok()) {
+        t.frame_func_indices = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+// Parses the preprocessed `funcTable`. We only care about the `name` array.
+base::Status ParseFuncTable(json::SimpleJsonParser& reader, GeckoThread& t) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "name" && reader.IsArray()) {
+      if (auto r = reader.CollectUint32Array(); r.ok()) {
+        t.func_names = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+// Parses `stackTable`, which has two on-the-wire shapes:
+//   - Legacy:       { "schema": {...}, "data": [[...], ...] }
+//   - Preprocessed: { "prefix": [...], "frame": [...] }
+base::Status ParseStackTable(json::SimpleJsonParser& reader, GeckoThread& t) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "schema" && reader.IsObject()) {
+      RETURN_IF_ERROR(ParseSchema(reader, t.stack_table.schema_keys,
+                                  t.stack_table.schema_values));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "data" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseDataArray(reader, t.stack_table.data));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "prefix" && reader.IsArray()) {
+      t.is_preprocessed = true;
+      RETURN_IF_ERROR(ParseOptionalUint32Array(reader, t.stack_prefixes));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "frame" && reader.IsArray()) {
+      if (auto r = reader.CollectUint32Array(); r.ok()) {
+        t.stack_frames = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+// Parses `samples`, which has two on-the-wire shapes:
+//   - Legacy:       { "schema": {...}, "data": [[...], ...] }
+//   - Preprocessed: { "stack": [...], "time": [...] }
+base::Status ParseSamplesTable(json::SimpleJsonParser& reader, GeckoThread& t) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "schema" && reader.IsObject()) {
+      RETURN_IF_ERROR(
+          ParseSchema(reader, t.samples.schema_keys, t.samples.schema_values));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "data" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseDataArray(reader, t.samples.data));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "stack" && reader.IsArray()) {
+      t.is_preprocessed = true;
+      RETURN_IF_ERROR(ParseOptionalUint32Array(reader, t.sample_stacks));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "time" && reader.IsArray()) {
+      if (auto r = reader.CollectDoubleArray(); r.ok()) {
+        t.sample_times = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+// Captures the raw JSON bytes of each element in the marker `data` array.
+// Primitives and nulls are stored as the empty string and skipped at parse
+// time; objects/arrays are kept verbatim for later flattening into args.
+base::Status ParseMarkerDataArray(json::SimpleJsonParser& reader,
+                                  std::vector<std::string>& out) {
+  return reader.ForEachArrayElement([&]() {
+    if (reader.IsObject() || reader.IsArray()) {
+      auto raw = reader.CollectRawObjectOrArray();
+      if (!raw.ok()) {
+        return raw.status();
+      }
+      out.emplace_back(*raw);
+    } else {
+      out.emplace_back();
+    }
+    return base::OkStatus();
+  });
+}
+
+// Parses the preprocessed `markers` table. The legacy format is not handled —
+// markers were not part of legacy gecko traces in practice.
+base::Status ParseMarkersTable(json::SimpleJsonParser& reader, GeckoThread& t) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "name" && reader.IsArray()) {
+      if (auto r = reader.CollectUint32Array(); r.ok()) {
+        t.marker_names = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "startTime" && reader.IsArray()) {
+      if (auto r = reader.CollectDoubleArray(); r.ok()) {
+        t.marker_start_times = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "endTime" && reader.IsArray()) {
+      if (auto r = reader.CollectDoubleArray(); r.ok()) {
+        t.marker_end_times = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "phase" && reader.IsArray()) {
+      if (auto r = reader.CollectUint32Array(); r.ok()) {
+        t.marker_phases.reserve(r->size());
+        for (uint32_t p : *r) {
+          t.marker_phases.push_back(static_cast<uint8_t>(p));
+        }
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "category" && reader.IsArray()) {
+      if (auto r = reader.CollectUint32Array(); r.ok()) {
+        t.marker_categories = std::move(*r);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "data" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseMarkerDataArray(reader, t.marker_data));
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+// Parse a single thread object. Used for both real threads under `threads` and
+// the synthetic thread under `shared`.
 base::Status ParseThread(json::SimpleJsonParser& reader, GeckoThread& t) {
   return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
     if (key == "name") {
@@ -149,135 +333,44 @@ base::Status ParseThread(json::SimpleJsonParser& reader, GeckoThread& t) {
       return json::FieldResult::Handled{};
     }
     if (key == "tid") {
-      if (auto v = reader.GetUint32()) {
-        t.tid = *v;
-      } else if (auto s = reader.GetString()) {
-        t.tid = base::CStringToUInt32(std::string(*s).c_str()).value_or(0);
-      }
+      t.tid = ReadUint32OrStringifiedUint32(reader);
       return json::FieldResult::Handled{};
     }
     if (key == "pid") {
-      if (auto v = reader.GetUint32()) {
-        t.pid = *v;
-      } else if (auto s = reader.GetString()) {
-        t.pid = base::CStringToUInt32(std::string(*s).c_str()).value_or(0);
-      }
+      t.pid = ReadUint32OrStringifiedUint32(reader);
       return json::FieldResult::Handled{};
     }
     if (key == "stringTable" && reader.IsArray()) {
-      // Legacy format string table.
-      auto result = reader.CollectStringArray();
-      if (result.ok()) {
-        t.strings = std::move(*result);
+      if (auto r = reader.CollectStringArray(); r.ok()) {
+        t.strings = std::move(*r);
       }
       return json::FieldResult::Handled{};
     }
     if (key == "stringArray" && reader.IsArray()) {
-      // Preprocessed format string array.
       t.is_preprocessed = true;
-      auto result = reader.CollectStringArray();
-      if (result.ok()) {
-        t.strings = std::move(*result);
+      if (auto r = reader.CollectStringArray(); r.ok()) {
+        t.strings = std::move(*r);
       }
       return json::FieldResult::Handled{};
     }
     if (key == "frameTable" && reader.IsObject()) {
-      // Check if this is preprocessed (has "func" array) or legacy (has
-      // "schema").
-      RETURN_IF_ERROR(
-          reader.ForEachField([&](std::string_view fkey) -> json::FieldResult {
-            if (fkey == "schema" && reader.IsObject()) {
-              RETURN_IF_ERROR(ParseSchema(reader, t.frame_table.schema_keys,
-                                          t.frame_table.schema_values));
-              return json::FieldResult::Handled{};
-            }
-            if (fkey == "data" && reader.IsArray()) {
-              RETURN_IF_ERROR(ParseDataArray(reader, t.frame_table.data));
-              return json::FieldResult::Handled{};
-            }
-            if (fkey == "func" && reader.IsArray()) {
-              t.is_preprocessed = true;
-              auto result = reader.CollectUint32Array();
-              if (result.ok()) {
-                t.frame_func_indices = std::move(*result);
-              }
-              return json::FieldResult::Handled{};
-            }
-            return json::FieldResult::Skip{};
-          }));
+      RETURN_IF_ERROR(ParseFrameTable(reader, t));
       return json::FieldResult::Handled{};
     }
     if (key == "funcTable" && reader.IsObject()) {
-      // Preprocessed format function table.
-      RETURN_IF_ERROR(
-          reader.ForEachField([&](std::string_view fkey) -> json::FieldResult {
-            if (fkey == "name" && reader.IsArray()) {
-              auto result = reader.CollectUint32Array();
-              if (result.ok()) {
-                t.func_names = std::move(*result);
-              }
-              return json::FieldResult::Handled{};
-            }
-            return json::FieldResult::Skip{};
-          }));
+      RETURN_IF_ERROR(ParseFuncTable(reader, t));
       return json::FieldResult::Handled{};
     }
     if (key == "stackTable" && reader.IsObject()) {
-      RETURN_IF_ERROR(
-          reader.ForEachField([&](std::string_view skey) -> json::FieldResult {
-            if (skey == "schema" && reader.IsObject()) {
-              RETURN_IF_ERROR(ParseSchema(reader, t.stack_table.schema_keys,
-                                          t.stack_table.schema_values));
-              return json::FieldResult::Handled{};
-            }
-            if (skey == "data" && reader.IsArray()) {
-              RETURN_IF_ERROR(ParseDataArray(reader, t.stack_table.data));
-              return json::FieldResult::Handled{};
-            }
-            if (skey == "prefix" && reader.IsArray()) {
-              t.is_preprocessed = true;
-              RETURN_IF_ERROR(
-                  ParseOptionalUint32Array(reader, t.stack_prefixes));
-              return json::FieldResult::Handled{};
-            }
-            if (skey == "frame" && reader.IsArray()) {
-              auto result = reader.CollectUint32Array();
-              if (result.ok()) {
-                t.stack_frames = std::move(*result);
-              }
-              return json::FieldResult::Handled{};
-            }
-            return json::FieldResult::Skip{};
-          }));
+      RETURN_IF_ERROR(ParseStackTable(reader, t));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "markers" && reader.IsObject()) {
+      RETURN_IF_ERROR(ParseMarkersTable(reader, t));
       return json::FieldResult::Handled{};
     }
     if (key == "samples" && reader.IsObject()) {
-      RETURN_IF_ERROR(
-          reader.ForEachField([&](std::string_view skey) -> json::FieldResult {
-            if (skey == "schema" && reader.IsObject()) {
-              RETURN_IF_ERROR(ParseSchema(reader, t.samples.schema_keys,
-                                          t.samples.schema_values));
-              return json::FieldResult::Handled{};
-            }
-            if (skey == "data" && reader.IsArray()) {
-              RETURN_IF_ERROR(ParseDataArray(reader, t.samples.data));
-              return json::FieldResult::Handled{};
-            }
-            if (skey == "stack" && reader.IsArray()) {
-              t.is_preprocessed = true;
-              RETURN_IF_ERROR(
-                  ParseOptionalUint32Array(reader, t.sample_stacks));
-              return json::FieldResult::Handled{};
-            }
-            if (skey == "time" && reader.IsArray()) {
-              auto result = reader.CollectDoubleArray();
-              if (result.ok()) {
-                t.sample_times = std::move(*result);
-              }
-              return json::FieldResult::Handled{};
-            }
-            return json::FieldResult::Skip{};
-          }));
+      RETURN_IF_ERROR(ParseSamplesTable(reader, t));
       return json::FieldResult::Handled{};
     }
     return json::FieldResult::Skip{};
@@ -287,7 +380,57 @@ base::Status ParseThread(json::SimpleJsonParser& reader, GeckoThread& t) {
 struct GeckoProfile {
   std::vector<GeckoThread> threads;
   std::optional<GeckoThread> shared;
+  // `name` field of each entry in `meta.categories`. Used to resolve marker
+  // category indices to a human-readable string.
+  std::vector<std::string> category_names;
 };
+
+// Parses `meta.categories`. Each entry is `{name, color, subcategories}`; we
+// only keep the `name`.
+base::Status ParseMetaCategories(json::SimpleJsonParser& reader,
+                                 std::vector<std::string>& out) {
+  return reader.ForEachArrayElement([&]() {
+    if (!reader.IsObject()) {
+      return base::OkStatus();
+    }
+    std::string name;
+    RETURN_IF_ERROR(
+        reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+          if (key == "name") {
+            name = std::string(reader.GetString().value_or(""));
+            return json::FieldResult::Handled{};
+          }
+          return json::FieldResult::Skip{};
+        }));
+    out.push_back(std::move(name));
+    return base::OkStatus();
+  });
+}
+
+// Parses the `meta` object. We currently only consume `categories`.
+base::Status ParseMeta(json::SimpleJsonParser& reader, GeckoProfile& profile) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "categories" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseMetaCategories(reader, profile.category_names));
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+// Parses the `threads` array.
+base::Status ParseThreads(json::SimpleJsonParser& reader,
+                          std::vector<GeckoThread>& out) {
+  return reader.ForEachArrayElement([&]() {
+    if (!reader.IsObject()) {
+      return base::OkStatus();
+    }
+    GeckoThread t;
+    RETURN_IF_ERROR(ParseThread(reader, t));
+    out.push_back(std::move(t));
+    return base::OkStatus();
+  });
+}
 
 // Parse the root gecko profile object.
 base::StatusOr<GeckoProfile> ParseGeckoProfile(std::string_view json) {
@@ -297,20 +440,17 @@ base::StatusOr<GeckoProfile> ParseGeckoProfile(std::string_view json) {
 
   RETURN_IF_ERROR(
       reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+        if (key == "meta" && reader.IsObject()) {
+          RETURN_IF_ERROR(ParseMeta(reader, profile));
+          return json::FieldResult::Handled{};
+        }
         if (key == "shared" && reader.IsObject()) {
           profile.shared.emplace();
           RETURN_IF_ERROR(ParseThread(reader, *profile.shared));
           return json::FieldResult::Handled{};
         }
         if (key == "threads" && reader.IsArray()) {
-          RETURN_IF_ERROR(reader.ForEachArrayElement([&]() {
-            if (reader.IsObject()) {
-              GeckoThread t;
-              RETURN_IF_ERROR(ParseThread(reader, t));
-              profile.threads.push_back(std::move(t));
-            }
-            return base::OkStatus();
-          }));
+          RETURN_IF_ERROR(ParseThreads(reader, profile.threads));
           return json::FieldResult::Handled{};
         }
         return json::FieldResult::Skip{};
@@ -342,34 +482,46 @@ base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
         profile_or.status().message().c_str());
   }
 
-  // If shared resources exist, process frames/stacks once and reuse for all
-  // threads.
+  // The `shared` block may carry the string table only, frame+stack tables
+  // only, or both. Resolve each of those independently rather than tying them
+  // to a single boolean.
+  const std::vector<std::string>* shared_strings =
+      profile_or->shared ? &profile_or->shared->strings : nullptr;
+  const bool shared_has_frames =
+      profile_or->shared && (!profile_or->shared->frame_func_indices.empty() ||
+                             !profile_or->shared->frame_table.data.empty());
+
+  // Pre-build shared callsites once (reused across threads) when present.
   std::optional<std::vector<Callsite>> shared_callsites;
-  if (profile_or->shared) {
+  if (shared_has_frames) {
     const auto& s = *profile_or->shared;
-    if (s.is_preprocessed) {
-      shared_callsites = ProcessPreprocessedFramesAndStacks(s);
-    } else {
-      shared_callsites = ProcessLegacyFramesAndStacks(s);
-    }
+    shared_callsites = s.is_preprocessed
+                           ? ProcessPreprocessedFramesAndStacks(s, s.strings)
+                           : ProcessLegacyFramesAndStacks(s, s.strings);
   }
 
   for (const auto& t : profile_or->threads) {
+    // Frame names are resolved against the thread's strings if it has them,
+    // otherwise the shared strings (or an empty vector if neither exists).
+    const std::vector<std::string>& strings =
+        !t.strings.empty() || shared_strings == nullptr ? t.strings
+                                                        : *shared_strings;
+
     if (shared_callsites) {
-      // Threads use shared frames/stacks; only process samples.
-      if (t.is_preprocessed ||
-          (profile_or->shared && profile_or->shared->is_preprocessed)) {
+      if (t.is_preprocessed || profile_or->shared->is_preprocessed) {
         ProcessSamples(t, *shared_callsites);
       } else {
         ProcessLegacySamples(t, *shared_callsites);
       }
     } else if (t.is_preprocessed) {
-      auto callsites = ProcessPreprocessedFramesAndStacks(t);
+      auto callsites = ProcessPreprocessedFramesAndStacks(t, strings);
       ProcessSamples(t, callsites);
     } else {
-      auto callsites = ProcessLegacyFramesAndStacks(t);
+      auto callsites = ProcessLegacyFramesAndStacks(t, strings);
       ProcessLegacySamples(t, callsites);
     }
+
+    ProcessMarkers(t, strings, profile_or->category_names);
   }
   return base::OkStatus();
 }
@@ -401,7 +553,8 @@ FrameId GeckoTraceTokenizer::InternFrame(base::StringView name) {
 }
 
 std::vector<Callsite> GeckoTraceTokenizer::ProcessLegacyFramesAndStacks(
-    const GeckoThread& t) {
+    const GeckoThread& t,
+    const std::vector<std::string>& strings) {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
 
@@ -419,10 +572,10 @@ std::vector<Callsite> GeckoTraceTokenizer::ProcessLegacyFramesAndStacks(
       continue;
     }
     const auto* loc_val = std::get_if<uint32_t>(&frame[*location_idx]);
-    if (!loc_val || *loc_val >= t.strings.size()) {
+    if (!loc_val || *loc_val >= strings.size()) {
       continue;
     }
-    frame_ids.push_back(InternFrame(base::StringView(t.strings[*loc_val])));
+    frame_ids.push_back(InternFrame(base::StringView(strings[*loc_val])));
   }
 
   // Process stacks.
@@ -503,7 +656,8 @@ void GeckoTraceTokenizer::ProcessLegacySamples(
 }
 
 std::vector<Callsite> GeckoTraceTokenizer::ProcessPreprocessedFramesAndStacks(
-    const GeckoThread& t) {
+    const GeckoThread& t,
+    const std::vector<std::string>& strings) {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
 
@@ -513,10 +667,10 @@ std::vector<Callsite> GeckoTraceTokenizer::ProcessPreprocessedFramesAndStacks(
       continue;
     }
     uint32_t name_str_idx = t.func_names[func_idx];
-    if (name_str_idx >= t.strings.size()) {
+    if (name_str_idx >= strings.size()) {
       continue;
     }
-    frame_ids.push_back(InternFrame(base::StringView(t.strings[name_str_idx])));
+    frame_ids.push_back(InternFrame(base::StringView(strings[name_str_idx])));
   }
 
   // Process stacks using separate prefix/frame arrays.
@@ -577,6 +731,91 @@ void GeckoTraceTokenizer::ProcessSamples(
     }
     stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
                                   t.tid, callsites[stack_idx].id}});
+  }
+}
+
+namespace {
+
+// Returns the timestamp (in nanoseconds, in trace-file clock space) at which a
+// marker with the given phase should be emitted. IntervalEnd uses `endTime`;
+// everything else uses `startTime`.
+int64_t MarkerEventTimeNs(GeckoEvent::MarkerPhase phase,
+                          double start_ms,
+                          double end_ms) {
+  double ms =
+      phase == GeckoEvent::MarkerPhase::kIntervalEnd ? end_ms : start_ms;
+  return static_cast<int64_t>(ms * 1000 * 1000);
+}
+
+}  // namespace
+
+void GeckoTraceTokenizer::ProcessMarkers(
+    const GeckoThread& t,
+    const std::vector<std::string>& strings_for_names,
+    const std::vector<std::string>& category_names) {
+  // All marker arrays must be index-aligned. Iterate up to the smallest size
+  // to ignore any partially-populated tail rows.
+  const size_t n = std::min({t.marker_names.size(), t.marker_start_times.size(),
+                             t.marker_end_times.size(), t.marker_phases.size(),
+                             t.marker_categories.size()});
+  if (n == 0) {
+    return;
+  }
+
+  bool added_metadata = false;
+  for (size_t i = 0; i < n; ++i) {
+    uint32_t name_idx = t.marker_names[i];
+    if (name_idx >= strings_for_names.size()) {
+      continue;
+    }
+    StringPool::Id name_id = context_->storage->InternString(
+        base::StringView(strings_for_names[name_idx]));
+
+    StringPool::Id cat_id = StringPool::Id::Null();
+    uint32_t cat_idx = t.marker_categories[i];
+    if (cat_idx < category_names.size()) {
+      cat_id = context_->storage->InternString(
+          base::StringView(category_names[cat_idx]));
+    }
+
+    auto phase = static_cast<GeckoEvent::MarkerPhase>(t.marker_phases[i]);
+    double start_ms = t.marker_start_times[i];
+    double end_ms = t.marker_end_times[i];
+    int64_t ts = MarkerEventTimeNs(phase, start_ms, end_ms);
+    std::optional<int64_t> converted =
+        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+    if (!converted) {
+      continue;
+    }
+
+    int64_t dur = phase == GeckoEvent::MarkerPhase::kInterval
+                      ? static_cast<int64_t>((end_ms - start_ms) * 1000 * 1000)
+                      : 0;
+
+    GeckoEvent::Marker m;
+    m.tid = t.tid;
+    m.phase = phase;
+    m.name = name_id;
+    m.category = cat_id;
+    m.dur = std::max<int64_t>(0, dur);
+    if (i < t.marker_data.size() && !t.marker_data[i].empty()) {
+      const auto& s = t.marker_data[i];
+      m.data_json = std::make_unique<char[]>(s.size());
+      memcpy(m.data_json.get(), s.data(), s.size());
+      m.data_json_size = static_cast<uint32_t>(s.size());
+    } else {
+      m.data_json_size = 0;
+    }
+
+    if (!added_metadata) {
+      stream_->Push(
+          *converted,
+          GeckoEvent{GeckoEvent::ThreadMetadata{
+              t.tid, t.pid,
+              context_->storage->InternString(base::StringView(t.name))}});
+      added_metadata = true;
+    }
+    stream_->Push(*converted, GeckoEvent{std::move(m)});
   }
 }
 

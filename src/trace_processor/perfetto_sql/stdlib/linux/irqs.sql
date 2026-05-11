@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- All hard IRQs of the trace represented as slices.
-CREATE PERFETTO VIEW linux_hard_irqs (
+CREATE PERFETTO VIEW linux_hard_irqs(
   -- Starting timestamp of this IRQ.
   ts TIMESTAMP,
   -- Duration of this IRQ.
@@ -25,13 +25,9 @@ CREATE PERFETTO VIEW linux_hard_irqs (
   id JOINID(slice.id),
   -- The id of this IRQ's parent IRQ (i.e. the IRQ that this IRQ preempted).
   parent_id JOINID(slice.id)
-) AS
-SELECT
-  slices.ts,
-  slices.dur,
-  slices.name,
-  slices.id,
-  slices.parent_id
+)
+AS
+SELECT slices.ts, slices.dur, slices.name, slices.id, slices.parent_id
 FROM slices
 JOIN track
   ON track.id = slices.track_id
@@ -39,7 +35,7 @@ WHERE
   track.type = 'cpu_irq';
 
 -- All soft IRQs of the trace represented as slices.
-CREATE PERFETTO VIEW linux_soft_irqs (
+CREATE PERFETTO VIEW linux_soft_irqs(
   -- Starting timestamp of this IRQ.
   ts TIMESTAMP,
   -- Duration of this IRQ.
@@ -48,12 +44,9 @@ CREATE PERFETTO VIEW linux_soft_irqs (
   name STRING,
   -- The id of the IRQ.
   id JOINID(slice.id)
-) AS
-SELECT
-  slices.ts,
-  slices.dur,
-  slices.name,
-  slices.id
+)
+AS
+SELECT slices.ts, slices.dur, slices.name, slices.id
 FROM slices
 JOIN track
   ON track.id = slices.track_id
@@ -61,7 +54,7 @@ WHERE
   track.type = 'cpu_softirq';
 
 -- All IRQs, including hard and soft IRQs, of the trace represented as slices.
-CREATE PERFETTO VIEW linux_irqs (
+CREATE PERFETTO VIEW linux_irqs(
   -- Starting timestamp of this IRQ.
   ts TIMESTAMP,
   -- Duration of this IRQ.
@@ -74,21 +67,23 @@ CREATE PERFETTO VIEW linux_irqs (
   parent_id JOINID(slice.id),
   -- Flag indicating if IRQ is soft IRQ
   is_soft_irq BOOL
-) AS
-SELECT
-  ts,
-  dur,
-  name,
-  id,
-  parent_id,
-  0 AS is_soft_irq
-FROM linux_hard_irqs
+)
+AS
+SELECT ts, dur, name, id, parent_id, 0 AS is_soft_irq FROM linux_hard_irqs
 UNION ALL
-SELECT
-  ts,
-  dur,
-  name,
-  id,
-  NULL AS parent_id,
-  1 AS is_soft_irq
+SELECT ts, dur, name, id, NULL AS parent_id, 1 AS is_soft_irq
 FROM linux_soft_irqs;
+
+-- Contains information for IRQ mappings seen during the trace.
+CREATE PERFETTO VIEW linux_interrupt_mapping(
+  -- Unique identifier for this mapping.
+  id ID,
+  -- The IRQ ID.
+  irq_id LONG,
+  -- The name of the IRQ.
+  name STRING,
+  -- The machine that emitted the IRQ.
+  machine_id JOINID(machine.id)
+)
+AS
+SELECT * FROM _linux_interrupt_mapping;

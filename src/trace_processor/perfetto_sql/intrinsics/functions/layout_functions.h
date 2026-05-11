@@ -16,7 +16,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_LAYOUT_FUNCTIONS_H_
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 namespace perfetto::trace_processor {
 
@@ -30,7 +30,7 @@ class TraceProcessorContext;
 // TODO(altimin): this should support grouping sets of sets of slices (aka
 // "tracks") by passing 'track_id' parameter. The complication is that we will
 // need to know the max depth for each "track", so it's punted for now.
-base::Status RegisterLayoutFunctions(PerfettoSqlEngine& engine);
+base::Status RegisterLayoutFunctions(PerfettoSqlConnection& connection);
 
 }  // namespace perfetto::trace_processor
 

@@ -1,3 +1,16 @@
+Unreleased:
+  Tracing service and probes:
+    * Added `machine_id` and `machine_name` fields to `TracingServiceState`,
+      exposing the originating machine for producers connected via
+      `traced_relay`. `perfetto --query` and `--query-raw` surface these in a
+      new `MACHINE` column when more than one machine is involved.
+  Trace Processor:
+   *
+  UI:
+   *
+  SDK:
+   *
+
 v55.0 - 2026-04-29:
   Tracing service and probes:
     * Breaking change: Renamed the `TraceMetadata` proto to `TraceAttributes`.

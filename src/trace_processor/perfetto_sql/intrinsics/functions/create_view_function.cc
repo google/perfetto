@@ -25,7 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -37,7 +37,7 @@ void CreateViewFunction::Step(sqlite3_context* ctx,
                               sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 3);
 
-  auto* engine = GetUserData(ctx);
+  auto* connection = GetUserData(ctx);
 
   // Type check all the arguments.
   if (sqlite::value::Type(argv[0]) != sqlite::Type::kText) {
@@ -79,7 +79,7 @@ void CreateViewFunction::Step(sqlite3_context* ctx,
                                    return_prototype_str, sql_defn_str);
   formatted_sql.resize(size);
 
-  auto res = engine->Execute(
+  auto res = connection->Execute(
       SqlSource::FromTraceProcessorImplementation(std::move(formatted_sql)));
   if (!res.status().ok()) {
     return sqlite::utils::SetError(ctx, res.status());

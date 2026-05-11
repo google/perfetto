@@ -15,135 +15,89 @@
 
 -- Converts a battery_stats counter value to human readable string.
 CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(
-    -- The counter track name (e.g. 'battery_stats.audio').
-    track STRING,
-    -- The counter value.
-    value DOUBLE
+  -- The counter track name (e.g. 'battery_stats.audio').
+  track STRING,
+  -- The counter value.
+  value DOUBLE
 )
 -- The human-readable name for the counter value.
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN (
-      $track = "battery_stats.wifi_scan"
-      OR $track = "battery_stats.wifi_radio"
-      OR $track = "battery_stats.mobile_radio"
-      OR $track = "battery_stats.audio"
-      OR $track = "battery_stats.video"
-      OR $track = "battery_stats.camera"
-      OR $track = "battery_stats.power_save"
-      OR $track = "battery_stats.phone_in_call"
-    )
-    THEN CASE $value WHEN 0 THEN "inactive" WHEN 1 THEN "active" ELSE "unknown" END
-    WHEN $track = "battery_stats.wifi"
-    THEN CASE $value WHEN 0 THEN "off" WHEN 1 THEN "on" ELSE "unknown" END
-    WHEN $track = "battery_stats.phone_state"
-    THEN CASE $value
-      WHEN 0
-      THEN "in"
-      WHEN 1
-      THEN "out"
-      WHEN 2
-      THEN "emergency"
-      WHEN 3
-      THEN "off"
+    WHEN ($track = "battery_stats.wifi_scan"
+    OR $track = "battery_stats.wifi_radio"
+    OR $track = "battery_stats.mobile_radio"
+    OR $track = "battery_stats.audio"
+    OR $track = "battery_stats.video"
+    OR $track = "battery_stats.camera"
+    OR $track = "battery_stats.power_save"
+    OR $track = "battery_stats.phone_in_call") THEN CASE $value
+      WHEN 0 THEN "inactive"
+      WHEN 1 THEN "active"
       ELSE "unknown"
     END
-    WHEN (
-      $track = "battery_stats.phone_signal_strength"
-      OR $track = "battery_stats.wifi_signal_strength"
-    )
-    THEN CASE $value
-      WHEN 0
-      THEN "0/4"
-      WHEN 1
-      THEN "1/4"
-      WHEN 2
-      THEN "2/4"
-      WHEN 3
-      THEN "3/4"
-      WHEN 4
-      THEN "4/4"
+    WHEN $track = "battery_stats.wifi" THEN CASE $value
+      WHEN 0 THEN "off"
+      WHEN 1 THEN "on"
       ELSE "unknown"
     END
-    WHEN $track = "battery_stats.wifi_suppl"
-    THEN CASE $value
-      WHEN 0
-      THEN "invalid"
-      WHEN 1
-      THEN "disconnected"
-      WHEN 2
-      THEN "disabled"
-      WHEN 3
-      THEN "inactive"
-      WHEN 4
-      THEN "scanning"
-      WHEN 5
-      THEN "authenticating"
-      WHEN 6
-      THEN "associating"
-      WHEN 7
-      THEN "associated"
-      WHEN 8
-      THEN "4-way-handshake"
-      WHEN 9
-      THEN "group-handshake"
-      WHEN 10
-      THEN "completed"
-      WHEN 11
-      THEN "dormant"
-      WHEN 12
-      THEN "uninitialized"
+    WHEN $track = "battery_stats.phone_state" THEN CASE $value
+      WHEN 0 THEN "in"
+      WHEN 1 THEN "out"
+      WHEN 2 THEN "emergency"
+      WHEN 3 THEN "off"
       ELSE "unknown"
     END
-    WHEN $track = "battery_stats.data_conn"
-    THEN CASE $value
-      WHEN 0
-      THEN "Out of service"
-      WHEN 1
-      THEN "2.5G (GPRS)"
-      WHEN 2
-      THEN "2.7G (EDGE)"
-      WHEN 3
-      THEN "3G (UMTS)"
-      WHEN 4
-      THEN "3G (CDMA)"
-      WHEN 5
-      THEN "3G (EVDO Rel 0)"
-      WHEN 6
-      THEN "3G (EVDO Rev A)"
-      WHEN 7
-      THEN "3G (LXRTT)"
-      WHEN 8
-      THEN "3.5G (HSDPA)"
-      WHEN 9
-      THEN "3.5G (HSUPA)"
-      WHEN 10
-      THEN "3.5G (HSPA)"
-      WHEN 11
-      THEN "2G (IDEN)"
-      WHEN 12
-      THEN "3G (EVDO Rev B)"
-      WHEN 13
-      THEN "4G (LTE)"
-      WHEN 14
-      THEN "3.5G (eHRPD)"
-      WHEN 15
-      THEN "3.7G (HSPA+)"
-      WHEN 16
-      THEN "2G (GSM)"
-      WHEN 17
-      THEN "3G (TD SCDMA)"
-      WHEN 18
-      THEN "Wifi calling (IWLAN)"
-      WHEN 19
-      THEN "4.5G (LTE CA)"
-      WHEN 20
-      THEN "5G (NR)"
-      WHEN 21
-      THEN "Emergency calls only"
-      WHEN 22
-      THEN "Other"
+    WHEN ($track = "battery_stats.phone_signal_strength"
+    OR $track = "battery_stats.wifi_signal_strength") THEN CASE $value
+      WHEN 0 THEN "0/4"
+      WHEN 1 THEN "1/4"
+      WHEN 2 THEN "2/4"
+      WHEN 3 THEN "3/4"
+      WHEN 4 THEN "4/4"
+      ELSE "unknown"
+    END
+    WHEN $track = "battery_stats.wifi_suppl" THEN CASE $value
+      WHEN 0 THEN "invalid"
+      WHEN 1 THEN "disconnected"
+      WHEN 2 THEN "disabled"
+      WHEN 3 THEN "inactive"
+      WHEN 4 THEN "scanning"
+      WHEN 5 THEN "authenticating"
+      WHEN 6 THEN "associating"
+      WHEN 7 THEN "associated"
+      WHEN 8 THEN "4-way-handshake"
+      WHEN 9 THEN "group-handshake"
+      WHEN 10 THEN "completed"
+      WHEN 11 THEN "dormant"
+      WHEN 12 THEN "uninitialized"
+      ELSE "unknown"
+    END
+    WHEN $track = "battery_stats.data_conn" THEN CASE $value
+      WHEN 0 THEN "Out of service"
+      WHEN 1 THEN "2.5G (GPRS)"
+      WHEN 2 THEN "2.7G (EDGE)"
+      WHEN 3 THEN "3G (UMTS)"
+      WHEN 4 THEN "3G (CDMA)"
+      WHEN 5 THEN "3G (EVDO Rel 0)"
+      WHEN 6 THEN "3G (EVDO Rev A)"
+      WHEN 7 THEN "3G (LXRTT)"
+      WHEN 8 THEN "3.5G (HSDPA)"
+      WHEN 9 THEN "3.5G (HSUPA)"
+      WHEN 10 THEN "3.5G (HSPA)"
+      WHEN 11 THEN "2G (IDEN)"
+      WHEN 12 THEN "3G (EVDO Rev B)"
+      WHEN 13 THEN "4G (LTE)"
+      WHEN 14 THEN "3.5G (eHRPD)"
+      WHEN 15 THEN "3.7G (HSPA+)"
+      WHEN 16 THEN "2G (GSM)"
+      WHEN 17 THEN "3G (TD SCDMA)"
+      WHEN 18 THEN "Wifi calling (IWLAN)"
+      WHEN 19 THEN "4.5G (LTE CA)"
+      WHEN 20 THEN "5G (NR)"
+      WHEN 21 THEN "Emergency calls only"
+      WHEN 22 THEN "Other"
       ELSE "unknown"
     END
     ELSE cast_string!($value)
@@ -152,7 +106,7 @@ SELECT
 -- View of human readable battery stats counter-based states. These are recorded
 -- by BatteryStats as a bitmap where each 'category' has a unique value at any
 -- given time.
-CREATE PERFETTO VIEW android_battery_stats_state (
+CREATE PERFETTO VIEW android_battery_stats_state(
   -- Start of the new barrary state.
   ts TIMESTAMP,
   -- The duration the state was active, -1 for incomplete slices.
@@ -165,7 +119,8 @@ CREATE PERFETTO VIEW android_battery_stats_state (
   value LONG,
   -- The counter value as a human-readable string.
   value_name STRING
-) AS
+)
+AS
 SELECT
   ts,
   coalesce(lead(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
@@ -196,7 +151,7 @@ WHERE
 --     track_name='battery_stats.top'
 --     str_value='com.google.android.apps.nexuslauncher'
 --     int_value=10215
-CREATE PERFETTO VIEW android_battery_stats_event_slices (
+CREATE PERFETTO VIEW android_battery_stats_event_slices(
   -- Start of a new battery state.
   ts TIMESTAMP,
   -- The duration the state was active, -1 for incomplete slices.
@@ -209,7 +164,8 @@ CREATE PERFETTO VIEW android_battery_stats_event_slices (
   str_value STRING,
   -- Int value.
   int_value LONG
-) AS
+)
+AS
 WITH
   event_markers AS (
     SELECT
@@ -221,7 +177,8 @@ WITH
     JOIN track
       ON slice.track_id = track.id
     WHERE
-      track_name GLOB 'battery_stats.*' AND substr(slice.name, 1, 1) IN ('+', '-')
+      track_name GLOB 'battery_stats.*'
+      AND substr(slice.name, 1, 1) IN ('+', '-')
   ),
   with_neighbors AS (
     SELECT
@@ -245,9 +202,7 @@ WITH
     -- start (matched by the second half of this where), we can create an event
     -- starting from the beginning of the trace ending at the current event.
     WHERE
-      (
-        start OR last_ts IS NULL
-      )
+      (start OR last_ts IS NULL)
   )
 SELECT
   ts,

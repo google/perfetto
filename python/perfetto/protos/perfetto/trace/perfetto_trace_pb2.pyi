@@ -3294,10 +3294,12 @@ class VmOpRegLoad(_message.Message):
     def __init__(self, cursor: _Optional[_Union[VmCursorEnum, str]] = ..., dst_register: _Optional[int] = ...) -> None: ...
 
 class VmOpMerge(_message.Message):
-    __slots__ = ("skip_submessages",)
+    __slots__ = ("skip_submessages", "del_if_src_empty")
     SKIP_SUBMESSAGES_FIELD_NUMBER: _ClassVar[int]
+    DEL_IF_SRC_EMPTY_FIELD_NUMBER: _ClassVar[int]
     skip_submessages: bool
-    def __init__(self, skip_submessages: bool = ...) -> None: ...
+    del_if_src_empty: bool
+    def __init__(self, skip_submessages: bool = ..., del_if_src_empty: bool = ...) -> None: ...
 
 class VmOpSet(_message.Message):
     __slots__ = ()
@@ -3334,20 +3336,24 @@ class DataSourceDescriptor(_message.Message):
 class TracingServiceState(_message.Message):
     __slots__ = ("producers", "data_sources", "tracing_sessions", "supports_tracing_sessions", "num_sessions", "num_sessions_started", "tracing_service_version")
     class Producer(_message.Message):
-        __slots__ = ("id", "name", "pid", "uid", "sdk_version", "frozen")
+        __slots__ = ("id", "name", "pid", "uid", "sdk_version", "frozen", "machine_id", "machine_name")
         ID_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
         PID_FIELD_NUMBER: _ClassVar[int]
         UID_FIELD_NUMBER: _ClassVar[int]
         SDK_VERSION_FIELD_NUMBER: _ClassVar[int]
         FROZEN_FIELD_NUMBER: _ClassVar[int]
+        MACHINE_ID_FIELD_NUMBER: _ClassVar[int]
+        MACHINE_NAME_FIELD_NUMBER: _ClassVar[int]
         id: int
         name: str
         pid: int
         uid: int
         sdk_version: str
         frozen: bool
-        def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., pid: _Optional[int] = ..., uid: _Optional[int] = ..., sdk_version: _Optional[str] = ..., frozen: bool = ...) -> None: ...
+        machine_id: int
+        machine_name: str
+        def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., pid: _Optional[int] = ..., uid: _Optional[int] = ..., sdk_version: _Optional[str] = ..., frozen: bool = ..., machine_id: _Optional[int] = ..., machine_name: _Optional[str] = ...) -> None: ...
     class DataSource(_message.Message):
         __slots__ = ("ds_descriptor", "producer_id")
         DS_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
@@ -3646,7 +3652,7 @@ class AndroidUserListConfig(_message.Message):
     def __init__(self, user_type_filter: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class WindowManagerConfig(_message.Message):
-    __slots__ = ("log_frequency", "log_level")
+    __slots__ = ("log_frequency", "log_level", "log_mode")
     class LogFrequency(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         LOG_FREQUENCY_UNSPECIFIED: _ClassVar[WindowManagerConfig.LogFrequency]
@@ -3667,11 +3673,21 @@ class WindowManagerConfig(_message.Message):
     LOG_LEVEL_VERBOSE: WindowManagerConfig.LogLevel
     LOG_LEVEL_DEBUG: WindowManagerConfig.LogLevel
     LOG_LEVEL_CRITICAL: WindowManagerConfig.LogLevel
+    class LogMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        LOG_MODE_UNSPECIFIED: _ClassVar[WindowManagerConfig.LogMode]
+        LOG_MODE_FULL_STATE: _ClassVar[WindowManagerConfig.LogMode]
+        LOG_MODE_INCREMENTAL: _ClassVar[WindowManagerConfig.LogMode]
+    LOG_MODE_UNSPECIFIED: WindowManagerConfig.LogMode
+    LOG_MODE_FULL_STATE: WindowManagerConfig.LogMode
+    LOG_MODE_INCREMENTAL: WindowManagerConfig.LogMode
     LOG_FREQUENCY_FIELD_NUMBER: _ClassVar[int]
     LOG_LEVEL_FIELD_NUMBER: _ClassVar[int]
+    LOG_MODE_FIELD_NUMBER: _ClassVar[int]
     log_frequency: WindowManagerConfig.LogFrequency
     log_level: WindowManagerConfig.LogLevel
-    def __init__(self, log_frequency: _Optional[_Union[WindowManagerConfig.LogFrequency, str]] = ..., log_level: _Optional[_Union[WindowManagerConfig.LogLevel, str]] = ...) -> None: ...
+    log_mode: WindowManagerConfig.LogMode
+    def __init__(self, log_frequency: _Optional[_Union[WindowManagerConfig.LogFrequency, str]] = ..., log_level: _Optional[_Union[WindowManagerConfig.LogLevel, str]] = ..., log_mode: _Optional[_Union[WindowManagerConfig.LogMode, str]] = ...) -> None: ...
 
 class ChromeConfig(_message.Message):
     __slots__ = ("trace_config", "privacy_filtering_enabled", "convert_to_legacy_json", "client_priority", "json_agent_label_filter", "event_package_name_filter_enabled")

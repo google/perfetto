@@ -37,7 +37,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -113,16 +113,16 @@ base::Status InsertRows(
 
 WinscopeSurfaceFlingerHierarchyPaths::Cursor::Cursor(
     StringPool* string_pool,
-    const PerfettoSqlEngine* engine)
-    : string_pool_(string_pool), engine_(engine), table_(string_pool) {}
+    const PerfettoSqlConnection* connection)
+    : string_pool_(string_pool), engine_(connection), table_(string_pool) {}
 
 bool WinscopeSurfaceFlingerHierarchyPaths::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 0);
   auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
-  const dataframe::Dataframe* static_table_from_engine =
+  const dataframe::Dataframe* static_table_from_connection =
       engine_->GetDataframeOrNull(table_name);
-  if (!static_table_from_engine) {
+  if (!static_table_from_connection) {
     return OnFailure(base::ErrStatus("Failed to find %s table.",
                                      std::string(table_name).c_str()));
   }
@@ -130,7 +130,7 @@ bool WinscopeSurfaceFlingerHierarchyPaths::Cursor::Run(
   table_.Clear();
 
   base::Status status =
-      InsertRows(*static_table_from_engine, &table_, string_pool_);
+      InsertRows(*static_table_from_connection, &table_, string_pool_);
   if (!status.ok()) {
     return OnFailure(status);
   }
@@ -139,8 +139,8 @@ bool WinscopeSurfaceFlingerHierarchyPaths::Cursor::Run(
 
 WinscopeSurfaceFlingerHierarchyPaths::WinscopeSurfaceFlingerHierarchyPaths(
     StringPool* string_pool,
-    const PerfettoSqlEngine* engine)
-    : string_pool_(string_pool), engine_(engine) {}
+    const PerfettoSqlConnection* connection)
+    : string_pool_(string_pool), engine_(connection) {}
 
 std::unique_ptr<StaticTableFunction::Cursor>
 WinscopeSurfaceFlingerHierarchyPaths::MakeCursor() {

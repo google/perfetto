@@ -18,21 +18,21 @@
 -- Returns the counter value for a perf sample given the sample ID
 -- and counter name.
 CREATE PERFETTO FUNCTION linux_perf_counter_for_sample(
-    -- The ID of the perf sample.
-    sample_id JOINID(perf_sample.id),
-    -- The name of the counter (e.g., 'cpu-clock', 'instructions').
-    counter_name STRING
+  -- The ID of the perf sample.
+  sample_id JOINID(perf_sample.id),
+  -- The name of the counter (e.g., 'cpu-clock', 'instructions').
+  counter_name STRING
 )
 -- The counter value, or NULL if not found.
 RETURNS DOUBLE
-  DELEGATES TO __intrinsic_perf_counter_for_sample;
+DELEGATES TO __intrinsic_perf_counter_for_sample;
 
 -- sqlformat file on
 
 -- Fully denormalized view joining perf samples with their counter values.
 -- Note: This view has multiple rows per sample (one for each counter).
 -- Use with caution for large traces as it may impact query performance.
-CREATE PERFETTO VIEW linux_perf_sample_with_counters (
+CREATE PERFETTO VIEW linux_perf_sample_with_counters(
   -- The sample ID.
   sample_id JOINID(perf_sample.id),
   -- Timestamp of the sample.
@@ -55,7 +55,8 @@ CREATE PERFETTO VIEW linux_perf_sample_with_counters (
   track_id JOINID(track.id),
   -- Counter value at this sample point.
   counter_value DOUBLE
-) AS
+)
+AS
 SELECT
   ps.id AS sample_id,
   ps.ts,

@@ -21,7 +21,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 class TraceProcessorContext;
 
 // Registers heap graph helper functions:
@@ -36,7 +36,7 @@ class TraceProcessorContext;
 //   Element type and count are stored alongside the blob data.
 //   Long values are encoded as JSON strings to preserve 64-bit precision.
 //   Returns NULL if array_data_id is NULL or out of range.
-base::Status RegisterArtHeapGraphFunctions(PerfettoSqlEngine* engine,
+base::Status RegisterArtHeapGraphFunctions(PerfettoSqlConnection* connection,
                                            TraceProcessorContext* context);
 
 }  // namespace perfetto::trace_processor

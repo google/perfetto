@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/utils.h"
@@ -91,15 +92,6 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
     base::Daemonize([] { return 0; });
   }
 
-  base::Watchdog* watchdog = base::Watchdog::GetInstance();
-  // The memory watchdog will be updated soon after connect, once the shmem
-  // buffer size is known, in ProbesProducer::OnTracingSetup().
-  watchdog->SetMemoryLimit(base::kWatchdogDefaultMemorySlack,
-                           base::kWatchdogDefaultMemoryWindow);
-  watchdog->SetCpuLimit(base::kWatchdogDefaultCpuLimit,
-                        base::kWatchdogDefaultCpuWindow);
-  watchdog->Start();
-
   PERFETTO_LOG("Starting %s service", argv[0]);
 
   // This environment variable is set by Android's init to a fd to /dev/kmsg
@@ -116,6 +108,26 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
 
   base::MaybeLockFreeTaskRunner task_runner;
   ProbesProducer producer;
+
+  base::Watchdog* watchdog = base::Watchdog::GetInstance();
+  // The memory watchdog will be updated soon after connect, once the shmem
+  // buffer size is known, in ProbesProducer::OnTracingSetup().
+  watchdog->SetMemoryLimit(base::kWatchdogDefaultMemorySlack,
+                           base::kWatchdogDefaultMemoryWindow);
+  watchdog->SetCpuLimit(base::kWatchdogDefaultCpuLimit,
+                        base::kWatchdogDefaultCpuWindow);
+  // Give us a chance to flush ftrace data before the watchdog force-crashes
+  // the process, to better debug traced_probes wdog crashes.
+  if constexpr (PERFETTO_FLAGS(TRIGGER_PERFETTO_ON_TRACED_PROBES_DISCONNECT)) {
+    watchdog->Start(&task_runner, [](base::WatchdogCrashInfo info) {
+      auto* probes_producer = ProbesProducer::GetInstance();
+      if (probes_producer)
+        probes_producer->FlushForWatchdogAndCrash(info);
+    });
+  } else {
+    watchdog->Start(&task_runner);
+  }
+
   // If the TRACED_PROBES_NOTIFY_FD env var is set, write 1 and close the FD,
   // when all data sources have been registered. This is used for //src/tracebox
   // --background-wait, to make sure that the data sources are registered before

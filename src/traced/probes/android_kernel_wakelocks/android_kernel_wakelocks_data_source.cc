@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -115,6 +116,8 @@ void AndroidKernelWakelocksDataSource::Start() {
 }
 
 void AndroidKernelWakelocksDataSource::Tick() {
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, ANDROID_KERNEL_WAKELOCKS_TICK);
+
   // Post next task.
   auto now_ms = base::GetWallTimeMs().count();
   auto weak_this = weak_factory_.GetWeakPtr();

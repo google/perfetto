@@ -49,13 +49,15 @@ SELECT
   gc_name,
   ts AS gc_ts,
   ts,
-  gc_dur + iif(
+  gc_dur
+  + iif(
     compact_name = 'CompactionPhase'
     OR compact_name = 'Background concurrent copying GC',
     compact_dur,
     0
   ) AS gc_dur,
-  gc_dur + iif(
+  gc_dur
+  + iif(
     compact_name = 'CompactionPhase'
     OR compact_name = 'Background concurrent copying GC',
     compact_dur,
@@ -75,14 +77,14 @@ WHERE
 CREATE PERFETTO VIEW _gc_heap_counter AS
 SELECT
   c.ts,
-  coalesce(lead(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts), trace_end()) - ts AS dur,
+  coalesce(lead(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts), trace_end())
+  - ts AS dur,
   process.upid,
-  cast_int!(c.value ) AS value
+  cast_int!(c.value) AS value
 FROM counter AS c
 JOIN process_counter_track AS t
   ON c.track_id = t.id
-INNER JOIN process
-  USING (upid)
+JOIN process USING (upid)
 WHERE
   t.name = 'Heap size (KB)';
 
@@ -93,42 +95,21 @@ WHERE
 CREATE PERFETTO VIEW _gc_slice_with_final_heap AS
 WITH
   slice_and_heap AS (
-    SELECT
-      upid,
-      gc_id,
-      gc_ts + gc_dur AS ts,
-      NULL AS value
-    FROM _gc_slice
+    SELECT upid, gc_id, gc_ts + gc_dur AS ts, NULL AS value FROM _gc_slice
     UNION ALL
-    SELECT
-      upid,
-      NULL AS gc_id,
-      ts,
-      value
-    FROM _gc_heap_counter
+    SELECT upid, NULL AS gc_id, ts, value FROM _gc_heap_counter
   ),
   next_heap AS (
-    SELECT
-      *,
-      lead(value) OVER (PARTITION BY upid ORDER BY ts) AS last_value
+    SELECT *, lead(value) OVER (PARTITION BY upid ORDER BY ts) AS last_value
     FROM slice_and_heap
   ),
-  slice_with_last_heap AS (
-    SELECT
-      *
-    FROM next_heap
-    WHERE
-      gc_id IS NOT NULL
-  )
-SELECT
-  _gc_slice.*,
-  last_value
+  slice_with_last_heap AS (SELECT * FROM next_heap WHERE gc_id IS NOT NULL)
+SELECT _gc_slice.*, last_value
 FROM _gc_slice
-LEFT JOIN slice_with_last_heap
-  USING (gc_id);
+LEFT JOIN slice_with_last_heap USING (gc_id);
 
 -- Span join with all the other heap counters to find the overall min and max heap size.
-CREATE VIRTUAL TABLE _gc_slice_heap_sp USING SPAN_JOIN (_gc_slice_with_final_heap PARTITIONED upid, _gc_heap_counter PARTITIONED upid);
+CREATE VIRTUAL TABLE _gc_slice_heap_sp USING SPAN_JOIN(_gc_slice_with_final_heap PARTITIONED upid, _gc_heap_counter PARTITIONED upid);
 
 -- Aggregate the min and max heap across the GC event, taking into account the last heap size
 -- derived earlier.
@@ -149,16 +130,11 @@ SELECT
   last_value,
   value,
   CASE
-    WHEN gc_name GLOB '*NativeAlloc*'
-    THEN 'native_alloc'
-    WHEN gc_name GLOB '*Alloc*'
-    THEN 'alloc'
-    WHEN gc_name GLOB '*young*'
-    THEN 'young'
-    WHEN gc_name GLOB '*CollectorTransition*'
-    THEN 'collector_transition'
-    WHEN gc_name GLOB '*Explicit*'
-    THEN 'explicit'
+    WHEN gc_name GLOB '*NativeAlloc*' THEN 'native_alloc'
+    WHEN gc_name GLOB '*Alloc*' THEN 'alloc'
+    WHEN gc_name GLOB '*young*' THEN 'young'
+    WHEN gc_name GLOB '*CollectorTransition*' THEN 'collector_transition'
+    WHEN gc_name GLOB '*Explicit*' THEN 'explicit'
     ELSE 'full'
   END AS gc_type,
   iif(gc_name GLOB '*mark compact*', 1, 0) AS is_mark_compact,
@@ -169,10 +145,10 @@ GROUP BY
   gc_id;
 
 -- Span join GC events with thread states to breakdown the time spent.
-CREATE VIRTUAL TABLE _gc_slice_heap_thread_state_sp USING SPAN_LEFT_JOIN (_gc_slice_heap PARTITIONED utid, thread_state PARTITIONED utid);
+CREATE VIRTUAL TABLE _gc_slice_heap_thread_state_sp USING SPAN_LEFT_JOIN(_gc_slice_heap PARTITIONED utid, thread_state PARTITIONED utid);
 
 -- All Garbage collection events with a breakdown of the time spent and heap reclaimed.
-CREATE PERFETTO TABLE android_garbage_collection_events (
+CREATE PERFETTO TABLE android_garbage_collection_events(
   -- Tid of thread running garbage collection.
   tid LONG,
   -- Pid of process running garbage collection.
@@ -211,7 +187,8 @@ CREATE PERFETTO TABLE android_garbage_collection_events (
   gc_unint_non_io_dur DURATION,
   -- Garbage collection duration spent waiting in interruptible sleep.
   gc_int_dur LONG
-) AS
+)
+AS
 WITH
   agg_events AS (
     SELECT
@@ -286,8 +263,8 @@ SELECT
   ts - lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS dur,
   value,
   CASE
-    WHEN lag(c.value) OVER (PARTITION BY upid ORDER BY ts) < c.value
-    THEN c.value - lag(c.value) OVER (PARTITION BY upid ORDER BY ts)
+    WHEN lag(c.value) OVER (PARTITION BY upid ORDER BY ts) < c.value THEN c.value
+    - lag(c.value) OVER (PARTITION BY upid ORDER BY ts)
     ELSE 0
   END AS allocated
 FROM counter AS c
@@ -301,27 +278,17 @@ WHERE
 CREATE PERFETTO TABLE _gc_during_android_startup AS
 WITH
   startups_for_intersect AS (
-    SELECT
-      ts,
-      dur,
-      startup_id AS id
+    SELECT ts, dur, startup_id AS id
     FROM android_startups
     -- b/384732321
     WHERE
       dur > 0
   ),
   gcs_for_intersect AS (
-    SELECT
-      gc_ts AS ts,
-      gc_dur AS dur,
-      gc_id AS id
+    SELECT gc_ts AS ts, gc_dur AS dur, gc_id AS id
     FROM android_garbage_collection_events
   )
-SELECT
-  ts,
-  dur,
-  id_0 AS startup_id,
-  id_1 AS gc_id
+SELECT ts, dur, id_0 AS startup_id, id_1 AS gc_id
 FROM _interval_intersect!((startups_for_intersect, gcs_for_intersect), ());
 
 -- Estimate heap utilization across the trace.
@@ -338,8 +305,7 @@ WITH
     SELECT
       upid,
       CASE
-        WHEN start_ts IS NULL
-        THEN gc_stats_window_start
+        WHEN start_ts IS NULL THEN gc_stats_window_start
         ELSE max(start_ts, gc_stats_window_start)
       END AS gc_ts,
       0 AS gc_dur,
@@ -348,22 +314,16 @@ WITH
     FROM process, _gc_stats_window
   ),
   combined_gcs AS (
-    SELECT
-      upid,
-      gc_ts,
-      gc_dur,
-      min_heap_mb,
-      max_heap_mb
+    SELECT upid, gc_ts, gc_dur, min_heap_mb, max_heap_mb
     FROM android_garbage_collection_events
     UNION
-    SELECT
-      *
-    FROM before_first_gcs
+    SELECT * FROM before_first_gcs
   ),
   gc_periods AS (
     SELECT
       upid,
-      gc_ts + gc_dur - lag(gc_ts + gc_dur) OVER (PARTITION BY upid ORDER BY gc_ts) AS gc_period,
+      gc_ts + gc_dur
+      - lag(gc_ts + gc_dur) OVER (PARTITION BY upid ORDER BY gc_ts) AS gc_period,
       min_heap_mb,
       max_heap_mb
     FROM combined_gcs
@@ -381,7 +341,7 @@ GROUP BY
 -- Summary stats about how garbage collection is behaving for a process,
 -- including causes, costs and other information relevant for tuning the
 -- garbage collector.
-CREATE PERFETTO TABLE _android_garbage_collection_process_stats (
+CREATE PERFETTO TABLE _android_garbage_collection_process_stats(
   -- Upid of process the stats are for.
   upid JOINID(process.id),
   -- The start of the window of time that the stats cover in the trace.
@@ -426,12 +386,11 @@ CREATE PERFETTO TABLE _android_garbage_collection_process_stats (
   -- startup, independent of how aggressively GC is tuned. Larger values
   -- indicate more efficient GC, so larger is better.
   gc_during_android_startup_efficiency DOUBLE
-) AS
+)
+AS
 WITH
   gc_running_stats AS (
-    SELECT
-      upid,
-      sum(gc_running_dur) AS gc_running_dur
+    SELECT upid, sum(gc_running_dur) AS gc_running_dur
     FROM android_garbage_collection_events
     GROUP BY
       upid
@@ -440,38 +399,27 @@ WITH
     SELECT
       upid,
       sum(allocated) / 1e3 AS heap_allocated_mb,
-      sum(value * dur) / (
-        1e3 * 1e9
-      ) AS heap_size_mbs
+      sum(value * dur) / (1e3 * 1e9) AS heap_size_mbs
     FROM _gc_heap_allocated
     GROUP BY
       upid
   ),
   gc_startup_stats AS (
-    SELECT
-      upid,
-      sum(dur) AS gc_during_android_startup_dur
+    SELECT upid, sum(dur) AS gc_during_android_startup_dur
     FROM _gc_during_android_startup
-    LEFT JOIN android_garbage_collection_events
-      USING (gc_id)
+    LEFT JOIN android_garbage_collection_events USING (gc_id)
     GROUP BY
       upid
   ),
   startup_stats AS (
-    SELECT
-      sum(dur) AS total_android_startup_dur
-    FROM android_startups
+    SELECT sum(dur) AS total_android_startup_dur FROM android_startups
   ),
   pre_normalized_stats AS (
-    SELECT
-      *
+    SELECT *
     FROM heap_size_stats
-    LEFT JOIN gc_running_stats
-      USING (upid)
-    LEFT JOIN gc_startup_stats
-      USING (upid)
-    LEFT JOIN _gc_heap_utilization
-      USING (upid), _gc_stats_window, startup_stats
+    LEFT JOIN gc_running_stats USING (upid)
+    LEFT JOIN gc_startup_stats USING (upid)
+    LEFT JOIN _gc_heap_utilization USING (upid), _gc_stats_window, startup_stats
   ),
   normalized_stats AS (
     SELECT
@@ -496,27 +444,20 @@ SELECT
   heap_utilization,
   gc_running_dur,
   gc_running_rate,
-  heap_allocation_rate * heap_utilization / (
-    gc_running_rate * (
-      1 - heap_utilization
-    )
-  ) AS gc_running_efficiency,
+  heap_allocation_rate * heap_utilization
+  / (gc_running_rate * (1 - heap_utilization)) AS gc_running_efficiency,
   gc_during_android_startup_dur,
   total_android_startup_dur,
   gc_during_android_startup_rate,
-  heap_allocation_rate * heap_utilization / (
-    gc_during_android_startup_rate * (
-      1 - heap_utilization
-    )
-  ) AS gc_during_android_startup_efficiency
+  heap_allocation_rate * heap_utilization
+  / (gc_during_android_startup_rate * (1 - heap_utilization)) AS gc_during_android_startup_efficiency
 FROM pre_normalized_stats
-JOIN normalized_stats
-  USING (upid);
+JOIN normalized_stats USING (upid);
 
 -- Summary stats about how garbage collection is behaving across the device,
 -- including causes, costs and other information relevant for tuning the
 -- garbage collector.
-CREATE PERFETTO TABLE _android_garbage_collection_stats (
+CREATE PERFETTO TABLE _android_garbage_collection_stats(
   -- The start of the window of time that the stats cover in the trace.
   ts TIMESTAMP,
   -- The duration of the window of time that the stats cover in the trace.
@@ -561,7 +502,8 @@ CREATE PERFETTO TABLE _android_garbage_collection_stats (
   -- startup, independent of how aggressively GC is tuned. Larger values
   -- indicate more efficient GC, so larger is better.
   gc_during_android_startup_efficiency DOUBLE
-) AS
+)
+AS
 WITH
   base_stats AS (
     SELECT
@@ -583,14 +525,8 @@ WITH
   )
 SELECT
   *,
-  heap_allocation_rate * heap_utilization / (
-    gc_running_rate * (
-      1 - heap_utilization
-    )
-  ) AS gc_running_efficiency,
-  heap_allocation_rate * heap_utilization / (
-    gc_during_android_startup_rate * (
-      1 - heap_utilization
-    )
-  ) AS gc_during_android_startup_efficiency
+  heap_allocation_rate * heap_utilization
+  / (gc_running_rate * (1 - heap_utilization)) AS gc_running_efficiency,
+  heap_allocation_rate * heap_utilization
+  / (gc_during_android_startup_rate * (1 - heap_utilization)) AS gc_during_android_startup_efficiency
 FROM base_stats;

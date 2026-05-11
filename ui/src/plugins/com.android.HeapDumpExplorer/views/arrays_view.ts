@@ -28,6 +28,8 @@ import {
   countRenderer,
   shortClassName,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
 
@@ -75,12 +77,14 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         columnType: 'text',
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Native',
+        title: colHeader('Native', COL_INFO.shallowNative),
+        titleString: 'Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },

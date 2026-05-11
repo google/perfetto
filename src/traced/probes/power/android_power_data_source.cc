@@ -23,6 +23,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -244,6 +245,8 @@ void AndroidPowerDataSource::Start() {
 }
 
 void AndroidPowerDataSource::Tick() {
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, ANDROID_POWER_TICK);
+
   // Post next task.
   auto now_ms = base::GetWallTimeMs().count();
   auto weak_this = weak_factory_.GetWeakPtr();
@@ -273,6 +276,9 @@ void AndroidPowerDataSource::Tick() {
 void AndroidPowerDataSource::WriteBatteryCounters() {
   if (counters_enabled_.none())
     return;
+
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS,
+                            ANDROID_POWER_WRITE_BATTERY_COUNTERS);
 
   auto packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -318,6 +324,9 @@ void AndroidPowerDataSource::WritePowerRailsData() {
   if (!rails_collection_enabled_)
     return;
 
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS,
+                            ANDROID_POWER_WRITE_POWER_RAILS_DATA);
+
   auto packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
   packet->set_sequence_flags(
@@ -354,6 +363,10 @@ void AndroidPowerDataSource::WritePowerRailsData() {
 void AndroidPowerDataSource::WriteEnergyEstimationBreakdown() {
   if (!energy_breakdown_collection_enabled_)
     return;
+
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS,
+                            ANDROID_POWER_WRITE_ENERGY_ESTIMATION_BREAKDOWN);
+
   auto timestamp = static_cast<uint64_t>(base::GetBootTimeNs().count());
 
   TraceWriter::TracePacketHandle packet;
@@ -405,6 +418,9 @@ void AndroidPowerDataSource::WriteEnergyEstimationBreakdown() {
 void AndroidPowerDataSource::WriteEntityStateResidency() {
   if (!entity_state_residency_collection_enabled_)
     return;
+
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS,
+                            ANDROID_POWER_WRITE_ENTITY_STATE_RESIDENCY);
 
   auto packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));

@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -51,7 +52,6 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fwtp_ftrace.pbzero.h"
-#include "protos/perfetto/trace/ftrace/kgsl.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
@@ -69,7 +69,6 @@ using protos::pbzero::FtraceEventBundle;
 namespace {
 
 constexpr uint32_t kSequenceScopedClockId = 64;
-constexpr uint32_t kAdrenoGpuClockId = 65;
 
 // Fast path for parsing the event id of an ftrace event.
 // Speculate on the fact that, if the timestamp was found, the common pid
@@ -120,7 +119,8 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
 
   if (PERFETTO_UNLIKELY(!decoder.has_cpu())) {
     PERFETTO_ELOG("CPU field not found in FtraceEventBundle");
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return base::OkStatus();
   }
 
@@ -136,8 +136,8 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   if (PERFETTO_UNLIKELY(decoder.lost_events())) {
     // If set, it means that the kernel overwrote an unspecified number of
     // events since our last read from the per-cpu buffer.
-    context_->storage->SetIndexedStats(stats::ftrace_cpu_has_data_loss,
-                                       static_cast<int>(cpu), 1);
+    context_->stats_tracker->SetIndexedStats(stats::ftrace_cpu_has_data_loss,
+                                             static_cast<int>(cpu), 1);
   }
 
   // Deal with ftrace recorded using a clock that isn't our preferred default
@@ -156,7 +156,7 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
 
   for (auto it = decoder.event(); it; ++it) {
     TokenizeFtraceEvent(cpu, clock_id, bundle.slice(it->data(), it->size()),
-                        state, packet_sequence_id);
+                        state);
   }
 
   // v50+: optional proto descriptors for generic (i.e. not known at
@@ -216,8 +216,7 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     uint32_t cpu,
     ClockTracker::ClockId clock_id,
     TraceBlobView event,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t packet_sequence_id) {
+    RefPtr<PacketSequenceStateGeneration> state) {
   constexpr auto kTimestampFieldNumber =
       protos::pbzero::FtraceEvent::kTimestampFieldNumber;
   constexpr auto kTimestampFieldTag = MakeTagVarInt(kTimestampFieldNumber);
@@ -251,7 +250,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(
       raw_timestamp = ts_field.as_uint64();
     }
     if (PERFETTO_UNLIKELY(!timestamp_found)) {
-      context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+      context_->stats_tracker->IncrementStats(
+          stats::ftrace_bundle_tokenizer_errors);
       return;
     }
   }
@@ -268,7 +268,7 @@ void FtraceTokenizer::TokenizeFtraceEvent(
       }
     }
     if (PERFETTO_UNLIKELY(event_id == 0)) {
-      context_->storage->IncrementStats(stats::ftrace_missing_event_id);
+      context_->stats_tracker->IncrementStats(stats::ftrace_missing_event_id);
       return;
     }
   }
@@ -301,22 +301,6 @@ void FtraceTokenizer::TokenizeFtraceEvent(
           event_id ==
           protos::pbzero::FtraceEvent::kFwtpPerfettoSliceFieldNumber)) {
     TokenizeFtraceFwtpPerfettoSlice(cpu, std::move(event), std::move(state));
-    return;
-  }
-  if (PERFETTO_UNLIKELY(event_id ==
-                        protos::pbzero::FtraceEvent::
-                            kKgslAdrenoCmdbatchSubmittedFieldNumber)) {
-    TokenizeFtraceAdrenoCmdbatchSubmitted(cpu, clock_id, raw_timestamp,
-                                          std::move(event), std::move(state),
-                                          packet_sequence_id);
-    return;
-  }
-  if (PERFETTO_UNLIKELY(
-          event_id ==
-          protos::pbzero::FtraceEvent::kKgslAdrenoCmdbatchRetiredFieldNumber)) {
-    TokenizeFtraceAdrenoCmdbatchRetired(cpu, clock_id, raw_timestamp,
-                                        std::move(event), std::move(state),
-                                        packet_sequence_id);
     return;
   }
 
@@ -397,7 +381,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
   bool sizes_match =
       !timestamp_it && !pstate_it && !npid_it && !nprio_it && !comm_it;
   if (parse_error || !sizes_match)
-    context_->storage->IncrementStats(stats::compact_sched_has_parse_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::compact_sched_has_parse_errors);
 }
 
 void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
@@ -455,7 +440,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
   bool sizes_match =
       !timestamp_it && !pid_it && !tcpu_it && !prio_it && !comm_it;
   if (parse_error || !sizes_match)
-    context_->storage->IncrementStats(stats::compact_sched_has_parse_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::compact_sched_has_parse_errors);
 }
 
 base::StatusOr<ClockTracker::ClockId>
@@ -512,91 +498,6 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
   return clock_id;
 }
 
-void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchSubmitted(
-    uint32_t cpu,
-    ClockTracker::ClockId clock_id,
-    uint64_t raw_timestamp,
-    TraceBlobView event,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t packet_sequence_id) {
-  // Adreno GPU ticks run at 19.2 MHz, fixed across all Qualcomm mobile SoCs
-  // (see KGSL_XO_CLK_FREQ in kgsl_pwrctrl.h).
-  constexpr int64_t kAdrenoGpuTicksPerUs = 19200;
-
-  auto field = GetFtraceEventField(
-      protos::pbzero::FtraceEvent::kKgslAdrenoCmdbatchSubmittedFieldNumber,
-      event);
-  if (!field.has_value())
-    return;
-
-  protos::pbzero::KgslAdrenoCmdbatchSubmittedFtraceEvent::Decoder evt(
-      field->as_bytes());
-  // Only register a single clock snapshot: the GPU clock is fixed-frequency
-  // 19.2 MHz with negligible drift, so one sync point is sufficient.
-  if (!adreno_gpu_clock_registered_) {
-    const int64_t sync_time_ns =
-        static_cast<int64_t>(evt.secs()) * 1000000000LL +
-        static_cast<int64_t>(evt.usecs()) * 1000LL;
-    if (sync_time_ns > 0) {
-      const int64_t gpu_ticks_ns =
-          static_cast<int64_t>(evt.ticks()) * 1000000 / kAdrenoGpuTicksPerUs;
-      auto gpu_clock = ClockId::Sequence(context_->trace_id().value,
-                                         packet_sequence_id, kAdrenoGpuClockId);
-      context_->clock_tracker->AddSnapshot({
-          ClockTracker::ClockTimestamp(gpu_clock, gpu_ticks_ns),
-          ClockTracker::ClockTimestamp(clock_id, sync_time_ns),
-      });
-      adreno_gpu_clock_registered_ = true;
-    }
-  }
-
-  std::optional<int64_t> timestamp = context_->clock_tracker->ToTraceTime(
-      clock_id, static_cast<int64_t>(raw_timestamp));
-  if (!timestamp.has_value()) {
-    return;
-  }
-  module_context_->PushFtraceEvent(
-      cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
-}
-
-void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchRetired(
-    uint32_t cpu,
-    ClockTracker::ClockId clock_id,
-    uint64_t raw_timestamp,
-    TraceBlobView event,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t packet_sequence_id) {
-  constexpr int64_t kAdrenoGpuTicksPerUs = 19200;
-
-  auto field = GetFtraceEventField(
-      protos::pbzero::FtraceEvent::kKgslAdrenoCmdbatchRetiredFieldNumber,
-      event);
-  if (!field.has_value())
-    return;
-
-  protos::pbzero::KgslAdrenoCmdbatchRetiredFtraceEvent::Decoder evt(
-      field->as_bytes());
-  auto gpu_clock = ClockId::Sequence(context_->trace_id().value,
-                                     packet_sequence_id, kAdrenoGpuClockId);
-  const int64_t gpu_start_ns =
-      static_cast<int64_t>(evt.start()) * 1000000 / kAdrenoGpuTicksPerUs;
-  auto ts = context_->clock_tracker->ToTraceTime(
-      gpu_clock, gpu_start_ns, std::nullopt, /*suppress_errors=*/true);
-  if (ts.has_value()) {
-    module_context_->PushFtraceEvent(
-        cpu, *ts, TracePacketData{std::move(event), std::move(state)});
-    return;
-  }
-
-  std::optional<int64_t> timestamp = context_->clock_tracker->ToTraceTime(
-      clock_id, static_cast<int64_t>(raw_timestamp));
-  if (!timestamp.has_value()) {
-    return;
-  }
-  module_context_->PushFtraceEvent(
-      cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
-}
-
 void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
     uint32_t cpu,
     TraceBlobView event,
@@ -611,7 +512,8 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
   protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder gpu_work_event(
       ts_field.value().data(), ts_field.value().size());
   if (!gpu_work_event.has_start_time_ns()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   uint64_t raw_timestamp = gpu_work_event.start_time_ns();
@@ -646,7 +548,8 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
       thermal_exynos_acpm_bulk_event(ts_field.value().data(),
                                      ts_field.value().size());
   if (!thermal_exynos_acpm_bulk_event.has_timestamp()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   auto timestamp =
@@ -670,7 +573,8 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
       param_set_value_cpm_event(ts_field.value().data(),
                                 ts_field.value().size());
   if (!param_set_value_cpm_event.has_timestamp()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   int64_t timestamp = param_set_value_cpm_event.timestamp();
@@ -693,7 +597,8 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
       fwtp_perfetto_counter_event(ts_field.value().data(),
                                   ts_field.value().size());
   if (!fwtp_perfetto_counter_event.has_timestamp()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   int64_t timestamp =
@@ -717,7 +622,8 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
       fwtp_perfetto_slice_event(ts_field.value().data(),
                                 ts_field.value().size());
   if (!fwtp_perfetto_slice_event.has_timestamp()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   int64_t timestamp =
@@ -736,7 +642,8 @@ std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(
   ProtoDecoder decoder(data, length);
   auto ts_field = decoder.FindField(event_id);
   if (!ts_field.valid()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return std::nullopt;
   }
   return ts_field;

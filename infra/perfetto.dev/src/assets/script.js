@@ -142,7 +142,7 @@ function scrollIntoViewIfNeeded(element, container, margin = 100) {
 }
 
 const TAG_PREFIX = 'tag-';
-const TAG_LABELS = {cpp: 'C++'};
+const TAG_LABELS = {'cpp-rust': 'C++/Rust'};
 const NAV_DEFAULT_TAG = 'android';
 
 function tagLabel(tag) {

@@ -24,9 +24,9 @@
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -35,19 +35,19 @@ namespace {
 class SpanJoinOperatorTableTest : public ::testing::Test {
  public:
   SpanJoinOperatorTableTest() {
-    engine_.RegisterVirtualTableModule<SpanJoinOperatorModule>(
+    connection_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
         "span_join",
-        std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
-    engine_.RegisterVirtualTableModule<SpanJoinOperatorModule>(
+        std::make_unique<SpanJoinOperatorModule::Context>(connection_.get()));
+    connection_->RegisterVirtualTableModule<SpanJoinOperatorModule>(
         "span_left_join",
-        std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
+        std::make_unique<SpanJoinOperatorModule::Context>(connection_.get()));
   }
 
   void PrepareValidStatement(const std::string& sql) {
     int size = static_cast<int>(sql.size());
     sqlite3_stmt* stmt;
-    ASSERT_EQ(sqlite3_prepare_v2(engine_.sqlite_engine()->db(), sql.c_str(),
-                                 size, &stmt, nullptr),
+    ASSERT_EQ(sqlite3_prepare_v2(connection_->sqlite_connection()->db(),
+                                 sql.c_str(), size, &stmt, nullptr),
               SQLITE_OK);
     stmt_.reset(stmt);
   }
@@ -67,7 +67,8 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
 
  protected:
   StringPool pool_;
-  PerfettoSqlEngine engine_{&pool_, true};
+  std::unique_ptr<PerfettoSqlConnection> connection_ =
+      PerfettoSqlConnection::CreateConnectionToNewDatabase(&pool_, true);
   ScopedStmt stmt_;
 };
 

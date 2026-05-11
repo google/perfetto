@@ -18,6 +18,4 @@
 -- rows come from the wattson plugin (see
 -- src/trace_processor/plugins/wattson/).
 CREATE PERFETTO TABLE _device_curves_1d AS
-SELECT
-  *
-FROM __intrinsic_wattson_curves_cpu_1d();
+SELECT * FROM __intrinsic_wattson_curves_cpu_1d();

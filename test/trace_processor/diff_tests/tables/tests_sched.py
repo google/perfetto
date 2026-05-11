@@ -155,7 +155,6 @@ class TablesSched(TestSuite):
           id,
           ts,
           ts + dur AS next_idle_ts ,
-          is_idle_reason_self,
           utid,
           idle_state,
           idle_reason
@@ -164,17 +163,17 @@ class TablesSched(TestSuite):
         LIMIT 10
         """,
         out=Csv("""
-        "waker_id","prev_id","idle_ts","id","ts","next_idle_ts","is_idle_reason_self","utid","idle_state","idle_reason"
-        "[NULL]","[NULL]","[NULL]",5,1735489812571,1735489896509,1,304,"[NULL]","[NULL]"
-        "[NULL]","[NULL]","[NULL]",6,1735489833977,1735489886440,1,297,"[NULL]","[NULL]"
-        6,"[NULL]","[NULL]",11,1735489876788,1735489953773,0,428,"[NULL]","[NULL]"
-        5,"[NULL]","[NULL]",12,1735489879097,1735490217277,0,243,"[NULL]","[NULL]"
-        11,"[NULL]","[NULL]",17,1735489933912,1735490587658,0,230,"[NULL]","[NULL]"
-        "[NULL]","[NULL]","[NULL]",20,1735489972385,1735489995809,1,298,"[NULL]","[NULL]"
-        "[NULL]",20,1735489995809,25,1735489999987,1735490055966,1,298,"S","[NULL]"
-        25,"[NULL]","[NULL]",28,1735490039439,1735490610238,0,421,"[NULL]","[NULL]"
-        25,"[NULL]","[NULL]",29,1735490042084,1735490068213,0,420,"[NULL]","[NULL]"
-        25,"[NULL]","[NULL]",30,1735490045825,1735491418790,0,1,"[NULL]","[NULL]"
+        "waker_id","prev_id","idle_ts","id","ts","next_idle_ts","utid","idle_state","idle_reason"
+        "[NULL]","[NULL]","[NULL]",5,1735489812571,1735489896509,304,"[NULL]","[NULL]"
+        "[NULL]","[NULL]","[NULL]",6,1735489833977,1735489886440,297,"[NULL]","[NULL]"
+        6,"[NULL]","[NULL]",11,1735489876788,1735489953773,428,"[NULL]","[NULL]"
+        5,"[NULL]","[NULL]",12,1735489879097,1735490217277,243,"[NULL]","[NULL]"
+        11,"[NULL]","[NULL]",17,1735489933912,1735490587658,230,"[NULL]","[NULL]"
+        "[NULL]","[NULL]","[NULL]",20,1735489972385,1735489995809,298,"[NULL]","[NULL]"
+        "[NULL]",20,1735489995809,25,1735489999987,1735490055966,298,"S","[NULL]"
+        25,"[NULL]","[NULL]",28,1735490039439,1735490610238,421,"[NULL]","[NULL]"
+        25,"[NULL]","[NULL]",29,1735490042084,1735490068213,420,"[NULL]","[NULL]"
+        25,"[NULL]","[NULL]",30,1735490045825,1735491418790,1,"[NULL]","[NULL]"
         """))
 
   def test_thread_executing_span_graph_contains_forked_states(self):
@@ -273,98 +272,6 @@ class TablesSched(TestSuite):
         12254,197
         """))
 
-  def test_thread_executing_span_flatten_critical_paths(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_switch_original.pb'),
-        query="""
-        INCLUDE PERFETTO MODULE sched.thread_executing_span;
-
-        CREATE PERFETTO TABLE graph AS
-        SELECT
-          id AS source_node_id,
-          COALESCE(waker_id, id) AS dest_node_id,
-          id - COALESCE(waker_id, id) AS edge_weight
-        FROM _wakeup_graph;
-
-        CREATE PERFETTO TABLE roots AS
-        SELECT
-          _wakeup_graph.id AS root_node_id,
-          _wakeup_graph.id - COALESCE(prev_id, _wakeup_graph.id) AS root_target_weight,
-          id,
-          ts,
-          dur,
-          utid
-        FROM _wakeup_graph;
-
-        CREATE PERFETTO TABLE critical_path AS
-        SELECT root_node_id AS root_id, node_id AS id, root_node_id AS parent_id FROM graph_reachable_weight_bounded_dfs!(graph, roots, 1);
-
-        SELECT * FROM _critical_path_to_intervals!(critical_path, _wakeup_graph);
-        """,
-        out=Csv("""
-        "ts","dur","id","root_id"
-        807082871764903,14688,35,38
-        807082871805424,6817657,38,45
-        807082947223556,23282,60,62
-        807082947156994,351302,57,76
-        807082947593348,4229115,76,96
-        807082959078401,95105,105,107
-        807082951886890,79702873,1,130
-        807083031589763,324114,127,130
-        807082947219546,85059279,1,135
-        """))
-
-  def test_thread_executing_span_critical_path(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_switch_original.pb'),
-        query="""
-        INCLUDE PERFETTO MODULE sched.thread_executing_span;
-
-        SELECT * FROM _critical_path_intervals!(_wakeup_kernel_edges, (SELECT id AS root_node_id, id - COALESCE(prev_id, id)  AS capacity FROM _wakeup_graph), _wakeup_graph) ORDER BY root_id;
-        """,
-        out=Csv("""
-        "root_id","id","ts","dur"
-        1,1,807082862885423,169601892
-        2,2,807082862913183,280521
-        13,13,807082864992767,6772136
-        14,14,807082865019382,14160157
-        17,17,807082865084902,272865
-        29,29,807082868359903,81302
-        35,35,807082871734539,70885
-        38,35,807082871764903,14688
-        38,38,807082871779591,6869792
-        45,38,807082871805424,6817657
-        45,45,807082878623081,242864
-        55,55,807082946856213,609219
-        57,57,807082947156994,436354
-        60,60,807082947223556,83577300
-        62,60,807082947223556,23282
-        62,62,807082947246838,2000260
-        63,63,807082947261525,293594
-        64,64,807082947267463,228958
-        65,65,807082947278140,54114
-        66,66,807082947288765,338802
-        67,67,807082947294182,296875
-        76,57,807082947156994,351302
-        76,76,807082947508296,4378594
-        93,93,807082951711161,2494011
-        96,76,807082947593348,4229115
-        96,96,807082951822463,104427
-        105,105,807082959078401,184115
-        107,105,807082959078401,95105
-        107,107,807082959173506,73362507
-        111,111,807082962662412,149011
-        114,114,807082967942309,334114
-        127,127,807083031589763,436198
-        130,1,807082951886890,79702873
-        130,127,807083031589763,324114
-        130,130,807083031913877,166302
-        135,1,807082947219546,85059279
-        135,135,807083032278825,208490
-        139,139,807083032634138,340625
-        142,142,807083032991378,89218
-        """))
-
   def test_thread_executing_span_critical_path_by_roots(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_switch_original.pb'),
@@ -384,9 +291,9 @@ class TablesSched(TestSuite):
         62,60,807082947223556,23282
         62,62,807082947246838,2000260
         107,105,807082959078401,95105
-        107,139,807082959173506,73362507
+        107,107,807082959173506,73362507
         139,139,807083032536013,98125
-        139,142,807083032634138,340625
+        139,139,807083032634138,340625
         142,142,807083032974763,16615
         142,142,807083032991378,89218
         """))
@@ -409,9 +316,9 @@ class TablesSched(TestSuite):
         6,62,60,807082947223556,23282,11
         6,62,62,807082947246838,2000260,6
         6,107,105,807082959078401,95105,18
-        6,107,139,807082959173506,73362507,6
+        6,107,107,807082959173506,73362507,6
         6,139,139,807083032536013,98125,6
-        6,139,142,807083032634138,340625,6
+        6,139,139,807083032634138,340625,6
         6,142,142,807083032974763,16615,6
         6,142,142,807083032991378,89218,6
         """))

@@ -17,22 +17,12 @@ import("../../../../gn/perfetto.gni")
 # Exposed for Chromium only. May be removed in the future.
 source_set("export_json") {
   sources = [ "export_json.h" ]
-  public_deps = [
-    "../../base",
-    "../../trace_processor:basic_types",
-  ]
 }
 
 source_set("demangle") {
   sources = [ "demangle.h" ]
-  public_deps = [ "../base" ]
 }
 
 source_set("trace_processor_shell") {
   sources = [ "trace_processor_shell.h" ]
-  public_deps = [
-    "../../base",
-    "../../trace_processor",
-    "../../trace_processor:basic_types",
-  ]
 }

@@ -85,7 +85,7 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/art_heap_graph_functions.h"
@@ -95,6 +95,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/critical_path.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
@@ -132,12 +133,12 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/stdlib_docs_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
+#include "src/trace_processor/plugins/wattson/register.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
-#include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
 #include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
@@ -193,10 +194,11 @@ namespace {
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::UserData*>
 void RegisterFunction(
-    PerfettoSqlEngine* engine,
+    PerfettoSqlConnection* connection,
     Ptr context = nullptr,
-    const PerfettoSqlEngine::RegisterFunctionArgs& args = {}) {
-  auto status = engine->RegisterFunction<SqlFunction>(std::move(context), args);
+    const PerfettoSqlConnection::RegisterFunctionArgs& args = {}) {
+  auto status =
+      connection->RegisterFunction<SqlFunction>(std::move(context), args);
   if (!status.ok()) {
     const char* name = args.name ? args.name : SqlFunction::kName;
     PERFETTO_FATAL("Failed to register %s function: %s", name,
@@ -207,7 +209,7 @@ void RegisterFunction(
 base::Status RegisterAllProtoBuilderFunctions(
     const DescriptorPool* pool,
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
-    PerfettoSqlEngine* engine,
+    PerfettoSqlConnection* connection,
     TraceProcessor* tp) {
   for (uint32_t i = 0; i < pool->descriptors().size(); ++i) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
@@ -225,10 +227,10 @@ base::Status RegisterAllProtoBuilderFunctions(
           registered_fn->second.c_str());
     }
     RegisterFunction<metrics::BuildProto>(
-        engine,
+        connection,
         std::make_unique<metrics::BuildProto::UserData>(
             metrics::BuildProto::UserData{tp, pool, i}),
-        PerfettoSqlEngine::RegisterFunctionArgs(fn_name.c_str()));
+        PerfettoSqlConnection::RegisterFunctionArgs(fn_name.c_str()));
     proto_fn_name_to_path->emplace(fn_name, desc.full_name());
   }
   return base::OkStatus();
@@ -254,7 +256,7 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
 }
 
 template <typename T>
-void AddStaticTable(std::vector<PerfettoSqlEngine::StaticTable>& tables,
+void AddStaticTable(std::vector<PerfettoSqlConnection::StaticTable>& tables,
                     T* table_instance) {
   tables.push_back({
       &table_instance->dataframe(),
@@ -275,8 +277,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
           "Module name '%s' must start with package name '%s.' as prefix.",
           module_name.c_str(), name.c_str());
     }
-    new_package.modules.Insert(module_name,
-                               {module_name_and_sql.second, false});
+    new_package.modules.Insert(module_name, module_name_and_sql.second);
   }
   return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
@@ -360,8 +361,9 @@ class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
   }
 };
 
-void RegisterValueAtMaxTsFunction(PerfettoSqlEngine& engine) {
-  base::Status status = engine.RegisterAggregateFunction<ValueAtMaxTs>(nullptr);
+void RegisterValueAtMaxTsFunction(PerfettoSqlConnection& connection) {
+  base::Status status =
+      connection.RegisterAggregateFunction<ValueAtMaxTs>(nullptr);
   if (!status.ok()) {
     PERFETTO_ELOG("Error initializing VALUE_AT_MAX_TS");
   }
@@ -512,6 +514,13 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
+  // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
+  // (a global static initializer). That's currently disabled due to build-time
+  // issues, so instead each plugin exposes an explicit Register* function that
+  // we call here before GetPluginSet() builds its cached set. Remove these
+  // explicit calls once the static-init based registration is restored.
+  wattson::RegisterPlugin();
+
   // Initialize plugins using the statically pre-computed PluginSet.
   // Dep indices are resolved once at static init time; here we just
   // instantiate, resolve dep pointers, and register importers.
@@ -603,8 +612,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   //
   // TODO(lalitm): remove heap graph tracker from global context and get rid
   // of this.
-  context()->heap_graph_tracker =
-      std::make_unique<HeapGraphTracker>(context()->storage.get());
+  context()->heap_graph_tracker = std::make_unique<HeapGraphTracker>(
+      context()->storage.get(), context()->global_stats_tracker.get());
 
   // Initialize deobfuscation tracker.
   context()->deobfuscation_tracker =
@@ -648,7 +657,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // Compute initial trace bounds before any tables are finalized.
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
 
-  engine_ = InitPerfettoSqlEngine({
+  engine_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
       config_,
@@ -746,7 +755,7 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
     }
   }
 
-  // Stage 4: prepare the engine for queries.
+  // Stage 4: prepare the connection for queries.
   IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -760,7 +769,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
   }
   bounds_tables_mutations_ = mutations;
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
-  BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
+  BuildBoundsTable(engine_->sqlite_connection()->db(), cached_trace_bounds_);
 }
 
 // =================================================================
@@ -775,7 +784,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
   std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
-  base::StatusOr<PerfettoSqlEngine::ExecutionResult> result =
+  base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
   std::unique_ptr<IteratorImpl> impl(
@@ -827,8 +836,7 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   // Save the name before moving sql_package
   std::string pkg_name = name;
   registered_sql_packages_.emplace_back(std::move(sql_package));
-  engine_->RegisterPackage(pkg_name, std::move(new_package));
-  return base::OkStatus();
+  return engine_->RegisterPackage(pkg_name, std::move(new_package));
 }
 
 // =================================================================
@@ -955,10 +963,10 @@ base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
 }
 
 void TraceProcessorImpl::InterruptQuery() {
-  if (!engine_->sqlite_engine()->db())
+  if (!engine_->sqlite_connection()->db())
     return;
   query_interrupted_.store(true);
-  sqlite3_interrupt(engine_->sqlite_engine()->db());
+  sqlite3_interrupt(engine_->sqlite_connection()->db());
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
@@ -967,9 +975,9 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
-  // Reset the engine to its initial state. Pass cached bounds to avoid
-  // recomputing them.
-  engine_ = InitPerfettoSqlEngine({
+  // Reset the connection (and the database it owns) to its initial state.
+  // Pass cached bounds to avoid recomputing them.
+  engine_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
       config_,
@@ -1042,7 +1050,7 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   }
 
   if (metric.proto_field_name) {
-    InsertIntoTraceMetricsTable(engine_->sqlite_engine()->db(),
+    InsertIntoTraceMetricsTable(engine_->sqlite_connection()->db(),
                                 *metric.proto_field_name);
   }
   sql_metrics_.emplace_back(metric);
@@ -1110,9 +1118,9 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return metrics_descriptor_pool_.SerializeAsDescriptorSet();
 }
 
-std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
-    TraceStorage* storage) {
-  std::vector<PerfettoSqlEngine::StaticTable> tables;
+std::vector<PerfettoSqlConnection::StaticTable>
+TraceProcessorImpl::GetStaticTables(TraceStorage* storage) {
+  std::vector<PerfettoSqlConnection::StaticTable> tables;
   AddStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddStaticTable(tables, storage->mutable_aggregate_sample_table());
   AddStaticTable(tables, storage->mutable_android_aflags_table());
@@ -1215,12 +1223,14 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_thread_table());
   AddStaticTable(tables, storage->mutable_process_table());
   AddStaticTable(tables, storage->mutable_cpu_table());
+  AddStaticTable(tables, storage->mutable_interrupt_mapping_table());
   AddStaticTable(tables, storage->mutable_sched_slice_table());
   AddStaticTable(tables, storage->mutable_thread_state_table());
   AddStaticTable(tables, storage->mutable_track_table());
   AddStaticTable(tables, storage->mutable_counter_table());
   AddStaticTable(tables, storage->mutable_android_network_packets_table());
   AddStaticTable(tables, storage->mutable_metadata_table());
+  AddStaticTable(tables, storage->mutable_stats_table());
   AddStaticTable(tables, storage->mutable_slice_table());
   AddStaticTable(tables, storage->mutable_track_event_callstacks_table());
   AddStaticTable(tables, storage->mutable_flow_table());
@@ -1230,16 +1240,17 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
 }
 
 std::vector<std::unique_ptr<StaticTableFunction>>
-TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
-                                               TraceStorage* storage,
-                                               const Config& config,
-                                               PerfettoSqlEngine* engine) {
+TraceProcessorImpl::CreateStaticTableFunctions(
+    TraceProcessorContext* context,
+    TraceStorage* storage,
+    const Config& config,
+    PerfettoSqlConnection* connection) {
   std::vector<std::unique_ptr<StaticTableFunction>> fns;
   fns.emplace_back(std::make_unique<ExperimentalFlamegraph>(context));
   fns.emplace_back(std::make_unique<ExperimentalSliceLayout>(
       storage->mutable_string_pool(), &storage->slice_table()));
   fns.emplace_back(
-      std::make_unique<TableInfo>(storage->mutable_string_pool(), engine));
+      std::make_unique<TableInfo>(storage->mutable_string_pool(), connection));
   fns.emplace_back(std::make_unique<Ancestor>(Ancestor::Type::kSlice, storage));
   fns.emplace_back(std::make_unique<Ancestor>(
       Ancestor::Type::kStackProfileCallsite, storage));
@@ -1258,19 +1269,19 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   fns.emplace_back(std::make_unique<WinscopeProtoToArgsWithDefaults>(
-      storage->mutable_string_pool(), engine, context));
+      storage->mutable_string_pool(), connection, context));
   fns.emplace_back(std::make_unique<WinscopeSurfaceFlingerHierarchyPaths>(
-      storage->mutable_string_pool(), engine));
+      storage->mutable_string_pool(), connection));
 #endif
 
   fns.emplace_back(std::make_unique<StdlibDocsModules>(
-      storage->mutable_string_pool(), engine));
+      storage->mutable_string_pool(), connection));
   fns.emplace_back(std::make_unique<StdlibDocsTables>(
-      storage->mutable_string_pool(), engine));
+      storage->mutable_string_pool(), connection));
   fns.emplace_back(std::make_unique<StdlibDocsFunctions>(
-      storage->mutable_string_pool(), engine));
+      storage->mutable_string_pool(), connection));
   fns.emplace_back(std::make_unique<StdlibDocsMacros>(
-      storage->mutable_string_pool(), engine));
+      storage->mutable_string_pool(), connection));
 
   if (config.enable_dev_features) {
     fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(
@@ -1279,8 +1290,9 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   return fns;
 }
 
-std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
-    const InitPerfettoSqlEngineArgs& args) {
+std::unique_ptr<PerfettoSqlConnection>
+TraceProcessorImpl::InitPerfettoSqlConnection(
+    const InitPerfettoSqlConnectionArgs& args) {
   auto* context = args.context;
   auto* storage = args.storage;
   const auto& config = args.config;
@@ -1293,14 +1305,15 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   auto cached_trace_bounds = args.cached_trace_bounds;
   const auto& plugins = args.plugins;
 
-  auto engine = std::make_unique<PerfettoSqlEngine>(
+  auto connection = PerfettoSqlConnection::CreateConnectionToNewDatabase(
       storage->mutable_string_pool(), config.enable_extra_checks);
 
   auto functions =
-      CreateStaticTableFunctions(context, storage, config, engine.get());
+      CreateStaticTableFunctions(context, storage, config, connection.get());
 
   // Let plugins contribute their tables and table functions.
-  std::vector<PerfettoSqlEngine::StaticTable> tables = GetStaticTables(storage);
+  std::vector<PerfettoSqlConnection::StaticTable> tables =
+      GetStaticTables(storage);
   std::vector<PluginDataframe> plugin_dataframes;
   std::vector<SqliteModuleRegistration> sqlite_modules;
   for (auto& p : plugins) {
@@ -1312,207 +1325,216 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     tables.push_back({df.dataframe, std::move(df.name)});
   }
 
-  engine->InitializeStaticTablesAndFunctions(tables, std::move(functions));
+  connection->InitializeStaticTablesAndFunctions(tables, std::move(functions));
 
   // Register plugin sqlite modules.
   for (auto& reg : sqlite_modules) {
-    engine->RegisterSqliteModuleForPlugin(reg.name.c_str(), reg.module,
-                                          reg.context, reg.destructor,
-                                          reg.is_state_manager);
+    connection->RegisterSqliteModuleForPlugin(reg.name.c_str(), reg.module,
+                                              reg.context, reg.destructor,
+                                              reg.is_state_manager);
   }
 
-  sqlite3* db = engine->sqlite_engine()->db();
+  sqlite3* db = connection->sqlite_connection()->db();
   sqlite3_str_split_init(db);
 
   // Register SQL functions only used in local development instances.
   if (config.enable_dev_features) {
-    RegisterFunction<WriteFile>(engine.get(), storage);
+    RegisterFunction<WriteFile>(connection.get(), storage);
   }
-  RegisterFunction<Glob>(engine.get());
-  RegisterFunction<Hash>(engine.get());
-  RegisterFunction<Base64Encode>(engine.get());
-  RegisterFunction<Demangle>(engine.get());
-  RegisterFunction<TablePtrBind>(engine.get());
-  RegisterFunction<ExportJson>(engine.get(), storage);
+  RegisterFunction<Glob>(connection.get());
+  RegisterFunction<Hash>(connection.get());
+  RegisterFunction<Base64Encode>(connection.get());
+  RegisterFunction<Demangle>(connection.get());
+  RegisterFunction<TablePtrBind>(connection.get());
+  RegisterFunction<ExportJson>(connection.get(), storage);
   RegisterFunction<ExtractArgFunction>(
-      engine.get(), std::make_unique<ExtractArgFunction::Context>(storage));
+      connection.get(), std::make_unique<ExtractArgFunction::Context>(storage));
   RegisterFunction<ArgSetToJson>(
-      engine.get(), std::make_unique<ArgSetToJson::Context>(storage));
-  RegisterFunction<AbsTimeStr>(engine.get(), context->clock_converter.get());
-  RegisterFunction<Reverse>(engine.get());
-  RegisterFunction<ToMonotonic>(engine.get(), context->clock_converter.get());
-  RegisterFunction<ToRealtime>(engine.get(), context->clock_converter.get());
-  RegisterFunction<ToTimecode>(engine.get());
-  RegisterFunction<CreateFunction>(engine.get(), engine.get());
-  RegisterFunction<CreateViewFunction>(engine.get(), engine.get());
-  RegisterFunction<ExperimentalMemoize>(engine.get(), engine.get());
-  RegisterFunction<Import>(engine.get(), engine.get());
-  RegisterFunction<ToFtrace>(engine.get(),
+      connection.get(), std::make_unique<ArgSetToJson::Context>(storage));
+  RegisterFunction<AbsTimeStr>(connection.get(),
+                               context->clock_converter.get());
+  RegisterFunction<Reverse>(connection.get());
+  RegisterFunction<ToMonotonic>(connection.get(),
+                                context->clock_converter.get());
+  RegisterFunction<ToRealtime>(connection.get(),
+                               context->clock_converter.get());
+  RegisterFunction<ToTimecode>(connection.get());
+  RegisterFunction<CreateFunction>(connection.get(), connection.get());
+  RegisterFunction<CreateViewFunction>(connection.get(), connection.get());
+  RegisterFunction<ExperimentalMemoize>(connection.get(), connection.get());
+  RegisterFunction<Import>(connection.get(), connection.get());
+  RegisterFunction<ToFtrace>(connection.get(),
                              std::make_unique<ToFtrace::UserData>(context));
   RegisterFunction<PackageLookup>(
-      engine.get(), std::make_unique<PackageLookup::Context>(storage));
+      connection.get(), std::make_unique<PackageLookup::Context>(storage));
   RegisterFunction<PerfCounterForSampleFunction>(
-      engine.get(),
+      connection.get(),
       std::make_unique<PerfCounterForSampleFunction::Context>(storage));
 
-  RegisterFunction<Regexp>(engine.get());
-  RegisterFunction<RegexpExtract>(engine.get());
-  RegisterFunction<RegexpReplaceSimple>(engine.get());
+  RegisterFunction<Regexp>(connection.get());
+  RegisterFunction<RegexpExtract>(connection.get());
+  RegisterFunction<RegexpReplaceSimple>(connection.get());
 
-  RegisterFunction<UnHex>(engine.get());
+  RegisterFunction<UnHex>(connection.get());
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
-  RegisterValueAtMaxTsFunction(*engine);
+  RegisterValueAtMaxTsFunction(*connection);
   {
-    base::Status status = RegisterLastNonNullFunction(*engine);
+    base::Status status = RegisterLastNonNullFunction(*connection);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
-    base::Status status = RegisterStackFunctions(engine.get(), context);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterArtHeapGraphFunctions(engine.get(), context);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterStripHexFunction(engine.get(), context);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = PprofFunctions::Register(*engine, context);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterLayoutFunctions(*engine);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterMathFunctions(*engine);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterMetadataFunctions(*engine, storage);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterBase64Functions(*engine);
+    base::Status status = RegisterStackFunctions(connection.get(), context);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
     base::Status status =
-        RegisterTypeBuilderFunctions(*engine, storage->mutable_string_pool());
+        RegisterArtHeapGraphFunctions(connection.get(), context);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterStripHexFunction(connection.get(), context);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = PprofFunctions::Register(*connection, context);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterLayoutFunctions(*connection);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterMathFunctions(*connection);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterMetadataFunctions(*connection, storage);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterBase64Functions(*connection);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterTypeBuilderFunctions(
+        *connection, storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
     base::Status status =
-        RegisterGraphScanFunctions(*engine, storage->mutable_string_pool());
+        RegisterGraphScanFunctions(*connection, storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
     base::Status status = RegisterGraphTraversalFunctions(
-        *engine, *storage->mutable_string_pool());
+        *connection, *storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterCriticalPathFunctions(
+        *connection, *storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
     base::Status status = perfetto_sql::RegisterIntervalIntersectFunctions(
-        *engine, storage->mutable_string_pool());
+        *connection, storage->mutable_string_pool());
   }
   {
     base::Status status = perfetto_sql::RegisterCounterIntervalsFunctions(
-        *engine, storage->mutable_string_pool());
+        *connection, storage->mutable_string_pool());
   }
   {
     base::Status status = perfetto_sql::RegisterIntervalCreateFunctions(
-        *engine, storage->mutable_string_pool());
+        *connection, storage->mutable_string_pool());
   }
   {
     base::Status status =
-        RegisterTreeFunctions(*engine, *storage->mutable_string_pool());
+        RegisterTreeFunctions(*connection, *storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
 #if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
   {
     base::Status status = perfetto_sql::RegisterSymbolizeFunction(
-        *engine, storage->mutable_string_pool());
+        *connection, storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
 #endif
 
   // Operator tables.
-  engine->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+  connection->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_join",
-      std::make_unique<SpanJoinOperatorModule::Context>(engine.get()));
-  engine->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      std::make_unique<SpanJoinOperatorModule::Context>(connection.get()));
+  connection->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_left_join",
-      std::make_unique<SpanJoinOperatorModule::Context>(engine.get()));
-  engine->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      std::make_unique<SpanJoinOperatorModule::Context>(connection.get()));
+  connection->RegisterVirtualTableModule<SpanJoinOperatorModule>(
       "span_outer_join",
-      std::make_unique<SpanJoinOperatorModule::Context>(engine.get()));
-  engine->RegisterVirtualTableModule<WindowOperatorModule>("__intrinsic_window",
-                                                           nullptr);
-  engine->RegisterVirtualTableModule<CounterMipmapOperator>(
+      std::make_unique<SpanJoinOperatorModule::Context>(connection.get()));
+  connection->RegisterVirtualTableModule<WindowOperatorModule>(
+      "__intrinsic_window", nullptr);
+  connection->RegisterVirtualTableModule<CounterMipmapOperator>(
       "__intrinsic_counter_mipmap",
-      std::make_unique<CounterMipmapOperator::Context>(engine.get()));
-  engine->RegisterVirtualTableModule<SliceMipmapOperator>(
+      std::make_unique<CounterMipmapOperator::Context>(connection.get()));
+  connection->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
-      std::make_unique<SliceMipmapOperator::Context>(engine.get()));
+      std::make_unique<SliceMipmapOperator::Context>(connection.get()));
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  engine->RegisterVirtualTableModule<etm::EtmDecodeChunkVtable>(
+  connection->RegisterVirtualTableModule<etm::EtmDecodeChunkVtable>(
       "__intrinsic_etm_decode_chunk", storage);
-  engine->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
+  connection->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
       "__intrinsic_etm_iterate_instruction_range", storage);
 #endif
 
   // Register metrics functions.
   {
     base::Status status =
-        engine->RegisterAggregateFunction<metrics::RepeatedField>(nullptr);
+        connection->RegisterAggregateFunction<metrics::RepeatedField>(nullptr);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
 
-  RegisterFunction<metrics::NullIfEmpty>(engine.get());
-  RegisterFunction<metrics::UnwrapMetricProto>(engine.get());
+  RegisterFunction<metrics::NullIfEmpty>(connection.get());
+  RegisterFunction<metrics::UnwrapMetricProto>(connection.get());
   RegisterFunction<metrics::RunMetric>(
-      engine.get(), std::make_unique<metrics::RunMetric::UserData>(
-                        metrics::RunMetric::UserData{
-                            engine.get(),
-                            &sql_metrics,
-                        }));
+      connection.get(), std::make_unique<metrics::RunMetric::UserData>(
+                            metrics::RunMetric::UserData{
+                                connection.get(),
+                                &sql_metrics,
+                            }));
 
   // Legacy tables.
-  engine->RegisterVirtualTableModule<SqlStatsModule>("sqlstats", storage);
-  engine->RegisterVirtualTableModule<StatsModule>("stats", storage);
-  engine->RegisterVirtualTableModule<TablePointerModule>(
+  connection->RegisterVirtualTableModule<SqlStatsModule>("sqlstats", storage);
+  connection->RegisterVirtualTableModule<TablePointerModule>(
       "__intrinsic_table_ptr", nullptr);
 
   // Value table aggregate functions.
-  engine->RegisterAggregateFunction<DominatorTree>(
+  connection->RegisterAggregateFunction<DominatorTree>(
       storage->mutable_string_pool());
-  engine->RegisterAggregateFunction<StructuralTreePartition>(
+  connection->RegisterAggregateFunction<StructuralTreePartition>(
       storage->mutable_string_pool());
 
   // Metrics.
   {
     auto status = RegisterAllProtoBuilderFunctions(
-        metrics_descriptor_pool, proto_fn_name_to_path, engine.get(),
+        metrics_descriptor_pool, proto_fn_name_to_path, connection.get(),
         trace_processor);
     if (!status.ok()) {
       PERFETTO_FATAL("%s", status.c_message());
@@ -1525,18 +1547,22 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     if (!new_package.ok()) {
       PERFETTO_FATAL("%s", new_package.status().c_message());
     }
-    engine->RegisterPackage(package.name, std::move(*new_package));
+    auto status =
+        connection->RegisterPackage(package.name, std::move(*new_package));
+    if (!status.ok()) {
+      PERFETTO_FATAL("%s", status.c_message());
+    }
   }
 
   // Import prelude package.
-  auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(
+  auto result = connection->Execute(SqlSource::FromTraceProcessorImplementation(
       "INCLUDE PERFETTO MODULE prelude.before_eof.*"));
   if (!result.status().ok()) {
     PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());
   }
 
   if (notify_eof_called) {
-    IncludeAfterEofPrelude(engine.get());
+    IncludeAfterEofPrelude(connection.get());
   }
 
   for (const auto& metric : sql_metrics) {
@@ -1545,11 +1571,12 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     }
   }
   BuildBoundsTable(db, cached_trace_bounds);
-  return engine;
+  return connection;
 }
 
-void TraceProcessorImpl::IncludeAfterEofPrelude(PerfettoSqlEngine* engine) {
-  auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(
+void TraceProcessorImpl::IncludeAfterEofPrelude(
+    PerfettoSqlConnection* connection) {
+  auto result = connection->Execute(SqlSource::FromTraceProcessorImplementation(
       "INCLUDE PERFETTO MODULE prelude.after_eof.*"));
   if (!result.status().ok()) {
     PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());

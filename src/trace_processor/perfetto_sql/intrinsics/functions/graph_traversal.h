@@ -21,7 +21,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 class StringPool;
 
 // Registers the following array related functions with SQLite:
@@ -31,7 +31,7 @@ class StringPool;
 //    of the graph.
 // TODO(lalitm): once we have some stability here, expand the comments
 // here.
-base::Status RegisterGraphTraversalFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterGraphTraversalFunctions(PerfettoSqlConnection& connection,
                                              StringPool& string_pool);
 
 }  // namespace perfetto::trace_processor

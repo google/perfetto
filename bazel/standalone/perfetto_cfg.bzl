@@ -51,17 +51,7 @@ PERFETTO_CONFIG = struct(
         sqlite = ["@perfetto_dep_sqlite//:sqlite"],
         sqlite_ext_percentile = ["@perfetto_dep_sqlite_src//:percentile_ext"],
         protoc = ["@com_google_protobuf//:protoc"],
-        protoc_lib = [
-            "@com_google_protobuf//:protoc_lib",
-            # Upstream protobuf splits per-subdir. Layering_check requires
-            # direct deps on the targets that own the headers we include.
-            "@com_google_protobuf//src/google/protobuf/compiler:code_generator",
-            "@com_google_protobuf//src/google/protobuf/compiler:importer",
-            "@com_google_protobuf//src/google/protobuf/compiler:plugin",
-            "@com_google_protobuf//src/google/protobuf/io",
-            "@com_google_protobuf//src/google/protobuf/io:printer",
-            "@com_google_protobuf//src/google/protobuf/io:tokenizer",
-        ],
+        protoc_lib = ["@com_google_protobuf//:protoc_lib"],
         protobuf_lite = ["@com_google_protobuf//:protobuf_lite"],
         protobuf_full = ["@com_google_protobuf//:protobuf"],
         protobuf_descriptor_proto = ["@com_google_protobuf//:descriptor_proto"],

@@ -693,13 +693,13 @@ TEST_F(RwProtoTest, Merge_IncompatibleWireType) {
   auto cursor = data_trace_entry_with_two_elements_.GetRoot();
   cursor.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0);
   cursor.EnterField(protos::Element::kIdFieldNumber);
-  ASSERT_TRUE(cursor.Merge(bytes_empty_, false).IsAbort());
+  ASSERT_TRUE(cursor.Merge(bytes_empty_, RwProto::Cursor::kNone).IsAbort());
 }
 
 TEST_F(RwProtoTest, Merge_EmptySrc) {
   auto cursor = data_trace_entry_with_two_elements_.GetRoot();
   cursor.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0);
-  ASSERT_TRUE(cursor.Merge(bytes_empty_, false).IsOk());
+  ASSERT_TRUE(cursor.Merge(bytes_empty_, RwProto::Cursor::kNone).IsOk());
   CheckProtoWithTwoElements(
       SerializeAsString(data_trace_entry_with_two_elements_));
 }
@@ -712,7 +712,7 @@ TEST_F(RwProtoTest, Merge_EmptyDst) {
   element.set_id(1);
   element.set_value(11);
   auto proto = element.SerializeAsString();
-  ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), false).IsOk());
+  ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), RwProto::Cursor::kNone).IsOk());
 
   protos::TraceEntry entry;
   entry.ParseFromString(SerializeAsString(data_empty_));
@@ -730,7 +730,8 @@ TEST_F(RwProtoTest, Merge_FieldsUnion) {
     protos::Element element;
     element.set_id(1);
     auto proto = element.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(proto), RwProto::Cursor::kNone).IsOk());
   }
 
   // merge with element = {value: 11}
@@ -738,7 +739,8 @@ TEST_F(RwProtoTest, Merge_FieldsUnion) {
     protos::Element element;
     element.set_value(11);
     auto proto = element.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(proto), false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(proto), RwProto::Cursor::kNone).IsOk());
   }
 
   protos::TraceEntry entry;
@@ -767,7 +769,8 @@ TEST_F(RwProtoTest, Merge_FieldsReplacement) {
     element.set_id(1);
     element.set_value(11);
     auto bytes = element.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(bytes), false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(bytes), RwProto::Cursor::kNone).IsOk());
   }
 
   protos::TraceEntry entry;
@@ -806,7 +809,8 @@ TEST_F(RwProtoTest, Merge_RepeatedField) {
     element1->set_value(20);
 
     auto bytes = entry.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(bytes), false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(bytes), RwProto::Cursor::kNone).IsOk());
   }
 
   // check
@@ -830,7 +834,8 @@ TEST_F(RwProtoTest, Merge_RepeatedField) {
     element0->set_value(1);
 
     auto bytes = entry.SerializeAsString();
-    ASSERT_TRUE(cursor.Merge(AsConstBytes(bytes), false).IsOk());
+    ASSERT_TRUE(
+        cursor.Merge(AsConstBytes(bytes), RwProto::Cursor::kNone).IsOk());
   }
 
   // check
@@ -878,8 +883,10 @@ TEST_F(RwProtoTest, Merge_SkipSubmessages) {
   }
 
   // merge root with skip_submessages = true
-  ASSERT_TRUE(
-      cursor.Merge(AsConstBytes(root_patch.SerializeAsString()), true).IsOk());
+  ASSERT_TRUE(cursor
+                  .Merge(AsConstBytes(root_patch.SerializeAsString()),
+                         RwProto::Cursor::kSkipSubmessages)
+                  .IsOk());
 
   protos::TraceEntry entry;
   entry.ParseFromString(SerializeAsString(data_empty_));
@@ -888,6 +895,49 @@ TEST_F(RwProtoTest, Merge_SkipSubmessages) {
   ASSERT_EQ(entry.single_element().value(), 10);  // not updated
   ASSERT_TRUE(entry.has_id());
   ASSERT_EQ(entry.id(), 200);  // updated
+}
+
+TEST_F(RwProtoTest, Merge_DelIfSrcEmpty_SingleField) {
+  auto root = data_empty_.GetRoot();
+
+  // root = { single_element { id: 10 }}
+  {
+    auto cursor = root;
+    cursor.EnterField(protos::TraceEntry::kSingleElementFieldNumber);
+    cursor.EnterField(protos::Element::kIdFieldNumber);
+    cursor.SetScalar(Scalar::VarInt(10));
+  }
+
+  // patch = { single_element {} }
+  protos::TraceEntry patch;
+  patch.mutable_single_element();
+
+  // Merge
+  ASSERT_TRUE(root.Merge(AsConstBytes(patch.SerializeAsString()),
+                         RwProto::Cursor::kDelIfSrcEmpty)
+                  .IsOk());
+
+  // Check root = {}
+  protos::TraceEntry entry;
+  entry.ParseFromString(SerializeAsString(data_empty_));
+  ASSERT_FALSE(entry.has_single_element());
+}
+
+TEST_F(RwProtoTest, Merge_DelIfSrcEmpty_RepeatedField) {
+  // root = { element {...} element {...} }
+  auto root = data_trace_entry_with_two_elements_.GetRoot();
+
+  // patch = { element {} }
+  protos::TraceEntry patch;
+  patch.add_elements();
+
+  root.Merge(AsConstBytes(patch.SerializeAsString()),
+             RwProto::Cursor::kDelIfSrcEmpty);
+
+  // Check root = {}
+  protos::TraceEntry entry;
+  entry.ParseFromString(SerializeAsString(data_trace_entry_with_two_elements_));
+  ASSERT_EQ(entry.elements_size(), 0);
 }
 
 TEST_F(RwProtoTest, SetBytes_IncompatibleWireType) {

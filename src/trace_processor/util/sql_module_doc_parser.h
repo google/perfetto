@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_MODULE_DOC_PARSER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_MODULE_DOC_PARSER_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_component.gni")
 import("../../../../gn/test.gni")
 
-source_set("symbolizer") {
+perfetto_component("symbolizer") {
   public_deps = [ "../../../../include/perfetto/ext/base" ]
   deps = [ "../../../../gn:default_deps" ]
   sources = [
@@ -38,7 +39,7 @@ source_set("symbolizer") {
 }
 
 if (enable_perfetto_trace_processor) {
-  source_set("symbolize_database") {
+  perfetto_component("symbolize_database") {
     public_deps = [
       ":symbolizer",
       "../../../../include/perfetto/ext/base",

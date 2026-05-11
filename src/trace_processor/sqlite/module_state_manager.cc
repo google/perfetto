@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/sqlite/module_state_manager.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -30,10 +29,11 @@ namespace perfetto::trace_processor::sqlite {
 void ModuleStateManagerBase::OnCommit() {
   std::vector<std::string> to_erase;
   for (auto it = state_by_name_.GetIterator(); it; ++it) {
-    if (auto& state = it.value(); state->active_state) {
-      state->committed_state = state->active_state;
-      state->savepoint_states.clear();
+    if (auto& state = *it.value(); state.active_state) {
+      committed_store_->Store(it.key(), state.active_state);
+      state.savepoint_states.clear();
     } else {
+      committed_store_->Erase(it.key());
       to_erase.push_back(it.key());
     }
   }
@@ -45,9 +45,10 @@ void ModuleStateManagerBase::OnCommit() {
 void ModuleStateManagerBase::OnRollback() {
   std::vector<std::string> to_erase;
   for (auto it = state_by_name_.GetIterator(); it; ++it) {
-    if (auto& state = it.value(); state->committed_state) {
-      state->active_state = state->committed_state;
-      state->savepoint_states.clear();
+    if (auto committed = committed_store_->Load(it.key()); committed) {
+      auto& state = *it.value();
+      state.active_state = std::move(committed);
+      state.savepoint_states.clear();
     } else {
       to_erase.push_back(it.key());
     }
@@ -91,9 +92,10 @@ void ModuleStateManagerBase::OnDestroy(PerVtabState* state) {
 
 void ModuleStateManagerBase::OnSavepoint(PerVtabState* s, int idx) {
   auto new_size = static_cast<uint32_t>(idx + 1);
-  s->savepoint_states.resize(new_size, s->savepoint_states.empty()
-                                           ? s->committed_state
-                                           : s->savepoint_states.back());
+  std::shared_ptr<void> fill = s->savepoint_states.empty()
+                                   ? s->manager->committed_store_->Load(s->name)
+                                   : s->savepoint_states.back();
+  s->savepoint_states.resize(new_size, std::move(fill));
   s->savepoint_states[new_size - 1] = s->active_state;
 }
 
@@ -106,8 +108,8 @@ void ModuleStateManagerBase::OnRelease(PerVtabState* s, int idx) {
 void ModuleStateManagerBase::OnRollbackTo(PerVtabState* s, int idx) {
   auto new_size = static_cast<uint32_t>(idx + 1);
   PERFETTO_CHECK(new_size <= s->savepoint_states.size());
-  s->active_state =
-      new_size == 0 ? s->committed_state : s->savepoint_states[new_size - 1];
+  s->active_state = new_size == 0 ? s->manager->committed_store_->Load(s->name)
+                                  : s->savepoint_states[new_size - 1];
   s->savepoint_states.resize(new_size);
 }
 

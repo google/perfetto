@@ -25,7 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -127,9 +127,9 @@ struct StripHexFunction : public sqlite::Function<StripHexFunction> {
 
 }  // namespace
 
-base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
+base::Status RegisterStripHexFunction(PerfettoSqlConnection* connection,
                                       TraceProcessorContext*) {
-  return engine->RegisterFunction<StripHexFunction>(nullptr);
+  return connection->RegisterFunction<StripHexFunction>(nullptr);
 }
 
 std::string SqlStripHex(const std::string& input, int64_t min_repeated_digits) {

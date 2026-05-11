@@ -27,7 +27,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/sorted_timestamps.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -107,9 +107,9 @@ struct IntervalCreate : public sqlite::Function<IntervalCreate> {
 
 }  // namespace
 
-base::Status RegisterIntervalCreateFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterIntervalCreateFunctions(PerfettoSqlConnection& connection,
                                              StringPool* pool) {
-  return engine.RegisterFunction<IntervalCreate>(
+  return connection.RegisterFunction<IntervalCreate>(
       std::make_unique<IntervalCreate::UserData>(
           IntervalCreate::UserData{pool}));
 }

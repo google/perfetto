@@ -294,6 +294,10 @@ const RPC_METHODS = {
     argType: protos.GetTraceStatsRequest,
     respType: protos.GetTraceStatsResponse,
   },
+  CloneSession: {
+    argType: protos.CloneSessionRequest,
+    respType: protos.CloneSessionResponse,
+  },
 };
 
 const RPC_STREAMING_METHODS = {

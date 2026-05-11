@@ -22,7 +22,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -35,7 +35,7 @@ void CreateFunction::Step(sqlite3_context* ctx,
                           sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 3);
 
-  auto* engine = GetUserData(ctx);
+  auto* connection = GetUserData(ctx);
 
   // Type check all the arguments.
   if (sqlite::value::Type(argv[0]) != sqlite::Type::kText) {
@@ -71,7 +71,7 @@ void CreateFunction::Step(sqlite3_context* ctx,
                              return_type_str.c_str()));
   }
 
-  auto register_status = engine->RegisterLegacyRuntimeFunction(
+  auto register_status = connection->RegisterLegacyRuntimeFunction(
       true /* replace */, prototype, *type,
       SqlSource::FromTraceProcessorImplementation(std::move(sql_defn_str)));
   if (!register_status.ok()) {
@@ -87,7 +87,7 @@ void ExperimentalMemoize::Step(sqlite3_context* ctx,
                                sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 1);
 
-  auto* engine = GetUserData(ctx);
+  auto* connection = GetUserData(ctx);
 
   if (sqlite::value::Type(argv[0]) != sqlite::Type::kText) {
     return sqlite::utils::SetError(
@@ -95,7 +95,7 @@ void ExperimentalMemoize::Step(sqlite3_context* ctx,
   }
 
   std::string function_name = sqlite::value::Text(argv[0]);
-  auto status = engine->EnableSqlFunctionMemoization(function_name);
+  auto status = connection->EnableSqlFunctionMemoization(function_name);
   if (!status.ok()) {
     return sqlite::utils::SetError(ctx, status);
   }
