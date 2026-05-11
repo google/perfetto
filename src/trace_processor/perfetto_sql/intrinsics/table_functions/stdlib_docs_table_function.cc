@@ -67,9 +67,9 @@ base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
   if (!mod) {
     return base::ErrStatus("Module not found: %s", module_key.c_str());
   }
-  PERFETTO_DCHECK(mod->sql.size() <= std::numeric_limits<uint32_t>::max());
+  PERFETTO_DCHECK(mod->size() <= std::numeric_limits<uint32_t>::max());
   auto parsed = stdlib_doc::ParseStdlibModule(
-      mod->sql.c_str(), static_cast<uint32_t>(mod->sql.size()));
+      mod->c_str(), static_cast<uint32_t>(mod->size()));
   for (const auto& err : parsed.errors) {
     PERFETTO_DLOG("stdlib docs: parse error in '%s': %s", module_key.c_str(),
                   err.c_str());

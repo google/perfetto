@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,11 +33,30 @@ PerfettoSqlDatabase::PerfettoSqlDatabase(StringPool* pool)
 
 PerfettoSqlDatabase::~PerfettoSqlDatabase() = default;
 
-void PerfettoSqlDatabase::RegisterPackage(
+base::Status PerfettoSqlDatabase::RegisterPackage(
     const std::string& name,
     sql_modules::RegisteredPackage package) {
+  {
+    std::lock_guard<std::mutex> lock(include_mu_);
+    for (auto m = package.modules.GetIterator(); m; ++m) {
+      if (included_modules_.count(m.key()) != 0) {
+        return base::ErrStatus(
+            "Cannot register package '%s': module '%s' has already been "
+            "included on this database; re-registration would silently "
+            "shadow the imported body.",
+            name.c_str(), m.key().c_str());
+      }
+      if (poisoned_modules_.count(m.key()) != 0) {
+        return base::ErrStatus(
+            "Cannot register package '%s': module '%s' is poisoned by an "
+            "earlier failed include.",
+            name.c_str(), m.key().c_str());
+      }
+    }
+  }
   packages_.Erase(name);
   packages_.Insert(name, std::move(package));
+  return base::OkStatus();
 }
 
 void PerfettoSqlDatabase::ErasePackage(const std::string& name) {
@@ -74,6 +94,115 @@ PerfettoSqlDatabase::GetModules() const {
     }
   }
   return result;
+}
+
+// 'std::unique_lock' doesn't work well with thread annotations
+// (see https://github.com/llvm/llvm-project/issues/63239), so we suppress
+// thread safety static analysis for this method. The lock is held
+// throughout; analysis on every other method in the file is unaffected.
+PerfettoSqlDatabase::IncludeClaimResult PerfettoSqlDatabase::TryClaimInclude(
+    const std::string& key) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+  std::unique_lock<std::mutex> lock(include_mu_);
+  // Wait until no peer connection is mid-import for the same key. Cycles
+  // (same connection re-entering for a key it already holds) are caught at
+  // the call site; reaching that case here would deadlock on ourselves.
+  include_cv_.wait(lock, [&]() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(include_mu_) {
+    return include_in_progress_.count(key) == 0;
+  });
+  IncludeClaimResult res;
+  if (included_modules_.count(key) != 0) {
+    res.already_included = true;
+    return res;
+  }
+  if (auto it = poisoned_modules_.find(key); it != poisoned_modules_.end()) {
+    res.poisoned = true;
+    res.poison_reason = it->second;
+    return res;
+  }
+  include_in_progress_.insert(key);
+  res.claim = IncludeClaim(this, key);
+  return res;
+}
+
+void PerfettoSqlDatabase::ReleaseClaimSuccess(const std::string& key) {
+  {
+    std::lock_guard<std::mutex> lock(include_mu_);
+    include_in_progress_.erase(key);
+    included_modules_.insert(key);
+  }
+  include_cv_.notify_all();
+}
+
+void PerfettoSqlDatabase::ReleaseClaimPoisoned(const std::string& key,
+                                               std::string reason) {
+  {
+    std::lock_guard<std::mutex> lock(include_mu_);
+    include_in_progress_.erase(key);
+    poisoned_modules_[key] = std::move(reason);
+  }
+  include_cv_.notify_all();
+}
+
+void PerfettoSqlDatabase::ReleaseClaimTransient(const std::string& key) {
+  {
+    std::lock_guard<std::mutex> lock(include_mu_);
+    include_in_progress_.erase(key);
+  }
+  include_cv_.notify_all();
+}
+
+bool PerfettoSqlDatabase::IsModuleIncluded(const std::string& key) const {
+  std::lock_guard<std::mutex> lock(include_mu_);
+  return included_modules_.count(key) != 0;
+}
+
+bool PerfettoSqlDatabase::IsModulePoisoned(const std::string& key) const {
+  std::lock_guard<std::mutex> lock(include_mu_);
+  return poisoned_modules_.count(key) != 0;
+}
+
+PerfettoSqlDatabase::IncludeClaim::IncludeClaim(IncludeClaim&& o) noexcept
+    : db_(std::exchange(o.db_, nullptr)), key_(std::move(o.key_)) {}
+
+PerfettoSqlDatabase::IncludeClaim& PerfettoSqlDatabase::IncludeClaim::operator=(
+    IncludeClaim&& o) noexcept {
+  if (this != &o) {
+    ResetTransient();
+    db_ = std::exchange(o.db_, nullptr);
+    key_ = std::move(o.key_);
+  }
+  return *this;
+}
+
+PerfettoSqlDatabase::IncludeClaim::~IncludeClaim() {
+  ResetTransient();
+}
+
+void PerfettoSqlDatabase::IncludeClaim::ReleaseSuccess() {
+  if (!db_) {
+    return;
+  }
+  db_->ReleaseClaimSuccess(key_);
+  db_ = nullptr;
+  key_.clear();
+}
+
+void PerfettoSqlDatabase::IncludeClaim::ReleasePoisoned(std::string reason) {
+  if (!db_) {
+    return;
+  }
+  db_->ReleaseClaimPoisoned(key_, std::move(reason));
+  db_ = nullptr;
+  key_.clear();
+}
+
+void PerfettoSqlDatabase::IncludeClaim::ResetTransient() {
+  if (!db_) {
+    return;
+  }
+  db_->ReleaseClaimTransient(key_);
+  db_ = nullptr;
+  key_.clear();
 }
 
 }  // namespace perfetto::trace_processor
