@@ -479,7 +479,6 @@ void FileIoTracker::ParseFileIoPathOperation(int64_t timestamp,
           inserter->AddArg(file_key_arg_,
                            Variadic::Pointer(decoder.file_key()));
         }
-        // TODO: How should extra_info be handled?
         if (decoder.has_extra_info()) {
           inserter->AddArg(extra_info_arg_,
                            Variadic::UnsignedInteger(decoder.extra_info()));
