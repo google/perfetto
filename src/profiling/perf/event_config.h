@@ -142,11 +142,6 @@ class EventConfig {
   bool sample_callstacks() const { return user_frames() || kernel_frames_; }
   bool user_frames() const { return IsUserFramesEnabled(unwind_mode_); }
   bool kernel_frames() const { return kernel_frames_; }
-  // True iff the kernel walks the userspace frame pointer chain for us
-  // (UNWIND_KERNEL_FRAME_POINTER). The producer still needs the process's
-  // /proc/<pid>/maps (and /proc/<pid>/mem) to fill in mapping info and build
-  // IDs for the IPs the kernel returns - it just doesn't need to do the
-  // stack unwind itself.
   bool kernel_unwinds_user_frames() const {
     return unwind_mode_ ==
            protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER;

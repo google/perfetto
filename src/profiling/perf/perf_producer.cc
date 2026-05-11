@@ -278,42 +278,28 @@ bool CallchainHasUserSection(const std::vector<uint64_t>& kernel_ips) {
   return false;
 }
 
-// Translates the proto-level unwind mode into the unwinder's internal enum.
-// Unknown / SKIP / DWARF all collapse to the libunwindstack path, which is
-// the historical default.
 Unwinder::UnwindMode ToUnwinderMode(
     protos::gen::PerfEventConfig::UnwindMode pb_mode) {
+  using Pb = protos::gen::PerfEventConfig;
   switch (pb_mode) {
-    case protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER:
+    case Pb::UNWIND_FRAME_POINTER:
       return Unwinder::UnwindMode::kFramePointer;
-    case protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER:
+    case Pb::UNWIND_KERNEL_FRAME_POINTER:
       return Unwinder::UnwindMode::kKernelFramePointer;
-    case protos::gen::PerfEventConfig::UNWIND_UNKNOWN:
-    case protos::gen::PerfEventConfig::UNWIND_SKIP:
-    case protos::gen::PerfEventConfig::UNWIND_DWARF:
+    case Pb::UNWIND_UNKNOWN:
+    case Pb::UNWIND_SKIP:
+    case Pb::UNWIND_DWARF:
       return Unwinder::UnwindMode::kUnwindStack;
   }
   return Unwinder::UnwindMode::kUnwindStack;  // unreachable; pacify -Wreturn
 }
 
-// Returns true if the sample comes from a kernel thread (a task with no
-// userspace context, e.g. ksoftirqd or kworker).
-//
-// The "right" signal depends on what the kernel was asked to record:
-//
-//  * Modes that sample user regs (DWARF/FP unwinding done by us) set
-//    PERF_SAMPLE_REGS_USER. The kernel only fills user regs for tasks with
-//    a userspace context, so |sample.regs == nullptr| is the unambiguous
-//    signal here.
-//
-//  * UNWIND_KERNEL_FRAME_POINTER does not sample user regs. We instead use
-//    PERF_SAMPLE_CALLCHAIN, which includes a PERF_CONTEXT_USER marker iff
-//    the task has a userspace context. Note: this is independent of
-//    |cpu_mode|, since a userspace task sampled in kernel mode (e.g. during
-//    a syscall) still gets a PERF_CONTEXT_USER section.
-//
-// In both cases the signal is something the kernel synthesises specifically
-// to indicate "this task has no userspace", not a heuristic on our side.
+// Returns true if this sample is for a kernel thread:
+// * if we're performing unwinding in this profiler, then we requested
+//   userspace registers in the samples. No registers means it's a kernel
+//   thread.
+// * if the kernel is unwinding userspace, look for a PERF_CONTEXT_USER marker
+//   in the callchain as that mode doesn't sample userspace registers.
 bool LooksLikeKernelThread(const ParsedSample& sample,
                            const EventConfig& event_config) {
   if (event_config.kernel_unwinds_user_frames())
