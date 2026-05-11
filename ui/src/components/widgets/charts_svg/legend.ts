@@ -12,44 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {classNames} from '../../../base/classnames';
-import {chartColorVar} from './common';
-import {LineChartData} from './line_chart_svg';
 import m from 'mithril';
+import {classNames} from '../../../base/classnames';
+import {HTMLAttrs} from '../../../widgets/common';
 
-export function renderLegend(
-  data: LineChartData,
-  fmtY: (v: number) => string,
-  hidden: ReadonlySet<string>,
-  onToggle: (name: string) => void,
-): m.Children {
-  return m(
-    '.pf-chart-svg__legend',
-    {key: 'legend'},
-    data.series.map((s, i) => {
-      const last =
-        s.points.length > 0 ? s.points[s.points.length - 1].y : undefined;
-      const color = s.color ?? chartColorVar(i);
-      const isHidden = hidden.has(s.name);
+export interface ChartLegendEntryAttrs {
+  readonly name: string;
+  /** Optional trailing value (e.g. last data point). */
+  readonly value?: string;
+  /** Optional colour swatch (CSS colour). */
+  readonly swatch?: string;
+  /** Render with the hidden/struck-through style. */
+  readonly hidden?: boolean;
+  /** Click handler. When set, the entry shows a pointer cursor. */
+  readonly onToggle?: () => void;
+}
+
+/**
+ * Compound legend component. Mirrors `ChartTooltip` — the outer
+ * `ChartLegend` is just the styled container; `ChartLegend.Entry` is one
+ * swatch+name+value row inside it.
+ */
+export const ChartLegend = {
+  view({attrs, children}: m.Vnode<HTMLAttrs>) {
+    const {className, ...rest} = attrs;
+    return m(
+      '.pf-chart-svg__legend',
+      {...rest, className: classNames(className)},
+      children,
+    );
+  },
+  Entry: {
+    view({attrs}: m.Vnode<ChartLegendEntryAttrs>) {
+      const {name, value, swatch, hidden, onToggle} = attrs;
       return m(
         '.pf-chart-svg__legend-entry',
         {
-          className: classNames(
-            isHidden && 'pf-chart-svg__legend-entry--hidden',
-          ),
-          style: {cursor: 'pointer'},
-          onclick: () => onToggle(s.name),
+          className: classNames(hidden && 'pf-chart-svg__legend-entry--hidden'),
+          style: onToggle ? {cursor: 'pointer'} : undefined,
+          onclick: onToggle,
         },
-        [
+        swatch !== undefined &&
           m('.pf-chart-svg__legend-swatch', {
-            style: {backgroundColor: color},
+            style: {backgroundColor: swatch},
           }),
-          m('.pf-chart-svg__legend-name', s.name),
-          last !== undefined
-            ? m('.pf-chart-svg__legend-value', fmtY(last))
-            : null,
-        ],
+        m('.pf-chart-svg__legend-name', name),
+        value !== undefined && m('.pf-chart-svg__legend-value', value),
       );
-    }),
-  );
-}
+    },
+  },
+};

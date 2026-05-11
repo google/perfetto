@@ -151,3 +151,126 @@ export function pointMarker(cx: number, cy: number, color: string, r: number) {
     'stroke-width': 2,
   });
 }
+
+// Font sizes and tick geometry shared by every SVG chart's axis frame.
+export const AXIS_LABEL_FONT_SIZE = 10;
+export const AXIS_NAME_FONT_SIZE = 11;
+export const TICK_LENGTH = 4;
+export const TICK_LABEL_GAP = 4;
+
+export interface PlotLayout {
+  readonly padLeft: number;
+  readonly padRight: number;
+  readonly padTop: number;
+  readonly padBottom: number;
+  readonly plotW: number;
+  readonly plotH: number;
+}
+
+// Compute paddings + plot area dimensions from chart size, the Y-tick label
+// strings (whose widest member dictates the left padding), and the presence
+// of axis-name labels.
+export function computePlotLayout(opts: {
+  readonly width: number;
+  readonly height: number;
+  readonly yLabels: ReadonlyArray<string>;
+  readonly xName?: string;
+  readonly yName?: string;
+}): PlotLayout {
+  const {width, height, yLabels, xName, yName} = opts;
+  const yLabelWidth = estimateLabelWidth(yLabels);
+  const padLeft = (yName ? AXIS_NAME_FONT_SIZE + 6 : 0) + yLabelWidth + 8;
+  const padRight = 8;
+  const padTop = 8;
+  const padBottom =
+    (xName ? AXIS_NAME_FONT_SIZE + 6 : 0) + AXIS_LABEL_FONT_SIZE + 8;
+  return {
+    padLeft,
+    padRight,
+    padTop,
+    padBottom,
+    plotW: Math.max(0, width - padLeft - padRight),
+    plotH: Math.max(0, height - padTop - padBottom),
+  };
+}
+
+// Render the shared parts of every chart's axis frame: rotated Y-axis name,
+// centered X-axis name, the bottom + left axis lines, and the Y-tick column
+// (each tick = a short mark plus a right-aligned label). Y-tick positions
+// are passed pre-computed in pixel space so this helper is scale-agnostic.
+// X ticks are chart-specific (categorical vs. continuous) and stay with the
+// caller.
+export function renderPlotFrame(opts: {
+  readonly layout: PlotLayout;
+  readonly height: number;
+  readonly xName?: string;
+  readonly yName?: string;
+  readonly yTicks: ReadonlyArray<{readonly label: string; readonly y: number}>;
+}): m.Children {
+  const {layout, height, xName, yName, yTicks} = opts;
+  const {padLeft, padTop, plotW, plotH} = layout;
+  return [
+    yName &&
+      m(
+        'text',
+        {
+          'x': AXIS_NAME_FONT_SIZE,
+          'y': padTop + plotH / 2,
+          'fill': TEXT_COLOR,
+          'font-size': AXIS_NAME_FONT_SIZE,
+          'text-anchor': 'middle',
+          'transform': `rotate(-90 ${AXIS_NAME_FONT_SIZE} ${padTop + plotH / 2})`,
+        },
+        yName,
+      ),
+    xName &&
+      m(
+        'text',
+        {
+          'x': padLeft + plotW / 2,
+          'y': height - 4,
+          'fill': TEXT_COLOR,
+          'font-size': AXIS_NAME_FONT_SIZE,
+          'text-anchor': 'middle',
+        },
+        xName,
+      ),
+    m('line', {
+      x1: padLeft,
+      y1: padTop + plotH,
+      x2: padLeft + plotW,
+      y2: padTop + plotH,
+      stroke: BORDER_COLOR,
+    }),
+    m('line', {
+      x1: padLeft,
+      y1: padTop,
+      x2: padLeft,
+      y2: padTop + plotH,
+      stroke: BORDER_COLOR,
+    }),
+    yTicks.map((t) =>
+      m('g', [
+        m('line', {
+          x1: padLeft - TICK_LENGTH,
+          y1: t.y,
+          x2: padLeft,
+          y2: t.y,
+          stroke: BORDER_COLOR,
+        }),
+        m(
+          'text',
+          {
+            'x': padLeft - TICK_LENGTH - TICK_LABEL_GAP,
+            'y': t.y,
+            'fill': TEXT_COLOR,
+            'font-size': AXIS_LABEL_FONT_SIZE,
+            'text-anchor': 'end',
+            'dominant-baseline': 'middle',
+          },
+          t.label,
+        ),
+      ]),
+    ),
+  ];
+}
