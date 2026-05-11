@@ -50,7 +50,7 @@ class FtraceModuleImpl : public FtraceModule {
 
   void ParseFtraceEventData(uint32_t cpu,
                             int64_t ts,
-                            const TracePacketData& data) override {
+                            const FtraceData& data) override {
     base::Status res = parser_.ParseFtraceEvent(cpu, ts, data);
     if (!res.ok()) {
       PERFETTO_ELOG("%s", res.message().c_str());

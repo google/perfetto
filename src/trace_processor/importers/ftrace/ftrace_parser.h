@@ -63,7 +63,7 @@ class FtraceParser {
 
   base::Status ParseFtraceEvent(uint32_t cpu,
                                 int64_t ts,
-                                const TracePacketData& data);
+                                const FtraceData& data);
   base::Status ParseInlineSchedSwitch(uint32_t cpu,
                                       int64_t ts,
                                       const InlineSchedSwitch& data);

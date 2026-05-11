@@ -166,6 +166,59 @@ TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
   ASSERT_EQ(extracted.extra_counter_values, counter_array);
 }
 
+TEST_F(TraceTokenBufferUnittest, FtraceDataInOutWithoutRawTs) {
+  TraceBlobView tbv(TraceBlob::Allocate(1024));
+  FtraceData data{tbv.copy(), state, FtraceData::kRawTsUnset};
+
+  TraceTokenBuffer::Id id = store.Append(std::move(data));
+  FtraceData extracted = store.Extract<FtraceData>(id);
+  ASSERT_EQ(extracted.packet, tbv);
+  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_EQ(extracted.raw_ts, FtraceData::kRawTsUnset);
+}
+
+TEST_F(TraceTokenBufferUnittest, FtraceDataInOutWithRawTs) {
+  TraceBlobView tbv(TraceBlob::Allocate(1024));
+  constexpr int64_t kRawTs = 1234567890123;
+  FtraceData data{tbv.copy(), state, kRawTs};
+
+  TraceTokenBuffer::Id id = store.Append(std::move(data));
+  FtraceData extracted = store.Extract<FtraceData>(id);
+  ASSERT_EQ(extracted.packet, tbv);
+  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_EQ(extracted.raw_ts, kRawTs);
+}
+
+TEST_F(TraceTokenBufferUnittest, FtraceDataMixedRawTsPresence) {
+  // Interleave entries with and without raw_ts to ensure the variable-length
+  // encoding doesn't desync between adjacent allocations.
+  TraceBlobView root(TraceBlob::Allocate(2048));
+  TraceBlobView tbv_1 = root.slice_off(0, 512);
+  TraceBlobView tbv_2 = root.slice_off(512, 512);
+  TraceBlobView tbv_3 = root.slice_off(1024, 512);
+  constexpr int64_t kRawTs1 = 100;
+  constexpr int64_t kRawTs3 = 300;
+
+  TraceTokenBuffer::Id id_1 =
+      store.Append(FtraceData{tbv_1.copy(), state, kRawTs1});
+  TraceTokenBuffer::Id id_2 =
+      store.Append(FtraceData{tbv_2.copy(), state, FtraceData::kRawTsUnset});
+  TraceTokenBuffer::Id id_3 =
+      store.Append(FtraceData{tbv_3.copy(), state, kRawTs3});
+
+  FtraceData out_1 = store.Extract<FtraceData>(id_1);
+  ASSERT_EQ(out_1.packet, tbv_1);
+  ASSERT_EQ(out_1.raw_ts, kRawTs1);
+
+  FtraceData out_2 = store.Extract<FtraceData>(id_2);
+  ASSERT_EQ(out_2.packet, tbv_2);
+  ASSERT_EQ(out_2.raw_ts, FtraceData::kRawTsUnset);
+
+  FtraceData out_3 = store.Extract<FtraceData>(id_3);
+  ASSERT_EQ(out_3.packet, tbv_3);
+  ASSERT_EQ(out_3.raw_ts, kRawTs3);
+}
+
 TEST_F(TraceTokenBufferUnittest, ExtractOrAppendAfterFreeMemory) {
   auto unused_res = store.Extract<TraceBlobView>(
       store.Append(TraceBlobView(TraceBlob::Allocate(1234))));
