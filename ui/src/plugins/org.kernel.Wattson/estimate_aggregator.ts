@@ -70,7 +70,9 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
 
       CREATE PERFETTO VIEW ${this.id} AS
       WITH window_stats AS (
-        SELECT * FROM _windowed_system_state_mw(${area.start}, ${duration})
+        SELECT * FROM _wattson_base_components_avg_mw!(
+          (SELECT ${area.start} AS ts, ${duration} AS dur, 0 AS period_id)
+        )
       )
     `;
 
