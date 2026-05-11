@@ -14,61 +14,56 @@
 
 import {classNames} from '../../../base/classnames';
 import {CursorTooltip} from '../../../widgets/cursor_tooltip';
-import {chartColorVar} from './common';
-import {LineChartSeries} from '../charts/line_chart';
 import m from 'mithril';
 import {PopupPosition} from '../../../widgets/popup';
+import {HTMLAttrs} from '../../../widgets/common';
 
-export function renderTooltip(
-  series: readonly {readonly style: string; readonly series: LineChartSeries}[],
-  index: number,
-  fmtX: (v: number) => string,
-  fmtY: (v: number) => string,
-): m.Children {
-  // X value comes from the first series with a point at `index`.
-  let xValue: number | undefined;
-  for (const s of series) {
-    if (s.series.points[index] !== undefined) {
-      xValue = s.series.points[index].x;
-      break;
-    }
-  }
-  return m(
-    CursorTooltip,
-    {
-      className: 'pf-chart-svg__tooltip',
-      key: 'tooltip',
-      position: PopupPosition.RightStart,
-      offset: 20,
-    },
-    m(
-      '.pf-chart-svg__tooltip-content',
-      xValue !== undefined
-        ? m('.pf-chart-svg__tooltip-header', fmtX(xValue))
-        : null,
-      series.map((s, i) => {
-        const p = s.series.points[index];
-        if (p === undefined) return null;
-        const color = s.series.color ?? chartColorVar(i);
-        const isHovered = s.style === 'emphasis';
-        const isMuted = s.style === 'muted';
-        return m(
-          '.pf-chart-svg__tooltip-row',
-          {
-            className: classNames(
-              isHovered && 'pf-chart-svg__tooltip-row--hovered',
-              isMuted && 'pf-chart-svg__tooltip-row--muted',
-            ),
-          },
-          [
-            m('.pf-chart-svg__tooltip-swatch', {
-              style: {backgroundColor: color},
-            }),
-            m('.pf-chart-svg__tooltip-name', s.series.name),
-            m('.pf-chart-svg__tooltip-value', fmtY(p.y)),
-          ],
-        );
-      }),
-    ),
-  );
+export interface ChartTooltipRowAttrs {
+  readonly name: string;
+  readonly value: string;
+  /** Optional colour swatch (CSS colour). */
+  readonly swatch?: string;
+  /** Bold this row. */
+  readonly tweak?: 'emphasis' | 'muted';
 }
+
+export const ChartTooltip = {
+  view({attrs, children}: m.Vnode<HTMLAttrs>) {
+    const {className, ...rest} = attrs;
+    return m(
+      CursorTooltip,
+      {
+        ...rest,
+        className: classNames(className, 'pf-chart-svg__tooltip'),
+        position: PopupPosition.RightStart,
+        offset: 20,
+      },
+      m('.pf-chart-svg__tooltip-content', children),
+    );
+  },
+  Header: {
+    view({children}: m.Vnode) {
+      return m('.pf-chart-svg__tooltip-header', children);
+    },
+  },
+  Row: {
+    view({attrs}: m.Vnode<ChartTooltipRowAttrs>) {
+      const {name, value, tweak, swatch} = attrs;
+      return m(
+        '.pf-chart-svg__tooltip-row',
+        {
+          className: classNames(
+            tweak === 'emphasis' && 'pf-chart-svg__tooltip-row--hovered',
+            tweak === 'muted' && 'pf-chart-svg__tooltip-row--muted',
+          ),
+        },
+        swatch &&
+          m('.pf-chart-svg__tooltip-swatch', {
+            style: {backgroundColor: swatch},
+          }),
+        m('.pf-chart-svg__tooltip-name', name),
+        m('.pf-chart-svg__tooltip-value', value),
+      );
+    },
+  },
+};

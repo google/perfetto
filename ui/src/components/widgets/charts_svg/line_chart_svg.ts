@@ -13,44 +13,41 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SimpleResizeObserver} from '../../../base/resize_observer';
 import {classNames} from '../../../base/classnames';
-import {Spinner} from '../../../widgets/spinner';
+import {max, min} from '../../../base/array_utils';
+import {clamp} from '../../../base/math_utils';
+import {exists} from '../../../base/utils';
+import {shortUuid} from '../../../base/uuid';
 import type {
   LineChartAttrs,
   LineChartData,
   LineChartSeries,
 } from '../charts/line_chart';
-import {clamp} from '../../../base/math_utils';
-import {max, min} from '../../../base/array_utils';
-import {renderLegend} from './legend';
-import {renderTooltip} from './tooltip';
-import {shortUuid} from '../../../base/uuid';
 import {
+  AXIS_LABEL_FONT_SIZE,
   AxisRange,
   BORDER_COLOR,
   TEXT_COLOR,
+  TICK_LABEL_GAP,
+  TICK_LENGTH,
   chartColorVar,
+  computePlotLayout,
   defaultFmt,
-  estimateLabelWidth,
   logRange,
   niceRange,
   pointMarker,
   rangeWithFixedBounds,
+  renderPlotFrame,
 } from './common';
-import {assertIsInstance} from '../../../base/assert';
+import {ChartLegend} from './legend';
+import {SvgChartFrame} from './svg_chart_frame';
+import {ChartTooltip} from './tooltip';
 
 export type {
   LineChartAttrs,
   LineChartData,
   LineChartSeries,
 } from '../charts/line_chart';
-
-const DEFAULT_HEIGHT = 200;
-const AXIS_LABEL_FONT_SIZE = 10;
-const AXIS_NAME_FONT_SIZE = 11;
-const TICK_LENGTH = 4;
-const TICK_LABEL_GAP = 4;
 
 interface SeriesPlot {
   readonly name: string;
@@ -66,14 +63,9 @@ interface HoverState {
 }
 
 export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
-  private resizeObs?: Disposable;
   private hover?: HoverState;
   // Index of the currently-hovered series, if any. Used to dim other series.
   private hoveredSeries?: number;
-  private container?: HTMLElement;
-  private currentAttrs?: LineChartAttrs;
-  private prevW = 0;
-  private prevH = 0;
   // Active brush drag state, in *data* x-coordinates so a resize during the
   // drag doesn't mangle the selection. Pointer capture keeps the drag bound
   // to the SVG even when the cursor leaves it, so we don't need any
@@ -93,41 +85,6 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
     }
   }
 
-  oncreate({dom, attrs}: m.CVnodeDOM<LineChartAttrs>) {
-    const container = dom.querySelector(
-      '.pf-chart-svg__container',
-    ) as HTMLElement;
-    this.container = container;
-    this.currentAttrs = attrs;
-    const {width, height} = container.getBoundingClientRect();
-    this.prevW = width;
-    this.prevH = height;
-    this.renderInner(container, attrs, width, height);
-    this.resizeObs = new SimpleResizeObserver(dom, () => {
-      if (!this.container || !this.currentAttrs) return;
-      const r = this.container.getBoundingClientRect();
-      if (r.width === this.prevW && r.height === this.prevH) return;
-      this.prevW = r.width;
-      this.prevH = r.height;
-      this.renderInner(this.container, this.currentAttrs, r.width, r.height);
-    });
-  }
-
-  onupdate({dom, attrs}: m.CVnodeDOM<LineChartAttrs>) {
-    // Re-query: Mithril may have replaced the container node if siblings
-    // changed (e.g. legend appeared/disappeared).
-    const container = assertIsInstance(
-      dom.querySelector('.pf-chart-svg__container'),
-      HTMLElement,
-    );
-    this.container = container;
-    this.currentAttrs = attrs;
-    const {width, height} = container.getBoundingClientRect();
-    this.prevW = width;
-    this.prevH = height;
-    this.renderInner(container, attrs, width, height);
-  }
-
   private setHoveredSeries(i: number) {
     if (this.hoveredSeries !== i) {
       this.hoveredSeries = i;
@@ -140,75 +97,34 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
     }
   }
 
-  onremove() {
-    if (this.resizeObs) {
-      this.resizeObs[Symbol.dispose]();
-      this.resizeObs = undefined;
-    }
-    // Tear down the imperative inner tree so any descendant onremove hooks
-    // run.
-    if (this.container) {
-      m.render(this.container, []);
-    }
-  }
-
-  // Imperatively render the inner chart tree using measured dimensions.
-  private renderInner(
-    container: HTMLElement,
-    attrs: LineChartAttrs,
-    width: number,
-    height: number,
-  ) {
+  view({attrs}: m.Vnode<LineChartAttrs>) {
     const {data} = attrs;
+    const isLoading = data === undefined;
     const isEmpty =
       data !== undefined &&
       (data.series.length === 0 ||
         data.series.every((s) => s.points.length === 0));
-    const isLoading = data === undefined;
-
-    let inner: m.Children;
-    if (isLoading) {
-      inner = m('.pf-chart-svg__loading', m(Spinner));
-    } else if (isEmpty) {
-      inner = m('.pf-chart-svg__empty', 'No data to display');
-    } else {
-      inner = this.renderChart(attrs, data, width, height);
-    }
-
-    // Mithril's render() function actually takes a hidden third parameter which
-    // is a function called whenever an event triggers a redraw from within the
-    // rendered vnodes. Here we can use this to hook up the events triggered
-    // from within the rendered SVG code to trigger a global redraw. This is the
-    // same technique used in raf.ts.
-    const renderWithRedraw = m.render as (
-      el: Element,
-      vnodes: m.Children,
-      redraw?: () => void,
-    ) => void;
-
-    renderWithRedraw(container, inner, m.redraw);
-  }
-
-  view({attrs}: m.Vnode<LineChartAttrs>) {
-    const {height, fillParent, className, data} = attrs;
-    const legendPosition = attrs.legendPosition ?? 'top';
     const showLegend =
       attrs.showLegend ?? (data !== undefined && data.series.length > 1);
 
-    // The contents of .pf-chart-svg__container are managed imperatively
-    // via m.render() in onupdate/oncreate so that the chart is drawn using
-    // measured dimensions on the very first paint and on every attrs change.
-    // The legend is plain Mithril and lives outside the imperative subtree.
+    const fmtYLegend = attrs.formatYValue ?? defaultFmt;
     const legend =
       showLegend &&
       data !== undefined &&
-      renderLegend(
-        data,
-        attrs.formatYValue ?? defaultFmt,
-        this.hiddenSeries,
-        (name: string) => this.toggleSeries(name),
+      m(
+        ChartLegend,
+        data.series.map((s, i) => {
+          const last =
+            s.points.length > 0 ? s.points[s.points.length - 1].y : undefined;
+          return m(ChartLegend.Entry, {
+            name: s.name,
+            value: last !== undefined ? fmtYLegend(last) : undefined,
+            swatch: s.color ?? chartColorVar(i),
+            hidden: this.hiddenSeries.has(s.name),
+            onToggle: () => this.toggleSeries(s.name),
+          });
+        }),
       );
-    const chart = m('.pf-chart-svg__container', {key: 'chart'});
 
     const seriesHover = data?.series
       .filter((s) => !this.hiddenSeries.has(s.name))
@@ -221,31 +137,59 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         };
       });
 
-    const tooltip =
-      this.hover !== undefined &&
-      seriesHover !== undefined &&
-      renderTooltip(
-        attrs.stacked ? [...seriesHover].reverse() : seriesHover,
-        this.hover.index,
-        attrs.formatXValue ?? defaultFmt,
-        attrs.formatYValue ?? defaultFmt,
-      );
+    const tooltip = (() => {
+      if (this.hover === undefined || seriesHover === undefined) return false;
+      const ordered = attrs.stacked ? [...seriesHover].reverse() : seriesHover;
+      const fmtX = attrs.formatXValue ?? defaultFmt;
+      const fmtY = attrs.formatYValue ?? defaultFmt;
+      const idx = this.hover.index;
+      // X value comes from the first series with a point at `idx`.
+      let xValue: number | undefined;
+      for (const s of ordered) {
+        if (s.series.points[idx] !== undefined) {
+          xValue = s.series.points[idx].x;
+          break;
+        }
+      }
+      return m(ChartTooltip, [
+        exists(xValue) && m(ChartTooltip.Header, fmtX(xValue)),
+        ordered.map((s, i) => {
+          const p = s.series.points[idx];
+          if (p === undefined) return undefined;
+          return m(ChartTooltip.Row, {
+            name: s.series.name,
+            value: fmtY(p.y),
+            swatch: s.series.color ?? chartColorVar(i),
+            tweak:
+              s.style === 'emphasis' || s.style === 'muted'
+                ? s.style
+                : undefined,
+          });
+        }),
+      ]);
+    })();
+
+    const legendPosition = attrs.legendPosition ?? 'top';
 
     return m(
-      '.pf-line-chart-svg',
+      '.pf-chart-svg',
       {
         className: classNames(
-          fillParent && 'pf-chart-svg--fill-parent',
+          attrs.fillParent && 'pf-chart-svg--fill-parent',
           `pf-chart-svg--legend-${legendPosition}`,
-          className,
+          attrs.className,
         ),
-        style: fillParent
+        style: attrs.fillParent
           ? undefined
-          : {height: `${height ?? DEFAULT_HEIGHT}px`},
+          : {height: `${attrs.height ?? 200}px`},
       },
-      // Removes falsy children - mithril doesn't like it when some children
-      // have keys while others are null.
-      [chart, legend, tooltip].filter(Boolean),
+      m(SvgChartFrame, {
+        isLoading,
+        isEmpty,
+        renderChart: (w, h) => this.renderChart(attrs, data!, w, h),
+      }),
+      legend,
+      tooltip,
     );
   }
 
@@ -318,15 +262,14 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
     // Layout: axis names + tick labels eat into the canvas.
     const xName = attrs.xAxisLabel;
     const yName = attrs.yAxisLabel;
-    const yLabelWidth = estimateLabelWidth(yRange.ticks.map(fmtY));
-    const padLeft = (yName ? AXIS_NAME_FONT_SIZE + 6 : 0) + yLabelWidth + 8;
-    const padRight = 8;
-    const padTop = 8;
-    const padBottom =
-      (xName ? AXIS_NAME_FONT_SIZE + 6 : 0) + AXIS_LABEL_FONT_SIZE + 8;
-
-    const plotW = Math.max(0, width - padLeft - padRight);
-    const plotH = Math.max(0, height - padTop - padBottom);
+    const layout = computePlotLayout({
+      width,
+      height,
+      yLabels: yRange.ticks.map(fmtY),
+      xName,
+      yName,
+    });
+    const {padLeft, padTop, plotW, plotH} = layout;
 
     const xToPx = (x: number) =>
       padLeft + ((x - xRange.min) / (xRange.max - xRange.min || 1)) * plotW;
@@ -389,47 +332,12 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
           m('rect', {x: padLeft, y: padTop, width: plotW, height: plotH}),
         ),
       ),
-      // Y axis name (rotated)
-      yName &&
-        m(
-          'text',
-          {
-            'x': AXIS_NAME_FONT_SIZE,
-            'y': padTop + plotH / 2,
-            'fill': TEXT_COLOR,
-            'font-size': AXIS_NAME_FONT_SIZE,
-            'text-anchor': 'middle',
-            'transform': `rotate(-90 ${AXIS_NAME_FONT_SIZE} ${padTop + plotH / 2})`,
-          },
-          yName,
-        ),
-      // X axis name
-      xName &&
-        m(
-          'text',
-          {
-            'x': padLeft + plotW / 2,
-            'y': height - 4,
-            'fill': TEXT_COLOR,
-            'font-size': AXIS_NAME_FONT_SIZE,
-            'text-anchor': 'middle',
-          },
-          xName,
-        ),
-      // Plot border + axes
-      m('line', {
-        x1: padLeft,
-        y1: padTop + plotH,
-        x2: padLeft + plotW,
-        y2: padTop + plotH,
-        stroke: BORDER_COLOR,
-      }),
-      m('line', {
-        x1: padLeft,
-        y1: padTop,
-        x2: padLeft,
-        y2: padTop + plotH,
-        stroke: BORDER_COLOR,
+      renderPlotFrame({
+        layout,
+        height,
+        xName,
+        yName,
+        yTicks: yRange.ticks.map((t) => ({label: fmtY(t), y: yToPx(t)})),
       }),
       // Gridlines (drawn before series so they sit underneath).
       showHGrid &&
@@ -470,30 +378,6 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
           'stroke-width': 1,
           'pointer-events': 'none',
         }),
-      // Y ticks + labels
-      yRange.ticks.map((t) =>
-        m('g', [
-          m('line', {
-            x1: padLeft - TICK_LENGTH,
-            y1: yToPx(t),
-            x2: padLeft,
-            y2: yToPx(t),
-            stroke: BORDER_COLOR,
-          }),
-          m(
-            'text',
-            {
-              'x': padLeft - TICK_LENGTH - TICK_LABEL_GAP,
-              'y': yToPx(t),
-              'fill': TEXT_COLOR,
-              'font-size': AXIS_LABEL_FONT_SIZE,
-              'text-anchor': 'end',
-              'dominant-baseline': 'middle',
-            },
-            fmtY(t),
-          ),
-        ]),
-      ),
       // X ticks + labels
       xRange.ticks.map((t) =>
         m('g', [
