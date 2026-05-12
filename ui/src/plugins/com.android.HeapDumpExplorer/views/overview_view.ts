@@ -24,9 +24,6 @@ import type {HeapDump} from '../queries';
 import {Callout} from '../../../widgets/callout';
 import {Button} from '../../../widgets/button';
 
-export const HIDE_DEFAULT_CHANGED_KEY =
-  'hideHeapDumpExplorerDefaultChangedHint';
-
 const HEAP_SCHEMA: SchemaRegistry = {
   query: {
     heap: {

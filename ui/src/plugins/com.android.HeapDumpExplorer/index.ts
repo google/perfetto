@@ -26,8 +26,8 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [HeapProfilePlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.settings.register({
-      id: 'hideHeapDumpExplorerDefaultChangedHint',
+    const hideDefaultChangedHint = ctx.settings.register({
+      id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
       name: 'Hide Heap Dump Explorer Explanation',
       description:
         'Hide the explanation about default changes in Heap Dump Explorer',
@@ -40,7 +40,11 @@ export default class implements PerfettoPlugin {
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
-    const session = new HeapDumpExplorerSession(ctx, ctx.engine);
+    const session = new HeapDumpExplorerSession(
+      ctx,
+      ctx.engine,
+      hideDefaultChangedHint,
+    );
     await session.loadDumps();
 
     ctx.pages.registerPage({
