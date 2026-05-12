@@ -41,10 +41,7 @@ interface QueryHistoryComponentAttrs {
   readonly refreshSignal?: number;
 }
 
-// Round-trip debounce: `runner.run()` bumps the refresh signal *before*
-// submitting to the backend (so the new history row doesn't exist
-// yet at signal-fire time). Wait long enough for the round-trip and
-// the backend's IN_PROGRESS insert to land before refetching.
+// Refresh signal fires before the backend insert; wait out the round-trip.
 const HISTORY_REFRESH_DEBOUNCE_MS = 1000;
 
 const MONTH_NAMES = [
@@ -74,12 +71,7 @@ function formatCompactDate(d: Date): string {
   return `${month} ${day}, ${year}, ${h}:${mm} ${m12}`;
 }
 
-// Module-level state. Survives `QueryHistoryComponent` mount/unmount
-// cycles (e.g. toggling the right sidebar) so we don't re-fetch the
-// history list on every show. Refetches are signal-gated by the
-// runner via `refreshSignal` and debounced via
-// `HISTORY_REFRESH_DEBOUNCE_MS` to cover the round-trip between the
-// signal fire and the backend's row insert.
+// Module-level: survives sidebar toggles so we don't re-fetch on every show.
 class HistoryStore {
   history: QueryExecution[] = [];
   isLoading = true;
@@ -90,11 +82,8 @@ class HistoryStore {
   private debounceTimer?: number;
   private hasEverLoaded = false;
 
-  // Caller uses this on every render: it's a no-op when the signal
-  // hasn't changed (so sidebar toggles don't refetch), an immediate
-  // fetch on the very first call (so the page mount doesn't sit on
-  // the loading spinner for a debounce period), and a debounced
-  // fetch on subsequent signal bumps (round-trip delay).
+  // No-op if signal unchanged; immediate fetch on first call;
+  // debounced on subsequent bumps.
   requestRefresh(refreshSignal: number): void {
     if (refreshSignal === this.lastRefreshSignal) return;
     this.lastRefreshSignal = refreshSignal;
@@ -111,9 +100,7 @@ class HistoryStore {
     );
   }
 
-  // Bypass the signal check + debounce. Used by the explicit Refresh
-  // button and after a Delete (where the user expects an immediate
-  // update).
+  // Bypass signal/debounce: explicit Refresh button + post-Delete.
   refreshNow(): void {
     if (this.debounceTimer !== undefined) {
       window.clearTimeout(this.debounceTimer);
@@ -143,8 +130,7 @@ class HistoryStore {
 
 const historyStore = new HistoryStore();
 
-// Steer the History sidebar to the tab matching the run the user is
-// about to do. Keys: 'materialized' / 'standard'.
+// Point the History sidebar at the tab matching the impending run.
 export function setHistoryActiveTab(materialize: boolean): void {
   const key = materialize ? 'materialized' : 'standard';
   if (historyStore.activeTabKey === key) return;
@@ -192,8 +178,7 @@ export class QueryHistoryComponent
       (h) => h.materialized,
     );
 
-    // Tab titles wrap in a span so hover tooltips can explain what
-    // each category holds (the labels alone are jargon).
+    // Span-wrap titles so hover tooltips explain "Ephemeral"/"Persistent".
     const tabs: TabsTab[] = [
       {
         key: 'standard',
@@ -275,10 +260,7 @@ export class QueryHistoryComponent
       const rows = entry.processedRows;
       const link = entry.tableLink;
       const dateObj = startTime !== undefined ? new Date(startTime) : null;
-      // Compact date for the narrow sidebar — full toLocaleString() like
-      // "5/4/2026, 3:47:46 PM" wrapped onto 4 lines once the sidebar
-      // shrunk. Drop seconds always; drop year when it matches the
-      // current year. Hover reveals the full UTC timestamp.
+      // Compact for the narrow sidebar; hover reveals the full UTC timestamp.
       const localString = dateObj ? formatCompactDate(dateObj) : 'N/A';
       const utcString =
         startTime !== undefined
@@ -315,8 +297,7 @@ export class QueryHistoryComponent
             m(Button, {
               onclick: async () => {
                 if (!uuid) return;
-                // Confirm — the trash icon is 4px from Open and the
-                // delete is irreversible.
+                // Trash sits 4px from Open and delete is irreversible.
                 const oneLine = queryText
                   .split('\n')
                   .map((s) => s.trim())
@@ -336,35 +317,23 @@ export class QueryHistoryComponent
                 historyStore.refreshNow();
               },
               icon: Icons.Delete,
-              // Danger intent — hover state goes red so the
-              // destructive nature is visible BEFORE the click. Was
-              // visually identical to the gray Open button right next
-              // to it. Confirm dialog still backs it up.
+              // Red hover so destructive intent reads before click.
               intent: Intent.Danger,
               title: 'Delete query',
             }),
           ],
         ),
         m('.pf-query-history__item-meta', [
-          // Row 1: status pill (left) + start timestamp (right).
-          // Pairing them keeps the high-signal "what / when" together;
-          // the status colour + colored left bar do the visual lift.
+          // Row 1: status pill + start timestamp ("what / when").
           m('div.pf-query-history__item-header', [
             m(
               'span.pf-query-history__item-status',
               {
                 class: `pf-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
-                // The colored left bar + the colored text already make
-                // it clear this is a status label; the literal "Status:"
-                // prefix would be noise.
                 title: `Status: ${entry.status}`,
               },
-              // Display: "IN_PROGRESS" → "IN PROGRESS". The transient
-              // "UNKNOWN" state (newly-submitted query whose first
-              // status poll hasn't returned yet, or a legacy row with
-              // a null status) reads as alarming user-facing — show
-              // it as "STARTING" instead so the badge matches the
-              // body's "Loading query status…" message.
+              // Display: "IN_PROGRESS" → "IN PROGRESS";
+              // transient "UNKNOWN" → "STARTING" so it doesn't alarm.
               entry.status === 'UNKNOWN'
                 ? 'STARTING'
                 : entry.status.replace(/_/g, ' '),
@@ -375,11 +344,7 @@ export class QueryHistoryComponent
               localString,
             ),
           ]),
-          // Row 2 (materialized only): table link (left) + rows count
-          // (right). Table + rows are the "what got produced" pair —
-          // grouping them lets the eye take in the result summary at
-          // a glance, and saves a row of vertical space vs the
-          // previous status/rows + date + table layout.
+          // Row 2 (materialized only): table link + row count.
           isMaterialized &&
             m('div.pf-query-history__item-details', [
               m('span.pf-query-history__item-table-row', [
@@ -404,10 +369,7 @@ export class QueryHistoryComponent
               m(
                 'span.pf-query-history__item-rows',
                 {
-                  // Dim the row count when it's zero so empty results
-                  // recede; non-zero counts stay at full opacity. The
-                  // colored left bar + status pill already do the
-                  // "succeeded" signalling.
+                  // Dim empty results so they recede.
                   className:
                     rows === 0
                       ? 'pf-query-history__item-rows--empty'
@@ -421,17 +383,9 @@ export class QueryHistoryComponent
               ),
             ]),
         ]),
-        // Clamp the query preview to ~4 lines so a long INCLUDE +
-        // multi-column SELECT doesn't dominate the sidebar (each row
-        // was eating ~half the viewport for any non-trivial query).
-        // Click toggles a `--expanded` class for full text. The
-        // collapsed state shows a gradient fade-out at the bottom edge
-        // so it reads as truncated rather than fixed-height.
-        //
-        // Empty queryText (a non-UI client submitted `{}`, or a
-        // legacy/corrupt history row) renders an italic placeholder
-        // instead of an empty <pre> — the empty <pre> made the card
-        // visibly shorter than its peers, reading as a broken render.
+        // Clamp to ~4 lines (long SQL was eating half the viewport);
+        // click toggles --expanded. Empty queryText → italic placeholder
+        // so the card height matches its peers.
         queryText === '' &&
           m(
             'span.pf-query-history__item-query',

@@ -35,14 +35,8 @@ interface QueryPageAttrs {
 // QueryPage instance. Same pattern as sidebarToggleFn in index.ts.
 export let queryRightSidebarToggleFn: (() => void) | undefined;
 
-// Module-level singletons. Survive route navigations
-// (/query → /settings → /query) so in-flight sync queries don't get
-// orphaned with the destroyed QueryPage instance, and so tab state
-// (`isLoading`, `clientStartTime`, `queryResult`, `dataSource`,
-// `BigtraceAsyncDataSource` polling) carries over. Async query state
-// already had a localStorage fallback via queryUuid, but sync queries
-// are UUID-less from the SPA's view and have no recovery path —
-// they'd vanish on every page switch.
+// Module-level: survives route navigation so in-flight sync queries
+// (UUID-less from the SPA) don't vanish on every page switch.
 const sharedTabsState = new QueryTabsState();
 let sharedHistoryRefreshSignal = 0;
 const sharedRunner = new QueryRunner({

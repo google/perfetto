@@ -16,13 +16,8 @@ import {endpointStorage} from '../settings/endpoint_storage';
 import {BigtraceQueryClient} from './bigtrace_query_client';
 import {QueryExecution} from './query_store';
 
-// Wire shape returned by the BigTrace backend for /query_executions and
-// /query_executions/{uuid}[:status]. Field set is documented in
-// `~/Projects/CLAUDE.md` (BigTrace Backend API section).
-//
-// Times are ISO-8601 strings; numeric counters are JS numbers; `limit` is a
-// number. The structure is `Readonly` to make wire-shape leaks into mutable
-// UI state explicit at the boundary.
+// Wire shape from /query_executions[*]; field list in CLAUDE.md.
+// Times are ISO-8601; `readonly` marks the wire boundary.
 export interface RawQueryExecution {
   readonly queryUuid?: string;
   readonly status?: string;
@@ -40,9 +35,7 @@ export interface RawQueryExecution {
   readonly tableLink?: string;
 }
 
-// Convert an ISO-8601 string into epoch milliseconds, or undefined if the
-// input is missing or unparseable. Centralized so every layer gets the same
-// "invalid date → undefined" semantic instead of silently producing NaN.
+// ISO-8601 → epoch ms; invalid/missing → undefined (never NaN).
 export function isoToEpochMs(iso: string | undefined): number | undefined {
   if (iso === undefined) return undefined;
   const ms = new Date(iso).getTime();
@@ -50,9 +43,7 @@ export function isoToEpochMs(iso: string | undefined): number | undefined {
 }
 
 export class QueryHistoryStorage {
-  // Build a fresh client for each call so endpoint changes (via Settings)
-  // take effect without restarts. Constructing a BigtraceQueryClient is
-  // cheap — it just stashes the endpoint string.
+  // Fresh client per call so endpoint changes apply without restart.
   private client(): BigtraceQueryClient {
     const setting = endpointStorage.get('bigtraceEndpoint');
     const endpoint = setting ? (setting.get() as string) : '';
@@ -60,8 +51,7 @@ export class QueryHistoryStorage {
   }
 
   async getAllHistory(): Promise<QueryExecution[]> {
-    // No endpoint → return empty so the sidebar shows its "no queries
-    // yet" empty state instead of a 404 from the static UI server.
+    // No endpoint → empty, so the sidebar shows its empty state, not a 404.
     const setting = endpointStorage.get('bigtraceEndpoint');
     const endpoint = setting ? (setting.get() as string) : '';
     if (endpoint.trim() === '') return [];

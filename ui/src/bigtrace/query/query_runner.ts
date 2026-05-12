@@ -33,26 +33,19 @@ const POLL_INTERVAL_MS = 3000;
 const POLL_RETRY_MS = 1000;
 
 interface QueryRunnerCallbacks {
-  // Called whenever the runner makes a change that should be reflected in
-  // the History panel (start, finish, cancel of a query).
+  // History panel should refresh (start / finish / cancel).
   readonly onHistoryChanged: () => void;
-  // Called whenever in-place tab state has been mutated. Defaults to
-  // m.redraw if omitted; tests pass a no-op.
+  // Mithril redraw hook; tests pass a no-op.
   readonly redraw?: () => void;
-  // Called when a tab gains a queryUuid mid-flight, so callers can persist
-  // the tab list. Defaults to no-op; the QueryPage hands in markDirty.
+  // Persist tab list when a tab gains a queryUuid mid-flight.
   readonly markDirty?: () => void;
 }
 
-// Owns the lifecycle of one query per tab: dispatch (sync vs async),
-// polling for async progress, and cancellation. Single instance per
-// QueryPage; works on multiple tabs concurrently.
+// One instance per QueryPage; owns dispatch / polling / cancel for each tab.
 export class QueryRunner {
   constructor(private readonly cb: QueryRunnerCallbacks) {}
 
   // Run `query` on `tab`. Aborts any in-flight query on the tab first.
-  // Caller is responsible for storing the editor's text on the tab; this
-  // method only reads it.
   async run(tab: BigTraceEditorTab, query: string): Promise<void> {
     if (!query) return;
 
@@ -70,14 +63,12 @@ export class QueryRunner {
     const endpointSetting = endpointStorage.get('bigtraceEndpoint');
     const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
 
-    // Empty endpoint → relative URL → 404 against the UI server.
-    // Surface a clear message instead.
+    // Empty endpoint resolves to a 404 against the UI server; bail clearly.
     if (endpoint.trim() === '') {
       tab.queryResult = makeQueryResponse(query, {
         error: 'Set the BigTrace Endpoint in Settings before running queries.',
       });
-      // renderResultsPanel needs both queryResult AND dataSource to
-      // show the error banner.
+      // renderResultsPanel needs both queryResult and dataSource for the banner.
       tab.dataSource = new InMemoryDataSource([]);
       tab.isLoading = false;
       this.redraw();
@@ -91,9 +82,7 @@ export class QueryRunner {
 
     const queryClient = new BigtraceQueryClient(endpoint);
     tab.queryClient = queryClient;
-    // Per-request controller so a Cancel click only aborts this query.
-    // Forward tab.lifecycle aborts to it too — closing the tab must also
-    // tear down the in-flight execute_*.
+    // Per-request controller; tab.lifecycle forwards into it on close.
     const requestController = new AbortController();
     const cancelForward = forwardAbort(tab.lifecycle.signal, requestController);
     tab.activeRequest = requestController;
@@ -139,17 +128,13 @@ export class QueryRunner {
     if (tab.queryResult !== undefined && !tab.materialize) {
       tab.dataSource = new InMemoryDataSource(tab.queryResult.rows);
       tab.isLoading = false;
-      // Sync queries don't go through finalizePolling, so we need to
-      // fire onHistoryChanged here for the sidebar to refresh from
-      // the IN_PROGRESS row to the SUCCESS one. The async path gets
-      // this for free via finalizePolling at the end of polling.
+      // Sync skips finalizePolling; flip the sidebar from IN_PROGRESS → SUCCESS here.
       this.cb.onHistoryChanged();
     }
     this.redraw();
   }
 
-  // Cancel an in-flight query on `tab`. Aborts the local request and, for
-  // materialized queries, asks the backend to cancel too.
+  // Aborts the local request and, for materialized queries, the backend too.
   async cancel(tab: BigTraceEditorTab): Promise<void> {
     this.redraw(); // Update UI to show cancelling state.
 
@@ -160,9 +145,7 @@ export class QueryRunner {
       tab.pollInterval = undefined;
     }
 
-    // Reflect the cancellation locally so the status pill flips
-    // immediately; the next poll replaces this with the server's
-    // truth.
+    // Flip the pill immediately; next poll overwrites with server truth.
     if (tab.execution && tab.execution.status === 'IN_PROGRESS') {
       tab.execution.status = 'CANCELLED';
       tab.execution.endTime = Date.now();
@@ -182,10 +165,7 @@ export class QueryRunner {
     this.redraw();
   }
 
-  // Pick up a tab whose `queryUuid` was set externally (typically because
-  // the user clicked a row in History). Wires up the data source, fetches
-  // current execution metadata, and either resumes polling or eagerly
-  // loads results depending on the server-side status.
+  // Pick up a tab whose `queryUuid` was set externally (e.g. history click).
   async resumeFromHistory(
     tab: BigTraceEditorTab,
     fallbackQuery: string,
@@ -218,12 +198,7 @@ export class QueryRunner {
       );
     } catch (e) {
       if (e instanceof QueryNotFoundError) {
-        // Backend doesn't know about this UUID — typically because the
-        // entry was deleted from history or the backend was restarted
-        // while the UI persisted the tab. Drop the dead reference so the
-        // tab behaves like a fresh editor with the saved SQL; otherwise
-        // we'd poll forever and the user would see Status: UNKNOWN /
-        // Cancel button stuck on screen.
+        // Dead UUID (entry deleted / backend restarted); otherwise polls forever.
         this.dropStaleQueryUuid(tab);
         return;
       }
@@ -262,13 +237,7 @@ export class QueryRunner {
         statementWithOutputCount: 1,
       });
     } else {
-      // Only sync `totalRowCount` from `exec.processedRows` for
-      // materialized (async) tabs — that's the live count from the
-      // materialized table. For sync, `processedRows` is 0 by design
-      // (the backend doesn't track row counts for sync) and the
-      // inline rows on `tab.queryResult` are the source of truth, so
-      // overwriting `totalRowCount` would zero the toolbar's
-      // "Returned X rows" summary.
+      // Async only: sync's processedRows is 0 server-side.
       if (tab.materialize) {
         tab.queryResult.totalRowCount = exec.processedRows;
       }
@@ -281,11 +250,7 @@ export class QueryRunner {
     } else if (
       (exec.status === 'SUCCESS' || exec.status === 'CANCELLED') &&
       tab.dataSource instanceof BigtraceAsyncDataSource &&
-      // No materialized table → nothing to fetch. This happens when a
-      // query terminates with 0 rows (the backend skips creating the
-      // table) or was cancelled before any rows were produced.
-      // ensureResultsLoaded would still issue :fetch_results and the
-      // backend would return empty / 404; skip the round-trip.
+      // No table → skip the doomed :fetch_results round-trip.
       (details.tableName ?? '') !== '' &&
       exec.processedRows > 0
     ) {
@@ -298,18 +263,14 @@ export class QueryRunner {
     this.redraw();
   }
 
-  // Begin polling status updates for an async query that's already been
-  // dispatched (e.g. on tab restore from localStorage, or right after
-  // executeAsync).
+  // Poll an already-dispatched async query (tab restore, post-executeAsync).
   startPolling(tab: BigTraceEditorTab): void {
     if (!tab.queryUuid) return;
 
-    // Bump generation so any in-flight poll from a previous call will
-    // notice the mismatch and self-terminate after its next await.
+    // Bump generation so any prior poll self-terminates on next await.
     const generation = ++tab.pollGeneration;
 
     const poll = async () => {
-      // Stale-poll guard: a newer startPolling() supersedes this loop.
       if (tab.pollGeneration !== generation) return;
       if (!tab.queryUuid || !tab.isLoading) return;
 
@@ -318,8 +279,7 @@ export class QueryRunner {
           tab.queryUuid,
           tab.lifecycle.signal,
         );
-        // Re-check after the await — tab may have been cancelled or
-        // superseded while the network request was in flight.
+        // Re-check: tab may have been cancelled / superseded during the await.
         if (tab.pollGeneration !== generation || !tab.isLoading) return;
 
         if (status !== undefined && status !== null) {
@@ -340,8 +300,6 @@ export class QueryRunner {
         this.redraw();
       } catch (e) {
         if (e instanceof QueryNotFoundError) {
-          // Backend GC'd or never had this entry. Stop polling and clear
-          // the stale UUID so the tab returns to a clean editor state.
           this.dropStaleQueryUuid(tab);
           return;
         }
@@ -359,10 +317,7 @@ export class QueryRunner {
     tab.pollInterval = window.setTimeout(poll, 0);
   }
 
-  // Reset a tab whose persisted queryUuid no longer exists on the backend.
-  // The user keeps their saved SQL in the editor and can re-run; we just
-  // strip the dead async-execution metadata so the status box, Cancel
-  // button and polling loop don't keep running.
+  // Strip dead async metadata but keep the saved SQL for re-run.
   private dropStaleQueryUuid(tab: BigTraceEditorTab): void {
     if (tab.pollInterval !== undefined) {
       window.clearTimeout(tab.pollInterval);
@@ -393,44 +348,34 @@ export class QueryRunner {
     wallStartMs: number,
   ): Promise<void> {
     const data = await client.executeAsync(query, tab.limit, settings, signal);
-    // Modern backends emit `queryUuid` as a top-level field; older
-    // shapes stuffed it into the single result row, which
-    // parseQueryResponse normalizes to the same `queryUuid`. Either
-    // way we just read it off the parsed page.
-    if (data.queryUuid !== undefined && data.queryUuid !== '') {
-      tab.queryUuid = data.queryUuid;
-      // Always assign tab.execution to the store entry for this UUID so
-      // subsequent applyStatus()/queryStore.update() calls mutate the
-      // same object the UI reads from. Previously this was guarded by
-      // `if (tab.execution)`, which left fresh tabs with execution
-      // undefined — the status pill got stuck on UNKNOWN even after
-      // the polling loop saw FAILED/SUCCESS.
-      tab.execution = queryStore.getOrCreate(tab.queryUuid, tab.execution);
-
-      // Best-effort fetch for a precise server start_time.
-      try {
-        const details = await client.getQueryExecution(
-          tab.queryUuid,
-          tab.lifecycle.signal,
-        );
-        const serverStartMs = isoToEpochMs(details?.startTime);
-        if (serverStartMs !== undefined && tab.queryUuid) {
-          queryStore.update(tab.queryUuid, {startTime: serverStartMs});
-        }
-      } catch (e) {
-        console.error('Failed to fetch query details after executeAsync:', e);
-      }
-
-      this.startPolling(tab);
+    if (data.queryUuid === undefined || data.queryUuid === '') {
+      throw new Error('Backend did not return a queryUuid for async execute');
     }
-    if (tab.queryUuid) {
-      tab.dataSource = new BigtraceAsyncDataSource(
+    tab.queryUuid = data.queryUuid;
+    // Always assign — otherwise the pill stays UNKNOWN after FAILED/SUCCESS.
+    tab.execution = queryStore.getOrCreate(tab.queryUuid, tab.execution);
+
+    // Best-effort fetch for a precise server start_time.
+    try {
+      const details = await client.getQueryExecution(
         tab.queryUuid,
-        client,
-        () => tab.execution?.processedRows ?? 0,
         tab.lifecycle.signal,
       );
+      const serverStartMs = isoToEpochMs(details?.startTime);
+      if (serverStartMs !== undefined) {
+        queryStore.update(tab.queryUuid, {startTime: serverStartMs});
+      }
+    } catch (e) {
+      console.error('Failed to fetch query details after executeAsync:', e);
     }
+
+    this.startPolling(tab);
+    tab.dataSource = new BigtraceAsyncDataSource(
+      tab.queryUuid,
+      client,
+      () => tab.execution?.processedRows ?? 0,
+      tab.lifecycle.signal,
+    );
     tab.queryResult = makeQueryResponse(query, {
       durationMs: performance.now() - wallStartMs,
     });
@@ -445,17 +390,11 @@ export class QueryRunner {
     wallStartMs: number,
   ): Promise<void> {
     const result = await client.executeSync(query, tab.limit, settings, signal);
-    // Capture the server-assigned UUID into the tab so the tab
-    // tracks its most recent run. Mirrors `runAsync`: each Run
-    // updates `tab.queryUuid` to the new history entry, even when
-    // the tab was originally opened from a different history
-    // entry. Backends that don't emit `queryUuid` (the mock) leave
-    // it undefined; we fall back to `tab.id` as the QueryStore key
-    // as before.
-    if (result.queryUuid !== undefined && result.queryUuid !== '') {
-      tab.queryUuid = result.queryUuid;
-      tab.execution = queryStore.getOrCreate(tab.queryUuid, tab.execution);
+    if (result.queryUuid === undefined || result.queryUuid === '') {
+      throw new Error('Backend did not return a queryUuid for sync execute');
     }
+    tab.queryUuid = result.queryUuid;
+    tab.execution = queryStore.getOrCreate(tab.queryUuid, tab.execution);
     tab.queryResult = makeQueryResponse(query, {
       rows: [...result.rows],
       columns: [...result.columns],
@@ -463,7 +402,7 @@ export class QueryRunner {
       durationMs: performance.now() - wallStartMs,
       statementWithOutputCount: 1,
     });
-    queryStore.update(tab.queryUuid || tab.id, {
+    queryStore.update(tab.queryUuid, {
       processedRows: result.rows.length,
     });
     tab.isLoading = false;
@@ -551,15 +490,8 @@ export class QueryRunner {
         }
       });
 
-    // Auto-fetch results on success. This is NOT redundant with
-    // `maybeAutoFetchProgress`: that function bails early for
-    // already-terminal queries (`if (isTerminal) return`), so when a
-    // tab is restored from localStorage with a UUID whose status is
-    // already SUCCESS, the per-poll path never fetches. Without this
-    // explicit hook the editor stays on "Loading schema…" forever
-    // because columns never arrive. For streaming queries this fires
-    // a duplicate fetch of the latest window — accept the round-trip
-    // rather than the bug.
+    // maybeAutoFetchProgress bails on terminal; without this, restored
+    // SUCCESS tabs stay on "Loading schema…".
     if (isSuccess && tab.dataSource instanceof BigtraceAsyncDataSource) {
       tab.dataSource.refresh();
       tab.lastProcessedRows = tab.execution?.processedRows ?? 0;

@@ -29,9 +29,7 @@ describe('isoToEpochMs', () => {
   });
 
   test('returns undefined for a digit-only string (regression)', () => {
-    // The earlier bug: query_history.ts stringified an epoch number
-    // and query_page.ts then did `new Date(stringOfDigits).getTime()`,
-    // yielding NaN. isoToEpochMs must NOT silently parse digit strings.
+    // Regression: digit strings must not silently parse (Date(digits) → NaN).
     expect(isoToEpochMs('1730000000000')).toBeUndefined();
   });
 

@@ -58,30 +58,23 @@ export interface EditorTabViewAttrs {
   readonly useBigtraceBackend: boolean;
 }
 
-// Renders one editor tab: toolbar + Codemirror editor + status box + the
-// tabular/chart result panel. State for the tab lives on `tab`; this view
-// is purely presentational and delegates side-effects to the QueryRunner
-// and QueryTabsState passed in attrs.
+// Purely presentational; state on `tab`, side-effects via `runner`/`tabsState`.
 export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
   view({attrs}: m.Vnode<EditorTabViewAttrs>): m.Children {
     const {tab, tabsState, runner, useBigtraceBackend} = attrs;
 
-    // For tabs reopened from history, lazily wire up the dataSource on
-    // first render. The runner picks up polling from there.
+    // Tabs reopened from history wire up their dataSource on first render.
     if (tab.queryUuid && !tab.dataSource) {
       attachAsyncDataSource(tab, runner);
     }
 
     if (tab.dataSource && tab.queryResult && tab.materialize && tab.execution) {
-      // Keep the tab's "totalRowCount" in sync with the live query store
-      // so the results-summary text stays accurate.
       tab.queryResult.totalRowCount = tab.execution.processedRows;
     }
 
     return m(SplitPanel, {
       direction: 'vertical',
-      // Most BigTrace queries are short; default the editor to ~22% and
-      // let the user drag down for more space.
+      // Most BigTrace queries are short; bias the split toward results.
       initialSplit: {percent: 22},
       minSize: 100,
       firstPanel: renderEditorPanel(tab, tabsState, runner, useBigtraceBackend),
@@ -116,8 +109,7 @@ function renderEditorPanel(
               icon: 'play_arrow',
               intent: Intent.Primary,
               variant: ButtonVariant.Filled,
-              // Disable when nothing executable remains
-              // (whitespace + SQL line comments).
+              // Whitespace + SQL line comments → nothing to run.
               disabled: deriveTitleFromQuery(tab.editorText) === undefined,
               onclick: () => {
                 setHistoryActiveTab(tab.materialize);
@@ -133,19 +125,13 @@ function renderEditorPanel(
         ),
         m(StackAuto),
         useBigtraceBackend && [
-          // Progress feedback for running queries lives in
-          // renderProgressBar() above the results panel — full-width,
-          // determinate when totalTraces is known. The toolbar slot
-          // here previously held a tiny indeterminate bar that was
-          // easy to miss.
           m(Switch, {
             label: 'Persistent',
             title:
               'ON: results saved to History (Persistent tab) — reopen later. ' +
               'OFF: results shown inline and discarded when the tab closes.',
             checked: tab.materialize,
-            // Mode is captured at submit time; disable mid-run so
-            // the toggle isn't a false-affordance.
+            // Mode captured at submit; disable mid-run so it isn't a false affordance.
             disabled: tab.isLoading,
             onchange: (e: Event) => {
               tab.materialize = (e.target as HTMLInputElement).checked;
@@ -153,16 +139,13 @@ function renderEditorPanel(
               tabsState.markDirty();
             },
           }),
-          // Vertical divider — Materialize is a mode switch (changes how
-          // Run behaves), Result limit is a numeric param. They affect
-          // the next run differently; the rule makes that visual.
           m('span.pf-query-page__toolbar-divider', {'aria-hidden': 'true'}),
           m('span', 'Limit:'),
           m(TextInput, {
             type: 'number',
             value: String(tab.limit),
             placeholder: 'Limit',
-            // Captured at submit time; disable mid-run.
+            // Captured at submit; disable mid-run.
             disabled: tab.isLoading,
             onInput: (value: string) => {
               const newLimit = parseInt(value, 10);
@@ -186,9 +169,7 @@ function renderEditorPanel(
       text: tab.editorText,
       language: 'perfetto-sql',
       autofocus: true,
-      // Swallow Ctrl/Cmd+S so the browser's "Save Page As…" doesn't
-      // open. Auto-save already runs on every keystroke; the handler
-      // is just here to claim the keybinding.
+      // Claim Ctrl/Cmd+S so the browser's "Save Page As…" doesn't fire.
       onSave: () => {},
       onUpdate: (text: string) => {
         tab.editorText = text;
@@ -203,15 +184,13 @@ function renderEditorPanel(
   ]);
 }
 
-// Round to the nearest second for display. "<1s" for sub-500ms runs
-// so the user sees the query actually ran.
+// "<1s" for sub-500ms runs so the user sees the query actually ran.
 function formatDurationS(ms: number): string {
   if (ms < 500) return '<1s';
   return Duration.format(Duration.fromMillis(Math.round(ms / 1000) * 1000));
 }
 
-// "Running query…" with a live elapsed-time readout. Owns its own
-// setInterval since sync queries don't drive periodic redraws.
+// Owns its own setInterval since sync queries don't drive periodic redraws.
 class RunningQuerySpinner implements m.ClassComponent<{startMs: number}> {
   private timer: number | null = null;
 
@@ -269,33 +248,17 @@ function renderResultsPanel(
   const errorBanner = renderErrorBanner(tab);
   const processedRows = tab.execution?.processedRows ?? 0;
 
-  // Sync (Ephemeral) re-open from history with no re-run yet:
-  // results aren't persisted server-side, and `processedRows` is
-  // intentionally 0 (the backend doesn't track row counts for sync
-  // queries — it'd be misleading metadata). Show an explicit hint
-  // rather than fall into the `processedRows == 0` "Query returned
-  // no rows" branch, which would imply the original run had no
-  // rows. The discriminator is `tab.queryResult.rows.length`:
-  // resumeFromHistory leaves it at 0; runSync repopulates it on
-  // re-run. Errors fall through to the regular path so the banner
-  // surfaces them.
+  // Sync re-open from history (rows not persisted): show a re-run hint
+  // instead of the misleading "no rows" empty state.
   const isSyncReopenNoRerun =
     !tab.materialize &&
     Boolean(tab.queryUuid) &&
     tab.queryResult.rows.length === 0 &&
     !tab.queryResult.error;
 
-  // Async tab whose materialized table is gone (TTL-expired,
-  // CANCELLED-with-zero-rows, or post-failure cleanup), but the
-  // metadata row still exists with `processedRows > 0`. Without
-  // this branch the editor enters renderResultsGrid → "Loading
-  // schema..." → triggers a dummy useRows (no pagination) → the
-  // data source's `needsInitial` gate requires `limit > 0` so no
-  // fetch fires → spinner never resolves. Detect upfront and show
-  // a recovery hint. Errors fall through (the error banner shows
-  // them).
-  // Only treat as "cleared" once terminal — mid-run, the table is
-  // still being built and "Results no longer available" misleads.
+  // Materialized table gone (TTL / cancellation / post-failure) but
+  // metadata still claims rows; without this we'd spin on "Loading
+  // schema…". Only after terminal; mid-run the table is still building.
   const isTerminalStatus =
     tab.execution?.status !== undefined &&
     TERMINAL_STATUSES.has(tab.execution.status);
@@ -306,10 +269,7 @@ function renderResultsPanel(
     !tab.queryResult.error &&
     isTerminalStatus;
 
-  // Whether to render the grid. For async, gate on the live
-  // processedRows from the materialized table; for sync (whose
-  // `processedRows` stays at 0 server-side), gate on the inline
-  // rows actually held in tab.queryResult.
+  // Async: live processedRows. Sync: inline rows (processedRows is 0 server-side).
   const hasRowsToShow = tab.materialize
     ? processedRows > 0
     : tab.queryResult.rows.length > 0;
@@ -327,8 +287,7 @@ function renderResultsPanel(
           })
         : isAsyncTableCleared
           ? m(EmptyState, {
-              // CANCELLED = user-driven; generic message covers TTL
-              // expiry / post-failure cleanup.
+              // CANCELLED says so; TTL / post-failure share the generic msg.
               title:
                 tab.execution?.status === 'CANCELLED'
                   ? 'Query was cancelled'
@@ -404,16 +363,11 @@ function renderStatusBox(tab: BigTraceEditorTab): m.Children {
       m(
         'span.pf-query-page__status-bar-pill',
         {className: `pf-status-${status.toLowerCase().replace(/_/g, '-')}`},
-        // Wire value uses underscores ("IN_PROGRESS"); display swaps
-        // them for spaces so the pill reads naturally. The transient
-        // "UNKNOWN" state (pre-first-poll) shows as "STARTING" so the
-        // pill matches the body's "Loading query status…" copy.
+        // Pre-first-poll UNKNOWN → "STARTING" to match body copy.
         status === 'UNKNOWN' ? 'STARTING' : status.replace(/_/g, ' '),
       ),
-      // Duration leads the stats with its own dedicated chip: a clock
-      // icon + larger, monospaced value. It's the metric users care
-      // about most (how long has this been running / how long did it
-      // take), and as a plain label/value pair it was too easy to miss.
+      m('span.pf-query-page__toolbar-divider', {'aria-hidden': 'true'}),
+      // Duration gets its own chip — easy to miss as a plain stat pair.
       m(
         'span.pf-query-page__status-bar-duration',
         {
@@ -426,8 +380,7 @@ function renderStatusBox(tab: BigTraceEditorTab): m.Children {
         m('span.pf-query-page__status-bar-duration-value', durationStr),
       ),
       m('span.pf-query-page__toolbar-divider', {'aria-hidden': 'true'}),
-      // Traces: denominator is firm; the numerator lags the 3s poll
-      // and is dimmed while live.
+      // Denominator is firm; numerator lags the 3s poll, dimmed while live.
       m(
         'span.pf-query-page__status-bar-stat',
         m('span.pf-query-page__status-bar-stat-label', 'Traces'),
@@ -469,20 +422,14 @@ function renderStatusBox(tab: BigTraceEditorTab): m.Children {
           },
           processedRows.toLocaleString(),
         ),
-        // Denominator here is the user-set result limit (a soft cap, not
-        // a target). The bar fills as the query approaches the limit;
-        // for queries that naturally produce fewer rows, it stays low —
-        // that's expected, the limit is informational.
+        // Denominator is the user-set limit (a soft cap, informational).
         renderInlineProgressBar(processedRows, tab.limit, !isTerminal),
       ),
     ),
   );
 }
 
-// Inline mini progress bar shown after the N/M numbers in the status
-// bar. Only rendered while the query is running — once the query has
-// reached a terminal state (SUCCESS / FAILED / CANCELLED) the bar is
-// hidden, since it would just be a static fraction.
+// Hidden on terminal states — a static fraction adds no information.
 function renderInlineProgressBar(
   done: number,
   total: number,
@@ -524,18 +471,7 @@ async function refreshAsyncStatus(tab: BigTraceEditorTab): Promise<void> {
   m.redraw();
 }
 
-// TP-style errors come back wrapped in a SQLite-flavored traceback:
-//
-//   [trace_name] Traceback (most recent call last):
-//     File "stdin" line 1 col 1
-//       SELECT ...
-//       ^
-//   no such table: foo
-//
-// The last non-empty line is the user-actionable message; everything above
-// is sqlite scaffolding. For non-TP errors (server quotas, network errors,
-// short single-line messages) the headline stays equal to the input and the
-// expandable details simply repeats it — which is fine.
+// TP traceback shape: scaffolding then headline on the last non-empty line.
 function extractErrorHeadline(errorStr: string): string {
   const normalized = errorStr.replaceAll('\\n', '\n');
   const lines = normalized.split('\n');
@@ -546,10 +482,7 @@ function extractErrorHeadline(errorStr: string): string {
   return errorStr;
 }
 
-// Strip leaked transport/status prefixes from error headlines:
-//   "HTTP error! status: 400, message: <real msg>"
-//   "INVALID_ARGUMENT: <real msg>"
-//   "status: 400 detail: NOT_FOUND <real msg>"
+// Strip transport prefixes: "HTTP error! status: ...", "INVALID_ARGUMENT: …".
 const _GRPC_STATUS_RE =
   /^\s*(?:status\s*:\s*\d+\s*[,:]?\s*)?(?:detail\s*:\s*)?(?:OK|CANCELLED|UNKNOWN|INVALID_ARGUMENT|DEADLINE_EXCEEDED|NOT_FOUND|ALREADY_EXISTS|PERMISSION_DENIED|RESOURCE_EXHAUSTED|FAILED_PRECONDITION|ABORTED|OUT_OF_RANGE|UNIMPLEMENTED|INTERNAL|UNAVAILABLE|DATA_LOSS|UNAUTHENTICATED)\s*[:\-]?\s*/i;
 const _HTTP_ERROR_RE =
@@ -647,20 +580,15 @@ function renderResultsGrid(
     );
   }
 
-  // Failures may still have committed partial rows — e.g. a server-side
-  // quota cut-off after streaming N results, or a sqlite error mid-stream.
-  // The renderResultsPanel caller has already gated on `processedRows > 0`,
-  // so reaching here means we have data; render it alongside the error
-  // banner instead of dropping it on the floor.
-
+  // Caller gated on processedRows > 0, so partial-success failures
+  // (quota cut-off, mid-stream sqlite error) still render with banner.
   const isTerminal =
     tab.execution?.status !== undefined &&
     TERMINAL_STATUSES.has(tab.execution.status);
 
   const tableContent: m.Children[] = [];
 
-  // Heuristic statement count by `;` splitting — the runner doesn't
-  // populate queryResult.statementCount.
+  // Heuristic — runner doesn't populate `queryResult.statementCount`.
   const statementCount = queryResult.query
     .split(';')
     .map((s) => s.trim())
@@ -677,8 +605,7 @@ function renderResultsGrid(
     );
   }
 
-  // Resolve columns: prefer the result's static columns (sync queries);
-  // fall back to the async data source's snapshot once schema arrives.
+  // Sync uses static columns; async fills in once schema arrives.
   let columns = queryResult.columns;
   if (columns.length === 0 && dataSource instanceof BigtraceAsyncDataSource) {
     columns = dataSource.getColumns() ?? [];
@@ -686,11 +613,8 @@ function renderResultsGrid(
 
   if (dataSource instanceof BigtraceAsyncDataSource) {
     const error = dataSource.getError();
-    // Show errors when the query is terminal (real failures) or when
-    // the error isn't a 400 (which during streaming is the backend's
-    // FAILED_PRECONDITION for "no rows yet" / "table not yet
-    // materialized" — transient by definition until the query
-    // finishes, so suppress to avoid flashing an error banner).
+    // Suppress mid-stream 400s — those are the backend's transient
+    // FAILED_PRECONDITION ("no rows yet"). Surface anything terminal.
     if (
       error !== null &&
       error !== '' &&
@@ -708,11 +632,8 @@ function renderResultsGrid(
   }
 
   if (columns.length === 0) {
-    // Async query mid-flight: schema hasn't arrived yet. Trigger
-    // `useRows` so the data source starts fetching, then show a
-    // spinner. (Sync re-opens are intercepted upstream in
-    // renderResultsPanel by the `isSyncReopenNoRerun` branch, so
-    // they never reach here.)
+    // Async mid-flight: kick `useRows` so the data source starts
+    // fetching, then spin. (Sync re-opens intercepted upstream.)
     dataSource.useRows({mode: 'flat', columns: []});
     tableContent.push(
       m(
@@ -810,11 +731,8 @@ function renderDataGrid(
       .map((col) => ({id: col, field: col})),
     className: 'pf-query-page__results',
     data: dataSource,
-    // Without fillHeight, the table renders at its intrinsic content
-    // height and the whole results panel scrolls (toolbar, headers,
-    // body all together). With it, the inner Grid takes 100% of its
-    // parent and only the body scrolls, keeping the toolbar +
-    // sticky column header anchored.
+    // Without this, the entire results panel scrolls instead of just
+    // the grid body — toolbar and sticky header detach.
     fillHeight: true,
     showExportButton: true,
     emptyStateMessage: 'Query returned no rows',
@@ -834,15 +752,7 @@ function renderDataGrid(
   });
 }
 
-// Result-summary text shown in the toolbar's left slot.
-//
-// Sync queries: rowcount + duration on a single line.
-// Materialized queries: just the total. We deliberately don't render
-// a "Showing X-Y" range — the DataGrid widget virtualizes; the
-// "loaded window" the data source holds is a prefetch buffer (typically
-// viewport + ~80 rows above and below), not what the user actually
-// sees. Putting that range in the toolbar misleads more than it helps.
-// The Grid's scrollbar already shows the user's position.
+// No "Showing X–Y" — the loaded window is a prefetch buffer, not the viewport.
 function renderResultsSummary(
   tab: BigTraceEditorTab,
   queryResult: QueryResponse,
@@ -851,8 +761,7 @@ function renderResultsSummary(
     const durationStr = formatDurationS(Math.max(0, queryResult.durationMs));
     return `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${durationStr}`;
   }
-  // Prefer the post-filter count so the toolbar matches the Grid;
-  // fall back to live progress before the first fetch lands.
+  // Prefer post-filter count; fall back to live progress pre-first-fetch.
   const asyncDs =
     tab.dataSource instanceof BigtraceAsyncDataSource
       ? tab.dataSource
@@ -866,8 +775,7 @@ function renderResultsSummary(
 }
 
 // ---------------------------------------------------------------------------
-// Side effect: lazily build the async data source when a tab is restored
-// from localStorage with a queryUuid but without a live dataSource.
+// Lazily build the async data source for tabs restored from localStorage.
 // ---------------------------------------------------------------------------
 
 function attachAsyncDataSource(
@@ -879,12 +787,7 @@ function attachAsyncDataSource(
   const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
   const queryClient = new BigtraceQueryClient(endpoint);
   tab.queryClient = queryClient;
-  // Sync (Ephemeral) queries aren't persisted server-side — there's no
-  // materialized table to fetch from. Attach an empty in-memory data
-  // source so the result panel can render a cleaner "re-run to see
-  // results" empty-state instead of trying (and failing) to load a
-  // schema. Skip polling too: the QueryStore already has the
-  // history-row metadata (sql, timing, processedRows).
+  // Sync isn't persisted; empty source → "re-run to see results" hint.
   if (!tab.materialize) {
     tab.dataSource = new InMemoryDataSource([]);
     return;

@@ -77,12 +77,7 @@ export class HomePage implements m.ClassComponent {
       '.pf-home-page',
       m(
         '.pf-home-page__center',
-        // Override the shared `justify-content: space-around` from
-        // home_page.scss so the BigTrace landing page's title and
-        // quick-start cards sit close together near the top instead of
-        // having ~300px of dead vertical space between them. Shared
-        // SCSS isn't in our scope, so override locally with inline
-        // style.
+        // Override shared `justify-content: space-around` (shared SCSS out of scope).
         {
           style: {
             justifyContent: 'flex-start',
@@ -131,9 +126,7 @@ export class HomePage implements m.ClassComponent {
               ),
             ),
           ),
-          // Footer row: theme toggle. The full shortcut list lives in
-          // the help modal (?), which auto-builds from registered
-          // commands.
+          // Footer: theme toggle; full shortcut list lives in the help modal (?).
           m(
             '.pf-home-page__links',
             m(Switch, {

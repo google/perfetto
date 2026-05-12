@@ -12,12 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Forward abort events from `parent` to `child`, returning a function to
-// detach the listener. Callers should detach in the request's `finally`
-// to avoid leaking listeners on long-lived parent signals.
-//
-// If the parent is already aborted at attach time, the child is aborted
-// immediately and a no-op detacher is returned.
+// Forward `parent` aborts to `child`; returns a detacher (call in `finally`
+// to avoid leaking on long-lived parents). Already-aborted parent fires now.
 export function forwardAbort(
   parent: AbortSignal,
   child: AbortController,

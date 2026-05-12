@@ -25,9 +25,7 @@ const DEFAULT_SQL = '';
 const DEFAULT_LIMIT = 100;
 const TAB_TITLE_MAX_CHARS = 32;
 
-// First non-empty, comment-stripped line of `sql`, clipped to
-// TAB_TITLE_MAX_CHARS. Returns undefined if nothing's left. Heuristic —
-// `/* … */` blocks aren't stripped (rare; worst case is an ugly title).
+// First non-empty `--`-stripped line, clipped. `/* */` blocks not handled.
 export function deriveTitleFromQuery(sql: string): string | undefined {
   const stripped = sql
     .split('\n')
@@ -43,8 +41,7 @@ export function deriveTitleFromQuery(sql: string): string | undefined {
   return firstLine.slice(0, TAB_TITLE_MAX_CHARS - 1) + '…';
 }
 
-// Sync queries populate rows/columns; async queries leave them empty
-// and the editor tab reads from `tab.dataSource` instead.
+// Sync populates rows/columns; async leaves them empty (reads via `tab.dataSource`).
 export interface QueryResponse {
   query: string;
   error?: string;
@@ -76,8 +73,7 @@ export function makeQueryResponse(
   };
 }
 
-// State for one editor tab. Mutated in-place by the runner; only
-// QueryTabsState creates and destroys these.
+// Mutated in-place by the runner; only QueryTabsState creates/destroys.
 export interface BigTraceEditorTab {
   readonly id: string;
   title: string;
@@ -87,14 +83,9 @@ export interface BigTraceEditorTab {
   isLoading: boolean;
   dataSource?: DataSource;
   querySettings: SettingFilter[];
-  // Tab-lifetime AbortController. Aborted on tab close. Every backend
-  // request that touches this tab plumbs `lifecycle.signal` so closing the
-  // tab cancels in-flight requests instead of letting them write into a
-  // dead `tab.execution`.
+  // Tab-lifetime: every backend request plumbs `signal`; aborts on close.
   readonly lifecycle: AbortController;
-  // AbortController for the in-flight execute_* request specifically. Tied
-  // to the tab lifecycle but separately abortable from a Cancel click
-  // (which shouldn't tear down the rest of the tab's state).
+  // Per-execute request: Cancel aborts this without tearing down the tab.
   activeRequest?: AbortController;
   queryClient?: BigtraceQueryClient;
   materialize: boolean;
@@ -103,8 +94,7 @@ export interface BigTraceEditorTab {
   lastProcessedRows: number;
   clientStartTime?: number;
   execution?: QueryExecution;
-  // Incremented each time startPolling() is called. Stale poll loops
-  // compare against this to self-terminate when superseded.
+  // Stale-poll guard: bumped on each startPolling() call.
   pollGeneration: number;
 }
 
@@ -124,8 +114,7 @@ interface StoredState {
   readonly activeTabId?: string;
 }
 
-// Manages the collection of editor tabs. Survives QueryPage re-mounts so
-// the user's tab layout is preserved across navigation.
+// Survives QueryPage re-mounts so tab layout persists across navigation.
 export class QueryTabsState {
   tabs: BigTraceEditorTab[] = [];
   activeTabId = '';
@@ -147,9 +136,8 @@ export class QueryTabsState {
     return this.tabs.find((t) => t.id === this.activeTabId);
   }
 
-  // Create a tab and make it active. If `forceNew` is false (the default)
-  // and a tab already matches by `queryUuid` (preferred) or `initialQuery`,
-  // the existing tab is reactivated instead of creating a duplicate.
+  // Create and activate. Without `forceNew`, reactivates an existing tab
+  // matching by `queryUuid` (preferred) or `initialQuery`.
   addNewTab(
     title?: string,
     initialQuery?: string,
@@ -174,12 +162,8 @@ export class QueryTabsState {
       }
     }
 
-    // Caller-supplied title wins. Otherwise, derive from the
-    // initialQuery (SQL → first non-comment line, clipped) so tabs
-    // opened from History or example-query buttons get meaningful
-    // labels for free, instead of falling all the way through to
-    // "Query N". A run-time auto-name (`maybeAutoNameTab`) still
-    // refines the title once the user actually runs something.
+    // Caller title wins; else derive from SQL so History opens have meaningful
+    // labels instead of "Query N". maybeAutoNameTab refines on first run.
     const derivedTitle =
       title ?? (initialQuery && deriveTitleFromQuery(initialQuery));
     const tab: BigTraceEditorTab = {
@@ -193,8 +177,7 @@ export class QueryTabsState {
       querySettings: [],
       lifecycle: new AbortController(),
       activeRequest: undefined,
-      // History-reopen (uuid present) → Persistent; brand-new (no
-      // uuid) → sync. Caller can override.
+      // History-reopen → Persistent; new tab → sync; caller overrides.
       materialize: materialize ?? Boolean(queryUuid),
       lastProcessedRows: 0,
       queryUuid,
@@ -218,9 +201,7 @@ export class QueryTabsState {
       window.clearTimeout(tabToClose.pollInterval);
       tabToClose.pollInterval = undefined;
     }
-    // Abort everything tied to this tab's lifecycle: the active execute_*
-    // request, plus any one-off getStatus / getQueryExecution / fetchResults
-    // that received the lifecycle signal.
+    // Aborts execute_* and any one-off request holding `lifecycle.signal`.
     tabToClose.activeRequest?.abort();
     tabToClose.lifecycle.abort();
     this.tabs.splice(index, 1);
@@ -239,12 +220,8 @@ export class QueryTabsState {
     }
   }
 
-  // Auto-derive a tab title from the query text when the tab still has
-  // its default placeholder name ("Query N"). Skipped when the user has
-  // manually renamed the tab (renameTab) — that title wins. Called by
-  // QueryRunner.run before submitting; the title shows up in the tab
-  // strip on the next render so users can tell tabs apart by content
-  // instead of "Query 1" / "Query 2" / "Query 3".
+  // Replace "Query N" with a SQL-derived title before submit;
+  // user-renamed tabs are skipped.
   maybeAutoNameTab(tabId: string, queryText: string): void {
     const tab = this.tabs.find((t) => t.id === tabId);
     if (!tab) return;

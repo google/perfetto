@@ -50,8 +50,7 @@ describe('QueryStore merge rules (getOrCreate on existing entry)', () => {
       status: 'SUCCESS',
       processedRows: 100,
     });
-    // Stale snapshot with smaller row count and different status — but
-    // since the existing entry is already terminal, we trust the new one.
+    // Terminal entry trusts the incoming snapshot.
     store.getOrCreate('uuid-1', {
       status: 'CANCELLED',
       processedRows: 50,
@@ -144,10 +143,7 @@ describe('QueryStore.update', () => {
 });
 
 describe('QueryStore truncation merge', () => {
-  // The list endpoint returns clipped perfettoSql / errorMessage; the
-  // per-UUID detail endpoint returns full text. Merge rule: never replace
-  // a longer string with a shorter one (so a list refresh landing after
-  // the user opened an entry doesn't downgrade the cached full text).
+  // Listing clips perfettoSql/error; merge must not downgrade longer→shorter.
 
   test('shorter (truncated) SQL does not overwrite existing full SQL', () => {
     const store = new QueryStore();

@@ -12,18 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Wire-level statuses for which a query is final and no further
-// polling is needed.
+// Statuses after which polling stops.
 export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'SUCCESS',
   'FAILED',
   'CANCELLED',
 ]);
 
-// In-memory representation of a single query execution as the UI thinks of
-// it. Times are epoch milliseconds (numbers), not ISO strings — the
-// QueryHistoryStorage layer is responsible for ISO-to-epoch conversion at
-// the wire boundary so this layer can do plain arithmetic.
+// UI-side execution record; times are epoch ms (ISO→epoch happens at the
+// wire boundary in QueryHistoryStorage).
 export interface QueryExecution {
   uuid: string;
   status: string;
@@ -40,18 +37,9 @@ export interface QueryExecution {
   tableLink?: string;
 }
 
-// Bookkeeping for live queries the UI is polling.
-//
-// The store has to reconcile two sources of truth:
-//   1. Live status polling (`getStatus`) running on the UI thread, which
-//      pushes monotonically-increasing progress counters as a query runs.
-//   2. The history list (`listQueryExecutions`), which is fetched in bulk
-//      and may carry STALE counters for queries that have since advanced.
-//
-// Without a merge rule, a history refresh landing while a query is IN_PROGRESS
-// would silently wind back `processedRows` and confuse the UI. The rule
-// below preserves live progress unless the incoming snapshot is itself
-// terminal or carries a higher row count.
+// Merges live polling (`getStatus`) with bulk history (`listQueryExecutions`).
+// Without the rule below, a history refresh during IN_PROGRESS would rewind
+// processedRows: keep live progress unless incoming is terminal or higher.
 export class QueryStore {
   private queries = new Map<string, QueryExecution>();
 
@@ -76,8 +64,7 @@ export class QueryStore {
     return obj;
   }
 
-  // Apply a partial update to an existing entry. No-op if the entry doesn't
-  // exist yet — callers must getOrCreate first.
+  // No-op if entry missing; getOrCreate first.
   update(uuid: string, updates: Partial<QueryExecution>): void {
     const obj = this.queries.get(uuid);
     if (obj === undefined) return;
@@ -88,7 +75,7 @@ export class QueryStore {
     return Array.from(this.queries.values());
   }
 
-  // Test seam: drop everything. Production callers shouldn't need this.
+  // Test seam.
   clear(): void {
     this.queries.clear();
   }
@@ -103,12 +90,8 @@ export class QueryStore {
     const rowCountIncreased =
       (incoming.processedRows ?? 0) >= obj.processedRows;
 
-    // Sanitize the incoming patch before applying. The listing endpoint
-    // returns clipped perfettoSql / errorMessage; the per-UUID detail
-    // endpoint returns the full text. If the store already holds the full
-    // version, a later list refresh must not downgrade it back to the
-    // clipped text. Heuristic: never replace a longer string with a
-    // shorter one for these fields.
+    // Listing endpoint clips perfettoSql/error; never downgrade the held
+    // longer string with a shorter one.
     const patch: Partial<QueryExecution> = {...incoming};
     if (
       patch.perfettoSql !== undefined &&
@@ -130,8 +113,7 @@ export class QueryStore {
       return;
     }
 
-    // The incoming snapshot is staler than what we have. Only carry over
-    // static metadata; preserve live progress counters.
+    // Stale snapshot: carry over static metadata only; preserve live counters.
     if (patch.tableLink !== undefined) obj.tableLink = patch.tableLink;
     if (patch.tableName !== undefined) obj.tableName = patch.tableName;
     if (patch.perfettoSql !== undefined) obj.perfettoSql = patch.perfettoSql;

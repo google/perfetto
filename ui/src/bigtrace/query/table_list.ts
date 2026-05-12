@@ -31,8 +31,7 @@ interface FilteredTable {
   segments: FuzzySegment[];
 }
 
-// The literal SQL the user pastes / clicks Copy on. Single source
-// so the run-query, body, title, and Copy text can't drift.
+// Single source so run-query, body, title, and Copy text stay in sync.
 function includeStatement(includeKey: string): string {
   return `INCLUDE PERFETTO MODULE ${includeKey};`;
 }
@@ -87,10 +86,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             '.pf-simple-table-list__items',
             m(
               Accordion,
-              // multi:true so the user can keep several tables expanded
-              // while comparing schemas — closing N-1 every time the
-              // user opens N got in the way of the typical flow
-              // (search → expand a few candidates → compare columns).
+              // multi:true so users can expand several tables for schema compare.
               {multi: true},
               filteredTables.map(({table, segments}) =>
                 m(
@@ -99,11 +95,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                     key: table.name,
                     summary: m(
                       'code.pf-simple-table-list__item-name',
-                      // Long table names truncate with `…` in the
-                      // narrow sidebar (`text-overflow: ellipsis` on
-                      // the shared item style). The hover tooltip lets
-                      // the user read the full name without expanding
-                      // the section.
+                      // Ellipsis-truncated; tooltip reveals the full name.
                       {title: table.name},
                       renderHighlightedName(segments),
                     ),
@@ -168,11 +160,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       m(
         '.pf-simple-table-list__detail-row',
         m('span.pf-simple-table-list__detail-label', 'Table name'),
-        // The detail-value column truncates with `…` on long names.
-        // Add a native tooltip with the full text so users can read
-        // them without copying. The Copy button is hover-revealed
-        // (pf-show-on-hover); the tooltip is the cheaper read-only
-        // affordance for "what does it actually say".
+        // Ellipsis-truncated; tooltip reveals the full name without copying.
         m(
           'code.pf-simple-table-list__detail-value',
           {title: table.name},

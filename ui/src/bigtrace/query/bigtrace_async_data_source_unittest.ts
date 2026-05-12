@@ -17,21 +17,12 @@ import {BigtraceQueryClient} from './bigtrace_query_client';
 import {DataSourceModel} from '../../components/widgets/datagrid/data_source';
 import {Filter} from '../../components/widgets/datagrid/model';
 
-// `useRows` triggers an async fetch via `fetchMoreRows` which awaits
-// `queryClient.fetchResults()`. To observe the result we have to wait
-// past at least one microtask. The two-tick wait is enough for the
-// promise to settle and the data-source's bookkeeping (`isFetching`,
-// `loadedRows`, `filteredTotalRows`) to update.
+// One microtask is enough for fetchResults to settle and bookkeeping to update.
 function flushAsync() {
   return new Promise<void>((r) => setTimeout(r, 0));
 }
 
-// The data source receives a `DataSourceModel` from the DataGrid
-// widget. Real models are deeply nested; we hand-roll a minimal
-// fake that exposes only the fields the data source reads
-// (`pagination`, `sort`, `filters`, `columns`). `as never` shields
-// the test from upstream model shape changes that don't affect the
-// data source's contract.
+// Minimal model exposing only the fields the data source reads.
 function fakeModel(opts: {
   filters?: ReadonlyArray<Filter>;
   columns?: ReadonlyArray<{field: string; alias?: string}>;
@@ -45,10 +36,7 @@ function fakeModel(opts: {
   } as never;
 }
 
-// Build a stub `BigtraceQueryClient` that records every
-// `fetchResults` call and returns a configurable response. We don't
-// stub other methods because the data source only calls
-// `fetchResults` from this code path.
+// Stub client recording every fetchResults call with a configurable response.
 interface MockClient {
   client: BigtraceQueryClient;
   setNextResponse: (response: {
@@ -125,9 +113,7 @@ describe('BigtraceAsyncDataSource — alias→field remap', () => {
   });
 
   test('formatFilter falls back to alias when no column mapping is provided', async () => {
-    // Defensive path: if `model.columns` is missing the entry, the
-    // data source should pass through the alias as the field rather
-    // than dropping the filter.
+    // Missing column entry → pass alias through (don't drop the filter).
     const mock = makeMockClient();
     const ds = new BigtraceAsyncDataSource('uid', mock.client, () => 0);
     ds.useRows(
@@ -180,10 +166,7 @@ describe('BigtraceAsyncDataSource — useRows trigger logic', () => {
   });
 
   test('semantically-equal filters built in different key orders do not refetch', async () => {
-    // `currentFilterKey` is canonical (key-sorted) — this test pins
-    // that property at the data-source level so a future change
-    // that breaks canonicalization shows up as a noisy refetch
-    // instead of a silent perf regression.
+    // Pins canonical key-sort at the data-source level.
     const mock = makeMockClient();
     const ds = new BigtraceAsyncDataSource('uid', mock.client, () => 0);
     ds.useRows(
@@ -193,8 +176,7 @@ describe('BigtraceAsyncDataSource — useRows trigger logic', () => {
       }),
     );
     await flushAsync();
-    // Construct a filter object via JSON.parse so the engine
-    // preserves a non-natural insertion order.
+    // JSON.parse preserves a non-natural insertion order.
     const reordered = JSON.parse('{"value":1,"op":"=","field":"a"}');
     ds.useRows(
       fakeModel({
@@ -229,8 +211,7 @@ describe('BigtraceAsyncDataSource — filteredTotalRows flow', () => {
   test('falls back to getTotalRows() before any fetch completes', () => {
     const mock = makeMockClient();
     const ds = new BigtraceAsyncDataSource('uid', mock.client, () => 1000);
-    // First useRows call: `filteredTotalRows` is still undefined,
-    // so totalRows must come from the fallback.
+    // Pre-first-fetch: filteredTotalRows undefined → use fallback.
     const result = ds.useRows(fakeModel({}));
     expect(result.totalRows).toBe(1000);
   });
@@ -254,10 +235,8 @@ describe('BigtraceAsyncDataSource — filteredTotalRows flow', () => {
         }),
       ).totalRows,
     ).toBe(50);
-    // Stage a new response but DON'T flush — the change-detection
-    // path should clear filteredTotalRows synchronously, so the
-    // very next useRows() (still no response back) reports the
-    // fallback value rather than the stale 50.
+    // Don't flush — filter-change clears filteredTotalRows synchronously,
+    // so the next useRows() reports the fallback, not the stale 50.
     mock.setNextResponse({totalFilteredRows: 7});
     const next = ds.useRows(
       fakeModel({

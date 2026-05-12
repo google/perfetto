@@ -31,25 +31,16 @@ describe('parseQueryResponse', () => {
   test('aligns row values with column names', () => {
     const result = parseQueryResponse({
       columnNames: ['a', 'b', 'c'],
-      rows: [{values: [1, 'two', null]}],
+      rows: [{values: ['one', 'two', null]}],
     });
     expect(result.columns).toEqual(['a', 'b', 'c']);
-    expect(result.rows).toEqual([{a: 1, b: 'two', c: null}]);
-  });
-
-  test('preserves number values without round-tripping through Number()', () => {
-    const result = parseQueryResponse({
-      columnNames: ['ts'],
-      rows: [{values: [1_000_000_000]}],
-    });
-    expect(result.rows[0].ts).toBe(1_000_000_000);
-    expect(typeof result.rows[0].ts).toBe('number');
+    expect(result.rows).toEqual([{a: 'one', b: 'two', c: null}]);
   });
 
   test('preserves numeric strings as strings (no precision loss)', () => {
-    // The backend may serialize a 64-bit int as a string to preserve
-    // precision; we must not silently widen it to JS Number.
-    const big = '9007199254740993'; // 2^53 + 1, not representable as Number.
+    // The wire is always-strings so 64-bit values round-trip without going
+    // through JS Number (which would lose precision past 2^53).
+    const big = '9007199254740993';
     const result = parseQueryResponse({
       columnNames: ['id'],
       rows: [{values: [big]}],
@@ -85,24 +76,24 @@ describe('parseQueryResponse', () => {
   test('multiple rows in the right order', () => {
     const result = parseQueryResponse({
       columnNames: ['n'],
-      rows: [{values: [1]}, {values: [2]}, {values: [3]}],
+      rows: [{values: ['1']}, {values: ['2']}, {values: ['3']}],
     });
-    expect(result.rows.map((r) => r.n)).toEqual([1, 2, 3]);
+    expect(result.rows.map((r) => r.n)).toEqual(['1', '2', '3']);
   });
 
   test('passes through totalFilteredRows when present', () => {
     const result = parseQueryResponse({
       columnNames: ['n'],
-      rows: [{values: [1]}],
+      rows: [{values: ['1']}],
       totalFilteredRows: 42,
     });
     expect(result.totalFilteredRows).toBe(42);
   });
 
-  test('totalFilteredRows is undefined when absent (legacy backends)', () => {
+  test('totalFilteredRows is undefined for non-fetchResults responses', () => {
     const result = parseQueryResponse({
       columnNames: ['n'],
-      rows: [{values: [1]}],
+      rows: [{values: ['1']}],
     });
     expect(result.totalFilteredRows).toBeUndefined();
   });
@@ -123,14 +114,8 @@ describe('encodeFilters', () => {
   });
 
   test('coerces non-string primitives so the wire is always-strings', () => {
-    // The wire spec is `value: string`. DuckDB does the column-typed
-    // coercion at bind time, so we don't need to preserve numeric
-    // identity on the wire — and stringifying every primitive means
-    // int64 values past Number.MAX_SAFE_INTEGER round-trip without
-    // precision loss (`bigint.toString()` is lossless). Booleans
-    // aren't part of `SqlValue`, but the encoder handles them too in
-    // case a future widget contract widens the value type — tested
-    // via JSON.parse to bypass TS's structural check.
+    // Always-strings: numbers, bigints, booleans all coerce losslessly.
+    // Booleans aren't in `SqlValue`; the encoder handles them anyway.
     const out = encodeFilters([
       {field: 'count', op: '>=', value: 10},
       {field: 'dur', op: '>', value: 9223372036854775807n},
@@ -151,11 +136,7 @@ describe('encodeFilters', () => {
   });
 
   test('preserves JSON null distinct from the literal "null" string', () => {
-    // Filtering `col = null` is normally meaningless in SQL (always
-    // false; users want `is null`), but if a client deliberately
-    // sends null we round-trip it as JSON null rather than coercing
-    // to the string "null", which would match VARCHAR cells with
-    // that literal text.
+    // JSON null must NOT coerce to the string "null" (would match VARCHAR rows).
     const out = encodeFilters([{field: 'a', op: '=', value: null}]);
     expect(out).toBe('[{"field":"a","op":"=","value":null}]');
   });
@@ -165,12 +146,7 @@ describe('encodeFilters', () => {
   });
 
   test('produces canonical (key-sorted) output for stable equality', () => {
-    // Two semantically-equal filters with different property
-    // construction orders must serialize to the SAME string —
-    // otherwise the data source's `currentFilterKey` equality test
-    // would trigger spurious refetches whenever the filter object
-    // happened to be built differently. Build via JSON.parse so the
-    // engine actually preserves a non-natural insertion order.
+    // Construction-order differences must not change the encoded string.
     const a = encodeFilters([{field: 'x', op: '=', value: '1'}]);
     const b = encodeFilters([JSON.parse('{"value":"1","op":"=","field":"x"}')]);
     expect(a).toBe(b);
@@ -180,9 +156,7 @@ describe('encodeFilters', () => {
 });
 
 describe('BigtraceQueryClient.fetchResults URL construction', () => {
-  // We only assert the URL the client builds — the response handling
-  // is covered by parseQueryResponse tests. fakeResponse mirrors the
-  // 404 tests below.
+  // Asserts the URL only; response handling is in parseQueryResponse tests.
   const originalFetch = global.fetch;
   afterEach(() => {
     global.fetch = originalFetch;
@@ -222,8 +196,7 @@ describe('BigtraceQueryClient.fetchResults URL construction', () => {
     ]);
     const url = (fetchMock.mock.calls[0] as unknown[])[0] as string;
     expect(url).toContain('filter=');
-    // The literal '*' / ':' / '"' would all be percent-encoded; the
-    // exact string is determined by encodeURIComponent + JSON.stringify.
+    // '*' / ':' / '"' percent-encoded via encodeURIComponent.
     const want = encodeURIComponent(
       JSON.stringify([{field: 'name', op: 'glob', value: 'ui::*'}]),
     );
@@ -243,11 +216,8 @@ describe('BigtraceQueryClient.fetchResults URL construction', () => {
 });
 
 describe('BigtraceQueryClient 404 handling', () => {
-  // The runner's resume-from-history path drops the persisted UUID when
-  // it sees a QueryNotFoundError instead of polling forever. That contract
-  // depends on the client converting HTTP 404 into this specific class.
-  // Jest runs in a Node env without `Response`, so we hand-roll a minimal
-  // response-shaped object — only the fields the client touches.
+  // resume-from-history relies on 404 → QueryNotFoundError to drop dead UUIDs.
+  // Jest runs in Node, so we hand-roll a minimal Response-shaped object.
   const originalFetch = global.fetch;
   afterEach(() => {
     global.fetch = originalFetch;

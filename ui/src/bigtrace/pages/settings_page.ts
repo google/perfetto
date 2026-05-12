@@ -168,10 +168,8 @@ export class SettingsPage implements m.ClassComponent {
       !hasOtherMatches &&
       !bigTraceSettingsStorage.execConfigLoadError;
 
-    // Only force-create an empty Trace Metadata section when there's
-    // something to show inside it (a loading spinner or an error callout).
-    // If the backend simply returns no metadata settings, the section
-    // collapses entirely instead of rendering an empty header.
+    // Only force-create the Trace Metadata section while loading or on error;
+    // an empty metadata response collapses the section entirely.
     if (
       this.searchQuery === '' &&
       !categories.has('Trace Metadata') &&

@@ -31,8 +31,7 @@
 @import "../gen/all_plugins";
 @import "../gen/all_core_plugins";
 
-// BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
-// collisions with existing Perfetto UI classes.
+// BigTrace-specific styles; `.pf-bt-` prefix avoids collisions.
 
 // ---------- Settings page ----------
 
@@ -73,16 +72,13 @@
   }
 }
 
-// Editor tab strip: horizontally scroll once the user accumulates many
-// tabs. Without this the flex children get squeezed below their min-width
-// and the close X collapses behind the tab title.
+// Scroll once tabs overflow; without this the close X collapses behind the title.
 .pf-query-page__editor-tabs > .pf-tabs__tabs {
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--pf-color-border-secondary, #3c4048) transparent;
 
-  // Cap individual tab width — very long stdlib table names ("foobar_a_long_
-  // stdlib_table") can otherwise push the new-tab "+" button off-screen.
+  // Cap tab width so long names don't push the "+" off-screen.
   > .pf-tabs__tab {
     max-width: 220px;
   }
@@ -94,18 +90,7 @@
   overflow-y: visible !important;
 }
 
-// Open + Delete icons hidden at idle; shared query_history.scss
-// already shows them on `.pf-query-history__item:hover`. Falling back
-// to that default keeps the row metadata uncluttered — the action
-// affordances appear when the user moves the mouse to that row.
-
-// Absolute-position the action buttons instead of floating them.
-// Shared `query_history.scss` floats the buttons right, which combines
-// poorly with the meta band's `display: flex` — flex creates a Block
-// Formatting Context that gets squeezed to the float's left, leaving
-// meta narrower than the pre (which flows under the float). Absolute
-// positioning takes the buttons out of normal flow entirely so meta
-// and pre share the full row width.
+// Absolute-position buttons; the shared float created a BFC that squeezed meta.
 .pf-query-history__item {
   position: relative;
 }
@@ -118,12 +103,8 @@
   z-index: 1;
 }
 
-// Tint the left edge of every history item's *header* with its status
-// colour so the status is scannable at a glance. We put the bar on the
-// meta card (header) only — running it down the SQL preview underneath
-// makes the rail look uncomfortably tall and conflicts with the pre's
-// own border. The header already has rounded top corners; the bar picks
-// those up via border-radius so it tucks into the corner cleanly.
+// Status-colored left bar; on the meta card only (running it down the pre
+// makes it look uncomfortably tall and clashes with the pre's own border).
 .pf-query-history__item-meta {
   border-left: 3px solid transparent;
 }
@@ -150,28 +131,19 @@
   border-left-color: #9aa0a6;
 }
 
-// Rows = 0 entries are the boring case — dim them so the eye skips past
-// to the entries that actually have data. Non-zero counts stay at full
-// opacity; their colored left bar + status pill already announce them.
+// Dim 0-row entries so the eye skips to entries that have data.
 .pf-query-history__item-rows--empty {
   opacity: 0.55;
 }
 
-// ---------------------------------------------------------------------------
-// Materialized async-query status bar (under the editor)
-// ---------------------------------------------------------------------------
-//
-// Shown above the results panel for any tab tracking an async (materialized)
-// query. The layout: [Refresh button] [Status pill] [Traces n/m]
-// [Rows N] [Duration X]. Each stat is a label/value pair so the eye groups
-// label-with-its-number cleanly. Pipe separators dropped — gap + label
-// styling is enough.
+// Async-query status bar (under the editor). Layout:
+// [Refresh] [Status pill] | [Duration] | [Traces n/m] | [Rows N].
 .pf-query-page__status-bar {
   padding: 12px 16px;
   border-bottom: 1px solid var(--pf-color-border, #3c4048);
 }
 
-// Refresh button + new-data notification dot wrapper.
+// Refresh button + notification-dot wrapper.
 .pf-query-page__status-bar-refresh {
   position: relative;
   display: inline-block;
@@ -188,9 +160,7 @@
   z-index: 10;
 }
 
-// Status text (SUCCESS / FAILED / IN_PROGRESS / etc.). The colour comes from
-// the existing `.pf-status-*` rules above; we just bump weight + tracking
-// so it reads as the headline of the bar.
+// Color comes from `.pf-status-*`; bump weight/tracking for the headline.
 .pf-query-page__status-bar-pill {
   font-weight: 600;
   letter-spacing: 0.4px;
@@ -218,19 +188,11 @@
   opacity: 0.55;
 }
 
-// Duration stat — clock icon + tabular value. Keeps the same flat
-// treatment as the surrounding TRACES / ROWS stats so it sits at the
-// same visual weight (the previous pill background + padding made it
-// look taller than its neighbours). The icon and tabular-nums are
-// enough to make duration scannable without an enclosing chip.
+// Duration stat — flat treatment matches the peer TRACES / ROWS stats.
 .pf-query-page__status-bar-duration {
   display: inline-flex;
-  // The parent toolbar Stack uses `align-items: baseline`, so for
-  // duration to vertically line up with the SUCCESS pill and
-  // TRACES / ROWS stats, its OWN first-baseline must be the value
-  // text's baseline. With internal `align-items: center` the
-  // duration's first-baseline got synthesised from the centred
-  // line-box, landing ~2px above the peer text baselines.
+  // Baseline so the value aligns with the SUCCESS pill and peer stats;
+  // `center` would synthesize a first-baseline ~2px above.
   align-items: baseline;
   gap: 6px;
   font-variant-numeric: tabular-nums;
@@ -238,12 +200,8 @@
 
 .pf-query-page__status-bar-duration-icon {
   font-size: 14px;
-  // Material Symbols glyphs have a tall line-box (~1.2 of their
-  // font-size). Without this clamp, the icon's box pushed the
-  // duration container to 18px tall vs the peer stats' 16px,
-  // and the icon visually sat above the value's baseline. Pinning
-  // to 1 collapses the icon to its glyph size so it sits on the
-  // text baseline like a same-size text glyph would.
+  // Material Symbols' 1.2 line-box pushes the container to 18px without
+  // this clamp; line-height: 1 sits the glyph on the text baseline.
   line-height: 1;
   opacity: 0.7;
 }
@@ -253,22 +211,13 @@
   letter-spacing: 0.2px;
 }
 
-// Editor toolbar — container query keeps narrow viewports usable.
-// At <520px container width, the "or press Ctrl+Enter" hint is the
-// first thing to drop: it's a discoverability aid (the hotkey works
-// regardless), and reclaiming its ~90px keeps the Switch label
-// "Persistent" from wrapping below its toggle and the Limit input
-// from getting squeezed.
+// At <520px container width, drop the Ctrl+Enter hint first; the hotkey
+// still works and ~90px lets "Persistent" stay on one line.
 .pf-query-page__toolbar {
   container-type: inline-size;
 
-  // The Persistent Switch's <label> renders the toggle and the text
-  // "Persistent" inline; without nowrap, the text wraps below the
-  // toggle whenever the toolbar gets squeezed (narrow viewport, or
-  // after a long tab title pushed Run Query wider). Pinning nowrap
-  // keeps the control compact and atomic, and the @container rule
-  // below makes sure the hint disappears before the Switch has to
-  // shrink.
+  // Without nowrap, "Persistent" wraps below its toggle when the toolbar
+  // is squeezed. The @container rule below drops the hint first.
   .pf-checkbox {
     white-space: nowrap;
   }
@@ -279,8 +228,7 @@
   }
 }
 
-// Vertical rule between toolbar param groups (Materialize vs
-// Result limit). 1px line, dim, with breathing room either side.
+// Vertical rule between toolbar param groups.
 .pf-query-page__toolbar-divider {
   display: inline-block;
   width: 1px;
@@ -289,61 +237,12 @@
   background-color: var(--pf-color-border-secondary, #3c4048);
 }
 
-// Label preceding the rows-per-page selector. Dim + slightly smaller so
-// it reads as a caption, not a control.
-.pf-query-page__page-size-label {
-  opacity: 0.7;
-  font-size: 0.9em;
-  margin-right: 4px;
-}
-
-// The DataGrid toolbar is a flex with a left and a right child. We hook
-// the pagination block into the left slot (the only available
-// extension point), then absolute-position it at the centre of the
-// toolbar bar — anchored vertically and horizontally to the toolbar
-// content. The summary stays anchored left, Copy Query / Export stay
-// anchored right.
-.pf-query-page__results .pf-data-grid__toolbar-content {
-  position: relative;
-}
-
-// Cap the "link" column's content width — URLs/paths in this column
-// would otherwise auto-size up to the Grid's 600px cap and dominate
-// the layout. Other columns are unaffected and size to their natural
-// content. Hovering the cell shows the full value via the title attr;
-// the column resize handle and "Fit to content" menu still work.
-
-.pf-query-page__pagination-center {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-
-// While the query is running, gently pulse the duration so the user
-// sees that elapsed time is ticking even when the bar repaints
-// infrequently.
-.pf-query-page__status-bar-pill.pf-status-in-progress
-  ~ .pf-query-page__status-bar-duration {
-  // No animation — pulse on the pill is enough; keep duration steady so
-  // the number stays easy to read.
-}
-
-// Sub-span used inside a stat value to mark a number as "live / will
-// update on the next poll" (e.g. the Traces numerator while IN_PROGRESS).
-// Half-opacity is enough; we don't pulse — the status pill already does.
+// Marks an in-flight numerator as "live"; pulse lives on the pill instead.
 .pf-query-page__status-bar-live {
   opacity: 0.55;
 }
 
-// While the query is IN_PROGRESS, gently pulse the status pill so the user
-// has a visual cue that work is in flight even if no rows have come back
-// yet. Subtle: 0.55..1.0 opacity, 1.6s cycle, soft easing.
+// Pulse the IN_PROGRESS pill so work-in-flight reads even with 0 rows so far.
 .pf-query-page__status-bar-pill.pf-status-in-progress {
   animation: pf-bigtrace-pulse 1.6s ease-in-out infinite;
 }
@@ -360,10 +259,7 @@
   }
 }
 
-// Inline mini progress bar shown next to the N/M number in each
-// status-bar stat (Traces, Rows). Width = done/total. Renders as a
-// thin horizontal track with a coloured fill; the live class adds a
-// subtle smooth transition so the fill visibly advances as polls land.
+// Inline mini bar next to N/M in status-bar stats. width = done/total.
 .pf-query-page__inline-progress {
   display: inline-block;
   width: 60px;
@@ -384,26 +280,14 @@
   will-change: width;
 }
 
-// Meta + pre share a 1px L/R border (and the meta carries the top
-// border, the pre the bottom) so the two halves form a single unified
-// card. Without matching L/R borders on the meta, the pre's border
-// stuck out by 1px on each side, creating a subtle visual mismatch
-// where the "header" looked narrower than the SQL block below.
-//
-// `padding-right` reserves room for the absolute-positioned action
-// buttons (Open + Delete) so the "Rows: N" count on the right end of
-// the header row never overlaps the buttons when they appear on
-// hover. ~56px covers two compact icon buttons + gap.
+// Meta + pre form one unified card via matching L/R borders. `padding-right`
+// reserves ~56px for the absolute-positioned Open/Delete buttons.
 .pf-query-history__item-meta {
   background: var(--pf-color-background-secondary);
   padding: 6px 8px;
   padding-right: 56px;
-  // Top + right borders for the unified-card outline; LEFT border is
-  // intentionally left to the earlier rule (`border-left: 3px solid
-  // <status>`) so the colored status strip stays at its full 3px
-  // width. Using `border: 1px solid` shorthand here would overwrite
-  // the left border to 1px and the strip would shrink (which the
-  // user flagged as too narrow).
+  // Top + right only; the earlier `border-left: 3px solid <status>` rule
+  // owns the left edge — `border` shorthand would shrink it to 1px.
   border-top: 1px solid var(--pf-color-border-secondary);
   border-right: 1px solid var(--pf-color-border-secondary);
   border-radius: 4px 4px 0 0;
@@ -415,10 +299,7 @@
 }
 
 .pf-query-history__item pre {
-  // void = page background (white in light, #181818 in dark). The pre
-  // sits as the "body" of each entry below the meta band; matching
-  // the page bg makes the SQL preview blend with the surrounding
-  // surface so only the meta band has weight.
+  // `void` = page bg — blends the SQL preview so only meta has weight.
   background: var(--pf-color-void);
   padding: 8px;
   border: solid 1px var(--pf-color-border-secondary);
@@ -436,9 +317,8 @@
   content: none !important;
 }
 
-// Results panel layout — propagate height + min-height:0 down so the
-// DataGrid's `fillHeight` actually has a parent to fill, and only the
-// table body scrolls (toolbar + sticky column header stay pinned).
+// Propagate height down so DataGrid `fillHeight` has a parent to fill
+// and only the table body scrolls.
 .pf-query-page__results-panel {
   display: flex;
   flex-direction: column;
@@ -458,10 +338,7 @@
   min-height: 0;
 }
 
-// Error banner inside the query results pane. The component renders a
-// danger icon next to a body containing: a short title, a one-line
-// "headline" (last line of the TP traceback or whatever the server
-// returned), and an optional collapsible <details> with the full text.
+// Error banner: icon + body (title, headline, optional <details>).
 .pf-results-table__error-body {
   display: flex;
   flex-direction: column;
@@ -506,17 +383,8 @@
   font-style: italic;
 }
 
-// Three-column tabular layout: Status leads in a fixed-width left slot
-// (mirrors the colored left bar of the card), Started flexes in the
-// middle, Rows pins to the right with label + value sub-cells. The naive
-// flex-with-space-between approach made the status pill and the "Rows:"
-// label slide around as their values' text widths varied
-// (SUCCESS vs CANCELLED, Rows: 0 vs Rows: 100). Pinning each cell to a
-// fixed slot keeps left AND right edges aligned across rows.
-// Row 1: status pill on the left, start date on the right. Both
-// share a single line; the date shrinks with ellipsis when the row
-// is narrow. Status pill is the high-signal field and stays at its
-// intrinsic width.
+// Row 1: status pill (intrinsic) on the left, start date (ellipsis-shrinks)
+// on the right; fixed slots keep edges aligned across rows.
 .pf-query-history__item-header {
   display: flex;
   align-items: baseline;
@@ -532,25 +400,18 @@
   }
 }
 
-// Status pill never shrinks — date sibling absorbs all the squeeze
-// at narrow viewports. Without this, "SUCCESS" was clipping to "S..."
-// because both flex children were sharing the squeeze 50/50.
+// Pill never shrinks — date absorbs all the squeeze (else "SUCCESS"→"S...").
 .pf-query-history__item-status {
   flex-shrink: 0 !important;
 }
 
 .pf-query-history__item-date {
-  // Slightly muted vs the status pill so the eye lands on status
-  // first (the high-signal field).
+  // Muted so the eye lands on the status pill first.
   opacity: 0.85;
-  // Right-align so the trailing time stays at the meta band's edge.
   text-align: right;
 }
 
-// Rows cell: flex packs "Rows:" + the numeric value tight together
-// with a 4px gap. `flex-shrink: 0` so the count never truncates —
-// the sibling table-link shrinks first when the row is narrow.
-// Tabular numerals keep multi-digit values width-stable.
+// Pack "Rows:" + value tight; shrink the table-link sibling first.
 .pf-query-history__item-rows {
   display: flex;
   align-items: baseline;
@@ -563,13 +424,8 @@
   text-align: right;
 }
 
-// Row 2 (materialized only): table link on the left, rows count on
-// the right. Both share a single line via flex with space-between;
-// the table link shrinks with ellipsis when it's longer than the
-// available width. `flex-wrap: wrap` is a safety net — if the
-// sidebar somehow gets narrower than the SplitPanel floor (280px),
-// the Rows cell wraps below the table link instead of overflowing
-// past the meta band's right edge.
+// Row 2 (materialized): table link (left, ellipsis-shrinks) + rows (right).
+// `flex-wrap: wrap` is a safety net below the sidebar's 280px floor.
 .pf-query-history__item-details {
   margin-top: 4px;
   display: flex;
@@ -585,12 +441,7 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
-  // `flex: 1 1 0` so the table-row takes whatever width remains
-  // after the (intrinsic-width) Rows cell, and shrinks via the
-  // inner table link's ellipsis. Without `flex-basis: 0`, the
-  // table-row's content (the long table name) was the
-  // basis-derived width, which exceeded the available space and
-  // wrapped to a new flex line — leaving Rows on a separate row.
+  // `flex-basis: 0` so the long table name doesn't push Rows onto its own line.
   flex: 1 1 0;
 }
 
@@ -598,17 +449,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  // No `flex: 1` — that gave the link `flex-basis: 0` and let it
-  // grow to fill the parent table-row, expanding the table-row past
-  // its natural content width and pushing the sibling Rows cell to
-  // wrap. Default flex (auto) keeps the link at content size.
+  // No `flex: 1` here: it'd grow the link past content size and wrap Rows.
   min-width: 0;
 }
 
 .pf-query-history__item-table-link--disabled {
-  // Use the defined text-muted var so the disabled look adapts to
-  // light / dark themes (the previous fallback was a single gray
-  // that read OK in dark but underpowered in light).
+  // Theme-aware muted color.
   color: var(--pf-color-text-muted);
   pointer-events: none;
   text-decoration: none;
@@ -620,14 +466,8 @@
   text-decoration: underline;
 }
 
-// Stdlib accordion column rows: at narrow sidebar widths, long
-// column names (e.g. `raw_remove_ts`) push the right-aligned type
-// badge (TIMESTAMP / DURATION / INT) off-screen, often clipping it
-// to a single letter. The shared widget's `__column-name` doesn't
-// truncate, so the flex row overflows. Force the name to truncate
-// with ellipsis so the type tag stays readable. Hover via the
-// accordion gives users access to the full name (already with a
-// title attr from B38).
+// Truncate long column names so the type badge stays readable at
+// narrow sidebar widths.
 .pf-simple-table-list__column-name {
   min-width: 0;
   overflow: hidden;
@@ -635,8 +475,7 @@
   white-space: nowrap;
 }
 
-// The column-type badge needs flex-shrink: 0 so it stays at its
-// intrinsic width even when the row is squeezed.
+// Keep the badge at intrinsic width when the row is squeezed.
 .pf-simple-table-list__column-type {
   flex-shrink: 0;
 }

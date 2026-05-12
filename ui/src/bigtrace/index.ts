@@ -38,11 +38,10 @@ import {toggleHelp} from './help_modal';
 import {Routes} from './routes';
 
 function getRoot() {
-  // Works out the root directory where the content should be served from
-  // e.g. `http://origin/v1.2.3/`.
+  // Root for serving content, e.g. `http://origin/v1.2.3/`.
   const script = document.currentScript as HTMLScriptElement;
 
-  // Needed for DOM tests, that do not have script element.
+  // DOM tests have no script element.
   if (script === null) {
     return '';
   }
@@ -62,9 +61,7 @@ function setupContentSecurityPolicy() {
       `'self'`,
       'https://autopush-brush-googleapis.corp.google.com',
       'https://brush-googleapis.corp.google.com',
-      // Allow local reference backends (see tools/bigtrace_ref_backend in
-      // perfetto_2) so the UI can be developed against a mock without
-      // depending on the production endpoint.
+      // Local reference / TP backends for dev (perfetto_2/tools/).
       'http://localhost:*',
       'http://127.0.0.1:*',
     ],
@@ -182,11 +179,8 @@ class BigTraceLayout implements m.ClassComponent {
   }
 }
 
-// Root component: routing, theme, hotkeys, and layout.
-// Uses m.mount (not m.route) so that all rendering goes through the raf
-// scheduler's mount system. m.route() caches the original m.mount and
-// bypasses the raf scheduler, which breaks cross-tree redraws for
-// portal-based popups (e.g. the omnibox dropdown).
+// Root: routing + theme + hotkeys. Uses m.mount (not m.route) because
+// m.route bypasses the raf scheduler and breaks portal-based popups.
 class BigTraceRoot implements m.ClassComponent {
   private prevRoute = '';
   private queryInitialQuery: string | undefined;
@@ -282,9 +276,7 @@ function registerCommands() {
     id: 'bigtrace.ShowHelp',
     name: 'Show help',
     callback: () => toggleHelp(),
-    // The '!' prefix lets '?' fire even when an editable element (the
-    // always-rendered topbar omnibox) has focus. preventDefault then
-    // stops the keystroke from being typed into the omnibox.
+    // '!' prefix fires even when the omnibox has focus.
     defaultHotkey: '!?',
   });
 }
