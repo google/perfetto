@@ -223,8 +223,8 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     return StatusOr<void>::Ok();
   }
 
-  auto status_convertion = ConvertToMessageIfNeeded(node_);
-  PROTOVM_RETURN_IF_NOT_OK(status_convertion);
+  auto status_convert_to_message = ConvertToMessageIfNeeded(node_);
+  PROTOVM_RETURN_IF_NOT_OK(status_convert_to_message);
   auto* message = node_->GetIf<Node::Message>();
 
   protozero::ProtoDecoder decoder(data);
@@ -259,6 +259,7 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
       auto status_or_it = MapInsert(&message->field_id_to_node, field.id(),
                                     std::move(*status_or_map_value));
       PROTOVM_RETURN_IF_NOT_OK(status_or_it);
+      (*status_or_it)->value->has_been_merged = true;
       continue;
     }
 
@@ -269,15 +270,25 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
           field.id());
     }
 
+    // Promote field as repeated if needed:
+    // If this is the second time that the same field ID is being merged, then
+    // they are a repeated fields and they should live within an
+    // IndexedRepeatedField node.
+    if (it->value->has_been_merged) {
+      auto status_convert_to_indexed =
+          ConvertToIndexedRepeatedFieldIfNeeded(it->value.get());
+      PROTOVM_RETURN_IF_NOT_OK(status_convert_to_indexed);
+    }
+
     if (auto* indexed_fields = it->value->GetIf<Node::IndexedRepeatedField>()) {
       // Implements merge semantics for repeated fields: all existing fields are
       // removed and replaced with the newly received fields.
-      if (!indexed_fields->has_been_merged) {
+      if (!it->value->has_been_merged) {
         // Optimization opportunity: reuse the existing nodes to avoid N
         // allocation-deallocation pairs, where N is the number of newly
         // received repeated fields.
         allocator_->DeleteReferencedData(it->value.get());
-        indexed_fields->has_been_merged = true;
+        it->value->has_been_merged = true;
       }
       MapInsert(&indexed_fields->index_to_node,
                 indexed_fields->index_to_node.Size(),
@@ -289,14 +300,12 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     // allocation-deallocation pair
     allocator_->Delete(it->value.release());
     it->value = std::move(*status_or_map_value);
+    it->value->has_been_merged = true;
   }
 
-  // Reset the merge state of repeated fields
+  // Reset the merge flags
   for (auto& field : message->field_id_to_node) {
-    if (auto* indexed_fields =
-            field.value->GetIf<Node::IndexedRepeatedField>()) {
-      indexed_fields->has_been_merged = false;
-    }
+    field.value->has_been_merged = false;
   }
 
   return StatusOr<void>::Ok();

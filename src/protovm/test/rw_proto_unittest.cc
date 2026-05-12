@@ -781,22 +781,10 @@ TEST_F(RwProtoTest, Merge_FieldsReplacement) {
 }
 
 TEST_F(RwProtoTest, Merge_RepeatedField) {
+  // initially empty
   auto cursor = data_empty_.GetRoot();
 
-  // initialize elements = [{id: 0, value: 1}]
-  {
-    protos::Element element;
-    element.set_id(0);
-    element.set_value(1);
-    auto bytes = element.SerializeAsString();
-
-    auto element0 = cursor;
-    element0.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0);
-    element0.SetBytes(AsConstBytes(bytes));
-  }
-
   // merge with elements = [{id: 1, value: 10}, {id: 2, value: 20}]
-  // (fully replace original elements)
   {
     protos::TraceEntry entry;
 
