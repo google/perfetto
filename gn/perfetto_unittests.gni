@@ -71,7 +71,11 @@ if (enable_perfetto_platform_services) {
   }
 }
 
-_profiling_unittests_targets += [ "src/profiling/smaps:unittests" ]
+# TODO(rsavitski): re-enable test on embedder builds once chromium build bot
+# failure is resolved.
+if ((is_linux || is_android) && !perfetto_build_with_embedder) {
+  _profiling_unittests_targets += [ "src/profiling/smaps:unittests" ]
+}
 
 if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
   _profiling_unittests_targets += [ "src/profiling/common:unittests" ]
