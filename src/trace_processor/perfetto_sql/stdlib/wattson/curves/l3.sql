@@ -16,6 +16,4 @@
 -- Device specific L3 curves. The rows come from the wattson plugin
 -- (see src/trace_processor/plugins/wattson/).
 CREATE PERFETTO TABLE _device_curves_l3 AS
-SELECT
-  *
-FROM __intrinsic_wattson_curves_l3();
+SELECT * FROM __intrinsic_wattson_curves_l3();

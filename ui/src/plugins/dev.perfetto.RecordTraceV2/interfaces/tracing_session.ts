@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Evt} from '../../../base/events';
+import {Result} from '../../../base/result';
 import {RecordingTarget} from './recording_target';
 
 /**
@@ -34,6 +35,13 @@ export interface TracingSession {
 
   /** Returns the trace file captured once state === 'FINISHED'. */
   getTraceData(): Uint8Array | undefined;
+
+  /**
+   * Take a snapshot of this in-progress session and return its trace bytes.
+   * The original session keeps recording. Requires that the session was
+   * started with a non-empty `unique_session_name` in its TraceConfig.
+   */
+  snapshot(): Promise<Result<Uint8Array>>;
 }
 
 export type TracingSessionState =

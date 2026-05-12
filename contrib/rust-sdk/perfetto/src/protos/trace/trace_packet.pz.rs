@@ -18,6 +18,7 @@
 use crate::pb_enum;
 use crate::pb_msg;
 use crate::protos::trace::clock_snapshot::*;
+use crate::protos::trace::extension_descriptor::*;
 use crate::protos::trace::interned_data::interned_data::*;
 use crate::protos::trace::test_event::*;
 use crate::protos::trace::track_event::track_descriptor::*;
@@ -44,6 +45,7 @@ pb_msg!(TracePacket {
     clock_snapshot: ClockSnapshot, msg, 6,
     track_event: TrackEvent, msg, 11,
     track_descriptor: TrackDescriptor, msg, 60,
+    extension_descriptor: ExtensionDescriptor, msg, 72,
     for_testing: TestEvent, msg, 900,
     interned_data: InternedData, msg, 12,
     sequence_flags: u32, primitive, 13,

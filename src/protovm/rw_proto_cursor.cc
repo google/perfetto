@@ -81,8 +81,8 @@ StatusOr<void> RwProtoCursor::EnterField(uint32_t field_id) {
         field_id);
   }
 
-  holding_map_and_node_ = {&node_->GetIf<Node::Message>()->field_id_to_node,
-                           std::addressof(*it)};
+  parent_link_ = {node_, &node_->GetIf<Node::Message>()->field_id_to_node,
+                  std::addressof(*it)};
   node_ = it->value.get();
   return StatusOr<void>::Ok();
 }
@@ -103,7 +103,8 @@ StatusOr<void> RwProtoCursor::EnterRepeatedFieldAt(uint32_t field_id,
       FindOrCreateIndexedRepeatedField(message_field->value.get(), index);
   PROTOVM_RETURN_IF_NOT_OK(status_or_repeated_field);
 
-  holding_map_and_node_ = {
+  parent_link_ = {
+      message_field->value.get(),
       &message_field->value->GetIf<Node::IndexedRepeatedField>()->index_to_node,
       std::addressof(**status_or_repeated_field)};
   node_ = (*status_or_repeated_field)->value.get();
@@ -152,7 +153,8 @@ StatusOr<void> RwProtoCursor::EnterRepeatedFieldByKey(uint32_t field_id,
       FindOrCreateMappedRepeatedField(message_field->value.get(), key);
   PROTOVM_RETURN_IF_NOT_OK(status_or_repeated_field);
 
-  holding_map_and_node_ = {
+  parent_link_ = {
+      message_field->value.get(),
       &message_field->value->GetIf<Node::MappedRepeatedField>()->key_to_node,
       std::addressof(**status_or_repeated_field)};
   node_ = (*status_or_repeated_field)->value.get();
@@ -206,7 +208,7 @@ StatusOr<void> RwProtoCursor::SetScalar(Scalar scalar) {
 }
 
 StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
-                                    bool skip_submessages) {
+                                    uint32_t flags) {
   PERFETTO_DCHECK(node_);
 
   if (bool is_compatible = node_->GetIf<Node::Empty>() ||
@@ -229,16 +231,29 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    auto status_or_map_value = CreateNodeFromField(field);
-    PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
-
     auto it = message->field_id_to_node.Find(field.id());
+
+    bool skip_submessages = (flags & kSkipSubmessages) != 0;
     if (skip_submessages && it && it->value->GetIf<Node::Message>()) {
-      // Skip this node if it was merged by a previous operation and the flag is
-      // set
-      allocator_->Delete(status_or_map_value->release());
+      // Implements deep merge semantics: skip this message that was already
+      // merged by a previous operation
       continue;
     }
+
+    bool del_if_src_empty = (flags & kDelIfSrcEmpty) != 0;
+    if (it && del_if_src_empty &&
+        field.type() ==
+            protozero::proto_utils::ProtoWireType::kLengthDelimited &&
+        field.size() == 0) {
+      // Implements remove submessage semantics: empty src field means delete
+      // the dst field
+      message->field_id_to_node.Remove(*it);
+      allocator_->Delete(&GetOuterNode(*it));
+      continue;
+    }
+
+    auto status_or_map_value = CreateNodeFromField(field);
+    PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
 
     if (!it) {
       auto status_or_it = MapInsert(&message->field_id_to_node, field.id(),
@@ -290,17 +305,18 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
 StatusOr<void> RwProtoCursor::Delete() {
   PERFETTO_DCHECK(node_);
 
-  bool is_root_node = !holding_map_and_node_.first;
+  bool is_root_node = !parent_link_.node;
   if (is_root_node) {
     node_->value = Node::Empty{};
     return StatusOr<void>::Ok();
   }
 
-  auto [holding_map, map_node] = holding_map_and_node_;
-  PERFETTO_DCHECK(holding_map);
-  PERFETTO_DCHECK(map_node);
-  holding_map->Remove(*map_node);
-  allocator_->Delete(&GetOuterNode(*map_node));
+  PERFETTO_DCHECK(parent_link_.node);
+  PERFETTO_DCHECK(parent_link_.map);
+  PERFETTO_DCHECK(parent_link_.map_node);
+
+  parent_link_.map->Remove(*parent_link_.map_node);
+  allocator_->Delete(&GetOuterNode(*parent_link_.map_node));
 
   node_ = nullptr;  // Delete operation invalidates cursor
 

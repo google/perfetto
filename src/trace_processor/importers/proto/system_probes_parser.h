@@ -42,6 +42,7 @@ class SystemProbesParser {
   void ParseSystemInfo(ConstBytes);
   void ParseCpuInfo(ConstBytes);
   void ParseGpuInfo(ConstBytes);
+  void ParseInterruptInfo(ConstBytes);
 
  private:
   void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);
@@ -81,6 +82,7 @@ class SystemProbesParser {
     int64_t prev_flush_time = -1;
   };
   base::FlatHashMap<StringId, DiskStatState> disk_state_map_;
+  base::FlatHashMap<uint32_t, bool> irq_ids_;
 };
 
 }  // namespace perfetto::trace_processor

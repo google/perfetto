@@ -25,7 +25,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
 // extract_metadata(name) returns the "primary" metadata value for a given name.
 struct ExtractMetadata : public sqlite::Function<ExtractMetadata> {
@@ -120,7 +120,7 @@ struct ExtractExactMetadata : public sqlite::Function<ExtractExactMetadata> {
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
 };
 
-base::Status RegisterMetadataFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterMetadataFunctions(PerfettoSqlConnection& connection,
                                        TraceStorage* storage);
 
 }  // namespace perfetto::trace_processor

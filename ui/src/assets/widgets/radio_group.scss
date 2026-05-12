@@ -1,0 +1,93 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+.pf-radio-group {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 2px;
+  padding: 2px;
+  border-radius: $border-radius-large;
+  background: color-mix(
+    in srgb,
+    transparent,
+    var(--pf-color-interactive-base) 10%
+  );
+  user-select: none;
+
+  &[disabled] {
+    filter: opacity(50%);
+    cursor: not-allowed;
+
+    // Make everything inside the disabled container non-interactive.
+    * {
+      pointer-events: none;
+    }
+  }
+
+  &--fill-width {
+    display: flex;
+
+    .pf-radio-group__button {
+      flex: 1;
+    }
+  }
+
+  .pf-radio-group__button {
+    border-radius: $border-radius;
+    background: transparent;
+    color: var(--pf-color-text-hint);
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    padding: 3px 8px;
+    cursor: pointer;
+
+    .pf-icon {
+      margin-right: 4px;
+      align-self: center;
+    }
+
+    &:hover {
+      color: var(--pf-color-text);
+    }
+
+    &.pf-active {
+      background: var(--pf-color-background);
+      color: var(--pf-color-text);
+    }
+  }
+
+  &.pf-intent-primary .pf-active {
+    background: var(--pf-color-primary);
+    color: var(--pf-color-text-on-primary);
+  }
+
+  &.pf-intent-success .pf-active {
+    background: var(--pf-color-success);
+    color: var(--pf-color-text-on-success);
+  }
+
+  &.pf-intent-warning .pf-active {
+    background: var(--pf-color-warning);
+    color: var(--pf-color-text-on-warning);
+  }
+
+  &.pf-intent-danger .pf-active {
+    background: var(--pf-color-danger);
+    color: var(--pf-color-text-on-danger);
+  }
+}

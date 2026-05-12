@@ -29,6 +29,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -95,7 +96,7 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
     auto cmdhash = base::CStringToUInt64(tok.Next() ? tok.cur_token() : "", 16);
 
     if (!t_start || !t_end || !name || !cmdhash) {
-      ctx_->storage->IncrementStats(stats::ninja_parse_errors);
+      ctx_->stats_tracker->IncrementStats(stats::ninja_parse_errors);
       continue;
     }
 

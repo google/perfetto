@@ -23,7 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -192,11 +192,12 @@ struct HeapGraphArrayJson : public sqlite::Function<HeapGraphArrayJson> {
 
 }  // namespace
 
-base::Status RegisterArtHeapGraphFunctions(PerfettoSqlEngine* engine,
+base::Status RegisterArtHeapGraphFunctions(PerfettoSqlConnection* connection,
                                            TraceProcessorContext* context) {
   RETURN_IF_ERROR(
-      engine->RegisterFunction<HeapGraphArray>(context->storage.get()));
-  return engine->RegisterFunction<HeapGraphArrayJson>(context->storage.get());
+      connection->RegisterFunction<HeapGraphArray>(context->storage.get()));
+  return connection->RegisterFunction<HeapGraphArrayJson>(
+      context->storage.get());
 }
 
 }  // namespace perfetto::trace_processor

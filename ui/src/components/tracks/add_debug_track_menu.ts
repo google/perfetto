@@ -17,10 +17,7 @@ import {findRef} from '../../base/dom_utils';
 import {assertUnreachable} from '../../base/assert';
 import {Trace} from '../../public/trace';
 import {Form, FormGrid, FormLabel, FormSection} from '../../widgets/form';
-import {
-  SegmentedButton,
-  SegmentedButtons,
-} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {addDebugCounterTrack, addDebugSliceTrack} from './debug_tracks';
@@ -137,15 +134,15 @@ export class AddDebugTrackMenu
       ),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
       m(
-        SegmentedButtons,
+        RadioGroup,
         {
           fillWidth: true,
           selectedValue: this.trackType,
-          onOptionSelected: (value) => (this.trackType = value as TrackType),
+          onValueChange: (value) => (this.trackType = value as TrackType),
         },
         [
-          m(SegmentedButton, {value: 'slice'}, 'Slice Track'),
-          m(SegmentedButton, {value: 'counter'}, 'Counter Track'),
+          m(RadioGroup.Button, {value: 'slice'}, 'Slice Track'),
+          m(RadioGroup.Button, {value: 'counter'}, 'Counter Track'),
         ],
       ),
       m(

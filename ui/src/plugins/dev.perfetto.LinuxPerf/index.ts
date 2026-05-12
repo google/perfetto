@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {assertExists} from '../../base/assert';
-import {
-  QueryFlamegraph,
-  QueryFlamegraphMetric,
-  QueryFlamegraphWithMetrics,
-} from '../../components/query_flamegraph';
+import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
@@ -425,7 +423,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
 
   private createAreaSelectionTab(trace: Trace) {
     let previousSelection: AreaSelection | undefined;
-    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+    let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
 
     return {
       id: 'perf_sample_flamegraph',
@@ -436,20 +434,17 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           !areaSelectionsEqual(previousSelection, selection);
         if (changed) {
           previousSelection = selection;
-          flamegraphWithMetrics = this.computePerfSampleFlamegraph(
-            trace,
-            selection,
-          );
+          flamegraphMetrics = this.computePerfSampleFlamegraph(selection);
         }
-        if (flamegraphWithMetrics === undefined) {
+        if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const {flamegraph, metrics} = flamegraphWithMetrics;
         const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render({
-            metrics,
+          content: m(FlamegraphPanel, {
+            trace,
+            metrics: flamegraphMetrics,
             state: store.state.areaSelectionFlamegraphState,
             onStateChange: (state) => {
               store.edit((draft) => {
@@ -463,9 +458,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   }
 
   private computePerfSampleFlamegraph(
-    trace: Trace,
     currentSelection: AreaSelection,
-  ): QueryFlamegraphWithMetrics | undefined {
+  ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
     const processTrackTags = getSelectedProcessTrackTags(currentSelection);
     const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
     if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
@@ -576,7 +570,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return {flamegraph: new QueryFlamegraph(trace), metrics};
+    return metrics;
   }
 
   // Get counter types for the given session IDs from the pre-populated cache.

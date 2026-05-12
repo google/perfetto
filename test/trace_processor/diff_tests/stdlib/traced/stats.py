@@ -78,10 +78,10 @@ class TracedStats(TestSuite):
         SELECT * FROM traced_clone_flush_latency;
         """,
         out=Csv("""
-        "buffer_id","duration_ns"
-        0,3000000
-        1,1000000
-        2,2000000
+        "buffer_id","duration_ns","machine_id","trace_id"
+        0,3000000,0,0
+        1,1000000,0,0
+        2,2000000,0,0
         """))
 
   def test_clone_flush_latency_missing_clone_started(self):
@@ -93,7 +93,7 @@ class TracedStats(TestSuite):
         SELECT * FROM traced_clone_flush_latency;
         """,
         out=Csv("""
-        "buffer_id","duration_ns"
+        "buffer_id","duration_ns","machine_id","trace_id"
         """))
 
   def test_clone_flush_latency_missing_buffer_cloned(self):
@@ -105,7 +105,7 @@ class TracedStats(TestSuite):
         SELECT * FROM traced_clone_flush_latency;
         """,
         out=Csv("""
-        "buffer_id","duration_ns"
+        "buffer_id","duration_ns","machine_id","trace_id"
         """))
 
   def test_trigger_clone_flush_latency(self):
@@ -117,10 +117,10 @@ class TracedStats(TestSuite):
         SELECT * FROM traced_trigger_clone_flush_latency;
         """,
         out=Csv("""
-        "buffer_id","duration_ns"
-        0,3500000
-        1,1500000
-        2,2500000
+        "buffer_id","duration_ns","machine_id","trace_id"
+        0,3500000,0,0
+        1,1500000,0,0
+        2,2500000,0,0
         """))
 
   def test_trigger_clone_flush_latency_missing_clone_started(self):
@@ -132,7 +132,7 @@ class TracedStats(TestSuite):
         SELECT * FROM traced_trigger_clone_flush_latency;
         """,
         out=Csv("""
-        "buffer_id","duration_ns"
+        "buffer_id","duration_ns","machine_id","trace_id"
         """))
 
   def test_trigger_clone_flush_latency_missing_buffer_cloned(self):
@@ -144,5 +144,5 @@ class TracedStats(TestSuite):
         SELECT * FROM traced_trigger_clone_flush_latency;
         """,
         out=Csv("""
-        "buffer_id","duration_ns"
+        "buffer_id","duration_ns","machine_id","trace_id"
         """))

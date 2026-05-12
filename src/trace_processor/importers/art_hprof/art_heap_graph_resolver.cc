@@ -21,6 +21,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto::trace_processor::art_hprof {
 
@@ -30,7 +31,7 @@ T ReadBigEndian(TraceProcessorContext* context,
                 size_t offset,
                 size_t length) {
   if (offset + length > data.size()) {
-    context->storage->IncrementStats(stats::hprof_field_value_errors);
+    context->stats_tracker->IncrementStats(stats::hprof_field_value_errors);
     return 0;
   }
 
@@ -251,7 +252,7 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
           stats_.reference_count++;
         }
       } else {
-        context_->storage->IncrementStats(stats::hprof_reference_errors);
+        context_->stats_tracker->IncrementStats(stats::hprof_reference_errors);
         break;
       }
     } else {

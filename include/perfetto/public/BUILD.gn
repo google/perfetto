@@ -19,7 +19,6 @@ source_set("base") {
 
 source_set("protozero") {
   sources = [ "pb_utils.h" ]
-  public_deps = [ ":base" ]
 }
 
 source_set("public") {

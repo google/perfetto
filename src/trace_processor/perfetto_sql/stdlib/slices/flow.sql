@@ -19,17 +19,17 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- specified in |source_table|. This provides a more efficient result than with the in-built
 -- following_flow operator.
 CREATE PERFETTO MACRO _slice_following_flow(
-    -- A table/view/subquery corresponding to the nodes to start the reachability search.
-    -- This table must have a uint32 "id" column.
-    source_table TableOrSubquery
+  -- A table/view/subquery corresponding to the nodes to start the reachability search.
+  -- This table must have a uint32 "id" column.
+  source_table TableOrSubquery
 )
 -- The returned table has the schema (root_node_id, node_id LONG, parent_node_id LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS
 -- search of the graph.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     *
   FROM graph_reachable_weight_bounded_dfs
