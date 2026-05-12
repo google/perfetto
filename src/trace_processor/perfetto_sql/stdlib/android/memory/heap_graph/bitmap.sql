@@ -81,7 +81,7 @@ SELECT
 -- (`heap_graph_object_data` populated); on proto-format heap graphs
 -- (e.g. `android.java_hprof` data source) they are NULL and the row still
 -- appears so callers can fall back to size-only analysis.
-CREATE PERFETTO TABLE android_heap_graph_bitmaps(
+CREATE PERFETTO TABLE heap_graph_bitmaps(
   -- heap_graph_object.id of the Bitmap instance.
   object_id JOINID(heap_graph_object.id),
   -- Process upid that owns the Bitmap.
