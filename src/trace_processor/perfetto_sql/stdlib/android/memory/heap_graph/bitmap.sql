@@ -15,7 +15,7 @@
 
 -- Surfaces the Java-side `mId` and `mSourceId` fields of every Bitmap
 -- instance in an ART heap dump and decodes them into pid + pixel-storage-type
--- components (per frameworks/base/libs/hwui/hwui/Bitmap.cpp:122). `mId` is
+-- components (per frameworks/base/libs/hwui/hwui/Bitmap.cpp). `mId` is
 -- a process-monotonic instance counter (never a dedup key); `mSourceId`
 -- identifies the parcel sender for cross-process Bitmaps and is the only
 -- field with cross-instance semantics.
@@ -52,7 +52,7 @@ ORDER BY
 LIMIT 1;
 
 -- Decodes a Bitmap PixelStorageType integer (0..3) into its enum name as
--- declared in `frameworks/base/libs/hwui/hwui/Bitmap.h:39-44`. Returns NULL
+-- declared in `frameworks/base/libs/hwui/hwui/Bitmap.h`. Returns NULL
 -- for inputs outside the known range.
 CREATE PERFETTO FUNCTION _android_bitmap_storage_type_name(
   -- Raw PixelStorageType integer.
@@ -97,7 +97,7 @@ CREATE PERFETTO TABLE android_heap_graph_bitmaps(
   density LONG,
   -- Process-monotonic Bitmap instance identifier (mId), encoded as
   -- `pid * 10^7 + storage_type * 10^6 + counter%10^6` per
-  -- frameworks/base/libs/hwui/hwui/Bitmap.cpp:122. See bitmap_pid /
+  -- frameworks/base/libs/hwui/hwui/Bitmap.cpp. See bitmap_pid /
   -- bitmap_storage_type for the decoded components.
   bitmap_id LONG,
   -- Allocating process pid decoded from bitmap_id. Equals the pid of
