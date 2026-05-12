@@ -89,6 +89,18 @@ export interface LineChartAttrs {
   readonly selection?: {readonly start: number; readonly end: number};
 
   /**
+   * Vertical markers drawn at specific X values. Each marker renders as a
+   * thin vertical line spanning the plot area with a small dot at the top.
+   * Useful for annotating point-in-time events (e.g. LMK kills) on top of
+   * a time series.
+   */
+  readonly markers?: ReadonlyArray<{
+    readonly x: number;
+    readonly color?: string;
+    readonly label?: string;
+  }>;
+
+  /**
    * Fill parent container. Defaults to false.
    */
   readonly fillParent?: boolean;

@@ -22,9 +22,6 @@ export function chartColorVar(i: number): string {
   return `var(--pf-chart-color-${(i % CHART_COLOR_COUNT) + 1})`;
 }
 
-export const TEXT_COLOR = 'var(--pf-color-text)';
-export const BORDER_COLOR = 'var(--pf-color-border)';
-
 // Default approximate tick count used when picking nice axis steps.
 const APPROX_TICK_COUNT = 5;
 
@@ -143,10 +140,10 @@ export function logRange(rawMin: number, rawMax: number): AxisRange {
 // A point marker: a white dot ringed in the series color.
 export function pointMarker(cx: number, cy: number, color: string, r: number) {
   return m('circle', {
+    'className': 'pf-chart-svg__point-marker',
     'cx': cx,
     'cy': cy,
     'r': r,
-    'fill': '#fff',
     'stroke': color,
     'stroke-width': 2,
   });
@@ -214,10 +211,10 @@ export function renderPlotFrame(opts: {
       m(
         'text',
         {
+          'className': 'pf-chart-svg__axis-title',
           'x': AXIS_NAME_FONT_SIZE,
           'y': padTop + plotH / 2,
-          'fill': TEXT_COLOR,
-          'font-size': AXIS_NAME_FONT_SIZE,
+          'fill': 'currentColor',
           'text-anchor': 'middle',
           'transform': `rotate(-90 ${AXIS_NAME_FONT_SIZE} ${padTop + plotH / 2})`,
         },
@@ -227,44 +224,47 @@ export function renderPlotFrame(opts: {
       m(
         'text',
         {
+          'className': 'pf-chart-svg__axis-title',
+          'fill': 'currentColor',
           'x': padLeft + plotW / 2,
           'y': height - 4,
-          'fill': TEXT_COLOR,
-          'font-size': AXIS_NAME_FONT_SIZE,
           'text-anchor': 'middle',
         },
         xName,
       ),
     m('line', {
+      className: 'pf-chart-svg__line',
       x1: padLeft,
       y1: padTop + plotH,
       x2: padLeft + plotW,
       y2: padTop + plotH,
-      stroke: BORDER_COLOR,
+      stroke: 'currentColor',
     }),
     m('line', {
+      className: 'pf-chart-svg__line',
       x1: padLeft,
       y1: padTop,
       x2: padLeft,
       y2: padTop + plotH,
-      stroke: BORDER_COLOR,
+      stroke: 'currentColor',
     }),
     yTicks.map((t) =>
       m('g', [
         m('line', {
+          className: 'pf-chart-svg__line',
           x1: padLeft - TICK_LENGTH,
           y1: t.y,
           x2: padLeft,
           y2: t.y,
-          stroke: BORDER_COLOR,
+          stroke: 'currentColor',
         }),
         m(
           'text',
           {
+            'className': 'pf-chart-svg__tick-label',
             'x': padLeft - TICK_LENGTH - TICK_LABEL_GAP,
             'y': t.y,
-            'fill': TEXT_COLOR,
-            'font-size': AXIS_LABEL_FONT_SIZE,
+            'fill': 'currentColor',
             'text-anchor': 'end',
             'dominant-baseline': 'middle',
           },

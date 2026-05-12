@@ -16,6 +16,8 @@
   display: flex;
   min-height: 0;
   min-width: 0;
+  overflow: clip; // Make sure the chart content never overflows leading to a resize oberver loop.
+  contain: content; // Ensure the chart is self-contained and doesn't cause reflows outside of it.
 
   &.pf-chart-svg--fill-parent {
     height: 100%;
@@ -155,4 +157,43 @@
 
 .pf-chart-svg__tooltip-value {
   font-weight: bold;
+}
+
+.pf-chart-svg__axis-title {
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-s);
+}
+
+.pf-chart-svg__tick-label {
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-xs);
+}
+
+.pf-chart-svg__line {
+  color: var(--pf-color-border);
+}
+
+.pf-chart-svg__gridline {
+  color: var(--pf-color-border);
+  opacity: 0.3;
+}
+
+.pf-chart-svg__hover-guide {
+  color: var(--pf-color-text-muted);
+}
+
+.pf-chart-svg__selection {
+  color: var(--pf-color-accent);
+  fill-opacity: 0.08;
+  stroke-opacity: 0.3;
+}
+
+.pf-chart-svg__brush {
+  color: var(--pf-color-accent);
+  fill-opacity: 0.15;
+  stroke-opacity: 0.5;
+}
+
+.pf-chart-svg__point-marker {
+  fill: var(--pf-color-background);
 }
