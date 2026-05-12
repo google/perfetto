@@ -19,10 +19,7 @@ import {Aggregator} from '../../components/aggregation_adapter';
 import {Area, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {SqlValue} from '../../trace_processor/query_result';
-import {
-  SegmentedButton,
-  SegmentedButtons,
-} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
@@ -97,17 +94,17 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
 
   renderTopbarControls(): m.Children {
     return m(
-      SegmentedButtons,
+      RadioGroup,
       {
         selectedValue: this.scaleNumericData ? 'uw' : 'mw',
-        onOptionSelected: (value) => {
+        onValueChange: (value) => {
           this.scaleNumericData = value === 'uw';
         },
         title: 'Select power units',
       },
       [
-        m(SegmentedButton, {value: 'uw'}, 'µW'),
-        m(SegmentedButton, {value: 'mw'}, 'mW'),
+        m(RadioGroup.Button, {value: 'uw'}, 'µW'),
+        m(RadioGroup.Button, {value: 'mw'}, 'mW'),
       ],
     );
   }
