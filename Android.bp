@@ -17017,6 +17017,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/android/kernel_wakelocks.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf_spans.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/bitmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_relationship.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_summary_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_tree.sql",
