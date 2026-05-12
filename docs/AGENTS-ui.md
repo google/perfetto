@@ -39,14 +39,35 @@ When possible (if the API surface allows) feature functionality should be encaps
 
 To build and serve the UI for development:
 
-```sh
-# From the repository root
-ui/build    # Builds the UI.
-ui/build --typecheck # Run tsc --noEmit, does't bundle (faster).
-ui/run-dev-server    # Starts the development server with live reload.
-```
+If you just need to build without verifying the contents run `ui/build`
+It produces output in out/ui/ui/dist.
 
-The UI uses:
+If you want to test the HTML/js content with a browser or curl or other tools
+you need to run ui/run-dev-server (it will do a full build by default, so there
+is no need to first run ui/build first. then will keep building in watch mode
+until you kill it)
+
+## When the dev-server is already running
+
+If the user runs ui/run-dev-server the build starts tsc and bundler (rollup) in
+--watch mode. In this mode you can still invoke ui/build in parallel to test the
+effect of your changes. ui/build in this case will act as a client against the
+concurrent run-dev-server and stream a copy of the logs.
+
+When ui/build terminates successfully you can rely on the fact that the all the
+bundled outputs are ready in the output directory, so you can test with the
+browser if needed.
+
+In that case you can point the browser at http://localhost:$PORT
+
+The $PORT can be obtained reading ./out/ui/dev_server.port
+If missing the default port is 10000
+
+In case of problems, if you don't need testing, you can try just type-checking:
+`ui/build --typecheck --no-build`
+
+
+## Tools used
 
 - **TypeScript** for type safety
 - **Mithril** as the UI framework
@@ -55,16 +76,6 @@ The UI uses:
 - **ESLint** for linting (based on Google style)
 - **Playwright** for integration tests
 
-## Type checking when a build is already running
-
-Each build claims a lockfile as it works, unless --no-build option is passed. If
-you try to run a build but encounter a failure due to one of those lockfiles
-being present, you can try just checking types using the following command 
-without interfering with the current build.
-
-```sh
-ui/build --typecheck --no-build
-```
 
 ## Plugin Architecture
 
