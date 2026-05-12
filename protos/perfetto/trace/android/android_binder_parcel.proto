@@ -1,0 +1,271 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// AndroidBinderParcelEvent records one half of an AIDL binder transaction
+// with field-level, AIDL-typed annotations of the payload Parcel.
+//
+// Four halves make up a full RPC:
+//   CLIENT_SEND  -> server process receives -> SERVER_RECV
+//   SERVER_REPLY -> client receives         -> CLIENT_RECV
+//
+// They are paired by `txn_id` so trace_processor (and the UI, via
+// Perfetto flow ids) can join them into a single logical call.
+//
+// The full wire-format bytes of the Parcel (compatible with
+// RecordedTransaction) are optionally carried in `recorded_transaction`
+// so a follow-up commit can add on-device replay.
+message AndroidBinderParcelEvent {
+  enum Direction {
+    DIRECTION_UNKNOWN = 0;
+    // Bp side, at BpBinder::transact entry, before kernel ioctl.
+    CLIENT_SEND = 1;
+    // Bn side, at BBinder::transact entry.
+    SERVER_RECV = 2;
+    // Bn side, before returning reply parcel to caller.
+    SERVER_REPLY = 3;
+    // Bp side, after kernel ioctl returned to BpBinder::transact.
+    CLIENT_RECV = 4;
+  }
+
+  // Coarse classification of the bytes a ParcelFieldAnnotation refers
+  // to. Must stay in sync with Parcel::FieldKind in
+  // frameworks/native/libs/binder/include/binder/Parcel.h.
+  enum ParcelKind {
+    PARCEL_KIND_UNSPECIFIED = 0;
+    // Fixed-width scalars: bool, byte, char, int, long, float, double.
+    PRIMITIVE = 1;
+    // String / String16 / CharSequence (length-prefixed UTF-16 on wire).
+    STRING = 2;
+    // IBinder / any declared AIDL interface (flat_binder_object).
+    STRONG_BINDER = 3;
+    // FileDescriptor / ParcelFileDescriptor (BINDER_TYPE_FD object).
+    FILE_DESCRIPTOR = 4;
+    // User-defined parcelable (marshalled via writeToParcel).
+    PARCELABLE = 5;
+    // AIDL "stable" typed parcelable.
+    TYPED_OBJECT = 6;
+    // Fixed-size array.
+    ARRAY = 7;
+    // Dynamic vector / List<T>.
+    VECTOR = 8;
+    // byte[] / ParcelableHolder blob payload.
+    BYTES = 9;
+    // The writeInterfaceToken header.
+    INTERFACE_TOKEN = 10;
+    // Fallback when the AIDL type isn't one of the above.
+    OPAQUE = 11;
+  }
+
+  // e.g. "android.content.pm.IPackageManager".
+  optional string interface_name = 1;
+
+  // Transaction code: FIRST_CALL_TRANSACTION-relative for AIDL methods.
+  optional uint32 code = 2;
+
+  // TF_ONE_WAY, TF_ACCEPT_FDS, etc.
+  optional uint32 flags = 3;
+
+  // NDK status_t; 0 == OK. Only meaningful on the client-receive half.
+  optional int32 returned_status = 4;
+
+  optional Direction direction = 5;
+
+  // Derived identifier shared across the four halves of a single RPC.
+  // trace_processor copies this into the slice table's flow_id so the
+  // UI renders flow arrows between halves.
+  optional fixed64 txn_id = 6;
+
+  // Full wire-format bytes of the Parcel, compatible with
+  // RecordedTransaction. Omitted (or present but empty) when:
+  //   - the Parcel was markSensitive()'d, OR
+  //   - the trace config set capture_body=false (the default).
+  optional bytes recorded_transaction = 7;
+
+  // Ordered list of AIDL-typed annotations, one per write*/read*
+  // call in the AIDL-generated stub. Order matches on-wire order.
+  repeated ParcelFieldAnnotation annotation = 8;
+
+  // CLOCK_BOOTTIME at event start, in nanoseconds. Redundant with
+  // TracePacket.timestamp but preserved because TracePacket timestamp
+  // may be remapped by clock-sync.
+  optional uint64 wall_clock_ns = 9;
+
+  // Elapsed time from tracer frame begin to flush, same side only.
+  // NOT end-to-end RPC duration (UI computes that from flow pairing).
+  optional uint64 duration_ns = 10;
+
+  optional int32 pid = 11;
+  optional int32 tid = 12;
+
+  // Convenience: the AIDL method name, emitted by the code generator
+  // as the first annotation's value and echoed here to avoid a join.
+  // e.g. "getPackageInfo".
+  optional string method_name = 13;
+
+  // ---- Per-parcel metadata (always emitted, body-capture agnostic) ----
+  //
+  // These are the summary counters that are cheap to compute at flush
+  // time and answer "what's in this parcel at a glance". Useful even
+  // when `recorded_transaction` is omitted.
+  message ParcelMetadata {
+    // Total byte size of the Parcel (dataSize()).
+    optional uint32 total_data_size = 1;
+
+    // Number of flat_binder_object entries (objectsCount()). Sum of
+    // binder_count + file_descriptor_count + file_descriptor_array_count +
+    // pointer_count.
+    optional uint32 object_count = 2;
+
+    // Breakdown of the above, walked at flush time.
+    optional uint32 binder_count = 3;
+    optional uint32 file_descriptor_count = 4;
+    optional uint32 file_descriptor_array_count = 5;
+    optional uint32 pointer_count = 6;
+
+    // Total size in bytes of all SharedMemory / ashmem fds referenced
+    // by this parcel. 0 when the parcel doesn't carry any or when we
+    // couldn't fstat() them (e.g. permission denied).
+    optional uint64 shared_memory_bytes = 7;
+
+    // True if the Parcel had markSensitive() called on it. When true
+    // the enclosing event has `recorded_transaction` zero-length and
+    // annotations have no preview.
+    optional bool sensitive = 8;
+
+    // Parsed from the interface token header (first 3 int32s after the
+    // RPC header for kernel-IPC Parcels). When present, tells you the
+    // caller's strict-mode policy mask and work-source attribution.
+    optional uint32 strict_mode_policy = 9;
+    optional int32 work_source_uid = 10;
+
+    // True when the Parcel is an RPC (BinderRpc) transaction rather
+    // than a kernel-IPC transaction. Their wire formats differ.
+    optional bool is_rpc = 11;
+  }
+  optional ParcelMetadata metadata = 14;
+
+  // Derived from `flags & TF_ONE_WAY`; ONE_WAY calls have no reply
+  // and thus only the CLIENT_SEND / SERVER_RECV halves are emitted.
+  optional bool oneway = 15;
+
+  // pthread_getname_np of the tid that ran transact(). Useful for
+  // IPCThreadState binder threads (named "Binder:<n>").
+  optional string thread_name = 16;
+}
+
+message ParcelFieldAnnotation {
+  // ALWAYS SET. AIDL-declared argument name ("packageName"), field
+  // name inside a parcelable ("versionCode"), or a synthetic name for
+  // framework-generated entries:
+  //   "_aidl_interface_token"     the writeInterfaceToken header
+  //   "_aidl_return"              the method's return value
+  //   "_aidl_status"              the trailing status_t
+  //   "_aidl_element[<n>]"        n'th element of an ARRAY / VECTOR
+  optional string field_name = 1;
+
+  // ALWAYS SET. User-written AIDL type syntax preserving annotations,
+  // e.g. "int", "String", "List<android.os.ParcelFileDescriptor>",
+  // "@nullable IBinder", "@utf8InCpp String", "byte[]".
+  optional string aidl_type = 2;
+
+  // Byte offset in the sent or reply parcel at which the value
+  // begins. 0-based from the start of Parcel::data().
+  optional uint32 parcel_offset = 3;
+
+  // Byte length of the value, measured at flush time from
+  // `next_annotation.parcel_offset - this.parcel_offset` (or
+  // `dataSize() - offset` for the last annotation).
+  optional uint32 byte_length = 4;
+
+  // Coarse kind; determines which `preview` variant (if any) is set.
+  optional AndroidBinderParcelEvent.ParcelKind kind = 5;
+
+  // Decoded preview of the value. At most one is set per LEAF
+  // annotation. For kind=PARCELABLE / ARRAY / VECTOR no preview is
+  // set and `nested` is populated instead.
+  oneof preview {
+    // PRIMITIVE: integer & bool (bools are 0/1).
+    sint64 int_preview = 6;
+    // PRIMITIVE: float/double (floats up-cast to double).
+    double double_preview = 7;
+    // STRING: UTF-8 transcoding of a String16, truncated to 256 chars.
+    string string_preview = 8;
+    // BYTES: truncated to 256 bytes.
+    bytes bytes_preview = 9;
+    // STRONG_BINDER: the interface descriptor, e.g.
+    // "android.os.IServiceManager".
+    string binder_descriptor_preview = 10;
+  }
+
+  // For kind=PARCELABLE / ARRAY / VECTOR: the child field annotations,
+  // forming a tree that mirrors the AIDL declaration.
+  repeated ParcelFieldAnnotation nested = 11;
+
+  // True iff this annotation is inside a Parcel that was marked
+  // sensitive via Parcel::markSensitive(). When true, `preview` and
+  // `nested` are never populated and the enclosing event's
+  // `recorded_transaction` is zero-length.
+  optional bool sensitive = 12;
+
+  // ---- AIDL-declared attributes (from the stub) ---------------------
+
+  // True if the AIDL declaration marks this field with @nullable.
+  optional bool nullable = 13;
+
+  // True if the actual wire value is null. For nullable reference
+  // types AIDL writes a length of -1 to indicate null; when we see
+  // that at flush time we set this.
+  optional bool is_null = 14;
+
+  // AIDL @utf8InCpp-annotated strings are on-wire UTF-8 rather than
+  // UTF-16. The preview path uses this to skip the String16
+  // transcoding step.
+  optional bool utf8_in_cpp = 15;
+
+  // For kind=ARRAY: fixed declared size (e.g. int[4] -> 4).
+  // For kind=VECTOR: the actual size written on the wire.
+  // Unset for other kinds.
+  optional uint32 element_count = 16;
+
+  // For kind=ARRAY / VECTOR: the element type without the []/<> wrap,
+  // e.g. "int", "android.os.ParcelFileDescriptor". Redundant with
+  // aidl_type but cheap to emit and avoids parsing.
+  optional string element_aidl_type = 17;
+
+  // AIDL argument direction: "in" (client->server), "out"
+  // (server->client), "inout". Unset for non-argument entries like
+  // parcelable fields. One of "in", "out", "inout".
+  optional string direction_marker = 18;
+
+  // For kind=PARCELABLE / TYPED_OBJECT, the AIDL @stability level
+  // from the parcelable declaration. Values: "local", "vintf",
+  // "system_current", "intra_partition".
+  optional string parcelable_stability = 19;
+
+  // For kind=FILE_DESCRIPTOR: the fstat-observed size in bytes of the
+  // fd at flush time. For ashmem fds this is the ashmem size. For
+  // pipes/sockets this is 0. Unset when we couldn't stat.
+  optional uint64 fd_size_bytes = 20;
+
+  // For kind=FILE_DESCRIPTOR: a coarse classifier observed at flush:
+  // "ashmem", "regular", "pipe", "socket", "chardev", "blockdev",
+  // "dir", "fifo", "unknown".
+  optional string fd_kind = 21;
+}

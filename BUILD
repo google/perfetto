@@ -2849,6 +2849,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/additional_modules.cc",
         "src/trace_processor/importers/proto/additional_modules.h",
+        "src/trace_processor/importers/proto/android_binder_parcel_module.cc",
+        "src/trace_processor/importers/proto/android_binder_parcel_module.h",
         "src/trace_processor/importers/proto/android_camera_event_module.cc",
         "src/trace_processor/importers/proto/android_camera_event_module.h",
         "src/trace_processor/importers/proto/android_cpu_per_uid_module.cc",
@@ -7798,6 +7800,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
         "protos/perfetto/trace/android/android_aflags.proto",
+        "protos/perfetto/trace/android/android_binder_parcel.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/android_system_property.proto",
