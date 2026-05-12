@@ -528,7 +528,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   int64_t display_frame_token = event.display_frame_token();
   double jank_severity_score = static_cast<double>(event.jank_severity_score());
   double jank_debug_metadata = static_cast<double>(event.jank_debug_metadata());
-  double animation_time_millis = static_cast<double>(event.animation_time_millis()));
+  double animation_time_millis =
+      static_cast<double>(event.animation_time_millis());
   double present_delay_millis =
       static_cast<double>(event.present_delay_millis());
   double vsync_resynced_jitter_millis =
@@ -655,7 +656,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
         }
         if (event.has_animation_time_millis()) {
           inserter->AddArg(animation_time_millis_id_,
-                         Variadic::Real(animation_time_millis));
+                           Variadic::Real(animation_time_millis));
         }
       });
 
