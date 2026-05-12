@@ -1060,6 +1060,24 @@ TEST_F(RwProtoTest, SerializeAsString) {
       SerializeAsString(data_trace_entry_with_two_elements_));
 }
 
+TEST_F(RwProtoTest, AccessNonRootFieldAfterDeleteAborts) {
+  auto cursor = data_empty_.GetRoot();
+  ASSERT_TRUE(cursor.EnterField(1).IsOk());
+  ASSERT_TRUE(cursor.Delete().IsOk());
+
+  ASSERT_TRUE(cursor.IsRoot().IsAbort());
+  ASSERT_TRUE(cursor.HasField(1).IsAbort());
+  ASSERT_TRUE(cursor.EnterField(1).IsAbort());
+  ASSERT_TRUE(cursor.EnterRepeatedFieldAt(1, 0).IsAbort());
+  ASSERT_TRUE(cursor.IterateRepeatedField(1).IsAbort());
+  ASSERT_TRUE(cursor.EnterRepeatedFieldByKey(1, 1, 0).IsAbort());
+  ASSERT_TRUE(cursor.GetScalar().IsAbort());
+  ASSERT_TRUE(cursor.SetBytes(protozero::ConstBytes{}).IsAbort());
+  ASSERT_TRUE(cursor.SetScalar(Scalar::Fixed32(0)).IsAbort());
+  ASSERT_TRUE(cursor.Merge(protozero::ConstBytes{}, 0).IsAbort());
+  ASSERT_TRUE(cursor.Delete().IsAbort());
+}
+
 }  // namespace test
 }  // namespace protovm
 }  // namespace perfetto
