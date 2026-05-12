@@ -17,9 +17,13 @@
 #include "perfetto/ext/profiling/smaps.h"
 
 #include <stdio.h>
+#include <cstdlib>
+#include <cstring>
 
 #include <deque>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/utils.h"
