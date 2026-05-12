@@ -31,6 +31,12 @@ interface FilteredTable {
   segments: FuzzySegment[];
 }
 
+// The literal SQL the user pastes / clicks Copy on. Single source
+// so the run-query, body, title, and Copy text can't drift.
+function includeStatement(includeKey: string): string {
+  return `INCLUDE PERFETTO MODULE ${includeKey};`;
+}
+
 function renderHighlightedName(segments: FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('span.pf-simple-table-list__highlight', value) : value,
@@ -81,7 +87,11 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             '.pf-simple-table-list__items',
             m(
               Accordion,
-              {multi: false},
+              // multi:true so the user can keep several tables expanded
+              // while comparing schemas — closing N-1 every time the
+              // user opens N got in the way of the typical flow
+              // (search → expand a few candidates → compare columns).
+              {multi: true},
               filteredTables.map(({table, segments}) =>
                 m(
                   AccordionSection,
@@ -89,6 +99,12 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                     key: table.name,
                     summary: m(
                       'code.pf-simple-table-list__item-name',
+                      // Long table names truncate with `…` in the
+                      // narrow sidebar (`text-overflow: ellipsis` on
+                      // the shared item style). The hover tooltip lets
+                      // the user read the full name without expanding
+                      // the section.
+                      {title: table.name},
                       renderHighlightedName(segments),
                     ),
                   },
@@ -103,12 +119,26 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     );
   }
 
+  private renderIncludeRow(includeKey: string): m.Children {
+    const include = includeStatement(includeKey);
+    return m(
+      '.pf-simple-table-list__detail-row',
+      m('span.pf-simple-table-list__detail-label', 'Include'),
+      m('code.pf-simple-table-list__detail-value', {title: include}, include),
+      m(CopyToClipboardButton, {
+        className: 'pf-show-on-hover',
+        textToCopy: include,
+        tooltip: 'Copy include string to clipboard',
+      }),
+    );
+  }
+
   private generateQuery(table: SqlTable): string {
     const lines: string[] = [];
 
     // Add INCLUDE statement if needed
     if (table.includeKey) {
-      lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
+      lines.push(includeStatement(table.includeKey));
       lines.push('');
     }
 
@@ -138,7 +168,16 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       m(
         '.pf-simple-table-list__detail-row',
         m('span.pf-simple-table-list__detail-label', 'Table name'),
-        m('code.pf-simple-table-list__detail-value', table.name),
+        // The detail-value column truncates with `…` on long names.
+        // Add a native tooltip with the full text so users can read
+        // them without copying. The Copy button is hover-revealed
+        // (pf-show-on-hover); the tooltip is the cheaper read-only
+        // affordance for "what does it actually say".
+        m(
+          'code.pf-simple-table-list__detail-value',
+          {title: table.name},
+          table.name,
+        ),
         m(CopyToClipboardButton, {
           className: 'pf-show-on-hover',
           textToCopy: table.name,
@@ -154,20 +193,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           }),
       ),
       // Module
-      table.includeKey &&
-        m(
-          '.pf-simple-table-list__detail-row',
-          m('span.pf-simple-table-list__detail-label', 'Include'),
-          m(
-            'code.pf-simple-table-list__detail-value',
-            `INCLUDE PERFETTO MODULE ${table.includeKey};`,
-          ),
-          m(CopyToClipboardButton, {
-            className: 'pf-show-on-hover',
-            textToCopy: `INCLUDE PERFETTO MODULE ${table.includeKey};`,
-            tooltip: 'Copy include string to clipboard',
-          }),
-        ),
+      table.includeKey && this.renderIncludeRow(table.includeKey),
 
       // Columns
       table.columns.length > 0 &&

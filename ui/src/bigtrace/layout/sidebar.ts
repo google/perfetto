@@ -17,11 +17,12 @@ import {assetSrc} from '../../base/assets';
 import {Icon} from '../../widgets/icon';
 import {getOrCreate} from '../../base/utils';
 import {classNames} from '../../base/classnames';
+import {setRoute} from '../router';
+import {Routes} from '../routes';
 
 const SIDEBAR_SECTIONS = {
   bigtrace: {
     title: 'BigTrace',
-    summary: 'Query and analyze large traces',
     defaultCollapsed: false,
   },
 } as const;
@@ -57,14 +58,16 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
           m(
             'h1',
             {
+              // Title clicks go home; setRoute keeps history/back working.
               style: {
                 margin: 0,
-                fontSize: '18px',
-                fontWeight: 'bold',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
+                cursor: 'pointer',
               },
+              title: 'Go to BigTrace home',
+              onclick: () => setRoute(Routes.HOME),
             },
             m('img', {
               src: assetSrc('assets/logo-128.png'),

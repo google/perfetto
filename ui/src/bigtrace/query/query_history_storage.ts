@@ -13,100 +13,97 @@
 // limitations under the License.
 
 import {endpointStorage} from '../settings/endpoint_storage';
+import {BigtraceQueryClient} from './bigtrace_query_client';
 import {QueryExecution} from './query_store';
 
+// Wire shape returned by the BigTrace backend for /query_executions and
+// /query_executions/{uuid}[:status]. Field set is documented in
+// `~/Projects/CLAUDE.md` (BigTrace Backend API section).
+//
+// Times are ISO-8601 strings; numeric counters are JS numbers; `limit` is a
+// number. The structure is `Readonly` to make wire-shape leaks into mutable
+// UI state explicit at the boundary.
 export interface RawQueryExecution {
-  queryUuid?: string;
-  status?: string;
-  startTime?: string;
-  endTime?: string;
-  processedRows?: number;
-  processedTraces?: number;
-  totalTraces?: number;
-  error?: string;
-  errorMessage?: string;
-  perfettoSql?: string;
-  limit?: string | number;
-  materialized?: boolean;
-  tableName?: string;
-  tableLink?: string;
+  readonly queryUuid?: string;
+  readonly status?: string;
+  readonly startTime?: string;
+  readonly endTime?: string;
+  readonly processedRows?: number;
+  readonly processedTraces?: number;
+  readonly totalTraces?: number;
+  readonly error?: string;
+  readonly errorMessage?: string;
+  readonly perfettoSql?: string;
+  readonly limit?: number;
+  readonly materialized?: boolean;
+  readonly tableName?: string;
+  readonly tableLink?: string;
+}
+
+// Convert an ISO-8601 string into epoch milliseconds, or undefined if the
+// input is missing or unparseable. Centralized so every layer gets the same
+// "invalid date → undefined" semantic instead of silently producing NaN.
+export function isoToEpochMs(iso: string | undefined): number | undefined {
+  if (iso === undefined) return undefined;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : undefined;
 }
 
 export class QueryHistoryStorage {
+  // Build a fresh client for each call so endpoint changes (via Settings)
+  // take effect without restarts. Constructing a BigtraceQueryClient is
+  // cheap — it just stashes the endpoint string.
+  private client(): BigtraceQueryClient {
+    const setting = endpointStorage.get('bigtraceEndpoint');
+    const endpoint = setting ? (setting.get() as string) : '';
+    return new BigtraceQueryClient(endpoint);
+  }
+
   async getAllHistory(): Promise<QueryExecution[]> {
-    return this.fetchHistory();
+    // No endpoint → return empty so the sidebar shows its "no queries
+    // yet" empty state instead of a 404 from the static UI server.
+    const setting = endpointStorage.get('bigtraceEndpoint');
+    const endpoint = setting ? (setting.get() as string) : '';
+    if (endpoint.trim() === '') return [];
+    const list = await this.client().listQueryExecutions();
+    const mapped = list.map(toQueryExecution);
+    mapped.sort((a, b) => (b.startTime ?? 0) - (a.startTime ?? 0));
+    return mapped;
   }
 
   async getMaterializedHistory(): Promise<QueryExecution[]> {
-    const all = await this.getAllHistory();
-    return all.filter((item) => item.materialized === true);
+    return (await this.getAllHistory()).filter(
+      (item) => item.materialized === true,
+    );
   }
 
   async getNonMaterializedHistory(): Promise<QueryExecution[]> {
-    const all = await this.getAllHistory();
-    return all.filter((item) => item.materialized !== true);
+    return (await this.getAllHistory()).filter(
+      (item) => item.materialized !== true,
+    );
   }
 
   async deleteQuery(uuid: string): Promise<void> {
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
-    const url = `${endpoint}/query_executions/${uuid}`;
-    const response = await fetch(url, {
-      method: 'DELETE',
-      credentials: 'include',
-      mode: 'cors',
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    await this.client().deleteQueryExecution(uuid);
   }
+}
 
-  private async fetchHistory(): Promise<QueryExecution[]> {
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
-    const url = `${endpoint}/query_executions`;
-    const response = await fetch(url, {
-      method: 'GET',
-      credentials: 'include',
-      mode: 'cors',
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const result = (await response.json()) as {
-      queryExecutions?: RawQueryExecution[];
-    };
-    const list =
-      result.queryExecutions !== undefined ? result.queryExecutions : [];
-
-    const mappedList: QueryExecution[] = list.map((raw) => ({
-      uuid: raw.queryUuid || '',
-      status: raw.status || 'UNKNOWN',
-      startTime:
-        raw.startTime !== undefined
-          ? new Date(raw.startTime).getTime()
-          : undefined,
-      endTime:
-        raw.endTime !== undefined ? new Date(raw.endTime).getTime() : undefined,
-      processedRows: raw.processedRows !== undefined ? raw.processedRows : 0,
-      processedTraces:
-        raw.processedTraces !== undefined ? raw.processedTraces : 0,
-      totalTraces: raw.totalTraces !== undefined ? raw.totalTraces : 0,
-      error: raw.error || raw.errorMessage,
-      perfettoSql: raw.perfettoSql,
-      limit: raw.limit !== undefined ? Number(raw.limit) : undefined,
-      materialized: raw.materialized,
-      tableName: raw.tableName,
-      tableLink: raw.tableLink,
-    }));
-
-    mappedList.sort((a, b) => {
-      const timeA = a.startTime !== undefined ? a.startTime : 0;
-      const timeB = b.startTime !== undefined ? b.startTime : 0;
-      return timeB - timeA;
-    });
-    return mappedList;
-  }
+function toQueryExecution(raw: RawQueryExecution): QueryExecution {
+  return {
+    uuid: raw.queryUuid ?? '',
+    status: raw.status ?? 'UNKNOWN',
+    startTime: isoToEpochMs(raw.startTime),
+    endTime: isoToEpochMs(raw.endTime),
+    processedRows: raw.processedRows ?? 0,
+    processedTraces: raw.processedTraces ?? 0,
+    totalTraces: raw.totalTraces ?? 0,
+    error: raw.error ?? raw.errorMessage,
+    perfettoSql: raw.perfettoSql,
+    limit: raw.limit,
+    materialized: raw.materialized,
+    tableName: raw.tableName,
+    tableLink: raw.tableLink,
+  };
 }
 
 export const queryHistoryStorage = new QueryHistoryStorage();

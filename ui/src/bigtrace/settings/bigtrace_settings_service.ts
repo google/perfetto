@@ -128,6 +128,14 @@ class BigTraceSettingsService {
     const endpointSetting = endpointStorage.get('bigtraceEndpoint');
     const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
 
+    // No endpoint → throw a clean message; the settings page renders
+    // it as a callout. (Otherwise a relative POST 404s on the UI server.)
+    if (endpoint.trim() === '') {
+      throw new Error(
+        'Set the BigTrace Endpoint above to load backend settings.',
+      );
+    }
+
     this.execConfigAbortController?.abort();
     this.execConfigAbortController = new AbortController();
 
@@ -182,6 +190,8 @@ class BigTraceSettingsService {
   ): Promise<SettingDescriptor<unknown>[]> {
     const endpointSetting = endpointStorage.get('bigtraceEndpoint');
     const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
+
+    if (endpoint.trim() === '') return [];
 
     this.metadataAbortController?.abort();
     this.metadataAbortController = new AbortController();

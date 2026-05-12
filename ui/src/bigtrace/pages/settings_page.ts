@@ -19,6 +19,7 @@ import m from 'mithril';
 import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Card, CardStack} from '../../widgets/card';
+import {Icon} from '../../widgets/icon';
 import {classNames} from '../../base/classnames';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {Setting as BigTraceSetting} from '../settings/settings_types';
@@ -64,6 +65,9 @@ class BigTraceSettingsCard
             className: 'pf-settings-card__toggle',
             style: {marginRight: '8px'},
             checked: !disabled,
+            title:
+              'Turn off to skip this filter — its value will not be ' +
+              'sent to the backend with subsequent queries.',
             onchange: (e: Event) => {
               const target = e.target as HTMLInputElement;
               onChange?.(!target.checked);
@@ -71,7 +75,6 @@ class BigTraceSettingsCard
           }),
         title,
       ]),
-      id && m('.pf-settings-card__id', id),
       description !== undefined &&
         m('.pf-settings-card__description', description),
     );
@@ -157,10 +160,24 @@ export class SettingsPage implements m.ClassComponent {
       categories.get(categoryName)!.push(setting);
     }
 
+    // Show a "no matches" hint when search hides everything except
+    // the always-shown General card.
+    const hasOtherMatches = settings.length > 0;
+    const showNoMatchesHint =
+      this.searchQuery !== '' &&
+      !hasOtherMatches &&
+      !bigTraceSettingsStorage.execConfigLoadError;
+
+    // Only force-create an empty Trace Metadata section when there's
+    // something to show inside it (a loading spinner or an error callout).
+    // If the backend simply returns no metadata settings, the section
+    // collapses entirely instead of rendering an empty header.
     if (
       this.searchQuery === '' &&
       !categories.has('Trace Metadata') &&
-      !bigTraceSettingsStorage.execConfigLoadError
+      !bigTraceSettingsStorage.execConfigLoadError &&
+      (bigTraceSettingsStorage.isMetadataLoading ||
+        bigTraceSettingsStorage.metadataLoadError)
     ) {
       categories.set('Trace Metadata', []);
     }
@@ -170,19 +187,11 @@ export class SettingsPage implements m.ClassComponent {
       {
         title: 'Settings',
         className: 'page',
+        // Reload-required affordance lives next to the endpoint
+        // input (renderEndpointControl), not in the header.
         stickyHeaderContent: m(
           Stack,
           {orientation: 'horizontal'},
-          endpointStorage.isReloadRequired() &&
-            m(Button, {
-              label: 'Reload required',
-              icon: 'refresh',
-              intent: Intent.Primary,
-              variant: ButtonVariant.Filled,
-              onclick: () => {
-                window.location.reload();
-              },
-            }),
           m(StackAuto),
           m(TextInput, {
             placeholder: 'Search...',
@@ -201,16 +210,6 @@ export class SettingsPage implements m.ClassComponent {
             icon: 'hourglass_empty',
             fillHeight: true,
           }),
-        bigTraceSettingsStorage.execConfigLoadError &&
-          m(
-            Callout,
-            {
-              intent: Intent.Danger,
-              icon: 'error',
-              title: 'Failed to Load Execution Configuration',
-            },
-            bigTraceSettingsStorage.execConfigLoadError,
-          ),
         Array.from(categories.entries()).map(([category, catSettings]) => {
           let categoryHeader: m.Children = m(
             'h2.pf-settings-page__plugin-title',
@@ -284,20 +283,57 @@ export class SettingsPage implements m.ClassComponent {
             categoryContent,
           );
         }),
+        // After the General card, so the callout's "Set the
+        // Endpoint above" copy points at a field above it.
+        bigTraceSettingsStorage.execConfigLoadError &&
+          m(
+            Callout,
+            {
+              intent: Intent.Danger,
+              icon: 'error',
+              title: 'Failed to Load Execution Configuration',
+            },
+            bigTraceSettingsStorage.execConfigLoadError,
+          ),
+        showNoMatchesHint &&
+          m(EmptyState, {
+            title: `No settings match "${this.searchQuery}"`,
+            icon: 'search_off',
+          }),
       ]),
     );
   }
 
   private renderEndpointControl(setting: Setting<unknown>) {
     const currentValue = setting.get() as string;
-    return m(TextInput, {
-      value: currentValue,
-      style: {width: 'min(300px, 30vw)'},
-      oninput: (e: Event) => {
-        const target = e.target as HTMLInputElement;
-        setting.set(target.value);
+    return m(
+      Stack,
+      {
+        orientation: 'horizontal',
+        gap: '8px',
+        alignItems: 'center',
+        style: {flexWrap: 'wrap', justifyContent: 'flex-end'},
       },
-    });
+      m(TextInput, {
+        value: currentValue,
+        placeholder: 'https://your-bigtrace-backend/v1',
+        style: {width: 'min(300px, 30vw)'},
+        oninput: (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          setting.set(target.value);
+        },
+      }),
+      // Endpoint is cached at module init; force a reload to apply
+      // changes.
+      endpointStorage.isReloadRequired() &&
+        m(Button, {
+          label: 'Reload to apply',
+          icon: 'refresh',
+          intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
+          onclick: () => window.location.reload(),
+        }),
+    );
   }
 
   private renderBigTraceSettingCard(setting: BigTraceSetting<unknown>) {
@@ -305,10 +341,73 @@ export class SettingsPage implements m.ClassComponent {
     const fullWidth =
       setting.type === 'string-array' ||
       (setting.type === 'string' && setting.format === 'sql');
+    // Flag enabled-but-empty filters upfront. Numeric settings are
+    // excluded because 0 is legit (= unlimited).
+    const needsValue =
+      !disabled &&
+      (setting.type === 'string' || setting.type === 'string-array');
+    let warning: string | undefined;
+    if (needsValue) {
+      const value = setting.get();
+      if (setting.type === 'string') {
+        if (typeof value === 'string' && value.trim() === '') {
+          warning = 'Required when this filter is enabled.';
+        }
+      } else if (setting.type === 'string-array') {
+        if (
+          !Array.isArray(value) ||
+          value.length === 0 ||
+          value.every((v) => typeof v === 'string' && v.trim() === '')
+        ) {
+          warning = 'Required when this filter is enabled.';
+        }
+      }
+    }
+    // "(unlimited)" hint on numeric settings whose description says
+    // "ignored if 0" — works for any setting following the convention.
+    let hint: string | undefined;
+    if (
+      !disabled &&
+      setting.type === 'number' &&
+      setting.get() === 0 &&
+      /ignored if 0/i.test(setting.description)
+    ) {
+      hint = '(unlimited)';
+    }
+    const description: m.Children = warning
+      ? [
+          setting.description,
+          m(
+            '.pf-settings-card__warning',
+            {
+              style: {
+                color: 'var(--pf-color-danger, #b00020)',
+                marginTop: '4px',
+              },
+            },
+            m(Icon, {
+              icon: 'warning',
+              style: {fontSize: '14px', verticalAlign: 'middle'},
+            }),
+            ' ',
+            warning,
+          ),
+        ]
+      : hint
+        ? [
+            setting.description,
+            ' ',
+            m(
+              'span.pf-settings-card__hint',
+              {style: {opacity: 0.7, fontStyle: 'italic'}},
+              hint,
+            ),
+          ]
+        : setting.description;
     return m(BigTraceSettingsCard, {
       id: setting.id,
       title: setting.name,
-      description: setting.description,
+      description,
       controls: renderSetting(setting),
       disabled,
       fullWidthControls: fullWidth,

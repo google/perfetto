@@ -61,7 +61,8 @@ export class SettingImpl<T> implements Setting<T> {
   }
 
   [Symbol.dispose](): void {
-    // Not implemented
+    // No resources owned — values live in LocalStorage. The method
+    // is required by `Setting<T> extends Disposable`.
   }
 }
 

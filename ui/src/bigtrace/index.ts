@@ -21,7 +21,7 @@ import {initLiveReload} from '../core/live_reload';
 import {settingsStorage} from './settings/settings_storage';
 import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
-import {QueryPage} from './pages/query_page';
+import {QueryPage, queryRightSidebarToggleFn} from './pages/query_page';
 import {HomePage} from './pages/home_page';
 import {bigTraceSettingsStorage} from './settings/bigtrace_settings_storage';
 import {queryState} from './query/query_state';
@@ -62,6 +62,11 @@ function setupContentSecurityPolicy() {
       `'self'`,
       'https://autopush-brush-googleapis.corp.google.com',
       'https://brush-googleapis.corp.google.com',
+      // Allow local reference backends (see tools/bigtrace_ref_backend in
+      // perfetto_2) so the UI can be developed against a mock without
+      // depending on the production endpoint.
+      'http://localhost:*',
+      'http://127.0.0.1:*',
     ],
     'img-src': [`'self'`, 'data:', 'blob:'],
     'style-src': [
@@ -265,10 +270,22 @@ function registerCommands() {
   });
 
   app.commands.registerCommand({
+    id: 'bigtrace.ToggleQueryRightSidebar',
+    name: 'Toggle query right sidebar (History / Stdlib Schemas)',
+    callback: () => {
+      queryRightSidebarToggleFn?.();
+    },
+    defaultHotkey: '!Mod+Shift+B',
+  });
+
+  app.commands.registerCommand({
     id: 'bigtrace.ShowHelp',
     name: 'Show help',
     callback: () => toggleHelp(),
-    defaultHotkey: '?',
+    // The '!' prefix lets '?' fire even when an editable element (the
+    // always-rendered topbar omnibox) has focus. preventDefault then
+    // stops the keystroke from being typed into the omnibox.
+    defaultHotkey: '!?',
   });
 }
 

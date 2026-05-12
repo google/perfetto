@@ -95,8 +95,7 @@ class SettingImpl<T> implements Setting<T> {
   }
 
   isDisabled(): boolean {
-    const state = this.disabledStateStorage.load()[this.id];
-    return state === undefined ? false : Boolean(state);
+    return Boolean(this.disabledStateStorage.load()[this.id]);
   }
 
   setDisabled(disabled: boolean): void {
@@ -107,7 +106,8 @@ class SettingImpl<T> implements Setting<T> {
   }
 
   [Symbol.dispose](): void {
-    // Not implemented
+    // No resources owned — values live in LocalStorage. The method
+    // is required by `Setting<T> extends Disposable`.
   }
 }
 
