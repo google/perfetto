@@ -18,10 +18,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 INCLUDE PERFETTO MODULE android.suspend;
 
 CREATE PERFETTO TABLE _kernel_wakelock_track AS
-SELECT
-  id,
-  name,
-  extract_arg(dimension_arg_set_id, 'wakelock_type') AS type
+SELECT id, name, extract_arg(dimension_arg_set_id, 'wakelock_type') AS type
 FROM track AS t
 WHERE
   type = 'android_kernel_wakelock';
@@ -29,21 +26,13 @@ WHERE
 -- Create a VIEW to defer the cost of counter_leading_intervals.
 -- This VIEW calculates the duration and value changes for kernel wakelock counters.
 CREATE PERFETTO VIEW _kernel_wakelock_intervals AS
-SELECT
-  ts,
-  dur,
-  track_id,
-  value,
-  next_value
+SELECT ts, dur, track_id, value, next_value
 FROM counter_leading_intervals!((
-    SELECT
-      id,
-      ts,
-      track_id,
-      value
+    SELECT id, ts, track_id, value
     FROM counter
-    WHERE track_id IN (SELECT id FROM _kernel_wakelock_track)
-));
+    WHERE
+      track_id IN (SELECT id FROM _kernel_wakelock_track)
+  ));
 
 -- This base table joins the interval data from the VIEW with the track information.
 -- The expensive computation from counter_leading_intervals is only triggered when this table
@@ -61,13 +50,13 @@ FROM _kernel_wakelock_intervals AS i
 JOIN _kernel_wakelock_track AS t
   ON t.id = i.track_id;
 
-CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join (_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
+CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join(_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
 
 -- Table of kernel (or native) wakelocks with held duration.
 --
 -- Subtracts suspended time from each period to calculate the
 -- fraction of awake time for which the wakelock was held.
-CREATE PERFETTO TABLE android_kernel_wakelocks (
+CREATE PERFETTO TABLE android_kernel_wakelocks(
   -- Timestamp of the start of the interval.
   ts TIMESTAMP,
   -- Duration of the interval.
@@ -82,7 +71,8 @@ CREATE PERFETTO TABLE android_kernel_wakelocks (
   held_dur DURATION,
   -- Fraction of the awake duration (awake_dur) that the wakelock was held.
   held_ratio DOUBLE
-) AS
+)
+AS
 WITH
   base AS (
     SELECT

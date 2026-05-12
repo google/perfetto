@@ -29,7 +29,7 @@ INCLUDE PERFETTO MODULE android.battery_stats;
 
 -- Table for app wakelocks sourced from SDK trace events.
 -- This is the preferred source.
-CREATE PERFETTO TABLE android_app_wakelocks_sdk (
+CREATE PERFETTO TABLE android_app_wakelocks_sdk(
   -- Start timestamp of the wakelock.
   ts TIMESTAMP,
   -- Duration of the wakelock. -1 if wakelock is not finished in trace.
@@ -46,7 +46,8 @@ CREATE PERFETTO TABLE android_app_wakelocks_sdk (
   work_uid LONG,
   -- PowerManager wakelock flags.
   flags LONG
-) AS
+)
+AS
 SELECT
   s.ts,
   s.dur,
@@ -64,7 +65,7 @@ WHERE
 
 -- Table for app wakelocks sourced from BatteryStats.
 -- This is a fallback for traces that do not contain the SDK events.
-CREATE PERFETTO TABLE android_app_wakelocks_batterystats (
+CREATE PERFETTO TABLE android_app_wakelocks_batterystats(
   -- Start timestamp of the wakelock.
   ts TIMESTAMP,
   -- Duration of the wakelock. -1 if wakelock is not finished in trace.
@@ -81,7 +82,8 @@ CREATE PERFETTO TABLE android_app_wakelocks_batterystats (
   work_uid LONG,
   -- PowerManager wakelock flags.
   flags LONG
-) AS
+)
+AS
 SELECT
   ts,
   dur,
@@ -98,7 +100,7 @@ WHERE
 -- Unified view for App Wakelocks.
 -- Prioritizes SDK over BatteryStats. If SDK events exist in the trace,
 -- only SDK events will be returned. Otherwise, it falls back to BatteryStats.
-CREATE PERFETTO VIEW android_app_wakelocks (
+CREATE PERFETTO VIEW android_app_wakelocks(
   -- Start timestamp of the wakelock.
   ts TIMESTAMP,
   -- Duration of the wakelock. -1 if wakelock is not finished in trace.
@@ -117,7 +119,8 @@ CREATE PERFETTO VIEW android_app_wakelocks (
   flags LONG,
   -- Which underlying data source this row comes from (sdk or battery_stats).
   data_source STRING
-) AS
+)
+AS
 -- 1. Select from SDK if it exists
 SELECT
   ts,
@@ -144,8 +147,4 @@ SELECT
   'battery_stats' AS data_source
 FROM android_app_wakelocks_batterystats
 WHERE
-  NOT EXISTS(
-    SELECT
-      1
-    FROM android_app_wakelocks_sdk
-  );
+  NOT EXISTS (SELECT 1 FROM android_app_wakelocks_sdk);

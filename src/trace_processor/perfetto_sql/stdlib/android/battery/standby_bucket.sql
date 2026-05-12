@@ -26,7 +26,7 @@
 -- }
 
 -- Table for raw App Standby Bucket change events from StatsD
-CREATE PERFETTO TABLE android_standby_bucket_changes (
+CREATE PERFETTO TABLE android_standby_bucket_changes(
   -- Timestamp of standby bucket change.
   ts TIMESTAMP,
   -- Package name of the app.
@@ -39,7 +39,8 @@ CREATE PERFETTO TABLE android_standby_bucket_changes (
   main_reason STRING,
   -- Sub reason for bucket change.
   sub_reason LONG
-) AS
+)
+AS
 SELECT
   s.ts,
   extract_arg(s.arg_set_id, 'app_standby_bucket_changed.package_name') AS package_name,
@@ -51,10 +52,11 @@ FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
 WHERE
-  t.name = 'Statsd Atoms' AND s.name = 'app_standby_bucket_changed';
+  t.name = 'Statsd Atoms'
+  AND s.name = 'app_standby_bucket_changed';
 
 -- View to get standby bucket intervals for each package
-CREATE PERFETTO VIEW android_standby_bucket (
+CREATE PERFETTO VIEW android_standby_bucket(
   -- Timestamp of standby bucket change.
   ts TIMESTAMP,
   -- Duration of standby bucket state.
@@ -69,14 +71,17 @@ CREATE PERFETTO VIEW android_standby_bucket (
   main_reason STRING,
   -- Sub reason for bucket change.
   sub_reason LONG
-) AS
+)
+AS
 SELECT
   ts,
-  lead(ts, 1, (
-    SELECT
-      end_ts
-    FROM trace_bounds
-  )) OVER (PARTITION BY package_name, user_id ORDER BY ts) - ts AS dur,
+  lead(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (
+    PARTITION BY
+      package_name,
+      user_id
+    ORDER BY ts
+  )
+  - ts AS dur,
   package_name,
   user_id,
   bucket,

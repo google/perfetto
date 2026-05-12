@@ -26,7 +26,7 @@
 -- }
 
 -- Table for raw App Freeze state change events from StatsD
-CREATE PERFETTO TABLE android_app_freeze_changes (
+CREATE PERFETTO TABLE android_app_freeze_changes(
   -- Timestamp of app freeze change.
   ts TIMESTAMP,
   -- PID of process.
@@ -39,7 +39,8 @@ CREATE PERFETTO TABLE android_app_freeze_changes (
   time_unfrozen_millis LONG,
   -- Reason for unfreezing.
   unfreeze_reason STRING
-) AS
+)
+AS
 SELECT
   s.ts,
   extract_arg(s.arg_set_id, 'app_freeze_changed.pid') AS pid,
@@ -51,10 +52,11 @@ FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
 WHERE
-  t.name = 'Statsd Atoms' AND s.name = 'app_freeze_changed';
+  t.name = 'Statsd Atoms'
+  AND s.name = 'app_freeze_changed';
 
 -- View to get app freezer state intervals
-CREATE PERFETTO VIEW android_app_freeze_state (
+CREATE PERFETTO VIEW android_app_freeze_state(
   -- Timestamp of app freeze state change.
   ts TIMESTAMP,
   -- Duration of app freeze state.
@@ -69,14 +71,16 @@ CREATE PERFETTO VIEW android_app_freeze_state (
   time_unfrozen_millis LONG,
   -- Reason for unfreezing.
   unfreeze_reason STRING
-) AS
+)
+AS
 SELECT
   ts,
-  lead(ts, 1, (
-    SELECT
-      end_ts
-    FROM trace_bounds
-  )) OVER (PARTITION BY pid ORDER BY ts) - ts AS dur,
+  lead(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (
+    PARTITION BY
+      pid
+    ORDER BY ts
+  )
+  - ts AS dur,
   pid,
   process_name,
   -- Directly use the 'action' column

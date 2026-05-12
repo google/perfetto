@@ -18,13 +18,14 @@
 -- The payload string is expected to be in a format like '{ key1=value1 key2="value2" ... }'.
 -- This function handles both quoted and unquoted values.
 CREATE PERFETTO FUNCTION android_common_extract_key_value_arg(
-    -- The string containing key-value pairs, typically from an ATrace event payload.
-    atrace_payload STRING,
-    -- The name of the key whose value is to be extracted.
-    key_name STRING
+  -- The string containing key-value pairs, typically from an ATrace event payload.
+  atrace_payload STRING,
+  -- The name of the key whose value is to be extracted.
+  key_name STRING
 )
 -- Returns the extracted value as a STRING, or NULL if the key is not found.
-RETURNS STRING AS
+RETURNS STRING
+AS
 WITH
   prep AS (
     SELECT
@@ -32,11 +33,7 @@ WITH
         $atrace_payload,
         instr($atrace_payload, $key_name || '=') + length($key_name || '=')
       ) AS payload_after_key
-    FROM (
-      SELECT
-        $atrace_payload,
-        $key_name
-    )
+    FROM (SELECT $atrace_payload, $key_name)
     WHERE
       $atrace_payload GLOB '*' || $key_name || '=*'
   ),
@@ -45,24 +42,23 @@ WITH
       payload_after_key,
       CASE
         -- Value starts with a quote
-        WHEN substr(payload_after_key, 1, 1) = '"'
-        THEN instr(substr(payload_after_key, 2), '"')
+        WHEN substr(payload_after_key, 1, 1) = '"' THEN instr(
+          substr(payload_after_key, 2),
+          '"'
+        )
         ELSE (
-          SELECT
-            min(pos)
+          SELECT min(pos)
           FROM (
-            SELECT
-              instr(payload_after_key || ' ', ' ') AS pos
+            SELECT instr(payload_after_key || ' ', ' ') AS pos
             UNION ALL
-            SELECT
-              instr(payload_after_key || '}', '}') AS pos
+            SELECT instr(payload_after_key || '}', '}') AS pos
           )
           WHERE
             pos > 0
-        ) - 1
+        )
+        - 1
       END AS end_idx
     FROM prep
   )
-SELECT
-  trim(replace(substr(payload_after_key, 1, end_idx), '"', ''))
+SELECT trim(replace(substr(payload_after_key, 1, end_idx), '"', ''))
 FROM extracted;

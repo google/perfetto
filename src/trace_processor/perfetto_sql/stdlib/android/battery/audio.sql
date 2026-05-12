@@ -29,14 +29,15 @@
 INCLUDE PERFETTO MODULE android.common.utils;
 
 -- Table for raw audio track interval events
-CREATE PERFETTO TABLE android_audio_track_interval_events (
+CREATE PERFETTO TABLE android_audio_track_interval_events(
   -- Timestamp of audio event.
   ts TIMESTAMP,
   -- Unique identifier for the audio stream.
   track_name STRING,
   -- Raw atrace payload.
   atrace_payload STRING
-) AS
+)
+AS
 SELECT
   s.ts,
   -- This is the unique identifier for the audio stream
@@ -49,7 +50,7 @@ WHERE
   t.name GLOB 'audio.track.interval.*';
 
 -- Parsed audio track events
-CREATE PERFETTO TABLE android_audio_track_parsed_events (
+CREATE PERFETTO TABLE android_audio_track_parsed_events(
   -- Timestamp of audio event.
   ts TIMESTAMP,
   -- Unique identifier for the audio stream.
@@ -84,7 +85,8 @@ CREATE PERFETTO TABLE android_audio_track_parsed_events (
   thread_sample_rate LONG,
   -- Thread format.
   thread_format STRING
-) AS
+)
+AS
 SELECT
   ts,
   track_name,
@@ -109,7 +111,7 @@ SELECT
 FROM android_audio_track_interval_events;
 
 -- View to get audio track usage intervals
-CREATE PERFETTO VIEW android_audio_track_state (
+CREATE PERFETTO VIEW android_audio_track_state(
   -- Timestamp of audio state change.
   ts TIMESTAMP,
   -- Duration of audio state.
@@ -144,7 +146,8 @@ CREATE PERFETTO VIEW android_audio_track_state (
   thread_sample_rate LONG,
   -- Thread format.
   thread_format STRING
-) AS
+)
+AS
 WITH
   audioevents AS (
     SELECT
@@ -153,32 +156,22 @@ WITH
     FROM android_audio_track_parsed_events
   ),
   audiostarts AS (
-    SELECT
-      *
+    SELECT *
     FROM audioevents
     WHERE
       event_type = 'beginInterval'
-      OR (
-        event_type = 'refreshInterval'
-        AND (
-          prev_event_type IS NULL OR prev_event_type = 'endInterval'
-        )
-      )
+      OR (event_type = 'refreshInterval'
+      AND (prev_event_type IS NULL OR prev_event_type = 'endInterval'))
   ),
   audioends AS (
-    SELECT
-      *
+    SELECT *
     FROM android_audio_track_parsed_events
     WHERE
       event_type = 'endInterval'
   )
 SELECT
   a_start.ts AS ts,
-  min(coalesce(a_end.ts, (
-    SELECT
-      end_ts
-    FROM trace_bounds
-  ))) - a_start.ts AS dur,
+  min(coalesce(a_end.ts, (SELECT end_ts FROM trace_bounds))) - a_start.ts AS dur,
   a_start.uid,
   a_start.pid,
   a_start.track_name,
@@ -196,7 +189,8 @@ SELECT
   a_start.thread_format
 FROM audiostarts AS a_start
 LEFT JOIN audioends AS a_end
-  ON a_start.track_name = a_end.track_name AND a_start.ts < a_end.ts
+  ON a_start.track_name = a_end.track_name
+  AND a_start.ts < a_end.ts
 GROUP BY
   a_start.track_name,
   a_start.ts

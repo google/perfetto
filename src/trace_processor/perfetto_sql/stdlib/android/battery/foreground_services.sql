@@ -26,7 +26,7 @@
 -- }
 
 -- Table for raw Foreground Service state change events from StatsD
-CREATE PERFETTO TABLE android_foreground_service_state_changes (
+CREATE PERFETTO TABLE android_foreground_service_state_changes(
   -- Timestamp of foreground service state change.
   ts TIMESTAMP,
   -- UID of process.
@@ -91,36 +91,73 @@ CREATE PERFETTO TABLE android_foreground_service_state_changes (
   fgs_start_api STRING,
   -- Whether FGS restriction was recalculated.
   fgs_restriction_recalculated BOOL
-) AS
+)
+AS
 SELECT
   s.ts,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.uid') AS uid,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.short_name') AS short_name,
   -- 'ENTER' or 'EXIT'
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.state') AS state,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.allow_while_in_use_permission') AS allow_while_in_use_permission,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_start_reason_code') AS fgs_start_reason_code,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.target_sdk_version') AS target_sdk_version,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.allow_while_in_use_permission'
+  ) AS allow_while_in_use_permission,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_start_reason_code'
+  ) AS fgs_start_reason_code,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.target_sdk_version'
+  ) AS target_sdk_version,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.calling_uid') AS calling_uid,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.caller_target_sdk_version') AS caller_target_sdk_version,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.temp_allow_list_calling_uid') AS temp_allow_list_calling_uid,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_notification_deferred') AS fgs_notification_deferred,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_notification_shown') AS fgs_notification_shown,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.caller_target_sdk_version'
+  ) AS caller_target_sdk_version,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.temp_allow_list_calling_uid'
+  ) AS temp_allow_list_calling_uid,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_notification_deferred'
+  ) AS fgs_notification_deferred,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_notification_shown'
+  ) AS fgs_notification_shown,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_duration_ms') AS fgs_duration_ms,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_start_count') AS fgs_start_count,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.short_name_hash') AS short_name_hash,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_has_notification_permission') AS fgs_has_notification_permission,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_has_notification_permission'
+  ) AS fgs_has_notification_permission,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_types') AS fgs_types,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_type_check_code') AS fgs_type_check_code,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_type_check_code'
+  ) AS fgs_type_check_code,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.is_delegate') AS is_delegate,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.delegate_client_uid') AS delegate_client_uid,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.delegation_service') AS delegation_service,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.delegate_client_uid'
+  ) AS delegate_client_uid,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.delegation_service'
+  ) AS delegation_service,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.api_state') AS api_state,
   extract_arg(
     s.arg_set_id,
     'foreground_service_state_changed.api_before_fgs_start_duration_millis'
   ) AS api_before_fgs_start_duration_millis,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.api_after_fgs_end_duration_millis') AS api_after_fgs_end_duration_millis,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.api_after_fgs_end_duration_millis'
+  ) AS api_after_fgs_end_duration_millis,
   extract_arg(
     s.arg_set_id,
     'foreground_service_state_changed.while_in_use_reason_code_no_binding'
@@ -133,22 +170,32 @@ SELECT
     s.arg_set_id,
     'foreground_service_state_changed.while_in_use_reason_code_by_bindings'
   ) AS while_in_use_reason_code_by_bindings,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_start_reason_code_no_binding') AS fgs_start_reason_code_no_binding,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_start_reason_code_no_binding'
+  ) AS fgs_start_reason_code_no_binding,
   extract_arg(
     s.arg_set_id,
     'foreground_service_state_changed.fgs_start_reason_code_in_bind_service'
   ) AS fgs_start_reason_code_in_bind_service,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_start_reason_code_by_bindings') AS fgs_start_reason_code_by_bindings,
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_start_reason_code_by_bindings'
+  ) AS fgs_start_reason_code_by_bindings,
   extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_start_api') AS fgs_start_api,
-  extract_arg(s.arg_set_id, 'foreground_service_state_changed.fgs_restriction_recalculated') AS fgs_restriction_recalculated
+  extract_arg(
+    s.arg_set_id,
+    'foreground_service_state_changed.fgs_restriction_recalculated'
+  ) AS fgs_restriction_recalculated
 FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
 WHERE
-  t.name = 'Statsd Atoms' AND s.name = 'foreground_service_state_changed';
+  t.name = 'Statsd Atoms'
+  AND s.name = 'foreground_service_state_changed';
 
 -- View to get foreground service state intervals
-CREATE PERFETTO VIEW android_foreground_service_state (
+CREATE PERFETTO VIEW android_foreground_service_state(
   -- Timestamp of foreground service state change.
   ts TIMESTAMP,
   -- Duration of foreground service state.
@@ -215,14 +262,17 @@ CREATE PERFETTO VIEW android_foreground_service_state (
   fgs_start_api STRING,
   -- Whether FGS restriction was recalculated.
   fgs_restriction_recalculated BOOL
-) AS
+)
+AS
 SELECT
   ts,
-  lead(ts, 1, (
-    SELECT
-      end_ts
-    FROM trace_bounds
-  )) OVER (PARTITION BY uid, short_name ORDER BY ts) - ts AS dur,
+  lead(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (
+    PARTITION BY
+      uid,
+      short_name
+    ORDER BY ts
+  )
+  - ts AS dur,
   uid,
   short_name,
   state,

@@ -29,26 +29,25 @@
 INCLUDE PERFETTO MODULE android.common.utils;
 
 -- Table for raw codec track instant events
-CREATE PERFETTO TABLE android_codec_events_raw (
+CREATE PERFETTO TABLE android_codec_events_raw(
   -- Timestamp of codec event.
   ts TIMESTAMP,
   -- Full track name, e.g., codec.track.state.c2.google.av1.decoder.123
   track_name STRING,
   -- Raw atrace payload, e.g., { event="allocated" pid=1234 uid=1001 }
   atrace_payload STRING
-) AS
-SELECT
-  s.ts,
-  t.name AS track_name,
-  s.name AS atrace_payload
+)
+AS
+SELECT s.ts, t.name AS track_name, s.name AS atrace_payload
 FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
 WHERE
-  t.name GLOB 'codec.track.*' AND s.dur = 0;
+  t.name GLOB 'codec.track.*'
+  AND s.dur = 0;
 
 -- Parsed codec track events
-CREATE PERFETTO TABLE android_codec_events (
+CREATE PERFETTO TABLE android_codec_events(
   -- Timestamp of codec event.
   ts TIMESTAMP,
   -- Full track name
@@ -80,7 +79,8 @@ CREATE PERFETTO TABLE android_codec_events (
   count LONG,
   -- Parsed from atrace_payload: Counter (from example)
   ctr LONG
-) AS
+)
+AS
 WITH
   codeceventshelper AS (
     SELECT
@@ -88,7 +88,8 @@ WITH
       track_name,
       atrace_payload,
       length('codec.track.') AS prefix_len,
-      instr(substr(track_name, length('codec.track.') + 1), '.') + length('codec.track.') AS dot2_pos,
+      instr(substr(track_name, length('codec.track.') + 1), '.')
+      + length('codec.track.') AS dot2_pos,
       length(track_name) - instr(reverse(track_name), '.') + 1 AS last_dot_pos
     FROM android_codec_events_raw
   )
