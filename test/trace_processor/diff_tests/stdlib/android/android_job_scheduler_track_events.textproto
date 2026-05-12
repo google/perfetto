@@ -1,0 +1,177 @@
+# Process and Thread descriptors
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  sequence_flags: 1 # INCREMENTAL_STATE_CLEARED
+  process_descriptor {
+    pid: 1000
+    process_name: "system_server"
+  }
+}
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  thread_descriptor {
+    pid: 1000
+    tid: 1001
+    thread_name: "JobScheduler"
+  }
+}
+
+# Track descriptor for JobScheduler
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_descriptor {
+    uuid: 1
+    name: "JobScheduler"
+  }
+}
+
+# Job 1: Scheduled at 2s
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    track_uuid: 1
+    categories: "jobscheduler"
+    name: "com.google.android.apps.photos/com.google.android.libraries.social.async.BackgroundTaskJobService#123"
+    type: TYPE_SLICE_BEGIN
+    debug_annotations {
+      name: "job_scheduler_job"
+      dict_entries {
+        name: "job_id"
+        int_value: 123
+      }
+      dict_entries {
+        name: "source_uid"
+        int_value: 10001
+      }
+      dict_entries {
+        name: "state"
+        int_value: 2 # SCHEDULED
+      }
+      dict_entries {
+        name: "standby_bucket"
+        int_value: 0 # ACTIVE
+      }
+      dict_entries {
+        name: "requested_priority"
+        int_value: 300 # PRIORITY_DEFAULT
+      }
+      dict_entries {
+         name: "job_state_flags"
+         int_value: 1 # HAS_CHARGING_CONSTRAINT
+      }
+    }
+  }
+}
+# END Scheduled at 4s
+packet {
+  timestamp: 4000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    track_uuid: 1
+    type: TYPE_SLICE_END
+  }
+}
+
+# Job 1: Started at 5s
+packet {
+  timestamp: 5000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    track_uuid: 1
+    categories: "jobscheduler"
+    name: "com.google.android.apps.photos/com.google.android.libraries.social.async.BackgroundTaskJobService#123"
+    type: TYPE_SLICE_BEGIN
+    debug_annotations {
+      name: "job_scheduler_job"
+      dict_entries {
+        name: "job_id"
+        int_value: 123
+      }
+      dict_entries {
+        name: "source_uid"
+        int_value: 10001
+      }
+      dict_entries {
+        name: "state"
+        int_value: 1 # STARTED
+      }
+      dict_entries {
+        name: "standby_bucket"
+        int_value: 0
+      }
+      dict_entries {
+        name: "effective_priority"
+        int_value: 300
+      }
+      dict_entries {
+        name: "num_previous_attempts"
+        int_value: 0
+      }
+      dict_entries {
+        name: "job_start_latency_ms"
+        int_value: 3000
+      }
+      dict_entries {
+         name: "job_state_flags"
+         int_value: 1
+      }
+    }
+  }
+}
+# END Started at 7s
+packet {
+  timestamp: 7000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    track_uuid: 1
+    type: TYPE_SLICE_END
+  }
+}
+
+# Job 1: Finished at 8s
+packet {
+  timestamp: 8000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    track_uuid: 1
+    categories: "jobscheduler"
+    name: "com.google.android.apps.photos/com.google.android.libraries.social.async.BackgroundTaskJobService#123"
+    type: TYPE_SLICE_BEGIN
+    debug_annotations {
+      name: "job_scheduler_job"
+      dict_entries {
+        name: "job_id"
+        int_value: 123
+      }
+      dict_entries {
+        name: "source_uid"
+        int_value: 10001
+      }
+      dict_entries {
+        name: "state"
+        int_value: 0 # FINISHED
+      }
+      dict_entries {
+        name: "internal_stop_reason"
+        int_value: 10 # SUCCESSFUL_FINISH
+      }
+      dict_entries {
+        name: "public_stop_reason"
+        int_value: 0 # UNDEFINED
+      }
+    }
+  }
+}
+# END Finished at 9s
+packet {
+  timestamp: 9000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    track_uuid: 1
+    type: TYPE_SLICE_END
+  }
+}
