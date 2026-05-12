@@ -621,6 +621,10 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
         inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
         inserter->AddArg(display_frame_token_id_,
                          Variadic::Integer(display_frame_token));
+        if (event.has_animation_time_millis()) {
+          inserter->AddArg(animation_time_millis_id_,
+                           Variadic::Real(animation_time_millis));
+        }
         inserter->AddArg(present_delay_millis_id_,
                          Variadic::Real(present_delay_millis));
         inserter->AddArg(vsync_resynced_jitter_millis_id_,
@@ -653,10 +657,6 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
               latched_fence_state_id_,
               Variadic::String(latched_fence_state_ids_[static_cast<size_t>(
                   event.latched_fence_state())]));
-        }
-        if (event.has_animation_time_millis()) {
-          inserter->AddArg(animation_time_millis_id_,
-                           Variadic::Real(animation_time_millis));
         }
       });
 
