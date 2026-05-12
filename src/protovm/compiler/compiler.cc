@@ -16,43 +16,48 @@
 
 #include "src/protovm/compiler/compiler.h"
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/protovm/compiler/compile_config.descriptor.h"
-#include "src/protovm/compiler/trace.descriptor.h"
-#include "src/protovm/compiler/winscope.descriptor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 
 namespace perfetto::protovm {
 
-Compiler::Compiler() : emitter_(&pool_) {
-  pool_.AddFromFileDescriptorSet(perfetto::kTraceDescriptor.data(),
-                                 perfetto::kTraceDescriptor.size());
-  pool_.AddFromFileDescriptorSet(perfetto::kWinscopeDescriptor.data(),
-                                 perfetto::kWinscopeDescriptor.size());
-  auto idx = pool_.FindDescriptorIdx(".perfetto.protos.TracePacket");
-  PERFETTO_CHECK(idx);
-  root_proto_ = &pool_.descriptors()[*idx];
-}
+Compiler::Compiler() : emitter_(&pool_) {}
 
 base::StatusOr<std::string> Compiler::Compile(
-    std::string_view config_textproto) {
-  auto status_or_proto =
+    std::string_view config_textproto,
+    std::string_view descriptor_bytes) {
+  RETURN_IF_ERROR(pool_.AddFromFileDescriptorSet(
+      reinterpret_cast<const uint8_t*>(descriptor_bytes.data()),
+      descriptor_bytes.size()));
+
+  ASSIGN_OR_RETURN(
+      auto proto,
       protozero::TextToProto(perfetto::kCompileConfigDescriptor.data(),
                              perfetto::kCompileConfigDescriptor.size(),
                              ".perfetto.protos.CompileConfig",
-                             "compile_config.textproto", config_textproto);
-  if (!status_or_proto.ok()) {
-    return base::ErrStatus("Failed to parse config: %s",
-                           status_or_proto.status().c_message());
+                             "compile_config.textproto", config_textproto));
+
+  protos::pbzero::CompileConfig::Decoder config(proto.data(), proto.size());
+  if (!config.has_root_message()) {
+    return base::ErrStatus("Config doesn't specify a root message");
   }
 
-  protos::pbzero::CompileConfig::Decoder config(status_or_proto->data(),
-                                                status_or_proto->size());
+  std::string root_message = config.root_message().ToStdString();
+  if (!root_message.empty() && root_message[0] != '.') {
+    root_message = "." + root_message;
+  }
+
+  auto idx = pool_.FindDescriptorIdx(root_message);
+  if (!idx) {
+    return base::ErrStatus("Root message '%s' not found in loaded descriptors",
+                           root_message.c_str());
+  }
+
+  auto* root_proto = &pool_.descriptors()[*idx];
   protozero::HeapBuffered<perfetto::protos::pbzero::VmProgram> program;
-  auto root =
-      InstructionEmitter::Scope{program.get(), root_proto_, root_proto_};
+  auto root = InstructionEmitter::Scope{program.get(), root_proto, root_proto};
   RETURN_IF_ERROR(ParseCommands(root, config.commands()));
   return program.SerializeAsString();
 }

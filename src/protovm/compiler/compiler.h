@@ -38,8 +38,8 @@ namespace perfetto::protovm {
 class Compiler {
  public:
   Compiler();
-
-  base::StatusOr<std::string> Compile(std::string_view config_textproto);
+  base::StatusOr<std::string> Compile(std::string_view config_textproto,
+                                      std::string_view descriptor_bytes);
 
  private:
   using AbortLevel = protos::pbzero::VmInstruction::AbortLevel;
@@ -77,7 +77,6 @@ class Compiler {
       const protos::pbzero::Command::Decoder& command) const;
 
   perfetto::trace_processor::DescriptorPool pool_;
-  const perfetto::trace_processor::ProtoDescriptor* root_proto_;
   InstructionEmitter emitter_;
 };
 

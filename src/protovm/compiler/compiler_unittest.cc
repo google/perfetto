@@ -21,7 +21,9 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/protovm/compiler/compiler.h"
+#include "src/protovm/compiler/trace.descriptor.h"
 #include "src/protovm/compiler/vm_program.descriptor.h"
+#include "src/protovm/compiler/winscope.descriptor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
@@ -45,8 +47,15 @@ class CompilerTest : public ::testing::Test {
   void CheckCompilation(std::string_view config_textproto,
                         std::string_view expected_instructions_textproto) {
     Compiler compiler;
+    std::string combined_descriptors =
+        std::string(
+            reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
+            perfetto::kTraceDescriptor.size()) +
+        std::string(
+            reinterpret_cast<const char*>(perfetto::kWinscopeDescriptor.data()),
+            perfetto::kWinscopeDescriptor.size());
     base::StatusOr<std::string> actual_instructions_binary =
-        compiler.Compile(config_textproto);
+        compiler.Compile(config_textproto, combined_descriptors);
     EXPECT_TRUE(actual_instructions_binary.ok())
         << actual_instructions_binary.status().message();
 
@@ -77,6 +86,7 @@ class CompilerTest : public ::testing::Test {
 
 TEST_F(CompilerTest, Set) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       set {
         src: "for_testing"
@@ -129,6 +139,7 @@ TEST_F(CompilerTest, Set) {
 
 TEST_F(CompilerTest, DelIfSrcPresent) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       del {
         src: "for_testing"
@@ -176,6 +187,7 @@ TEST_F(CompilerTest, DelIfSrcPresent) {
 
 TEST_F(CompilerTest, DelByKey) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       del {
         src: "for_testing"
@@ -238,6 +250,7 @@ TEST_F(CompilerTest, DelByKey) {
 
 TEST_F(CompilerTest, Merge) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       merge {
         src: "for_testing"
@@ -291,6 +304,7 @@ TEST_F(CompilerTest, Merge) {
 
 TEST_F(CompilerTest, MergeRecursive) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       merge {
         src: "for_testing"
@@ -369,6 +383,7 @@ TEST_F(CompilerTest, MergeRecursive) {
 
 TEST_F(CompilerTest, MergeByKey) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       merge {
         src: "for_testing"
@@ -441,6 +456,7 @@ TEST_F(CompilerTest, MergeByKey) {
 
 TEST_F(CompilerTest, EnterScope) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       enter_scope {
         src: "for_testing"
@@ -499,6 +515,7 @@ TEST_F(CompilerTest, AbortLevelTranslation) {
   for (auto [command_abort, instruction_abort] :
        command_to_instruction_abort_level) {
     std::string config = R"(
+      root_message: "perfetto.protos.TracePacket"
       commands {
         set {
           src: "for_testing"
@@ -537,6 +554,7 @@ TEST_F(CompilerTest, AbortLevelTranslation) {
 
 TEST_F(CompilerTest, ErrorInvalidFieldName) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       set {
         src: "for_testing"
@@ -549,7 +567,14 @@ TEST_F(CompilerTest, ErrorInvalidFieldName) {
     })";
 
   auto compiler = Compiler{};
-  auto status_or = compiler.Compile(config);
+  std::string combined_descriptors =
+      std::string(
+          reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
+          perfetto::kTraceDescriptor.size()) +
+      std::string(
+          reinterpret_cast<const char*>(perfetto::kWinscopeDescriptor.data()),
+          perfetto::kWinscopeDescriptor.size());
+  auto status_or = compiler.Compile(config, combined_descriptors);
   EXPECT_FALSE(status_or.ok());
   EXPECT_THAT(
       status_or.status().message(),
@@ -558,6 +583,7 @@ TEST_F(CompilerTest, ErrorInvalidFieldName) {
 
 TEST_F(CompilerTest, EmptyPath) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       set {}
     }
@@ -605,6 +631,7 @@ TEST_F(CompilerTest, EmptyPath) {
 
 TEST_F(CompilerTest, CanResolveWinscopeExtensionsProtos) {
   std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
     commands {
       set {
         src: "for_testing"

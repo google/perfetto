@@ -19,15 +19,19 @@ syntax = "proto2";
 package perfetto.protos;
 
 message CompileConfig {
-  repeated Command commands = 1;
+  // The fully qualified name of the root message. E.g.
+  // "perfetto.protos.TracePacket". All the paths in the compiler commands are
+  // relative to this message.
+  optional string root_message = 1;
+  repeated Command commands = 2;
 }
 
 message Command {
   oneof command {
     DelCommand del = 1;
     EnterScopeCommand enter_scope = 2;
-    SetCommand set = 3;
-    MergeCommand merge = 4;
+    MergeCommand merge = 3;
+    SetCommand set = 4;
   }
 
   enum AbortLevel {
@@ -54,14 +58,14 @@ message EnterScopeCommand {
   repeated Command commands = 3;
 }
 
-message SetCommand {
-  repeated string src = 1;
-  repeated string dst = 2;
-}
-
 message MergeCommand {
   repeated string src = 1;
   repeated string dst = 2;
   optional bool recursive = 3;
   optional string key_field = 4;
+}
+
+message SetCommand {
+  repeated string src = 1;
+  repeated string dst = 2;
 }
