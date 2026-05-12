@@ -23,7 +23,7 @@ import {formatDuration} from '../../components/time_utils';
 import type {NavState, NavView} from './nav_state';
 import type {OverviewData} from './types';
 import * as queries from './queries';
-import OverviewView, {HIDE_DEFAULT_CHANGED_KEY} from './views/overview_view';
+import OverviewView from './views/overview_view';
 import DominatorsView from './views/dominators_view';
 import ObjectView from './views/object_view';
 import AllObjectsView from './views/all_objects_view';
@@ -111,10 +111,8 @@ function buildTabs(
   overview: OverviewData,
 ): TabsTab[] {
   const {engine, trace, navigateWithTabs, clearNavParam} = session;
-  const hideExplanationSetting = trace.settings.get<boolean>(
-    HIDE_DEFAULT_CHANGED_KEY,
-  );
-  const hideHint = hideExplanationSetting?.get() ?? false;
+  const hideExplanationSetting = session.hideDefaultChangedHint;
+  const hideHint = hideExplanationSetting.get();
   const tabs: TabsTab[] = [
     {
       key: 'overview',
@@ -125,7 +123,7 @@ function buildTabs(
         navigate: navigateWithTabs,
         showDefaultChangedHint: session.autoNavigated && !hideHint,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
-        onDismissDefaultChangedHint: () => hideExplanationSetting?.set(true),
+        onDismissDefaultChangedHint: () => hideExplanationSetting.set(true),
       }),
     },
     {
