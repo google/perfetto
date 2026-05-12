@@ -14,7 +14,7 @@
 
 @import "../theme";
 
-.pf-segmented-buttons {
+.pf-radio-group {
   display: inline-flex;
   flex-direction: row;
   align-items: baseline;
@@ -41,17 +41,18 @@
   &--fill-width {
     display: flex;
 
-    .pf-segmented-button {
+    .pf-radio-group__button {
       flex: 1;
     }
   }
 
-  .pf-segmented-button {
+  .pf-radio-group__button {
     border-radius: $border-radius;
     background: transparent;
-    color: var(--pf-color-text-muted);
+    color: var(--pf-color-text-hint);
     display: inline-flex;
     align-items: baseline;
+    justify-content: center;
     padding: 3px 8px;
     cursor: pointer;
 
@@ -61,11 +62,7 @@
     }
 
     &:hover {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 10%
-      );
+      color: var(--pf-color-text);
     }
 
     &.pf-active {

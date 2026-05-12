@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "src/trace_processor/containers/implicit_segment_forest.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 
@@ -70,8 +70,14 @@ struct SliceMipmapOperator : sqlite::Module<SliceMipmapOperator> {
     std::vector<PerDepth> by_depth;
   };
   struct Context : sqlite::ModuleStateManager<SliceMipmapOperator> {
-    explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
-    PerfettoSqlEngine* engine;
+    explicit Context(PerfettoSqlConnection* _connection)
+        : sqlite::ModuleStateManager<SliceMipmapOperator>(
+              owned_committed_store_),
+          connection(_connection) {}
+    PerfettoSqlConnection* connection;
+
+   private:
+    sqlite::CommittedStateManager owned_committed_store_;
   };
   struct Vtab : sqlite::Module<SliceMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<SliceMipmapOperator>::PerVtabState* state;

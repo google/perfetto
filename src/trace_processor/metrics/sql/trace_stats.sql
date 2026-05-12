@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- TraceAnalysisStats carries one Stat entry per (name, idx). The `stats`
+-- view emits one row per (name, idx, machine_id, trace_id), so we sum
+-- `value` across the (machine_id, trace_id).
 DROP VIEW IF EXISTS trace_stats_output;
 CREATE PERFETTO VIEW trace_stats_output AS
 SELECT TraceAnalysisStats(
@@ -21,7 +24,7 @@ SELECT TraceAnalysisStats(
     SELECT RepeatedField(TraceAnalysisStats_Stat(
       'name', name,
       'idx', idx,
-      'count', value,
+      'count', total_value,
       'source', CASE source
         WHEN 'trace' THEN 'SOURCE_TRACE'
         WHEN 'analysis' THEN 'SOURCE_ANALYSIS'
@@ -34,6 +37,11 @@ SELECT TraceAnalysisStats(
         ELSE 'SEVERITY_UNKNOWN'
       END
       ))
-    FROM stats ORDER BY name ASC
+    FROM (
+      SELECT name, idx, source, severity, SUM(value) AS total_value
+      FROM stats
+      GROUP BY name, idx, source, severity
+      ORDER BY name ASC
+    )
   )
 );

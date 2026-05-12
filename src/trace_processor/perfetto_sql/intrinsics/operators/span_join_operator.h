@@ -32,11 +32,11 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 struct SpanJoinOperatorModule;
 
 // Implements the SPAN JOIN operation between two tables on a particular column.
@@ -117,7 +117,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
                     std::optional<uint32_t> dur_idx,
                     uint32_t partition_idx);
 
-    static base::Status Create(PerfettoSqlEngine* engine,
+    static base::Status Create(PerfettoSqlConnection* connection,
                                const TableDescriptor& desc,
                                EmitShadowType emit_shadow_type,
                                TableDefinition* defn);
@@ -340,7 +340,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     int64_t missing_partition_end_ = 0;
 
     std::string sql_query_;
-    std::optional<SqliteEngine::PreparedStatement> stmt_;
+    std::optional<SqliteConnection::PreparedStatement> stmt_;
 
     const TableDefinition* defn_ = nullptr;
     Vtab* vtab_ = nullptr;
@@ -373,9 +373,10 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
   };
 
   struct Context {
-    explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
+    explicit Context(PerfettoSqlConnection* _connection)
+        : connection(_connection) {}
 
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
   };
   struct Vtab : public sqlite3_vtab {
     bool IsLeftJoin() const {
@@ -398,7 +399,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
 
     void PopulateColumnLocatorMap(uint32_t);
 
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
     std::string module_name;
     std::string create_table_stmt;
     TableDefinition t1_defn;

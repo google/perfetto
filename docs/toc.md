@@ -54,6 +54,7 @@
     - [Tracing across Reboots](data-sources/previous-boot-trace.md) {.tag-android .tag-linux}
     - [Custom Proto Extensions](instrumentation/extensions.md) {.tag-cpp-rust .tag-android .tag-perf}
     - [heapprofd API](instrumentation/heapprofd-api.md) {.tag-cpp-rust}
+    - [Multi-machine recording](learning-more/multi-machine-tracing.md) {.tag-android .tag-linux}
 
   - [Data Sources](#)
 
@@ -156,6 +157,7 @@
     - [Detached Mode](concepts/detached-mode.md) {.tag-android}
     - [Interceptors](instrumentation/interceptors.md) {.tag-cpp-rust}
     - [Legacy (v1) Metrics](analysis/metrics.md) {.tag-android}
+    - [Multi-machine architecture](deployment/multi-machine-architecture.md) {.tag-android .tag-linux}
     - [BigTrace (Single Machine)](deployment/deploying-bigtrace-on-a-single-machine.md) {.tag-android .tag-perf}
     - [BigTrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md) {.tag-android .tag-perf}
 

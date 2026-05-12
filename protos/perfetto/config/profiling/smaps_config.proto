@@ -1,0 +1,46 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Config for collecting /proc/pid/smaps.
+message SmapsConfig {
+  enum VmaField {
+    VMA_FIELD_UNKNOWN = 0;
+    VMA_FIELD_SIZE = 1;
+    VMA_FIELD_RSS = 2;
+    VMA_FIELD_ANONYMOUS = 3;
+    VMA_FIELD_SWAP = 4;
+    VMA_FIELD_SHARED_CLEAN = 5;
+    VMA_FIELD_SHARED_DIRTY = 6;
+    VMA_FIELD_PRIVATE_CLEAN = 7;
+    VMA_FIELD_PRIVATE_DIRTY = 8;
+    VMA_FIELD_LOCKED = 9;
+    VMA_FIELD_PSS = 10;
+    VMA_FIELD_PSS_DIRTY = 11;
+    VMA_FIELD_SWAP_PSS = 12;
+  }
+
+  // Set of fields to collect.
+  // If unset, defaults to: size, rss, anonymous, swap.
+  repeated VmaField vma_fields = 1;
+
+  // If false, mappings are aggregated by their path name.
+  // If true, each mapping is serialised separately.
+  optional bool unaggregated = 2;
+}

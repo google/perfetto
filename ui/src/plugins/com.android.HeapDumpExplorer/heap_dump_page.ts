@@ -111,6 +111,8 @@ function buildTabs(
   overview: OverviewData,
 ): TabsTab[] {
   const {engine, trace, navigateWithTabs, clearNavParam} = session;
+  const hideExplanationSetting = session.hideDefaultChangedHint;
+  const hideHint = hideExplanationSetting.get();
   const tabs: TabsTab[] = [
     {
       key: 'overview',
@@ -119,6 +121,9 @@ function buildTabs(
         overview,
         activeDump,
         navigate: navigateWithTabs,
+        showDefaultChangedHint: session.autoNavigated && !hideHint,
+        onBackToTimeline: () => trace.navigate('#!/viewer'),
+        onDismissDefaultChangedHint: () => hideExplanationSetting.set(true),
       }),
     },
     {

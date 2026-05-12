@@ -28,25 +28,25 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
 // The implementation of the SqliteTableLegacy interface for table functions
 // defined at runtime using SQL.
 struct RuntimeTableFunctionModule
     : public sqlite::Module<RuntimeTableFunctionModule> {
   struct State {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
     SqlSource sql_defn_str;
 
     FunctionPrototype prototype;
     std::vector<sql_argument::ArgumentDefinition> return_values;
 
-    std::optional<SqliteEngine::PreparedStatement> temporary_create_stmt;
+    std::optional<SqliteConnection::PreparedStatement> temporary_create_stmt;
 
     bool IsReturnValueColumn(size_t i) const {
       PERFETTO_DCHECK(i < TotalColumnCount());
@@ -71,14 +71,16 @@ struct RuntimeTableFunctionModule
     }
   };
   struct Context : sqlite::ModuleStateManager<RuntimeTableFunctionModule> {
+    explicit Context(sqlite::CommittedStateManager& store)
+        : sqlite::ModuleStateManager<RuntimeTableFunctionModule>(store) {}
     std::unique_ptr<State> temporary_create_state;
   };
   struct Vtab : sqlite::Module<RuntimeTableFunctionModule>::Vtab {
     sqlite::ModuleStateManager<RuntimeTableFunctionModule>::PerVtabState* state;
-    std::optional<SqliteEngine::PreparedStatement> reusable_stmt;
+    std::optional<SqliteConnection::PreparedStatement> reusable_stmt;
   };
   struct Cursor : sqlite::Module<RuntimeTableFunctionModule>::Cursor {
-    std::optional<SqliteEngine::PreparedStatement> stmt;
+    std::optional<SqliteConnection::PreparedStatement> stmt;
     bool is_eof = false;
     int next_call_count = 0;
   };

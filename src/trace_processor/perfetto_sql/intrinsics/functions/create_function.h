@@ -26,7 +26,7 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 
 // Implementation of CREATE_FUNCTION SQL function.
 // See https://perfetto.dev/docs/analysis/metrics#metric-helper-functions for
@@ -35,7 +35,7 @@ struct CreateFunction : public sqlite::Function<CreateFunction> {
   static constexpr char kName[] = "create_function";
   static constexpr int kArgCount = 3;
 
-  using UserData = PerfettoSqlEngine;
+  using UserData = PerfettoSqlConnection;
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
@@ -48,7 +48,7 @@ struct ExperimentalMemoize : public sqlite::Function<ExperimentalMemoize> {
   static constexpr char kName[] = "experimental_memoize";
   static constexpr int kArgCount = 1;
 
-  using UserData = PerfettoSqlEngine;
+  using UserData = PerfettoSqlConnection;
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 

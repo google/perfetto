@@ -25,6 +25,7 @@
 #include "src/kernel_utils/kernel_wakelock_errors.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/android_kernel_wakelocks_state.h"
@@ -75,7 +76,7 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
     auto [info, inserted] = state->wakelocks.Insert(
         wakelock.wakelock_id(), AndroidKernelWakelockState::Metadata{});
     if (!inserted) {
-      context_->storage->IncrementStats(stats::kernel_wakelock_reused_id);
+      context_->stats_tracker->IncrementStats(stats::kernel_wakelock_reused_id);
       continue;
     }
     info->name = name;
@@ -90,7 +91,8 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
        ++it, ++time_it) {
     auto* data = state->wakelocks.Find(*it);
     if (!data) {
-      context_->storage->IncrementStats(stats::kernel_wakelock_unknown_id);
+      context_->stats_tracker->IncrementStats(
+          stats::kernel_wakelock_unknown_id);
       continue;
     }
 
@@ -107,15 +109,15 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
 
   uint64_t traced_errors = evt.error_flags();
   if (traced_errors & kKernelWakelockErrorZeroValue) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::kernel_wakelock_zero_value_reported);
   }
   if (traced_errors & kKernelWakelockErrorNonMonotonicValue) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::kernel_wakelock_non_monotonic_value_reported);
   }
   if (traced_errors & kKernelWakelockErrorImplausiblyLargeValue) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::kernel_wakelock_implausibly_large_value_reported);
   }
 

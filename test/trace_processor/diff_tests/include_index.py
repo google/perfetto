@@ -75,7 +75,6 @@ from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.etw.tests import Etw
 from diff_tests.parser.fs.tests import Fs
-from diff_tests.parser.ftrace.adreno_cmdbatch_tests import AdrenoCmdbatch
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
@@ -153,6 +152,7 @@ from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
 from diff_tests.stdlib.linux.tests import LinuxTests
+from diff_tests.stdlib.metasql.tests import StdlibMetasql
 from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
@@ -266,7 +266,6 @@ def fetch_all_diff_tests(
       ParsingRssStats,
       ParsingSysStats,
       ParsingMemoryCounters,
-      AdrenoCmdbatch,
       BlockIo,
       FtraceCrop,
       Kprobes,
@@ -351,6 +350,7 @@ def fetch_all_diff_tests(
       Stacks,
       CreateIntervals,
       StdlibIntervals,
+      StdlibMetasql,
       SystemUICujs,
       IntervalsIntersect,
       Startups,

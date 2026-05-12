@@ -26,7 +26,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
@@ -34,7 +34,7 @@ namespace perfetto::trace_processor {
 
 IteratorImpl::IteratorImpl(
     TraceProcessorImpl* trace_processor,
-    base::StatusOr<PerfettoSqlEngine::ExecutionResult> result,
+    base::StatusOr<PerfettoSqlConnection::ExecutionResult> result,
     uint32_t sql_stats_row)
     : trace_processor_(trace_processor),
       result_(std::move(result)),

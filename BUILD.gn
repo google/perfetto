@@ -201,8 +201,12 @@ if (perfetto_build_standalone) {
   if (is_linux || is_android || is_mac || is_freebsd) {
     all_targets += [ "src/tracebox" ]
   }
+}
 
-  # This is needed by `tools/gen_c_protos`.
+# Needed by `tools/gen_c_protos` (standalone) and `tools/gen_android_bp`
+# (generator), which lists the host target in default_targets so Soong gets a
+# cc_binary_host for Android-tree .pzc.h codegen.
+if (perfetto_build_standalone || is_perfetto_build_generator) {
   all_targets += [ "src/protozero/protoc_plugin:protozero_c_plugin" ]
 }
 

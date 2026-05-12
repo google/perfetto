@@ -29,7 +29,7 @@ namespace perfetto::trace_processor {
 void Import::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 1);
 
-  auto* engine = GetUserData(ctx);
+  auto* connection = GetUserData(ctx);
 
   if (sqlite::value::Type(argv[0]) != sqlite::Type::kText) {
     return sqlite::utils::SetError(ctx, "IMPORT: argument must be string");
@@ -37,7 +37,7 @@ void Import::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
   const char* import_key = sqlite::value::Text(argv[0]);
   base::StackString<1024> create("INCLUDE PERFETTO MODULE %s;", import_key);
-  auto status = engine
+  auto status = connection
                     ->Execute(SqlSource::FromTraceProcessorImplementation(
                         create.ToStdString()))
                     .status();

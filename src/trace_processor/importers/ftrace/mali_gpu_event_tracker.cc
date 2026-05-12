@@ -23,6 +23,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -155,7 +156,7 @@ void MaliGpuEventTracker::ParseMaliGpuMcuStateEvent(int64_t timestamp,
 
   StringId state_name = mcu_state_names_[field_id - kFirstMcuStateId];
   if (state_name == kNullStringId) {
-    context_->storage->IncrementStats(stats::mali_unknown_mcu_state_id);
+    context_->stats_tracker->IncrementStats(stats::mali_unknown_mcu_state_id);
     return;
   }
 

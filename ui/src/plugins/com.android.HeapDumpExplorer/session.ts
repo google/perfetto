@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
+import type {Setting} from '../../public/settings';
 import {NUM} from '../../trace_processor/query_result';
 
 import {SQL_PREAMBLE} from './components';
@@ -83,9 +84,14 @@ export class HeapDumpExplorerSession {
   // opens with defaults instead of the prior dump's filters.
   private _flamegraphPanelState: FlamegraphState | undefined;
 
+  // Set when the plugin auto-redirected to HDE on load; gates the
+  // "default view changed" hint on the overview.
+  autoNavigated = false;
+
   constructor(
     readonly trace: Trace,
     readonly engine: Engine,
+    readonly hideDefaultChangedHint: Setting<boolean>,
   ) {}
 
   get dumps(): ReadonlyArray<queries.HeapDump> {

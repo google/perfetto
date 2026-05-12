@@ -23,9 +23,11 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -65,12 +67,18 @@ class SliceTrackerTest : public ::testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(context_.storage.get());
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(context_.storage.get());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
   }
 
  protected:
@@ -386,37 +394,40 @@ TEST_F(SliceTrackerTest, DifferentTracks) {
 TEST_F(SliceTrackerTest, EndEventOutOfOrder) {
   SliceTracker tracker(&context_);
 
+  // Intern real strings rather than passing raw StringIds: this test
+  // exercises the out-of-order branch in MaybeCloseStack which DLOGs the
+  // slice name through TraceStorage::GetString. Raw / unregistered ids
+  // trip the NullTermStringView CHECK in debug builds because
+  // StringPool::Get returns a view into arbitrary arena memory.
+  const StringId cat_a = context_.storage->InternString("cat_a");
+  const StringId cat_b = context_.storage->InternString("cat_b");
+  const StringId cat_c = context_.storage->InternString("cat_c");
+  const StringId name_a = context_.storage->InternString("name_a");
+  const StringId name_b = context_.storage->InternString("name_b");
+  const StringId name_c = context_.storage->InternString("name_c");
+
   constexpr TrackId track{22u};
-  tracker.Scoped(50 /*ts*/, track, StringId::Raw(11) /*cat*/,
-                 StringId::Raw(21) /*name*/, 100 /*dur*/);
-  tracker.Begin(100 /*ts*/, track, StringId::Raw(12) /*cat*/,
-                StringId::Raw(22) /*name*/);
+  tracker.Scoped(50 /*ts*/, track, cat_a, name_a, 100 /*dur*/);
+  tracker.Begin(100 /*ts*/, track, cat_b, name_b);
 
   // This slice should now have depth 0.
-  tracker.Scoped(450 /*ts*/, track, StringId::Raw(12) /*cat*/,
-                 StringId::Raw(22) /*name*/, 100 /*dur*/);
+  tracker.Scoped(450 /*ts*/, track, cat_b, name_b, 100 /*dur*/);
 
   // This slice should be ignored.
-  tracker.End(500 /*ts*/, track, StringId::Raw(12) /*cat*/,
-              StringId::Raw(22) /*name*/);
+  tracker.End(500 /*ts*/, track, cat_b, name_b);
 
-  tracker.Begin(800 /*ts*/, track, StringId::Raw(13) /*cat*/,
-                StringId::Raw(23) /*name*/);
+  tracker.Begin(800 /*ts*/, track, cat_c, name_c);
   // Null cat and name matches everything.
   tracker.End(1000 /*ts*/, track, kNullStringId /*cat*/,
               kNullStringId /*name*/);
 
   // Slice will not close if category is different.
-  tracker.Begin(1100 /*ts*/, track, StringId::Raw(11) /*cat*/,
-                StringId::Raw(21) /*name*/);
-  tracker.End(1200 /*ts*/, track, StringId::Raw(12) /*cat*/,
-              StringId::Raw(21) /*name*/);
+  tracker.Begin(1100 /*ts*/, track, cat_a, name_a);
+  tracker.End(1200 /*ts*/, track, cat_b, name_a);
 
   // Slice will not close if name is different.
-  tracker.Begin(1300 /*ts*/, track, StringId::Raw(11) /*cat*/,
-                StringId::Raw(21) /*name*/);
-  tracker.End(1400 /*ts*/, track, StringId::Raw(11) /*cat*/,
-              StringId::Raw(22) /*name*/);
+  tracker.Begin(1300 /*ts*/, track, cat_a, name_a);
+  tracker.End(1400 /*ts*/, track, cat_a, name_b);
 
   tracker.FlushPendingSlices();
 
