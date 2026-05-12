@@ -808,7 +808,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "android.hardware.atrace@1.0",
-        "android.hardware.health-V2-ndk",
+        "android.hardware.health-V5-ndk",
         "android.hardware.health@2.0",
         "android.hardware.power.stats-V1-cpp",
         "android.hardware.power.stats@1.0",
@@ -23159,8 +23159,8 @@ phony {
                 // TODO(primiano): uncomment after ag/38422283 lands.
                 // "system_tracing_protos_descriptor",
             ],
-        }
-    }
+        },
+    },
 }
 
 filegroup {

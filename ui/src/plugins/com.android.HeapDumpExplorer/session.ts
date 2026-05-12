@@ -50,6 +50,8 @@ interface InstanceTab {
   readonly id: number;
   readonly objId: number;
   readonly label: string;
+  readonly currentId: number | null;
+  readonly baselineId: number | null;
 }
 
 const INSTANCE_LABEL_MAX = 30;
@@ -148,6 +150,8 @@ export class HeapDumpExplorerSession {
       this.openInstanceTab(
         params?.id as number,
         params?.label as string | undefined,
+        params?.currentId as number | null | undefined,
+        params?.baselineId as number | null | undefined,
       );
       this.navigate(view, params);
       return;
@@ -250,7 +254,12 @@ export class HeapDumpExplorerSession {
     this._activeInstanceId = null;
   }
 
-  private openInstanceTab(objId: number, label?: string): void {
+  private openInstanceTab(
+    objId: number,
+    label?: string,
+    currentId?: number | null,
+    baselineId?: number | null,
+  ): void {
     const existing = this._instanceTabs.find((t) => t.objId === objId);
     if (existing) {
       this._activeInstanceId = existing.id;
@@ -260,6 +269,8 @@ export class HeapDumpExplorerSession {
       id: this._nextInstanceId++,
       objId,
       label: truncateInstanceLabel(label ?? 'Instance'),
+      currentId: currentId === undefined ? objId : currentId,
+      baselineId: baselineId === undefined ? null : baselineId,
     };
     this._instanceTabs.push(tab);
     this._activeInstanceId = tab.id;
@@ -275,6 +286,13 @@ export class HeapDumpExplorerSession {
     }
   }
 
+  clearInstanceTabs(): void {
+    this._instanceTabs.length = 0;
+    this._activeInstanceId = null;
+    if (this._nav.view === 'object') {
+      this.navigate('overview');
+    }
+  }
   syncInstanceTabFromNav(): void {
     if (this._nav.view !== 'object') {
       this._activeInstanceId = null;
