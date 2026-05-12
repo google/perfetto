@@ -47,11 +47,12 @@ export interface ChartThemeColors {
  * element. The element must be within the DOM tree that has the theme CSS
  * variables defined (typically a child of .pf-theme-provider).
  */
+const NUM_CHART_COLORS = 13;
 export function getChartThemeColors(el: Element): ChartThemeColors {
   const style = getComputedStyle(el);
 
   const chartColors: string[] = [];
-  for (let i = 1; i <= 8; i++) {
+  for (let i = 1; i <= NUM_CHART_COLORS; i++) {
     chartColors.push(style.getPropertyValue(`--pf-chart-color-${i}`).trim());
   }
 
