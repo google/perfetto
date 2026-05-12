@@ -7125,6 +7125,7 @@ perfetto_proto_library(
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
+        "protos/perfetto/config/profiling/smaps_config.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -8821,6 +8822,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/system_info/cpu_info.proto",
         "protos/perfetto/trace/system_info/gpu_info.proto",
+        "protos/perfetto/trace/system_info/interrupt_info.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

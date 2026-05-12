@@ -103,13 +103,19 @@ int RuntimeTableFunctionModule::Destroy(sqlite3_vtab* vtab) {
 int RuntimeTableFunctionModule::Connect(sqlite3* db,
                                         void* ctx,
                                         int argc,
-                                        const char* const*,
+                                        const char* const* argv,
                                         sqlite3_vtab** vtab,
-                                        char** argv) {
+                                        char** pzErr) {
   auto* context = GetContext(ctx);
-
+  auto* vtab_state = context->OnConnect(argc, argv);
+  if (!vtab_state) {
+    *pzErr = sqlite3_mprintf(
+        "table '%s' could not be connected to because it could not be found",
+        argv[2]);
+    return SQLITE_ERROR;
+  }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->state = context->OnConnect(argc, argv);
+  res->state = vtab_state;
 
   auto create_table_str = CreateTableStrFromState(
       sqlite::ModuleStateManager<RuntimeTableFunctionModule>::GetState(

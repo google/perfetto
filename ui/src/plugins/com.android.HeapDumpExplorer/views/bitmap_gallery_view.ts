@@ -81,7 +81,7 @@ function makeBitmapListSchema(navigate: NavFn): SchemaRegistry {
           return m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id,
@@ -96,7 +96,7 @@ function makeBitmapListSchema(navigate: NavFn): SchemaRegistry {
         title: 'Dimensions',
         columnType: 'text',
         cellRenderer: (value: SqlValue) =>
-          m('span', {class: 'ah-mono'}, String(value ?? '')),
+          m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
       },
       self_size: {
         title: 'Shallow',
@@ -226,24 +226,24 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
               data: bitmap.data,
             })
           : bitmap === 'loading'
-            ? m('span', {class: 'ah-bitmap-card__secondary'}, '\u2026')
+            ? m('span', {class: 'pf-hde-bitmap-card__secondary'}, '\u2026')
             : bitmap === 'error'
-              ? m('span', {class: 'ah-bitmap-card__secondary'}, 'no data')
+              ? m('span', {class: 'pf-hde-bitmap-card__secondary'}, 'no data')
               : !row.hasPixelData
                 ? m(
                     'span',
-                    {class: 'ah-bitmap-card__secondary'},
+                    {class: 'pf-hde-bitmap-card__secondary'},
                     'no pixel data',
                   )
                 : null;
 
       return m(
         'div',
-        {class: 'ah-bitmap-card'},
+        {class: 'pf-hde-bitmap-card'},
         m(
           'div',
           {
-            class: 'ah-bitmap-card__image',
+            class: 'pf-hde-bitmap-card__image',
             style: {
               maxWidth: `${dpW}px`,
               maxHeight: '45vh',
@@ -254,27 +254,31 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
         ),
         m(
           'div',
-          {class: 'ah-bitmap-card__info'},
+          {class: 'pf-hde-bitmap-card__info'},
           m(
             'div',
             null,
-            m('span', {class: 'ah-mono'}, `${row.width}\u00d7${row.height} px`),
             m(
               'span',
-              {class: 'ah-bitmap-card__secondary'},
+              {class: 'pf-hde-mono'},
+              `${row.width}\u00d7${row.height} px`,
+            ),
+            m(
+              'span',
+              {class: 'pf-hde-bitmap-card__secondary'},
               `${dpW}\u00d7${dpH} dp`,
             ),
-            m('span', {class: 'ah-bitmap-card__secondary'}, `@${dpi}dpi`),
+            m('span', {class: 'pf-hde-bitmap-card__secondary'}, `@${dpi}dpi`),
             m(
               'span',
-              {class: 'ah-bitmap-card__secondary'},
+              {class: 'pf-hde-bitmap-card__secondary'},
               fmtSize(row.row.retainedTotal),
             ),
           ),
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id: row.row.id,
@@ -289,15 +293,15 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
           vnode.attrs.pathData !== null
           ? m(
               'div',
-              {class: 'ah-bitmap-card__path'},
+              {class: 'pf-hde-bitmap-card__path'},
               m(
                 'div',
-                {class: 'ah-muted-heading'},
+                {class: 'pf-hde-muted-heading'},
                 PATH_HEADING[vnode.attrs.pathMode],
               ),
               vnode.attrs.pathData.length > 0
                 ? renderPath(vnode.attrs.pathData, navigate)
-                : m('span', {class: 'ah-muted'}, 'No path to GC root.'),
+                : m('span', {class: 'pf-hde-muted'}, 'No path to GC root.'),
             )
           : null,
       );
@@ -395,7 +399,7 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
       const {engine, activeDump, navigate} = vnode.attrs;
 
       if (!rows) {
-        return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
+        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
       }
 
       const totalRetained = rows.reduce(
@@ -412,7 +416,7 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
             vnode.attrs.hasFieldValues === false
               ? 'Bitmap data requires an ART heap dump (.hprof)'
               : 'No bitmap data available',
-          className: 'ah-empty-fill',
+          className: 'pf-hde-empty-fill',
         });
       }
 
@@ -435,17 +439,17 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         filters = [...f];
       };
 
-      return m('div', {class: 'ah-view-scroll'}, [
-        m('div', {class: 'ah-heading-row'}, [
+      return m('div', {class: 'pf-hde-view-scroll'}, [
+        m('div', {class: 'pf-hde-heading-row'}, [
           m(
             'h2',
-            {class: 'ah-view-heading'},
+            {class: 'pf-hde-view-heading'},
             `Bitmaps (${rows.length.toLocaleString()})`,
           ),
           m(
             'label',
-            {class: 'ah-heading-control'},
-            m('span', {class: 'ah-heading-control__label'}, 'Path'),
+            {class: 'pf-hde-heading-control'},
+            m('span', {class: 'pf-hde-heading-control__label'}, 'Path'),
             m(
               Select,
               {
@@ -478,7 +482,7 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
             ),
           ),
         ]),
-        m('div', {class: 'ah-card ah-mb-4'}, [
+        m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
           m(DataGrid, {
             schema: SUMMARY_SCHEMA,
             rootSchema: 'query',
@@ -503,7 +507,7 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         withPixels.length > 0
           ? m(
               'div',
-              {class: 'ah-mb-4'},
+              {class: 'pf-hde-mb-4'},
               withPixels.map((r) =>
                 m(BitmapCard, {
                   key: r.row.id,
@@ -521,10 +525,10 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
             )
           : null,
         withPixels.length > 0
-          ? m('div', {class: 'ah-mb-4'}, [
+          ? m('div', {class: 'pf-hde-mb-4'}, [
               m(
                 'h3',
-                {class: 'ah-muted-heading'},
+                {class: 'pf-hde-muted-heading'},
                 `${withPixels.length} bitmap${withPixels.length > 1 ? 's' : ''} with pixel data`,
               ),
               m(DataGrid, {
@@ -539,10 +543,10 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
             ])
           : null,
         withoutPixels.length > 0
-          ? m('div', {class: 'ah-mb-4'}, [
+          ? m('div', {class: 'pf-hde-mb-4'}, [
               m(
                 'h3',
-                {class: 'ah-muted-heading ah-mt-4'},
+                {class: 'pf-hde-muted-heading pf-hde-mt-4'},
                 `${withoutPixels.length} bitmap${withoutPixels.length > 1 ? 's' : ''} without pixel data`,
               ),
               m(DataGrid, {

@@ -45,7 +45,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
     view(vnode) {
       const {row, navigate} = vnode.attrs;
       if (!row || row.id === 0) {
-        return m('span', {class: 'ah-badge-referent'}, 'ROOT');
+        return m('span', {class: 'pf-hde-badge-referent'}, 'ROOT');
       }
       const full = 'className' in row ? (row as InstanceRow) : null;
       return m(
@@ -53,13 +53,17 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         full &&
           full.reachabilityName !== 'unreachable' &&
           full.reachabilityName !== 'strong'
-          ? m('span', {class: 'ah-badge-reachability'}, full.reachabilityName)
+          ? m(
+              'span',
+              {class: 'pf-hde-badge-reachability'},
+              full.reachabilityName,
+            )
           : null,
-        full?.isRoot ? m('span', {class: 'ah-badge-root'}, 'root') : null,
+        full?.isRoot ? m('span', {class: 'pf-hde-badge-root'}, 'root') : null,
         m(
           'button',
           {
-            class: 'ah-link',
+            class: 'pf-hde-link',
             onclick: () => navigate('object', {id: row.id, label: row.display}),
           },
           row.display,
@@ -68,7 +72,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
           ? m(
               'span',
               {
-                class: 'ah-badge-string',
+                class: 'pf-hde-badge-string',
                 title: row.str.length > 80 ? row.str : undefined,
               },
               '"' +
@@ -81,7 +85,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         full?.referent
           ? m(
               'span',
-              {class: 'ah-badge-referent'},
+              {class: 'pf-hde-badge-referent'},
               ' for ',
               m(InstanceLink, {
                 row: full.referent,
@@ -110,24 +114,24 @@ export function Section(): m.Component<SectionAttrs> {
     view(vnode) {
       return m(
         'div',
-        {class: 'ah-section'},
+        {class: 'pf-hde-section'},
         m(
           'div',
-          {class: 'ah-section__header'},
+          {class: 'pf-hde-section__header'},
           m(
             'button',
             {
-              'class': 'ah-section__toggle',
+              'class': 'pf-hde-section__toggle',
               'onclick': () => {
                 open = !open;
               },
               'aria-expanded': open,
             },
-            m('span', {class: 'ah-section__title'}, vnode.attrs.title),
+            m('span', {class: 'pf-hde-section__title'}, vnode.attrs.title),
             m(
               'svg',
               {
-                class: `ah-section__chevron${open ? ' ah-section__chevron--open' : ''}`,
+                class: `pf-hde-section__chevron${open ? ' pf-hde-section__chevron--open' : ''}`,
                 viewBox: '0 0 20 20',
                 fill: 'currentColor',
               },
@@ -142,14 +146,14 @@ export function Section(): m.Component<SectionAttrs> {
             ? m(
                 'div',
                 {
-                  class: 'ah-section__actions',
+                  class: 'pf-hde-section__actions',
                   onclick: (e: Event) => e.stopPropagation(),
                 },
                 vnode.attrs.actions,
               )
             : null,
         ),
-        open ? m('div', {class: 'ah-section__body'}, vnode.children) : null,
+        open ? m('div', {class: 'pf-hde-section__body'}, vnode.children) : null,
       );
     },
   };
@@ -158,7 +162,7 @@ export function Section(): m.Component<SectionAttrs> {
 /** Renders a size value as a right-aligned formatted byte string. */
 export function sizeRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m('span', {class: 'ah-mono'}, fmtSize(Number(value ?? 0))),
+    content: m('span', {class: 'pf-hde-mono'}, fmtSize(Number(value ?? 0))),
     align: 'right',
   };
 }
@@ -166,7 +170,11 @@ export function sizeRenderer(value: SqlValue): CellRenderResult {
 /** Renders a numeric count value as a right-aligned locale string. */
 export function countRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m('span', {class: 'ah-mono'}, Number(value ?? 0).toLocaleString()),
+    content: m(
+      'span',
+      {class: 'pf-hde-mono'},
+      Number(value ?? 0).toLocaleString(),
+    ),
     align: 'right',
   };
 }
@@ -223,11 +231,11 @@ export const COL_INFO = {
 export function colHeader(label: string, info: m.Children): m.Children {
   return m(
     'span',
-    {class: 'ah-col-header'},
+    {class: 'pf-hde-col-header'},
     label,
     m(
       Tooltip,
-      {trigger: m(Icon, {className: 'ah-col-header__info', icon: 'info'})},
+      {trigger: m(Icon, {className: 'pf-hde-col-header__info', icon: 'info'})},
       info,
     ),
   );
@@ -326,7 +334,7 @@ export function PrimOrRefCell(): m.Component<PrimOrRefCellAttrs> {
           navigate,
         });
       }
-      return m('span', {class: 'ah-mono'}, v.v);
+      return m('span', {class: 'pf-hde-mono'}, v.v);
     },
   };
 }
@@ -377,11 +385,11 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
     view(vnode) {
       const {format} = vnode.attrs;
       if (format === 'rgba') {
-        return m('canvas', {class: 'ah-bitmap-image'});
+        return m('canvas', {class: 'pf-hde-bitmap-image'});
       }
       // Always render the img element so oncreate fires and creates the blob URL.
       // Before the blob URL is ready, src is empty (blank image).
-      return m('img', {src: blobUrl ?? '', class: 'ah-bitmap-image'});
+      return m('img', {src: blobUrl ?? '', class: 'pf-hde-bitmap-image'});
     },
   };
 }
@@ -390,19 +398,19 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
 export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
   return m(
     'div',
-    {class: 'ah-view-stack--tight'},
+    {class: 'pf-hde-view-stack--tight'},
     path.map((pe, i) =>
       m(
         'div',
         {
           key: i,
-          class: `ah-path-entry${pe.isDominator ? ' ah-semibold' : ''}`,
-          style: {'--ah-depth': String(i)},
+          class: `pf-hde-path-entry${pe.isDominator ? ' pf-hde-semibold' : ''}`,
+          style: {'--pf-hde-depth': String(i)},
         },
         [
-          m('span', {class: 'ah-path-arrow'}, i === 0 ? '' : '\u2192'),
+          m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '\u2192'),
           m(InstanceLink, {row: pe.row, navigate}),
-          pe.field ? m('span', {class: 'ah-path-field'}, pe.field) : null,
+          pe.field ? m('span', {class: 'pf-hde-path-field'}, pe.field) : null,
         ],
       ),
     ),

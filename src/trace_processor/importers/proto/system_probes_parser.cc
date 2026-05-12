@@ -65,6 +65,7 @@
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
 #include "protos/perfetto/trace/system_info/gpu_info.pbzero.h"
+#include "protos/perfetto/trace/system_info/interrupt_info.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -1231,6 +1232,22 @@ void SystemProbesParser::ParseGpuInfo(ConstBytes blob) {
         inserter.AddArg(key_id, Variadic::String(val_id));
       }
     }
+  }
+}
+
+void SystemProbesParser::ParseInterruptInfo(ConstBytes blob) {
+  protos::pbzero::InterruptInfo::Decoder packet(blob);
+  for (auto it = packet.irq_mapping(); it; ++it) {
+    protos::pbzero::InterruptInfo::InterruptMapping::Decoder mapping(*it);
+    if (!mapping.has_irq_id() || !mapping.has_name())
+      continue;
+    if (!irq_ids_.Insert(mapping.irq_id(), true).second)
+      continue;
+    tables::InterruptMappingTable::Row row;
+    row.irq_id = mapping.irq_id();
+    row.name = context_->storage->InternString(mapping.name());
+    row.machine_id = context_->machine_tracker->machine_id();
+    context_->storage->mutable_interrupt_mapping_table()->Insert(row);
   }
 }
 

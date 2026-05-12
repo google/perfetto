@@ -24,8 +24,14 @@ import {
 } from '@popperjs/core';
 import {classNames} from '../base/classnames';
 import {Point2D, Vector2D} from '../base/geom';
+import {PopupPosition} from './popup';
 
-export interface CursorTooltipAttrs extends HTMLAttrs {}
+export interface CursorTooltipAttrs extends HTMLAttrs {
+  // Which side of the cursor to place the tooltip. Defaults to Right.
+  readonly position?: PopupPosition;
+  // Distance in px between the tooltip and the cursor. Default = 8.
+  readonly offset?: number;
+}
 
 class VElement implements VirtualElement {
   private pos = new Vector2D({x: 0, y: 0});
@@ -58,7 +64,12 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
   private popper?: PopperInstance;
 
   view({children, attrs}: m.Vnode<CursorTooltipAttrs>) {
-    const {className, ...rest} = attrs;
+    const {
+      className,
+      offset = 8,
+      position = PopupPosition.Right,
+      ...rest
+    } = attrs;
     return m(
       Portal,
       {
@@ -74,12 +85,12 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
         onContentMount: (portal) => {
           this.virtualElement.setPosition(globalMousePos);
           this.popper = createPopper(this.virtualElement, portal, {
-            placement: 'right',
+            placement: position,
             modifiers: [
               {
                 name: 'offset',
                 options: {
-                  offset: [0, 8], // Shift away from cursor
+                  offset: [0, offset], // Shift away from cursor
                 },
               },
             ],

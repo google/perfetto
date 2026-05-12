@@ -43,6 +43,7 @@ using google::protobuf::compiler::GeneratorContext;
 using google::protobuf::io::Printer;
 using google::protobuf::io::ZeroCopyOutputStream;
 using perfetto::base::SplitString;
+using perfetto::base::StartsWith;
 using perfetto::base::StripChars;
 using perfetto::base::StripPrefix;
 using perfetto::base::StripSuffix;
@@ -116,10 +117,18 @@ class GeneratorJob {
       guard_strip_prefix_ = value;
     } else if (name == "guard_add_prefix") {
       guard_add_prefix_ = value;
+    } else if (name == "guard_strip_prefix_external") {
+      guard_strip_prefix_external_ = value;
+    } else if (name == "guard_add_prefix_external") {
+      guard_add_prefix_external_ = value;
     } else if (name == "path_strip_prefix") {
       path_strip_prefix_ = value;
     } else if (name == "path_add_prefix") {
       path_add_prefix_ = value;
+    } else if (name == "path_strip_prefix_external") {
+      path_strip_prefix_external_ = value;
+    } else if (name == "path_add_prefix_external") {
+      path_add_prefix_external_ = value;
     } else if (name == "invoker") {
       invoker_ = value;
     } else {
@@ -356,8 +365,22 @@ class GeneratorJob {
     std::string guard = StripSuffix(std::string(source_->name()), ".proto");
     guard = ToUpper(guard);
     guard = StripChars(guard, ".-/\\", '_');
-    guard = StripPrefix(guard, guard_strip_prefix_);
-    guard = guard_add_prefix_ + guard + "_PZC_H_";
+    // Try primary; fall through to external for sources under a different
+    // source root.
+    if (!guard_strip_prefix_.empty() &&
+        StartsWith(guard, guard_strip_prefix_)) {
+      guard = guard_add_prefix_ + StripPrefix(guard, guard_strip_prefix_);
+    } else if (!guard_strip_prefix_external_.empty() &&
+               StartsWith(guard, guard_strip_prefix_external_)) {
+      guard = guard_add_prefix_external_ +
+              StripPrefix(guard, guard_strip_prefix_external_);
+    } else {
+      Abort(std::string() + "Header guard '" + guard +
+            "' doesn't match guard_strip_prefix='" + guard_strip_prefix_ +
+            "' or guard_strip_prefix_external='" +
+            guard_strip_prefix_external_ + "'.");
+    }
+    guard += "_PZC_H_";
     return guard;
   }
 
@@ -410,12 +433,17 @@ class GeneratorJob {
     std::sort(imports.begin(), imports.end());
 
     for (const std::string& imp : imports) {
-      std::string include_path = imp;
-      if (!path_strip_prefix_.empty()) {
-        include_path = StripPrefix(imp, path_strip_prefix_);
+      std::string include_path;
+      if (!path_strip_prefix_external_.empty() &&
+          StartsWith(imp, path_strip_prefix_external_)) {
+        include_path = path_add_prefix_external_ +
+                       StripPrefix(imp, path_strip_prefix_external_);
+      } else if (!path_strip_prefix_.empty() &&
+                 StartsWith(imp, path_strip_prefix_)) {
+        include_path = path_add_prefix_ + StripPrefix(imp, path_strip_prefix_);
+      } else {
+        include_path = path_add_prefix_ + imp;
       }
-      include_path = path_add_prefix_ + include_path;
-
       stub_h_->Print("#include \"$name$.h\"\n", "name", include_path);
     }
     stub_h_->Print("\n");
@@ -662,6 +690,10 @@ class GeneratorJob {
   std::string guard_add_prefix_;
   std::string path_strip_prefix_;
   std::string path_add_prefix_;
+  std::string guard_strip_prefix_external_;
+  std::string guard_add_prefix_external_;
+  std::string path_strip_prefix_external_;
+  std::string path_add_prefix_external_;
   std::string invoker_;
   std::vector<std::string> namespaces_;
   std::string full_namespace_prefix_;
