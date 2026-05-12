@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 // Number of --pf-chart-color-N CSS variables defined by the theme.
-const CHART_COLOR_COUNT = 8;
+const CHART_COLOR_COUNT = 13;
 
 // Series colour for the i-th series, as a CSS variable reference.
 export function chartColorVar(i: number): string {
