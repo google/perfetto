@@ -3315,8 +3315,9 @@ cc_test {
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_protos_third_party_statsd_config_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -3414,7 +3415,7 @@ android_test {
     jni_uses_platform_apis: true,
 }
 
-// GN: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace/android:winscope_extensions_source_set, //protos/perfetto/trace/android:android_track_event_source_set]
+// GN: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace/android:winscope_extensions_source_set]
 filegroup {
     name: "perfetto_javastream_filegroup_proto",
     srcs: [
@@ -3495,7 +3496,6 @@ filegroup {
         "protos/perfetto/trace/android/android_input_event.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/android_system_property.proto",
-        "protos/perfetto/trace/android/android_track_event.proto",
         "protos/perfetto/trace/android/app/statusbarmanager.proto",
         "protos/perfetto/trace/android/app/window_configuration.proto",
         "protos/perfetto/trace/android/app_wakelock_data.proto",
@@ -7640,48 +7640,6 @@ genrule {
     export_include_dirs: [
         ".",
         "protos",
-    ],
-}
-
-// GN: //protos/perfetto/trace/android:android_track_event_descriptor
-genrule {
-    name: "perfetto_protos_perfetto_trace_android_android_track_event_descriptor",
-    srcs: [
-        "protos/perfetto/trace/android/android_track_event.proto",
-        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
-        "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
-        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
-        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
-        "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
-        "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
-        "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
-        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
-        "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
-        "protos/perfetto/trace/track_event/chrome_message_pump.proto",
-        "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
-        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
-        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
-        "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
-        "protos/perfetto/trace/track_event/chrome_user_event.proto",
-        "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
-        "protos/perfetto/trace/track_event/counter_descriptor.proto",
-        "protos/perfetto/trace/track_event/debug_annotation.proto",
-        "protos/perfetto/trace/track_event/log_message.proto",
-        "protos/perfetto/trace/track_event/process_descriptor.proto",
-        "protos/perfetto/trace/track_event/range_of_interest.proto",
-        "protos/perfetto/trace/track_event/screenshot.proto",
-        "protos/perfetto/trace/track_event/source_location.proto",
-        "protos/perfetto/trace/track_event/task_execution.proto",
-        "protos/perfetto/trace/track_event/thread_descriptor.proto",
-        "protos/perfetto/trace/track_event/track_descriptor.proto",
-        "protos/perfetto/trace/track_event/track_event.proto",
-    ],
-    tools: [
-        "aprotoc",
-    ],
-    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
-    out: [
-        "perfetto_protos_perfetto_trace_android_android_track_event_descriptor.bin",
     ],
 }
 
@@ -13492,6 +13450,90 @@ genrule {
     ],
 }
 
+// GN: //protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_descriptor
+genrule {
+    name: "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_descriptor",
+    srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
+        "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
+        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
+        "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
+        "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
+        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
+        "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
+        "protos/perfetto/trace/track_event/chrome_message_pump.proto",
+        "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_user_event.proto",
+        "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
+        "protos/perfetto/trace/track_event/counter_descriptor.proto",
+        "protos/perfetto/trace/track_event/debug_annotation.proto",
+        "protos/perfetto/trace/track_event/log_message.proto",
+        "protos/perfetto/trace/track_event/process_descriptor.proto",
+        "protos/perfetto/trace/track_event/range_of_interest.proto",
+        "protos/perfetto/trace/track_event/screenshot.proto",
+        "protos/perfetto/trace/track_event/source_location.proto",
+        "protos/perfetto/trace/track_event/task_execution.proto",
+        "protos/perfetto/trace/track_event/thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_event.proto",
+        "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_descriptor.bin",
+    ],
+}
+
+// GN: //protos/third_party/android/frameworks/native/tracing:frameworks_native_track_event_descriptor
+genrule {
+    name: "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_descriptor",
+    srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
+        "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
+        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
+        "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
+        "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
+        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
+        "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
+        "protos/perfetto/trace/track_event/chrome_message_pump.proto",
+        "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_user_event.proto",
+        "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
+        "protos/perfetto/trace/track_event/counter_descriptor.proto",
+        "protos/perfetto/trace/track_event/debug_annotation.proto",
+        "protos/perfetto/trace/track_event/log_message.proto",
+        "protos/perfetto/trace/track_event/process_descriptor.proto",
+        "protos/perfetto/trace/track_event/range_of_interest.proto",
+        "protos/perfetto/trace/track_event/screenshot.proto",
+        "protos/perfetto/trace/track_event/source_location.proto",
+        "protos/perfetto/trace/track_event/task_execution.proto",
+        "protos/perfetto/trace/track_event/thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_event.proto",
+        "protos/third_party/android/frameworks/native/tracing/frameworks_native_track_event.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_descriptor.bin",
+    ],
+}
+
 // GN: //protos/third_party/chromium:descriptor
 genrule {
     name: "perfetto_protos_third_party_chromium_descriptor",
@@ -16202,21 +16244,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor
-genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
-    srcs: [
-        ":perfetto_protos_perfetto_trace_android_android_track_event_descriptor",
-    ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
-    out: [
-        "src/trace_processor/importers/proto/android_track_event.descriptor.h",
-    ],
-    tool_files: [
-        "python/tools/cpp_blob_emitter.py",
-    ],
-}
-
 // GN: //src/trace_processor/importers/proto:gen_cc_chrome_track_event_descriptor
 genrule {
     name: "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
@@ -16226,6 +16253,36 @@ genrule {
     cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+// GN: //src/trace_processor/importers/proto:gen_cc_frameworks_base_track_event_descriptor
+genrule {
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+    srcs: [
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_descriptor",
+    ],
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    out: [
+        "src/trace_processor/importers/proto/frameworks_base_track_event.descriptor.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+// GN: //src/trace_processor/importers/proto:gen_cc_frameworks_native_track_event_descriptor
+genrule {
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
+    srcs: [
+        ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_descriptor",
+    ],
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    out: [
+        "src/trace_processor/importers/proto/frameworks_native_track_event.descriptor.h",
     ],
     tool_files: [
         "python/tools/cpp_blob_emitter.py",
@@ -19004,8 +19061,9 @@ cc_library_static {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -19098,8 +19156,9 @@ cc_library_static {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -20529,46 +20588,6 @@ filegroup {
     ],
 }
 
-// GN: [//protos/perfetto/trace/android:android_track_event_source_set]
-java_library {
-    name: "perfetto_trace_android_track_event_extension_java_protos",
-    srcs: [
-        "protos/perfetto/trace/android/android_track_event.proto",
-        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
-        "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
-        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
-        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
-        "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
-        "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
-        "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
-        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
-        "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
-        "protos/perfetto/trace/track_event/chrome_message_pump.proto",
-        "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
-        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
-        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
-        "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
-        "protos/perfetto/trace/track_event/chrome_user_event.proto",
-        "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
-        "protos/perfetto/trace/track_event/counter_descriptor.proto",
-        "protos/perfetto/trace/track_event/debug_annotation.proto",
-        "protos/perfetto/trace/track_event/log_message.proto",
-        "protos/perfetto/trace/track_event/process_descriptor.proto",
-        "protos/perfetto/trace/track_event/range_of_interest.proto",
-        "protos/perfetto/trace/track_event/screenshot.proto",
-        "protos/perfetto/trace/track_event/source_location.proto",
-        "protos/perfetto/trace/track_event/task_execution.proto",
-        "protos/perfetto/trace/track_event/thread_descriptor.proto",
-        "protos/perfetto/trace/track_event/track_descriptor.proto",
-        "protos/perfetto/trace/track_event/track_event.proto",
-    ],
-    host_supported: true,
-    proto: {
-        type: "lite",
-        canonical_path_from_root: false,
-    },
-}
-
 // GN: //src/android_sdk/java/test:perfetto_trace_instrumentation_test
 android_test {
     name: "perfetto_trace_instrumentation_test",
@@ -21791,8 +21810,9 @@ cc_test {
         "perfetto_src_protozero_testing_messages_subpackage_zero_gen_headers",
         "perfetto_src_protozero_testing_messages_zero_gen_headers",
         "perfetto_src_trace_processor_gen_cc_test_messages_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -22615,8 +22635,9 @@ cc_library_static {
         "perfetto_protos_third_party_primes_cpp_gen_headers",
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -22706,8 +22727,9 @@ cc_library_static {
         "perfetto_protos_third_party_primes_cpp_gen_headers",
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -23261,8 +23283,9 @@ cc_binary_host {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
