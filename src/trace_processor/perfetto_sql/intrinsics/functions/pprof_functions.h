@@ -18,14 +18,14 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PPROF_FUNCTIONS_H_
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
 struct PprofFunctions {
-  static base::Status Register(PerfettoSqlEngine&, TraceProcessorContext*);
+  static base::Status Register(PerfettoSqlConnection&, TraceProcessorContext*);
 };
 
 }  // namespace perfetto::trace_processor

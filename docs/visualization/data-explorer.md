@@ -62,21 +62,7 @@ multiple projects to keep separate analyses distinct, or do them all on in one p
 The core concept in the Data Explorer is a **node**. Nodes fall into
 three categories:
 
-```mermaid
-graph LR
-    classDef src fill:#4a90d9,color:#fff,stroke:none
-    classDef mod fill:#36a265,color:#fff,stroke:none
-    classDef multi fill:#ef991c,color:#fff,stroke:none
-    classDef exp fill:#7b68ee,color:#fff,stroke:none
-
-    src["Source<br/>(Table / Slices / Query / Time Range)"]:::src
-    mod["Modification<br/>(Filter / Aggregate / Sort / Add Columns / ...)"]:::mod
-    multi["Multi-source<br/>(Join / Union / Interval Intersect / Create Slices)"]:::multi
-    exp["Export<br/>(Dashboard / Charts / Metrics / Trace Summary)"]:::exp
-
-    src --> mod --> multi --> exp
-    mod --> exp
-```
+![Data Explorer node types: source, modification, and multi-source nodes](../images/data-explorer-nodes.png)
 
 - **Source nodes** - provide the initial data. Examples: a SQL table,
   a slice query, or a custom SQL expression.
@@ -91,6 +77,10 @@ graph LR
   or a trace summary for cross-trace analysis.
 
 ### The Graph
+
+<video width="800" controls>
+  <source src="https://storage.googleapis.com/perfetto-misc/de-graph.webm" type="video/webm">
+</video>
 
 Nodes are arranged on a canvas. Connect two nodes by dragging from one
 node's output port to another node's input port. Most nodes have a
@@ -163,6 +153,10 @@ explanation of importance levels.
 
 ### Adding a source node
 
+<video width="800" controls>
+  <source src="https://storage.googleapis.com/perfetto-misc/de-sources.webm" type="video/webm">
+</video>
+
 Click the blue **+** button in the top-left corner of the canvas to open
 the node menu. Under **Sources**, pick the starting point for your data:
 
@@ -174,6 +168,10 @@ the node menu. Under **Sources**, pick the starting point for your data:
 | [**Time Range**](#time-range) | A time interval, entered manually or synced from the timeline selection | — |
 
 ### Adding nodes
+
+<video width="800" controls>
+  <source src="https://storage.googleapis.com/perfetto-misc/de-adding-nodes.webm" type="video/webm">
+</video>
 
 With a node selected, open the node menu and pick an operation. The new
 node is automatically wired to the selected node. Operations come in two
@@ -325,7 +323,7 @@ changing the columns.
 
 <?tabs>
 
-TAB: Normal
+TAB: Filter (standard)
 
 Filters rows based on conditions. In most cases you won't need to
 create a Filter node manually - it's much faster to add filters
@@ -353,7 +351,7 @@ expressions like `(X OR Y) AND Z` are achieved by chaining two Filter
 nodes: one with OR for the `X OR Y` part, and one with AND for the
 `Z` part.
 
-TAB: Filter In
+TAB: Filter In (rows)
 
 Keeps only rows where a column's value appears in the output of a
 secondary node. Equivalent to a SQL `WHERE col IN (SELECT ...)`.
@@ -366,7 +364,7 @@ inputs, it is auto-suggested.
 Useful for filtering slices to only those belonging to a specific set
 of threads, or filtering counters by a set of track IDs.
 
-TAB: Filter During
+TAB: Filter During (time)
 
 Keeps only rows whose time intervals overlap with intervals from a
 secondary source. Designed for trace-specific temporal filtering - for

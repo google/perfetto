@@ -38,7 +38,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_bind.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
@@ -227,12 +227,10 @@ base::StatusOr<uint32_t> PushPartition(
 
 struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
   static constexpr char kName[] = "__intrinsic_interval_intersect";
-  // Two tables that are being intersected.
-  // TODO(mayzner): Support more tables.
   static constexpr int kArgCount = -1;
 
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
     StringPool* pool;
   };
 
@@ -360,11 +358,12 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
 
 }  // namespace
 
-base::Status RegisterIntervalIntersectFunctions(PerfettoSqlEngine& engine,
-                                                StringPool* pool) {
-  return engine.RegisterFunction<IntervalIntersect>(
+base::Status RegisterIntervalIntersectFunctions(
+    PerfettoSqlConnection& connection,
+    StringPool* pool) {
+  return connection.RegisterFunction<IntervalIntersect>(
       std::make_unique<IntervalIntersect::UserData>(
-          IntervalIntersect::UserData{&engine, pool}));
+          IntervalIntersect::UserData{&connection, pool}));
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql

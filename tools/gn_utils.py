@@ -440,24 +440,12 @@ class GnParser(object):
       self.minuend_descriptor: Optional[str] = None
       self.subtrahend_descriptor: Optional[str] = None
 
-      # When True, generators emit linker hints that prevent stripping of
-      # objects whose only entry points are global-ctor-driven side effects
-      # (e.g. self-registering plugins). Maps to Bazel's `alwayslink = True`
-      # on the cc_library that absorbs this source_set, and Soong's
-      # `whole_static_libs` on consumers.
-      self.force_alwayslink = False
-
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
       self.cflags = set()
       self.defines = set()
       self.deps: Set[GnParser.Target] = set()
       self.transitive_deps: Set[GnParser.Target] = set()
-      # Direct GN deps as written in BUILD.gn, before any bubbling-up from
-      # source_set or group deps. Generators that emit cc_library-style
-      # rules (where the build system resolves transitivity) should prefer
-      # these over `deps`.
-      self.immediate_deps: Set[GnParser.Target] = set()
       self.libs = set()
       self.include_dirs = set()
       self.ldflags = set()
@@ -486,42 +474,6 @@ class GnParser(object):
 
     def transitive_source_set_deps(self):
       return set(d for d in self.transitive_deps if d.type == 'source_set')
-
-    def header_visible_deps(self):
-      """Returns deps visible to consumers for header-include purposes.
-
-      GN's `public_deps` propagate header visibility transitively even
-      across linker_unit boundaries: if A → B (static_lib) and B has a
-      public_dep on a header-only source_set S, then A can `#include`
-      S's headers in GN.
-
-      get_target() bubbles source_set deps via Target.update(), but
-      stops at linker_unit boundaries (intentionally — we don't want
-      cflags/defines/private deps leaking across a static lib). That
-      leaves consumers of a linker_unit unable to see its public_dep
-      source_sets, which Bazel's layering_check requires as *direct*
-      deps on the consumer's cc_library.
-
-      This helper restores the GN-equivalent header-visibility set by
-      walking linker_unit deps and pulling in any source_sets reachable
-      through them. We can't distinguish public_deps from private deps
-      from `gn desc` JSON, so this is mildly over-inclusive, but only
-      for source_sets — non-source_set internals stay opaque.
-      """
-      result = set(self.deps)
-      seen_linker_units = set()
-      stack = [d for d in self.deps if d.type in LINKER_UNIT_TYPES]
-      while stack:
-        cur = stack.pop()
-        if cur in seen_linker_units:
-          continue
-        seen_linker_units.add(cur)
-        for sub in cur.deps:
-          if sub.type == 'source_set':
-            result.add(sub)
-          elif sub.type in LINKER_UNIT_TYPES:
-            stack.append(sub)
-      return result
 
     def custom_target_type(self) -> Optional[str]:
       custom_bazel_type = self.metadata.get('perfetto_custom_target_type')
@@ -615,8 +567,6 @@ class GnParser(object):
       self.source_sets[gn_target_name] = target
       target.sources.update(desc.get('sources', []))
       target.inputs.update(desc.get('inputs', []))
-      target.force_alwayslink = bool(
-          target.metadata.get('perfetto_force_alwayslink', [False])[0])
     elif target.type in LINKER_UNIT_TYPES:
       self.linker_units[gn_target_name] = target
       target.sources.update(desc.get('sources', []))
@@ -709,14 +659,10 @@ class GnParser(object):
         continue
 
       # Non-third party groups are only used for bubbling cflags etc so don't
-      # add a dep. Their direct deps surface to consumers as if they were
-      # direct deps of the consumer.
+      # add a dep.
       if dep.type == 'group' and not dep.is_third_party_dep_:
         target.update(dep)  # Bubble up groups's cflags/ldflags etc.
-        target.immediate_deps.update(dep.immediate_deps)
         continue
-
-      target.immediate_deps.add(dep)
 
       # Linker units act as a hard boundary making all their internal deps
       # opaque to the outside world. For this reason, do not propogate deps

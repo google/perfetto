@@ -25,7 +25,8 @@ class PinCujMetricHandler implements MetricHandler {
    * @returns {CujMetricData | undefined} Parsed data or undefined if no match.
    */
   public match(metricKey: string): CujMetricData | undefined {
-    const matcher = /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-missed_.*/;
+    const matcher =
+      /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-(?:weighted_)?missed_.*/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;

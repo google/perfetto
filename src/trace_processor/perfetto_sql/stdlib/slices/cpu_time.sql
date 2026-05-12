@@ -21,7 +21,7 @@ INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Time each thread slice spent running on CPU.
 -- Requires scheduling data to be available in the trace.
-CREATE PERFETTO TABLE thread_slice_cpu_time (
+CREATE PERFETTO TABLE thread_slice_cpu_time(
   -- Slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -36,7 +36,8 @@ CREATE PERFETTO TABLE thread_slice_cpu_time (
   process_name STRING,
   -- Duration of the time the slice was running.
   cpu_time LONG
-) AS
+)
+AS
 SELECT
   id_0 AS id,
   name,
@@ -57,7 +58,7 @@ ORDER BY
   id;
 
 -- CPU cycles per each slice.
-CREATE PERFETTO VIEW thread_slice_cpu_cycles (
+CREATE PERFETTO VIEW thread_slice_cpu_cycles(
   -- Id of a slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -76,14 +77,7 @@ CREATE PERFETTO VIEW thread_slice_cpu_cycles (
   -- Sum of CPU megacycles. Null if frequency couldn't be fetched for any
   -- period during the runtime of the slice.
   megacycles LONG
-) AS
-SELECT
-  id,
-  name,
-  utid,
-  thread_name,
-  upid,
-  process_name,
-  millicycles,
-  megacycles
+)
+AS
+SELECT id, name, utid, thread_name, upid, process_name, millicycles, megacycles
 FROM cpu_cycles_per_thread_slice;

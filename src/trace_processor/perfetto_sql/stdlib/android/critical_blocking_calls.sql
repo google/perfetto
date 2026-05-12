@@ -19,11 +19,9 @@ INCLUDE PERFETTO MODULE android.binder;
 
 INCLUDE PERFETTO MODULE slices.with_context;
 
-CREATE PERFETTO FUNCTION _is_relevant_blocking_call(
-    name STRING,
-    depth LONG
-)
-RETURNS BOOL AS
+CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth LONG)
+RETURNS BOOL
+AS
 SELECT
   $name = 'measure'
   OR $name = 'layout'
@@ -49,18 +47,15 @@ SELECT
   OR $name GLOB 'Compose:*'
   OR $name GLOB 'draw-VRI*'
   OR $name = 'CreateGraphicsPipeline'
-  OR (
-    NOT $name GLOB '*Choreographer*'
-    AND NOT $name GLOB '*Input*'
-    AND NOT $name GLOB '*input*'
-    AND NOT $name GLOB 'android.os.Handler: #*'
-    AND (
-      -- Handler pattern heuristics
-      $name GLOB '*Handler: *$*'
-      OR $name GLOB '*.*.*: *$*'
-      OR $name GLOB '*.*$*: #*'
-    )
-  );
+  OR (NOT ($name GLOB '*Choreographer*')
+  AND NOT ($name GLOB '*Input*')
+  AND NOT ($name GLOB '*input*')
+  AND NOT ($name GLOB 'android.os.Handler: #*')
+  AND (
+  -- Handler pattern heuristics
+  $name GLOB '*Handler: *$*'
+  OR $name GLOB '*.*.*: *$*'
+  OR $name GLOB '*.*$*: #*'));
 
 --Extract critical blocking calls from all processes.
 CREATE PERFETTO TABLE _android_critical_blocking_calls AS
@@ -74,8 +69,7 @@ SELECT
   s.upid,
   s.ts + s.dur AS ts_end
 FROM thread_slice AS s
-JOIN thread
-  USING (utid)
+JOIN thread USING (utid)
 WHERE
   _is_relevant_blocking_call(s.name, s.depth)
 UNION ALL
@@ -92,20 +86,20 @@ SELECT
   tx.client_ts + tx.client_dur AS ts_end
 FROM android_binder_txns AS tx
 WHERE
-  NOT aidl_name IS NULL AND is_sync = 1;
+  NOT (aidl_name IS NULL)
+  AND is_sync = 1;
 
 CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
-    name STRING,
-    dur LONG
+  name STRING,
+  dur LONG
 )
-RETURNS BOOL AS
+RETURNS BOOL
+AS
 SELECT
   $name = 'NotificationStackScrollLayout#onMeasure'
   AND $dur > 0
-  AND (
-    $name GLOB 'NotificationStackScrollLayout#onMeasure'
-    OR $name GLOB 'NotificationToplineView#onMeasure'
-    OR $name GLOB 'ExpNotRow#*'
-    OR $name GLOB 'NotificationShadeWindowView#onMeasure'
-    OR $name GLOB 'ImageFloatingTextView#onMeasure'
-  );
+  AND ($name GLOB 'NotificationStackScrollLayout#onMeasure'
+  OR $name GLOB 'NotificationToplineView#onMeasure'
+  OR $name GLOB 'ExpNotRow#*'
+  OR $name GLOB 'NotificationShadeWindowView#onMeasure'
+  OR $name GLOB 'ImageFloatingTextView#onMeasure');

@@ -731,6 +731,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   bool trace_writer_data_drop = frag_iter.trace_writer_data_drop();
 
   PERFETTO_CHECK(all_frags_size <= src_size);
+  const uint16_t all_frags_size_u16 = static_cast<uint16_t>(all_frags_size);
 
   // Make space in the buffer for the chunk we are about to copy.
 
@@ -788,51 +789,40 @@ void TraceBufferV2::CopyChunkUntrusted(
     }
   }
 
-  // If there isn't enough room from the given write position: write a padding
-  // record to clear the end of the buffer, wrap and start at offset 0.
-  const size_t cached_size_to_end = size_to_end();
-  if (PERFETTO_UNLIKELY(tbchunk_outer_size > cached_size_to_end)) {
-    // If we reached the end of the buffer and we are using discard policy,
-    // this is where we stop. This buffer will no longer accept data.
-    if (overwrite_policy_ == kDiscard)
-      return DiscardWrite();
-
-    // Skip the tail cleanup if the previous write landed exactly at the end
-    // of the buffer (|wr_| == |size_|): there is no leftover tail to clear.
-    if (cached_size_to_end > 0)
-      DeleteNextChunksFor(cached_size_to_end);
-
-    wr_ = 0;
-    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
-    PERFETTO_DCHECK(size_to_end() >= tbchunk_outer_size);
-  }
-
-  // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
-  DeleteNextChunksFor(tbchunk_outer_size);
-
   // Find the insert position in the SequenceState's chunk list. We iterate the
   // list in reverse order as in the majority of cases chunks arrive naturally
   // in order. SMB scraping is really the only thing that might commit chunks
   // slightly out of order.
+  //
+  // This search runs BEFORE the wrap path / DeleteNextChunksFor below: a
+  // re-commit must be handled in place, and the eviction below could
+  // otherwise destroy the chunk we'd want to rewrite (silent duplication
+  // when the consumer has already drained an incomplete copy).
   auto& chunk_list = seq.chunks;
-  auto insert_pos = chunk_list.rbegin();
-  TBChunk* recommit_chunk = nullptr;
-  for (; insert_pos != chunk_list.rend(); ++insert_pos) {
-    TBChunk* other_chunk = GetTBChunkAt(*insert_pos);
-    int cmp = ChunkIdCompare(chunk_id, other_chunk->chunk_id);
-    if (cmp > 0)
-      break;
-    if (cmp == 0) {
-      // The producer is trying to re-commit a previously copied chunk. This
-      // can happen when the service does SMB scraping (the same chunk could
-      // be scraped more than once), and later the producer does a commit.
-      // We allow recommit only if the new chunk is larger than the existing.
-      recommit_chunk = other_chunk;
-      break;
-    }
-  }
+  size_t chunk_list_size_before_remove = chunk_list.size();
 
-  const uint16_t all_frags_size_u16 = static_cast<uint16_t>(all_frags_size);
+  using InsIter = base::CircularQueue<size_t>::ReverseIterator;
+  auto compute_insert_position = [&]() -> std::pair<InsIter, TBChunk*> const {
+    TBChunk* _recommit_chunk = nullptr;
+    auto _insert_pos = chunk_list.rbegin();
+    for (; _insert_pos != chunk_list.rend(); ++_insert_pos) {
+      TBChunk* other_chunk = GetTBChunkAt(*_insert_pos);
+      int cmp = ChunkIdCompare(chunk_id, other_chunk->chunk_id);
+      if (cmp > 0)
+        break;
+      if (cmp == 0) {
+        // The producer is trying to re-commit a previously copied chunk. This
+        // can happen when the service does SMB scraping (the same chunk could
+        // be scraped more than once), and later the producer does a commit.
+        // We allow recommit only if the new chunk is larger than the existing.
+        _recommit_chunk = other_chunk;
+        break;
+      }
+    }
+    return std::make_pair(_insert_pos, _recommit_chunk);
+  };
+
+  auto [insert_pos, recommit_chunk] = compute_insert_position();
 
   // In the case of a re-commit we don't need to create a new chunk, we just
   // want to overwrite the existing one.
@@ -864,6 +854,37 @@ void TraceBufferV2::CopyChunkUntrusted(
     recommit_chunk->flags |= chunk_flags;
     stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
     return;
+  }
+
+  // If there isn't enough room from the given write position: write a padding
+  // record to clear the end of the buffer, wrap and start at offset 0.
+  const size_t cached_size_to_end = size_to_end();
+  if (PERFETTO_UNLIKELY(tbchunk_outer_size > cached_size_to_end)) {
+    // If we reached the end of the buffer and we are using discard policy,
+    // this is where we stop. This buffer will no longer accept data.
+    if (overwrite_policy_ == kDiscard)
+      return DiscardWrite();
+
+    // Skip the tail cleanup if the previous write landed exactly at the end
+    // of the buffer (|wr_| == |size_|): there is no leftover tail to clear.
+    if (cached_size_to_end > 0)
+      DeleteNextChunksFor(cached_size_to_end);
+
+    wr_ = 0;
+    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
+    PERFETTO_DCHECK(size_to_end() >= tbchunk_outer_size);
+  }
+
+  // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
+  DeleteNextChunksFor(tbchunk_outer_size);
+
+  // If the DeleteNextChunksFor happens to delete a chunk in the same sequence,
+  // the insert_pos becomes invalid and we need to recompute that.
+  // Why don't we compute the insert_pos here? Because we also need to check
+  // for re-commits (which are rare, but possible) and don't want to iterate
+  // over the chunk list twice in most cases.
+  if (PERFETTO_UNLIKELY(chunk_list.size() != chunk_list_size_before_remove)) {
+    std::tie(insert_pos, std::ignore) = compute_insert_position();
   }
 
   TBChunk* tbchunk = CreateTBChunk(wr_, tbchunk_size);

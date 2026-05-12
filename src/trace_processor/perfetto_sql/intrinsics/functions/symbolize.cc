@@ -27,7 +27,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/symbolization_input.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -53,7 +53,7 @@ struct Symbolize : public sqlite::Function<Symbolize> {
   static constexpr int kArgCount = 1;
 
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
     StringPool* pool;
     profiling::LlvmSymbolizer symbolizer = profiling::LlvmSymbolizer();
   };
@@ -114,11 +114,11 @@ struct Symbolize : public sqlite::Function<Symbolize> {
 
 }  // namespace
 
-base::Status RegisterSymbolizeFunction(PerfettoSqlEngine& engine,
+base::Status RegisterSymbolizeFunction(PerfettoSqlConnection& connection,
                                        StringPool* pool) {
-  return engine.RegisterFunction<Symbolize>(
+  return connection.RegisterFunction<Symbolize>(
       std::make_unique<Symbolize::UserData>(
-          Symbolize::UserData{&engine, pool}));
+          Symbolize::UserData{&connection, pool}));
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql

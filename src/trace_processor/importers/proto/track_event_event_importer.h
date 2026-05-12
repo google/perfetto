@@ -50,6 +50,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -802,7 +803,8 @@ class TrackEventEventImporter {
       // This means that the end event did not match a corresponding track event
       // begin packet so we likely closed the wrong slice. There's not much we
       // can do about this beyond flag it as a stat.
-      context_->storage->IncrementStats(stats::track_event_thread_invalid_end);
+      context_->stats_tracker->IncrementStats(
+          stats::track_event_thread_invalid_end);
       return base::OkStatus();
     }
 
@@ -869,7 +871,7 @@ class TrackEventEventImporter {
   base::Status ParseFlowEventV1(char phase) {
     auto opt_source_id = GetLegacyEventId();
     if (!opt_source_id) {
-      storage_->IncrementStats(stats::flow_invalid_id);
+      context_->stats_tracker->IncrementStats(stats::flow_invalid_id);
       return base::ErrStatus("Invalid id for flow event v1");
     }
     FlowId flow_id = context_->flow_tracker->GetFlowIdForV1Event(
@@ -940,7 +942,7 @@ class TrackEventEventImporter {
       return;
     }
     if (!legacy_event_.has_flow_direction()) {
-      storage_->IncrementStats(stats::flow_without_direction);
+      context_->stats_tracker->IncrementStats(stats::flow_without_direction);
       return;
     }
 
@@ -957,7 +959,7 @@ class TrackEventEventImporter {
                                     /* close_flow = */ false);
         break;
       default:
-        storage_->IncrementStats(stats::flow_without_direction);
+        context_->stats_tracker->IncrementStats(stats::flow_without_direction);
     }
   }
 
@@ -1282,7 +1284,7 @@ class TrackEventEventImporter {
       if (status.ok())
         return;
       // Log error but continue parsing the other args.
-      storage_->IncrementStats(stats::track_event_parser_errors);
+      context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
       PERFETTO_DLOG("ParseTrackEventArgs error: %s", status.c_message());
     };
 
@@ -1344,8 +1346,8 @@ class TrackEventEventImporter {
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
         args_writer, &unknown_extensions));
     if (unknown_extensions > 0) {
-      context_->storage->IncrementStats(stats::unknown_extension_fields,
-                                        unknown_extensions);
+      context_->stats_tracker->IncrementStats(stats::unknown_extension_fields,
+                                              unknown_extensions);
     }
 
     {

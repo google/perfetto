@@ -21,10 +21,11 @@
 
 namespace perfetto::trace_processor {
 
-class PerfettoSqlEngine;
+class PerfettoSqlConnection;
 class StringPool;
 
-base::Status RegisterTreeFunctions(PerfettoSqlEngine& engine, StringPool& pool);
+base::Status RegisterTreeFunctions(PerfettoSqlConnection& connection,
+                                   StringPool& pool);
 
 }  // namespace perfetto::trace_processor
 

@@ -101,7 +101,7 @@ uint32_t LowerBoundIndex(uint32_t first,
   return first;
 }
 
-using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
+using IndexMap = std::map<int, int64_t>;
 
 const char kLegacyEventArgsKey[] = "legacy_event";
 const char kLegacyEventPassthroughUtidKey[] = "passthrough_utid";
@@ -1326,14 +1326,41 @@ class JsonExporter {
   }
 
   base::Status ExportStats() {
-    const auto& stats = storage_->stats();
-
-    for (size_t idx = 0; idx < stats::kNumKeys; idx++) {
-      if (stats::kTypes[idx] == stats::kSingle) {
-        writer_.SetStats(stats::kNames[idx], stats[idx].value);
+    // Aggregate StatsTable rows into per-key buckets so we can emit in
+    // stats::kNames[] enum order, matching the legacy JSON shape (which
+    // came from a std::array<Stats, kNumKeys> iterated in declaration
+    // order). Untouched kSingle stats default to value=0; untouched
+    // kIndexed stats produce no entries.
+    //
+    // JSON export only supports single-machine, single-trace sessions —
+    // there's no consumer spec for representing stats from multi-machine
+    // forks. Rows must therefore be either kGlobal (NULL, NULL) or live in
+    // the default (MachineId(0), TraceId(0)) bucket; anything else is
+    // rejected.
+    std::array<int64_t, stats::kNumKeys> single_values{};
+    std::array<IndexMap, stats::kNumKeys> indexed_values{};
+    for (auto it = storage_->stats_table().IterateRows(); it; ++it) {
+      auto m = it.machine_id();
+      auto t = it.trace_id();
+      if ((m && m != tables::MachineTable::Id{0}) ||
+          (t && t != tables::TraceFileTable::Id{0})) {
+        return base::ErrStatus(
+            "ExportJson: stats from multi-machine/multi-trace sessions are "
+            "not supported");
+      }
+      size_t key = static_cast<size_t>(it.key());
+      if (stats::kTypes[key] == stats::kSingle) {
+        single_values[key] = it.value();
       } else {
-        PERFETTO_DCHECK(stats::kTypes[idx] == stats::kIndexed);
-        writer_.SetStats(stats::kNames[idx], stats[idx].indexed_values);
+        PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
+        indexed_values[key][static_cast<int>(*it.idx())] = it.value();
+      }
+    }
+    for (size_t key = 0; key < stats::kNumKeys; key++) {
+      if (stats::kTypes[key] == stats::kSingle) {
+        writer_.SetStats(stats::kNames[key], single_values[key]);
+      } else {
+        writer_.SetStats(stats::kNames[key], indexed_values[key]);
       }
     }
 

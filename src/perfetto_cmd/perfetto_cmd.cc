@@ -1486,40 +1486,100 @@ void PerfettoCmd::PrintServiceState(bool success,
       svc_state.tracing_service_version().c_str(), svc_state.num_sessions(),
       svc_state.num_sessions_started());
 
+  // Whether any producer is connected from a non-default machine (i.e. via
+  // traced_relay). We hide the MACHINE column entirely when there is none, to
+  // keep the output identical for the typical single-machine case.
+  bool has_non_default_machine = false;
+  for (const auto& producer : svc_state.producers()) {
+    if (producer.machine_id() != 0) {
+      has_non_default_machine = true;
+      break;
+    }
+  }
+
+  // Returns a human-readable label for the machine a producer is connected
+  // from. Empty for producers connected from the host machine.
+  auto machine_label = [](const auto& producer) -> std::string {
+    if (producer.machine_id() == 0)
+      return {};
+    if (!producer.machine_name().empty())
+      return producer.machine_name();
+    base::StackString<16> id("0x%x", producer.machine_id());
+    return id.ToStdString();
+  };
+
   printf(R"(
 
 PRODUCER PROCESSES CONNECTED:
 
-ID     PID      UID      FLAGS  NAME                                       SDK
-==     ===      ===      =====  ====                                       ===
 )");
+  if (has_non_default_machine) {
+    printf(
+        "ID     PID      UID      FLAGS  MACHINE              "
+        "NAME                                       SDK\n"
+        "==     ===      ===      =====  =======              "
+        "====                                       ===\n");
+  } else {
+    printf(
+        "ID     PID      UID      FLAGS  "
+        "NAME                                       SDK\n"
+        "==     ===      ===      =====  "
+        "====                                       ===\n");
+  }
   for (const auto& producer : svc_state.producers()) {
     base::StackString<8> status("%s", producer.frozen() ? "F" : "");
-    printf("%-6d %-8d %-8d %-6s %-42s %s\n", producer.id(), producer.pid(),
-           producer.uid(), status.c_str(), producer.name().c_str(),
-           producer.sdk_version().c_str());
+    if (has_non_default_machine) {
+      std::string m = machine_label(producer);
+      printf("%-6d %-8d %-8d %-6s %-20s %-42s %s\n", producer.id(),
+             producer.pid(), producer.uid(), status.c_str(),
+             m.empty() ? "(host)" : m.c_str(), producer.name().c_str(),
+             producer.sdk_version().c_str());
+    } else {
+      printf("%-6d %-8d %-8d %-6s %-42s %s\n", producer.id(), producer.pid(),
+             producer.uid(), status.c_str(), producer.name().c_str(),
+             producer.sdk_version().c_str());
+    }
   }
 
   printf(R"(
 
 DATA SOURCES REGISTERED:
 
-NAME                                     PRODUCER                     DETAILS
-===                                      ========                     ========
 )");
+  if (has_non_default_machine) {
+    printf(
+        "NAME                                     PRODUCER                     "
+        "MACHINE              DETAILS\n"
+        "===                                      ========                     "
+        "=======              ========\n");
+  } else {
+    printf(
+        "NAME                                     PRODUCER                     "
+        "DETAILS\n"
+        "===                                      ========                     "
+        "========\n");
+  }
   for (const auto& ds : svc_state.data_sources()) {
     char producer_id_and_name[128]{};
+    std::string ds_machine;
     const int ds_producer_id = ds.producer_id();
     for (const auto& producer : svc_state.producers()) {
       if (producer.id() == ds_producer_id) {
         base::SprintfTrunc(producer_id_and_name, sizeof(producer_id_and_name),
                            "%s (%d)", producer.name().c_str(), ds_producer_id);
+        ds_machine = machine_label(producer);
         break;
       }
     }
 
-    printf("%-40s %-28s ", ds.ds_descriptor().name().c_str(),
-           producer_id_and_name);
+    if (has_non_default_machine) {
+      printf("%-40s %-28s %-20s ", ds.ds_descriptor().name().c_str(),
+             producer_id_and_name,
+             ds_machine.empty() ? "(host)" : ds_machine.c_str());
+    } else {
+      printf("%-40s %-28s ", ds.ds_descriptor().name().c_str(),
+             producer_id_and_name);
+    }
     // Print the category names for clients using the track event SDK.
     std::string cats;
     if (!ds.ds_descriptor().track_event_descriptor_raw().empty()) {

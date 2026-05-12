@@ -21,6 +21,7 @@
 
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -219,7 +220,8 @@ void ThreadStateTracker::PushThreadState(int64_t ts,
 
   if (auto row_ref = GetLastRowRef(utid); row_ref && ts == row_ref->ts()) {
     // Detected two thread state event changes at the same time.
-    storage_->IncrementStats(stats::generic_task_state_invalid_order);
+    context_->stats_tracker->IncrementStats(
+        stats::generic_task_state_invalid_order);
   }
 
   AddOpenState(ts, utid, state, cpu);

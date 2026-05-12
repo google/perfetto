@@ -48,13 +48,15 @@ class V8SequenceState;
 struct AndroidKernelWakelockState;
 struct AndroidCpuPerUidState;
 class TrackEventSequenceState;
+struct GpuCounterSequenceState;
 
 using CustomStateClasses = std::tuple<StackProfileSequenceState,
                                       ProfilePacketSequenceState,
                                       V8SequenceState,
                                       AndroidKernelWakelockState,
                                       AndroidCpuPerUidState,
-                                      TrackEventSequenceState>;
+                                      TrackEventSequenceState,
+                                      GpuCounterSequenceState>;
 
 // Defines an optional dependency for a `CustomState` class, which will be
 // passed as an argument to its constructor. The default leaves `Tracker` as

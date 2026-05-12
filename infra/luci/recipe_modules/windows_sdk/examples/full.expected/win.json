@@ -6,7 +6,7 @@
       "-root",
       "[CACHE]\\windows_sdk",
       "-ensure-file",
-      "chrome_internal/third_party/sdk/windows uploaded:2024-01-11",
+      "chrome_internal/third_party/sdk/windows uploaded:2026-05-06",
       "-max-threads",
       "0",
       "-json-output",

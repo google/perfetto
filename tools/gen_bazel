@@ -256,7 +256,7 @@ target_overrides = {
     '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql': {
         'srcs':
             'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
-    },
+    }
 }
 
 # Defines required for Bazel.
@@ -445,7 +445,6 @@ class BazelLabel(object):
     self.testonly: Optional[bool] = None
     self.script: Optional[str] = None
     self.args: List[str] = []
-    self.target_compatible_with: List[str] = []
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -848,8 +847,7 @@ def gen_protozero_descriptor_diff(target: GnParser.Target):
 
 
 def gen_target_helper(gn_target: GnParser.Target,
-                      win_target: GnParser.Target = None,
-                      android_only: bool = False):
+                      win_target: GnParser.Target = None):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
@@ -879,7 +877,7 @@ def gen_target_helper(gn_target: GnParser.Target,
   elif gn_target.type == 'static_library':
     bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'source_set':
-    bazel_type = 'perfetto_cc_library'
+    bazel_type = 'perfetto_filegroup'
   elif gn_target.type == 'generated_file':
     return []
   else:
@@ -930,9 +928,6 @@ def gen_target_helper(gn_target: GnParser.Target,
   else:
     label.srcs = raw_srcs
 
-  if gn_target.force_alwayslink:
-    label.alwayslink = True
-
   if win_target:
     label.win_srcs = list(
         set(label.srcs)
@@ -943,57 +938,51 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.binary_name = gn_target.binary_name()
     label.linkopts = gn_target.linkopts()
 
-  # Targets that only exist in the Android GN description (e.g. JNI source
-  # sets behind enable_perfetto_android_java_sdk) need to be marked as
-  # Android-only in Bazel; otherwise `bazel build //...` on a Linux host
-  # tries to compile them and fails on missing `<jni.h>` / `<android/log.h>`.
-  if android_only and bazel_type == 'perfetto_cc_library':
-    label.target_compatible_with = ['@platforms//os:android']
+  if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
+    # |source_sets| contains the transitive set of source_set deps.
+    for trans_dep in gn_target.transitive_source_set_deps():
+      name = ':' + get_bazel_label_name(trans_dep.name)
+      if name.startswith(
+          ':include_perfetto_') and gn_target.type != 'executable':
+        label.hdrs += [name]
+      else:
+        if win_target:
+          win_target_names = [
+              target.name for target in win_target.transitive_source_set_deps()
+          ]
+          if trans_dep.name in win_target_names:
+            label.win_srcs += [name]
 
-  if (gn_target.type in gn_utils.LINKER_UNIT_TYPES or
-      gn_target.type == 'source_set'):
-    # Bazel's layering_check requires every #include to be satisfied by a
-    # *direct* dep, so we list every target whose headers GN's public_deps
-    # chain makes visible to this target. See header_visible_deps() for
-    # how that set is computed.
-    for dep in sorted(gn_target.header_visible_deps()):
+        label.srcs += [name]
+
+      # Add defines from all transitive dependencies.
+      label.defines += trans_dep.defines
+
+    for dep in sorted(gn_target.non_proto_or_source_set_deps()):
       dep_name = dep.name
-      # source_set / descriptor proto plugins don't emit cc artifacts; they
-      # are pure proto aggregators, so cc consumers must skip them.
-      if dep.type == 'proto_library' and dep.proto_plugin in ('source_set',
-                                                              'descriptor'):
-        continue
       if dep_name.startswith('//gn:'):
         assert (dep_name in external_deps), dep
-      if dep_name in external_deps:
-        assert (isinstance(external_deps[dep_name], list))
-        label.external_deps += external_deps[dep_name]
-        continue
 
       # tp_tables produces a filegroup not a cc_library so should end up srcs
       # not deps.
       if dep.custom_action_type == 'tp_tables':
         label_name = ':' + get_bazel_label_name(dep_name)
-        if win_target:
-          win_target_names = [t.name for t in win_target.header_visible_deps()]
-          if dep_name in win_target_names:
-            label.win_srcs += [label_name]
+        win_target_names = [
+            target.name for target in win_target.non_proto_or_source_set_deps()
+        ]
+        if win_target and dep_name in win_target_names:
+          label.win_srcs += [label_name]
         label.srcs += [label_name]
-        continue
+      elif dep_name in external_deps:
+        assert (isinstance(external_deps[dep_name], list))
+        label.external_deps += external_deps[dep_name]
+      else:
+        label.deps += [':' + get_bazel_label_name(dep_name)]
 
-      # External consumers (e.g. Google-internal targets) depend on perfetto's
-      # cc_libraries, not on the internal include_perfetto_* source_sets that
-      # own the public headers. layering_check requires every #include be
-      # satisfied by a *direct* dep, so re-expose public-header source_set
-      # hdrs in this cc_library's hdrs. This restores the pre-refactor
-      # visibility (when //include/perfetto/... source_sets were filegroups
-      # inlined into linker_units). Restrict to //include/ to avoid leaking
-      # private src/ headers, and skip executables (cc_binary has no hdrs).
-      if (gn_target.type in ('static_library', 'shared_library') and
-          dep.type == 'source_set' and dep.name.startswith('//include/')):
-        label.hdrs += [s[2:] for s in dep.sources]
-
-      label.deps += [':' + get_bazel_label_name(dep_name)]
+    label.deps += [
+        ':' + get_bazel_label_name(x.name)
+        for x in gn_target.transitive_cpp_proto_deps()
+    ]
 
   # All items starting with : need to be sorted to the end of the list.
   # However, Python makes specifying a comparator function hard so cheat
@@ -1005,7 +994,7 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.win_srcs = sorted(label.win_srcs, key=lambda x: x.replace(':', '|'))
 
   label.deps = sorted(label.deps)
-  label.hdrs = sorted(set(label.hdrs))
+  label.hdrs = sorted(label.hdrs)
   label.defines = sorted(filter_defines(set(label.defines)))
   return [label]
 
@@ -1033,10 +1022,8 @@ def gen_protozero_group_target(gn: GnParser):
   return [label]
 
 
-def gen_target(gn_target: GnParser.Target,
-               win_target: GnParser.Target = None,
-               android_only: bool = False):
-  targets = gen_target_helper(gn_target, win_target, android_only)
+def gen_target(gn_target: GnParser.Target, win_target: GnParser.Target = None):
+  targets = gen_target_helper(gn_target, win_target)
   if gn_target.name not in target_overrides:
     return targets
   for target in targets:
@@ -1045,11 +1032,8 @@ def gen_target(gn_target: GnParser.Target,
   return targets
 
 
-def gen_target_str(gn_target,
-                   win_target: GnParser.Target = None,
-                   android_only: bool = False):
-  return ''.join(
-      str(x) for x in gen_target(gn_target, win_target, android_only))
+def gen_target_str(gn_target, win_target: GnParser.Target = None):
+  return ''.join(str(x) for x in gen_target(gn_target, win_target))
 
 
 def generate_build(gn_desc, gn_desc_win, gn_desc_android, targets, extras):
@@ -1161,7 +1145,7 @@ exports_files(["NOTICE"])
   android_str = ''
   for target_name in sorted(android_only_targets):
     target = gn_android.get_target(target_name)
-    android_str += gen_target_str(target, android_only=True)
+    android_str += gen_target_str(target)
 
   res += android_str
 
@@ -1202,6 +1186,10 @@ exports_files(["NOTICE"])
   res += public_str
   res += '# Content from BUILD.extras\n\n'
   res += extras
+
+  # Check for ODR violations
+  for target_name in default_targets:
+    checker = gn_utils.ODRChecker(gn, target_name)
 
   return res
 

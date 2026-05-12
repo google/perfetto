@@ -16,6 +16,4 @@
 -- Private table containing track IDs that have track event callstacks.
 -- This is used by the UI to determine whether to show callstack-related tabs.
 CREATE PERFETTO TABLE _track_event_tracks_with_callstacks AS
-SELECT DISTINCT
-  track_id
-FROM __intrinsic_track_event_callstacks;
+SELECT DISTINCT track_id FROM __intrinsic_track_event_callstacks;

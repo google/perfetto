@@ -28,6 +28,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_rect_computation.h"
@@ -141,7 +142,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
       blob, *util::winscope_proto_mapping::GetProtoName(table_name),
       &allowed_fields.value(), writer);
   if (!status.ok()) {
-    storage->IncrementStats(stats::winscope_sf_layers_parse_errors);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_sf_layers_parse_errors);
   }
   return snapshot_id;
 }
@@ -166,7 +168,8 @@ void SurfaceFlingerLayersParser::ParseLayer(
                                     tables::SurfaceFlingerLayerTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    storage->IncrementStats(stats::winscope_sf_layers_parse_errors);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_sf_layers_parse_errors);
   }
 
   if (!visibility.has_value()) {
@@ -301,9 +304,7 @@ SurfaceFlingerLayersParser::InsertDisplayRectRow(
   geometry::Rect rect =
       surfaceflinger_layers::display::MakeLayerStackSpaceRect(display_decoder);
 
-  if (display_decoder.has_layer_stack()) {
-    displays_by_layer_stack[display_decoder.layer_stack()] = rect;
-  }
+  displays_by_layer_stack[display_decoder.layer_stack()] = rect;
 
   if (rect.IsEmpty()) {
     const auto& size =

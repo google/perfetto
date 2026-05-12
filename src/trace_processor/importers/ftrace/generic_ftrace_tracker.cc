@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -140,13 +141,13 @@ void GenericFtraceTracker::AddDescriptor(uint32_t pb_field_id,
     uint32_t field_id = static_cast<uint32_t>(field_decoder.number());
     if (field_id >= kMaxAllowedFields) {
       PERFETTO_DLOG("Skipping generic descriptor with >32 fields.");
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::ftrace_generic_descriptor_errors);
       return;
     }
     if (field_decoder.type() > static_cast<int32_t>(ProtoSchemaType::kSint64)) {
       PERFETTO_DLOG("Skipping generic descriptor with invalid field type.");
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::ftrace_generic_descriptor_errors);
       return;
     }
@@ -230,7 +231,7 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
     protozero::Field track_name_fld =
         decoder.FindField(info.track_name_field_id);
     if (!track_name_fld.valid()) {
-      return context_->storage->IncrementStats(
+      return context_->stats_tracker->IncrementStats(
           stats::kernel_trackevent_format_error);
     }
     track_name = context_->storage->InternString(track_name_fld.as_string());
@@ -254,7 +255,7 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
     case KernelTrackEvent::kTgid: {
       protozero::Field scope_tgid = decoder.FindField(info.scope_field_id);
       if (!scope_tgid.valid()) {
-        return context_->storage->IncrementStats(
+        return context_->stats_tracker->IncrementStats(
             stats::kernel_trackevent_format_error);
       }
 
@@ -274,7 +275,7 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
     case KernelTrackEvent::kCpu: {
       protozero::Field scope_cpu = decoder.FindField(info.scope_field_id);
       if (!scope_cpu.valid()) {
-        return context_->storage->IncrementStats(
+        return context_->stats_tracker->IncrementStats(
             stats::kernel_trackevent_format_error);
       }
 
@@ -292,7 +293,7 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
     case KernelTrackEvent::kCustom:
       protozero::Field scope = decoder.FindField(info.scope_field_id);
       if (!scope.valid()) {
-        return context_->storage->IncrementStats(
+        return context_->stats_tracker->IncrementStats(
             stats::kernel_trackevent_format_error);
       }
 
@@ -312,7 +313,7 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
     protozero::Field slice_type = decoder.FindField(info.slice_type_field_id);
     protozero::Field slice_name = decoder.FindField(info.slice_name_field_id);
     if (!slice_type.valid() || !slice_name.valid()) {
-      return context_->storage->IncrementStats(
+      return context_->stats_tracker->IncrementStats(
           stats::kernel_trackevent_format_error);
     }
 
@@ -335,14 +336,14 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
         break;
       }
       default: {
-        return context_->storage->IncrementStats(
+        return context_->stats_tracker->IncrementStats(
             stats::kernel_trackevent_format_error);
       }
     }
   } else if (info.kind == KernelTrackEvent::kCounter) {
     protozero::Field value = decoder.FindField(info.value_field_id);
     if (!value.valid()) {
-      return context_->storage->IncrementStats(
+      return context_->stats_tracker->IncrementStats(
           stats::kernel_trackevent_format_error);
     }
     context_->event_tracker->PushCounter(

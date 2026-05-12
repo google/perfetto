@@ -27,7 +27,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/wakeup_graph.h"
@@ -235,10 +235,11 @@ struct CriticalPathWalk : public sqlite::AggregateFunction<CriticalPathWalk> {
 
 }  // namespace
 
-base::Status RegisterCriticalPathFunctions(PerfettoSqlEngine& engine,
+base::Status RegisterCriticalPathFunctions(PerfettoSqlConnection& connection,
                                            StringPool& pool) {
-  RETURN_IF_ERROR(engine.RegisterAggregateFunction<WakeupGraphAgg>(nullptr));
-  return engine.RegisterFunction<CriticalPathWalk>(&pool);
+  RETURN_IF_ERROR(
+      connection.RegisterAggregateFunction<WakeupGraphAgg>(nullptr));
+  return connection.RegisterFunction<CriticalPathWalk>(&pool);
 }
 
 }  // namespace perfetto::trace_processor

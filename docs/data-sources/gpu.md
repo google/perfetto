@@ -37,9 +37,11 @@ data_sources: {
 ```
 
 Traces include a `gpu_id` field to distinguish between GPUs and a `machine_id`
-field to distinguish between machines in multi-machine setups. GPU hardware
-metadata (name, vendor, architecture, UUID, PCI BDF) is recorded via the
-[GpuInfo](/protos/perfetto/trace/system_info/gpu_info.proto) trace packet.
+field to distinguish between machines in
+[multi-machine setups](/docs/deployment/multi-machine-architecture.md).
+GPU hardware metadata (name, vendor, architecture, UUID, PCI BDF) is recorded
+via the [GpuInfo](/protos/perfetto/trace/system_info/gpu_info.proto) trace
+packet.
 
 ## Android
 

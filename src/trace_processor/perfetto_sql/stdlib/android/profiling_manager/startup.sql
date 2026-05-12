@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE android.profiling_manager.util;
 -- Note: Redacted traces contain a subset of slices compare to a regular perfetto trace as they contain information only about the process
 -- starting its own profiling, thus, queries in this section may omit process information as its assumed that slices belong
 -- to the single profiled process.
-CREATE PERFETTO TABLE android_profiling_manager_cold_startup (
+CREATE PERFETTO TABLE android_profiling_manager_cold_startup(
   -- Initial timestamp for startup from apps perspective
   ts TIMESTAMP,
   -- slice name to identify the startup
@@ -30,23 +30,22 @@ CREATE PERFETTO TABLE android_profiling_manager_cold_startup (
   --   TTFF (Time to first frame): Startup marked as finished after first frame done
   --   TTI (Time to interactive): Startup marked as finished after app calls Activity#reportFullyDrawn()
   startup_checkpoint STRING
-) AS
+)
+AS
 WITH
   startups AS (
-    SELECT
-      ts,
-      'app_startup_ttff' AS name,
-      dur,
-      'TTFF' AS startup_checkpoint
-    FROM _android_generate_start_to_end_slices('bindApplication', 'Choreographer#doFrame [0-9]*', TRUE)
+    SELECT ts, 'app_startup_ttff' AS name, dur, 'TTFF' AS startup_checkpoint
+    FROM _android_generate_start_to_end_slices(
+      'bindApplication',
+      'Choreographer#doFrame [0-9]*',
+      TRUE
+    )
     UNION ALL
-    SELECT
-      ts,
-      'app_startup_tti' AS name,
-      dur,
-      'TTI' AS startup_checkpoint
-    FROM _android_generate_start_to_end_slices('bindApplication', 'reportFullyDrawn*', TRUE)
+    SELECT ts, 'app_startup_tti' AS name, dur, 'TTI' AS startup_checkpoint
+    FROM _android_generate_start_to_end_slices(
+      'bindApplication',
+      'reportFullyDrawn*',
+      TRUE
+    )
   )
-SELECT
-  *
-FROM startups;
+SELECT * FROM startups;

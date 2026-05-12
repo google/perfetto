@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
@@ -25,12 +26,25 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [HeapProfilePlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const hideDefaultChangedHint = ctx.settings.register({
+      id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
+      name: 'Hide Heap Dump Explorer Explanation',
+      description:
+        'Hide the explanation about default changes in Heap Dump Explorer',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+
     const res = await ctx.engine.query(
       'SELECT count(*) AS cnt FROM heap_graph_object LIMIT 1',
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
-    const session = new HeapDumpExplorerSession(ctx, ctx.engine);
+    const session = new HeapDumpExplorerSession(
+      ctx,
+      ctx.engine,
+      hideDefaultChangedHint,
+    );
     await session.loadDumps();
 
     ctx.pages.registerPage({
@@ -51,5 +65,17 @@ export default class implements PerfettoPlugin {
       href: '#!/heapdump',
       icon: 'memory',
     });
+
+    if (!(await traceHasTimelineData(ctx))) {
+      session.autoNavigated = true;
+      ctx.onTraceReady.addListener(() => ctx.navigate('#!/heapdump'));
+    }
   }
+}
+
+async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
+  const res = await ctx.engine.query(
+    `SELECT EXISTS(SELECT 1 FROM slice) OR EXISTS(SELECT 1 FROM sched) AS res`,
+  );
+  return res.firstRow({res: NUM}).res > 0;
 }

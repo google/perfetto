@@ -19,12 +19,12 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 namespace perfetto::trace_processor {
 
-// Registers all graph scan related functions with |engine|.
-base::Status RegisterGraphScanFunctions(PerfettoSqlEngine& engine,
+// Registers all graph scan related functions with |connection|.
+base::Status RegisterGraphScanFunctions(PerfettoSqlConnection& connection,
                                         StringPool* pool);
 
 }  // namespace perfetto::trace_processor

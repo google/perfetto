@@ -663,9 +663,39 @@ message AndroidProcessStateChangedEvent {
   optional int32 freeze_policy_flags = 13;
 }
 
+message AndroidServiceStateChangedEvent {
+  // UID of the app hosting the service.
+  optional int32 uid = 1;
+  // PID of the app hosting the service.
+  optional int32 pid = 2;
+  // Component name of the service.
+  optional string component_name = 3;
+  // Intent action used to bind/start the service.
+  optional string intent_action = 4;
+  // Identifier for the binding.
+  optional int32 bind_id = 5;
+  // Type of foreground service.
+  optional int32 foreground_service_type = 6;
+}
+
+message AndroidProviderStateChangedEvent {
+  // UID of the app hosting the provider.
+  optional int32 uid = 1;
+  // PID of the app hosting the provider.
+  optional int32 pid = 2;
+  // Authority of the content provider.
+  optional string authority = 3;
+  // UID of the app accessing the provider.
+  optional int32 caller_uid = 4;
+  // PID of the app accessing the provider.
+  optional int32 caller_pid = 5;
+  // Whether the connection is stable.
+  optional int32 is_stable = 6;
+}
+
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2014
+  // Next id: 2017
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -694,5 +724,13 @@ message AndroidTrackEvent {
     optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
     // Binder died event.
     optional AndroidBinderDiedEvent binder_died_event = 2013;
+    // Service state changed event.
+    optional AndroidServiceStateChangedEvent service_state_changed_event = 2014;
+    // ContentProvider state changed event.
+    optional AndroidProviderStateChangedEvent provider_state_changed_event =
+        2015;
+    // Foreground service state changed event.
+    optional AndroidServiceStateChangedEvent fg_service_state_changed_event =
+        2016;
   }
 }
