@@ -106,21 +106,6 @@
   flex: 1;
 }
 
-.ah-dump-selector {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: var(--pf-color-background);
-  border-bottom: 1px solid var(--pf-color-border);
-  font-size: 0.875rem;
-}
-
-.ah-dump-selector__label {
-  color: var(--pf-color-text-hint);
-}
-
 .ah-error-text {
   color: var(--pf-color-danger);
   padding: 1rem;
@@ -424,6 +409,101 @@
 
 .ah-flex-none {
   flex-shrink: 0;
+}
+
+// Combined top bar that hosts both the primary heap-dump selector and the
+// baseline pool / diff controls in a single row above the tabs. Multiple
+// inline groups are separated by a vertical divider.
+.ah-top-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--pf-color-background);
+  border-bottom: 1px solid var(--pf-color-border);
+  font-size: 0.875rem;
+}
+
+// Collapsed top bar — keeps a hidden file input mounted but renders no
+// visible row. `display: none` would also drop the input from the layout
+// tree but `aria-hidden` on the input is enough for screen readers; a
+// zero-height container avoids reflow churn when the bar appears.
+.ah-top-bar--hidden {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.ah-top-bar__label {
+  color: var(--pf-color-text-hint);
+}
+
+// Vertical divider between the primary and baseline groups.
+.ah-top-bar__separator {
+  color: var(--pf-color-border);
+  user-select: none;
+}
+
+// Flex spacer that pushes the diff-mode toggle (and trailing controls)
+// to the right edge of the top bar.
+.ah-top-bar__spacer {
+  flex: 1;
+}
+
+// Subdued group heading inside the baseline-pool popup (above each
+// pooled trace's dump list).
+.ah-top-bar__section-title {
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+}
+
+// Vertically scrolling content area for the Overview tab — the cards
+// below the heading exceed the viewport on small screens. The Tabs widget
+// gives this element a fixed height, so a child with `overflow-y: auto`
+// is the right scroll container.
+.ah-view-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem; // keep scrollbar from overlapping last column
+}
+
+// Status badge text inside diff DataGrid status cells. Plain coloured
+// uppercase, no pill — same visual weight as AHAT.
+.ah-status-text {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+
+  &--new {
+    color: var(--pf-color-warning);
+  }
+  &--grew {
+    color: var(--pf-color-danger);
+  }
+  &--shrank {
+    color: var(--pf-color-success);
+  }
+  &--removed {
+    color: var(--pf-color-text-muted);
+  }
+  &--unchanged {
+    color: var(--pf-color-text-hint);
+  }
+}
+
+// Diff delta values (sized + count cells in diff DataGrids and Overview
+// `dWasted`). Sign carries direction: `+` red, `−` green, 0 muted.
+.ah-delta {
+  &--grew {
+    color: var(--pf-color-danger);
+  }
+  &--shrank {
+    color: var(--pf-color-success);
+  }
+  &--zero {
+    color: var(--pf-color-text-muted);
+  }
 }
 
 // Spacing (minimal set)

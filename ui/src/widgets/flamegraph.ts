@@ -124,6 +124,11 @@ export interface FlamegraphNode {
   readonly marker?: string;
   readonly xStart: number;
   readonly xEnd: number;
+  // Opaque modulation hint of the form `palette:DIR[:INTENSITY]`. Keeps
+  // the per-name palette hue and shifts saturation/lightness only — see
+  // getColorSchemeFromHint. Today only the heap-dump diff metric emits
+  // these.
+  readonly colorHint?: string;
 }
 
 export interface FlamegraphQueryData {
@@ -691,7 +696,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
         name = nodes[source.queryIdx].name;
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        const hint = nodes[source.queryIdx].colorHint;
+        if (hint !== undefined && state !== 'PARTIAL') {
+          colorScheme = getColorSchemeFromHint(hint, name);
+        } else {
+          colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        }
       }
       const bgColor = hover ? colorScheme.variant : colorScheme.base;
       const textColor = hover ? colorScheme.textVariant : colorScheme.textBase;
@@ -1629,6 +1639,61 @@ const ROOT_COLOR_SCHEME = makeColorScheme(
 // Cache for computed color schemes by name
 const colorSchemeCache = new Map<string, ColorScheme>();
 
+// Schemes derived from `palette:DIR[:INTENSITY]` hints. Cache key
+// includes the node name because the hue depends on it.
+const hintSchemeCache = new Map<string, ColorScheme>();
+
+// Resolve a palette-modulator hint into a ColorScheme. Format:
+// `palette:DIR[:INTENSITY]` where DIR ∈ {g, s, n, u} (grew, shrank, new,
+// unchanged) and INTENSITY ∈ [0, 1] scales how far the colour shifts
+// from the base palette. Hue is always preserved so each node keeps the
+// identity it has in the non-diff palette.
+function getColorSchemeFromHint(hint: string, name: string): ColorScheme {
+  const cacheKey = `${name}|${hint}`;
+  const cached = hintSchemeCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const [, dir, intensityStr] = hint.split(':');
+  const i = clampUnit(Number(intensityStr ?? '1'));
+  const base = modulatePalette(paletteHsl(name), dir, i);
+  const scheme = makeColorScheme(base, base.darken(12).saturate(15));
+  hintSchemeCache.set(cacheKey, scheme);
+  return scheme;
+}
+
+function modulatePalette(
+  base: HSLColor,
+  dir: string,
+  intensity: number,
+): HSLColor {
+  switch (dir) {
+    case 'g': // grew: more vivid, slightly darker
+      return base
+        .saturate(Math.round(25 * intensity))
+        .darken(Math.round(8 * intensity));
+    case 's': // shrank: faded toward background, hue retained
+      return base
+        .lighten(Math.round(15 * intensity))
+        .desaturate(Math.round(15 * intensity));
+    case 'n': // new
+      return base.saturate(25).darken(5);
+    case 'u': // unchanged
+      return base.lighten(8).desaturate(10);
+    default:
+      return base;
+  }
+}
+
+function clampUnit(x: number): number {
+  return Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 1;
+}
+
+// Base palette colour for a node name. Hashing the name to a hue keeps
+// the same class in the same colour across diff and non-diff modes; the
+// fixed saturation / lightness match the pprof web UI.
+function paletteHsl(name: string): HSLColor {
+  return new HSLColor({h: hash(name, 360), s: 46, l: 80});
+}
+
 function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (greyed) {
     return GREYED_COLOR_SCHEME;
@@ -1636,17 +1701,11 @@ function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (name === 'unknown' || name === 'root') {
     return ROOT_COLOR_SCHEME;
   }
-
-  // Check cache first
   let scheme = colorSchemeCache.get(name);
   if (scheme !== undefined) {
     return scheme;
   }
-
-  // Hash the name to get a predictable hue, then create color with fixed
-  // saturation and lightness values to match what pprof web UI does.
-  const hue = hash(name, 360);
-  const base = new HSLColor({h: hue, s: 46, l: 80});
+  const base = paletteHsl(name);
   scheme = makeColorScheme(base, base.darken(15).saturate(15));
   colorSchemeCache.set(name, scheme);
   return scheme;
