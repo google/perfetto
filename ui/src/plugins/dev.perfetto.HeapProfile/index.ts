@@ -264,32 +264,30 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async selectHeapProfile(ctx: Trace) {
+    // Heap-graphs default open in the HeapDumpExplorer so exclude them here to
+    // avoid redundant queries.
     const result = await ctx.engine.query(`
         SELECT
-          id,
           upid,
           type
         FROM ${EVENT_TABLE_NAME}
+        WHERE type != 'java_heap_graph'
         ORDER BY type, ts
         LIMIT 1
       `);
 
-    const iter = result.maybeFirstRow({id: NUM, upid: NUM, type: STR});
+    const iter = result.maybeFirstRow({upid: NUM, type: STR});
     if (!iter) return;
 
     const uri = trackUri(iter.upid, iter.type);
     const track = this.trackMap.get(uri);
     if (!track) return;
 
-    if (profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH) {
-      ctx.selection.selectTrackEvent(track.uri, iter.id);
-    } else {
-      ctx.selection.selectArea({
-        start: ctx.traceInfo.start,
-        end: ctx.traceInfo.end,
-        trackUris: [uri],
-      });
-    }
+    ctx.selection.selectArea({
+      start: ctx.traceInfo.start,
+      end: ctx.traceInfo.end,
+      trackUris: [uri],
+    });
   }
 
   private heapProfileSelectionHandler(
