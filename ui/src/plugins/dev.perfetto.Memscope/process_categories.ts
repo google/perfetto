@@ -28,7 +28,7 @@ export interface ProcessCategory {
 // theme_provider.scss. UNKNOWN always uses the neutral; everyone else gets
 // `--pf-chart-color-${(index % PALETTE_SIZE) + 1}`, wrapping when there are
 // more categories than palette colors.
-const CHART_PALETTE_SIZE = 13;
+const CHART_PALETTE_SIZE = 8;
 const CATEGORY_NAMES = {
   GOOGLE_ANDROID_JAVA: 'Google/Android Java',
   AI_CORE: 'AI Core',

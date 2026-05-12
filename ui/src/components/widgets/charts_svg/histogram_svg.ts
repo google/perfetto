@@ -18,6 +18,9 @@ import type {HistogramAttrs, HistogramData} from '../charts/histogram';
 import {clamp} from '../../../base/math_utils';
 import {shortUuid} from '../../../base/uuid';
 import {
+  AXIS_LABEL_FONT_SIZE,
+  BORDER_COLOR,
+  TEXT_COLOR,
   TICK_LABEL_GAP,
   TICK_LENGTH,
   computePlotLayout,
@@ -380,20 +383,19 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
         const x = slotX(i);
         return m('g', [
           m('line', {
-            className: 'pf-chart-svg__line',
             x1: x,
             y1: padTop + plotH,
             x2: x,
             y2: padTop + plotH + TICK_LENGTH,
-            stroke: 'currentColor',
+            stroke: BORDER_COLOR,
           }),
           m(
             'text',
             {
-              'className': 'pf-chart-svg__tick-label',
               'x': x,
               'y': padTop + plotH + TICK_LENGTH + TICK_LABEL_GAP,
-              'fill': 'currentColor',
+              'fill': TEXT_COLOR,
+              'font-size': AXIS_LABEL_FONT_SIZE,
               'text-anchor': 'middle',
               'dominant-baseline': 'hanging',
             },
@@ -408,20 +410,19 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
           const x = slotX(dataSlots - 1) + adjBarWidth;
           return m('g', [
             m('line', {
-              className: 'pf-chart-svg__line',
               x1: x,
               y1: padTop + plotH,
               x2: x,
               y2: padTop + plotH + TICK_LENGTH,
-              stroke: 'currentColor',
+              stroke: BORDER_COLOR,
             }),
             m(
               'text',
               {
-                'className': 'pf-chart-svg__tick-label',
                 'x': x,
                 'y': padTop + plotH + TICK_LENGTH + TICK_LABEL_GAP,
-                'fill': 'currentColor',
+                'fill': TEXT_COLOR,
+                'font-size': AXIS_LABEL_FONT_SIZE,
                 'text-anchor': 'middle',
                 'dominant-baseline': 'hanging',
               },
@@ -434,10 +435,10 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
         m(
           'text',
           {
-            'className': 'pf-chart-svg__tick-label',
             'x': slotX(dataSlots) + adjBarWidth / 2,
             'y': padTop + plotH + TICK_LENGTH + TICK_LABEL_GAP,
-            'fill': 'currentColor',
+            'fill': TEXT_COLOR,
+            'font-size': AXIS_LABEL_FONT_SIZE,
             'text-anchor': 'middle',
             'dominant-baseline': 'hanging',
           },
@@ -453,13 +454,12 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
           const x = slotX(lo);
           const w = slotX(hi) + adjBarWidth - x;
           return m('rect', {
-            'className': 'pf-chart-svg__brush',
             'x': x,
             'y': padTop,
             'width': Math.max(0, w),
             'height': plotH,
-            'fill': 'currentColor',
-            'stroke': 'currentColor',
+            'fill': 'rgba(0, 120, 212, 0.15)',
+            'stroke': 'rgba(0, 120, 212, 0.5)',
             'stroke-width': 1,
             'pointer-events': 'none',
           });

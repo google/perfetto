@@ -224,9 +224,9 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => `${v.toFixed(1)} ms/s`,
-            markers: data.lmkEvents.map((ev) => ({
-              x: (ev.ts - t0) / 1e9,
-            })),
+            // TODO(stevegolton): Add markers back in when we support them in LineChartSvg.
+            //   x: (ev.ts - t0) / 1e9,
+            // })),
           })
         : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
     ),

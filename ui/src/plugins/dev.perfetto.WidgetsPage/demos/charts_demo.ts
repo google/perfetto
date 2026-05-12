@@ -211,7 +211,6 @@ export function renderCharts(app: App): m.Children {
           stacked: opts.stacked,
           gridLines: opts.gridLines,
           legendPosition: opts.legendPosition,
-          markers: opts.markers,
           useSvg: true,
         });
       },
@@ -237,7 +236,6 @@ export function renderCharts(app: App): m.Children {
           'right',
           'bottom',
         ] as const),
-        markers: false,
       },
     }),
 
@@ -1496,7 +1494,6 @@ function LineChartDemo(): m.Component<{
   stacked: boolean;
   gridLines: string;
   legendPosition: LegendPosition;
-  markers?: boolean;
   useSvg?: boolean;
 }> {
   let brushRange: {start: number; end: number} | undefined;
@@ -1531,9 +1528,6 @@ function LineChartDemo(): m.Component<{
               }
             : undefined,
         selection: attrs.brushMode === 'select' ? brushRange : undefined,
-        markers: attrs.markers
-          ? [{x: 4}, {x: 9, color: 'var(--pf-color-warning)'}, {x: 14}]
-          : undefined,
       };
 
       return m('div', [

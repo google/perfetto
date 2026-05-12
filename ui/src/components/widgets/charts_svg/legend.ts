@@ -26,10 +26,6 @@ export interface ChartLegendEntryAttrs {
   readonly hidden?: boolean;
   /** Click handler. When set, the entry shows a pointer cursor. */
   readonly onToggle?: () => void;
-  /** Called when the mouse enters this legend entry */
-  readonly onMouseEnter?: () => void;
-  /** Called when the mouse leaves this legend entry */
-  readonly onMouseLeave?: () => void;
 }
 
 /**
@@ -48,23 +44,13 @@ export const ChartLegend = {
   },
   Entry: {
     view({attrs}: m.Vnode<ChartLegendEntryAttrs>) {
-      const {
-        name,
-        value,
-        swatch,
-        hidden,
-        onToggle,
-        onMouseEnter,
-        onMouseLeave,
-      } = attrs;
+      const {name, value, swatch, hidden, onToggle} = attrs;
       return m(
         '.pf-chart-svg__legend-entry',
         {
           className: classNames(hidden && 'pf-chart-svg__legend-entry--hidden'),
           style: onToggle ? {cursor: 'pointer'} : undefined,
           onclick: onToggle,
-          onmouseenter: onMouseEnter,
-          onmouseleave: onMouseLeave,
         },
         swatch !== undefined &&
           m('.pf-chart-svg__legend-swatch', {
