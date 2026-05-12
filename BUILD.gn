@@ -184,6 +184,9 @@ if (perfetto_build_standalone) {
   all_targets += [
     "test/configs",
 
+    # V2 tracing protocol prototype (see rfcs/0014-tracing-protocol-redesign.md)
+    "src/tracing/v2:v2",
+
     # Used to evaluate the Python folder for Bazel script generation.
     "python:trace_processor_py",
 

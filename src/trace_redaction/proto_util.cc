@@ -48,6 +48,10 @@ void AppendField(const protozero::Field& field, protozero::Message* message) {
       message->AppendBytes(id, field.data(), field.size());
       return;
     }
+
+    case protozero::proto_utils::ProtoWireType::kSGroup:
+    case protozero::proto_utils::ProtoWireType::kEGroup:
+      break;
   }
 
   // A switch-statement would be preferred, but when using a switch statement,

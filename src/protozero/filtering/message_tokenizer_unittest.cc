@@ -42,6 +42,12 @@ inline std::ostream& operator<<(std::ostream& stream, const Token& t) {
     case ProtoWireType::kLengthDelimited:
       stream << "lendelim, ";
       break;
+    case ProtoWireType::kSGroup:
+      stream << "sgroup, ";
+      break;
+    case ProtoWireType::kEGroup:
+      stream << "egroup, ";
+      break;
     default:
       stream << "???, ";
       break;
