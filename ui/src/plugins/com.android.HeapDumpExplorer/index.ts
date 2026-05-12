@@ -27,7 +27,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const hideDefaultChangedHint = ctx.settings.register({
-      id: 'com.android#hideHeapDumpExplorerDefaultChangedHint',
+      id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
       name: 'Hide Heap Dump Explorer Explanation',
       description:
         'Hide the explanation about default changes in Heap Dump Explorer',
