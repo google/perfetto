@@ -38,8 +38,6 @@
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
@@ -169,7 +167,6 @@ class TraceProcessorImpl : public TraceProcessor,
   static std::vector<std::unique_ptr<StaticTableFunction>>
   CreateStaticTableFunctions(TraceProcessorContext* context,
                              TraceStorage* storage,
-                             const Config& config,
                              PerfettoSqlConnection* connection);
 
   static void IncludeAfterEofPrelude(PerfettoSqlConnection*);

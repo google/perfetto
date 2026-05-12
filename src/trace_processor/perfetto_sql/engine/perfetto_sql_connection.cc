@@ -481,16 +481,51 @@ PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
   return std::move(stmt);
 }
 
-base::Status PerfettoSqlConnection::InitializeStaticTablesAndFunctions(
-    const std::vector<StaticTable>& tables,
-    std::vector<std::unique_ptr<StaticTableFunction>> functions) {
-  for (const auto& info : tables) {
+void PerfettoSqlConnection::Initialize(Initializer init) {
+  for (const auto& info : init.static_tables) {
     RegisterStaticTable(info.dataframe, info.name);
   }
-  for (auto& info : functions) {
+  for (auto& info : init.static_table_functions) {
     RegisterStaticTableFunction(std::move(info));
   }
-  return base::OkStatus();
+  for (const auto& mod : init.sqlite_modules) {
+    if (mod.is_state_manager) {
+      virtual_module_state_managers_.push_back(
+          static_cast<sqlite::ModuleStateManagerBase*>(mod.context));
+    }
+    connection_->RegisterVirtualTableModule(mod.name, mod.module, mod.context,
+                                            mod.destructor);
+  }
+  for (auto& fn : init.functions) {
+    function_count_++;
+    base::Status s = RegisterFunctionAndAddToRegistry(
+        fn.name.c_str(), fn.argc, fn.step, fn.ctx, fn.ctx_destructor,
+        fn.deterministic);
+    if (!s.ok()) {
+      PERFETTO_FATAL("Failed to register %s: %s", fn.name.c_str(),
+                     s.c_message());
+    }
+  }
+  for (auto& fn : init.aggregate_functions) {
+    aggregate_function_count_++;
+    base::Status s = connection_->RegisterAggregateFunction(
+        fn.name.c_str(), fn.argc, fn.step, fn.final_fn, fn.ctx,
+        fn.ctx_destructor, fn.deterministic);
+    if (!s.ok()) {
+      PERFETTO_FATAL("Failed to register aggregate %s: %s", fn.name.c_str(),
+                     s.c_message());
+    }
+  }
+  for (auto& fn : init.window_functions) {
+    window_function_count_++;
+    base::Status s = connection_->RegisterWindowFunction(
+        fn.name.c_str(), fn.argc, fn.step, fn.inverse, fn.value, fn.final_fn,
+        fn.ctx, fn.ctx_destructor, fn.deterministic);
+    if (!s.ok()) {
+      PERFETTO_FATAL("Failed to register window %s: %s", fn.name.c_str(),
+                     s.c_message());
+    }
+  }
 }
 
 void PerfettoSqlConnection::RegisterStaticTable(dataframe::Dataframe* df,

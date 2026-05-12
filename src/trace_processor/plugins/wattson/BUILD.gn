@@ -96,9 +96,9 @@ _wattson_curve_blob("gen_tpu_curves") {
 source_set("wattson") {
   sources = [
     "plugin.cc",
-    "register.h",
     "table_function.cc",
     "table_function.h",
+    "wattson.h",
   ]
   deps = [
     ":gen_cpu_1d_curves",

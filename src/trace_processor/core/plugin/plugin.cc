@@ -133,8 +133,17 @@ void PluginBase::RegisterProtoImporterModules(ProtoImporterModuleContext*) {}
 void PluginBase::RegisterDataframes(std::vector<PluginDataframe>&) {}
 void PluginBase::RegisterStaticTableFunctions(
     std::vector<std::unique_ptr<StaticTableFunction>>&) {}
-void PluginBase::RegisterSqliteModules(std::vector<SqliteModuleRegistration>&) {
+void PluginBase::RegisterSqliteModules(PerfettoSqlConnection*,
+                                       std::vector<SqliteModuleRegistration>&) {
 }
+void PluginBase::RegisterFunctions(PerfettoSqlConnection*,
+                                   std::vector<FunctionRegistration>&) {}
+void PluginBase::RegisterAggregateFunctions(
+    PerfettoSqlConnection*,
+    std::vector<AggregateFunctionRegistration>&) {}
+void PluginBase::RegisterWindowFunctions(
+    PerfettoSqlConnection*,
+    std::vector<WindowFunctionRegistration>&) {}
 uint64_t PluginBase::GetBoundsMutationCount() {
   return 0;
 }

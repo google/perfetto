@@ -24,8 +24,6 @@ source_set("sqlite") {
     "scoped_db.h",
     "sql_source.cc",
     "sql_source.h",
-    "sql_stats_table.cc",
-    "sql_stats_table.h",
     "sqlite_connection.cc",
     "sqlite_connection.h",
     "sqlite_database.h",

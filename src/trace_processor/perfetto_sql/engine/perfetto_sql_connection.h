@@ -32,6 +32,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
@@ -68,6 +69,19 @@ class PerfettoSqlConnection {
     dataframe::Dataframe* dataframe;
     std::string name;
   };
+
+  // Aggregated registration data passed to |Initialize|. Registration order
+  // mirrors field order: static_tables → static_table_functions →
+  // sqlite_modules → functions → aggregate_functions → window_functions.
+  struct Initializer {
+    std::vector<StaticTable> static_tables;
+    std::vector<std::unique_ptr<StaticTableFunction>> static_table_functions;
+    std::vector<SqliteModuleRegistration> sqlite_modules;
+    std::vector<FunctionRegistration> functions;
+    std::vector<AggregateFunctionRegistration> aggregate_functions;
+    std::vector<WindowFunctionRegistration> window_functions;
+  };
+
   // Creates a fresh |PerfettoSqlDatabase| and returns a connection attached
   // to it. The database lives only as long as some connection has it open.
   static std::unique_ptr<PerfettoSqlConnection> CreateConnectionToNewDatabase(
@@ -86,10 +100,9 @@ class PerfettoSqlConnection {
   // shared.
   std::unique_ptr<PerfettoSqlConnection> Fork();
 
-  // Initializes the static tables and functions in the connection.
-  base::Status InitializeStaticTablesAndFunctions(
-      const std::vector<StaticTable>& tables,
-      std::vector<std::unique_ptr<StaticTableFunction>> functions);
+  // Performs per-connection setup: registers static tables, static table
+  // functions, virtual table modules and SQL functions in one shot.
+  void Initialize(Initializer init);
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -159,19 +172,6 @@ class PerfettoSqlConnection {
     connection_->RegisterVirtualTableModule(
         name, &Module::kModule, ctx.release(),
         [](void* ptr) { delete static_cast<typename Module::Context*>(ptr); });
-  }
-
-  // Registers a virtual table module from a plugin's SqliteModuleRegistration.
-  void RegisterSqliteModuleForPlugin(const char* name,
-                                     const sqlite3_module* module,
-                                     void* ctx,
-                                     void (*destructor)(void*),
-                                     bool is_state_manager) {
-    if (is_state_manager) {
-      virtual_module_state_managers_.push_back(
-          static_cast<sqlite::ModuleStateManagerBase*>(ctx));
-    }
-    connection_->RegisterVirtualTableModule(name, module, ctx, destructor);
   }
 
   // Registers a trace processor C++ function to be runnable from SQL.
@@ -536,6 +536,70 @@ base::Status PerfettoSqlConnection::RegisterWindowFunction(
   return connection_->RegisterWindowFunction(
       name, argc, Function::Step, Function::Inverse, Function::Value,
       Function::Final, ctx, nullptr, deterministic);
+}
+
+// Builds a scalar function registration entry with a non-owning context.
+template <typename F>
+FunctionRegistration MakeFunctionRegistration(
+    typename F::UserData* ctx,
+    PerfettoSqlConnection::RegisterFunctionArgs args = {}) {
+  FunctionRegistration r;
+  r.name = args.name ? args.name : F::kName;
+  r.argc = args.argc.has_value() ? *args.argc : F::kArgCount;
+  r.step = F::Step;
+  r.ctx = ctx;
+  r.deterministic = args.deterministic;
+  return r;
+}
+
+// Builds a scalar function registration entry with an owning context.
+template <typename F>
+FunctionRegistration MakeFunctionRegistration(
+    std::unique_ptr<typename F::UserData> ctx,
+    PerfettoSqlConnection::RegisterFunctionArgs args = {}) {
+  FunctionRegistration r;
+  r.name = args.name ? args.name : F::kName;
+  r.argc = args.argc.has_value() ? *args.argc : F::kArgCount;
+  r.step = F::Step;
+  r.ctx = ctx.release();
+  r.ctx_destructor = [](void* p) {
+    delete static_cast<typename F::UserData*>(p);
+  };
+  r.deterministic = args.deterministic;
+  return r;
+}
+
+// Builds an aggregate function registration entry.
+template <typename F>
+AggregateFunctionRegistration MakeAggregateRegistration(
+    typename F::UserData* ctx,
+    bool deterministic = true) {
+  AggregateFunctionRegistration r;
+  r.name = F::kName;
+  r.argc = F::kArgCount;
+  r.step = F::Step;
+  r.final_fn = F::Final;
+  r.ctx = ctx;
+  r.deterministic = deterministic;
+  return r;
+}
+
+// Builds a window function registration entry.
+template <typename F>
+WindowFunctionRegistration MakeWindowRegistration(const char* name,
+                                                  int argc,
+                                                  typename F::Context* ctx,
+                                                  bool deterministic = true) {
+  WindowFunctionRegistration r;
+  r.name = name;
+  r.argc = argc;
+  r.step = F::Step;
+  r.inverse = F::Inverse;
+  r.value = F::Value;
+  r.final_fn = F::Final;
+  r.ctx = ctx;
+  r.deterministic = deterministic;
+  return r;
 }
 
 }  // namespace perfetto::trace_processor

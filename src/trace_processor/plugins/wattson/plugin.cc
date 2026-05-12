@@ -29,9 +29,9 @@
 #include "src/trace_processor/plugins/wattson/cpu_2d_curves.h"
 #include "src/trace_processor/plugins/wattson/gpu_curves.h"
 #include "src/trace_processor/plugins/wattson/l3_curves.h"
-#include "src/trace_processor/plugins/wattson/register.h"
 #include "src/trace_processor/plugins/wattson/table_function.h"
 #include "src/trace_processor/plugins/wattson/tpu_curves.h"
+#include "src/trace_processor/plugins/wattson/wattson.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
