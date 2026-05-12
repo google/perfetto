@@ -66,6 +66,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_HeapGraph);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InitialDisplayState);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileMap);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedData);
+PERFETTO_PB_MSG_DECL(perfetto_protos_InterruptInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelockData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_LayersSnapshotProto);
 PERFETTO_PB_MSG_DECL(perfetto_protos_MemoryTrackerSnapshot);
@@ -444,6 +445,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_GpuInfo,
                   gpu_info,
                   128);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_InterruptInfo,
+                  interrupt_info,
+                  130);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ModuleSymbols,
