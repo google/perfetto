@@ -20,24 +20,29 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/protovm/compiler/compile_config.descriptor.h"
-#include "src/protovm/compiler/trace.descriptor.h"
-#include "src/protovm/compiler/winscope.descriptor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 
 namespace perfetto::protovm {
 
-Compiler::Compiler() : emitter_(&pool_) {
-  pool_.AddFromFileDescriptorSet(perfetto::kTraceDescriptor.data(),
-                                 perfetto::kTraceDescriptor.size());
-  pool_.AddFromFileDescriptorSet(perfetto::kWinscopeDescriptor.data(),
-                                 perfetto::kWinscopeDescriptor.size());
-  auto idx = pool_.FindDescriptorIdx(".perfetto.protos.TracePacket");
-  PERFETTO_CHECK(idx);
-  root_proto_ = &pool_.descriptors()[*idx];
+Compiler::Compiler() : emitter_(&pool_) {}
+
+base::Status Compiler::RegisterDescriptors(const uint8_t* data, size_t size) {
+  RETURN_IF_ERROR(pool_.AddFromFileDescriptorSet(data, size));
+  return base::OkStatus();
 }
 
 base::StatusOr<std::string> Compiler::Compile(
     std::string_view config_textproto) {
+  auto idx = pool_.FindDescriptorIdx(kRootProto);
+  if (idx) {
+    root_proto_ = &pool_.descriptors()[*idx];
+  }
+  if (!root_proto_) {
+    return base::ErrStatus(
+        "Root message %s not found in loaded "
+        "descriptors",
+        kRootProto);
+  }
   auto status_or_proto =
       protozero::TextToProto(perfetto::kCompileConfigDescriptor.data(),
                              perfetto::kCompileConfigDescriptor.size(),

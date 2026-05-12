@@ -38,12 +38,15 @@ namespace perfetto::protovm {
 class Compiler {
  public:
   Compiler();
+  base::Status RegisterDescriptors(const uint8_t* data, size_t size);
 
   base::StatusOr<std::string> Compile(std::string_view config_textproto);
 
  private:
   using AbortLevel = protos::pbzero::VmInstruction::AbortLevel;
   using Cursor = perfetto::protos::pbzero::VmCursorEnum;
+
+  static constexpr const char* kRootProto = ".perfetto.protos.TracePacket";
 
   base::Status ParseCommands(
       const InstructionEmitter::Scope& scope,
@@ -77,7 +80,7 @@ class Compiler {
       const protos::pbzero::Command::Decoder& command) const;
 
   perfetto::trace_processor::DescriptorPool pool_;
-  const perfetto::trace_processor::ProtoDescriptor* root_proto_;
+  const perfetto::trace_processor::ProtoDescriptor* root_proto_ = nullptr;
   InstructionEmitter emitter_;
 };
 

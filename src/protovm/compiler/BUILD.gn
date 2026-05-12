@@ -25,8 +25,6 @@ source_set("compiler") {
   ]
   deps = [
     ":gen_cc_compile_config_descriptor",
-    ":gen_cc_trace_descriptor",
-    ":gen_cc_winscope_descriptor",
     "../../../gn:default_deps",
     "../../../include/perfetto/protozero",
     "../../../protos/perfetto/common:zero",
@@ -44,7 +42,9 @@ perfetto_host_executable("protovm_compiler") {
   deps = [
     ":compiler",
     "../../../gn:default_deps",
+    "../../../gn:protoc_lib",
     "../../base",
+    "../../protozero:multifile_error_collector",
   ]
 }
 
@@ -74,7 +74,9 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":compiler",
+    ":gen_cc_trace_descriptor",
     ":gen_cc_vm_program_descriptor",
+    ":gen_cc_winscope_descriptor",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../protozero/text_to_proto",

@@ -21,7 +21,9 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/protovm/compiler/compiler.h"
+#include "src/protovm/compiler/trace.descriptor.h"
 #include "src/protovm/compiler/vm_program.descriptor.h"
+#include "src/protovm/compiler/winscope.descriptor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
@@ -45,6 +47,14 @@ class CompilerTest : public ::testing::Test {
   void CheckCompilation(std::string_view config_textproto,
                         std::string_view expected_instructions_textproto) {
     Compiler compiler;
+    EXPECT_TRUE(compiler
+                    .RegisterDescriptors(perfetto::kTraceDescriptor.data(),
+                                         perfetto::kTraceDescriptor.size())
+                    .ok());
+    EXPECT_TRUE(compiler
+                    .RegisterDescriptors(perfetto::kWinscopeDescriptor.data(),
+                                         perfetto::kWinscopeDescriptor.size())
+                    .ok());
     base::StatusOr<std::string> actual_instructions_binary =
         compiler.Compile(config_textproto);
     EXPECT_TRUE(actual_instructions_binary.ok())
@@ -549,6 +559,14 @@ TEST_F(CompilerTest, ErrorInvalidFieldName) {
     })";
 
   auto compiler = Compiler{};
+  EXPECT_TRUE(compiler
+                  .RegisterDescriptors(perfetto::kTraceDescriptor.data(),
+                                       perfetto::kTraceDescriptor.size())
+                  .ok());
+  EXPECT_TRUE(compiler
+                  .RegisterDescriptors(perfetto::kWinscopeDescriptor.data(),
+                                       perfetto::kWinscopeDescriptor.size())
+                  .ok());
   auto status_or = compiler.Compile(config);
   EXPECT_FALSE(status_or.ok());
   EXPECT_THAT(
