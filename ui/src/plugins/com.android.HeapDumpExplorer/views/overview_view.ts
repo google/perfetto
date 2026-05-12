@@ -75,7 +75,7 @@ function makeDuplicateBitmapSchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('bitmaps', {
                   filterKey: String(row.groupKey ?? ''),
@@ -108,7 +108,7 @@ function makeDuplicateArraySchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('objects', {cls: String(value ?? '')}),
             },
             String(value ?? ''),
@@ -125,7 +125,7 @@ function makeDuplicateArraySchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('arrays', {
                   arrayHash: String(row.arrayHash ?? ''),
@@ -158,7 +158,8 @@ function makeDuplicateStringSchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link ah-mono ah-break-all ah-str-color',
+              class:
+                'pf-hde-link pf-hde-mono pf-hde-break-all pf-hde-str-color',
               onclick: () =>
                 navigate('strings', {
                   q: String(value ?? ''),
@@ -178,7 +179,7 @@ function makeDuplicateStringSchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('strings', {q: String(row.value ?? '')}),
             },
             String(value),
@@ -209,25 +210,25 @@ function renderDuplicateSection(
   data: Row[],
   columns: Array<{id: string; field: string}>,
 ): m.Children {
-  return m('div', {class: 'ah-card ah-mt-4'}, [
-    m('h3', {class: 'ah-sub-heading'}, title),
-    m('p', {class: 'ah-desc'}, [
+  return m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
+    m('h3', {class: 'pf-hde-sub-heading'}, title),
+    m('p', {class: 'pf-hde-desc'}, [
       groupCount +
         ' group' +
         (groupCount > 1 ? 's' : '') +
         ' detected, wasting ',
-      m('span', {class: 'ah-mono ah-semibold'}, fmtSize(totalWasted)),
+      m('span', {class: 'pf-hde-mono pf-hde-semibold'}, fmtSize(totalWasted)),
       '. ',
       m(
         'button',
         {
-          class: 'ah-link--alt',
+          class: 'pf-hde-link--alt',
           onclick: () => navigate(targetView as NavState['view']),
         },
         linkLabel,
       ),
     ]),
-    m('div', {class: 'ah-dup-grid-container'}, [
+    m('div', {class: 'pf-hde-dup-grid-container'}, [
       m(DataGrid, {
         schema,
         rootSchema: 'query',
@@ -301,13 +302,13 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
         },
       ];
 
-      return m('div', {class: 'ah-view-scroll'}, [
-        m('h2', {class: 'ah-view-heading'}, 'Overview'),
+      return m('div', {class: 'pf-hde-view-scroll'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, 'Overview'),
         showHint
           ? m(
               Callout,
               {
-                className: 'ah-default-changed-callout',
+                className: 'pf-hde-default-changed-callout',
                 icon: 'info',
                 dismissible: true,
                 onDismiss: onDismissDefaultChangedHint,
@@ -328,8 +329,8 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
             )
           : null,
 
-        m('div', {class: 'ah-card ah-mb-4'}, [
-          m('h3', {class: 'ah-sub-heading'}, 'General Information'),
+        m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
+          m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
           m(DataGrid, {
             schema: INFO_SCHEMA,
             rootSchema: 'query',
@@ -340,8 +341,8 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
             ],
           }),
         ]),
-        m('div', {class: 'ah-card'}, [
-          m('h3', {class: 'ah-sub-heading'}, 'Bytes Retained by Heap'),
+        m('div', {class: 'pf-hde-card'}, [
+          m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
           m(DataGrid, {
             schema: HEAP_SCHEMA,
             rootSchema: 'query',
@@ -381,8 +382,8 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
           : overview.hasFieldValues
             ? m(
                 'div',
-                {class: 'ah-card ah-mt-4 ah-mb-4'},
-                m('p', {class: 'ah-muted'}, 'No duplicate bitmaps found.'),
+                {class: 'pf-hde-card pf-hde-mt-4 pf-hde-mb-4'},
+                m('p', {class: 'pf-hde-muted'}, 'No duplicate bitmaps found.'),
               )
             : null,
         overview.duplicateStrings && overview.duplicateStrings.length > 0
@@ -410,8 +411,8 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
           : overview.hasFieldValues
             ? m(
                 'div',
-                {class: 'ah-card ah-mb-4'},
-                m('p', {class: 'ah-muted'}, 'No duplicate strings found.'),
+                {class: 'pf-hde-card pf-hde-mb-4'},
+                m('p', {class: 'pf-hde-muted'}, 'No duplicate strings found.'),
               )
             : null,
         overview.duplicateArrays && overview.duplicateArrays.length > 0

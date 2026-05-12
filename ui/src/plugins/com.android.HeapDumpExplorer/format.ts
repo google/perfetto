@@ -28,14 +28,14 @@ export function deltaBgClass(deltaKb: number): string {
   if (deltaKb === 0) return '';
   const abs = Math.abs(deltaKb);
   if (deltaKb > 0) {
-    if (abs >= 50_000) return 'ah-delta-bg-pos-heavy';
-    if (abs >= 10_000) return 'ah-delta-bg-pos-medium';
-    if (abs >= 1_000) return 'ah-delta-bg-pos-light';
+    if (abs >= 50_000) return 'pf-hde-delta-bg-pos-heavy';
+    if (abs >= 10_000) return 'pf-hde-delta-bg-pos-medium';
+    if (abs >= 1_000) return 'pf-hde-delta-bg-pos-light';
     return '';
   }
-  if (abs >= 50_000) return 'ah-delta-bg-neg-heavy';
-  if (abs >= 10_000) return 'ah-delta-bg-neg-medium';
-  if (abs >= 1_000) return 'ah-delta-bg-neg-light';
+  if (abs >= 50_000) return 'pf-hde-delta-bg-neg-heavy';
+  if (abs >= 10_000) return 'pf-hde-delta-bg-neg-medium';
+  if (abs >= 1_000) return 'pf-hde-delta-bg-neg-light';
   return '';
 }
 

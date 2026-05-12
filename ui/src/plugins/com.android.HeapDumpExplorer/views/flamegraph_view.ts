@@ -190,7 +190,7 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
 
       return m(
         'div',
-        {class: 'ah-view-content ah-flamegraph-view'},
+        {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
         m(FlamegraphPanel, {
           trace: attrs.trace,
           metrics,
