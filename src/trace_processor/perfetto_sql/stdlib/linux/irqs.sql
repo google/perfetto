@@ -73,3 +73,17 @@ SELECT ts, dur, name, id, parent_id, 0 AS is_soft_irq FROM linux_hard_irqs
 UNION ALL
 SELECT ts, dur, name, id, NULL AS parent_id, 1 AS is_soft_irq
 FROM linux_soft_irqs;
+
+-- Contains information for IRQ mappings seen during the trace.
+CREATE PERFETTO VIEW linux_interrupt_mapping(
+  -- Unique identifier for this mapping.
+  id ID,
+  -- The IRQ ID.
+  irq_id LONG,
+  -- The name of the IRQ.
+  name STRING,
+  -- The machine that emitted the IRQ.
+  machine_id JOINID(machine.id)
+)
+AS
+SELECT * FROM _linux_interrupt_mapping;

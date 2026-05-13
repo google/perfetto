@@ -19,12 +19,12 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-// Registers the __intrinsic_symbolize function with |engine|
-base::Status RegisterSymbolizeFunction(PerfettoSqlEngine& engine,
+// Registers the __intrinsic_symbolize function with |connection|
+base::Status RegisterSymbolizeFunction(PerfettoSqlConnection& connection,
                                        StringPool* pool);
 
 }  // namespace perfetto::trace_processor::perfetto_sql

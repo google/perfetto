@@ -19,13 +19,14 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-// Registers all interval intersect related functions with |engine|.
-base::Status RegisterCounterIntervalsFunctions(PerfettoSqlEngine& engine,
-                                               StringPool* pool);
+// Registers all interval intersect related functions with |connection|.
+base::Status RegisterCounterIntervalsFunctions(
+    PerfettoSqlConnection& connection,
+    StringPool* pool);
 
 }  // namespace perfetto::trace_processor::perfetto_sql
 

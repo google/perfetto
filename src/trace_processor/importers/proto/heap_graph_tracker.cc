@@ -964,8 +964,6 @@ void HeapGraphTracker::GetChildren(ObjectTable::RowReference object,
       kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE) ||
       kind == InternTypeKindString(
-                  protos::pbzero::HeapGraphType::KIND_SOFT_REFERENCE) ||
-      kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_FINALIZER_REFERENCE) ||
       kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_PHANTOM_REFERENCE);

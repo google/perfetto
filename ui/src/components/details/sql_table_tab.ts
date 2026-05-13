@@ -35,7 +35,7 @@ import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {BarChart} from '../widgets/charts/bar_chart';
 import {SQLBarChartLoader} from '../widgets/charts/bar_chart_loader';
-import {Histogram} from '../widgets/charts/histogram';
+import {HistogramSvg} from '../widgets/charts_svg/histogram_svg';
 import {SQLHistogramLoader} from '../widgets/charts/histogram_loader';
 import {sqlColumnId, SqlColumn} from '../widgets/sql/table/sql_column';
 import {buildSqlQuery} from '../widgets/sql/table/query_builder';
@@ -357,7 +357,7 @@ class SqlTableTab implements Tab {
             );
           },
         }),
-        content: m(Histogram, {
+        content: m(HistogramSvg, {
           fillParent: true,
           data: result.data,
           xAxisLabel: histogram.columnName,

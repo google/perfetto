@@ -304,6 +304,15 @@ message VmOpMerge {
   // the deepest submessages first, then moving up to the parent
   // message and merging it with skip_submessages = true.
   optional bool skip_submessages = 1;
+
+  // When true, the merge operation will remove the dst field if the src field
+  // is empty.
+  //
+  // This can be used to replicate the removal of a subobject within the
+  // producer's state. E.g.
+  // This event on the producer side: mProducerState.mSubobject = nullptr
+  // can be represented by this patch: { producer_state { subobject {} }}
+  optional bool del_if_src_empty = 2;
 }
 
 // Copies SRC into DST. If a message, replaces the DST node, discarding any
@@ -409,6 +418,19 @@ message TracingServiceState {
     // Returns true if the process appears to be frozen (Android only).
     // Introduced in Perfetto V49 / Android 24Q4.
     optional bool frozen = 6;
+
+    // Identifies the machine this producer is connected from in multi-machine
+    // tracing setups (e.g. when going through traced_relay). Unset (or zero)
+    // means the producer is connected from the local/host machine where the
+    // tracing service is running.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional uint32 machine_id = 7;
+
+    // Human-readable name of the machine, as advertised by the relay (usually
+    // the value of PERFETTO_MACHINE_NAME on the remote, falling back to the
+    // remote's `uname -s`). Only set when machine_id is non-zero.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional string machine_name = 8;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
@@ -2731,8 +2753,7 @@ message PerfEventConfig {
     optional uint32 process_shard_count = 6;
   }
 
-  // Userspace unwinding mode. A possible future addition is kernel-unwound
-  // callchains for frame pointer based systems.
+  // Userspace unwinding mode.
   enum UnwindMode {
     UNWIND_UNKNOWN = 0;
     // Do not unwind userspace:
@@ -2741,6 +2762,14 @@ message PerfEventConfig {
     UNWIND_DWARF = 2;
     // Use userspace frame pointer unwinder:
     UNWIND_FRAME_POINTER = 3;
+    // Ask the kernel to unwind the userspace stack via frame pointers, using
+    // PERF_SAMPLE_CALLCHAIN. The user stack bytes are not copied into the
+    // sample, which avoids the per-sample copy cost and the depth limit
+    // imposed by PERF_SAMPLE_STACK_USER. Requires that the userspace code
+    // (including system libraries) is built with frame pointers - the kernel
+    // walks the chain and returns instruction addresses, which still need to
+    // be symbolized offline using the recorded process mappings.
+    UNWIND_KERNEL_FRAME_POINTER = 4;
   }
 }
 
@@ -4310,7 +4339,11 @@ message SysStatsConfig {
 // - Values of
 // /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
 // datasource has no configuration options at present.
-message SystemInfoConfig {}
+message SystemInfoConfig {
+  // If true, records hardware interrupt ID-to-name mappings from
+  // /proc/interrupts.
+  optional bool irq_names = 1;
+}
 
 // End of protos/perfetto/config/system_info/system_info_config.proto
 

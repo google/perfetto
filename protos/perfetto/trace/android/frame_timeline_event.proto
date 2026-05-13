@@ -155,6 +155,9 @@ message FrameTimelineEvent {
       LATCHED_DELAYED_LATCH_UNSIGNALED = 3;
     }
     optional LatchedFenceState latched_fence_state = 19;
+
+    // animation time (ms) used when drawing this frame.
+    optional float animation_time_millis = 20;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.

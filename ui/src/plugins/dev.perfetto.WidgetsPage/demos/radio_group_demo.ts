@@ -13,21 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  SegmentedButton,
-  SegmentedButtons,
-} from '../../../widgets/segmented_buttons';
+import {RadioGroup} from '../../../widgets/radio_group';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Intent} from '../../../widgets/common';
 
-export function segmentedButtons(): m.Children {
+export function radioGroup(): m.Children {
   return [
     m(
       '.pf-widget-intro',
-      m('h1', 'SegmentedButtons'),
+      m('h1', 'RadioGroup'),
       m('p', [
-        `Segmented buttons are a group of buttons where one of them is
-         'selected'; they act similar to a set of radio buttons.`,
+        `A group of mutually-exclusive buttons, equivalent to a set of radio
+         buttons rendered as a segmented control.`,
       ]),
     ),
 
@@ -35,10 +32,10 @@ export function segmentedButtons(): m.Children {
       renderWidget: (opts) => {
         const {showInlineText, icons, ...rest} = opts;
         const icon = icons ? 'add' : undefined;
-        const buttons = m(SegmentedButtons, rest, [
-          m(SegmentedButton, {icon, value: 'yes'}, 'Yes'),
-          m(SegmentedButton, {icon, value: 'no'}, 'No'),
-          m(SegmentedButton, {icon, value: 'maybe'}, 'Maybe'),
+        const buttons = m(RadioGroup, rest, [
+          m(RadioGroup.Button, {icon, value: 'yes'}, 'Yes'),
+          m(RadioGroup.Button, {icon, value: 'no'}, 'No'),
+          m(RadioGroup.Button, {icon, value: 'maybe'}, 'Maybe'),
         ]);
         return showInlineText
           ? m('span', 'Inline ', buttons, ' text')

@@ -19,7 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -96,10 +96,10 @@ struct Sqrt : public sqlite::Function<Sqrt> {
 
 }  // namespace
 
-base::Status RegisterMathFunctions(PerfettoSqlEngine& engine) {
-  RETURN_IF_ERROR(engine.RegisterFunction<Ln>(nullptr));
-  RETURN_IF_ERROR(engine.RegisterFunction<Exp>(nullptr));
-  return engine.RegisterFunction<Sqrt>(nullptr);
+base::Status RegisterMathFunctions(PerfettoSqlConnection& connection) {
+  RETURN_IF_ERROR(connection.RegisterFunction<Ln>(nullptr));
+  RETURN_IF_ERROR(connection.RegisterFunction<Exp>(nullptr));
+  return connection.RegisterFunction<Sqrt>(nullptr);
 }
 
 }  // namespace perfetto::trace_processor

@@ -24,7 +24,8 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
-  F(android_aflags_errors,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,          \
+  /* TODO(b/512786856): Restore severity to kError after flag rollout. */    \
+  F(android_aflags_errors,               kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,          \
        "Errors occurred during the collection of Android aconfig flags by the "\
        "android.aflags data source. This typically happens if the aflags tool "\
        "fails or its output is malformed."),                                   \
@@ -528,9 +529,18 @@ namespace perfetto::trace_processor::stats {
   F(winscope_protolog_message_decoding_failed,                                 \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
       "Failed to decode ProtoLog message."),                                   \
-  F(winscope_protolog_view_config_collision,                                   \
+  F(winscope_protolog_message_collision,                                       \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
-      "Got a viewer config collision!"),                                       \
+      "Got a ProtoLog message collision!"),                                    \
+  F(winscope_protolog_message_collision_resolved,                              \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Got a ProtoLog message collision resolved!"),                           \
+  F(winscope_protolog_group_tag_collision,                                     \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Got a ProtoLog group tag collision!"),                                  \
+  F(winscope_protolog_group_tag_missing,                                       \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Got a ProtoLog group tag missing!"),                                    \
   F(winscope_protolog_param_mismatch,                                          \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
       "Message had mismatching parameters!"),                                  \

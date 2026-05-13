@@ -30,7 +30,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -200,9 +200,9 @@ struct ProfileBuilder {
 
 }  // namespace
 
-base::Status PprofFunctions::Register(PerfettoSqlEngine& engine,
+base::Status PprofFunctions::Register(PerfettoSqlConnection& connection,
                                       TraceProcessorContext* context) {
-  return engine.RegisterAggregateFunction<ProfileBuilder>(context);
+  return connection.RegisterAggregateFunction<ProfileBuilder>(context);
 }
 
 }  // namespace perfetto::trace_processor
