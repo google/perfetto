@@ -37,7 +37,8 @@ class DiskIoTracker {
 
  private:
   // Adds the event to the trace as a slice.
-  void HandleEvent(StringId name, UniqueTid utid,
+  void HandleEvent(StringId name,
+                   UniqueTid utid,
                    int64_t timestamp,
                    uint64_t response_time,
                    SliceTracker::SetArgsCallback args);
