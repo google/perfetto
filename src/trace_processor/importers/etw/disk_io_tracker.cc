@@ -154,7 +154,7 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
 void DiskIoTracker::HandleEvent(StringId name,
                                 UniqueTid utid,
                                 int64_t timestamp,
-                                uint64_t response_time,
+                                int64_t response_time,
                                 SliceTracker::SetArgsCallback args) {
   const auto category = context_->storage->InternString(kCategory);
 
