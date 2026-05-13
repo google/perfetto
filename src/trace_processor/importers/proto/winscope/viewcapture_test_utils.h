@@ -47,9 +47,21 @@ class View {
     return *this;
   }
 
+  View& SetWidth(int32_t value) {
+    width_ = value;
+    return *this;
+  }
+
+  View& SetHeight(int32_t value) {
+    height_ = value;
+    return *this;
+  }
+
   std::optional<int32_t> id_;
   std::optional<int32_t> parent_id_;
   std::optional<int32_t> visibility_;
+  std::optional<int32_t> width_;
+  std::optional<int32_t> height_;
 };
 
 class SnapshotProtoBuilder {
@@ -77,6 +89,14 @@ class SnapshotProtoBuilder {
 
       if (view.visibility_.has_value()) {
         view_proto->set_visibility(view.visibility_.value());
+      }
+
+      if (view.width_.has_value()) {
+        view_proto->set_width(view.width_.value());
+      }
+
+      if (view.height_.has_value()) {
+        view_proto->set_height(view.height_.value());
       }
     }
 
