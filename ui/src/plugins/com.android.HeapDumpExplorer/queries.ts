@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {Engine} from '../../trace_processor/engine';
 import {
   BLOB_NULL,
+  LONG,
   LONG_NULL,
   NUM,
   NUM_NULL,
@@ -38,6 +40,82 @@ import type {
 } from './types';
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
+
+export interface HeapDump {
+  readonly upid: number;
+  readonly ts: bigint;
+  readonly processName: string | null;
+  readonly pid: number;
+}
+
+let dumps: ReadonlyArray<HeapDump> = [];
+let activeDump: HeapDump | null = null;
+
+export function getDumps(): ReadonlyArray<HeapDump> {
+  return dumps;
+}
+
+export function getActiveDump(): HeapDump | null {
+  return activeDump;
+}
+
+export function setDumps(newDumps: ReadonlyArray<HeapDump>): void {
+  dumps = newDumps;
+  activeDump = newDumps.length > 0 ? newDumps[0] : null;
+  m.redraw();
+}
+
+export function setActiveDump(d: HeapDump): void {
+  if (activeDump === d) return;
+  activeDump = d;
+  m.redraw();
+}
+
+export function resetDumps(): void {
+  dumps = [];
+  activeDump = null;
+}
+
+export async function loadDumps(engine: Engine): Promise<void> {
+  const res = await engine.query(`
+    SELECT
+      o.upid AS upid,
+      o.graph_sample_ts AS ts,
+      coalesce(p.cmdline, p.name) AS pname,
+      p.pid AS pid
+    FROM heap_graph_object o
+    JOIN process p USING (upid)
+    GROUP BY o.upid, o.graph_sample_ts
+    ORDER BY o.graph_sample_ts ASC
+  `);
+  const result: HeapDump[] = [];
+  for (
+    const it = res.iter({
+      upid: NUM,
+      ts: LONG,
+      pname: STR_NULL,
+      pid: NUM_NULL,
+    });
+    it.valid();
+    it.next()
+  ) {
+    result.push({
+      upid: it.upid,
+      ts: it.ts,
+      processName: it.pname,
+      pid: it.pid ?? 0,
+    });
+  }
+  setDumps(result);
+}
+
+export function dumpFilterSql(alias: string = 'o'): string {
+  if (!activeDump) return '1=1';
+  return (
+    `${alias}.upid = ${activeDump.upid} ` +
+    `AND ${alias}.graph_sample_ts = ${activeDump.ts}`
+  );
+}
 
 async function requireDominatorTree(engine: Engine): Promise<void> {
   await engine.query(SQL_PREAMBLE);
@@ -191,18 +269,20 @@ async function batchBitmapBufferHashes(
 }
 
 export async function getOverview(engine: Engine): Promise<OverviewData> {
+  const dumpFilter = dumpFilterSql('o');
   const countRes = await engine.query(
-    `SELECT count(*) as cnt FROM heap_graph_object WHERE reachable != 0`,
+    `SELECT count(*) as cnt FROM heap_graph_object o
+     WHERE o.reachable != 0 AND ${dumpFilter}`,
   );
   const instanceCount = countRes.iter({cnt: NUM}).cnt;
 
   const heapRes = await engine.query(`
     SELECT
-      ifnull(heap_type, 'default') AS heap,
-      SUM(self_size) AS java,
-      SUM(native_size) AS native_
-    FROM heap_graph_object
-    WHERE reachable != 0
+      ifnull(o.heap_type, 'default') AS heap,
+      SUM(o.self_size) AS java,
+      SUM(o.native_size) AS native_
+    FROM heap_graph_object o
+    WHERE o.reachable != 0 AND ${dumpFilter}
     GROUP BY heap
     ORDER BY heap
   `);
@@ -236,6 +316,7 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     LEFT JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
     WHERE o.reachable != 0
+      AND ${dumpFilter}
       AND (c.name = 'android.graphics.Bitmap'
         OR c.deobfuscated_name = 'android.graphics.Bitmap')
     GROUP BY o.id
@@ -331,6 +412,7 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
       JOIN heap_graph_class c ON o.type_id = c.id
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
       WHERE o.reachable != 0
+        AND ${dumpFilter}
         AND od.value_string IS NOT NULL
         AND (c.name = 'java.lang.String'
           OR c.deobfuscated_name = 'java.lang.String')
@@ -369,6 +451,7 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.reachable != 0
+      AND ${dumpFilter}
       AND od.array_data_hash IS NOT NULL
     GROUP BY o.type_id, od.array_data_hash
     HAVING cnt > 1
@@ -427,6 +510,7 @@ export async function getAllocations(
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     WHERE o.reachable != 0
+      AND ${dumpFilterSql('o')}
       ${hf}
     GROUP BY cls, heap
     ORDER BY retained DESC
@@ -472,6 +556,7 @@ export async function getRooted(engine: Engine): Promise<InstanceRow[]> {
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE d.idom_id IS NULL
+      AND ${dumpFilterSql('o')}
     ORDER BY d.dominated_size_bytes + d.dominated_native_size_bytes DESC
   `);
   return collectRows(res);
@@ -521,7 +606,16 @@ async function fetchFieldValues(
   }
 
   if (refSetId !== null) {
+    // heap_graph_class is not dump-scoped; restrict and dedup by name to
+    // avoid cross-dump row multiplication when deobfuscating field_type_name.
     const rRes = await engine.query(`
+      WITH class_in_dump AS (
+        SELECT c.name, MIN(c.deobfuscated_name) AS deobfuscated_name
+        FROM heap_graph_class c
+        JOIN heap_graph_object o ON o.type_id = c.id
+        WHERE ${dumpFilterSql('o')}
+        GROUP BY c.name
+      )
       SELECT
         ifnull(r.deobfuscated_field_name, r.field_name) AS fname,
         ifnull(ct.deobfuscated_name, r.field_type_name) AS ftype,
@@ -534,7 +628,7 @@ async function fetchFieldValues(
         d2.dominated_size_bytes AS ref_dominated_size,
         d2.dominated_native_size_bytes AS ref_dominated_native
       FROM heap_graph_reference r
-      LEFT JOIN heap_graph_class ct ON r.field_type_name = ct.name
+      LEFT JOIN class_in_dump ct ON r.field_type_name = ct.name
       LEFT JOIN heap_graph_object o2 ON r.owned_id = o2.id
       LEFT JOIN heap_graph_class c2 ON o2.type_id = c2.id
       LEFT JOIN heap_graph_object_data od2 ON o2.object_data_id = od2.id
@@ -1014,9 +1108,9 @@ export async function getInstance(
       JOIN heap_graph_class c ON o.type_id = c.id
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-      WHERE (c.name = '${classObjName}'
-        OR c.deobfuscated_name = '${classObjName}')
-
+      WHERE ${dumpFilterSql('o')}
+        AND (c.name = '${classObjName}'
+          OR c.deobfuscated_name = '${classObjName}')
     `);
     const rows = collectRows(cRes);
     if (rows.length > 0) classObjRow = rows[0];
@@ -1250,18 +1344,25 @@ export async function getSubclassNames(
   engine: Engine,
   rootName: string,
 ): Promise<string[]> {
+  // Scope to the active dump so we don't walk another dump's class hierarchy.
   const res = await engine.query(`
     INCLUDE PERFETTO MODULE graphs.search;
 
+    WITH dump_classes AS (
+      SELECT DISTINCT c.id, c.name, c.deobfuscated_name, c.superclass_id
+      FROM heap_graph_class c
+      JOIN heap_graph_object o ON o.type_id = c.id
+      WHERE ${dumpFilterSql('o')}
+    )
     SELECT coalesce(c.deobfuscated_name, c.name) AS name
     FROM graph_reachable_dfs!(
       (SELECT superclass_id AS source_node_id, id AS dest_node_id
-       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
-      (SELECT id AS node_id FROM heap_graph_class
+       FROM dump_classes WHERE superclass_id IS NOT NULL),
+      (SELECT id AS node_id FROM dump_classes
        WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
        LIMIT 1)
     ) AS dfs
-    JOIN heap_graph_class c ON c.id = dfs.node_id
+    JOIN dump_classes c ON c.id = dfs.node_id
   `);
   const names: string[] = [];
   for (const it = res.iter({name: STR}); it.valid(); it.next()) {
@@ -1355,14 +1456,13 @@ async function loadBitmapDumpData(
 ): Promise<BitmapDumpData | null> {
   if (cachedDumpData !== undefined) return cachedDumpData;
 
-  // Step 1: Find the Bitmap class object.
   const classObjRes = await engine.query(`
     SELECT o.reference_set_id
     FROM heap_graph_object o
     JOIN heap_graph_class c ON o.type_id = c.id
-    WHERE (c.name LIKE '%Class<android.graphics.Bitmap>'
-      OR c.deobfuscated_name LIKE '%Class<android.graphics.Bitmap>')
-
+    WHERE ${dumpFilterSql('o')}
+      AND (c.name LIKE '%Class<android.graphics.Bitmap>'
+        OR c.deobfuscated_name LIKE '%Class<android.graphics.Bitmap>')
   `);
   const classIt = classObjRes.iter({reference_set_id: NUM_NULL});
   if (!classIt.valid() || classIt.reference_set_id === null) {
@@ -1569,6 +1669,7 @@ export async function search(
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.reachable != 0
+      AND ${dumpFilterSql('o')}
       AND (c.name LIKE '%${escaped}%' ESCAPE '\\'
         OR c.deobfuscated_name LIKE '%${escaped}%' ESCAPE '\\')
     ORDER BY (ifnull(d.dominated_size_bytes, 0)
@@ -1592,6 +1693,7 @@ export async function getObjects(
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.reachable != 0
+      AND ${dumpFilterSql('o')}
       AND (c.name = '${escaped}' OR c.deobfuscated_name = '${escaped}')
       ${hf}
     ORDER BY o.self_size + o.native_size DESC
@@ -1646,6 +1748,7 @@ export async function getStringList(engine: Engine): Promise<StringListRow[]> {
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     WHERE o.reachable != 0
+      AND ${dumpFilterSql('o')}
       AND od.value_string IS NOT NULL
       AND (c.name = 'java.lang.String'
         OR c.deobfuscated_name = 'java.lang.String')
@@ -1715,6 +1818,7 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
     WHERE o.reachable != 0
+      AND ${dumpFilterSql('o')}
       AND (c.name = 'android.graphics.Bitmap'
         OR c.deobfuscated_name = 'android.graphics.Bitmap')
     GROUP BY o.id
@@ -1837,27 +1941,16 @@ function primFieldValue(it: {
 // The _heap_graph_object_tree_aggregation table computes cumulative reachable
 // sizes via a BFS tree.  The table materialisation is expensive on first access,
 // so we load it asynchronously and fill in reachable columns after the initial
-// render.  The module INCLUDE is cached per-engine via a WeakMap.
-
-const objectTreeReady = new WeakMap<Engine, Promise<void>>();
-
-function ensureObjectTree(engine: Engine): Promise<void> {
-  let p = objectTreeReady.get(engine);
-  if (!p) {
-    p = engine
-      .query(`INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree`)
-      .then(() => {});
-    objectTreeReady.set(engine, p);
-  }
-  return p;
-}
+// render.
 
 /** Fetch reachable (cumulative) sizes for a set of object IDs. */
 async function getReachableSizes(
   engine: Engine,
   ids: number[],
 ): Promise<Map<number, {size: number; native: number; count: number}>> {
-  await ensureObjectTree(engine);
+  await engine.query(
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree`,
+  );
   if (ids.length === 0) return new Map();
   const res = await engine.query(`
     SELECT id,
@@ -1895,59 +1988,6 @@ export async function enrichWithReachable(
     row.reachableSize = s?.size ?? 0;
     row.reachableNative = s?.native ?? 0;
     row.reachableCount = s?.count ?? 0;
-  }
-}
-
-/**
- * Enrich ClassRow[] with reachable sizes (summed per class+heap group).
- */
-export async function enrichClassRowsWithReachable(
-  engine: Engine,
-  rows: ClassRow[],
-  heap: string | null,
-): Promise<void> {
-  await ensureObjectTree(engine);
-  const hf = heapFilter(heap);
-  const res = await engine.query(`
-    SELECT
-      ifnull(c.deobfuscated_name, c.name) AS cls,
-      SUM(a.cumulative_size) AS reachable,
-      SUM(a.cumulative_native_size) AS reachable_native,
-      SUM(a.cumulative_count) AS reachable_count,
-      ifnull(o.heap_type, 'default') AS heap
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
-    WHERE o.reachable != 0
-      ${hf}
-    GROUP BY cls, heap
-  `);
-  const map = new Map<
-    string,
-    {reachable: number; reachableNative: number; reachableCount: number}
-  >();
-  for (
-    const it = res.iter({
-      cls: STR,
-      reachable: NUM,
-      reachable_native: NUM,
-      reachable_count: NUM,
-      heap: STR,
-    });
-    it.valid();
-    it.next()
-  ) {
-    map.set(`${it.cls}\0${it.heap}`, {
-      reachable: it.reachable,
-      reachableNative: it.reachable_native,
-      reachableCount: it.reachable_count,
-    });
-  }
-  for (const row of rows) {
-    const s = map.get(`${row.className}\0${row.heap}`);
-    row.reachableSize = s?.reachable ?? 0;
-    row.reachableNativeSize = s?.reachableNative ?? 0;
-    row.reachableCount = s?.reachableCount ?? 0;
   }
 }
 

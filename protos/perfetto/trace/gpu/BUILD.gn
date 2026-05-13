@@ -37,3 +37,17 @@ perfetto_proto_library("gpu_track_event_@TYPE@") {
   # for the base message as well.
   exclude_imports = true
 }
+
+# GPU interned_data extensions
+perfetto_proto_library("gpu_interned_data_@TYPE@") {
+  sources = [ "gpu_interned_data.proto" ]
+  deps = [ ":@TYPE@" ]
+  public_deps = [ "../interned_data:@TYPE@" ]
+  generator_visibility = [ "../../../../src/trace_processor/importers/proto:gen_cc_gpu_interned_data_descriptor" ]
+  generate_descriptor = "gpu_interned_data.descriptor"
+  descriptor_root_source = "gpu_interned_data.proto"
+
+  # This is the descriptor for an extension. It shouldn't include the descriptor
+  # for the base message as well.
+  exclude_imports = true
+}

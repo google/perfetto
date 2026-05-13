@@ -376,7 +376,7 @@ class GeneratorJob {
     if (!enums_.empty()) {
       stub_rs_->Print("use crate::pb_enum;\n");
     }
-    if (!messages_.empty()) {
+    if (!messages_.empty() || !extensions_.empty()) {
       stub_rs_->Print("use crate::pb_msg;\n");
     }
     if (!extensions_.empty()) {

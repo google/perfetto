@@ -13,7 +13,7 @@ to the new perfetto branch's head.
     M87: `chromium/4280`.
 
 1.  Check if the branch already exists: if yes, skip to
-    [cherry-picking](#all-tables). To check, you can search for it in
+    [cherry-picking](#cherry-pick). To check, you can search for it in
     https://github.com/google/perfetto/branches.
 
 1.  Look up the appropriate base revision for the branch. You should use the

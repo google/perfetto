@@ -25,7 +25,7 @@ import {
   resetInstanceTabs,
   resetCachedOverview,
 } from './heap_dump_page';
-import {resetBitmapDumpDataCache} from './queries';
+import {resetBitmapDumpDataCache, loadDumps, resetDumps} from './queries';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.HeapDumpExplorer';
@@ -53,10 +53,13 @@ export default class implements PerfettoPlugin {
     resetInstanceTabs();
     resetCachedOverview();
 
+    resetDumps();
+    await loadDumps(ctx.engine);
+
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator}) =>
-        setFlamegraphSelection({pathHashes, isDominator}, ctx.engine),
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
+        setFlamegraphSelection({pathHashes, isDominator, upid, ts}, ctx.engine),
       );
 
     ctx.sidebar.addMenuItem({

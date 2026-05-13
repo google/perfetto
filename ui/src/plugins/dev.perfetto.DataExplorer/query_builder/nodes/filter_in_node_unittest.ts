@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FilterInNode} from './filter_in_node';
+import {FilterInNode, FilterInNodeAttrs} from './filter_in_node';
 import {NodeType} from '../../query_node';
 import {
   createMockNode,
@@ -30,34 +30,32 @@ interface FilterInNodeWithPrivates {
   cleanupStaleColumns(): void;
 }
 
+function makeNode(attrs: FilterInNodeAttrs = {}): FilterInNode {
+  return new FilterInNode(attrs, {});
+}
+
 describe('FilterInNode', () => {
   describe('constructor', () => {
     it('should have correct node type', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       expect(node.type).toBe(NodeType.kFilterIn);
     });
 
     it('should initialize with no inputs', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       expect(node.primaryInput).toBeUndefined();
       expect(node.matchValuesNode).toBeUndefined();
     });
 
     it('should have one secondary input port named Input', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       expect(node.secondaryInputs.min).toBe(1);
       expect(node.secondaryInputs.max).toBe(1);
       expect(node.secondaryInputs.portNames).toEqual(['Input']);
     });
 
     it('should preserve state from constructor', () => {
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
       expect(node.attrs.baseColumn).toBe('utid');
       expect(node.attrs.matchColumn).toBe('id');
     });
@@ -65,7 +63,7 @@ describe('FilterInNode', () => {
 
   describe('finalCols', () => {
     it('should return empty array when no primary input', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       expect(node.finalCols).toEqual([]);
     });
 
@@ -77,7 +75,7 @@ describe('FilterInNode', () => {
       ];
       const primaryNode = createMockNode({columns: primaryCols});
 
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       node.primaryInput = primaryNode;
 
       expect(node.finalCols).toEqual(primaryCols);
@@ -101,7 +99,7 @@ describe('FilterInNode', () => {
         columns: matchCols,
       });
 
-      const node = new FilterInNode({baseColumn: 'id', matchColumn: 'id'}, {});
+      const node = makeNode({baseColumn: 'id', matchColumn: 'id'});
       connectNodes(primaryNode, node);
       connectSecondary(matchNode, node, 0);
 
@@ -111,7 +109,7 @@ describe('FilterInNode', () => {
 
   describe('validate', () => {
     it('should fail when no primary input', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       expectValidationError(node, 'Connect a node with rows to filter');
     });
 
@@ -119,7 +117,7 @@ describe('FilterInNode', () => {
       const primaryNode = createMockNode({validate: () => false});
       const matchNode = createMockNode({nodeId: 'match'});
 
-      const node = new FilterInNode({baseColumn: 'id', matchColumn: 'id'}, {});
+      const node = makeNode({baseColumn: 'id', matchColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -131,7 +129,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('id', 'int')],
       });
 
-      const node = new FilterInNode({baseColumn: 'id', matchColumn: 'id'}, {});
+      const node = makeNode({baseColumn: 'id', matchColumn: 'id'});
       node.primaryInput = primaryNode;
 
       expectValidationError(node, 'Connect a node with match values');
@@ -147,7 +145,7 @@ describe('FilterInNode', () => {
         validate: () => false,
       });
 
-      const node = new FilterInNode({baseColumn: 'id', matchColumn: 'id'}, {});
+      const node = makeNode({baseColumn: 'id', matchColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -164,7 +162,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('id', 'int')],
       });
 
-      const node = new FilterInNode({matchColumn: 'id'}, {});
+      const node = makeNode({matchColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -181,7 +179,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('id', 'int')],
       });
 
-      const node = new FilterInNode({baseColumn: 'id'}, {});
+      const node = makeNode({baseColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -198,13 +196,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('id', 'int')],
       });
 
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -221,13 +213,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('name', 'string')],
       });
 
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'thread_id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'thread_id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -248,13 +234,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('thread_id', 'int')],
       });
 
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'thread_id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'thread_id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -271,13 +251,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('id', 'int')],
       });
 
-      const node = new FilterInNode(
-        {
-          baseColumn: 'track_id',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'track_id', matchColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -287,7 +261,7 @@ describe('FilterInNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should return undefined when validation fails', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       expect(node.getStructuredQuery()).toBeUndefined();
     });
 
@@ -300,13 +274,7 @@ describe('FilterInNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -337,7 +305,7 @@ describe('FilterInNode', () => {
         ],
       });
 
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -363,7 +331,7 @@ describe('FilterInNode', () => {
         ],
       });
 
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -383,7 +351,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('track_id', 'int')],
       });
 
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -409,13 +377,7 @@ describe('FilterInNode', () => {
         ],
       });
 
-      const node = new FilterInNode(
-        {
-          baseColumn: 'name',
-          matchColumn: 'other',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'name', matchColumn: 'other'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -427,7 +389,7 @@ describe('FilterInNode', () => {
     });
 
     it('should not suggest when no inputs connected', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
 
       (node as unknown as FilterInNodeWithPrivates).autoSuggestColumns();
 
@@ -443,7 +405,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('name', 'string')],
       });
 
-      const node = new FilterInNode({baseColumn: 'utid'}, {});
+      const node = makeNode({baseColumn: 'utid'});
       node.primaryInput = primaryNode;
 
       (node as unknown as FilterInNodeWithPrivates).cleanupStaleColumns();
@@ -457,7 +419,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('name', 'string')],
       });
 
-      const node = new FilterInNode({matchColumn: 'id'}, {});
+      const node = makeNode({matchColumn: 'id'});
       node.secondaryInputs.connections.set(0, matchNode);
 
       (node as unknown as FilterInNodeWithPrivates).cleanupStaleColumns();
@@ -478,13 +440,7 @@ describe('FilterInNode', () => {
         columns: [createColumnInfo('id', 'int')],
       });
 
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, matchNode);
 
@@ -495,13 +451,7 @@ describe('FilterInNode', () => {
     });
 
     it('should handle no inputs gracefully', () => {
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
 
       (node as unknown as FilterInNodeWithPrivates).cleanupStaleColumns();
 
@@ -514,13 +464,7 @@ describe('FilterInNode', () => {
 
   describe('clone', () => {
     it('should create independent copy with same state', () => {
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
 
       const cloned = node.clone() as FilterInNode;
 
@@ -533,13 +477,7 @@ describe('FilterInNode', () => {
 
   describe('serializeState', () => {
     it('should serialize column selections', () => {
-      const node = new FilterInNode(
-        {
-          baseColumn: 'utid',
-          matchColumn: 'id',
-        },
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
 
       const serialized = node.attrs;
 
@@ -550,10 +488,7 @@ describe('FilterInNode', () => {
 
   describe('deserialize', () => {
     it('should restore column selections via constructor', () => {
-      const node = new FilterInNode(
-        {baseColumn: 'utid', matchColumn: 'id'},
-        {},
-      );
+      const node = makeNode({baseColumn: 'utid', matchColumn: 'id'});
 
       expect(node.attrs.baseColumn).toBe('utid');
       expect(node.attrs.matchColumn).toBe('id');
@@ -562,7 +497,7 @@ describe('FilterInNode', () => {
 
   describe('getTitle', () => {
     it('should return Filter In', () => {
-      const node = new FilterInNode({}, {});
+      const node = makeNode({});
       expect(node.getTitle()).toBe('Filter In');
     });
   });

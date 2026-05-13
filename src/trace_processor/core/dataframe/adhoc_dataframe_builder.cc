@@ -46,7 +46,9 @@ namespace perfetto::trace_processor::core::dataframe {
 AdhocDataframeBuilder::AdhocDataframeBuilder(std::vector<std::string> names,
                                              StringPool* pool,
                                              const Options& options)
-    : string_pool_(pool), did_declare_types_(!options.types.empty()) {
+    : string_pool_(pool),
+      did_declare_types_(!options.types.empty()),
+      emit_auto_id_(options.emit_auto_id) {
   PERFETTO_DCHECK(options.types.empty() ||
                   options.types.size() == names.size());
   for (uint32_t i = 0; i < names.size(); ++i) {
@@ -217,11 +219,14 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
     row_count = 0;
   }
   // Create an implicit id column for acting as a primary key even if there
-  // are no other id columns.
-  column_names_.emplace_back("_auto_id");
-  columns.emplace_back(std::make_shared<Column>(
-      Column{Storage{Storage::Id{static_cast<uint32_t>(row_count)}},
-             NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
+  // are no other id columns. Skipped when callers opt out (e.g. consumers
+  // that supply their own primary key).
+  if (emit_auto_id_) {
+    column_names_.emplace_back("_auto_id");
+    columns.emplace_back(std::make_shared<Column>(
+        Column{Storage{Storage::Id{static_cast<uint32_t>(row_count)}},
+               NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
+  }
   return Dataframe(true, std::move(column_names_), std::move(columns),
                    static_cast<uint32_t>(row_count), string_pool_);
 }

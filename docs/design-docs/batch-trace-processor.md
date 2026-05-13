@@ -7,7 +7,7 @@ aids in integrating it into other systems.
 ## Motivation
 The Perfetto trace processor is the de-facto way to perform analysis on a
 single trace. Using the
-[trace processor Python API](/docs/analysis/trace-processor#python-api),
+[trace processor Python API](/docs/analysis/trace-processor-python.md),
 traces can be queried interactively, plots made from those results etc.
 
 While queries on a single trace are useful when debugging a specific problem
