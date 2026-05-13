@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/tree/tree_transformer.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/plugins/tree_functions/tree_filter.h"
+#include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/tree_functions/tree_propagate.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"

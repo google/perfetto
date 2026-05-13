@@ -69,8 +69,8 @@ struct Symbolize : public sqlite::Function<Symbolize> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
     Symbolize::UserData* user_data = GetUserData(ctx);
-    auto* input = sqlite::value::Pointer<SymbolizationInput>(
-        argv[0], SymbolizationInput::kName);
+    auto* input = sqlite::value::Pointer<perfetto_sql::SymbolizationInput>(
+        argv[0], perfetto_sql::SymbolizationInput::kName);
     if (!input) {
       return;
     }
