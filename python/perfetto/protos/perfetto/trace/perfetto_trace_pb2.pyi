@@ -5633,7 +5633,7 @@ class FrameTimelineEvent(_message.Message):
         layer_name: str
         def __init__(self, cookie: _Optional[int] = ..., token: _Optional[int] = ..., display_frame_token: _Optional[int] = ..., pid: _Optional[int] = ..., layer_name: _Optional[str] = ...) -> None: ...
     class ActualSurfaceFrameStart(_message.Message):
-        __slots__ = ("cookie", "token", "display_frame_token", "pid", "layer_name", "present_type", "on_time_finish", "gpu_composition", "jank_type", "prediction_type", "is_buffer", "jank_severity_type", "present_delay_millis", "vsync_resynced_jitter_millis", "jank_severity_score", "jank_type_experimental", "present_type_experimental", "jank_debug_metadata", "latched_fence_state")
+        __slots__ = ("cookie", "token", "display_frame_token", "pid", "layer_name", "present_type", "on_time_finish", "gpu_composition", "jank_type", "prediction_type", "is_buffer", "jank_severity_type", "present_delay_millis", "vsync_resynced_jitter_millis", "jank_severity_score", "jank_type_experimental", "present_type_experimental", "jank_debug_metadata", "latched_fence_state", "animation_time_millis")
         class LatchedFenceState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = ()
             LATCHED_UNKNOWN: _ClassVar[FrameTimelineEvent.ActualSurfaceFrameStart.LatchedFenceState]
@@ -5663,6 +5663,7 @@ class FrameTimelineEvent(_message.Message):
         PRESENT_TYPE_EXPERIMENTAL_FIELD_NUMBER: _ClassVar[int]
         JANK_DEBUG_METADATA_FIELD_NUMBER: _ClassVar[int]
         LATCHED_FENCE_STATE_FIELD_NUMBER: _ClassVar[int]
+        ANIMATION_TIME_MILLIS_FIELD_NUMBER: _ClassVar[int]
         cookie: int
         token: int
         display_frame_token: int
@@ -5682,7 +5683,8 @@ class FrameTimelineEvent(_message.Message):
         present_type_experimental: FrameTimelineEvent.PresentType
         jank_debug_metadata: float
         latched_fence_state: FrameTimelineEvent.ActualSurfaceFrameStart.LatchedFenceState
-        def __init__(self, cookie: _Optional[int] = ..., token: _Optional[int] = ..., display_frame_token: _Optional[int] = ..., pid: _Optional[int] = ..., layer_name: _Optional[str] = ..., present_type: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., on_time_finish: bool = ..., gpu_composition: bool = ..., jank_type: _Optional[int] = ..., prediction_type: _Optional[_Union[FrameTimelineEvent.PredictionType, str]] = ..., is_buffer: bool = ..., jank_severity_type: _Optional[_Union[FrameTimelineEvent.JankSeverityType, str]] = ..., present_delay_millis: _Optional[float] = ..., vsync_resynced_jitter_millis: _Optional[float] = ..., jank_severity_score: _Optional[float] = ..., jank_type_experimental: _Optional[int] = ..., present_type_experimental: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., jank_debug_metadata: _Optional[float] = ..., latched_fence_state: _Optional[_Union[FrameTimelineEvent.ActualSurfaceFrameStart.LatchedFenceState, str]] = ...) -> None: ...
+        animation_time_millis: float
+        def __init__(self, cookie: _Optional[int] = ..., token: _Optional[int] = ..., display_frame_token: _Optional[int] = ..., pid: _Optional[int] = ..., layer_name: _Optional[str] = ..., present_type: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., on_time_finish: bool = ..., gpu_composition: bool = ..., jank_type: _Optional[int] = ..., prediction_type: _Optional[_Union[FrameTimelineEvent.PredictionType, str]] = ..., is_buffer: bool = ..., jank_severity_type: _Optional[_Union[FrameTimelineEvent.JankSeverityType, str]] = ..., present_delay_millis: _Optional[float] = ..., vsync_resynced_jitter_millis: _Optional[float] = ..., jank_severity_score: _Optional[float] = ..., jank_type_experimental: _Optional[int] = ..., present_type_experimental: _Optional[_Union[FrameTimelineEvent.PresentType, str]] = ..., jank_debug_metadata: _Optional[float] = ..., latched_fence_state: _Optional[_Union[FrameTimelineEvent.ActualSurfaceFrameStart.LatchedFenceState, str]] = ..., animation_time_millis: _Optional[float] = ...) -> None: ...
     class ExpectedDisplayFrameStart(_message.Message):
         __slots__ = ("cookie", "token", "pid")
         COOKIE_FIELD_NUMBER: _ClassVar[int]
