@@ -45,7 +45,7 @@
     "pako": "^2.1.0",
     "protobufjs": "^7.5.5",
     "protobufjs-cli": "^1.1.2",
-    "syntaqlite": "^0.5.6",
+    "syntaqlite": "^0.5.9",
     "util": "^0.12.5",
     "uuid": "^10.0.0",
     "zod": "^4.3.5"
