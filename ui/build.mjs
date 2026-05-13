@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-'use strict';
-
-
 // This script takes care of:
 // - The build process for the whole UI and the chrome extension.
 // - The HTTP dev-server with live-reload capabilities.
@@ -65,14 +62,18 @@
 // +----------------------+   | +----------+             +--------------------+|
 //                            +------------------------------------------------+
 
-const argparse = require('argparse');
-const childProcess = require('child_process');
-const crypto = require('crypto');
-const fs = require('fs');
-const http = require('http');
-const path = require('path');
-const zlib = require('zlib');
+import argparse from 'argparse';
+import childProcess from 'node:child_process';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import zlib from 'node:zlib';
+import {fileURLToPath} from 'node:url';
+
 const pjoin = path.join;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
@@ -1213,7 +1214,7 @@ function prepareBuildLock() {
       running = false;
     }
     if (running) {
-      console.error(`Error: a build.js instance is already running (${cfg.lockFile} PID=${oldPid}).`);
+      console.error(`Error: a build.mjs instance is already running (${cfg.lockFile} PID=${oldPid}).`);
       console.error('Hint: use --no-build (-n) to skip the build and avoid the lock.');
       process.exit(1);
     } else {

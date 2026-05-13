@@ -82,8 +82,8 @@
     "typescript": "5.5.2"
   },
   "scripts": {
-    "build": "node build.js",
-    "test": "node build.js --run-unittests",
+    "build": "node build.mjs",
+    "test": "node build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
   }
 }
