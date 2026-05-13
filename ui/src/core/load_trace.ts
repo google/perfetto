@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 import {time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
@@ -48,9 +48,14 @@ import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
-import {parseUrlCommands} from './command_manager';
+import {
+  parseUrlCommands,
+  StartupCommandNotAllowedError,
+} from './command_manager';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {sha1} from '../base/hash';
+import {showModal} from '../widgets/modal';
+import m from 'mithril';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -328,6 +333,8 @@ async function loadTraceIntoEngine(
       app.commands.setExecutingStartupCommands(true);
     }
 
+    const blocked: string[] = [];
+    const failed: Array<{id: string; error: unknown}> = [];
     try {
       for (const command of allStartupCommands) {
         try {
@@ -335,20 +342,64 @@ async function loadTraceIntoEngine(
           // commands.
           await app.commands.runCommand(command.id, ...command.args);
         } catch (error) {
-          // TODO(stevegolton): Add a mechanism to notify users of startup
-          // command errors. This will involve creating a notification UX
-          // similar to VSCode where there are popups on the bottom right
-          // of the UI.
-          console.warn(`Startup command ${command.id} failed:`, error);
+          if (error instanceof StartupCommandNotAllowedError) {
+            blocked.push(error.commandId);
+          } else {
+            failed.push({id: command.id, error});
+          }
         }
       }
     } finally {
       // Always restore default (allow all) behavior when done
       app.commands.setExecutingStartupCommands(false);
     }
+
+    if (blocked.length > 0 || failed.length > 0) {
+      showStartupCommandIssuesDialog(blocked, failed);
+    }
   }
 
   return trace;
+}
+
+function showStartupCommandIssuesDialog(
+  blocked: ReadonlyArray<string>,
+  failed: ReadonlyArray<{id: string; error: unknown}>,
+) {
+  const uniqueBlocked = Array.from(new Set(blocked));
+  showModal({
+    title: 'Some startup commands did not run',
+    content: () =>
+      m(
+        '.pf-startup-command-issues',
+        uniqueBlocked.length > 0 &&
+          m(
+            'section',
+            m(
+              'p',
+              'These commands were blocked because they are not on the ',
+              "allowlist. Disable 'Enforce startup command allowlist' in ",
+              'settings to run them anyway.',
+            ),
+            m(
+              'ul',
+              uniqueBlocked.map((id) => m('li', m('code', id))),
+            ),
+          ),
+        failed.length > 0 &&
+          m(
+            'section',
+            m('p', 'These commands threw an error while executing:'),
+            m(
+              'ul',
+              failed.map(({id, error}) =>
+                m('li', m('code', id), ': ', String(error)),
+              ),
+            ),
+          ),
+      ),
+    buttons: [{text: 'Dismiss', primary: true}],
+  });
 }
 
 function decideTabs(trace: TraceImpl) {
@@ -536,11 +587,25 @@ async function getTraceInfo(
   const hasFtrace =
     (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
 
-  // UUIDs are not always present. We fall back to a combination of trace_id and trace_type
-  // to ensure we still have a unique component for the session hash.
+  // Each trace in the session contributes to the global cache key. To maintain
+  // stable identifiers, we use the following priority:
+  // 1. Per-trace UUID: e.g. from a TraceUuid packet.
+  // 2. Global session UUID: ONLY used if no trace in the entire session has a
+  //    specific UUID.
+  // 3. Trace ID + Type: e.g. '1-perf'. The last-resort fallback.
   const uuidRes = await engine.query(`
     INCLUDE PERFETTO MODULE std.traceinfo.trace;
-    select ifnull(trace_uuid, trace_id || '-' || trace_type) as uuid from _metadata_by_trace
+    SELECT DISTINCT
+      coalesce(
+        trace_uuid,
+        iif(
+          (SELECT COUNT(trace_uuid) FROM _metadata_by_trace) = 0,
+          extract_metadata('trace_uuid'),
+          NULL
+        ),
+        trace_id || '-' || trace_type
+      ) AS uuid
+    FROM _metadata_by_trace
   `);
   const uuids: string[] = [];
   for (

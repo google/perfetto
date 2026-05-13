@@ -17,7 +17,6 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
-import {SliceRef} from '../../components/widgets/slice';
 import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
 import {renderDetails} from '../../components/details/slice_details';
 import {Engine} from '../../trace_processor/engine';
@@ -25,6 +24,7 @@ import {STR_NULL} from '../../trace_processor/query_result';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Section} from '../../widgets/section';
+import {TrackEventRef} from '../../components/widgets/track_event_ref';
 
 interface BinderTxnDetails {
   // Whether this is the client or server side of the binder transaction.
@@ -119,8 +119,9 @@ export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
             }),
             m(TreeNode, {
               left: txnRole + ' slice',
-              right: m(SliceRef, {
+              right: m(TrackEventRef, {
                 trace: this.trace,
+                table: 'slice',
                 id: sliceId,
                 name: `slice[${sliceId}]`,
               }),

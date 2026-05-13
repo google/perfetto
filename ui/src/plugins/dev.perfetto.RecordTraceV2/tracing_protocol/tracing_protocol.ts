@@ -19,7 +19,7 @@ import {ByteStream} from '../interfaces/byte_stream';
 import {ProtoRingBuffer} from '../../../trace_processor/proto_ring_buffer';
 import {defer} from '../../../base/deferred';
 import {exists} from '../../../base/utils';
-import {assertExists, assertFalse, assertTrue} from '../../../base/logging';
+import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
 import {PacketAssembler} from './packet_assembler';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 

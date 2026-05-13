@@ -16,16 +16,32 @@
 
 #include "src/traced/probes/packages_list/packages_list_data_source.h"
 
+#include <cinttypes>
+#include <cstdint>
+#include <cstdio>
+#include <functional>
+#include <memory>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_splitter.h"
-
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/common/android_cpu_per_uid_poller.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
+#include "src/traced/probes/probes_data_source.h"
+
+#include "protos/perfetto/config/android/packages_list_config.pbzero.h"
+#include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using perfetto::protos::pbzero::PackagesListConfig;
 
@@ -47,7 +63,17 @@ const ProbesDataSource::Descriptor PackagesListDataSource::descriptor = {
 bool ParsePackagesListStream(
     std::unordered_multimap<uint64_t, Package>& packages,
     const base::ScopedFstream& fs,
-    const std::set<std::string>& package_name_filter) {
+    const std::set<std::string>& package_name_filter,
+    const std::vector<std::string>& package_name_regex_filter) {
+  // Pre-compile regex patterns.
+  std::vector<base::Regex> compiled_regexes;
+  compiled_regexes.reserve(package_name_regex_filter.size());
+  for (const auto& pattern : package_name_regex_filter) {
+    compiled_regexes.emplace_back(base::Regex::CreateOrCheck(pattern));
+  }
+
+  bool has_filter = !package_name_filter.empty() || !compiled_regexes.empty();
+
   bool parse_error = false;
   char line[2048];
   while (fgets(line, sizeof(line), *fs) != nullptr) {
@@ -56,11 +82,20 @@ bool ParsePackagesListStream(
       parse_error = true;
       continue;
     }
-    if (!package_name_filter.empty() &&
-        package_name_filter.count(pkg_struct.name) == 0) {
+    if (!has_filter) {
+      packages.insert({pkg_struct.uid, pkg_struct});
       continue;
     }
-    packages.insert({pkg_struct.uid, pkg_struct});
+    if (package_name_filter.count(pkg_struct.name) != 0) {
+      packages.insert({pkg_struct.uid, pkg_struct});
+      continue;
+    }
+    for (const auto& re : compiled_regexes) {
+      if (re.FullMatch(pkg_struct.name)) {
+        packages.insert({pkg_struct.uid, pkg_struct});
+        break;
+      }
+    }
   }
   return parse_error;
 }
@@ -79,6 +114,9 @@ PackagesListDataSource::PackagesListDataSource(
   for (auto name = cfg.package_name_filter(); name; ++name) {
     package_name_filter_.emplace((*name).ToStdString());
   }
+  for (auto re = cfg.package_name_regex_filter(); re; ++re) {
+    package_name_regex_filter_.emplace_back((*re).ToStdString());
+  }
 
   only_write_on_cpu_use_every_ms_ = cfg.only_write_on_cpu_use_every_ms();
   if (only_write_on_cpu_use_every_ms_ != 0) {
@@ -95,10 +133,10 @@ PackagesListDataSource::PackagesListDataSource(
 }
 
 void PackagesListDataSource::Start() {
-  base::ScopedFstream fs(fopen("/data/system/packages.list", "r"));
+  base::ScopedFstream fs(fopen("/data/system/packages.list", "re"));
   if (fs) {
-    packages_parse_error_ =
-        ParsePackagesListStream(packages_, fs, package_name_filter_);
+    packages_parse_error_ = ParsePackagesListStream(
+        packages_, fs, package_name_filter_, package_name_regex_filter_);
     if (ferror(*fs))
       packages_read_error_ = true;
 

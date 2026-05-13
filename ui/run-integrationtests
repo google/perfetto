@@ -13,28 +13,112 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This script runs the Playwright tests for the UI. It can be run from the root
+# directory with `./ui/run-integrationtests` and accepts the same arguments as
+# `playwright test` (e.g. `./ui/run-integrationtests --workers=1
+# src/test/wattson.test.ts`).
+#
+# It makes sure that the build is up to date before 
+
 import argparse
 import os
+import shlex
+import subprocess
 import sys
 
-UI_DIR = os.path.dirname(__file__)
+UI_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(UI_DIR)
+
+# Custom Playwright Docker image name (built from ui/playwright/Dockerfile)
+PLAYWRIGHT_IMAGE = 'perfetto-playwright'
+PLAYWRIGHT_DOCKERFILE = os.path.join(UI_DIR, 'playwright', 'Dockerfile')
 
 
-def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--interactive',
-      '-i',
-      action='store_true',
-      help='Run in interactive mode')
-  parser.add_argument(
-      '--rebaseline', '-r', action='store_true', help='Rebaseline screenshots')
-  parser.add_argument('--out', help='out directory')
-  parser.add_argument('--no-build', action='store_true')
-  parser.add_argument('--no-depscheck', action='store_true')
-  parser.add_argument('--workers', help='Number of playwright workers to use')
-  parser.add_argument('filters', nargs='*')
-  args = parser.parse_args()
+def get_playwright_version():
+  """Get the installed Playwright version."""
+  result = subprocess.run(
+      ['./pnpm', 'exec', 'playwright', '--version'],
+      capture_output=True,
+      text=True,
+      cwd=UI_DIR
+  )
+  if result.returncode != 0:
+    raise RuntimeError(f'Failed to get Playwright version: {result.stderr}')
+  version_line = result.stdout.strip()
+  if not version_line.startswith('Version '):
+    raise RuntimeError(f'Unexpected Playwright version output: {version_line}')
+  return version_line[len('Version '):]
+
+
+def build_docker_image(version, use_sudo):
+  """Build the custom Playwright Docker image with Mesa GL support."""
+  image_tag = f'{PLAYWRIGHT_IMAGE}:v{version}'
+
+  print(f'Building Docker image: {image_tag}')
+  build_cmd = [
+      'docker', 'build',
+      '--build-arg', f'PLAYWRIGHT_VERSION={version}',
+      '-t', image_tag,
+      os.path.dirname(PLAYWRIGHT_DOCKERFILE)
+  ]
+  if use_sudo:
+    build_cmd = ['sudo'] + build_cmd
+
+  result = subprocess.run(build_cmd)
+  if result.returncode != 0:
+    raise RuntimeError(f'Failed to build Docker image')
+
+  return image_tag
+
+
+def is_docker_available():
+  """Check if docker is installed and accessible."""
+  try:
+    result = subprocess.run(
+        ['docker', '--version'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=5
+    )
+    return result.returncode == 0
+  except (subprocess.TimeoutExpired, FileNotFoundError):
+    return False
+
+
+def needs_sudo_for_docker():
+  """Check if sudo is needed to run docker commands."""
+  try:
+    result = subprocess.run(
+        ['docker', 'info'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=5
+    )
+    return result.returncode != 0
+  except (subprocess.TimeoutExpired, FileNotFoundError):
+    return True
+
+
+def run_build(args):
+  """Run the build script to ensure we have something to test."""
+  build_args = []
+  if args.no_build:
+    build_args += ['--no-build']
+  if args.no_depscheck:
+    build_args += ['--no-depscheck']
+
+  return subprocess.call(['ui/build'] + build_args)
+
+
+def run_native(args):
+  """Run tests directly on the host machine."""
+  print('Warning: Running without Docker. Results may vary across environments.')
+  if args.rebaseline:
+    print('Note: Rebaselining outside Docker may cause snapshot mismatches in CI.')
+  print('')
+
+  # Install the chromium through playwright
+  subprocess.check_call(['./pnpm', 'exec', 'playwright', 'install', 'chromium'], cwd=UI_DIR)
 
   cmd = ['./pnpm', 'exec', 'playwright', 'test']
   if args.interactive:
@@ -56,13 +140,115 @@ def main():
     out_rel_path = os.path.relpath(args.out, UI_DIR)
     env['OUT_DIR'] = out_rel_path
     dev_server_args += ['--out', out_rel_path]
-  if args.no_build:
-    dev_server_args += ['--no-build']
-  if args.no_depscheck:
-    dev_server_args += ['--no-depscheck']
   env['DEV_SERVER_ARGS'] = ' '.join(dev_server_args)
   os.chdir(UI_DIR)
   os.execve(cmd[0], cmd, env)
+
+
+def run_in_docker(args):
+  """Run tests inside a Docker container with pre-installed Chrome."""
+  use_sudo = needs_sudo_for_docker()
+
+  # Get the Playwright version and build/use matching Docker image
+  try:
+    version = get_playwright_version()
+    image = build_docker_image(version, use_sudo)
+  except RuntimeError as e:
+    print(str(e))
+    return 1
+
+  # Build the playwright command (wrapped with xvfb-run for virtual display)
+  # First install browsers to /tmp (the only writable location in the container)
+  install_cmd = 'PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright ./pnpm exec playwright install chromium'
+  playwright_cmd_parts = [
+      'unbuffer', 'xvfb-run', '--auto-servernum',
+      './pnpm', 'exec', 'playwright', 'test'
+  ]
+  if args.rebaseline:
+    playwright_cmd_parts += ['--update-snapshots']
+  if args.workers:
+    playwright_cmd_parts += ['--workers', args.workers]
+  playwright_cmd_parts += args.filters
+
+  playwright_test_cmd = ' '.join(shlex.quote(p) for p in playwright_cmd_parts)
+  playwright_cmd = f'{install_cmd} && PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright {playwright_test_cmd}'
+
+  # Build dev server args (similar to run_native)
+  dev_server_args = []
+  env_args = []
+  if args.out:
+    out_rel_path = os.path.relpath(args.out, UI_DIR)
+    env_args += ['-e', f'OUT_DIR={out_rel_path}']
+    dev_server_args += ['--out', out_rel_path]
+  if dev_server_args:
+    env_args += ['-e', f'DEV_SERVER_ARGS={" ".join(dev_server_args)}']
+
+  docker_cmd = [
+      'docker', 'run',
+      '--rm', # Remove the container after it exits
+      '-t', # Allocate a pseudo-TTY for better output formatting
+      '-v', f'{REPO_ROOT}:{REPO_ROOT}', # Mount the repo root into the container
+      '-w', f'{REPO_ROOT}/ui', # Set working directory to /ui
+      '-u', f'{os.getuid()}:{os.getgid()}', # Run as current user to avoid permission issues
+      '-e', 'HOME=/tmp', # Chrome needs a writable home for crashpad
+      *env_args,
+      image,
+      'bash', '-c', playwright_cmd
+  ]
+
+  if use_sudo:
+    docker_cmd = ['sudo'] + docker_cmd
+
+  print(f'Running Playwright in Docker using {image}')
+  if docker_cmd[0] == 'sudo':
+    print('Note: you may be prompted for your password to run Docker with sudo.')
+  sys.exit(subprocess.call(docker_cmd))
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--no-docker',
+      action='store_true',
+      help='Run tests on the host machine instead of in Docker')
+  parser.add_argument(
+      '--interactive',
+      '-i',
+      action='store_true',
+      help='Run in interactive mode (requires --no-docker)')
+  parser.add_argument(
+      '--rebaseline', '-r', action='store_true', help='Rebaseline screenshots')
+  parser.add_argument('--out', help='out directory')
+  parser.add_argument('--no-build', action='store_true')
+  parser.add_argument('--no-depscheck', action='store_true')
+  parser.add_argument('--workers', help='Number of playwright workers to use')
+  parser.add_argument('filters', nargs='*')
+  args = parser.parse_args()
+
+  if args.interactive and not args.no_docker:
+    print('--interactive requires --no-docker (Docker has no display)')
+    print('Try: ./run-integrationtests --no-docker --interactive')
+    return 1
+
+  run_build_result = run_build(args)
+  if run_build_result != 0:
+    print('Build failed, not running tests')
+    return run_build_result
+
+  if args.no_docker:
+    return run_native(args)
+
+  if not is_docker_available():
+    print('Warning: Docker is not installed or not accessible.')
+    print('Docker is recommended for consistent test results, especially when')
+    print('rebaselining screenshots.')
+    print('')
+    print('To run without Docker, pass --no-docker:')
+    print('  ./run-integrationtests --no-docker')
+    print('')
+    return 1
+
+  return run_in_docker(args)
 
 
 if __name__ == '__main__':

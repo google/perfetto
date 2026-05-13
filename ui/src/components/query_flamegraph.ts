@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
 import {

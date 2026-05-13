@@ -19,9 +19,12 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {AggregateProfilesPage} from './aggregate_profiles_page';
-import {AggregateProfilesPageState, AGGREGATE_PROFILES_PAGE_STATE_SCHEMA} from './types';
+import {
+  AggregateProfilesPageState,
+  AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
+} from './types';
 import {Store} from '../../base/store';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';

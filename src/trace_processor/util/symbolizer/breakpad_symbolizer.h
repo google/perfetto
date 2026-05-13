@@ -39,12 +39,11 @@ class BreakpadSymbolizer : public Symbolizer {
   BreakpadSymbolizer(BreakpadSymbolizer&& other) = default;
   BreakpadSymbolizer& operator=(BreakpadSymbolizer&& other) = default;
 
-  std::vector<std::vector<SymbolizedFrame>> Symbolize(
-      const Environment&,
-      const std::string&,
-      const std::string& build_id,
-      uint64_t,
-      const std::vector<uint64_t>& address) override;
+  SymbolizeResult Symbolize(const Environment&,
+                            const std::string&,
+                            const std::string& build_id,
+                            uint64_t,
+                            const std::vector<uint64_t>& address) override;
 
   void SetBreakpadFileForTesting(const std::string& path) {
     file_path_for_testing_ = path;

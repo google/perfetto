@@ -17,21 +17,20 @@
 #ifndef SRC_TRACED_PROBES_PACKAGES_LIST_PACKAGES_LIST_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_PACKAGES_LIST_PACKAGES_LIST_DATA_SOURCE_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
-
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
-#include "protos/perfetto/config/android/packages_list_config.pbzero.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
-
 #include "src/traced/probes/packages_list/packages_list_parser.h"
 #include "src/traced/probes/probes_data_source.h"
 
@@ -43,7 +42,8 @@ class AndroidCpuPerUidPoller;
 bool ParsePackagesListStream(
     std::unordered_multimap<uint64_t, Package>& packages,
     const base::ScopedFstream& fs,
-    const std::set<std::string>& package_name_filter);
+    const std::set<std::string>& package_name_filter,
+    const std::vector<std::string>& package_name_regex_filter);
 
 class PackagesListDataSource : public ProbesDataSource {
  public:
@@ -81,6 +81,7 @@ class PackagesListDataSource : public ProbesDataSource {
   // this should be trivially small (or empty) in practice, and the latter uses
   // ever so slightly more memory.
   std::set<std::string> package_name_filter_;
+  std::vector<std::string> package_name_regex_filter_;
   std::unique_ptr<TraceWriter> writer_;
   base::WeakPtrFactory<PackagesListDataSource> weak_factory_;  // Keep last.
 };

@@ -143,5 +143,23 @@ TEST(TracePacketTest, MoveOperators) {
   ASSERT_EQ(5u + 7u + 11u, moved_tp_2.size());
 }
 
+TEST(TracePacketTest, Clear) {
+  std::string_view data = "slice_data";
+
+  TracePacket tp;
+  tp.AddSlice(data.data(), data.size());
+  tp.set_buffer_index_for_stats(10);
+  ASSERT_EQ(tp.size(), data.size());
+  ASSERT_EQ(tp.slices().size(), 1u);
+  ASSERT_EQ(tp.buffer_index_for_stats(), 10);
+  ASSERT_EQ(tp.GetRawBytesForTesting(), data);
+
+  tp.Clear();
+  ASSERT_EQ(tp.size(), 0u);
+  ASSERT_EQ(tp.slices().size(), 0u);
+  ASSERT_EQ(tp.buffer_index_for_stats(), std::nullopt);
+  ASSERT_EQ(tp.GetRawBytesForTesting(), "");
+}
+
 }  // namespace
 }  // namespace perfetto

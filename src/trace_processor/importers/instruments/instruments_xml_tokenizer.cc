@@ -16,9 +16,6 @@
 
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 
-#include "perfetto/ext/base/murmur_hash.h"
-#include "src/trace_processor/importers/instruments/row_parser.h"
-
 #include <expat.h>
 #include <algorithm>
 #include <cctype>
@@ -47,9 +44,11 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
+#include "src/trace_processor/importers/instruments/row_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #error \
@@ -152,17 +151,9 @@ class InstrumentsXmlTokenizer::Impl {
       : context_(context),
         parser_(nullptr),
         has_data_(false),
+        clock_(ClockId::TraceFile(context->trace_id().value)),
         stream_(context->sorter->CreateStream(
-            std::make_unique<RowParser>(context, data_))) {
-    static constexpr std::string_view kSubsystem =
-        "dev.perfetto.instruments_clock";
-    clock_ = static_cast<ClockTracker::ClockId>(
-        base::MurmurHashValue(kSubsystem) | 0x80000000);
-
-    // Use the above clock if we can, in case there is no other trace and
-    // no clock sync events.
-    context_->clock_tracker->SetTraceTimeClock(clock_);
-  }
+            std::make_unique<RowParser>(context, data_))) {}
   ~Impl() {
     if (parser_) {
       XML_ParserFree(parser_);
@@ -417,7 +408,8 @@ class InstrumentsXmlTokenizer::Impl {
             latest_clock_sync_timestamp_ = clock_sync_timestamp;
             auto status = context_->clock_tracker->AddSnapshot(
                 {{clock_, current_row_.timestamp_},
-                 {protos::pbzero::ClockSnapshot::Clock::BOOTTIME,
+                 {ClockId::Machine(
+                      protos::pbzero::ClockSnapshot::Clock::BOOTTIME),
                   static_cast<int64_t>(latest_clock_sync_timestamp_)}});
             if (!status.ok()) {
               PERFETTO_FATAL("Error adding clock snapshot: %s",

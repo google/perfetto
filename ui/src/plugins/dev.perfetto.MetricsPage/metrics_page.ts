@@ -18,7 +18,7 @@ import {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
-import {assertExists, assertUnreachable} from '../../base/logging';
+import {assertExists, assertUnreachable} from '../../base/assert';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';

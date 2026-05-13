@@ -1,22 +1,81 @@
-Unreleased:
+v55.0 - 2026-04-29:
+  Tracing service and probes:
+    * Breaking change: Renamed the `TraceMetadata` proto to `TraceAttributes`.
+    * Extended `tid` field in `thread_descriptor.proto` to `int64` to support
+      large thread IDs, useful on Windows.
+    * Added `android.aflags` data source for capturing Android aconfig flags
+      (with associated Trace Processor and UI support).
+    * Added `/proc/slabinfo` polling support to the `sys_stats` data source.
+    * `traced_perf`: added a CPU filter for restricting per-CPU sampling, and
+      allowed raw perf events to specify a dynamic PMU by name.
+    * Added the ability to attach generic trace-level metadata to a trace.
+    * GPU: added `InstrumentedSamplingConfig` and custom counter groups to
+      `GpuCounterConfig`; added CUDA and HIP to the GPU graphics context APIs.
+  Trace Processor:
+    * Major: new `trace_processor_shell` architecture based on subcommands
+      (`query`, `interactive`, `server`, `metrics`, `summarize`, `export`,
+      `convert`). The classic CLI is preserved through a translation layer.
+    * Added support for the ART Method v2 streaming trace format.
+    * Multi-GPU support: new `gpu` and `gpu_context` tables enabling
+      per-GPU and multi-machine attribution across slice and memory tracks.
+    * HPROF importer: support for primitive fields, array contents, and
+      Bitmap-specific fields; closer ahat parity.
+    * Added polars DataFrame support to the Python TraceProcessor API.
+  UI:
+    * WebGL rendering for GPU-accelerated visualization of slice and counter
+      tracks with significant performance improvements on large traces.
+    * Virtual track scrolling, only rendering visible tracks for smoother
+      navigation on traces with many tracks.
+    * Breaking: legacy trace actions have been moved to the `dev.perfetto.Catapult`
+      plugin, disabled by default.
+    * Added the Heap Dump Explorer plugin with object view, class hierarchy,
+      duplicate-array detection, GC-root shortest-path, and bitmap gallery.
+      Java Flamegraph entries can navigate into the explorer.
+    * New plugins: GpuCompute (GPU kernel performance analysis), CoarseCpu
+      (per-CPU `/proc/stat` counters), Android monitor lock contention
+      (replaces the removed `com.android.LockContention` plugin), and an
+      Android logs track breakdown.
+    * Charts and aggregations: added Sankey chart, stats widget, percentile
+      and count-distinct aggregations; line charts now support stacking,
+      series hovering, and selection alongside brushing.
+    * Instances and flamegraph views now open as closable tabs.
+    * Counters: improved detail panel to reflect counter mode and handle
+      rate-delta counters for Android GPU events.
+    * Data Explorer: added dashboard functionality (labels, drivers and
+      consumers, import/export tabs, in-sidebar chart editor, smarter graph
+      with cycle detection, modernized charts picker).
+    * Dev server: support overriding CLI flags via `PERFETTO_UI_<FLAG>` env
+      or `~/.config/perfetto/ui-dev-server.env`.
+  SDK:
+    * Java SDK: added support for `@CompileTimeConstant` and static track
+      names.
+  Tools:
+    * `heap_profile`: added a `host` subcommand for memory profiling local
+      Linux processes. The existing Android workflow is preserved under the
+      `android` subcommand.
+  Docs:
+    * Major site refresh: reorganized TOC, filter chips, refreshed visuals.
+    * New or rewritten guides: PerfettoSQL getting-started, GPU data source,
+      symbolization and deobfuscation, Heap Dump Explorer, and `heap_profile`
+      `host`/`android` subcommands.
+
+
+v54.0 - 2026-02-27:
   Tracing service and probes:
     * Breaking change: Removed `TraceConfig.no_flush_before_write_into_file` and
       replaced it with `TraceConfig.write_flush_mode` enum to provide more
       granular control over flushing behavior when streaming traces into a file.
     * Breaking change for traced_relay users: data sources no longer match
       remote machine producers by default. To restore the previous behaviour,
-      set TraceConfig.trace_all_machines to true.
+      set `TraceConfig.trace_all_machines` to true.
     * Added `perfetto --no-clobber` CLI option to prevent overwriting existing
       files.
-    * Added producer-side shared memory buffer scraping for remote producers.
+    * Fixed a bug that would cause remote producers (data sources in VMs) to
+      lose data on the end of the trace due to lack of scraping.
     * Added `android.user_list` data source to list Android users.
     * Added support for FWTP counter traces and `fwtp_perfetto_slice` ftrace
       event.
-  SQL Standard library:
-    * Introduced `heap_graph_stats` module and added dmabuf support.
-    * Added `intent` and `component` columns to `android_anrs` table.
-    * Added relevant threads jank CUJ module and counter-based weighted jank
-      metrics.
+    * Added suppport for referring to target buffers by name rather than index.
   Trace Processor:
     * Added support for Collapsed Stack format (from Brendan Gregg's FlameGraph
       tools). This format uses semicolon-separated stack frames with a count,
@@ -47,35 +106,39 @@ Unreleased:
       associate entries with their specific context.
     * Added support for R8 retracing during deobfuscation. Improves
       deobfuscation quality for some supported profiling types.
+  SQL Standard library:
+    * Added `heap_graph_stats` module and added dmabuf support.
+    * Added `intent` and `component` columns to `android_anrs` table.
+    * Added relevant threads jank CUJ module and counter-based weighted jank
+      metrics.
   UI:
-    * Added support for opening any publicly https:// trace using url= parameter
-      of the UI. See https://perfetto.dev/docs/visualization/deep-linking-to-perfetto-ui#option-1-direct-url-for-public-traces
+    * Added support for opening any public-readable https:// trace using url=
+      parameter. See https://perfetto.dev/docs/visualization/deep-linking-to-perfetto-ui#option-1-direct-url-for-public-traces
       for more information.
+    * Changed the way heap profiles are rendered: rather than an arrow with a
+      snapshot from start, use a slice that represents the time period covered
+      since the last snapshot. Also support aggregation on area selection.
     * Added summary tracks for slice tracks and merged them with scheduling
       summaries.
     * Added present configs to the recording page to allow easy configuration
       of traces for common system health problems on Android and Chrome.
     * Added capability to download trace config files in one click from
       the recording page.
-    * Reorganized the UI sidebar to improve usability of common actions and
-      reduce clutter.
     * Landed various improvements for DataGrid (table viewer component):
         * Added configurable pivot table support.
         * Added glob, contains, and not-contains filters.
         * Added a distinct value picker for filters.
-    * Improved performance in various ways:
-        * Improved dataset search performance
-        * Optimized visualization of argument values.
-        * Reduced jank when panning/zooming on busy tracks.
     * Added snap-to-boundaries feature for precise time selection. When
       dragging selection handles or creating area selections, the cursor
       automatically snaps to nearby slice boundaries to enable exact
       measurement of slice durations. Hold Alt to temporarily disable snapping.
-  Tracing service and probes:
-    * Added suppport for referring to target buffers by name rather than index.
+    * Performance optimizations:
+        * Improved dataset search performance
+        * Optimized visualization of argument values.
+        * Reduced jank when panning/zooming on busy tracks.
   SDK:
     * Added inotify support for UNIX sockets: if traced is unavailable or
-      crashes, on Linux and Android we reconnect immediately after the socke
+      crashes, on Linux and Android we reconnect immediately after the socket
       has been recreated rather than relying on periodic retries.
     * Added `ClearIncrementalState` method to data source traits to allow
       data sources to have custom clearing logic instead of creating/destroying
@@ -85,6 +148,7 @@ Unreleased:
     * Upgraded standalone Bazel version to 8.5.0.
     * Switched Bazel usage to be fully based on bzlmod as, on Bazel 8,
       WORKSPACE builds are no longer supported.
+
 
 v53.0 - 2025-11-12:
   SDK:
@@ -189,6 +253,7 @@ v53.0 - 2025-11-12:
       relaxed review requirements and are not officially supported by the core
       Perfetto team. (https://github.com/google/perfetto/discussions/3404)
 
+
 v52.0 - 2025-09-16:
   Tracing service and probes:
     * Added support for exclusive single-tenant features in ftrace data source.
@@ -287,16 +352,19 @@ v52.0 - 2025-09-16:
     * Emit PHASE_MARK legacy events on the global track.
     * Added support for optional user provided process UUID.
 
+
 v51.2 - 2025-07-03:
   Trace Processor:
     * Fixed issue with trace summarization crashing with released trace
       processor prebuilt. Builds from source with GN and default configuration
       is unaffected.
 
+
 v51.1 - 2025-06-26:
   Build system:
     * Fixed issue with Bazel copts/cxxopts. Embedders are required to add a
       default_cxxopts to their perfetto.bzl file in their repository.
+
 
 v51.0 - 2025-06-24:
   Tracing service and probes:
@@ -503,7 +571,7 @@ v48.0 - 2024-10-11:
     * Added support for parsing non-streaming ART method tracing format.
     * Added support for parsing GZIP files with multiple gzip streams.
     * Added support for parsing V8 CPU profling samples from proto traces.
-u    * Renamed Trace Processor's C++ method `RegisterSqlModule()` to
+    * Renamed Trace Processor's C++ method `RegisterSqlModule()` to
      `RegisterSqlPackage()`, which better represents the module/package
       relationship. Package is the top level grouping of modules, which are
       objects being included with `INCLUDE PERFETTO MODULE`.

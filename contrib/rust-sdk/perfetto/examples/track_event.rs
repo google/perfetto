@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             ctx.set_counter(TrackEventCounter::Int64(79));
         });
         track_event_instant!("cat1", "name8", |ctx: &mut EventContext| {
-            ctx.set_named_track("dynamictrack", 2, TrackEventTrack::process_track_uuid());
+            ctx.set_named_track("static_track", 2, TrackEventTrack::process_track_uuid());
             ctx.set_timestamp(TrackEventTimestamp::now());
         });
         track_event_instant!("cat1", "name9", |ctx: &mut EventContext| {

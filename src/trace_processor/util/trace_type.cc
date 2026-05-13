@@ -286,10 +286,14 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "gecko";
     case kArtMethodTraceType:
       return "art_method";
+    case kArtMethodV2TraceType:
+      return "art_method_v2";
     case kArtHprofTraceType:
       return "art_hprof";
     case kPerfTextTraceType:
       return "perf_text";
+    case kPrimesTraceType:
+      return "primes";
     case kSimpleperfProtoTraceType:
       return "simpleperf_proto";
     case kUnknownTraceType:
@@ -309,6 +313,7 @@ bool IsContainerTraceType(TraceType trace_type) {
     case kTarTraceType:
       return true;
     case kJsonTraceType:
+    case kPrimesTraceType:
     case kProtoTraceType:
     case kSymbolsTraceType:
     case kNinjaLogTraceType:
@@ -322,6 +327,7 @@ bool IsContainerTraceType(TraceType trace_type) {
     case kAndroidDumpstateTraceType:
     case kGeckoTraceType:
     case kArtMethodTraceType:
+    case kArtMethodV2TraceType:
     case kArtHprofTraceType:
     case kPerfTextTraceType:
     case kSimpleperfProtoTraceType:
@@ -364,6 +370,13 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   }
 
   if (MatchesMagic(data, size, kArtMethodStreamingMagic)) {
+    if (size >= 6) {
+      uint16_t version = data[4] | static_cast<uint16_t>(data[5] << 8);
+      if (version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
+          version == 0x00f5) {
+        return kArtMethodV2TraceType;
+      }
+    }
     return kArtMethodTraceType;
   }
 
@@ -447,6 +460,11 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;
+
+  // TODO(leemh): This is not robust enough. Chat elkurdi@/lalitm@ to determine
+  // better way.
+  if (base::StartsWith(start, "\x09"))
+    return kPrimesTraceType;
 
   if (base::StartsWith(start, "9,0,i,vers,")) {
     return kAndroidDumpstateTraceType;  // BatteryStats Checkin format.

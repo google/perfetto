@@ -409,7 +409,6 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   }
 
   perfetto::internal::DataSourceParams params;
-  params.default_buffer_exhausted_policy = ds_impl->buffer_exhausted_policy;
   params.buffer_exhausted_policy_configurable =
       ds_impl->buffer_exhausted_policy_configurable;
   params.supports_multiple_instances = true;

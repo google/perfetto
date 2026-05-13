@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from './logging';
+import {assertExists} from './assert';
 import {exists} from './utils';
 
 export type PathKey = string | number;

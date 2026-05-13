@@ -22,8 +22,15 @@
 namespace perfetto {
 namespace trace_to_text {
 
+struct TraceToTextOptions {
+  // If true, unknown proto fields are skipped when converting to text.
+  bool skip_unknown_fields = false;
+};
+
 // Returns true in case of success.
-bool TraceToText(std::istream* input, std::ostream* output);
+bool TraceToText(std::istream* input,
+                 std::ostream* output,
+                 const TraceToTextOptions& options);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

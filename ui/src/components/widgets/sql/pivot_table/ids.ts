@@ -22,8 +22,17 @@ export function pivotId(p: TableColumn): string {
 }
 
 // Unique identifier for an aggregation.
+// The column is always included to prevent ID collisions: expanding a non-associative
+// aggregation (e.g. average(dur) -> sum(dur) + count(dur)) must not produce a
+// count(dur) that collides with the built-in count(1), otherwise values are
+// accumulated twice, inflating counts 2x per row.
 export function aggregationId(a: Aggregation): string {
-  // Count doesn't require a column.
-  if (a.op === 'count') return 'count';
   return `${a.op}(${sqlColumnId(a.column.column)})`;
+}
+
+// Human-readable label for an aggregation, used in column headers.
+// Returns 'count' for the built-in count(1) instead of the full 'count(1)'.
+export function aggregationLabel(a: Aggregation): string {
+  const id = aggregationId(a);
+  return id === 'count(1)' ? 'count' : id;
 }

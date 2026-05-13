@@ -39,6 +39,7 @@ message AndroidWattsonEstimateInfo {
   optional int64 period_dur = 3;
   optional AndroidWattsonCpuSubsystemEstimate cpu_subsystem = 4;
   optional AndroidWattsonGpuSubsystemEstimate gpu_subsystem = 5;
+  optional AndroidWattsonTpuSubsystemEstimate tpu_subsystem = 6;
 }
 
 message AndroidWattsonCpuSubsystemEstimate {
@@ -80,6 +81,11 @@ message AndroidWattsonDsuScuEstimate {
 }
 
 message AndroidWattsonGpuSubsystemEstimate {
+  optional float estimated_mw = 1;
+  optional float estimated_mws = 2;
+}
+
+message AndroidWattsonTpuSubsystemEstimate {
   optional float estimated_mw = 1;
   optional float estimated_mws = 2;
 }

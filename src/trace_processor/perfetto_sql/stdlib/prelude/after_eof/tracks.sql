@@ -56,7 +56,7 @@ CREATE PERFETTO VIEW track (
   -- expand the args.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- An opaque key indicating that this track belongs to a group of tracks which
   -- are "conceptually" the same track.
   --
@@ -99,7 +99,7 @@ CREATE PERFETTO TABLE thread_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The utid that the track is associated with.
   utid JOINID(thread.id)
 ) AS
@@ -138,7 +138,7 @@ CREATE PERFETTO TABLE process_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The upid that the track is associated with.
   upid JOINID(process.id)
 ) AS
@@ -177,7 +177,7 @@ CREATE PERFETTO TABLE cpu_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The CPU that the track is associated with.
   cpu LONG
 ) AS
@@ -224,7 +224,7 @@ CREATE PERFETTO TABLE gpu_track (
   -- given type.
   dimension_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The source of the track. Deprecated.
   scope STRING,
   -- The description for the track.

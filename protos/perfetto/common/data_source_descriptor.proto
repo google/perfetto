@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/common/ftrace_descriptor.proto";
 import "protos/perfetto/common/gpu_counter_descriptor.proto";
 import "protos/perfetto/common/track_event_descriptor.proto";
+import "protos/perfetto/protovm/vm_program.proto";
 
 // This message is sent from Producer(s) to the tracing Service when registering
 // to advertise their capabilities. It describes the structure of tracing
@@ -59,6 +60,13 @@ message DataSourceDescriptor {
   // scraping.
   // Introduced in v39 / Android V.
   optional bool no_flush = 9;
+
+  // If present, the tracing service executes this program within a ProtoVM to
+  // process overwritten packets (patches). The service computes a hash of the
+  // program to detect and disambiguate between different versions; if multiple
+  // versions (from different producers) are specified for the same data source,
+  // the service instantiates a dedicated ProtoVM for each.
+  optional VmProgram protovm_program = 10;
 
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];

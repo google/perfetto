@@ -100,6 +100,7 @@ class HeapGraph(TestSuite):
           "A",2,200,4,11200
           "java.lang.String",1,10000,1,10000
           "B",1,1000,1,1000
+          "java.lang.String",1,666,1,666
         """))
 
   def test_heap_graph_stats(self):

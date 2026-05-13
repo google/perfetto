@@ -31,11 +31,11 @@
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
+#include "src/protozero/multifile_error_collector.h"
 
 #include "protos/perfetto/common/semantic_type.pbzero.h"
 #include "protos/perfetto/proto_filtering/proto_filter_options.pb.h"
@@ -43,45 +43,6 @@
 namespace protozero {
 
 namespace {
-
-class MultiFileErrorCollectorImpl
-    : public google::protobuf::compiler::MultiFileErrorCollector {
- public:
-  ~MultiFileErrorCollectorImpl() override = default;
-#if GOOGLE_PROTOBUF_VERSION >= 4022000
-  void RecordError(std::string_view filename,
-                   int line,
-                   int column,
-                   std::string_view message) override {
-    PERFETTO_ELOG("Error %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
-                  filename.data(), line, column,
-                  static_cast<int>(message.size()), message.data());
-  }
-  void RecordWarning(std::string_view filename,
-                     int line,
-                     int column,
-                     std::string_view message) override {
-    PERFETTO_ELOG("Warning %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
-                  filename.data(), line, column,
-                  static_cast<int>(message.size()), message.data());
-  }
-#else
-  void AddError(const std::string& filename,
-                int line,
-                int column,
-                const std::string& message) override {
-    PERFETTO_ELOG("Error %s %d:%d: %s", filename.c_str(), line, column,
-                  message.c_str());
-  }
-  void AddWarning(const std::string& filename,
-                  int line,
-                  int column,
-                  const std::string& message) override {
-    PERFETTO_ELOG("Warning %s %d:%d: %s", filename.c_str(), line, column,
-                  message.c_str());
-  }
-#endif
-};
 
 // Reads proto_filter annotation from a field's options.
 struct ProtoFilterOptions {

@@ -19,7 +19,7 @@ import {featureFlags} from '../core/feature_flags';
 import {LinearProgress} from '../widgets/linear_progress';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
-import {Sidebar} from './sidebar';
+import {Sidebar} from './views/sidebar';
 import {renderStatusBar} from './statusbar';
 import {taskTracker} from './task_tracker';
 import {Topbar} from './topbar';
@@ -29,7 +29,9 @@ const showStatusBarFlag = featureFlags.register({
   description: 'Enable status bar at the bottom of the window',
   defaultValue: true,
 });
-const APP_TITLE = 'Perfetto UI';
+// Read the page title set by index.html. This can be overridden at build time
+// via --title (e.g. to distinguish multiple dev server instances).
+const APP_TITLE = document.title || 'Perfetto UI';
 
 // This components gets destroyed and recreated every time the current trace
 // changes. Note that in the beginning the current trace is undefined.
@@ -58,7 +60,7 @@ export class UiMain implements m.ClassComponent {
       taskTracker.hasPendingTasks();
 
     return m('main.pf-ui-main', [
-      m(Sidebar),
+      m(Sidebar, {app}),
       m(Topbar, {trace}),
       m(LinearProgress, {
         className: 'pf-ui-main__loading',
@@ -67,7 +69,7 @@ export class UiMain implements m.ClassComponent {
       m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
-      showStatusBarFlag.get() && renderStatusBar(trace),
+      showStatusBarFlag.get() && renderStatusBar(app),
       app.perfDebugging.renderPerfStats(),
     ]);
   }

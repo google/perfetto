@@ -25,6 +25,7 @@
 
 #include "perfetto/public/pb_macros.h"
 
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflagsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidInputEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogConfig);
@@ -56,6 +57,8 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_PixelModemConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoVmConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_QnxConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdTracingConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerLayersConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerTransactionsConfig);
@@ -142,6 +145,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_PriorityBoostConfig,
                   priority_boost,
                   10);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ProtoVmConfig,
+                  protovm_config,
+                  12);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,
@@ -337,6 +345,16 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_InputMethodConfig,
                   inputmethod_config,
                   139);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_AndroidAflagsConfig,
+                  android_aflags_config,
+                  140);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_QnxConfig,
+                  qnx_config,
+                  150);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,

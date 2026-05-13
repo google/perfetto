@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../../../base/logging';
+import {assertTrue} from '../../../base/assert';
 import {isString} from '../../../base/object_utils';
 import {binaryEncode, utf8Decode, utf8Encode} from '../../../base/string_utils';
 

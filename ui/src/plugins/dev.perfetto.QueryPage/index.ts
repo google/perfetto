@@ -15,18 +15,24 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {runQueryForQueryTable} from '../../components/query_table/queries';
-import {QueryResultsTable} from '../../components/query_table/query_table';
+import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
+import {DataSource} from '../../components/widgets/datagrid/data_source';
+import {Row} from '../../trace_processor/query_result';
+import {QueryResultsTab} from './query_result_tab';
+import {ResultsData, ResultsTable} from './results_table';
+import {undoCommonChatAppReplacements} from '../../base/string_utils';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Setting} from '../../public/settings';
 import {Trace} from '../../public/trace';
 import {QueryPage, QueryEditorTab} from './query_page';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
-import {EmptyState} from '../../widgets/empty_state';
-import {Anchor} from '../../widgets/anchor';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {shortUuid} from '../../base/uuid';
 import {debounce} from '../../base/rate_limiters';
+import {EmptyState} from '../../widgets/empty_state';
+import {Anchor} from '../../widgets/anchor';
+import {DetailsShell} from '../../widgets/details_shell';
 
 const QUERY_TABS_STORAGE_KEY = 'perfettoQueryTabs';
 
@@ -86,6 +92,23 @@ export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly dependencies = [SqlModulesPlugin];
 
   private static queryTabPersistenceSetting: Setting<boolean>;
+
+  constructor(private readonly trace: Trace) {}
+
+  addQueryResultsTab(
+    config: {query: string; title: string},
+    tag?: string,
+  ): void {
+    const queryResultsTab = new QueryResultsTab(this.trace, config);
+    const uri = 'queryResults#' + (tag ?? shortUuid());
+    this.trace.tabs.registerTab({
+      uri,
+      content: queryResultsTab,
+      isEphemeral: true,
+    });
+    this.trace.tabs.showTab(uri);
+    this.trace.navigate('#!/viewer');
+  }
 
   static onActivate(app: App): void {
     QueryPagePlugin.queryTabPersistenceSetting = app.settings.register({
@@ -169,6 +192,17 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       return editorTabs.find((t) => t.id === activeTabId);
     }
 
+    // Simple cache: returns a stable DataSource for a given QueryResponse.
+    let prevCachedResp: unknown;
+    let cachedDs: DataSource | undefined;
+    function getCachedDataSource(resp: {rows: ReadonlyArray<Row>}): DataSource {
+      if (prevCachedResp !== resp) {
+        prevCachedResp = resp;
+        cachedDs = new InMemoryDataSource(resp.rows);
+      }
+      return cachedDs!;
+    }
+
     async function onExecute(tabId: string, text: string) {
       if (!text) return;
 
@@ -239,6 +273,56 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       }
     }
 
+    function onTabReorder(
+      draggedTabId: string,
+      beforeTabId: string | undefined,
+    ) {
+      const draggedIndex = editorTabs.findIndex((t) => t.id === draggedTabId);
+      if (draggedIndex === -1) return;
+
+      // Remove the dragged tab
+      const [draggedTab] = editorTabs.splice(draggedIndex, 1);
+
+      // Find where to insert it
+      if (beforeTabId === undefined) {
+        // Insert at the end
+        editorTabs.push(draggedTab);
+      } else {
+        const beforeIndex = editorTabs.findIndex((t) => t.id === beforeTabId);
+        if (beforeIndex === -1) {
+          // beforeTabId not found, insert at end
+          editorTabs.push(draggedTab);
+        } else {
+          editorTabs.splice(beforeIndex, 0, draggedTab);
+        }
+      }
+
+      debouncedSave();
+    }
+
+    trace.omnibox.registerMode({
+      trigger: ':',
+      hint: "':' for SQL query",
+      placeholder:
+        'e.g. select * from sched left join thread using(utid) limit 10',
+      className: 'pf-omnibox--query-mode',
+      onSubmit: (query, alt) => {
+        const config = {
+          query: undoCommonChatAppReplacements(query),
+          title: alt ? 'Pinned query' : 'Omnibox query',
+        };
+        const tag = alt ? undefined : 'omnibox_query';
+        this.addQueryResultsTab(config, tag);
+      },
+    });
+
+    // Add a command to activate the query mode
+    trace.commands.registerCommand({
+      id: 'dev.perfetto.SwitchToQueryMode',
+      name: 'Switch to query mode',
+      callback: () => trace.omnibox.activateRegisteredMode(':'),
+    });
+
     trace.pages.registerPage({
       route: '/query',
       render: () =>
@@ -252,6 +336,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           onTabClose,
           onTabAdd,
           onTabRename,
+          onTabReorder,
         }),
     });
 
@@ -269,24 +354,50 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       content: {
         render() {
           const activeTab = getActiveTab();
-          return m(QueryResultsTable, {
-            trace,
-            isLoading: activeTab?.isLoading ?? false,
-            resp: activeTab?.queryResult,
-            fillHeight: true,
-            emptyState: m(
-              EmptyState,
-              {
-                fillHeight: true,
-                title: 'No query results',
+          const resp = activeTab?.queryResult;
+          if (!resp) {
+            return m(EmptyState, {fillHeight: true}, [
+              'Run a query in the ',
+              m(Anchor, {href: '#!/query'}, 'Query Page'),
+              ' to see results here.',
+            ]);
+          }
+
+          const data: ResultsData = resp.error
+            ? {kind: 'error', errorMessage: resp.error}
+            : {
+                kind: 'success',
+                columns: resp.columns,
+                rows: resp.rows,
+                dataSource: getCachedDataSource(resp),
+                rowCount: resp.totalRowCount,
+                queryTimeMs: resp.durationMs,
+                query: resp.query,
+                lastStatementSql: resp.lastStatementSql,
+                statementCount: resp.statementCount,
+                statementWithOutputCount: resp.statementWithOutputCount,
+              };
+
+          return m(
+            DetailsShell,
+            {
+              title: 'Query Page Results',
+              description: activeTab?.isLoading
+                ? 'Running query...'
+                : resp.query,
+            },
+            m(ResultsTable, {
+              data,
+              fillHeight: true,
+              trace,
+              onIdClick: (sqlTable, id, doubleClick) => {
+                trace.selection.selectSqlEvent(sqlTable, id, {
+                  switchToCurrentSelectionTab: doubleClick,
+                  scrollToSelection: true,
+                });
               },
-              [
-                'Execute a query in the ',
-                m(Anchor, {href: '#!/query'}, 'Query Page'),
-                ' to see results here.',
-              ],
-            ),
-          });
+            }),
+          );
         },
         getTitle() {
           return 'Query Page Results';

@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
@@ -30,16 +32,18 @@
 
 namespace perfetto::trace_processor {
 
-class ClockSynchronizerListenerImpl;
 class ArgsTranslationTable;
 class ClockConverter;
-template <typename T>
 class ClockSynchronizer;
+class ClockTracker;
 class CpuTracker;
+class GpuTracker;
+class UserTracker;
 class DescriptorPool;
 class EventTracker;
 class FileIoTracker;
 class FlowTracker;
+class BlobPacketWriter;
 class GlobalArgsTracker;
 class GlobalMetadataTracker;
 class ImportLogsTracker;
@@ -62,11 +66,15 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
+
+namespace perf_importer {
+class PerfTracker;
+}  // namespace perf_importer
 
 using MachineId = tables::MachineTable::Id;
 using TraceId = tables::TraceFileTable::Id;
-using ClockTracker = ClockSynchronizer<ClockSynchronizerListenerImpl>;
 
 class TraceProcessorContext {
  public:
@@ -144,9 +152,11 @@ class TraceProcessorContext {
   GlobalPtr<DescriptorPool> descriptor_pool_;
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
+  GlobalPtr<TraceTimeState> trace_time_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
+  GlobalPtr<BlobPacketWriter> blob_packet_writer;
 
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
@@ -154,6 +164,12 @@ class TraceProcessorContext {
   using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
                                                 TraceProcessorContext*);
   RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
+
+  // Registry of callbacks invoked when PerfTracker is created, allowing
+  // external code (e.g. ETM) to register aux tokenizers.
+  using PerfAuxTokenizerRegistration =
+      std::function<void(perf_importer::PerfTracker*)>;
+  std::vector<PerfAuxTokenizerRegistration> perf_aux_tokenizer_registrations;
 
   // Per-Trace State (Miscategorized)
   // ==========================
@@ -187,16 +203,19 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
-  PerMachinePtr<ClockTracker> clock_tracker;
+  PerMachinePtr<ClockSynchronizer> primary_clock_sync;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
+  PerMachinePtr<GpuTracker> gpu_tracker;
+  PerMachinePtr<UserTracker> user_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================
   //
   // This state is unique to each (machine, trace) pair.
 
+  PerTraceAndMachinePtr<ClockTracker> clock_tracker;
   PerTraceAndMachinePtr<ArgsTranslationTable> args_translation_table;
   PerTraceAndMachinePtr<ProcessTrackTranslationTable>
       process_track_translation_table;

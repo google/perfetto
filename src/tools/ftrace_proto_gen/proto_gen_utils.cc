@@ -17,10 +17,10 @@
 #include "src/tools/ftrace_proto_gen/proto_gen_utils.h"
 
 #include <algorithm>
-#include <regex>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 
@@ -203,7 +203,8 @@ ProtoType GetCommon(ProtoType one, ProtoType other) {
 
 ProtoType InferProtoType(const FtraceEvent::Field& field) {
   // Fixed length strings: "char foo[16]"
-  if (std::regex_match(field.type_and_name, std::regex(R"(char \w+\[\d+\])")))
+  auto char_array_re = base::Regex::CreateOrCheck(R"(char \w+\[\d+\])");
+  if (char_array_re.FullMatch(field.type_and_name))
     return ProtoType::String();
 
   // String pointers: "__data_loc char[] foo" (as in

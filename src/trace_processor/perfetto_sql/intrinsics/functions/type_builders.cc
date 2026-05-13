@@ -45,6 +45,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/types/sorted_timestamps.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/struct.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
@@ -435,6 +436,36 @@ struct IntervalTreeIntervalsAgg
   }
 };
 
+// An SQL aggregate function which collects timestamps into a vector.
+// Used as input to __intrinsic_interval_create. The caller is responsible
+// for ensuring timestamps are passed in sorted order (e.g. via ORDER BY).
+struct TimestampSetAgg
+    : public sqlite::AggregateFunction<perfetto_sql::SortedTimestamps> {
+  static constexpr char kName[] = "__intrinsic_timestamp_set_agg";
+  static constexpr int kArgCount = 1;
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
+    perfetto_sql::SortedTimestamps data;
+  };
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc == kArgCount);
+    auto& data = AggCtx::GetOrCreateContextForStep(ctx).data;
+    data.timestamps.push_back(sqlite::value::Int64(argv[0]));
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    auto raw_agg_ctx = AggCtx::GetContextOrNullForFinal(ctx);
+    if (!raw_agg_ctx) {
+      return sqlite::result::Null(ctx);
+    }
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<perfetto_sql::SortedTimestamps>(
+            std::move(raw_agg_ctx.get()->data)),
+        perfetto_sql::SortedTimestamps::kName);
+  }
+};
+
 struct CounterPerTrackAgg
     : public sqlite::AggregateFunction<perfetto_sql::PartitionedCounter> {
   static constexpr char kName[] = "__intrinsic_counter_per_track_agg";
@@ -571,6 +602,7 @@ base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine,
       &interval_tree_user_data));
   RETURN_IF_ERROR(
       engine.RegisterAggregateFunction<CounterPerTrackAgg>(nullptr));
+  RETURN_IF_ERROR(engine.RegisterAggregateFunction<TimestampSetAgg>(nullptr));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
   RETURN_IF_ERROR(engine.RegisterAggregateFunction<SymbolizeAgg>(nullptr));

@@ -142,6 +142,36 @@ pub fn pb_zigzag_decode64(value: u64) -> i64 {
     ((value >> 1) ^ mask) as i64
 }
 
+/// Parse packed varints from raw bytes.
+///
+/// Protobuf uses "packed encoding" for repeated scalar fields (enums, integers).
+/// In packed encoding, all values are concatenated into a single length-delimited
+/// blob without field IDs. This function parses such raw bytes into individual
+/// varint values.
+///
+/// Example:
+/// ```
+/// use perfetto_sdk::pb_utils::pb_parse_packed_varints;
+///
+/// // Packed encoding of [1, 2, 127, 128]
+/// let data = &[0x01, 0x02, 0x7f, 0x80, 0x01];
+/// let values = pb_parse_packed_varints(data);
+/// assert_eq!(values, vec![1, 2, 127, 128]);
+/// ```
+pub fn pb_parse_packed_varints(data: &[u8]) -> Vec<u64> {
+    let mut result = Vec::new();
+    let mut offset = 0;
+    while offset < data.len() {
+        let (value, size) = pb_parse_varint(&data[offset..]);
+        if size == 0 {
+            break;
+        }
+        result.push(value);
+        offset += size;
+    }
+    result
+}
+
 /// Converts `value` to fixed32.
 pub fn pb_float_to_fixed32(value: f32) -> u32 {
     u32::from_ne_bytes(value.to_ne_bytes())
@@ -195,5 +225,33 @@ mod tests {
     fn zigzag64() {
         assert_eq!(pb_zigzag_encode64(82783), 165566);
         assert_eq!(pb_zigzag_decode64(165566), 82783);
+    }
+
+    #[test]
+    fn parse_packed_varints() {
+        // Empty data
+        assert_eq!(pb_parse_packed_varints(&[]), vec![]);
+
+        // Single-byte varints: [1, 2, 127]
+        assert_eq!(pb_parse_packed_varints(&[0x01, 0x02, 0x7f]), vec![
+            1, 2, 127
+        ]);
+
+        // Multi-byte varints: [128] encoded as [0x80, 0x01]
+        assert_eq!(pb_parse_packed_varints(&[0x80, 0x01]), vec![128]);
+
+        // Mixed single and multi-byte: [1, 2, 127, 128]
+        assert_eq!(
+            pb_parse_packed_varints(&[0x01, 0x02, 0x7f, 0x80, 0x01]),
+            vec![1, 2, 127, 128]
+        );
+
+        // Larger values: [300] encoded as [0xac, 0x02]
+        assert_eq!(pb_parse_packed_varints(&[0xac, 0x02]), vec![300]);
+
+        // Multiple larger values: [300, 400]
+        assert_eq!(pb_parse_packed_varints(&[0xac, 0x02, 0x90, 0x03]), vec![
+            300, 400
+        ]);
     }
 }

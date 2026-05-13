@@ -20,7 +20,7 @@ Files inside the standard library have to be formatted in a very specific way, a
 - Running the file cannot generate any data. There can be only `CREATE PERFETTO {FUNCTION|TABLE|VIEW|MACRO}` statements inside.
 - The name of each standard library object needs to start with `{module_name}_` or be prefixed with an underscore(`_`) for internal objects.
   The names must only contain lower and upper case letters and underscores. When a module is included (using the `INCLUDE PERFETTO MODULE`) the internal objects should not be treated as an API.
-- Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#tableview-schema).
+- Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#schema).
 
 #### Documentation
 
@@ -168,7 +168,7 @@ was built with we prompt the user to update.
 6. If special handling in `trace_processor` is desired update [src/trace_processor/importers/ftrace/ftrace_parser.cc](/src/trace_processor/importers/ftrace/ftrace_parser.cc) to parse the event.
 7. Upload and land your change as normal.
 
-Here is an [example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/3343525) which added a new event. Note: Perfetto's source of truth has moved to Github since the change was made so while the content of that change is accurate, you should send the patch via Github *not* on AOSP Gerrit.
+Here is an [example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/3343525) which added a new event. Note: Perfetto's source of truth has moved to GitHub since the change was made so while the content of that change is accurate, you should send the patch via GitHub *not* on AOSP Gerrit.
 
 To test your changes, you can sideload your locally built `tracebox` binary on an Android device. See [Sideloading on Android](#sideloading) for more details.
 

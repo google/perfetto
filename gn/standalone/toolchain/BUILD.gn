@@ -152,6 +152,8 @@ declare_args() {
     _target_triplet = "x86_64-linux-android"
   } else if (target_os == "qnx" && target_cpu == "arm64") {
     _target_triplet = "ntoaarch64"
+  } else if (target_os == "qnx" && target_cpu == "x64") {
+    _target_triplet = "ntox86_64"
   } else {
     assert(
         false,
@@ -194,10 +196,15 @@ declare_args() {
       target_strip = "$android_llvm_dir/bin/llvm-strip"
     } else if (is_qnx) {
       target_ar = "${_target_triplet}-ar"
-      target_cc = "qcc -V8.3.0,gcc_${_target_triplet}le"
-      target_cxx = "q++ -V8.3.0,gcc_${_target_triplet}le_cxx"
       target_linker = "${_target_triplet}-ld"
       target_strip = "${_target_triplet}-strip"
+      if (target_cpu == "arm64") {
+        target_cc = "qcc -Vgcc_${_target_triplet}le"
+        target_cxx = "q++ -Vgcc_${_target_triplet}le_cxx"
+      } else {
+        target_cc = "qcc -Vgcc_${_target_triplet}"
+        target_cxx = "q++ -Vgcc_${_target_triplet}_cxx"
+      }
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")

@@ -23,6 +23,14 @@ from typing import Any, Callable, Dict, Tuple, List, Optional
 
 import pandas as pd
 
+try:
+  import polars as pl
+  HAS_POLARS = True
+except ModuleNotFoundError:
+  HAS_POLARS = False
+except ImportError:
+  HAS_POLARS = False
+
 from perfetto.batch_trace_processor.platform import PlatformDelegate
 from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.api import PLATFORM_DELEGATE as TP_PLATFORM_DELEGATE
@@ -263,6 +271,49 @@ class BatchTraceProcessor:
     return self.execute_and_flatten(
         lambda tp: tp.query(sql).as_pandas_dataframe())
 
+  def query_polars(self, sql: str):
+    """Executes the provided SQL statement across all traces.
+
+    The execution happens in parallel across all the traces.
+
+    Args:
+      sql: The SQL statement to execute.
+
+    Returns:
+      A list of Polars dataframes with the result of executing the query (one
+      per trace).
+
+    Raises:
+      TraceProcessorException: An error occurred running the query.
+      PerfettoException: polars is not installed.
+    """
+    return self.execute(lambda tp: tp.query(sql).as_polars_dataframe())
+
+  def query_and_flatten_polars(self, sql: str):
+    """Executes the provided SQL statement and flattens the result.
+
+    The execution happens in parallel across all the traces and the
+    resulting Polars dataframes are concatenated into a single dataframe.
+
+    Args:
+      sql: The SQL statement to execute.
+
+    Returns:
+      A concatenated Polars dataframe containing the result of executing the
+      query across all the traces.
+
+      If an URI or a trace resolver was passed to the constructor, the
+      contents of the |metadata| dictionary emitted by the resolver will also
+      be emitted as extra columns (key being column name, value being the
+      value in the dataframe).
+
+    Raises:
+      TraceProcessorException: An error occurred running the query.
+      PerfettoException: polars is not installed.
+    """
+    return self.execute_and_flatten_polars(
+        lambda tp: tp.query(sql).as_polars_dataframe())
+
   def query_single_result(self, sql: str):
     """Executes the provided SQL statement (returning a single row).
 
@@ -344,6 +395,44 @@ class BatchTraceProcessor:
     df = pd.concat(
         list(self.query_executor.map(wrapped, self.tps_and_metadata)))
     return df.reset_index(drop=True)
+
+  def execute_and_flatten_polars(self, fn: Callable[[TraceProcessor],
+                                                    Any]) -> Any:
+    """Executes the provided function and flattens the result into a Polars
+    dataframe.
+
+    The execution happens in parallel across all the trace processor
+    instances owned by this object and the returned Polars dataframes are
+    concatenated into a single dataframe.
+
+    Args:
+      fn: The function to execute which returns a Polars dataframe.
+
+    Returns:
+      A Polars dataframe containing the result of executing the query across all
+      the traces. Extra columns containing the file path and args will
+      be added to the dataframe (see |query_and_flatten_polars| for details).
+
+    Raises:
+      PerfettoException: polars is not installed.
+    """
+    if not HAS_POLARS:
+      raise PerfettoException(
+          'polars dependency missing. Please run `pip3 install polars`')
+
+    def wrapped(pair: Tuple[TraceProcessor, Metadata]):
+      (tp, metadata) = pair
+      start = time.time()
+      df = self._execute_handling_failure(fn, tp, metadata)
+      end = time.time()
+      if self.observer:
+        self.observer.trace_processed(metadata, end - start)
+      for key, value in metadata.items():
+        df = df.with_columns(pl.lit(value).alias(key))
+      return df
+
+    return pl.concat(
+        list(self.query_executor.map(wrapped, self.tps_and_metadata)))
 
   def close(self):
     """Closes this batch trace processor instance.

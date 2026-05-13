@@ -37,6 +37,7 @@ cc_test {
     shared_libs: [
         "libandroid",
         "liblog",
+        "libpcre2",
     ],
     test_suites: [
         "cts",

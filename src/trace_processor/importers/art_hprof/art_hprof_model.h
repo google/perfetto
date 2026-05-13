@@ -73,25 +73,6 @@ class Field {
     return !std::holds_alternative<std::monostate>(value_);
   }
 
-  size_t GetSize() const {
-    switch (type_) {
-      case FieldType::kBoolean:
-      case FieldType::kByte:
-        return 1;
-      case FieldType::kChar:
-      case FieldType::kShort:
-        return 2;
-      case FieldType::kFloat:
-      case FieldType::kInt:
-      case FieldType::kObject:
-        return 4;
-      case FieldType::kDouble:
-      case FieldType::kLong:
-        return 8;
-    }
-    return 0;
-  }
-
   // Template setter for all supported types
   template <typename T>
   void SetValue(T value) {
@@ -122,16 +103,10 @@ class Field {
         value_);
   }
 
-  void SetDecodedString(std::string str) { decoded_string_ = std::move(str); }
-  std::optional<std::string> GetDecodedString() const {
-    return decoded_string_;
-  }
-
  private:
   std::string name_;
   FieldType type_;
   ValueType value_ = std::monostate{};
-  std::optional<std::string> decoded_string_;
 };
 
 struct Reference {
@@ -218,9 +193,22 @@ class Object {
   bool IsReachable() const { return is_reachable_; }
   std::optional<HprofHeapRootTag> GetRootType() const { return root_type_; }
 
+  void SetRootDistance(int32_t d) { root_distance_ = d; }
+  int32_t GetRootDistance() const { return root_distance_; }
+
   void SetRawData(std::vector<uint8_t> data) { raw_data_ = std::move(data); }
 
   const std::vector<uint8_t>& GetRawData() const { return raw_data_; }
+  void ClearRawData() { raw_data_ = {}; }
+
+  void ClearParsedData() {
+    fields_ = {};
+    references_ = {};
+    pending_references_ = {};
+    array_elements_ = {};
+    array_data_ = std::monostate{};
+    decoded_string_.reset();
+  }
 
   void AddReference(std::string_view field_name,
                     std::optional<uint64_t> field_class_id,
@@ -253,33 +241,6 @@ class Object {
 
   FieldType GetArrayElementType() const { return array_element_type_; }
 
-  // Size calculation with id size parameter to avoid assumptions
-  size_t GetSize(uint32_t id_size = sizeof(uint64_t)) const {
-    // For instances and primitive arrays, use raw data size
-    if (type_ == ObjectType::kInstance ||
-        (type_ == ObjectType::kPrimitiveArray && !raw_data_.empty())) {
-      return raw_data_.size();
-    }
-
-    // For object arrays, use element count * id size
-    if (type_ == ObjectType::kObjectArray) {
-      return array_elements_.size() * id_size;
-    }
-
-    // For class objects, calculate size based on static fields
-    if (type_ == ObjectType::kClass) {
-      size_t size = 0;
-      for (const auto& field : fields_) {
-        size += field.GetSize();
-      }
-      // Use a minimum size if there are no static fields
-      return size > 0 ? size : 8;
-    }
-
-    // Default size for other objects
-    return 0;
-  }
-
   void AddField(Field field) { fields_.push_back(std::move(field)); }
 
   const std::vector<Field>& GetFields() const { return fields_; }
@@ -296,6 +257,16 @@ class Object {
   int64_t GetNativeSize() const { return native_size_; }
 
   void AddNativeSize(int64_t size) { native_size_ += size; }
+
+  void SetDecodedString(std::string str) { decoded_string_ = std::move(str); }
+  const std::optional<std::string>& GetDecodedString() const {
+    return decoded_string_;
+  }
+
+  void SetSelfSizeOverride(size_t size) { self_size_override_ = size; }
+  std::optional<size_t> GetSelfSizeOverride() const {
+    return self_size_override_;
+  }
 
   template <typename T>
   void SetArrayData(std::vector<T> data) {
@@ -315,6 +286,8 @@ class Object {
     return {};
   }
 
+  const ArrayData& GetArrayDataVariant() const { return array_data_; }
+
   size_t GetArrayElementCount() const {
     return std::visit(
         [](const auto& val) -> size_t {
@@ -333,6 +306,7 @@ class Object {
   ObjectType type_ = ObjectType::kInstance;
   bool is_root_ = false;
   bool is_reachable_ = false;
+  int32_t root_distance_ = -1;
   std::optional<HprofHeapRootTag> root_type_;
   std::string heap_type_;
 
@@ -344,6 +318,8 @@ class Object {
   FieldType array_element_type_ = FieldType::kObject;
 
   int64_t native_size_ = 0;
+  std::optional<size_t> self_size_override_;
+  std::optional<std::string> decoded_string_;
 
   // Field values
   std::vector<Field> fields_;

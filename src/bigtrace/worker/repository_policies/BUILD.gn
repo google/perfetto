@@ -31,9 +31,9 @@ source_set("repository_policies") {
     "../../../../gn:cpp_httplib",
     "../../../../gn:default_deps",
     "../../../../gn:grpc",
-    "../../../../gn:jsoncpp",
     "../../../../src/trace_processor",
     "../../../../src/trace_processor/rpc:rpc",
+    "../../../../src/trace_processor/util:json_value",
     "../../../base",
   ]
 }

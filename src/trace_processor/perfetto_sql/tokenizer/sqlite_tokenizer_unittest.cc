@@ -45,29 +45,32 @@ TEST_F(SqliteTokenizerTest, EmptyString) {
 }
 
 TEST_F(SqliteTokenizerTest, OnlySpace) {
-  ASSERT_THAT(Tokenize(" "), testing::ElementsAre(Token{" ", TK_SPACE}));
+  ASSERT_THAT(Tokenize(" "),
+              testing::ElementsAre(Token{" ", sql_token::kSpace}));
 }
 
 TEST_F(SqliteTokenizerTest, SpaceColon) {
   ASSERT_THAT(Tokenize(" ;"),
-              testing::ElementsAre(Token{" ", TK_SPACE}, Token{";", TK_SEMI}));
+              testing::ElementsAre(Token{" ", sql_token::kSpace},
+                                   Token{";", sql_token::kSemi}));
 }
 
 TEST_F(SqliteTokenizerTest, Select) {
   ASSERT_THAT(
       Tokenize("SELECT * FROM slice;"),
-      testing::ElementsAre(Token{"SELECT", TK_SELECT}, Token{" ", TK_SPACE},
-                           Token{"*", TK_STAR}, Token{" ", TK_SPACE},
-                           Token{"FROM", TK_FROM}, Token{" ", TK_SPACE},
-                           Token{"slice", TK_ID}, Token{";", TK_SEMI}));
+      testing::ElementsAre(
+          Token{"SELECT", sql_token::kSelect}, Token{" ", sql_token::kSpace},
+          Token{"*", sql_token::kStar}, Token{" ", sql_token::kSpace},
+          Token{"FROM", sql_token::kFrom}, Token{" ", sql_token::kSpace},
+          Token{"slice", sql_token::kId}, Token{";", sql_token::kSemi}));
 }
 
 TEST_F(SqliteTokenizerTest, PastEndErrorToken) {
   tokenizer_.Reset(SqlSource::FromTraceProcessorImplementation("S"));
-  ASSERT_EQ(tokenizer_.Next(), (Token{"S", TK_ID}));
+  ASSERT_EQ(tokenizer_.Next(), (Token{"S", sql_token::kId}));
 
   auto end_token = tokenizer_.Next();
-  ASSERT_EQ(end_token, (Token{"", TK_ILLEGAL}));
+  ASSERT_EQ(end_token, (Token{"", sql_token::kIllegal}));
   ASSERT_EQ(tokenizer_.AsTraceback(end_token),
             "  Trace Processor Internal line 1 col 2\n"
             "    S\n"

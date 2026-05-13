@@ -94,6 +94,7 @@ source_set("lib") {
     "../trace_processor/util/deobfuscation:deobfuscator",
     "../trace_processor/util/symbolizer",
     "../trace_processor/util/symbolizer:symbolize_database",
+    "../trace_processor/util/trace_enrichment",
   ]
   sources = [
     "deobfuscate_profile.cc",
@@ -104,8 +105,6 @@ source_set("lib") {
     "trace_to_bundle.h",
     "trace_to_firefox.cc",
     "trace_to_firefox.h",
-    "trace_to_hprof.cc",
-    "trace_to_hprof.h",
     "trace_to_json.cc",
     "trace_to_json.h",
     "trace_to_profile.cc",
@@ -121,6 +120,14 @@ source_set("lib") {
 
 source_set("main") {
   deps = [
+    ":traceconv_lib",
+    "../../gn:default_deps",
+  ]
+  sources = [ "main.cc" ]
+}
+
+source_set("traceconv_lib") {
+  deps = [
     ":gen_cc_trace_descriptor",
     ":lib",
     "../../gn:default_deps",
@@ -128,7 +135,8 @@ source_set("main") {
     "../base:version",
     "../protozero/text_to_proto",
   ]
-  sources = [ "main.cc" ]
+  public_deps = [ "../../include/perfetto/ext/traceconv:traceconv" ]
+  sources = [ "traceconv.cc" ]
 }
 
 if (enable_perfetto_ui) {
@@ -155,10 +163,13 @@ source_set("integrationtests") {
   testonly = true
   deps = [
     ":lib",
+    ":traceconv_lib",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base:base",
+    "../../protos/perfetto/trace:cpp",
+    "../../protos/perfetto/trace/profiling:cpp",
     "../../protos/third_party/pprof:cpp",
     "../../protos/third_party/pprof:zero",
     "../../src/base:test_support",
@@ -168,5 +179,6 @@ source_set("integrationtests") {
     "pprof_reader.h",
     "trace_to_pprof_integrationtest.cc",
     "trace_to_text_integrationtest.cc",
+    "traceconv_bundle_integrationtest.cc",
   ]
 }

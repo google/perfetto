@@ -323,3 +323,18 @@ message F2fsGcEndFtraceEvent {
   optional int32 reserved_seg = 10;
   optional uint32 prefree_seg = 11;
 }
+message F2fsLockElapsedTimeFtraceEvent {
+  optional uint64 dev = 1;
+  optional string comm = 2;
+  optional int32 pid = 3;
+  optional int32 prio = 4;
+  optional int32 ioprio_class = 5;
+  optional int32 ioprio_data = 6;
+  optional uint32 lock_name = 7;
+  optional uint32 is_write = 8;
+  optional uint64 total_time = 9;
+  optional uint64 running_time = 10;
+  optional uint64 runnable_time = 11;
+  optional uint64 io_sleep_time = 12;
+  optional uint64 other_time = 13;
+}

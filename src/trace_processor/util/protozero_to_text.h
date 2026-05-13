@@ -44,12 +44,14 @@ std::string ProtozeroToText(
     const std::string& type,
     protozero::ConstBytes protobytes,
     NewLinesMode new_lines_mode = NewLinesMode::kIncludeNewLines,
-    uint32_t initial_indent_depth = 0);
+    uint32_t initial_indent_depth = 0,
+    bool skip_unknown_fields = false);
 
 std::string ProtozeroToText(const DescriptorPool& pool,
                             const std::string& type,
                             const std::vector<uint8_t>& protobytes,
-                            NewLinesMode new_lines_mode);
+                            NewLinesMode new_lines_mode,
+                            bool skip_unknown_fields = false);
 
 }  // namespace protozero_to_text
 }  // namespace perfetto::trace_processor

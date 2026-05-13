@@ -40,7 +40,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "src/base/intrusive_tree.h"
+#include "perfetto/ext/base/intrusive_tree.h"
 
 namespace perfetto::base::internal {
 

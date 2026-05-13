@@ -49,6 +49,7 @@ TEST(PerfettoReporterTest, TestEndToEndReport) {
   builtin->set_disable_system_info(true);
   builtin->set_disable_service_events(true);
   builtin->set_disable_chunk_usage_histograms(true);
+  builtin->set_disable_extension_descriptors(true);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");

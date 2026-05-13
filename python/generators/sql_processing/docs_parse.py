@@ -82,6 +82,7 @@ class Arg(NamedTuple):
   type: str
   long_type: str
   description: str
+  is_variadic: bool = False
 
 
 class AbstractDocParser(ABC):
@@ -182,9 +183,11 @@ class AbstractDocParser(ABC):
 
   # Parse function argument definition list or a table schema, e.g.
   # arg1 INT, arg2 STRING, including their comments.
+  # Supports variadic arguments with TYPE... syntax.
   def _parse_args_definition(self, args_str: str) -> Dict[str, Arg]:
     result = {}
     remaining_args = args_str.strip()
+    found_variadic = False
     while remaining_args:
       m = re.match(fr'^{ARG_DEFINITION_PATTERN}({ANY_PATTERN})', remaining_args)
       if not m:
@@ -197,19 +200,34 @@ class AbstractDocParser(ABC):
       name = groups[-3]
       type = groups[-2]
 
+      # Check for variadic syntax (TYPE...)
+      is_variadic = type.endswith('...')
+      if is_variadic:
+        if found_variadic:
+          self._error(
+              'Only one variadic argument is allowed and it must be last')
+          return result
+        found_variadic = True
+        type = type[:-3]  # Strip the trailing ...
+
+      # Validate that non-variadic args don't come after variadic
+      if found_variadic and not is_variadic:
+        self._error('Variadic argument must be the last argument')
+        return result
+
       m = re.match(r'JOINID\(([_A-Za-z\.]*)\)', type)
       if m:
-        result[name] = Arg('JOINID', type, comment)
+        result[name] = Arg('JOINID', type, comment, is_variadic)
         remaining_args = groups[-1].lstrip().lstrip(',').lstrip()
         continue
 
       m = re.match(r'ID\(([_A-Za-z\.]*)\)', type)
       if m:
-        result[name] = Arg('ID', type, comment)
+        result[name] = Arg('ID', type, comment, is_variadic)
         remaining_args = groups[-1].lstrip().lstrip(',').lstrip()
         continue
 
-      result[name] = Arg(type, type, comment)
+      result[name] = Arg(type, type, comment, is_variadic)
       # Strip whitespace and comma and parse the next arg.
       remaining_args = groups[-1].lstrip().lstrip(',').lstrip()
 

@@ -17,47 +17,87 @@
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
 
 #include <cstdint>
+#include <limits>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
+#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
-uint32_t BytecodeBuilder::CreateCacheScope() {
-  auto scope_id = static_cast<uint32_t>(scope_caches_.size());
-  scope_caches_.emplace_back();
-  return scope_id;
+std::optional<uint32_t> BytecodeBuilder::FindBestFitSlot(uint32_t size) const {
+  std::optional<uint32_t> best;
+  uint32_t best_size = std::numeric_limits<uint32_t>::max();
+  for (uint32_t i = 0; i < scratch_slots_.size(); ++i) {
+    const auto& slot = scratch_slots_[i];
+    if (!slot.in_use && slot.size >= size && slot.size < best_size) {
+      best = i;
+      best_size = slot.size;
+    }
+  }
+  return best;
 }
 
-void BytecodeBuilder::ClearCacheScope(uint32_t scope_id) {
-  PERFETTO_CHECK(scope_id < scope_caches_.size());
-  scope_caches_[scope_id].Clear();
+std::optional<uint32_t> BytecodeBuilder::FindSlotByRegisters(
+    ScratchRegisters regs) const {
+  for (uint32_t i = 0; i < scratch_slots_.size(); ++i) {
+    if (scratch_slots_[i].slab.index == regs.slab.index) {
+      return i;
+    }
+  }
+  return std::nullopt;
 }
 
 BytecodeBuilder::ScratchRegisters BytecodeBuilder::GetOrCreateScratchRegisters(
     uint32_t size) {
-  if (scratch_indices_) {
-    PERFETTO_CHECK(size <= scratch_indices_->size);
-    PERFETTO_CHECK(!scratch_indices_->in_use);
-    return ScratchRegisters{scratch_indices_->slab, scratch_indices_->span};
+  auto best = FindBestFitSlot(size);
+  if (best.has_value()) {
+    auto& slot = scratch_slots_[*best];
+    PERFETTO_CHECK(!slot.in_use);
+    return ScratchRegisters{slot.slab, slot.span};
   }
   auto slab = AllocateRegister<Slab<uint32_t>>();
   auto span = AllocateRegister<Span<uint32_t>>();
-  scratch_indices_ = ScratchIndices{size, slab, span, false};
+  scratch_slots_.push_back(ScratchIndices{size, slab, span, false});
   return ScratchRegisters{slab, span};
 }
 
-void BytecodeBuilder::MarkScratchInUse() {
-  PERFETTO_CHECK(scratch_indices_.has_value());
-  scratch_indices_->in_use = true;
+BytecodeBuilder::ScratchRegisters BytecodeBuilder::AllocateScratch(
+    uint32_t size) {
+  auto regs = GetOrCreateScratchRegisters(size);
+
+  auto& alloc = AddOpcode<AllocateIndices>(Index<AllocateIndices>());
+  alloc.arg<AllocateIndices::size>() = size;
+  alloc.arg<AllocateIndices::dest_slab_register>() = regs.slab;
+  alloc.arg<AllocateIndices::dest_span_register>() = regs.span;
+
+  // Find the slot and mark it in use.
+  auto slot_idx = FindSlotByRegisters(regs);
+  PERFETTO_CHECK(slot_idx.has_value());
+  scratch_slots_[*slot_idx].in_use = true;
+
+  return regs;
 }
 
-void BytecodeBuilder::ReleaseScratch() {
-  if (scratch_indices_) {
-    scratch_indices_->in_use = false;
+void BytecodeBuilder::MarkScratchInUse(ScratchRegisters regs) {
+  auto slot_idx = FindSlotByRegisters(regs);
+  PERFETTO_CHECK(slot_idx.has_value());
+  scratch_slots_[*slot_idx].in_use = true;
+}
+
+void BytecodeBuilder::ReleaseScratch(ScratchRegisters regs) {
+  auto slot_idx = FindSlotByRegisters(regs);
+  if (slot_idx.has_value()) {
+    scratch_slots_[*slot_idx].in_use = false;
   }
+}
+
+bool BytecodeBuilder::IsScratchInUse(ScratchRegisters regs) const {
+  auto slot_idx = FindSlotByRegisters(regs);
+  return slot_idx.has_value() && scratch_slots_[*slot_idx].in_use;
 }
 
 Bytecode& BytecodeBuilder::AddRawOpcode(uint32_t option) {

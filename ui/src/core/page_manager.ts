@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 import {Registry} from '../base/registry';
 import {PageHandler, PageManager} from '../public/page';
 import {Analytics} from '../public/analytics';

@@ -17,7 +17,7 @@ import m from 'mithril';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {PopupPosition} from './popup';
 import {ExtendedModifiers} from './popper_utils';
 

@@ -27,11 +27,64 @@ All files will be placed into /tmp/perfetto-v20.0-github-release/ .
 """
 
 import argparse
-import subprocess
 import os
+import subprocess
 import sys
-import tempfile
-import shutil
+
+# Expected LUCI artifact manifest. Must stay in sync with
+# infra/luci/recipes/perfetto.py — ARTIFACTS + the platform list in
+# RunSteps. Verified after rsync; a mismatch (missing OR extra files) is a
+# hard error because it means LUCI's output changed and this script needs to
+# be updated.
+#
+# On Windows, each binary is accompanied by a <name>.pdb (debug symbols),
+# expressed as 'windows_pdb': True per artifact. Platform filters match the
+# 'exclude_platforms' / 'include_platforms' keys in the recipe.
+_ARTIFACTS = [
+    {
+        'name': 'trace_processor_shell'
+    },
+    {
+        'name': 'traceconv'
+    },
+    {
+        'name': 'tracebox',
+        'exclude_platforms': ['windows-amd64'],
+    },
+    {
+        'name': 'perfetto'
+    },
+    {
+        'name': 'traced'
+    },
+    {
+        'name': 'traced_probes',
+        'exclude_platforms': ['windows-amd64'],
+    },
+    {
+        'name': 'heapprofd_glibc_preload',
+        'file': 'libheapprofd_glibc_preload.so',
+        'include_platforms': ['linux-amd64', 'linux-arm', 'linux-arm64'],
+    },
+]
+
+_PLATFORMS = [
+    'android-arm',
+    'android-arm64',
+    'android-x64',
+    'android-x86',
+    'linux-amd64',
+    'linux-arm',
+    'linux-arm64',
+    'mac-amd64',
+    'mac-arm64',
+    'windows-amd64',
+]
+
+_SDK_ZIPS = [
+    'perfetto-cpp-sdk-src.zip',
+    'perfetto-c-sdk-src.zip',
+]
 
 
 def exec(*args):
@@ -39,17 +92,96 @@ def exec(*args):
   subprocess.check_call(args)
 
 
-def get_repo_root():
-  """Returns the root directory of the Perfetto repository."""
-  script_dir = os.path.dirname(os.path.abspath(__file__))
-  return os.path.abspath(os.path.join(script_dir, '..', '..'))
+def _artifact_filename(artifact, platform):
+  """Returns the on-disk filename LUCI uploads for `artifact` on `platform`."""
+  base = artifact.get('file', artifact['name'])
+  if platform == 'windows-amd64' and 'file' not in artifact:
+    return base + '.exe'
+  return base
 
 
-def verify_git_state(expected_version):
+def _expected_manifest():
+  """Returns {platform: set(filenames)} for all LUCI-produced binaries."""
+  manifest = {p: set() for p in _PLATFORMS}
+  for platform in _PLATFORMS:
+    for artifact in _ARTIFACTS:
+      if platform in artifact.get('exclude_platforms', []):
+        continue
+      include = artifact.get('include_platforms')
+      if include is not None and platform not in include:
+        continue
+      fname = _artifact_filename(artifact, platform)
+      manifest[platform].add(fname)
+      if platform == 'windows-amd64':
+        manifest[platform].add(fname + '.pdb')
+  return manifest
+
+
+def verify_downloads(tmpdir):
+  """Verifies the rsynced tree matches the expected LUCI manifest.
+
+  Fails loudly on anything missing or unexpected — the manifest here must
+  match LUCI, and drift in either direction should surface immediately.
+  """
+  manifest = _expected_manifest()
+  expected_dirs = set(manifest.keys()) | {'sdk'}
+  actual_dirs = {
+      d for d in os.listdir(tmpdir) if os.path.isdir(os.path.join(tmpdir, d))
+  }
+
+  errors = []
+  missing_dirs = expected_dirs - actual_dirs
+  unexpected_dirs = actual_dirs - expected_dirs
+  if missing_dirs:
+    errors.append('Missing platform directories: %s' %
+                  ', '.join(sorted(missing_dirs)))
+  if unexpected_dirs:
+    errors.append('Unexpected directories under GCS path: %s' %
+                  ', '.join(sorted(unexpected_dirs)))
+
+  for platform, expected_files in manifest.items():
+    pdir = os.path.join(tmpdir, platform)
+    if not os.path.isdir(pdir):
+      continue
+    actual_files = set(os.listdir(pdir))
+    missing = expected_files - actual_files
+    extra = actual_files - expected_files
+    if missing:
+      errors.append('%s: missing binaries: %s' %
+                    (platform, ', '.join(sorted(missing))))
+    if extra:
+      errors.append('%s: unexpected binaries: %s' %
+                    (platform, ', '.join(sorted(extra))))
+
+  sdk_dir = os.path.join(tmpdir, 'sdk')
+  if os.path.isdir(sdk_dir):
+    actual_sdk = set(os.listdir(sdk_dir))
+    expected_sdk = set(_SDK_ZIPS)
+    missing_sdk = expected_sdk - actual_sdk
+    extra_sdk = actual_sdk - expected_sdk
+    if missing_sdk:
+      errors.append('sdk: missing zips: %s' % ', '.join(sorted(missing_sdk)))
+    if extra_sdk:
+      errors.append('sdk: unexpected files: %s' % ', '.join(sorted(extra_sdk)))
+
+  if errors:
+    print('\n'.join('ERROR: ' + e for e in errors), file=sys.stderr)
+    print(
+        '\nThe LUCI artifact manifest in this script is out of sync with '
+        'infra/luci/recipes/perfetto.py. Update _ARTIFACTS / _PLATFORMS / '
+        '_SDK_ZIPS above and re-run.',
+        file=sys.stderr)
+    return False
+
+  print('✓ All expected LUCI artifacts present across %d platforms + sdk.' %
+        len(_PLATFORMS))
+  return True
+
+
+def verify_git_state(expected_version, assume_yes=False):
   """Verifies git is on the correct tag with no uncommitted changes."""
   warnings = []
 
-  # Check for uncommitted changes
   try:
     result = subprocess.run(['git', 'status', '--porcelain'],
                             capture_output=True,
@@ -60,7 +192,6 @@ def verify_git_state(expected_version):
   except Exception as e:
     warnings.append(f'Could not check git status: {e}')
 
-  # Check current tag
   try:
     result = subprocess.run(['git', 'describe', '--exact-match', '--tags'],
                             capture_output=True,
@@ -79,59 +210,25 @@ def verify_git_state(expected_version):
     print('WARNING: SDK sources may not match the release tag:')
     for warning in warnings:
       print(f'  - {warning}')
+    if assume_yes:
+      print('\n--yes passed; proceeding despite warnings.')
+      return True
     return input('\nContinue anyway? [y/N] ').lower().strip() in ['y', 'yes']
 
   print(f'✓ On tag {expected_version} with clean working directory')
   return True
 
 
-def generate_sdk_sources(tmpdir):
-  """Generates SDK source zips using gen_amalgamated."""
-  repo_root = get_repo_root()
-  gen_amalgamated = os.path.join(repo_root, 'tools', 'gen_amalgamated')
-
-  sdk_zips = []
-
-  # Generate C++ SDK (default targets)
-  print('\n--- Generating C++ SDK amalgamated sources ---')
-  cpp_sdk_staging = tempfile.mkdtemp(prefix='perfetto-cpp-sdk-')
-  try:
-    exec('python3', gen_amalgamated, '--output',
-         os.path.join(cpp_sdk_staging, 'perfetto'))
-    os.chdir(tmpdir)
-    exec('zip', '-9rj', 'perfetto-cpp-sdk-src.zip', cpp_sdk_staging)
-    sdk_zips.append('perfetto-cpp-sdk-src.zip')
-    print('C++ SDK source zip created: perfetto-cpp-sdk-src.zip')
-  finally:
-    shutil.rmtree(cpp_sdk_staging, ignore_errors=True)
-
-  # Generate C SDK
-  # TODO(lalitm): determine the correct target for C SDK
-  print('\n--- Generating C SDK amalgamated sources ---')
-  c_sdk_staging = tempfile.mkdtemp(prefix='perfetto-c-sdk-')
-  try:
-    # For now, use the same targets as C++ SDK
-    # This should be updated with the correct C SDK target
-    exec('python3', gen_amalgamated, '--output',
-         os.path.join(c_sdk_staging, 'perfetto'))
-    os.chdir(tmpdir)
-    exec('zip', '-9rj', 'perfetto-c-sdk-src.zip', c_sdk_staging)
-    sdk_zips.append('perfetto-c-sdk-src.zip')
-    print('C SDK source zip created: perfetto-c-sdk-src.zip')
-  finally:
-    shutil.rmtree(c_sdk_staging, ignore_errors=True)
-
-  return sdk_zips
-
-
 def main():
   parser = argparse.ArgumentParser(epilog='Example: %s v19.0' % __file__)
   parser.add_argument('version', help='Version tag (e.g., v20.0)')
-
+  parser.add_argument(
+      '--yes',
+      action='store_true',
+      help='Skip all interactive confirmations (for CI use).')
   args = parser.parse_args()
 
-  # Verify we're on the correct tag with no uncommitted changes
-  if not verify_git_state(args.version):
+  if not verify_git_state(args.version, assume_yes=args.yes):
     print('Aborted.')
     return 1
 
@@ -139,27 +236,34 @@ def main():
   src = 'gs://perfetto-luci-artifacts/%s/' % args.version
   os.makedirs(tmpdir, exist_ok=True)
 
-  # Download and package prebuilts
   print('--- Downloading prebuilts from GCS ---')
   os.chdir(tmpdir)
   exec('gsutil', '-m', 'rsync', '-rc', src, tmpdir + '/')
 
+  print('\n--- Verifying artifact manifest ---')
+  if not verify_downloads(tmpdir):
+    return 1
+
   zips = []
-  for arch in os.listdir(tmpdir):
-    if not os.path.isdir(arch):
+  for arch in sorted(os.listdir(tmpdir)):
+    if arch == 'sdk' or not os.path.isdir(os.path.join(tmpdir, arch)):
       continue
     exec('zip', '-9r', '%s.zip' % arch, arch)
     zips.append(arch + '.zip')
 
-  # Generate SDK source zips
-  sdk_zips = generate_sdk_sources(tmpdir)
-  zips.extend(sdk_zips)
+  # SDK zips already landed under sdk/ via the rsync above; just move them
+  # up so everything ready to upload sits in tmpdir's root.
+  for zip_name in _SDK_ZIPS:
+    src_path = os.path.join(tmpdir, 'sdk', zip_name)
+    dst_path = os.path.join(tmpdir, zip_name)
+    os.rename(src_path, dst_path)
+    zips.append(zip_name)
 
   print('')
   print('=' * 70)
   print('%d zip files saved in %s' % (len(zips), tmpdir))
-  print('Prebuilt binaries: %d' % (len(zips) - len(sdk_zips)))
-  print('SDK sources: %d' % len(sdk_zips))
+  print('Prebuilt binaries: %d' % (len(zips) - len(_SDK_ZIPS)))
+  print('SDK sources: %d' % len(_SDK_ZIPS))
   print('Files: %s' % ', '.join(sorted(zips)))
   print('=' * 70)
 

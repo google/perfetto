@@ -13,11 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.cujs.base;
 INCLUDE PERFETTO MODULE wattson.estimates;
-
--- Create the base table (`android_jank_cuj`) containing all completed CUJs
--- found in the trace.
-SELECT RUN_METRIC('android/jank/cujs.sql');
 
 DROP VIEW IF EXISTS _wattson_cuj_windows;
 CREATE PERFETTO VIEW _wattson_cuj_windows AS
@@ -45,7 +42,8 @@ SELECT AndroidWattsonTimePeriodMetric(
         'period_name', cuj_name,
         'period_dur', period_dur,
         'cpu_subsystem', cpu_proto,
-        'gpu_subsystem', gpu_proto
+        'gpu_subsystem', gpu_proto,
+        'tpu_subsystem', tpu_proto
       )
     )
     FROM _estimate_subsystems_sum AS est

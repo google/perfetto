@@ -71,6 +71,7 @@ source_set("full") {
     ":gen_cc_winscope_descriptor",
     "../:proto_importer_module",
     "../../../../../gn:default_deps",
+    "../../../../../protos/perfetto/common:zero",
     "../../../../../protos/perfetto/trace:zero",
     "../../../../../protos/perfetto/trace/android:winscope_common_zero",
     "../../../../../protos/perfetto/trace/android:winscope_extensions_zero",

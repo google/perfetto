@@ -117,7 +117,13 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
 
   // Build the command string that will be sent to the logdr socket on Start(),
   // which looks like "stream lids=1,2,3,4" (lids == log buffer id(s)).
-  mode_ = "stream tail=1 lids";
+  // If preserve_log_buffer is true, omit tail=1 to include existing buffered
+  // log entries. Otherwise, tail=1 means only new entries are recorded.
+  if (cfg.preserve_log_buffer()) {
+    mode_ = "stream lids";
+  } else {
+    mode_ = "stream tail=1 lids";
+  }
   for (auto it = log_ids.begin(); it != log_ids.end(); it++) {
     mode_ += it == log_ids.begin() ? "=" : ",";
     mode_ += std::to_string(*it);

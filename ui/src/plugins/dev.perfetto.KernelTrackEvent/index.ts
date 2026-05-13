@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -129,13 +129,12 @@ export default class implements PerfettoPlugin {
             cpu: cpu ?? undefined,
             trackScope: scope ?? undefined,
           },
-          renderer: new TraceProcessorCounterTrack(
-            ctx,
+          renderer: new TraceProcessorCounterTrack({
+            trace: ctx,
             uri,
-            {},
             trackId,
-            displayTrackName,
-          ),
+            trackName: displayTrackName,
+          }),
         });
       } else {
         // slice track

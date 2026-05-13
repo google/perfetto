@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Icons} from '../../base/semantic_icons';
 import {PivotTable} from '../../components/widgets/sql/pivot_table/pivot_table';
 import {PivotTableState} from '../../components/widgets/sql/pivot_table/pivot_table_state';

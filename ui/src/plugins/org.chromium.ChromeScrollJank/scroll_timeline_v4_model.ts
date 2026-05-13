@@ -13,42 +13,10 @@
 // limitations under the License.
 
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {Engine} from '../../trace_processor/engine';
-
-/**
- * A model of the scroll timeline according to Chrome's scroll jank v4 metric.
- *
- * See
- * https://docs.google.com/document/d/1AaBvTIf8i-c-WTKkjaL4vyhQMkSdynxo3XEiwpofdeA
- * and scroll_jank_v4*.{h,cc} source files in
- * https://source.chromium.org/chromium/chromium/src/+/main:cc/metrics/ for more
- * details about the v4 metric.
- */
-export interface ScrollTimelineV4Model {
-  /**
-   * The name of the SQL table which contains information about the slices in
-   * the track visualizing the timeline created by
-   * {@link scroll_timeline_v4_track#createScrollTimelineV4Track}. Each slice
-   * corresponds to a single frame that contains one or more scroll updates.
-   *
-   * The table has the following columns:
-   *
-   *   id (NUM): Unique ID of the slice (monotonically increasing). Note that
-   *     it cannot joined with any tables in Chrome's tracing stdlib. Not
-   *     guaranteed to be stable.
-   *   ts (LONG/TIMESTAMP): Start timestamp of the slice.
-   *   dur (LONG/DURATION): Duration of the slice.
-   *   depth (NUM): Depth of the slice on the track.
-   *   name (STRING): Title of the slice.
-   *   classification (NUM): Classification of the frame for the purposes of
-   *     trace visualization. Guaranteed to be one of the values in
-   *     {@link ScrollFrameClassification}.
-   */
-  readonly tableName: string;
-
-  /** A unique identifier of the track. */
-  readonly trackUri: string;
-}
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
+import {SCROLL_TIMELINE_V4_TRACK} from './tracks';
 
 /**
  * Classification of a frame that contains one or more scroll updates, for the
@@ -86,28 +54,98 @@ export enum ScrollFrameClassification {
   DESCENDANT_SLICE = -1,
 }
 
-export async function createScrollTimelineV4Model(
-  engine: Engine,
-  tableName: string,
-  trackUri: string,
-): Promise<ScrollTimelineV4Model> {
-  await createTable(engine, tableName);
-  return {tableName, trackUri};
-}
+/**
+ * Definition of the Perfetto table created by
+ * {@link createScrollTimelineV4Model}, which underpins
+ * {@link tracks#SCROLL_TIMELINE_V4_TRACK}.
+ *
+ * Note: The table contains both:
+ *
+ *   1. parent slices for entire scroll updates (e.g. 'Janky Inertial Frame')
+ *      and
+ *   2. child slices for relevant events within a scroll update (e.g. 'Begin
+ *      frame').
+ */
+export const SCROLL_TIMELINE_V4_TABLE_DEFINITION: SqlTableDefinition = {
+  name: SCROLL_TIMELINE_V4_TRACK.tableName,
+  columns: [
+    /**
+     * Unique ID of the slice created by the plugin (monotonically increasing).
+     * Note that it cannot joined with any tables in Chrome's tracing stdlib.
+     * Not guaranteed to be stable.
+     */
+    {
+      column: 'id',
+      type: {
+        kind: 'id',
+        source: {table: SCROLL_TIMELINE_V4_TRACK.tableName, column: 'id'},
+      },
+    },
+
+    /** Start timestamp of the slice. */
+    {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+
+    /** Duration of the slice. */
+    {column: 'dur', type: PerfettoSqlTypes.DURATION},
+
+    /** Depth of the slice on the track. */
+    {column: 'depth', type: PerfettoSqlTypes.INT},
+
+    /** Title of the slice. */
+    {column: 'name', type: PerfettoSqlTypes.STRING},
+
+    /**
+     * Classification of the frame for the purposes of trace visualization.
+     * Guaranteed to be one of the values in {@link ScrollFrameClassification}.
+     *
+     * For events within a scroll update, this column is equal to
+     * {@link ScrollFrameClassification#DESCENDANT_SLICE}.
+     */
+    {column: 'classification', type: PerfettoSqlTypes.INT},
+
+    /**
+     * ID of the original slice emitted by Chrome in the trace. Can be joined
+     * with `chrome_scroll_frame_info_v4.id` and `slice.id`.
+     */
+    {
+      column: 'original_slice_id',
+      type: {
+        kind: 'joinid',
+        source: {table: 'slice', column: 'id'},
+      },
+    },
+
+    /**
+     * ID of the parent scroll update slice if the row corresponds to an event
+     * within a scroll update. NULL if the row corresponds to a scroll update.
+     */
+    {
+      column: 'parent_id',
+      type: {
+        kind: 'joinid',
+        source: {table: SCROLL_TIMELINE_V4_TRACK.tableName, column: 'id'},
+      },
+    },
+  ],
+};
 
 /**
- * Creates a Perfetto table named `tableName` representing the slices of a the
- * track created by {@link scroll_timeline_v4_track#createScrollTimelineV4Track}
- * for a given trace.
+ * Creates a Perfetto table named {@link SCROLL_TIMELINE_V4_TRACK.tableName}
+ * representing the slices of a the track created by
+ * {@link scroll_timeline_v4_track#createScrollTimelineV4Track} for a given
+ * trace.
  */
-async function createTable(engine: Engine, tableName: string): Promise<void> {
+export async function createScrollTimelineV4Model(
+  engine: Engine,
+): Promise<void> {
   await engine.query(
     `INCLUDE PERFETTO MODULE chrome.scroll_jank_v4;
 
-    CREATE PERFETTO TABLE ${tableName} AS
+    CREATE PERFETTO TABLE ${SCROLL_TIMELINE_V4_TRACK.tableName} AS
     WITH descendant_slices AS (
       SELECT
         ancestor.id AS ancestor_id,
+        descendant.id,
         descendant.ts,
         descendant.dur,
         descendant.name,
@@ -164,7 +202,9 @@ async function createTable(engine: Engine, tableName: string): Promise<void> {
           WHEN real_max_abs_inertial_raw_delta_pixels IS NOT NULL
             THEN ${ScrollFrameClassification.INERTIAL}
           ELSE ${ScrollFrameClassification.DEFAULT}
-        END AS classification
+        END AS classification,
+        results.id AS original_slice_id,
+        NULL AS original_parent_slice_id
       FROM chrome_scroll_jank_v4_results AS results
       JOIN frame_layout USING(id)
       JOIN max_depth
@@ -175,15 +215,36 @@ async function createTable(engine: Engine, tableName: string): Promise<void> {
         frame_layout.depth * (max_depth.max_depth + 1) + descendant.depth
           AS depth,
         descendant.name,
-        ${ScrollFrameClassification.DESCENDANT_SLICE} AS classification
+        ${ScrollFrameClassification.DESCENDANT_SLICE} AS classification,
+        descendant.id AS original_slice_id,
+        descendant.ancestor_id AS original_parent_slice_id
       FROM descendant_slices AS descendant
       JOIN frame_layout ON descendant.ancestor_id = frame_layout.id
       JOIN max_depth
+    ), timeline_slices_with_id AS (
+      SELECT
+        row_number() OVER (ORDER BY ts ASC) AS id,
+        ts,
+        dur,
+        depth,
+        name,
+        classification,
+        original_slice_id,
+        original_parent_slice_id
+      FROM timeline_slices_without_id
     )
     SELECT
-      row_number() OVER (ORDER BY ts ASC) AS id,
-      *
-    FROM timeline_slices_without_id
-    ORDER BY ts ASC;`,
+      frame_or_stage.id,
+      frame_or_stage.ts,
+      frame_or_stage.dur,
+      frame_or_stage.depth,
+      frame_or_stage.name,
+      frame_or_stage.classification,
+      frame_or_stage.original_slice_id,
+      parent_frame.id AS parent_id
+    FROM timeline_slices_with_id AS frame_or_stage
+    LEFT JOIN timeline_slices_with_id AS parent_frame
+      ON frame_or_stage.original_parent_slice_id = parent_frame.original_slice_id
+    ORDER BY frame_or_stage.ts ASC;`,
   );
 }

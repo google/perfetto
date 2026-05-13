@@ -31,7 +31,6 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/thread_annotations.h"
-#include "perfetto/ext/base/flags.h"
 #include "perfetto/public/compiler.h"
 
 #define _PERFETTO_MUTEX_MODE_STD 0
@@ -53,11 +52,7 @@
 //    tracing is initialized from a static constructor (see b/443178555).
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
     PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-#if PERFETTO_FLAGS_USE_RT_FUTEX
 #define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_RT_FUTEX
-#elif PERFETTO_FLAGS_USE_RT_MUTEX
-#define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_RT_MUTEX
-#endif
 #elif PERFETTO_BUILDFLAG(PERFETTO_ENABLE_RT_MUTEX)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #define _PERFETTO_MUTEX_MODE _PERFETTO_MUTEX_MODE_RT_FUTEX

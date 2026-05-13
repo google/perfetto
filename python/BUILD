@@ -42,6 +42,26 @@ perfetto_py_library(
            PERFETTO_CONFIG.deps.tp_vendor_py,
 )
 
+# GN target: //python:cpp_blob_emitter
+perfetto_py_library(
+    name = "cpp_blob_emitter",
+    srcs = [
+        "tools/cpp_blob_emitter.py",
+    ],
+)
+
+# GN target: //python:cpp_blob_emitter_bin
+perfetto_py_binary(
+    name = "cpp_blob_emitter_bin",
+    srcs = [
+        "tools/cpp_blob_emitter.py",
+    ],
+    deps = [
+        ":cpp_blob_emitter",
+    ],
+    main = "tools/cpp_blob_emitter.py",
+)
+
 # GN target: //python:experimental_slice_breakdown_bin
 perfetto_py_binary(
     name = "experimental_slice_breakdown_bin",

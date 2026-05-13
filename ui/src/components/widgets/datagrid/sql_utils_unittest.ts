@@ -14,6 +14,7 @@
 
 import {
   filterToSql,
+  sqlAggregateExpr,
   sqlPathMatch,
   sqlPathNotMatch,
   sqlPathsIn,
@@ -232,6 +233,58 @@ describe('sqlPathsNotIn', () => {
         ],
       ),
     ).toBe("(a, b) NOT IN (('foo', 1)) AND NOT (a = 'bar' AND b IS NULL)");
+  });
+});
+
+describe('sqlAggregateExpr', () => {
+  test('SUM', () => {
+    expect(sqlAggregateExpr('SUM', 'dur')).toBe('SUM(dur)');
+  });
+
+  test('AVG', () => {
+    expect(sqlAggregateExpr('AVG', 'dur')).toBe('AVG(dur)');
+  });
+
+  test('MIN', () => {
+    expect(sqlAggregateExpr('MIN', 'dur')).toBe('MIN(dur)');
+  });
+
+  test('MAX', () => {
+    expect(sqlAggregateExpr('MAX', 'dur')).toBe('MAX(dur)');
+  });
+
+  test('ANY maps to MIN', () => {
+    expect(sqlAggregateExpr('ANY', 'name')).toBe('MIN(name)');
+  });
+
+  test('COUNT_DISTINCT', () => {
+    expect(sqlAggregateExpr('COUNT_DISTINCT', 'name')).toBe(
+      'COUNT(DISTINCT name)',
+    );
+  });
+
+  test('P25', () => {
+    expect(sqlAggregateExpr('P25', 'dur')).toBe('PERCENTILE(dur, 25)');
+  });
+
+  test('P50', () => {
+    expect(sqlAggregateExpr('P50', 'dur')).toBe('PERCENTILE(dur, 50)');
+  });
+
+  test('P75', () => {
+    expect(sqlAggregateExpr('P75', 'dur')).toBe('PERCENTILE(dur, 75)');
+  });
+
+  test('P90', () => {
+    expect(sqlAggregateExpr('P90', 'dur')).toBe('PERCENTILE(dur, 90)');
+  });
+
+  test('P95', () => {
+    expect(sqlAggregateExpr('P95', 'dur')).toBe('PERCENTILE(dur, 95)');
+  });
+
+  test('P99', () => {
+    expect(sqlAggregateExpr('P99', 'dur')).toBe('PERCENTILE(dur, 99)');
   });
 });
 

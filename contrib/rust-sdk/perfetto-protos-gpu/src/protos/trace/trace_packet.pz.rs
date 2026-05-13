@@ -21,6 +21,7 @@ use crate::protos::trace::gpu::gpu_log::*;
 use crate::protos::trace::gpu::gpu_render_stage_event::*;
 use crate::protos::trace::gpu::vulkan_api_event::*;
 use crate::protos::trace::gpu::vulkan_memory_event::*;
+use crate::protos::trace::system_info::gpu_info::*;
 
 use perfetto_sdk::protos::trace::trace_packet::TracePacket;
 
@@ -30,6 +31,7 @@ pb_msg_ext!(TracePacket {
     vulkan_memory_event: VulkanMemoryEvent, msg, 62,
     gpu_log: GpuLog, msg, 63,
     vulkan_api_event: VulkanApiEvent, msg, 65,
+    gpu_info: GpuInfo, msg, 128,
 });
 
 /// Import this to use the extra `TracePacket` fields.

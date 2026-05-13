@@ -28,6 +28,7 @@
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventDescriptor);
+PERFETTO_PB_MSG_DECL(perfetto_protos_VmProgram);
 
 PERFETTO_PB_MSG(perfetto_protos_DataSourceDescriptor);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceDescriptor,
@@ -60,6 +61,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceDescriptor,
                   bool,
                   no_flush,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceDescriptor,
+                  MSG,
+                  perfetto_protos_VmProgram,
+                  protovm_program,
+                  10);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceDescriptor,
                   MSG,
                   perfetto_protos_GpuCounterDescriptor,

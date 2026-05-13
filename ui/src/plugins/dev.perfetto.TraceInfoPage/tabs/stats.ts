@@ -14,6 +14,7 @@
 import m from 'mithril';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM_NULL, UNKNOWN} from '../../../trace_processor/query_result';
+import {Button} from '../../../widgets/button';
 import {Section} from '../../../widgets/section';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
@@ -227,13 +228,19 @@ interface StatsSectionAttrs {
 }
 
 class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
+  private hideZeroValues = true;
+
   view({attrs}: m.CVnode<StatsSectionAttrs>) {
     const data = attrs.data;
     if (data === undefined || data.length === 0) {
       return m('');
     }
 
-    const tableRows = data.map((row) => {
+    const filtered = this.hideZeroValues
+      ? data.filter((row) => row.value !== 0 && row.value !== null)
+      : data;
+
+    const tableRows = filtered.map((row) => {
       const help = [];
       if (Boolean(row.description)) {
         help.push(
@@ -267,6 +274,13 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
 
     return m(
       'section.pf-trace-info-page__stats-section',
+      m(Button, {
+        label: this.hideZeroValues ? 'Show zero values' : 'Hide zero values',
+        icon: this.hideZeroValues ? 'visibility' : 'visibility_off',
+        onclick: () => {
+          this.hideZeroValues = !this.hideZeroValues;
+        },
+      }),
       m(
         'table.pf-trace-info-page__stats-table',
         m(

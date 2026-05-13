@@ -25,6 +25,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "perfetto/base/time.h"
+
 namespace perfetto {
 
 namespace protos::pbzero {
@@ -48,12 +50,14 @@ class IteratorImpl;
 //   A batch is guaranteed to contain a number of cells that is an integer
 //   multiple of the column count (i.e. a batch is not truncated in the middle
 //   of a row).
-// The intended use case is streaaming these batches onto through a
+// The intended use case is streaming these batches onto through a
 // chunked-encoded HTTP response, or through a repetition of Wasm calls.
+//
 class QueryResultSerializer {
  public:
   static constexpr uint32_t kDefaultBatchSplitThreshold = 128 * 1024;
-  explicit QueryResultSerializer(Iterator);
+  explicit QueryResultSerializer(Iterator,
+                                 std::optional<base::TimeNanos> t_start = {});
   ~QueryResultSerializer();
 
   // No copy or move.
@@ -81,6 +85,7 @@ class QueryResultSerializer {
 
   std::unique_ptr<IteratorImpl> iter_;
   const uint32_t num_cols_;
+  const std::optional<base::TimeNanos> t_start_;
   bool did_write_metadata_ = false;
   bool eof_reached_ = false;
   uint32_t col_ = UINT32_MAX;
@@ -88,7 +93,7 @@ class QueryResultSerializer {
   // These params specify the thresholds for splitting the results in batches,
   // in terms of: (1) max cells (row x cols); (2) serialized batch size in
   // bytes, whichever is reached first. Note also that the byte limit is not
-  // 100% accurate and can occasionally yield to batches slighly larger than
+  // 100% accurate and can occasionally yield to batches slightly larger than
   // the limit (it splits on the next row *after* the limit is hit).
   // Overridable for testing only.
   uint32_t cells_per_batch_ = 50000;

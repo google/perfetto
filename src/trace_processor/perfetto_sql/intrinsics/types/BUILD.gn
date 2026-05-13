@@ -24,6 +24,7 @@ source_set("types") {
     "node.h",
     "partitioned_intervals.h",
     "row_dataframe.h",
+    "sorted_timestamps.h",
     "struct.h",
     "value.h",
   ]

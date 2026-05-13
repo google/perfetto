@@ -82,8 +82,10 @@ SOURCE_FILES = [
             "protos/perfetto/trace/gpu/gpu_counter_event.proto",
             "protos/perfetto/trace/gpu/gpu_log.proto",
             "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
+            "protos/perfetto/trace/gpu/gpu_track_event.proto",
             "protos/perfetto/trace/gpu/vulkan_api_event.proto",
             "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
+            "protos/perfetto/trace/system_info/gpu_info.proto",
         ],
         "custom_files": [
             "protos/perfetto/common/data_source_descriptor.proto",
@@ -91,8 +93,24 @@ SOURCE_FILES = [
             "protos/perfetto/trace/interned_data/interned_data.proto",
             "protos/perfetto/trace/trace_packet.proto",
         ],
+        "external_crate": "perfetto_sdk",
         "path_strip_prefix": "protos/perfetto",
         "path_add_prefix": "contrib/rust-sdk/perfetto-protos-gpu/src/protos",
+    },
+    {
+        "files": [
+            "protos/perfetto/common/descriptor.proto",
+            "protos/perfetto/perfetto_sql/structured_query.proto",
+            "protos/perfetto/trace_processor/metatrace_categories.proto",
+            "protos/perfetto/trace_processor/trace_processor.proto",
+            "protos/perfetto/trace_summary/file.proto",
+            "protos/perfetto/trace_summary/v2_metric.proto",
+        ],
+        "custom_files": [],
+        "path_strip_prefix":
+            "protos/perfetto",
+        "path_add_prefix":
+            "contrib/rust-sdk/perfetto-protos-trace-processor/src/protos",
     },
 ]
 
@@ -143,12 +161,18 @@ def generate(
     protozero_rust_plugin_path,
     path_strip_prefix,
     path_add_prefix,
+    external_crate=None,
+    local_files=None,
 ):
   options = {
       "path_strip_prefix": path_strip_prefix,
       "path_add_prefix": path_add_prefix,
       "invoker": SCRIPT_PATH,
   }
+  if external_crate:
+    options["external_crate"] = external_crate
+  if local_files:
+    options["local_files"] = "|".join(local_files)
   serialized_options = ",".join(
       ["{}={}".format(name, value) for name, value in options.items()])
   subprocess.check_call(
@@ -229,6 +253,7 @@ def main():
   try:
     with tempfile.TemporaryDirectory() as tmpdirname:
       for sources in SOURCE_FILES:
+        all_files = sources["files"] + sources["custom_files"]
         for source in sources["files"]:
           generate(
               source,
@@ -237,6 +262,8 @@ def main():
               protozero_rust_plugin_path(out),
               path_strip_prefix=sources["path_strip_prefix"],
               path_add_prefix=sources["path_add_prefix"],
+              external_crate=sources.get("external_crate"),
+              local_files=all_files,
           )
 
           tmpfilename = os.path.join(tmpdirname, transform_extension(source))

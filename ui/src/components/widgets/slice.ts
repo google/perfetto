@@ -13,53 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {asSliceSqlId, SliceSqlId} from '../sql_utils/core_types';
-import {Anchor} from '../../widgets/anchor';
-import {Icons} from '../../base/semantic_icons';
+import {asSliceSqlId} from '../sql_utils/core_types';
 import {Trace} from '../../public/trace';
 import {getSlice, SliceDetails} from '../sql_utils/slice';
 import {
   createSqlIdRefRenderer,
   sqlIdRegistry,
 } from './sql/details/sql_ref_renderer_registry';
-
-interface SliceRefAttrs {
-  readonly trace: Trace;
-  readonly id: SliceSqlId;
-  readonly name: string;
-
-  // Whether clicking on the reference should change the current tab
-  // to "current selection" tab in addition to updating the selection
-  // and changing the viewport. True by default.
-  readonly switchToCurrentSelectionTab?: boolean;
-}
-
-export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
-  view(vnode: m.Vnode<SliceRefAttrs>) {
-    return m(
-      Anchor,
-      {
-        icon: Icons.UpdateSelection,
-        onclick: () => {
-          vnode.attrs.trace.selection.selectSqlEvent('slice', vnode.attrs.id, {
-            switchToCurrentSelectionTab:
-              vnode.attrs.switchToCurrentSelectionTab,
-            scrollToSelection: true,
-          });
-        },
-      },
-      vnode.attrs.name,
-    );
-  }
-}
+import {TrackEventRef} from './track_event_ref';
 
 export function sliceRef(
   trace: Trace,
   slice: SliceDetails,
   name?: string,
 ): m.Child {
-  return m(SliceRef, {
+  return m(TrackEventRef, {
     trace,
+    table: 'slice',
     id: slice.id,
     name: name ?? slice.name ?? '[null]',
   });

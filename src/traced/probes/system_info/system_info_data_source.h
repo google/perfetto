@@ -18,7 +18,9 @@
 #define SRC_TRACED_PROBES_SYSTEM_INFO_SYSTEM_INFO_DATA_SOURCE_H_
 
 #include <memory>
+#include <vector>
 
+#include "perfetto/ext/base/cpu_info.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/probes_data_source.h"
@@ -38,6 +40,7 @@ class SystemInfoDataSource : public ProbesDataSource {
   void Flush(FlushRequestID, std::function<void()> callback) override;
 
   // Virtual for testing.
+  virtual std::vector<base::CpuInfo> ReadCpuInfo();
   virtual std::string ReadFile(std::string path);
 
  private:

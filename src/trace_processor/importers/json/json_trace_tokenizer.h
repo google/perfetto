@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/json/json_trace_parser.h"
@@ -145,6 +146,7 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
   json::Iterator it_;
   json::Iterator inner_it_;
 
+  ClockTracker::ClockId trace_file_clock_;
   uint64_t offset_ = 0;
   // Used to glue together JSON objects that span across two (or more)
   // Parse boundaries.

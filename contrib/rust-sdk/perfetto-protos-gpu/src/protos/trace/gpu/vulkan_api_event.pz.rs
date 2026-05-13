@@ -19,11 +19,11 @@
 use crate::pb_msg;
 
 pb_msg!(VulkanApiEvent {
-    vk_debug_utils_object_name: VkDebugUtilsObjectName, msg, 1,
-    vk_queue_submit: VkQueueSubmit, msg, 2,
+    vk_debug_utils_object_name: VulkanApiEventVkDebugUtilsObjectName, msg, 1,
+    vk_queue_submit: VulkanApiEventVkQueueSubmit, msg, 2,
 });
 
-pb_msg!(VkQueueSubmit {
+pb_msg!(VulkanApiEventVkQueueSubmit {
     duration_ns: u64, primitive, 1,
     pid: u32, primitive, 2,
     tid: u32, primitive, 3,
@@ -32,7 +32,7 @@ pb_msg!(VkQueueSubmit {
     submission_id: u32, primitive, 6,
 });
 
-pb_msg!(VkDebugUtilsObjectName {
+pb_msg!(VulkanApiEventVkDebugUtilsObjectName {
     pid: u32, primitive, 1,
     vk_device: u64, primitive, 2,
     object_type: i32, primitive, 3,

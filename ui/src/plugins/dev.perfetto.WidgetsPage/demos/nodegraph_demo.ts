@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {produce} from 'immer';
 import {uuidv4} from '../../../base/uuid';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
@@ -27,10 +27,12 @@ import {
   NodeGraphAttrs,
   NodePort,
 } from '../../../widgets/nodegraph';
+import {Combobox} from '../../../widgets/combobox';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
-import {Icons} from '../../../base/semantic_icons';
+
+const MAX_HISTORY_DEPTH = 500;
 
 // Base node data interface
 interface BaseNodeData {
@@ -102,59 +104,53 @@ interface NodeConfig {
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
   readonly hue: number;
+  readonly icon: string;
 }
 
 const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
   table: {
-    outputs: [{content: 'Output', direction: 'bottom'}],
     canDockBottom: true,
     hue: 200,
+    icon: 'table_chart',
   },
   select: {
-    inputs: [{content: 'Input', direction: 'top'}],
-    outputs: [{content: 'Output', direction: 'bottom'}],
+    outputs: [{content: 'Output', direction: 'right'}],
     canDockTop: true,
-    canDockBottom: true,
     hue: 100,
+    icon: 'checklist',
   },
   filter: {
-    inputs: [{content: 'Input', direction: 'top'}],
-    outputs: [{content: 'Output', direction: 'bottom'}],
     canDockTop: true,
     canDockBottom: true,
     hue: 50,
+    icon: 'filter_alt',
   },
   sort: {
-    inputs: [{content: 'Input', direction: 'top'}],
-    outputs: [{content: 'Output', direction: 'bottom'}],
     canDockTop: true,
     canDockBottom: true,
     hue: 150,
+    icon: 'sort',
   },
   join: {
-    inputs: [
-      {content: 'Left', direction: 'top'},
-      {content: 'Right', direction: 'left'},
-    ],
-    outputs: [{content: 'Output', direction: 'bottom'}],
+    inputs: [{content: 'Right', direction: 'left'}],
     canDockTop: true,
     canDockBottom: true,
     hue: 300,
+    icon: 'join',
   },
   union: {
     inputs: [
-      {content: 'Input 1', direction: 'top'},
+      {content: 'Input 1', direction: 'left'},
       {content: 'Input 2', direction: 'left'},
     ],
-    outputs: [{content: 'Output', direction: 'bottom'}],
-    canDockTop: true,
     canDockBottom: true,
     hue: 240,
+    icon: 'merge',
   },
   result: {
-    inputs: [{content: 'Input', direction: 'top'}],
     canDockTop: true,
     hue: 0,
+    icon: 'output',
   },
 };
 
@@ -237,25 +233,42 @@ function createResultNode(id: string, x: number, y: number): ResultNodeData {
 }
 
 // Pure render functions for each node type
+const TABLE_SUGGESTIONS = [
+  'slice',
+  'sched_slice',
+  'thread_state',
+  'thread',
+  'process',
+  'counter',
+  'android_logs',
+  'cpu_counter_track',
+  'gpu_slice',
+  'gpu_track',
+  'gpu_counter_track',
+  'heap_graph_object',
+  'heap_profile_allocation',
+  'perf_sample',
+  'stack_profile_frame',
+  'stack_profile_callsite',
+  'ftrace_event',
+  'flow',
+  'args',
+  'raw',
+  'metadata',
+  'trace_stats',
+];
+
 function renderTableNode(
   node: TableNodeData,
   updateNode: (updates: Partial<Omit<TableNodeData, 'type' | 'id'>>) => void,
 ): m.Children {
-  return m(
-    Select,
-    {
-      value: node.table,
-      onchange: (e: Event) => {
-        updateNode({table: (e.target as HTMLSelectElement).value});
-      },
-    },
-    [
-      m('option', {value: 'slice'}, 'slice'),
-      m('option', {value: 'sched'}, 'sched'),
-      m('option', {value: 'thread'}, 'thread'),
-      m('option', {value: 'process'}, 'process'),
-    ],
-  );
+  return m(Combobox, {
+    value: node.table,
+    suggestions: TABLE_SUGGESTIONS,
+    placeholder: 'Table name...',
+    icon: 'table_chart',
+    onChange: (value: string) => updateNode({table: value}),
+  });
 }
 
 function renderSelectNode(
@@ -423,6 +436,7 @@ function renderNodeContent(
 interface NodeGraphDemoAttrs {
   readonly multiselect?: boolean;
   readonly titleBars?: boolean;
+  readonly headerIcons?: boolean;
   readonly accentBars?: boolean;
   readonly colors?: boolean;
   readonly contextMenus?: boolean;
@@ -518,8 +532,8 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     history.push(store);
     historyIndex = history.length - 1;
 
-    // Limit history to prevent memory issues (keep last 50 states)
-    if (history.length > 50) {
+    // Limit history to prevent memory issues
+    if (history.length > MAX_HISTORY_DEPTH) {
       history.shift();
       historyIndex--;
     }
@@ -734,9 +748,20 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     nodes: Map<string, NodeData>,
     connections: Connection[],
     nodeId: string,
+    visited: Set<string> = new Set(),
   ): string {
+    // Cycle detection: if we've already visited this node in the current path, return empty
+    if (visited.has(nodeId)) {
+      console.warn(`Cycle detected at node ${nodeId}`);
+      return '';
+    }
+
     const node = nodes.get(nodeId);
     if (!node) return '';
+
+    // Add current node to visited set for this traversal path
+    const newVisited = new Set(visited);
+    newVisited.add(nodeId);
 
     // First check for docked parent
     const dockedParent = findDockedParent(nodes, nodeId);
@@ -754,9 +779,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const colList = selectedCols.length > 0 ? selectedCols.join(', ') : '*';
 
         const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
+          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
           : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
+            ? buildSqlFromNode(
+                nodes,
+                connections,
+                connectedInputs.get(0)!.id,
+                newVisited,
+              )
             : '';
 
         if (!inputSql) return `SELECT ${colList}`;
@@ -767,9 +797,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const filterExpr = node.filterExpression || '';
 
         const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
+          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
           : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
+            ? buildSqlFromNode(
+                nodes,
+                connections,
+                connectedInputs.get(0)!.id,
+                newVisited,
+              )
             : '';
 
         if (!inputSql) return '';
@@ -782,9 +817,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const sortOrder = node.sortOrder || 'ASC';
 
         const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
+          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
           : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
+            ? buildSqlFromNode(
+                nodes,
+                connections,
+                connectedInputs.get(0)!.id,
+                newVisited,
+              )
             : '';
 
         if (!inputSql) return '';
@@ -796,15 +836,18 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const joinType = node.joinType || 'INNER';
         const joinOn = node.joinOn || 'true';
 
-        // Join needs two inputs: one docked (or from top connection) and one from left connection
+        // Join needs two inputs: one docked and one from left connection
         const leftInput = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
-            : '';
+          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
+          : '';
 
-        const rightInput = connectedInputs.get(1)
-          ? buildSqlFromNode(nodes, connections, connectedInputs.get(1)!.id)
+        const rightInput = connectedInputs.get(0)
+          ? buildSqlFromNode(
+              nodes,
+              connections,
+              connectedInputs.get(0)!.id,
+              newVisited,
+            )
           : '';
 
         if (!leftInput || !rightInput) return leftInput || rightInput || '';
@@ -816,12 +859,16 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
         const inputs: string[] = [];
 
-        // Collect all inputs (docked + connections)
+        // Collect all inputs from left connections (no docked parent for union)
         if (dockedParent) {
-          inputs.push(buildSqlFromNode(nodes, connections, dockedParent.id));
+          inputs.push(
+            buildSqlFromNode(nodes, connections, dockedParent.id, newVisited),
+          );
         }
         for (const [_, inputNode] of connectedInputs) {
-          inputs.push(buildSqlFromNode(nodes, connections, inputNode.id));
+          inputs.push(
+            buildSqlFromNode(nodes, connections, inputNode.id, newVisited),
+          );
         }
 
         const validInputs = inputs.filter((sql) => sql);
@@ -832,9 +879,14 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
       case 'result': {
         const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id)
+          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
           : connectedInputs.get(0)
-            ? buildSqlFromNode(nodes, connections, connectedInputs.get(0)!.id)
+            ? buildSqlFromNode(
+                nodes,
+                connections,
+                connectedInputs.get(0)!.id,
+                newVisited,
+              )
             : '';
         return inputSql;
       }
@@ -898,7 +950,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         return [
           m(MenuItem, {
             label: 'Select',
-            icon: Icons.Filter,
+            icon: 'checklist',
             onclick: () => addNode(createSelectNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -906,7 +958,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           }),
           m(MenuItem, {
             label: 'Filter',
-            icon: Icons.Filter,
+            icon: 'filter_alt',
             onclick: () => addNode(createFilterNode, toNode),
             style: {
               borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
@@ -971,7 +1023,10 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             canDockTop: config.canDockTop,
             accentBar: attrs.accentBars,
             titleBar: attrs.titleBars
-              ? {title: tempNode.type.toUpperCase()}
+              ? {
+                  title: tempNode.type.toUpperCase(),
+                  icon: attrs.headerIcons ? config.icon : undefined,
+                }
               : undefined,
             hue: attrs.colors ? config.hue : undefined,
             contextMenuItems: attrs.contextMenus
@@ -1038,7 +1093,10 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: nodeData.type.toUpperCase()}
+            ? {
+                title: nodeData.type.toUpperCase(),
+                icon: attrs.headerIcons ? config.icon : undefined,
+              }
             : undefined,
           hue: attrs.colors ? config.hue : undefined,
           contextMenuItems: attrs.contextMenus
@@ -1071,7 +1129,10 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           next: nextModel ? renderChildNode(nextModel) : undefined,
           accentBar: attrs.accentBars,
           titleBar: attrs.titleBars
-            ? {title: nodeData.type.toUpperCase()}
+            ? {
+                title: nodeData.type.toUpperCase(),
+                icon: attrs.headerIcons ? config.icon : undefined,
+              }
             : undefined,
           hue: attrs.colors ? config.hue : undefined,
           contextMenuItems: attrs.contextMenus
@@ -1095,23 +1156,12 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
       const nodeGraphAttrs: NodeGraphAttrs = {
         toolbarItems: [
-          m(Button, {
-            label: 'Undo',
-            icon: 'undo',
-            disabled: !canUndo(),
-            onclick: undo,
-          }),
-          m(Button, {
-            label: 'Redo',
-            icon: 'redo',
-            disabled: !canRedo(),
-            onclick: redo,
-          }),
           m(
             PopupMenu,
             {
               trigger: m(Button, {
                 label: 'Add Node',
+                title: 'Add a new node to the graph',
                 icon: 'add',
                 variant: ButtonVariant.Filled,
               }),
@@ -1127,7 +1177,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Select',
-                icon: Icons.Filter,
+                icon: 'checklist',
                 onclick: () => addNode(createSelectNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
@@ -1135,7 +1185,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
               m(MenuItem, {
                 label: 'Filter',
-                icon: Icons.Filter,
+                icon: 'filter_alt',
                 onclick: () => addNode(createFilterNode),
                 style: {
                   borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
@@ -1175,13 +1225,45 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
             ],
           ),
-          m(Button, {
-            label: 'Stress Test',
-            icon: 'science',
-            variant: ButtonVariant.Filled,
-            title: 'Generate a large random graph for performance testing',
-            onclick: () => runStressTest(),
-          }),
+          m(
+            ButtonGroup,
+            m(Button, {
+              icon: 'undo',
+              title: 'Undo',
+              disabled: !canUndo(),
+              variant: ButtonVariant.Filled,
+              onclick: undo,
+            }),
+            m(Button, {
+              icon: 'redo',
+              title: 'Redo',
+              disabled: !canRedo(),
+              variant: ButtonVariant.Filled,
+              onclick: redo,
+            }),
+          ),
+          m(
+            ButtonGroup,
+            m(Button, {
+              title:
+                'Add a large number of random nodes and connections for performance testing',
+              icon: 'science',
+              variant: ButtonVariant.Filled,
+              onclick: () => runStressTest(),
+            }),
+            m(Button, {
+              title: 'Remove all nodes from the graph',
+              icon: 'delete',
+              variant: ButtonVariant.Filled,
+              onclick: () => {
+                updateStore((draft) => {
+                  draft.nodes.clear();
+                  draft.connections.length = 0;
+                });
+                selectedNodeIds.clear();
+              },
+            }),
+          ),
         ],
         nodes: renderNodes(),
         connections: store.connections,
@@ -1321,8 +1403,9 @@ export function renderNodeGraph() {
       renderWidget: (opts) => m(NodeGraphDemo, opts),
       initialOpts: {
         multiselect: true,
-        accentBars: true,
-        titleBars: false,
+        accentBars: false,
+        titleBars: true,
+        headerIcons: true,
         colors: true,
         contextMenus: true,
         contextMenuOnHover: false,

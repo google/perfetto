@@ -490,5 +490,181 @@ TEST(BitVectorTest, ResizeAcrossWordBoundary) {
   }
 }
 
+// Helper: build a BitVector from a string of '0' and '1' characters.
+BitVector BvFromStr(const char* s) {
+  BitVector bv;
+  for (; *s; ++s) {
+    bv.push_back(*s == '1');
+  }
+  return bv;
+}
+
+// Helper: convert a BitVector to a string of '0' and '1' characters.
+std::string BvToStr(const BitVector& bv) {
+  std::string s;
+  for (uint64_t i = 0; i < bv.size(); ++i) {
+    s += bv.is_set(i) ? '1' : '0';
+  }
+  return s;
+}
+
+TEST(BitVectorTest, CompactEmpty) {
+  auto bv = BvFromStr("");
+  auto keep = BvFromStr("");
+  auto result = std::move(bv).Compact(keep);
+  EXPECT_EQ(result.size(), 0u);
+}
+
+TEST(BitVectorTest, CompactKeepAll) {
+  auto bv = BvFromStr("10110");
+  auto keep = BvFromStr("11111");
+  EXPECT_EQ(BvToStr(std::move(bv).Compact(keep)), "10110");
+}
+
+TEST(BitVectorTest, CompactKeepNone) {
+  auto bv = BvFromStr("10110");
+  auto keep = BvFromStr("00000");
+  auto result = std::move(bv).Compact(keep);
+  EXPECT_EQ(result.size(), 0u);
+}
+
+TEST(BitVectorTest, CompactKeepSome) {
+  // bv:   1 0 1 1 0
+  // keep: 1 0 0 1 1
+  // kept positions: 0, 3, 4 → values: 1, 1, 0
+  auto bv = BvFromStr("10110");
+  auto keep = BvFromStr("10011");
+  EXPECT_EQ(BvToStr(std::move(bv).Compact(keep)), "110");
+}
+
+TEST(BitVectorTest, CompactKeepFirst) {
+  auto bv = BvFromStr("10110");
+  auto keep = BvFromStr("10000");
+  EXPECT_EQ(BvToStr(std::move(bv).Compact(keep)), "1");
+}
+
+TEST(BitVectorTest, CompactKeepLast) {
+  auto bv = BvFromStr("10111");
+  auto keep = BvFromStr("00001");
+  EXPECT_EQ(BvToStr(std::move(bv).Compact(keep)), "1");
+}
+
+TEST(BitVectorTest, CompactSingleWord) {
+  // 64-bit word, keep every other bit.
+  auto bv = BitVector::CreateWithSize(64, false);
+  auto keep = BitVector::CreateWithSize(64, false);
+  // bv: bits 0,2,4,...,62 are set (even positions)
+  // keep: bits 0,1,2,...,31 are set (first half)
+  for (uint32_t i = 0; i < 64; i += 2) {
+    bv.set(i);
+  }
+  for (uint32_t i = 0; i < 32; ++i) {
+    keep.set(i);
+  }
+  // Kept positions 0..31. At even positions bv=1, at odd bv=0.
+  // Result should be 16 bits: alternating 1,0,1,0,...
+  auto result = std::move(bv).Compact(keep);
+  EXPECT_EQ(result.size(), 32u);
+  for (uint32_t i = 0; i < 32; ++i) {
+    EXPECT_EQ(result.is_set(i), (i % 2 == 0)) << "bit " << i;
+  }
+}
+
+TEST(BitVectorTest, CompactCrossWordBoundary) {
+  // 128 bits: set bits at positions 63 and 64 (word boundary).
+  // Keep only those two positions.
+  auto bv = BitVector::CreateWithSize(128, false);
+  auto keep = BitVector::CreateWithSize(128, false);
+  bv.set(63);
+  bv.set(64);
+  keep.set(63);
+  keep.set(64);
+  auto result = std::move(bv).Compact(keep);
+  EXPECT_EQ(result.size(), 2u);
+  EXPECT_TRUE(result.is_set(0));
+  EXPECT_TRUE(result.is_set(1));
+}
+
+TEST(BitVectorTest, CompactWordBoundarySpillover) {
+  // Create a scenario where PEXT output from one word spills into the next
+  // output word. 128 bits, keep all 64 bits of first word (fills output word
+  // completely) plus some from second word.
+  auto bv = BitVector::CreateWithSize(128, true);  // all 1s
+  auto keep = BitVector::CreateWithSize(128, false);
+  // Keep all 64 bits of first word.
+  for (uint32_t i = 0; i < 64; ++i) {
+    keep.set(i);
+  }
+  // Keep 10 bits of second word.
+  for (uint32_t i = 64; i < 74; ++i) {
+    keep.set(i);
+  }
+  auto result = std::move(bv).Compact(keep);
+  EXPECT_EQ(result.size(), 74u);
+  // All kept bits were 1, so result should be all 1s.
+  for (uint32_t i = 0; i < 74; ++i) {
+    EXPECT_TRUE(result.is_set(i)) << "bit " << i;
+  }
+}
+
+TEST(BitVectorTest, CompactLargeAlternating) {
+  // 256 bits: bv has all bits set, keep has alternating bits.
+  // Result should be 128 bits, all set.
+  auto bv = BitVector::CreateWithSize(256, true);
+  auto keep = BitVector::CreateWithSize(256, false);
+  for (uint32_t i = 0; i < 256; i += 2) {
+    keep.set(i);
+  }
+  auto result = std::move(bv).Compact(keep);
+  EXPECT_EQ(result.size(), 128u);
+  for (uint32_t i = 0; i < 128; ++i) {
+    EXPECT_TRUE(result.is_set(i)) << "bit " << i;
+  }
+}
+
+TEST(BitVectorTest, CompactLargeSelectPattern) {
+  // 200 bits. bv = alternating 1010..., keep = every 3rd bit.
+  // Verify against naive reference implementation.
+  auto bv = BitVector::CreateWithSize(200, false);
+  auto keep = BitVector::CreateWithSize(200, false);
+  for (uint32_t i = 0; i < 200; i += 2) {
+    bv.set(i);
+  }
+  for (uint32_t i = 0; i < 200; i += 3) {
+    keep.set(i);
+  }
+
+  // Naive reference: collect bv[i] for each i where keep[i] is set.
+  std::vector<bool> expected;
+  for (uint32_t i = 0; i < 200; ++i) {
+    if (keep.is_set(i)) {
+      expected.push_back(bv.is_set(i));
+    }
+  }
+
+  auto result = std::move(bv).Compact(keep);
+  ASSERT_EQ(result.size(), static_cast<uint64_t>(expected.size()));
+  for (uint32_t i = 0; i < expected.size(); ++i) {
+    EXPECT_EQ(result.is_set(i), expected[i]) << "bit " << i;
+  }
+}
+
+TEST(BitVectorTest, CompactNonAlignedSize) {
+  // Size that doesn't align to 64: 100 bits.
+  auto bv = BitVector::CreateWithSize(100, false);
+  auto keep = BitVector::CreateWithSize(100, false);
+  // Set bits 0, 50, 99 in bv.
+  bv.set(0);
+  bv.set(50);
+  bv.set(99);
+  // Keep bits 0, 50, 60, 99.
+  keep.set(0);
+  keep.set(50);
+  keep.set(60);
+  keep.set(99);
+  // Expected: bv[0]=1, bv[50]=1, bv[60]=0, bv[99]=1 → "1101"
+  EXPECT_EQ(BvToStr(std::move(bv).Compact(keep)), "1101");
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core

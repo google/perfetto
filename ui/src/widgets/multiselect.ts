@@ -24,10 +24,15 @@ import {Intent} from './common';
 export interface MultiSelectOption {
   // The ID is used to indentify this option, and is used in callbacks.
   id: string;
-  // This is the name displayed and used for searching.
+  // This is the name used for searching, and displayed if `label` is not
+  // provided.
   name: string;
   // Whether the option is selected or not.
   checked: boolean;
+  // If provided, this is used as checkbox the label.
+  label?: m.Children;
+  // Optional details that are shown on hover.
+  details?: string;
 }
 
 export interface MultiSelectDiff {
@@ -214,15 +219,16 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     const {onChange = () => {}} = attrs;
 
     return options.map((item) => {
-      const {checked, name, id} = item;
+      const {checked, name, label, details, id} = item;
       return m(Checkbox, {
-        label: name,
+        label: label != undefined ? label : name,
         key: id, // Prevents transitions jumping between items when searching
         checked,
         className: 'pf-multiselect-item',
         onchange: () => {
           onChange([{id, checked: !checked}]);
         },
+        title: details,
       });
     });
   }

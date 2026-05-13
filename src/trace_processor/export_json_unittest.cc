@@ -16,9 +16,6 @@
 
 #include "perfetto/ext/trace_processor/export_json.h"
 
-#include <json/config.h>
-#include <json/reader.h>
-#include <json/value.h>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -31,6 +28,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -54,6 +52,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/json_value.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::json {
@@ -120,14 +119,10 @@ class ExportJsonTest : public ::testing::Test {
     return writer.TakeStr();
   }
 
-  static Json::Value ToJsonValue(const std::string& json) {
-    Json::CharReaderBuilder b;
-    auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
-    Json::Value result;
-    EXPECT_TRUE(reader->parse(json.data(), json.data() + json.length(), &result,
-                              nullptr))
-        << json;
-    return result;
+  static Dom ToJsonValue(const std::string& json) {
+    base::StatusOr<Dom> result = Parse(json);
+    EXPECT_TRUE(result.ok()) << json;
+    return std::move(*result);
   }
 
  protected:
@@ -141,7 +136,7 @@ TEST_F(ExportJsonTest, EmptyStorage) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 0u);
 }
 
@@ -173,22 +168,22 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "X");
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["dur"].asInt64(), kDuration / 1000);
-  EXPECT_EQ(event["tts"].asInt64(), kThreadTimestamp / 1000);
-  EXPECT_EQ(event["tdur"].asInt64(), kThreadDuration / 1000);
-  EXPECT_EQ(event["ticount"].asInt64(), kThreadInstructionCount);
-  EXPECT_EQ(event["tidelta"].asInt64(), kThreadInstructionDelta);
-  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_TRUE(event["args"].isObject());
-  EXPECT_EQ(event["args"].size(), 0u) << event["args"].toStyledString();
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), "X");
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["dur"].AsInt64(), kDuration / 1000);
+  EXPECT_EQ(event["tts"].AsInt64(), kThreadTimestamp / 1000);
+  EXPECT_EQ(event["tdur"].AsInt64(), kThreadDuration / 1000);
+  EXPECT_EQ(event["ticount"].AsInt64(), kThreadInstructionCount);
+  EXPECT_EQ(event["tidelta"].AsInt64(), kThreadInstructionDelta);
+  EXPECT_EQ(event["tid"].AsInt(), static_cast<int>(kThreadID));
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
+  EXPECT_TRUE(event["args"].IsObject());
+  EXPECT_EQ(event["args"].size(), 0u) << Serialize(event["args"]);
 }
 
 TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
@@ -218,21 +213,21 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "B");
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_FALSE(event.isMember("dur"));
-  EXPECT_EQ(event["tts"].asInt64(), kThreadTimestamp / 1000);
-  EXPECT_FALSE(event.isMember("tdur"));
-  EXPECT_EQ(event["ticount"].asInt64(), kThreadInstructionCount);
-  EXPECT_FALSE(event.isMember("tidelta"));
-  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_TRUE(event["args"].isObject());
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), "B");
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_FALSE(event.HasMember("dur"));
+  EXPECT_EQ(event["tts"].AsInt64(), kThreadTimestamp / 1000);
+  EXPECT_FALSE(event.HasMember("tdur"));
+  EXPECT_EQ(event["ticount"].AsInt64(), kThreadInstructionCount);
+  EXPECT_FALSE(event.HasMember("tidelta"));
+  EXPECT_EQ(event["tid"].AsInt(), static_cast<int>(kThreadID));
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
+  EXPECT_TRUE(event["args"].IsObject());
   EXPECT_EQ(event["args"].size(), 0u);
 }
 
@@ -250,14 +245,14 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "M");
-  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(event["name"].asString(), "thread_name");
-  EXPECT_EQ(event["args"]["name"].asString(), kName);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), "M");
+  EXPECT_EQ(event["tid"].AsInt(), static_cast<int>(kThreadID));
+  EXPECT_EQ(event["name"].AsString(), "thread_name");
+  EXPECT_EQ(event["args"]["name"].AsString(), kName);
 }
 
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
@@ -279,7 +274,7 @@ TEST_F(ExportJsonTest, SystemEventsIgnored) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 0u);
 }
 
@@ -354,38 +349,38 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
 
-  EXPECT_TRUE(result.isMember("metadata"));
-  EXPECT_TRUE(result["metadata"].isMember("telemetry"));
-  Json::Value telemetry_metadata = result["metadata"]["telemetry"];
+  EXPECT_TRUE(result.HasMember("metadata"));
+  EXPECT_TRUE(result["metadata"].HasMember("telemetry"));
+  const auto& telemetry_metadata = result["metadata"]["telemetry"];
 
   EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"].size(), 1u);
-  EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"][0].asString(),
+  EXPECT_EQ(telemetry_metadata["benchmarkDescriptions"][0].AsString(),
             kDescription);
 
   EXPECT_EQ(telemetry_metadata["benchmarks"].size(), 1u);
-  EXPECT_EQ(telemetry_metadata["benchmarks"][0].asString(), kBenchmarkName);
+  EXPECT_EQ(telemetry_metadata["benchmarks"][0].AsString(), kBenchmarkName);
 
   EXPECT_EQ(telemetry_metadata["stories"].size(), 1u);
-  EXPECT_EQ(telemetry_metadata["stories"][0].asString(), kStoryName);
+  EXPECT_EQ(telemetry_metadata["stories"][0].AsString(), kStoryName);
 
   EXPECT_EQ(telemetry_metadata["storyTags"].size(), 2u);
-  EXPECT_EQ(telemetry_metadata["storyTags"][0].asString(), kStoryTag1);
-  EXPECT_EQ(telemetry_metadata["storyTags"][1].asString(), kStoryTag2);
+  EXPECT_EQ(telemetry_metadata["storyTags"][0].AsString(), kStoryTag1);
+  EXPECT_EQ(telemetry_metadata["storyTags"][1].AsString(), kStoryTag2);
 
-  EXPECT_DOUBLE_EQ(telemetry_metadata["benchmarkStart"].asInt(),
+  EXPECT_DOUBLE_EQ(telemetry_metadata["benchmarkStart"].AsInt(),
                    kBenchmarkStart / 1000.0);
 
-  EXPECT_DOUBLE_EQ(telemetry_metadata["traceStart"].asInt(),
+  EXPECT_DOUBLE_EQ(telemetry_metadata["traceStart"].AsInt(),
                    kStoryStart / 1000.0);
 
   EXPECT_EQ(telemetry_metadata["hadFailures"].size(), 1u);
-  EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
+  EXPECT_EQ(telemetry_metadata["hadFailures"][0].AsBool(), kHadFailures);
 
-  EXPECT_FALSE(result["metadata"].isMember(kDynamicKey));
+  EXPECT_FALSE(result["metadata"].HasMember(kDynamicKey));
 
-  EXPECT_EQ(result["metadata"]["trace-config"].asString(), kTraceConfig);
+  EXPECT_EQ(result["metadata"]["trace-config"].AsString(), kTraceConfig);
 }
 
 TEST_F(ExportJsonTest, StorageWithStats) {
@@ -407,18 +402,18 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   base::Status status = ExportJson(context_.storage.get(), output);
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
 
-  EXPECT_TRUE(result.isMember("metadata"));
-  EXPECT_TRUE(result["metadata"].isMember("trace_processor_stats"));
-  Json::Value stats = result["metadata"]["trace_processor_stats"];
+  EXPECT_TRUE(result.HasMember("metadata"));
+  EXPECT_TRUE(result["metadata"].HasMember("trace_processor_stats"));
+  const auto& stats = result["metadata"]["trace_processor_stats"];
 
-  EXPECT_EQ(stats["traced_producers_connected"].asInt(), kProducers);
+  EXPECT_EQ(stats["traced_producers_connected"].AsInt(), kProducers);
   EXPECT_EQ(stats["traced_buf"].size(), 2u);
-  EXPECT_EQ(stats["traced_buf"][0]["buffer_size"].asInt(), kBufferSize0);
-  EXPECT_EQ(stats["traced_buf"][1]["buffer_size"].asInt(), kBufferSize1);
+  EXPECT_EQ(stats["traced_buf"][0]["buffer_size"].AsInt(), kBufferSize0);
+  EXPECT_EQ(stats["traced_buf"][1]["buffer_size"].AsInt(), kBufferSize1);
   EXPECT_EQ(stats["ftrace_cpu_bytes_begin"].size(), 1u);
-  EXPECT_EQ(stats["ftrace_cpu_bytes_begin"][0].asInt(), kFtraceBegin);
+  EXPECT_EQ(stats["ftrace_cpu_bytes_begin"][0].AsInt(), kFtraceBegin);
 }
 
 TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
@@ -450,13 +445,13 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
   base::Status status = ExportJson(storage, output);
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
 
-  EXPECT_TRUE(result.isMember("metadata"));
-  Json::Value metadata = result["metadata"];
+  EXPECT_TRUE(result.HasMember("metadata"));
+  const auto& metadata = result["metadata"];
 
-  EXPECT_EQ(metadata[kName1].asString(), kValue1);
-  EXPECT_EQ(metadata[kName2].asInt(), kValue2);
+  EXPECT_EQ(metadata[kName1].AsString(), kValue1);
+  EXPECT_EQ(metadata[kName2].AsInt(), kValue2);
 }
 
 TEST_F(ExportJsonTest, StorageWithArgs) {
@@ -490,13 +485,13 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["args"]["src"].asString(), kSrc);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
+  EXPECT_EQ(event["args"]["src"].AsString(), kSrc);
 }
 
 TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
@@ -525,31 +520,31 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 4u);
 
-  Json::Value slice_out = result["traceEvents"][0];
-  Json::Value slice_in = result["traceEvents"][1];
-  Json::Value flow_out = result["traceEvents"][2];
-  Json::Value flow_in = result["traceEvents"][3];
+  const auto& slice_out = result["traceEvents"][0];
+  const auto& slice_in = result["traceEvents"][1];
+  const auto& flow_out = result["traceEvents"][2];
+  const auto& flow_in = result["traceEvents"][3];
 
-  EXPECT_EQ(flow_out["cat"].asString(), kCategory);
-  EXPECT_EQ(flow_out["name"].asString(), kName);
-  EXPECT_EQ(flow_out["ph"].asString(), "s");
-  EXPECT_EQ(flow_out["tid"].asString(), slice_out["tid"].asString());
-  EXPECT_EQ(flow_out["pid"].asString(), slice_out["pid"].asString());
+  EXPECT_EQ(flow_out["cat"].AsString(), kCategory);
+  EXPECT_EQ(flow_out["name"].AsString(), kName);
+  EXPECT_EQ(flow_out["ph"].AsString(), "s");
+  EXPECT_EQ(flow_out["tid"].AsString(), slice_out["tid"].AsString());
+  EXPECT_EQ(flow_out["pid"].AsString(), slice_out["pid"].AsString());
 
-  EXPECT_EQ(flow_in["cat"].asString(), kCategory);
-  EXPECT_EQ(flow_in["name"].asString(), kName);
-  EXPECT_EQ(flow_in["ph"].asString(), "f");
-  EXPECT_EQ(flow_in["bp"].asString(), "e");
-  EXPECT_EQ(flow_in["tid"].asString(), slice_in["tid"].asString());
-  EXPECT_EQ(flow_in["pid"].asString(), slice_in["pid"].asString());
+  EXPECT_EQ(flow_in["cat"].AsString(), kCategory);
+  EXPECT_EQ(flow_in["name"].AsString(), kName);
+  EXPECT_EQ(flow_in["ph"].AsString(), "f");
+  EXPECT_EQ(flow_in["bp"].AsString(), "e");
+  EXPECT_EQ(flow_in["tid"].AsString(), slice_in["tid"].AsString());
+  EXPECT_EQ(flow_in["pid"].AsString(), slice_in["pid"].AsString());
 
-  EXPECT_LE(slice_out["ts"].asInt64(), flow_out["ts"].asInt64());
-  EXPECT_GE(slice_in["ts"].asInt64(), flow_in["ts"].asInt64());
+  EXPECT_LE(slice_out["ts"].AsInt64(), flow_out["ts"].AsInt64());
+  EXPECT_GE(slice_in["ts"].AsInt64(), flow_in["ts"].AsInt64());
 
-  EXPECT_EQ(flow_out["id"].asString(), flow_in["id"].asString());
+  EXPECT_EQ(flow_out["id"].AsString(), flow_in["id"].AsString());
 }
 
 TEST_F(ExportJsonTest, StorageWithListArgs) {
@@ -589,15 +584,15 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
   EXPECT_EQ(event["args"]["draw_duration_ms"].size(), 2u);
-  EXPECT_DOUBLE_EQ(event["args"]["draw_duration_ms"][0].asDouble(), kValues[0]);
-  EXPECT_DOUBLE_EQ(event["args"]["draw_duration_ms"][1].asDouble(), kValues[1]);
+  EXPECT_DOUBLE_EQ(event["args"]["draw_duration_ms"][0].AsDouble(), kValues[0]);
+  EXPECT_DOUBLE_EQ(event["args"]["draw_duration_ms"][1].AsDouble(), kValues[1]);
 }
 
 TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
@@ -636,14 +631,14 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["args"]["arg0"].asString(), "0x1");
-  EXPECT_EQ(event["args"]["arg1"].asString(), "0xffffffffffffffff");
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
+  EXPECT_EQ(event["args"]["arg0"].AsString(), "0x1");
+  EXPECT_EQ(event["args"]["arg1"].AsString(), "0xffffffffffffffff");
 }
 
 TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
@@ -683,15 +678,15 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
   EXPECT_EQ(event["args"]["a"].size(), 2u);
-  EXPECT_EQ(event["args"]["a"][0]["b"].asInt(), kValues[0]);
-  EXPECT_EQ(event["args"]["a"][1]["b"].asInt(), kValues[1]);
+  EXPECT_EQ(event["args"]["a"][0]["b"].AsInt(), kValues[0]);
+  EXPECT_EQ(event["args"]["a"][1]["b"].AsInt(), kValues[1]);
 }
 
 TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
@@ -731,16 +726,16 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
   EXPECT_EQ(event["args"]["a"].size(), 1u);
   EXPECT_EQ(event["args"]["a"][0].size(), 2u);
-  EXPECT_EQ(event["args"]["a"][0][0].asInt(), kValues[0]);
-  EXPECT_EQ(event["args"]["a"][0][1].asInt(), kValues[1]);
+  EXPECT_EQ(event["args"]["a"][0][0].AsInt(), kValues[0]);
+  EXPECT_EQ(event["args"]["a"][0][1].AsInt(), kValues[1]);
 }
 
 TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
@@ -772,13 +767,13 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["args"]["a"]["b"].asInt(), 123);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
+  EXPECT_EQ(event["args"]["a"]["b"].AsInt(), 123);
 }
 
 TEST_F(ExportJsonTest, InstantEvent) {
@@ -824,29 +819,29 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 3u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "I");
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["s"].asString(), "g");
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), "I");
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["s"].AsString(), "g");
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
 
-  Json::Value event2 = result["traceEvents"][1];
-  EXPECT_EQ(event2["ph"].asString(), "I");
-  EXPECT_EQ(event2["ts"].asInt64(), kTimestamp2 / 1000);
-  EXPECT_EQ(event2["s"].asString(), "g");
-  EXPECT_EQ(event2["cat"].asString(), kCategory);
-  EXPECT_EQ(event2["name"].asString(), kName);
+  const auto& event2 = result["traceEvents"][1];
+  EXPECT_EQ(event2["ph"].AsString(), "I");
+  EXPECT_EQ(event2["ts"].AsInt64(), kTimestamp2 / 1000);
+  EXPECT_EQ(event2["s"].AsString(), "g");
+  EXPECT_EQ(event2["cat"].AsString(), kCategory);
+  EXPECT_EQ(event2["name"].AsString(), kName);
 
-  Json::Value event3 = result["traceEvents"][2];
-  EXPECT_EQ(event3["ph"].asString(), "n");
-  EXPECT_EQ(event3["ts"].asInt64(), kTimestamp3 / 1000);
-  EXPECT_EQ(event3["id"].asString(), "0x2");
-  EXPECT_EQ(event3["cat"].asString(), kCategory);
-  EXPECT_EQ(event3["name"].asString(), kName);
+  const auto& event3 = result["traceEvents"][2];
+  EXPECT_EQ(event3["ph"].AsString(), "n");
+  EXPECT_EQ(event3["ts"].AsInt64(), kTimestamp3 / 1000);
+  EXPECT_EQ(event3["id"].AsString(), "0x2");
+  EXPECT_EQ(event3["cat"].AsString(), kCategory);
+  EXPECT_EQ(event3["name"].AsString(), kName);
 }
 
 TEST_F(ExportJsonTest, InstantEventOnThread) {
@@ -869,16 +864,16 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(event["ph"].asString(), "I");
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["s"].asString(), "t");
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["tid"].AsInt(), static_cast<int>(kThreadID));
+  EXPECT_EQ(event["ph"].AsString(), "I");
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["s"].AsString(), "t");
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
 }
 
 TEST_F(ExportJsonTest, DuplicatePidAndTid) {
@@ -945,48 +940,48 @@ TEST_F(ExportJsonTest, DuplicatePidAndTid) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 5u);
 
-  EXPECT_EQ(result["traceEvents"][0]["pid"].asInt(), 1);
-  EXPECT_EQ(result["traceEvents"][0]["tid"].asInt(), 1);
-  EXPECT_EQ(result["traceEvents"][0]["ph"].asString(), "I");
-  EXPECT_EQ(result["traceEvents"][0]["ts"].asInt64(), 10);
-  EXPECT_EQ(result["traceEvents"][0]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][0]["name"].asString(), "name1a");
+  EXPECT_EQ(result["traceEvents"][0]["pid"].AsInt(), 1);
+  EXPECT_EQ(result["traceEvents"][0]["tid"].AsInt(), 1);
+  EXPECT_EQ(result["traceEvents"][0]["ph"].AsString(), "I");
+  EXPECT_EQ(result["traceEvents"][0]["ts"].AsInt64(), 10);
+  EXPECT_EQ(result["traceEvents"][0]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][0]["name"].AsString(), "name1a");
 
-  EXPECT_EQ(result["traceEvents"][1]["pid"].asInt(), 1);
-  EXPECT_EQ(result["traceEvents"][1]["tid"].asInt(), 2);
-  EXPECT_EQ(result["traceEvents"][1]["ph"].asString(), "X");
-  EXPECT_EQ(result["traceEvents"][1]["ts"].asInt64(), 20);
-  EXPECT_EQ(result["traceEvents"][1]["dur"].asInt64(), 1);
-  EXPECT_EQ(result["traceEvents"][1]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][1]["name"].asString(), "name1b");
+  EXPECT_EQ(result["traceEvents"][1]["pid"].AsInt(), 1);
+  EXPECT_EQ(result["traceEvents"][1]["tid"].AsInt(), 2);
+  EXPECT_EQ(result["traceEvents"][1]["ph"].AsString(), "X");
+  EXPECT_EQ(result["traceEvents"][1]["ts"].AsInt64(), 20);
+  EXPECT_EQ(result["traceEvents"][1]["dur"].AsInt64(), 1);
+  EXPECT_EQ(result["traceEvents"][1]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][1]["name"].AsString(), "name1b");
 
-  EXPECT_EQ(result["traceEvents"][2]["pid"].asInt(), 1);
-  EXPECT_EQ(result["traceEvents"][2]["tid"].asInt(),
+  EXPECT_EQ(result["traceEvents"][2]["pid"].AsInt(), 1);
+  EXPECT_EQ(result["traceEvents"][2]["tid"].AsInt(),
             static_cast<int>(std::numeric_limits<uint32_t>::max() - 1u));
-  EXPECT_EQ(result["traceEvents"][2]["ph"].asString(), "I");
-  EXPECT_EQ(result["traceEvents"][2]["ts"].asInt64(), 30);
-  EXPECT_EQ(result["traceEvents"][2]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][2]["name"].asString(), "name1c");
+  EXPECT_EQ(result["traceEvents"][2]["ph"].AsString(), "I");
+  EXPECT_EQ(result["traceEvents"][2]["ts"].AsInt64(), 30);
+  EXPECT_EQ(result["traceEvents"][2]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][2]["name"].AsString(), "name1c");
 
-  EXPECT_EQ(result["traceEvents"][3]["pid"].asInt(),
+  EXPECT_EQ(result["traceEvents"][3]["pid"].AsInt(),
             static_cast<int>(std::numeric_limits<uint32_t>::max()));
-  EXPECT_EQ(result["traceEvents"][3]["tid"].asInt(), 1);
-  EXPECT_EQ(result["traceEvents"][3]["ph"].asString(), "I");
-  EXPECT_EQ(result["traceEvents"][3]["ts"].asInt64(), 40);
-  EXPECT_EQ(result["traceEvents"][3]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][3]["name"].asString(), "name2a");
+  EXPECT_EQ(result["traceEvents"][3]["tid"].AsInt(), 1);
+  EXPECT_EQ(result["traceEvents"][3]["ph"].AsString(), "I");
+  EXPECT_EQ(result["traceEvents"][3]["ts"].AsInt64(), 40);
+  EXPECT_EQ(result["traceEvents"][3]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][3]["name"].AsString(), "name2a");
 
-  EXPECT_EQ(result["traceEvents"][4]["pid"].asInt(),
+  EXPECT_EQ(result["traceEvents"][4]["pid"].AsInt(),
             static_cast<int>(std::numeric_limits<uint32_t>::max()));
-  EXPECT_EQ(result["traceEvents"][4]["tid"].asInt(), 2);
-  EXPECT_EQ(result["traceEvents"][4]["ph"].asString(), "X");
-  EXPECT_EQ(result["traceEvents"][4]["ts"].asInt64(), 50);
-  EXPECT_EQ(result["traceEvents"][1]["dur"].asInt64(), 1);
-  EXPECT_EQ(result["traceEvents"][4]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][4]["name"].asString(), "name2b");
+  EXPECT_EQ(result["traceEvents"][4]["tid"].AsInt(), 2);
+  EXPECT_EQ(result["traceEvents"][4]["ph"].AsString(), "X");
+  EXPECT_EQ(result["traceEvents"][4]["ts"].AsInt64(), 50);
+  EXPECT_EQ(result["traceEvents"][1]["dur"].AsInt64(), 1);
+  EXPECT_EQ(result["traceEvents"][4]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][4]["name"].AsString(), "name2b");
 }
 
 TEST_F(ExportJsonTest, AsyncEvents) {
@@ -1057,82 +1052,82 @@ TEST_F(ExportJsonTest, AsyncEvents) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 6u);
 
   // Events should be sorted by timestamp, with child slice's end before its
   // parent.
 
-  Json::Value begin_event1 = result["traceEvents"][0];
-  EXPECT_EQ(begin_event1["ph"].asString(), "b");
-  EXPECT_EQ(begin_event1["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event1["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(begin_event1["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(begin_event1["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event1["name"].asString(), kName);
-  EXPECT_EQ(begin_event1["args"][kArgName].asInt(), kArgValue);
-  EXPECT_FALSE(begin_event1.isMember("tts"));
-  EXPECT_FALSE(begin_event1.isMember("use_async_tts"));
+  const auto& begin_event1 = result["traceEvents"][0];
+  EXPECT_EQ(begin_event1["ph"].AsString(), "b");
+  EXPECT_EQ(begin_event1["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event1["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event1["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(begin_event1["cat"].AsString(), kCategory);
+  EXPECT_EQ(begin_event1["name"].AsString(), kName);
+  EXPECT_EQ(begin_event1["args"][kArgName].AsInt(), kArgValue);
+  EXPECT_FALSE(begin_event1.HasMember("tts"));
+  EXPECT_FALSE(begin_event1.HasMember("use_async_tts"));
 
-  Json::Value begin_event2 = result["traceEvents"][1];
-  EXPECT_EQ(begin_event2["ph"].asString(), "b");
-  EXPECT_EQ(begin_event2["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event2["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(begin_event2["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(begin_event2["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event2["name"].asString(), kName2);
-  EXPECT_TRUE(begin_event2["args"].isObject());
+  const auto& begin_event2 = result["traceEvents"][1];
+  EXPECT_EQ(begin_event2["ph"].AsString(), "b");
+  EXPECT_EQ(begin_event2["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event2["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event2["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(begin_event2["cat"].AsString(), kCategory);
+  EXPECT_EQ(begin_event2["name"].AsString(), kName2);
+  EXPECT_TRUE(begin_event2["args"].IsObject());
   EXPECT_EQ(begin_event2["args"].size(), 0u);
-  EXPECT_FALSE(begin_event2.isMember("tts"));
-  EXPECT_FALSE(begin_event2.isMember("use_async_tts"));
+  EXPECT_FALSE(begin_event2.HasMember("tts"));
+  EXPECT_FALSE(begin_event2.HasMember("use_async_tts"));
 
-  Json::Value begin_event3 = result["traceEvents"][2];
-  EXPECT_EQ(begin_event3["ph"].asString(), "b");
-  EXPECT_EQ(begin_event3["ts"].asInt64(), kTimestamp3 / 1000);
-  EXPECT_EQ(begin_event3["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(begin_event3["id2"]["local"].asString(), "0xec");
-  EXPECT_EQ(begin_event3["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event3["name"].asString(), kName3);
-  EXPECT_TRUE(begin_event3["args"].isObject());
+  const auto& begin_event3 = result["traceEvents"][2];
+  EXPECT_EQ(begin_event3["ph"].AsString(), "b");
+  EXPECT_EQ(begin_event3["ts"].AsInt64(), kTimestamp3 / 1000);
+  EXPECT_EQ(begin_event3["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event3["id2"]["local"].AsString(), "0xec");
+  EXPECT_EQ(begin_event3["cat"].AsString(), kCategory);
+  EXPECT_EQ(begin_event3["name"].AsString(), kName3);
+  EXPECT_TRUE(begin_event3["args"].IsObject());
   EXPECT_EQ(begin_event3["args"].size(), 0u);
-  EXPECT_FALSE(begin_event3.isMember("tts"));
-  EXPECT_FALSE(begin_event3.isMember("use_async_tts"));
+  EXPECT_FALSE(begin_event3.HasMember("tts"));
+  EXPECT_FALSE(begin_event3.HasMember("use_async_tts"));
 
-  Json::Value end_event2 = result["traceEvents"][3];
-  EXPECT_EQ(end_event2["ph"].asString(), "e");
-  EXPECT_EQ(end_event2["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event2["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(end_event2["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(end_event2["cat"].asString(), kCategory);
-  EXPECT_EQ(end_event2["name"].asString(), kName2);
-  EXPECT_TRUE(end_event2["args"].isObject());
+  const auto& end_event2 = result["traceEvents"][3];
+  EXPECT_EQ(end_event2["ph"].AsString(), "e");
+  EXPECT_EQ(end_event2["ts"].AsInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event2["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event2["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(end_event2["cat"].AsString(), kCategory);
+  EXPECT_EQ(end_event2["name"].AsString(), kName2);
+  EXPECT_TRUE(end_event2["args"].IsObject());
   EXPECT_EQ(end_event2["args"].size(), 0u);
-  EXPECT_FALSE(end_event2.isMember("tts"));
-  EXPECT_FALSE(end_event2.isMember("use_async_tts"));
+  EXPECT_FALSE(end_event2.HasMember("tts"));
+  EXPECT_FALSE(end_event2.HasMember("use_async_tts"));
 
-  Json::Value end_event1 = result["traceEvents"][4];
-  EXPECT_EQ(end_event1["ph"].asString(), "e");
-  EXPECT_EQ(end_event1["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event1["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(end_event1["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(end_event1["cat"].asString(), kCategory);
-  EXPECT_EQ(end_event1["name"].asString(), kName);
-  EXPECT_TRUE(end_event1["args"].isObject());
+  const auto& end_event1 = result["traceEvents"][4];
+  EXPECT_EQ(end_event1["ph"].AsString(), "e");
+  EXPECT_EQ(end_event1["ts"].AsInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event1["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event1["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(end_event1["cat"].AsString(), kCategory);
+  EXPECT_EQ(end_event1["name"].AsString(), kName);
+  EXPECT_TRUE(end_event1["args"].IsObject());
   EXPECT_EQ(end_event1["args"].size(), 0u);
-  EXPECT_FALSE(end_event1.isMember("tts"));
-  EXPECT_FALSE(end_event1.isMember("use_async_tts"));
+  EXPECT_FALSE(end_event1.HasMember("tts"));
+  EXPECT_FALSE(end_event1.HasMember("use_async_tts"));
 
-  Json::Value end_event3 = result["traceEvents"][5];
-  EXPECT_EQ(end_event3["ph"].asString(), "e");
-  EXPECT_EQ(end_event3["ts"].asInt64(), (kTimestamp3 + kDuration3) / 1000);
-  EXPECT_EQ(end_event3["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(end_event3["id2"]["local"].asString(), "0xec");
-  EXPECT_EQ(end_event3["cat"].asString(), kCategory);
-  EXPECT_EQ(end_event3["name"].asString(), kName3);
-  EXPECT_TRUE(end_event3["args"].isObject());
+  const auto& end_event3 = result["traceEvents"][5];
+  EXPECT_EQ(end_event3["ph"].AsString(), "e");
+  EXPECT_EQ(end_event3["ts"].AsInt64(), (kTimestamp3 + kDuration3) / 1000);
+  EXPECT_EQ(end_event3["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event3["id2"]["local"].AsString(), "0xec");
+  EXPECT_EQ(end_event3["cat"].AsString(), kCategory);
+  EXPECT_EQ(end_event3["name"].AsString(), kName3);
+  EXPECT_TRUE(end_event3["args"].IsObject());
   EXPECT_EQ(end_event3["args"].size(), 0u);
-  EXPECT_FALSE(end_event3.isMember("tts"));
-  EXPECT_FALSE(end_event3.isMember("use_async_tts"));
+  EXPECT_FALSE(end_event3.HasMember("tts"));
+  EXPECT_FALSE(end_event3.HasMember("use_async_tts"));
 }
 
 TEST_F(ExportJsonTest, LegacyAsyncEvents) {
@@ -1220,71 +1215,71 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 5u);
 
   // Events should be sorted by timestamp, with child slice's end before its
   // parent.
 
-  Json::Value begin_event1 = result["traceEvents"][0];
-  EXPECT_EQ(begin_event1["ph"].asString(), "S");
-  EXPECT_EQ(begin_event1["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event1["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(begin_event1["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(begin_event1["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event1["name"].asString(), kName);
-  EXPECT_FALSE(begin_event1.isMember("tts"));
-  EXPECT_FALSE(begin_event1.isMember("use_async_tts"));
+  const auto& begin_event1 = result["traceEvents"][0];
+  EXPECT_EQ(begin_event1["ph"].AsString(), "S");
+  EXPECT_EQ(begin_event1["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event1["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event1["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(begin_event1["cat"].AsString(), kCategory);
+  EXPECT_EQ(begin_event1["name"].AsString(), kName);
+  EXPECT_FALSE(begin_event1.HasMember("tts"));
+  EXPECT_FALSE(begin_event1.HasMember("use_async_tts"));
   EXPECT_EQ(begin_event1["args"].size(), 1u);
-  EXPECT_EQ(begin_event1["args"]["arg1"].asString(), "value1");
+  EXPECT_EQ(begin_event1["args"]["arg1"].AsString(), "value1");
 
-  Json::Value step_event = result["traceEvents"][1];
-  EXPECT_EQ(step_event["ph"].asString(), "T");
-  EXPECT_EQ(step_event["ts"].asInt64(), kTimestamp2 / 1000);
-  EXPECT_EQ(step_event["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(step_event["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(step_event["cat"].asString(), kCategory);
-  EXPECT_EQ(step_event["name"].asString(), kName2);
-  EXPECT_TRUE(step_event["args"].isObject());
+  const auto& step_event = result["traceEvents"][1];
+  EXPECT_EQ(step_event["ph"].AsString(), "T");
+  EXPECT_EQ(step_event["ts"].AsInt64(), kTimestamp2 / 1000);
+  EXPECT_EQ(step_event["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(step_event["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(step_event["cat"].AsString(), kCategory);
+  EXPECT_EQ(step_event["name"].AsString(), kName2);
+  EXPECT_TRUE(step_event["args"].IsObject());
   EXPECT_EQ(step_event["args"].size(), 2u);
-  EXPECT_EQ(step_event["args"]["arg2"].asString(), "value2");
-  EXPECT_EQ(step_event["args"]["step"].asString(), "Step1");
+  EXPECT_EQ(step_event["args"]["arg2"].AsString(), "value2");
+  EXPECT_EQ(step_event["args"]["step"].AsString(), "Step1");
 
-  Json::Value begin_event2 = result["traceEvents"][2];
-  EXPECT_EQ(begin_event2["ph"].asString(), "S");
-  EXPECT_EQ(begin_event2["ts"].asInt64(), kTimestamp3 / 1000);
-  EXPECT_EQ(begin_event2["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(begin_event2["id2"]["local"].asString(), "0xec");
-  EXPECT_EQ(begin_event2["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event2["name"].asString(), kName3);
-  EXPECT_TRUE(begin_event2["args"].isObject());
+  const auto& begin_event2 = result["traceEvents"][2];
+  EXPECT_EQ(begin_event2["ph"].AsString(), "S");
+  EXPECT_EQ(begin_event2["ts"].AsInt64(), kTimestamp3 / 1000);
+  EXPECT_EQ(begin_event2["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event2["id2"]["local"].AsString(), "0xec");
+  EXPECT_EQ(begin_event2["cat"].AsString(), kCategory);
+  EXPECT_EQ(begin_event2["name"].AsString(), kName3);
+  EXPECT_TRUE(begin_event2["args"].IsObject());
   EXPECT_EQ(begin_event2["args"].size(), 0u);
-  EXPECT_FALSE(begin_event2.isMember("tts"));
-  EXPECT_FALSE(begin_event2.isMember("use_async_tts"));
+  EXPECT_FALSE(begin_event2.HasMember("tts"));
+  EXPECT_FALSE(begin_event2.HasMember("use_async_tts"));
 
-  Json::Value end_event1 = result["traceEvents"][3];
-  EXPECT_EQ(end_event1["ph"].asString(), "F");
-  EXPECT_EQ(end_event1["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event1["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(end_event1["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(end_event1["cat"].asString(), kCategory);
-  EXPECT_EQ(end_event1["name"].asString(), kName);
-  EXPECT_TRUE(end_event1["args"].isObject());
+  const auto& end_event1 = result["traceEvents"][3];
+  EXPECT_EQ(end_event1["ph"].AsString(), "F");
+  EXPECT_EQ(end_event1["ts"].AsInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event1["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event1["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(end_event1["cat"].AsString(), kCategory);
+  EXPECT_EQ(end_event1["name"].AsString(), kName);
+  EXPECT_TRUE(end_event1["args"].IsObject());
   EXPECT_EQ(end_event1["args"].size(), 0u);
-  EXPECT_FALSE(end_event1.isMember("tts"));
-  EXPECT_FALSE(end_event1.isMember("use_async_tts"));
+  EXPECT_FALSE(end_event1.HasMember("tts"));
+  EXPECT_FALSE(end_event1.HasMember("use_async_tts"));
 
-  Json::Value end_event3 = result["traceEvents"][4];
-  EXPECT_EQ(end_event3["ph"].asString(), "F");
-  EXPECT_EQ(end_event3["ts"].asInt64(), (kTimestamp3 + kDuration3) / 1000);
-  EXPECT_EQ(end_event3["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(end_event3["id2"]["local"].asString(), "0xec");
-  EXPECT_EQ(end_event3["cat"].asString(), kCategory);
-  EXPECT_EQ(end_event3["name"].asString(), kName3);
-  EXPECT_TRUE(end_event3["args"].isObject());
+  const auto& end_event3 = result["traceEvents"][4];
+  EXPECT_EQ(end_event3["ph"].AsString(), "F");
+  EXPECT_EQ(end_event3["ts"].AsInt64(), (kTimestamp3 + kDuration3) / 1000);
+  EXPECT_EQ(end_event3["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event3["id2"]["local"].AsString(), "0xec");
+  EXPECT_EQ(end_event3["cat"].AsString(), kCategory);
+  EXPECT_EQ(end_event3["name"].AsString(), kName3);
+  EXPECT_TRUE(end_event3["args"].IsObject());
   EXPECT_EQ(end_event3["args"].size(), 0u);
-  EXPECT_FALSE(end_event3.isMember("tts"));
-  EXPECT_FALSE(end_event3.isMember("use_async_tts"));
+  EXPECT_FALSE(end_event3.HasMember("tts"));
+  EXPECT_FALSE(end_event3.HasMember("use_async_tts"));
 }
 
 TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
@@ -1326,29 +1321,29 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 2u);
 
-  Json::Value begin_event = result["traceEvents"][0];
-  EXPECT_EQ(begin_event["ph"].asString(), "b");
-  EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
-  EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(begin_event["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(begin_event["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event["name"].asString(), kName);
+  const auto& begin_event = result["traceEvents"][0];
+  EXPECT_EQ(begin_event["ph"].AsString(), "b");
+  EXPECT_EQ(begin_event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event["tts"].AsInt64(), kThreadTimestamp / 1000);
+  EXPECT_EQ(begin_event["use_async_tts"].AsInt(), 1);
+  EXPECT_EQ(begin_event["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(begin_event["cat"].AsString(), kCategory);
+  EXPECT_EQ(begin_event["name"].AsString(), kName);
 
-  Json::Value end_event = result["traceEvents"][1];
-  EXPECT_EQ(end_event["ph"].asString(), "e");
-  EXPECT_EQ(end_event["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event["tts"].asInt64(),
+  const auto& end_event = result["traceEvents"][1];
+  EXPECT_EQ(end_event["ph"].AsString(), "e");
+  EXPECT_EQ(end_event["ts"].AsInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event["tts"].AsInt64(),
             (kThreadTimestamp + kThreadDuration) / 1000);
-  EXPECT_EQ(end_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(end_event["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(end_event["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(end_event["cat"].asString(), kCategory);
-  EXPECT_EQ(end_event["name"].asString(), kName);
+  EXPECT_EQ(end_event["use_async_tts"].AsInt(), 1);
+  EXPECT_EQ(end_event["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(end_event["cat"].AsString(), kCategory);
+  EXPECT_EQ(end_event["name"].AsString(), kName);
 }
 
 TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
@@ -1389,18 +1384,18 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value begin_event = result["traceEvents"][0];
-  EXPECT_EQ(begin_event["ph"].asString(), "b");
-  EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
-  EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(begin_event["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(begin_event["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event["name"].asString(), kName);
+  const auto& begin_event = result["traceEvents"][0];
+  EXPECT_EQ(begin_event["ph"].AsString(), "b");
+  EXPECT_EQ(begin_event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event["tts"].AsInt64(), kThreadTimestamp / 1000);
+  EXPECT_EQ(begin_event["use_async_tts"].AsInt(), 1);
+  EXPECT_EQ(begin_event["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(begin_event["cat"].AsString(), kCategory);
+  EXPECT_EQ(begin_event["name"].AsString(), kName);
 }
 
 TEST_F(ExportJsonTest, AsyncInstantEvent) {
@@ -1446,17 +1441,17 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "n");
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["pid"].asInt(), static_cast<int>(kProcessID));
-  EXPECT_EQ(event["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), "n");
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["pid"].AsInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(event["id2"]["local"].AsString(), "0xeb");
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
+  EXPECT_EQ(event["args"][kArgName].AsInt(), kArgValue);
 }
 
 TEST_F(ExportJsonTest, RawEvent) {
@@ -1531,24 +1526,24 @@ TEST_F(ExportJsonTest, RawEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), kPhase);
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["dur"].asInt64(), kDuration / 1000);
-  EXPECT_EQ(event["tts"].asInt64(), kThreadTimestamp / 1000);
-  EXPECT_EQ(event["tdur"].asInt64(), kThreadDuration / 1000);
-  EXPECT_EQ(event["ticount"].asInt64(), kThreadInstructionCount);
-  EXPECT_EQ(event["tidelta"].asInt64(), kThreadInstructionDelta);
-  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(event["cat"].asString(), kCategory);
-  EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_EQ(event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(event["id2"]["global"].asString(), "0xaaffaaffaaffaaff");
-  EXPECT_EQ(event["scope"].asString(), kIdScope);
-  EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), kPhase);
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["dur"].AsInt64(), kDuration / 1000);
+  EXPECT_EQ(event["tts"].AsInt64(), kThreadTimestamp / 1000);
+  EXPECT_EQ(event["tdur"].AsInt64(), kThreadDuration / 1000);
+  EXPECT_EQ(event["ticount"].AsInt64(), kThreadInstructionCount);
+  EXPECT_EQ(event["tidelta"].AsInt64(), kThreadInstructionDelta);
+  EXPECT_EQ(event["tid"].AsInt(), static_cast<int>(kThreadID));
+  EXPECT_EQ(event["cat"].AsString(), kCategory);
+  EXPECT_EQ(event["name"].AsString(), kName);
+  EXPECT_EQ(event["use_async_tts"].AsInt(), 1);
+  EXPECT_EQ(event["id2"]["global"].AsString(), "0xaaffaaffaaffaaff");
+  EXPECT_EQ(event["scope"].AsString(), kIdScope);
+  EXPECT_EQ(event["args"][kArgName].AsInt(), kArgValue);
 }
 
 TEST_F(ExportJsonTest, LegacyRawEvents) {
@@ -1588,12 +1583,12 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
 
   EXPECT_EQ(result["traceEvents"].size(), 2u);
-  EXPECT_EQ(result["traceEvents"][0]["user"].asInt(), 1);
-  EXPECT_EQ(result["traceEvents"][1]["user"].asInt(), 2);
-  EXPECT_EQ(result["systemTraceEvents"].asString(), kLegacyFtraceData);
+  EXPECT_EQ(result["traceEvents"][0]["user"].AsInt(), 1);
+  EXPECT_EQ(result["traceEvents"][1]["user"].AsInt(), 2);
+  EXPECT_EQ(result["systemTraceEvents"].AsString(), kLegacyFtraceData);
 }
 
 TEST_F(ExportJsonTest, ArgumentFilter) {
@@ -1646,24 +1641,24 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
     return true;
   };
 
-  Json::Value result = ToJsonValue(ToJson(arg_filter));
+  Dom result = ToJsonValue(ToJson(arg_filter));
 
   EXPECT_EQ(result["traceEvents"].size(), 3u);
 
-  EXPECT_EQ(result["traceEvents"][0]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][0]["name"].asString(), "name1");
-  EXPECT_EQ(result["traceEvents"][0]["args"].asString(), "__stripped__");
+  EXPECT_EQ(result["traceEvents"][0]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][0]["name"].AsString(), "name1");
+  EXPECT_EQ(result["traceEvents"][0]["args"].AsString(), "__stripped__");
 
-  EXPECT_EQ(result["traceEvents"][1]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][1]["name"].asString(), "name2");
-  EXPECT_EQ(result["traceEvents"][1]["args"]["arg1"].asInt(), 5);
-  EXPECT_EQ(result["traceEvents"][1]["args"]["arg2"].asString(),
+  EXPECT_EQ(result["traceEvents"][1]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][1]["name"].AsString(), "name2");
+  EXPECT_EQ(result["traceEvents"][1]["args"]["arg1"].AsInt(), 5);
+  EXPECT_EQ(result["traceEvents"][1]["args"]["arg2"].AsString(),
             "__stripped__");
 
-  EXPECT_EQ(result["traceEvents"][2]["cat"].asString(), "cat");
-  EXPECT_EQ(result["traceEvents"][2]["name"].asString(), "name3");
-  EXPECT_EQ(result["traceEvents"][2]["args"]["arg1"].asInt(), 5);
-  EXPECT_EQ(result["traceEvents"][2]["args"]["arg2"].asString(), "val");
+  EXPECT_EQ(result["traceEvents"][2]["cat"].AsString(), "cat");
+  EXPECT_EQ(result["traceEvents"][2]["name"].AsString(), "name3");
+  EXPECT_EQ(result["traceEvents"][2]["args"]["arg1"].AsInt(), 5);
+  EXPECT_EQ(result["traceEvents"][2]["args"]["arg2"].AsString(), "val");
 }
 
 TEST_F(ExportJsonTest, MetadataFilter) {
@@ -1694,13 +1689,13 @@ TEST_F(ExportJsonTest, MetadataFilter) {
     return strcmp(metadata_name, "name1") == 0;
   };
 
-  Json::Value result = ToJsonValue(ToJson(nullptr, metadata_filter));
+  Dom result = ToJsonValue(ToJson(nullptr, metadata_filter));
 
-  EXPECT_TRUE(result.isMember("metadata"));
-  Json::Value metadata = result["metadata"];
+  EXPECT_TRUE(result.HasMember("metadata"));
+  const auto& metadata = result["metadata"];
 
-  EXPECT_EQ(metadata[kName1].asString(), kValue1);
-  EXPECT_EQ(metadata[kName2].asString(), "__stripped__");
+  EXPECT_EQ(metadata[kName1].AsString(), kValue1);
+  EXPECT_EQ(metadata[kName2].AsString(), "__stripped__");
 }
 
 TEST_F(ExportJsonTest, LabelFilter) {
@@ -1726,24 +1721,23 @@ TEST_F(ExportJsonTest, LabelFilter) {
     return strcmp(label_name, "traceEvents") == 0;
   };
 
-  Json::Value result =
-      ToJsonValue("[" + ToJson(nullptr, nullptr, label_filter) + "]");
+  Dom result = ToJsonValue("[" + ToJson(nullptr, nullptr, label_filter) + "]");
 
-  EXPECT_TRUE(result.isArray());
+  EXPECT_TRUE(result.IsArray());
   EXPECT_EQ(result.size(), 2u);
 
-  EXPECT_EQ(result[0]["ph"].asString(), "X");
-  EXPECT_EQ(result[0]["ts"].asInt64(), kTimestamp1 / 1000);
-  EXPECT_EQ(result[0]["dur"].asInt64(), kDuration / 1000);
-  EXPECT_EQ(result[0]["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(result[0]["cat"].asString(), kCategory);
-  EXPECT_EQ(result[0]["name"].asString(), kName);
-  EXPECT_EQ(result[1]["ph"].asString(), "X");
-  EXPECT_EQ(result[1]["ts"].asInt64(), kTimestamp2 / 1000);
-  EXPECT_EQ(result[1]["dur"].asInt64(), kDuration / 1000);
-  EXPECT_EQ(result[1]["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(result[1]["cat"].asString(), kCategory);
-  EXPECT_EQ(result[1]["name"].asString(), kName);
+  EXPECT_EQ(result[0]["ph"].AsString(), "X");
+  EXPECT_EQ(result[0]["ts"].AsInt64(), kTimestamp1 / 1000);
+  EXPECT_EQ(result[0]["dur"].AsInt64(), kDuration / 1000);
+  EXPECT_EQ(result[0]["tid"].AsInt(), static_cast<int>(kThreadID));
+  EXPECT_EQ(result[0]["cat"].AsString(), kCategory);
+  EXPECT_EQ(result[0]["name"].AsString(), kName);
+  EXPECT_EQ(result[1]["ph"].AsString(), "X");
+  EXPECT_EQ(result[1]["ts"].AsInt64(), kTimestamp2 / 1000);
+  EXPECT_EQ(result[1]["dur"].AsInt64(), kDuration / 1000);
+  EXPECT_EQ(result[1]["tid"].AsInt(), static_cast<int>(kThreadID));
+  EXPECT_EQ(result[1]["cat"].AsString(), kCategory);
+  EXPECT_EQ(result[1]["name"].AsString(), kName);
 }
 
 TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
@@ -1814,63 +1808,63 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "v");
-  EXPECT_EQ(event["cat"].asString(), "disabled-by-default-memory-infra");
-  EXPECT_EQ(event["id"].asString(), base::Uint64ToHexString(snapshot_id.value));
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["name"].asString(), "periodic_interval");
-  EXPECT_EQ(event["pid"].asUInt(), kProcessID);
-  EXPECT_EQ(event["tid"].asInt(), -1);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), "v");
+  EXPECT_EQ(event["cat"].AsString(), "disabled-by-default-memory-infra");
+  EXPECT_EQ(event["id"].AsString(), base::Uint64ToHexString(snapshot_id.value));
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["name"].AsString(), "periodic_interval");
+  EXPECT_EQ(event["pid"].AsUint(), kProcessID);
+  EXPECT_EQ(event["tid"].AsInt(), -1);
 
-  EXPECT_TRUE(event["args"].isObject());
-  EXPECT_EQ(event["args"]["dumps"]["level_of_detail"].asString(),
+  EXPECT_TRUE(event["args"].IsObject());
+  EXPECT_EQ(event["args"]["dumps"]["level_of_detail"].AsString(),
             kLevelOfDetail);
 
   EXPECT_EQ(event["args"]["dumps"]["process_totals"]["peak_resident_set_size"]
-                .asString(),
+                .AsString(),
             base::Uint64ToHexStringNoPrefix(
                 static_cast<uint64_t>(kPeakResidentSetSize)));
   EXPECT_EQ(event["args"]["dumps"]["process_totals"]["private_footprint_bytes"]
-                .asString(),
+                .AsString(),
             base::Uint64ToHexStringNoPrefix(
                 static_cast<uint64_t>(kPrivateFootprintBytes)));
   EXPECT_EQ(event["args"]["dumps"]["process_totals"]["is_peak_rss_resettable"]
-                .asBool(),
+                .AsBool(),
             kIsPeakRssResettable);
 
-  EXPECT_TRUE(event["args"]["dumps"]["process_mmaps"]["vm_regions"].isArray());
+  EXPECT_TRUE(event["args"]["dumps"]["process_mmaps"]["vm_regions"].IsArray());
   EXPECT_EQ(event["args"]["dumps"]["process_mmaps"]["vm_regions"].size(), 1u);
-  Json::Value region = event["args"]["dumps"]["process_mmaps"]["vm_regions"][0];
-  EXPECT_EQ(region["mf"].asString(), kFileName);
-  EXPECT_EQ(region["pf"].asInt64(), kProtectionFlags);
-  EXPECT_EQ(region["sa"].asString(), base::Uint64ToHexStringNoPrefix(
+  const auto& region = event["args"]["dumps"]["process_mmaps"]["vm_regions"][0];
+  EXPECT_EQ(region["mf"].AsString(), kFileName);
+  EXPECT_EQ(region["pf"].AsInt64(), kProtectionFlags);
+  EXPECT_EQ(region["sa"].AsString(), base::Uint64ToHexStringNoPrefix(
                                          static_cast<uint64_t>(kStartAddress)));
   EXPECT_EQ(
-      region["sz"].asString(),
+      region["sz"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSizeKb * 1024)));
-  EXPECT_EQ(region["id"].asString(), kModuleDebugid);
-  EXPECT_EQ(region["df"].asString(), kModuleDebugPath);
-  EXPECT_EQ(region["bs"]["pc"].asString(),
+  EXPECT_EQ(region["id"].AsString(), kModuleDebugid);
+  EXPECT_EQ(region["df"].AsString(), kModuleDebugPath);
+  EXPECT_EQ(region["bs"]["pc"].AsString(),
             base::Uint64ToHexStringNoPrefix(
                 static_cast<uint64_t>(kPrivateCleanResidentKb * 1024)));
-  EXPECT_EQ(region["bs"]["pd"].asString(),
+  EXPECT_EQ(region["bs"]["pd"].AsString(),
             base::Uint64ToHexStringNoPrefix(
                 static_cast<uint64_t>(kPrivateDirtyKb * 1024)));
-  EXPECT_EQ(region["bs"]["pss"].asString(),
+  EXPECT_EQ(region["bs"]["pss"].AsString(),
             base::Uint64ToHexStringNoPrefix(
                 static_cast<uint64_t>(kProportionalResidentKb * 1024)));
-  EXPECT_EQ(region["bs"]["sc"].asString(),
+  EXPECT_EQ(region["bs"]["sc"].AsString(),
             base::Uint64ToHexStringNoPrefix(
                 static_cast<uint64_t>(kSharedCleanResidentKb * 1024)));
-  EXPECT_EQ(region["bs"]["sd"].asString(),
+  EXPECT_EQ(region["bs"]["sd"].AsString(),
             base::Uint64ToHexStringNoPrefix(
                 static_cast<uint64_t>(kSharedDirtyResidentKb * 1024)));
   EXPECT_EQ(
-      region["bs"]["sw"].asString(),
+      region["bs"]["sw"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSwapKb * 1024)));
 }
 
@@ -1946,67 +1940,67 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Value result = ToJsonValue(ReadFile(output));
+  Dom result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
-  Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "v");
-  EXPECT_EQ(event["cat"].asString(), "disabled-by-default-memory-infra");
-  EXPECT_EQ(event["id"].asString(), base::Uint64ToHexString(snapshot_id.value));
-  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["name"].asString(), "periodic_interval");
-  EXPECT_EQ(event["pid"].asUInt(), kChromeProcessID);
-  EXPECT_EQ(event["tid"].asInt(), -1);
+  const auto& event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].AsString(), "v");
+  EXPECT_EQ(event["cat"].AsString(), "disabled-by-default-memory-infra");
+  EXPECT_EQ(event["id"].AsString(), base::Uint64ToHexString(snapshot_id.value));
+  EXPECT_EQ(event["ts"].AsInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["name"].AsString(), "periodic_interval");
+  EXPECT_EQ(event["pid"].AsUint(), kChromeProcessID);
+  EXPECT_EQ(event["tid"].AsInt(), -1);
 
-  EXPECT_TRUE(event["args"].isObject());
-  EXPECT_EQ(event["args"]["dumps"]["level_of_detail"].asString(),
+  EXPECT_TRUE(event["args"].IsObject());
+  EXPECT_EQ(event["args"]["dumps"]["level_of_detail"].AsString(),
             kLevelOfDetail);
 
   EXPECT_EQ(event["args"]["dumps"]["allocators"].size(), 2u);
-  Json::Value node1 = event["args"]["dumps"]["allocators"][kPath1];
-  EXPECT_TRUE(node1.isObject());
+  const auto& node1 = event["args"]["dumps"]["allocators"][kPath1];
+  EXPECT_TRUE(node1.IsObject());
   EXPECT_EQ(
-      node1["guid"].asString(),
+      node1["guid"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node1_id.value)));
-  EXPECT_TRUE(node1["attrs"]["size"].isObject());
-  EXPECT_EQ(node1["attrs"]["size"]["value"].asString(),
+  EXPECT_TRUE(node1["attrs"]["size"].IsObject());
+  EXPECT_EQ(node1["attrs"]["size"]["value"].AsString(),
             base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSize)));
-  EXPECT_EQ(node1["attrs"]["size"]["type"].asString(), "scalar");
-  EXPECT_EQ(node1["attrs"]["size"]["units"].asString(), "bytes");
+  EXPECT_EQ(node1["attrs"]["size"]["type"].AsString(), "scalar");
+  EXPECT_EQ(node1["attrs"]["size"]["units"].AsString(), "bytes");
   EXPECT_EQ(
-      node1["attrs"]["effective_size"]["value"].asString(),
+      node1["attrs"]["effective_size"]["value"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kEffectiveSize)));
-  EXPECT_TRUE(node1["attrs"][kScalarAttrName].isObject());
+  EXPECT_TRUE(node1["attrs"][kScalarAttrName].IsObject());
   EXPECT_EQ(
-      node1["attrs"][kScalarAttrName]["value"].asString(),
+      node1["attrs"][kScalarAttrName]["value"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kScalarAttrValue)));
-  EXPECT_EQ(node1["attrs"][kScalarAttrName]["type"].asString(), "scalar");
-  EXPECT_EQ(node1["attrs"][kScalarAttrName]["units"].asString(),
+  EXPECT_EQ(node1["attrs"][kScalarAttrName]["type"].AsString(), "scalar");
+  EXPECT_EQ(node1["attrs"][kScalarAttrName]["units"].AsString(),
             kScalarAttrUnits);
-  EXPECT_TRUE(node1["attrs"][kStringAttrName].isObject());
-  EXPECT_EQ(node1["attrs"][kStringAttrName]["value"].asString(),
+  EXPECT_TRUE(node1["attrs"][kStringAttrName].IsObject());
+  EXPECT_EQ(node1["attrs"][kStringAttrName]["value"].AsString(),
             kStringAttrValue);
-  EXPECT_EQ(node1["attrs"][kStringAttrName]["type"].asString(), "string");
-  EXPECT_EQ(node1["attrs"][kStringAttrName]["units"].asString(), "");
+  EXPECT_EQ(node1["attrs"][kStringAttrName]["type"].AsString(), "string");
+  EXPECT_EQ(node1["attrs"][kStringAttrName]["units"].AsString(), "");
 
-  Json::Value node2 = event["args"]["dumps"]["allocators"][kPath2];
-  EXPECT_TRUE(node2.isObject());
+  const auto& node2 = event["args"]["dumps"]["allocators"][kPath2];
+  EXPECT_TRUE(node2.IsObject());
   EXPECT_EQ(
-      node2["guid"].asString(),
+      node2["guid"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node2_id.value)));
   EXPECT_TRUE(node2["attrs"].empty());
 
-  Json::Value graph = event["args"]["dumps"]["allocators_graph"];
-  EXPECT_TRUE(graph.isArray());
+  const auto& graph = event["args"]["dumps"]["allocators_graph"];
+  EXPECT_TRUE(graph.IsArray());
   EXPECT_EQ(graph.size(), 1u);
   EXPECT_EQ(
-      graph[0]["source"].asString(),
+      graph[0]["source"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node1_id.value)));
   EXPECT_EQ(
-      graph[0]["target"].asString(),
+      graph[0]["target"].AsString(),
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node2_id.value)));
-  EXPECT_EQ(graph[0]["importance"].asUInt(), kImportance);
-  EXPECT_EQ(graph[0]["type"].asString(), "ownership");
+  EXPECT_EQ(graph[0]["importance"].AsUint(), kImportance);
+  EXPECT_EQ(graph[0]["type"].AsString(), "ownership");
 }
 
 }  // namespace

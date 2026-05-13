@@ -17,15 +17,13 @@
 #include <cstdio>
 #include <string>
 
-#include <json/reader.h>
-#include <json/value.h>
-
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 #include "src/base/test/status_matchers.h"
 #include "src/base/test/utils.h"
+#include "src/trace_processor/util/json_value.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -62,16 +60,12 @@ TEST_F(StorageMinimalSmokeTest, GraphicEventsIgnored) {
 
   JsonStringOutputWriter output_writer;
   json::ExportJson(storage_.get(), &output_writer);
-  Json::CharReaderBuilder b;
-  auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
-
-  Json::Value result;
-  std::string& o = output_writer.buffer;
-  ASSERT_TRUE(reader->parse(o.data(), o.data() + o.length(), &result, nullptr));
+  auto result = json::Parse(output_writer.buffer);
+  ASSERT_TRUE(result.ok());
 
   // We should only see a single event (the mapping of the idle thread to have
   // name "swapper").
-  ASSERT_EQ(result["traceEvents"].size(), 1u);
+  ASSERT_EQ((*result)["traceEvents"].size(), 1u);
 }
 
 TEST_F(StorageMinimalSmokeTest, SystraceReturnsError) {
@@ -97,16 +91,12 @@ TEST_F(StorageMinimalSmokeTest, TrackEventsImported) {
 
   JsonStringOutputWriter output_writer;
   json::ExportJson(storage_.get(), &output_writer);
-  Json::CharReaderBuilder b;
-  auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
-
-  Json::Value result;
-  std::string& o = output_writer.buffer;
-  ASSERT_TRUE(reader->parse(o.data(), o.data() + o.length(), &result, nullptr));
+  auto result = json::Parse(output_writer.buffer);
+  ASSERT_TRUE(result.ok());
 
   // We have an "extra" event from the mapping of the idle thread to have name
   // "swapper".
-  ASSERT_EQ(result["traceEvents"].size(), 5u);
+  ASSERT_EQ((*result)["traceEvents"].size(), 5u);
 }
 
 }  // namespace

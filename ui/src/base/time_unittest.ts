@@ -156,6 +156,51 @@ describe('TimeSpan', () => {
     const x = mkSpan(10n, 20n);
     expect(x.pad(5n)).toEqual(mkSpan(5n, 25n));
   });
+
+  describe('clamp', () => {
+    it('returns same span when fully within bounds', () => {
+      expect(mkSpan(10n, 20n).clamp(t(0n), t(30n))).toEqual(mkSpan(10n, 20n));
+    });
+
+    it('clamps start when below lower bound', () => {
+      expect(mkSpan(0n, 20n).clamp(t(5n), t(30n))).toEqual(mkSpan(5n, 20n));
+    });
+
+    it('clamps end when above upper bound', () => {
+      expect(mkSpan(10n, 40n).clamp(t(0n), t(30n))).toEqual(mkSpan(10n, 30n));
+    });
+
+    it('clamps both ends when span exceeds bounds', () => {
+      expect(mkSpan(0n, 40n).clamp(t(5n), t(30n))).toEqual(mkSpan(5n, 30n));
+    });
+
+    it('produces zero-length span when entirely before lower bound', () => {
+      expect(mkSpan(0n, 5n).clamp(t(10n), t(20n))).toEqual(mkSpan(10n, 10n));
+    });
+
+    it('produces zero-length span when entirely after upper bound', () => {
+      expect(mkSpan(25n, 30n).clamp(t(10n), t(20n))).toEqual(mkSpan(20n, 20n));
+    });
+  });
+});
+
+describe('Time.clamp', () => {
+  it('returns value when within range', () => {
+    expect(Time.clamp(t(5n), t(0n), t(10n))).toBe(t(5n));
+  });
+
+  it('returns min when below range', () => {
+    expect(Time.clamp(t(-1n), t(0n), t(10n))).toBe(t(0n));
+  });
+
+  it('returns max when above range', () => {
+    expect(Time.clamp(t(15n), t(0n), t(10n))).toBe(t(10n));
+  });
+
+  it('returns value when equal to min or max', () => {
+    expect(Time.clamp(t(0n), t(0n), t(10n))).toBe(t(0n));
+    expect(Time.clamp(t(10n), t(0n), t(10n))).toBe(t(10n));
+  });
 });
 
 test('formatTimezone', () => {

@@ -44,6 +44,8 @@ android_frame_timeline_metric {
       present_dropped_count: 0
       present_unknown_count: 0
     }
+    weighted_missed_app_frames: 4.0
+    weighted_missed_sf_frames: 0.0
   }
 
   process {
@@ -87,6 +89,8 @@ android_frame_timeline_metric {
       present_dropped_count: 0
       present_unknown_count: 0
     }
+    weighted_missed_app_frames: 2.0
+    weighted_missed_sf_frames: 0.0
   }
 
   process {
@@ -130,6 +134,8 @@ android_frame_timeline_metric {
       present_dropped_count: 0
       present_unknown_count: 0
     }
+    weighted_missed_app_frames: 0.0
+    weighted_missed_sf_frames: 1.5
   }
 
   process {
@@ -193,6 +199,8 @@ android_frame_timeline_metric {
       present_dropped_count: 2
       present_unknown_count: 0
     }
+    weighted_missed_app_frames: 0.0
+    weighted_missed_sf_frames: 9.5
   }
   jank_types {
     type: "App Deadline Missed"

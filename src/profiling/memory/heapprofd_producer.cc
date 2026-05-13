@@ -111,6 +111,10 @@ bool IsFile(int fd, const char* fn) {
     PERFETTO_PLOG("lstat");
     return false;
   }
+  // MSan's fstat()/lstat() interceptors on glibc 2.35+ do not mark the output
+  // buffer as initialized (the syscall goes through statx).
+  PERFETTO_MSAN_UNPOISON(&fdstat, sizeof(fdstat));
+  PERFETTO_MSAN_UNPOISON(&fnstat, sizeof(fnstat));
   return fdstat.st_ino == fnstat.st_ino;
 }
 

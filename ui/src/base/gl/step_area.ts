@@ -266,6 +266,10 @@ export class StepAreaBatch {
 
     gl.useProgram(prog.program);
     gl.enable(gl.BLEND);
+    // Use MAX blending to prevent double-blend artifacts where overlapping
+    // quads (from min-width enforcement) would otherwise darken the fill.
+    // MAX is idempotent for identical fragments: max(0.6, 0.6) = 0.6.
+    gl.blendEquation(gl.MAX);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
     // Set uniforms
@@ -305,6 +309,9 @@ export class StepAreaBatch {
     // Draw
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.drawElementsInstanced(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, 0, count);
+
+    // Restore default additive blend equation
+    gl.blendEquation(gl.FUNC_ADD);
 
     // Reset divisors
     gl.vertexAttribDivisor(prog.xLoc, 0);

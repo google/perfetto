@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../../../base/deferred';
-import {assertExists, assertTrue} from '../../../base/logging';
+import {assertExists, assertTrue} from '../../../base/assert';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 import {utf8Decode, utf8Encode} from '../../../base/string_utils';
 

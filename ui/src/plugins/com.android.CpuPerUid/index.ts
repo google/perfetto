@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {NUM, STR} from '../../trace_processor/query_result';
 
@@ -33,22 +33,15 @@ export default class implements PerfettoPlugin {
     group: TrackNode,
     sharing?: string,
   ) {
-    const track = await createQueryCounterTrack({
+    const track = CounterTrack.create({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: sql,
-        columns: ['ts', 'value'],
-      },
-      columns: {ts: 'ts', value: 'value'},
-      options: {
-        unit: 'ms',
-        yOverrideMaximum: 100,
-        yOverrideMinimum: 0,
-        yRangeSharingKey: sharing,
-        yMode: 'rate',
-      },
-      materialize: false,
+      sqlSource: sql,
+      unit: 'ms',
+      yOverrideMaximum: 100,
+      yOverrideMinimum: 0,
+      yRangeSharingKey: sharing,
+      yMode: 'rate',
     });
     ctx.tracks.registerTrack({
       uri,

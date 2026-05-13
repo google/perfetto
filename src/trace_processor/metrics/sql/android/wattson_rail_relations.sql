@@ -16,46 +16,15 @@
 -- This file established the tables that define the relationships between rails
 -- and subrails as well as the hierarchical power estimates of each rail
 
+INCLUDE PERFETTO MODULE wattson.aggregation;
 INCLUDE PERFETTO MODULE wattson.estimates;
 INCLUDE PERFETTO MODULE wattson.utils;
-
 -- The most basic rail components that form the "building blocks" from which all
 -- other rails and components are derived. Average power over the entire trace
 -- for each of these rail components.
-DROP VIEW IF EXISTS _wattson_base_components_avg_mw;
-CREATE PERFETTO VIEW _wattson_base_components_avg_mw AS
-SELECT
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 0) as cpu0_poli,
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 1) as cpu1_poli,
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 2) as cpu2_poli,
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 3) as cpu3_poli,
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 4) as cpu4_poli,
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 5) as cpu5_poli,
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 6) as cpu6_poli,
-  (SELECT m.policy FROM _dev_cpu_policy_map AS m WHERE m.cpu = 7) as cpu7_poli,
-  -- Converts all mW of all slices into average mW of total trace
-  SUM(ii.dur * ss.cpu0_mw) / SUM(ii.dur) as cpu0_mw,
-  SUM(ii.dur * ss.cpu1_mw) / SUM(ii.dur) as cpu1_mw,
-  SUM(ii.dur * ss.cpu2_mw) / SUM(ii.dur) as cpu2_mw,
-  SUM(ii.dur * ss.cpu3_mw) / SUM(ii.dur) as cpu3_mw,
-  SUM(ii.dur * ss.cpu4_mw) / SUM(ii.dur) as cpu4_mw,
-  SUM(ii.dur * ss.cpu5_mw) / SUM(ii.dur) as cpu5_mw,
-  SUM(ii.dur * ss.cpu6_mw) / SUM(ii.dur) as cpu6_mw,
-  SUM(ii.dur * ss.cpu7_mw) / SUM(ii.dur) as cpu7_mw,
-  SUM(ii.dur * ss.dsu_scu_mw) / SUM(ii.dur) as dsu_scu_mw,
-  SUM(ii.dur * ss.gpu_mw) / SUM(ii.dur) as gpu_mw,
-  SUM(ii.dur) as period_dur,
-  ii.id_0 as period_id
-FROM _interval_intersect!(
-  (
-    (SELECT period_id AS id, * FROM {{window_table}}),
-    _ii_subquery!(_system_state_mw)
-  ),
-  ()
-) ii
-JOIN _system_state_mw AS ss ON ss._auto_id = id_1
-GROUP BY period_id;
-
+DROP TABLE IF EXISTS _wattson_base_components_avg_mw_instance;
+CREATE PERFETTO TABLE _wattson_base_components_avg_mw_instance AS
+SELECT * FROM _wattson_base_components_avg_mw!({{window_table}});
 -- Macro that filters out CPUs that are unrelated to the policy of the table
 -- passed in, and does some bookkeeping to put data in expected format
 CREATE OR REPLACE PERFETTO MACRO
@@ -173,7 +142,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 0, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 0, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 0, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -193,7 +162,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 1, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 1, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 1, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -213,7 +182,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 2, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 2, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 2, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -233,7 +202,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 3, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 3, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 3, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -253,7 +222,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 4, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 4, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 4, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -273,7 +242,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 5, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 5, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 5, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -293,7 +262,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 6, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 6, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 6, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -313,7 +282,7 @@ SELECT * FROM _get_valid_cpu_mw!(
       IIF(cpu5_poli = 7, cpu5_mw, NULL) as cpu5_mw,
       IIF(cpu6_poli = 7, cpu6_mw, NULL) as cpu6_mw,
       IIF(cpu7_poli = 7, cpu7_mw, NULL) as cpu7_mw
-    FROM _wattson_base_components_avg_mw
+    FROM _wattson_base_components_avg_mw_instance
     GROUP BY period_id, period_dur
   )
 );
@@ -324,7 +293,7 @@ SELECT
   period_id,
   period_dur,
   dsu_scu_mw
-FROM _wattson_base_components_avg_mw
+FROM _wattson_base_components_avg_mw_instance
 GROUP BY period_id, period_dur;
 
 -- Automatically populates the appropriate policy based on the device of the
@@ -404,7 +373,19 @@ SELECT
     'estimated_mw', gpu_mw,
     'estimated_mws', gpu_mw * period_dur / 1e9
   ) as gpu_proto
-FROM _wattson_base_components_avg_mw;
+FROM _wattson_base_components_avg_mw_instance;
+
+DROP VIEW IF EXISTS _estimate_tpu_subsystem_sum;
+CREATE PERFETTO VIEW _estimate_tpu_subsystem_sum AS
+SELECT
+  period_id,
+  period_dur,
+  tpu_mw IS NOT NULL as defined,
+  AndroidWattsonTpuSubsystemEstimate(
+    'estimated_mw', tpu_mw,
+    'estimated_mws', tpu_mw * period_dur / 1e9
+  ) as tpu_proto
+FROM _wattson_base_components_avg_mw_instance;
 
 DROP VIEW IF EXISTS _estimate_subsystems_sum;
 CREATE PERFETTO VIEW _estimate_subsystems_sum AS
@@ -412,10 +393,11 @@ SELECT
   period_id,
   period_dur,
   cpu_ss.cpu_proto,
-  IIF(gpu_ss.defined, gpu_ss.gpu_proto, NULL) as gpu_proto
+  IIF(gpu_ss.defined, gpu_ss.gpu_proto, NULL) as gpu_proto,
+  IIF(tpu_ss.defined, tpu_ss.tpu_proto, NULL) as tpu_proto
 FROM _estimate_cpu_subsystem_sum cpu_ss
-JOIN _estimate_gpu_subsystem_sum gpu_ss
-  USING (period_id, period_dur);
+JOIN _estimate_gpu_subsystem_sum gpu_ss USING (period_id, period_dur)
+JOIN _estimate_tpu_subsystem_sum tpu_ss USING (period_id, period_dur);
 
 DROP VIEW IF EXISTS _wattson_rails_metric_metadata;
 CREATE PERFETTO VIEW _wattson_rails_metric_metadata AS

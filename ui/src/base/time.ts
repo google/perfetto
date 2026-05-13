@@ -14,7 +14,7 @@
 
 import {BigintMath} from './bigint_math';
 import {Brand} from './brand';
-import {assertTrue} from './logging';
+import {assertTrue} from './assert';
 
 // The |time| type represents trace time in the same units and domain as trace
 // processor (i.e. typically boot time in nanoseconds, but most of the UI should
@@ -174,6 +174,10 @@ export class Time {
 
   static quant(a: time, b: duration): time {
     return Time.fromRaw(BigintMath.quant(a, b));
+  }
+
+  static clamp(t: time, min: time, max: time): time {
+    return Time.fromRaw(BigintMath.clamp(t, min, max));
   }
 
   static formatSeconds(time: time): string {
@@ -438,6 +442,13 @@ export class TimeSpan {
     return new TimeSpan(
       Time.sub(this.start, padding),
       Time.add(this.end, padding),
+    );
+  }
+
+  clamp(min: time, max: time): TimeSpan {
+    return new TimeSpan(
+      Time.clamp(this.start, min, max),
+      Time.clamp(this.end, min, max),
     );
   }
 }

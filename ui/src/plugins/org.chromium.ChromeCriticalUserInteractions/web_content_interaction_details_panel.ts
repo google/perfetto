@@ -44,7 +44,6 @@ interface Data {
   ts: time;
   dur: duration;
   interactionType: string;
-  totalDurationMs: duration;
   upid: Upid;
 }
 
@@ -62,7 +61,6 @@ export class WebContentInteractionPanel implements TrackEventDetailsPanel {
         ts,
         dur,
         interaction_type AS interactionType,
-        total_duration_ms AS totalDurationMs,
         renderer_upid AS upid
       FROM chrome_web_content_interactions
       WHERE id = ${this.id};
@@ -72,7 +70,6 @@ export class WebContentInteractionPanel implements TrackEventDetailsPanel {
       ts: LONG,
       dur: LONG,
       interactionType: STR,
-      totalDurationMs: LONG,
       upid: NUM,
     });
 
@@ -80,7 +77,6 @@ export class WebContentInteractionPanel implements TrackEventDetailsPanel {
       ts: Time.fromRaw(iter.ts),
       dur: iter.ts,
       interactionType: iter.interactionType,
-      totalDurationMs: iter.totalDurationMs,
       upid: asUpid(iter.upid),
     };
   }
@@ -119,13 +115,6 @@ export class WebContentInteractionPanel implements TrackEventDetailsPanel {
                 }),
               }),
               m(TreeNode, {left: 'Renderer Upid', right: this.data.upid}),
-              m(TreeNode, {
-                left: 'Total duration of all events',
-                right: m(DurationWidget, {
-                  trace: this.trace,
-                  dur: this.data.totalDurationMs,
-                }),
-              }),
               m(TreeNode, {
                 left: 'SQL ID',
                 right: m(SqlRef, {

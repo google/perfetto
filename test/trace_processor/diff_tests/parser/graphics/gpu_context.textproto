@@ -1,0 +1,56 @@
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    graphics_contexts {
+      iid: 1
+      pid: 100
+      api: VULKAN
+    }
+    graphics_contexts {
+      iid: 2
+      pid: 200
+      api: CUDA
+    }
+    gpu_specifications {
+      iid: 1
+      name: "queue"
+      description: "render queue"
+      category: GRAPHICS
+    }
+    gpu_specifications {
+      iid: 2
+      name: "stage"
+      description: "render stage"
+      category: GRAPHICS
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  gpu_render_stage_event {
+    event_id: 0
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  gpu_render_stage_event {
+    event_id: 1
+    duration: 20
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 2
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}

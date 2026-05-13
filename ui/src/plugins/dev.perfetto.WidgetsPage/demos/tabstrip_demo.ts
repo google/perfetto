@@ -13,6 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Anchor} from '../../../widgets/anchor';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 import {TabStrip} from '../../../widgets/tab_strip';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
@@ -26,6 +29,13 @@ export function renderTabStrip(): m.Children {
       m(
         'p',
         'A horizontal tab navigation component for switching between different views or sections.',
+      ),
+      m(
+        Callout,
+        {intent: Intent.Warning, icon: 'warning'},
+        'Deprecated: use the ',
+        m(Anchor, {href: '#!/widgets/tabs'}, 'Tabs'),
+        ' widget instead, which supports close buttons, renaming, reordering, and a new tab button.',
       ),
     ),
     renderWidgetShowcase({

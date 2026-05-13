@@ -17,7 +17,7 @@ import {
   encode as b64Encode,
   length as b64Len,
 } from '@protobufjs/base64';
-import {assertTrue} from './logging';
+import {assertTrue} from './assert';
 
 // Lazy initialize at first use.
 let textDecoder: TextDecoder | undefined = undefined;

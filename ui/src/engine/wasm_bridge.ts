@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 
 // The 64-bit variant of TraceProcessor wasm is always built in all build
 // configurations and we can depend on it from typescript.

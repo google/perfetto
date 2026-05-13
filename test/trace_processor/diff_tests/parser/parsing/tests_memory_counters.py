@@ -141,3 +141,24 @@ class ParsingMemoryCounters(TestSuite):
         "mem.ion",1234,200.000000
         "mem.ion_change",1234,100.000000
         """))
+
+  def test_slab_info(self):
+    return DiffTestBlueprint(
+        trace=DataPath('poll_slabinfo.pb'),
+        query="""
+        SELECT
+          name,
+          cast_int!(MAX(value)) AS bytes,
+          cast_int!(EXTRACT_ARG(arg_set_id, 'pages_per_slab')) as pages_per_slab,
+          cast_int!(EXTRACT_ARG(arg_set_id, 'num_slabs')) as num_slabs
+        FROM counter
+        JOIN counter_track ON counter.track_id = counter_track.id
+        WHERE name = 'mem.slab.AF_VSOCK' OR name = 'mem.slab.RAW'
+        GROUP BY name
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","bytes","pages_per_slab","num_slabs"
+        "mem.slab.AF_VSOCK",32768,2,1
+        "mem.slab.RAW",229376,2,7
+        """))

@@ -26,6 +26,7 @@ import {errResult, okResult, Result} from '../../../../base/result';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {AsyncLazy} from '../../../../base/async_lazy';
+import {RecordTraceV2Settings} from '../../settings';
 
 export class AdbWebusbTarget implements RecordingTarget {
   readonly kind = 'LIVE_RECORDING';
@@ -36,6 +37,7 @@ export class AdbWebusbTarget implements RecordingTarget {
   constructor(
     private usbiface: AdbUsbInterface,
     private adbKeyMgr: AdbKeyManager,
+    private readonly settings: RecordTraceV2Settings,
   ) {}
 
   async *runPreflightChecks(): AsyncGenerator<PreflightCheck> {
@@ -50,7 +52,7 @@ export class AdbWebusbTarget implements RecordingTarget {
     };
 
     if (this.adbDevice.value === undefined) return;
-    yield* checkAndroidTarget(this.adbDevice.value);
+    yield* checkAndroidTarget(this.adbDevice.value, this.settings);
   }
 
   async connectIfNeeded(): Promise<Result<AdbWebusbDevice>> {
@@ -76,7 +78,7 @@ export class AdbWebusbTarget implements RecordingTarget {
     if (this.adbDevice.value === undefined) {
       return errResult('WebUSB transport disconnected');
     }
-    return getAdbTracingServiceState(this.adbDevice.value);
+    return getAdbTracingServiceState(this.adbDevice.value, this.settings);
   }
 
   async startTracing(
@@ -84,7 +86,11 @@ export class AdbWebusbTarget implements RecordingTarget {
   ): Promise<Result<ConsumerIpcTracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+    return await createAdbTracingSession(
+      adbDeviceStatus.value,
+      traceConfig,
+      this.settings,
+    );
   }
 
   disconnect(): void {

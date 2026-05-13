@@ -240,11 +240,13 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       addr.svm_cid = *base::StringToUInt32(parts[0]);
       addr.svm_port = *base::StringToUInt32(parts[1]);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if defined(VMADDR_FLAG_TO_HOST)
       if (IsVirtualized()) {
         // VM-to-VM VSOCK communication requires messages to be
         // routed through the host.
         addr.svm_flags = VMADDR_FLAG_TO_HOST;
       }
+#endif
 #endif
       SockaddrAny res(&addr, sizeof(addr));
       return res;
@@ -1066,7 +1068,9 @@ void UnixSocket::ReadPeerCredentialsPosix() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   int fd = sock_raw_.fd();
-  int res = getpeereid(fd, &peer_uid_, nullptr);
+  gid_t peer_gid = 0;
+  int res = getpeereid(fd, &peer_uid_, &peer_gid);
+  ignore_result(peer_gid);
   PERFETTO_CHECK(res == 0);
   // There is no pid when obtaining peer credentials for QNX
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \

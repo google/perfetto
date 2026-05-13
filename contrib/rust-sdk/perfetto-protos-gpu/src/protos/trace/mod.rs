@@ -21,6 +21,9 @@ pub mod gpu;
 /// `interned_data` protos.
 pub mod interned_data;
 
+/// `system_info` protos.
+pub mod system_info;
+
 /// `trace_packet` protos.
 #[path = "trace_packet.pz.rs"]
 pub mod trace_packet;

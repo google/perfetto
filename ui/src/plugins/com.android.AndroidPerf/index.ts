@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {
   addDebugCounterTrack,
   addDebugSliceTrack,
@@ -24,6 +24,7 @@ import {STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidPerf';
+  static readonly dependencies = [QueryPagePlugin];
   async addAppProcessStartsDebugTrack(
     ctx: Trace,
     reason: string,
@@ -65,7 +66,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.BinderSystemServerIncoming',
       name: 'Run query: system_server incoming binder graph',
       callback: () =>
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `INCLUDE PERFETTO MODULE android.binder;
            SELECT * FROM android_binder_incoming_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
           title: 'system_server incoming binder graph',
@@ -76,7 +77,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.BinderSystemServerOutgoing',
       name: 'Run query: system_server outgoing binder graph',
       callback: () =>
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `INCLUDE PERFETTO MODULE android.binder;
            SELECT * FROM android_binder_outgoing_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
           title: 'system_server outgoing binder graph',
@@ -87,7 +88,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.MonitorContentionSystemServer',
       name: 'Run query: system_server monitor_contention graph',
       callback: () =>
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `INCLUDE PERFETTO MODULE android.monitor_contention;
            SELECT * FROM android_monitor_contention_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
           title: 'system_server monitor_contention graph',
@@ -98,7 +99,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.BinderAll',
       name: 'Run query: all process binder graph',
       callback: () =>
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `INCLUDE PERFETTO MODULE android.binder;
            SELECT * FROM android_binder_graph(-1000, 1000, -1000, 1000)`,
           title: 'all process binder graph',
@@ -113,7 +114,7 @@ export default class implements PerfettoPlugin {
           tid = await ctx.omnibox.prompt('Enter a thread tid');
           if (tid === undefined) return;
         }
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `
           INCLUDE PERFETTO MODULE android.cpu.cluster_type;
           WITH
@@ -147,7 +148,7 @@ export default class implements PerfettoPlugin {
           tid = await ctx.omnibox.prompt('Enter a thread tid');
           if (tid === undefined) return;
         }
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `
           SELECT ts.*, t.tid, t.name, tt.id AS track_id
           FROM thread_state ts
@@ -168,7 +169,7 @@ export default class implements PerfettoPlugin {
       name: 'Top 50 sched latency in selected time window',
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           title: 'top 50 sched latency slice in selcted time window',
           query: `SELECT
             ts.*,

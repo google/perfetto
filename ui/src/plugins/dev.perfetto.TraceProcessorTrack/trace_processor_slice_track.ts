@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
-import {assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/assert';
 import {clamp} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {getColorForSlice} from '../../components/colorizer';

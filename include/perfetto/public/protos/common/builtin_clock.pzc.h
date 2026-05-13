@@ -35,6 +35,7 @@ PERFETTO_PB_ENUM(perfetto_protos_BuiltinClock){
     PERFETTO_PB_ENUM_ENTRY(perfetto_protos_BUILTIN_CLOCK_BOOTTIME) = 6,
     PERFETTO_PB_ENUM_ENTRY(perfetto_protos_BUILTIN_CLOCK_TSC) = 9,
     PERFETTO_PB_ENUM_ENTRY(perfetto_protos_BUILTIN_CLOCK_PERF) = 10,
+    PERFETTO_PB_ENUM_ENTRY(perfetto_protos_BUILTIN_CLOCK_TRACE_FILE) = 11,
     PERFETTO_PB_ENUM_ENTRY(perfetto_protos_BUILTIN_CLOCK_MAX_ID) = 63,
 };
 

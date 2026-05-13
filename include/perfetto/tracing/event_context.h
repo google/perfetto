@@ -85,7 +85,7 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // event() is a template method to allow callers to specify a subclass of
   // TrackEvent instead. Those subclasses correspond to TrackEvent message with
   // application-specific extensions. More information in
-  // design-docs/extensions.md.
+  // docs/instrumentation/extensions.md.
   template <typename EventType = protos::pbzero::TrackEvent>
   EventType* event() const {
     // As the method does downcasting, we check that a target subclass does

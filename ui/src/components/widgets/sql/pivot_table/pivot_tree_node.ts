@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  assertExists,
-  assertDefined,
-  assertTrue,
-} from '../../../../base/logging';
+import {assertExists, assertDefined, assertTrue} from '../../../../base/assert';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {Filter, StandardFilters} from '../table/filters';
 import {TableColumn} from '../table/table_column';

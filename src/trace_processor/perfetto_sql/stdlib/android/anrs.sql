@@ -15,7 +15,8 @@
 --
 
 CREATE PERFETTO FUNCTION _extract_anr_type(
-    subject STRING
+    subject STRING,
+    process_name STRING
 )
 RETURNS STRING AS
 SELECT
@@ -54,6 +55,9 @@ SELECT
     THEN 'APP_TRIGGERED'
     WHEN $subject GLOB 'required notification not provided*'
     THEN 'JOB_SERVICE_NOTIFICATION_NOT_PROVIDED'
+    -- If the subject doesn't match any of the known patterns but it's an ANR in system_server, we label it as a system server watchdog timeout
+    WHEN $process_name = 'system_server'
+    THEN 'SYSTEM_SERVER_WATCHDOG_TIMEOUT'
     ELSE 'UNKNOWN_ANR_TYPE'
   END;
 
@@ -119,6 +123,19 @@ SELECT
     THEN 180000
     WHEN $anr_type = 'FOREGROUND_SERVICE_TIMEOUT'
     THEN 30000
+    ELSE NULL
+  END;
+
+-- Extract the ANR duration (milliseconds) from the subject line
+CREATE PERFETTO FUNCTION _extract_anr_duration_from_subject(
+    subject STRING
+)
+RETURNS LONG AS
+SELECT
+  CASE
+    -- e.g. 'Blocked in handler on foreground thread (android.fg) for 2s'
+    WHEN $subject GLOB '*Blocked in* for *s*'
+    THEN CAST(regexp_extract($subject, ' for ([0-9]+)s') * 1000 AS LONG)
     ELSE NULL
   END;
 
@@ -226,7 +243,7 @@ CREATE PERFETTO TABLE android_anrs (
   timer_delay LONG,
   -- The standard type of ANR.
   anr_type STRING,
-  -- Duration of the ANR, computed from the timer expiration event.
+  -- Duration of the ANR, computed from the timer expiration event OR extracted from the subject line
   anr_dur_ms LONG,
   -- Default duration of the ANR, based on the anr_type (default means in AOSP/Pixel).
   -- Note: Other OEMs may have customized these timeout values, so the defaults
@@ -329,9 +346,11 @@ WITH
       (
         anr.ts - abt.timer_ts
       ) AS timer_delay,
-      coalesce(_platform_to_standard_anr_type(abt.anr_type), _extract_anr_type(s.subject)) AS anr_type,
-      abt.anr_dur_ms,
-      _default_anr_dur(_extract_anr_type(s.subject), s.subject) AS default_anr_dur_ms
+      coalesce(
+        _platform_to_standard_anr_type(abt.anr_type),
+        _extract_anr_type(s.subject, anr.process_name)
+      ) AS anr_type,
+      coalesce(abt.anr_dur_ms, _extract_anr_duration_from_subject(s.subject)) AS anr_dur_ms
     FROM anr
     LEFT JOIN subject AS s
       USING (error_id)
@@ -354,5 +373,5 @@ SELECT
   _get_component(anr_type, subject) AS component,
   timer_delay,
   anr_dur_ms,
-  default_anr_dur_ms
+  _default_anr_dur(anr_type, subject) AS default_anr_dur_ms
 FROM anrs;

@@ -13,13 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.cujs.base;
 INCLUDE PERFETTO MODULE android.startup.startups;
 INCLUDE PERFETTO MODULE wattson.estimates;
 INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
-
--- Create the base table (`android_jank_cuj`) containing all completed CUJs
--- found in the trace.
-SELECT RUN_METRIC('android/jank/cujs.sql');
 
 DROP VIEW IF EXISTS _atrace_apps_window;
 CREATE PERFETTO VIEW _atrace_apps_window AS

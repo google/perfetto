@@ -258,6 +258,10 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_cpu_table(), id);
   }
 
+  BoundInserter AddArgsTo(tables::GpuTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_gpu_table(), id);
+  }
+
   BoundInserter AddArgsTo(tables::TraceImportLogsTable::Id id) {
     return AddArgsTo(context_->storage->mutable_trace_import_logs_table(), id);
   }

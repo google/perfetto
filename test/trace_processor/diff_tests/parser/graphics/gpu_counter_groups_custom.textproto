@@ -1,0 +1,64 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  gpu_counter_event {
+    counter_descriptor {
+      specs {
+        counter_id: 1
+        name: "Counter A"
+        description: "First counter"
+        groups: COMPUTE
+      }
+      specs {
+        counter_id: 2
+        name: "Counter B"
+        description: "Second counter"
+        groups: COMPUTE
+      }
+      specs {
+        counter_id: 3
+        name: "Counter C"
+        description: "Third counter"
+        groups: MEMORY
+      }
+      specs {
+        counter_id: 4
+        name: "Counter D"
+        description: "Fourth counter"
+      }
+      counter_groups {
+        group_id: 5
+        name: "Memory"
+        description: "Memory counters"
+        counter_ids: 4
+      }
+      counter_groups {
+        group_id: 6
+        name: "Compute Core"
+        description: "Compute core counters"
+      }
+      counter_groups {
+        group_id: 100
+        name: "L2 Cache"
+        description: "L2 cache counters"
+        counter_ids: 3
+      }
+    }
+    counters {
+      counter_id: 1
+      int_value: 100
+    }
+    counters {
+      counter_id: 2
+      int_value: 200
+    }
+    counters {
+      counter_id: 3
+      int_value: 300
+    }
+    counters {
+      counter_id: 4
+      int_value: 400
+    }
+  }
+}

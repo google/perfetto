@@ -18,12 +18,12 @@
 
 #include <cstdint>
 #include <optional>
-#include <regex>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
@@ -57,8 +57,10 @@ std::string FilterToText(FilterUtil& filter,
   std::string output;
   PERFETTO_CHECK(perfetto::base::ReadFile(tmp_path, &output));
   // Make the output a bit more compact.
-  output = std::regex_replace(output, std::regex(" +"), " ");
-  return std::regex_replace(output, std::regex(" +\\n"), "\n");
+  auto re = perfetto::base::Regex::CreateOrCheck(" +");
+  output = re.GlobalReplace(output, " ");
+  re = perfetto::base::Regex::CreateOrCheck(" +\\n");
+  return re.GlobalReplace(output, "\n");
 }
 
 TEST(SchemaParserTest, SchemaToBytecode_Simple) {

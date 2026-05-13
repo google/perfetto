@@ -13,6 +13,7 @@ from python.tools.git_utils import (
     get_all_branches,
     get_branch_children,
     get_current_branch,
+    get_worktree_branches,
     run_git_command,
     topological_sort_branches,
     MAINLINE_BRANCHES,
@@ -88,13 +89,20 @@ def main():
 
   # --- Phase 2: Perform Actions ---
   print("\n--- Actions ---")
+  worktree_branches_dry = get_worktree_branches()
   if args.dry_run:
     print("Dry Run - Would perform:")
     for branch_to_prune in sorted(list(branches_to_prune)):
       final_parent = remap.get(branch_to_prune, "???")
-      print(
-          f" - Delete branch '{branch_to_prune}' (identical to '{final_parent}')"
-      )
+      if branch_to_prune in worktree_branches_dry:
+        print(
+            f" - Remove worktree '{worktree_branches_dry[branch_to_prune]}' "
+            f"and delete branch '{branch_to_prune}' (identical to '{final_parent}')"
+        )
+      else:
+        print(
+            f" - Delete branch '{branch_to_prune}' (identical to '{final_parent}')"
+        )
       children = get_branch_children(branch_to_prune, list(all_local_branches))
       children_to_reparent = [c for c in children if c not in branches_to_prune]
       if children_to_reparent:
@@ -104,6 +112,7 @@ def main():
   else:
     print("Performing re-parenting and deletions...")
     current_checked_out_branch = get_current_branch()
+    worktree_branches = get_worktree_branches()
     all_local_branches_list = list(all_local_branches)
     reparent_errors = False
     processed_children = set()
@@ -134,8 +143,31 @@ def main():
     delete_errors = False
     for branch_to_prune in sorted(list(branches_to_prune)):
       if branch_to_prune == current_checked_out_branch:
-        print(f"Skipping delete of '{branch_to_prune}' (checked out).")
-        continue
+        new_parent = remap.get(branch_to_prune)
+        if not new_parent:
+          print(f"Skipping delete of '{branch_to_prune}' (checked out, "
+                f"no parent to switch to).")
+          continue
+        print(f" - Switching from '{branch_to_prune}' to '{new_parent}'...")
+        try:
+          run_git_command(['checkout', new_parent])
+          current_checked_out_branch = new_parent
+        except (SystemExit, Exception) as e:
+          print(f"Error switching to '{new_parent}': {e}", file=sys.stderr)
+          delete_errors = True
+          continue
+      if branch_to_prune in worktree_branches:
+        wt_path = worktree_branches[branch_to_prune]
+        print(f" - Removing worktree '{wt_path}' for branch "
+              f"'{branch_to_prune}'...")
+        try:
+          run_git_command(['worktree', 'remove', wt_path])
+        except (SystemExit, Exception) as e:
+          print(
+              f"Error removing worktree for '{branch_to_prune}': {e}",
+              file=sys.stderr)
+          delete_errors = True
+          continue
       print(f" - Deleting branch '{branch_to_prune}'...")
       try:
         # Use -D for force delete, as branch might not appear merged

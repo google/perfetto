@@ -89,6 +89,7 @@ def _proto_gen_impl(ctx):
         inputs = proto_src + includes + plugin_deps,
         tools = plugin_deps,
         outputs = out_files,
+        mnemonic = "PerfettoProtoGen",
         executable = ctx.executable.protoc,
         arguments = arguments,
     )
@@ -144,6 +145,7 @@ def _proto_descriptor_gen_impl(ctx):
     ctx.actions.run_shell(
         inputs=descriptors,
         outputs=ctx.outputs.outs,
+        mnemonic="PerfettoProtoDescriptorGen",
         command='cat %s > %s' % (
             ' '.join([f.path for f in descriptors]), ctx.outputs.outs[0].path)
     )

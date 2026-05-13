@@ -140,6 +140,34 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
                                                "playstore_version_code")),
         Variadic::Integer(packet_decoder.chrome_version_code()));
   }
+  if (packet_decoder.has_app_version()) {
+    auto app_version_id = storage->InternString(packet_decoder.app_version());
+    metadata->SetDynamicMetadata(
+        storage->InternString(base::StringView(metadata_prefix.ToStdString() +
+                                               "product-version")),
+        Variadic::String(app_version_id));
+  }
+  if (packet_decoder.has_os_name()) {
+    auto os_name_id = storage->InternString(packet_decoder.os_name());
+    metadata->SetDynamicMetadata(
+        storage->InternString(
+            base::StringView(metadata_prefix.ToStdString() + "os-name")),
+        Variadic::String(os_name_id));
+  }
+  if (packet_decoder.has_app_package_name()) {
+    auto app_package_name_id =
+        storage->InternString(packet_decoder.app_package_name());
+    metadata->SetDynamicMetadata(
+        storage->InternString(
+            base::StringView(metadata_prefix.ToStdString() + "package-name")),
+        Variadic::String(app_package_name_id));
+  }
+  if (packet_decoder.has_channel()) {
+    metadata->SetDynamicMetadata(
+        storage->InternString(
+            base::StringView(metadata_prefix.ToStdString() + "channel")),
+        Variadic::Integer(packet_decoder.channel()));
+  }
   if (packet_decoder.has_enabled_categories()) {
     auto categories_id =
         storage->InternString(packet_decoder.enabled_categories());

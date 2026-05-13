@@ -277,22 +277,35 @@ TEST(ProtoDecoderTest, MoveTypedDecoder) {
   // Construct a decoder that uses inline storage (i.e., the fields are stored
   // within the object itself).
   using Decoder = TypedProtoDecoder<32>;
-  std::unique_ptr<Decoder> decoder(new Decoder(proto.data(), proto.size()));
-  ASSERT_GE(reinterpret_cast<uintptr_t>(&decoder->at<1>()),
-            reinterpret_cast<uintptr_t>(decoder.get()));
-  ASSERT_LT(reinterpret_cast<uintptr_t>(&decoder->at<1>()),
-            reinterpret_cast<uintptr_t>(decoder.get()) + sizeof(Decoder));
 
-  // Move the decoder into another object and deallocate the original object.
-  Decoder decoder2(std::move(*decoder));
-  decoder.reset();
+  auto check_decoder_contents = [](const Decoder& decoder) {
+    EXPECT_EQ(decoder.Get(1).as_int32(), 10);
+    ASSERT_GE(reinterpret_cast<uintptr_t>(&decoder.at<1>()),
+              reinterpret_cast<uintptr_t>(&decoder));
+    ASSERT_LT(reinterpret_cast<uintptr_t>(&decoder.at<1>()),
+              reinterpret_cast<uintptr_t>(&decoder) + sizeof(Decoder));
+  };
 
-  // Check that the contents got moved correctly.
-  EXPECT_EQ(decoder2.Get(1).as_int32(), 10);
-  ASSERT_GE(reinterpret_cast<uintptr_t>(&decoder2.at<1>()),
-            reinterpret_cast<uintptr_t>(&decoder2));
-  ASSERT_LT(reinterpret_cast<uintptr_t>(&decoder2.at<1>()),
-            reinterpret_cast<uintptr_t>(&decoder2) + sizeof(Decoder));
+  // Move constructor
+  {
+    std::unique_ptr<Decoder> decoder(new Decoder(proto.data(), proto.size()));
+    check_decoder_contents(*decoder);
+
+    Decoder decoder2(std::move(*decoder));
+    decoder.reset();
+    check_decoder_contents(decoder2);
+  }
+
+  // Move assignment operator
+  {
+    std::unique_ptr<Decoder> decoder(new Decoder(proto.data(), proto.size()));
+    check_decoder_contents(*decoder);
+
+    Decoder decoder2(nullptr, 0);
+    decoder2 = std::move(*decoder);
+    decoder.reset();
+    check_decoder_contents(decoder2);
+  }
 }
 
 TEST(ProtoDecoderTest, PackedRepeatedVarint) {

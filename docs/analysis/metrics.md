@@ -152,9 +152,9 @@ For example, from inside a Perfetto checkout:
 ```
 
 This will run the CPU metric using the live SQL in the repo _not_ the SQL
-defintion built into the binary.
+definition built into the binary.
 
-NOTE: protos are _not_ overriden in the same way - if any proto messages are
+NOTE: protos are _not_ overridden in the same way - if any proto messages are
 changed a recompile of trace processor is required for the changes to be
 available.
 
@@ -162,7 +162,7 @@ NOTE: the `--dev` flag is required for the use of this feature. This flag
 ensures that this feature is not accidentally in production as it is only
 intended for local development.
 
-WARNING: protos are _not_ overriden in the same way - if any proto messages are
+WARNING: protos are _not_ overridden in the same way - if any proto messages are
 changed a recompile of trace processor is required for the changes to be
 available.
 
@@ -171,7 +171,7 @@ available.
 ### RUN_METRIC
 
 `RUN_METRIC` allows you to run another metric file. This allows you to use views
-or tables defined in that file without repeatition.
+or tables defined in that file without repetition.
 
 Conceptually, `RUN_METRIC` adds _composability_ for SQL queries to break a big
 SQL metric into smaller, reusable files. This is similar to how functions allow

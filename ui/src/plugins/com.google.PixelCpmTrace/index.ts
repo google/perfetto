@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -42,18 +42,14 @@ export default class implements PerfettoPlugin {
     for (let groupAdded = false; it.valid(); it.next()) {
       const {trackId, trackName} = it;
       const uri = `/cpm_trace_${trackName}`;
-      const track = await createQueryCounterTrack({
+      const track = await CounterTrack.createMaterialized({
         trace: ctx,
         uri,
-        data: {
-          sqlSource: `
-             select ts, value
-             from counter
-             where track_id = ${trackId}
-           `,
-          columns: ['ts', 'value'],
-        },
-        columns: {ts: 'ts', value: 'value'},
+        sqlSource: `
+           select ts, value
+           from counter
+           where track_id = ${trackId}
+         `,
       });
       ctx.tracks.registerTrack({
         uri,
