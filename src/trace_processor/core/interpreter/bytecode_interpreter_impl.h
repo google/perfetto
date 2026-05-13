@@ -1630,13 +1630,13 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
                                 nbv->bv->count_set_bits_until_in_word(*ptr))
                           : std::numeric_limits<uint32_t>::max();
       uint8_t res = is_non_null ? 0xFF : 0;
-      *dest = invert ? ~res : res;
+      *dest = static_cast<uint8_t>(invert ? ~res : res);
       offset = 1;
     } else if constexpr (std::is_same_v<Nullability, DenseNull>) {
       is_non_null = nbv->bv->is_set(table_index);
       storage_index = table_index;
       uint8_t res = is_non_null ? 0xFF : 0;
-      *dest = invert ? ~res : res;
+      *dest = static_cast<uint8_t>(invert ? ~res : res);
       offset = 1;
     } else {
       static_assert(std::is_same_v<Nullability, NonNull>,

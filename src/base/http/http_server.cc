@@ -449,8 +449,20 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
     return 0;  // Not enough data to read the payload.
   uint8_t* const payload_start = rd;
 
-  // Unmask the payload.
-  for (uint32_t i = 0; i < payload_len; ++i)
+  // Unmask the payload, 4 bytes at a time. The bytewise variant of this loop
+  // (payload[i] ^= mask[i % 4]) causes clang 21+ to emit a wide-than-4-byte
+  // load from `mask` to splat it into a SIMD register, which over-reads past
+  // the array and is flagged by ASan as a stack-buffer-overflow.
+  uint32_t mask_word;
+  memcpy(&mask_word, mask, sizeof(mask_word));
+  size_t i = 0;
+  for (; i + sizeof(mask_word) <= payload_len; i += sizeof(mask_word)) {
+    uint32_t chunk;
+    memcpy(&chunk, payload_start + i, sizeof(chunk));
+    chunk ^= mask_word;
+    memcpy(payload_start + i, &chunk, sizeof(chunk));
+  }
+  for (; i < payload_len; ++i)
     payload_start[i] ^= mask[i % sizeof(mask)];
 
   if (opcode == kOpcodePing) {
