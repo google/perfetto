@@ -169,7 +169,6 @@ void TraceProcessorStorageImpl::OnEventsFullyExtracted() {
   }
   auto& all = context()->forked_context_state->trace_and_machine_to_context;
   for (auto it = all.GetIterator(); it; ++it) {
-    it.value()->disk_io_tracker->OnEventsFullyExtracted();
     it.value()->file_io_tracker->OnEventsFullyExtracted();
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();

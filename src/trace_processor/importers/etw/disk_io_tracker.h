@@ -33,43 +33,16 @@ class DiskIoTracker {
  public:
   explicit DiskIoTracker(TraceProcessorContext* context);
 
-  void ParseDiskIo(int64_t timestamp, protozero::ConstBytes);
-
-  void OnEventsFullyExtracted();
+  void ParseDiskIo(int64_t timestamp, UniqueTid utid, protozero::ConstBytes);
 
  private:
-  struct StartedEvent {
-    StringId name;
-    int64_t timestamp;
-    UniqueTid utid;
-    SliceTracker::SetArgsCallback set_args;
-  };
-
-  // Starts tracking `event`, to be added to the trace when its matching end
-  // event is parsed.
-  void StartEvent(uint64_t irp,
-                  StringId name,
-                  int64_t timestamp,
-                  UniqueTid utid,
-                  SliceTracker::SetArgsCallback args);
-
-  // Adds the ending event to the trace as a slice.
-  void EndEvent(uint64_t irp,
-                StringId name, /* only used if can't use irp */
-                int64_t timestamp,
-                UniqueTid utid,
-                SliceTracker::SetArgsCallback args);
-
-  void RecordEventWithoutIrp(StringId name,
-                             int64_t timestamp,
-                             UniqueTid utid,
-                             SliceTracker::SetArgsCallback args);
+  // Adds the event to the trace as a slice.
+  void HandleEvent(StringId name, UniqueTid utid,
+                   int64_t timestamp,
+                   uint64_t response_time,
+                   SliceTracker::SetArgsCallback args);
 
   TraceProcessorContext* context_;
-
-  // Tracks events parsed so far for which a corresponding "operation end" event
-  // has not yet been parsed.
-  std::unordered_map<uint64_t, StartedEvent> started_events_;
 
   // Strings interned in the constructor to improve performance.
   const StringId disk_number_arg_;
@@ -78,8 +51,8 @@ class DiskIoTracker {
   const StringId byte_offset_arg_;
   const StringId file_object_arg_;
   const StringId irp_ptr_arg_;
-  const StringId high_res_response_time_arg_;
-  const StringId thread_id_arg_;
+  const StringId response_time_arg_;
+  const StringId issuing_thread_id_arg_;
 };
 
 }  // namespace perfetto::trace_processor

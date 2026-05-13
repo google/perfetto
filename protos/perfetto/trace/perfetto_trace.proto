@@ -1329,6 +1329,8 @@ message EtwConfig {
   repeated string file_provider_events = 4;
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
+  // Provides events relating to disk I/O.
+  repeated string disk_provider_events = 6;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -8694,20 +8696,18 @@ message StackWalkEtwEvent {
   optional uint64 callstack_iid = 2;
 }
 
-// Proto definition based on the `DiskIo_TypeGroup1` class definition.
+// Proto definition based on the `DiskIo_TypeGroup3` class definition.
 message DiskIoEtwEvent {
   optional uint32 disk_number = 1;
   optional uint32 irp_flags = 2;
   optional uint32 transfer_size = 3;
-  optional uint32 reserved = 4;
-  optional int64 byte_offset = 5;
-  optional uint64 file_object = 6;
-  optional uint64 irp_ptr = 7;
-  optional uint64 high_res_response_time = 8;
-  optional uint32 issuing_thread_id = 9;
-  optional uint32 opcode = 10;
+  optional int64 byte_offset = 4;
+  optional uint64 file_object = 5;
+  optional uint64 irp_ptr = 6;
+  optional uint32 issuing_thread_id = 7,
+  optional uint64 response_time = 8;
+  optional uint32 opcode = 9;
 }
-
 
 // End of protos/perfetto/trace/etw/etw.proto
 

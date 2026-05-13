@@ -72,7 +72,6 @@ EtwParser::EtwParser(TraceProcessorContext* context)
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
                                       const TracePacketData& data) {
-  using protos::pbzero::EtwTraceEvent;
   const TraceBlobView& event = data.packet;
   protos::pbzero::EtwTraceEvent::Decoder decoder(event.data(), event.length());
 
@@ -112,7 +111,7 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
   }
 
   if (decoder.has_disk_io()) {
-    context_->disk_io_tracker->ParseDiskIo(ts, decoder.disk_io());
+    context_->disk_io_tracker->ParseDiskIo(ts, utid, decoder.disk_io());
   }
 
   return base::OkStatus();

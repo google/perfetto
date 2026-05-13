@@ -30,6 +30,13 @@ namespace perfetto::trace_processor {
 
 namespace {
 
+// The value of the "Category" field for disk I/O events.
+constexpr char kCategory[] = "ETW Disk I/O";
+
+const auto kBlueprint = TrackCompressor::SliceBlueprint(
+    "etw_diskio",
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
+
 enum EventType {
   kRead = 10,
   kWrite = 11,
@@ -68,54 +75,39 @@ DiskIoTracker::DiskIoTracker(TraceProcessorContext* context)
       byte_offset_arg_(context_->storage->InternString("Byte Offset")),
       file_object_arg_(context_->storage->InternString("File Object")),
       irp_ptr_arg_(context_->storage->InternString("Irp Ptr")),
-      high_res_response_time_arg_(
-          context_->storage->InternString("High Res Response Time")),
-      thread_id_arg_(context_->storage->InternString("Thread ID")) {}
+      response_time_arg_(
+          context_->storage->InternString("Response Time (microseconds)")),
+      issuing_thread_id_arg_(context_->storage->InternString("Issuing Thread ID")) {}
 
-void DiskIoTracker::ParseDiskIo(int64_t timestamp, protozero::ConstBytes blob) {
+void DiskIoTracker::ParseDiskIo(int64_t timestamp,
+                                UniqueTid utid,
+                                protozero::ConstBytes blob) {
   protos::pbzero::DiskIoEtwEvent::Decoder decoder(blob);
   if (!decoder.has_opcode() || !decoder.has_irp_ptr()) {
     return;
   }
   const auto opcode = static_cast<EventType>(decoder.opcode());
   const auto irp = decoder.irp_ptr();
-  UniqueTid utid =
-      context_->process_tracker->GetOrCreateThread(decoder.issuing_thread_id());
-
-  const auto disk_number = decoder.has_disk_number()
-                               ? std::optional(decoder.disk_number())
-                               : std::nullopt;
-  const auto irp_flags = decoder.has_irp_flags()
-                             ? std::optional(decoder.irp_flags())
-                             : std::nullopt;
-  const auto transfer_size = decoder.has_transfer_size()
-                                 ? std::optional(decoder.transfer_size())
-                                 : std::nullopt;
-  const auto byte_offset = decoder.has_byte_offset()
-                               ? std::optional(decoder.byte_offset())
-                               : std::nullopt;
-  const auto file_object = decoder.has_file_object()
-                               ? std::optional(decoder.file_object())
-                               : std::nullopt;
-  const auto high_res_response_time =
-      decoder.has_high_res_response_time()
-          ? std::optional(decoder.high_res_response_time())
-          : std::nullopt;
-
+  const auto disk_number = decoder.has_disk_number() ? std::optional(decoder.disk_number()) : std::nullopt;
+  const auto irp_flags = decoder.has_irp_flags() ? std::optional(decoder.irp_flags()) : std::nullopt;
+  const auto transfer_size = decoder.has_transfer_size() ? std::optional(decoder.transfer_size()) : std::nullopt;
+  const auto byte_offset = decoder.has_byte_offset() ? std::optional(decoder.byte_offset()) : std::nullopt;
+  const auto file_object = decoder.has_file_object() ? std::optional(decoder.file_object()) : std::nullopt;
+  const auto response_time = decoder.has_response_time() ? std::optional(decoder.response_time()) : std::nullopt;
+  const auto issuing_thread_id = decoder.has_issuing_thread_id()
+                                     ? std::optional(decoder.issuing_thread_id())
+                                     : std::nullopt;
   SliceTracker::SetArgsCallback set_args =
-      [this, disk_number, irp_flags, transfer_size, byte_offset, file_object,
-       irp, high_res_response_time](ArgsTracker::BoundInserter* inserter) {
+      [this, disk_number, irp_flags, transfer_size, byte_offset, file_object, irp, response_time, issuing_thread_id](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(irp));
         if (disk_number) {
-          inserter->AddArg(disk_number_arg_,
-                           Variadic::UnsignedInteger(*disk_number));
+          inserter->AddArg(disk_number_arg_, Variadic::UnsignedInteger(*disk_number));
         }
         if (irp_flags) {
           inserter->AddArg(irp_flags_arg_, Variadic::Pointer(*irp_flags));
         }
         if (transfer_size) {
-          inserter->AddArg(transfer_size_arg_,
-                           Variadic::UnsignedInteger(*transfer_size));
+          inserter->AddArg(transfer_size_arg_, Variadic::UnsignedInteger(*transfer_size));
         }
         if (byte_offset) {
           inserter->AddArg(byte_offset_arg_, Variadic::Integer(*byte_offset));
@@ -123,108 +115,34 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, protozero::ConstBytes blob) {
         if (file_object) {
           inserter->AddArg(file_object_arg_, Variadic::Pointer(*file_object));
         }
-        if (high_res_response_time) {
-          inserter->AddArg(high_res_response_time_arg_,
-                           Variadic::UnsignedInteger(*high_res_response_time));
+        if (response_time) {
+          inserter->AddArg(response_time_arg_, Variadic::UnsignedInteger(*response_time));
+        }
+        if (issuing_thread_id) {
+          inserter->AddArg(issuing_thread_id_arg_,
+                         Variadic::UnsignedInteger(*issuing_thread_id));
         }
       };
 
-  switch (opcode) {
-    case kReadInit:
-    case kWriteInit:
-    case kFlushInit: {
       const char* event_type = GetEventTypeString(opcode);
-      if (!event_type)
-        return;
+      if (!event_type) return;
       StringId name = context_->storage->InternString(event_type);
-      StartEvent(irp, name, timestamp, utid, std::move(set_args));
-      break;
-    }
-    case kRead:
-    case kWrite:
-    case kFlush: {
-      const char* end_event_type = GetEventTypeString(opcode);
-      if (!end_event_type)
-        return;
-      StringId name = context_->storage->InternString(end_event_type);
-      EndEvent(irp, name, timestamp, utid, std::move(set_args));
-      break;
-    }
-  }
+      HandleEvent(name, issuing_thread_id.value_or(utid), timestamp,
+                  response_time.value_or(0), std::move(set_args));
 }
 
-void DiskIoTracker::StartEvent(uint64_t irp,
-                               StringId name,
-                               int64_t timestamp,
-                               UniqueTid utid,
-                               SliceTracker::SetArgsCallback args) {
-  // `track_id` controls the row the events appear in. This must be created via
-  // `TrackCompressor` because slices may be partially overlapping, which is not
-  // supported by the Perfetto data model as-is.
-  static const auto kBlueprint = TrackCompressor::SliceBlueprint(
-      "etw_diskio",
-      tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
-
-  const auto track_id = context_->track_compressor->InternBegin(
-      kBlueprint, tracks::Dimensions(utid),
-      /*cookie=*/static_cast<int64_t>(irp));
-
-  // Begin a slice for the event.
-  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name,
-                                 std::move(args));
-  started_events_[irp] = {name, timestamp, utid, std::move(args)};
-}
-
-void DiskIoTracker::EndEvent(uint64_t irp,
-                             StringId name,
-                             int64_t end_timestamp,
-                             UniqueTid utid,
-                             SliceTracker::SetArgsCallback args) {
-  auto started_event_it = started_events_.find(irp);
-  if (!irp || started_event_it == started_events_.end()) {
-    RecordEventWithoutIrp(name, end_timestamp, utid, std::move(args));
-    return;
-  }
-
-  static const auto kBlueprint = TrackCompressor::SliceBlueprint(
-      "etw_diskio",
-      tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
-
-  const auto event_name = started_event_it->second.name;
-
-  // End the slice for this event.
-  const auto track_id = context_->track_compressor->InternEnd(
-      kBlueprint, tracks::Dimensions(utid),
-      /*cookie=*/static_cast<int64_t>(irp));
-  context_->slice_tracker->End(end_timestamp, track_id, kNullStringId,
-                               event_name, std::move(args));
-  started_events_.erase(started_event_it);
-}
-
-void DiskIoTracker::RecordEventWithoutIrp(StringId name,
-                                          int64_t timestamp,
-                                          UniqueTid utid,
-                                          SliceTracker::SetArgsCallback args) {
-  const int64_t duration = 0;
-  const auto category = kNullStringId;
-
-  static const auto kBlueprint = TrackCompressor::SliceBlueprint(
-      "etw_diskio",
-      tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
+void DiskIoTracker::HandleEvent(StringId name, UniqueTid utid,
+                                int64_t timestamp, uint64_t response_time,
+                                SliceTracker::SetArgsCallback args) {
+  const auto category = context_->storage->InternString(kCategory);
 
   const auto track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(utid), timestamp, duration);
+      kBlueprint, tracks::Dimensions(utid), timestamp,
+      response_time);
 
-  context_->slice_tracker->Scoped(timestamp, track_id, category, name, duration,
+  context_->slice_tracker->Scoped(timestamp, track_id, category, name,
+                                  response_time,
                                   std::move(args));
-}
-
-void DiskIoTracker::OnEventsFullyExtracted() {
-  for (auto& [irp, event] : started_events_) {
-    RecordEventWithoutIrp(event.name, event.timestamp, event.utid,
-                          std::move(event.set_args));
-  }
-  started_events_.clear();
 }
 
 }  // namespace perfetto::trace_processor
