@@ -50,6 +50,9 @@ if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
     all_targets += [ "src/bigtrace/worker:worker_main" ]
   }
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
+  if (perfetto_build_standalone) {
+    all_targets += [ "src/trace_processor/perfetto_sql/pfsql" ]
+  }
 }
 
 if (enable_perfetto_trace_processor) {
