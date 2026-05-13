@@ -17,7 +17,9 @@ import {z} from 'zod';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
+import HeapProfilePlugin, {
+  traceHasTimelineData,
+} from '../dev.perfetto.HeapProfile';
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
 
@@ -66,25 +68,12 @@ export default class implements PerfettoPlugin {
       icon: 'memory',
     });
 
-    if (!(await traceHasTimelineData(ctx))) {
+    if (
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(ctx))
+    ) {
       session.autoNavigated = true;
       ctx.onTraceReady.addListener(() => ctx.navigate('#!/heapdump'));
     }
   }
-}
-
-// Returns true if the trace contains any timeline data the user is likely to
-// want to inspect alongside a Java heap dump. When this is true we leave the
-// user on the timeline; when false the trace is assumed to be a
-// heap-dump-only capture and we auto-navigate to the Heap Dump Explorer.
-async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
-  const res = await ctx.engine.query(`
-    SELECT
-      EXISTS(SELECT 1 FROM slice) OR
-      EXISTS(SELECT 1 FROM sched) OR
-      EXISTS(SELECT 1 FROM heap_profile_allocation) OR
-      EXISTS(SELECT 1 FROM perf_sample)
-      AS res
-  `);
-  return res.firstRow({res: NUM}).res > 0;
 }
