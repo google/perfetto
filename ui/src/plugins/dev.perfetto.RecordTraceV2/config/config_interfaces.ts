@@ -15,7 +15,10 @@
 import m from 'mithril';
 import {TargetPlatformId} from '../interfaces/target_platform';
 import {TraceConfigBuilder} from './trace_config_builder';
-import {RecordPluginSchema, RecordSessionSchema} from '../serialization_schema';
+import {
+  ProbesSessionSchema,
+  RecordPluginSchema,
+} from '../serialization_schema';
 
 /**
  * A sub-page of the Record page.
@@ -59,8 +62,8 @@ export type RecordSubpage = {
 
       // Save-restore the page state into the JSON object that is saved in
       // localstorage and shared when sharing a config.
-      serialize(state: RecordSessionSchema): void;
-      deserialize(state: RecordSessionSchema): void;
+      serialize(state: ProbesSessionSchema): void;
+      deserialize(state: ProbesSessionSchema): void;
     }
   | {
       kind: 'GLOBAL_PAGE';

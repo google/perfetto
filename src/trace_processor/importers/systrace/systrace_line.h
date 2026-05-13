@@ -28,7 +28,6 @@ struct alignas(8) SystraceLine {
   uint32_t cpu;
 
   std::string task;
-  std::string pid_str;
   std::string tgid_str;
   std::string event_name;
   std::string args_str;

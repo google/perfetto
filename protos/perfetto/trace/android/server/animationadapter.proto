@@ -52,19 +52,19 @@ message WindowAnimationSpecProto {
 message MoveAnimationSpecProto {
   optional PointProto from = 1;
   optional PointProto to = 2;
-  optional int64 duration_ms = 3;
+  optional int64 duration_ms = 3 [jstype = JS_STRING];
 }
 
 // represents AlphaAnimationSpec
 message AlphaAnimationSpecProto {
   optional float from = 1;
   optional float to = 2;
-  optional int64 duration_ms = 3;
+  optional int64 duration_ms = 3 [jstype = JS_STRING];
 }
 
 // represents RotationAnimationSpec
 message RotationAnimationSpecProto {
   optional float start_luma = 1;
   optional float end_luma = 2;
-  optional int64 duration_ms = 3;
+  optional int64 duration_ms = 3 [jstype = JS_STRING];
 }

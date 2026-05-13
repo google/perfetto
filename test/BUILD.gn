@@ -36,6 +36,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../protos/perfetto/trace/ftrace:cpp",
       "../protos/perfetto/trace/perfetto:cpp",
       "../protos/perfetto/trace/power:cpp",
+      "../protos/perfetto/trace/profiling:cpp",
       "../protos/perfetto/trace/sys_stats:cpp",
       "../src/base:base",
       "../src/base:test_support",

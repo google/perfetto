@@ -28,17 +28,14 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -67,6 +64,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -124,7 +122,7 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      perf_tracker_(ctx),
+      perf_tracker_(ctx, ctx->perf_aux_tokenizer_registrations),
       stream_(ctx->sorter->CreateStream(
           std::make_unique<RecordParser>(context_, &perf_tracker_))),
       aux_manager_(ctx, &perf_tracker_) {}
@@ -209,9 +207,6 @@ PerfDataTokenizer::ParseHeader() {
   feature_ids_ = ExtractFeatureIds(header_.flags, header_.flags1);
   feature_headers_section_ = {header_.data.end(),
                               feature_ids_.size() * sizeof(PerfFile::Section)};
-  context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
-
   PERFETTO_CHECK(buffer_.PopFrontUntil(sizeof(PerfFile::Header)));
   parsing_state_ = ParsingState::kParseAttrs;
   return ParsingResult::kSuccess;
@@ -250,8 +245,8 @@ PerfDataTokenizer::ParseAttrs() {
 
   ASSIGN_OR_RETURN(perf_invocation_, builder.Build());
   if (perf_invocation_->HasPerfClock()) {
-    context_->clock_tracker->SetTraceTimeClock(
-        protos::pbzero::BUILTIN_CLOCK_PERF);
+    context_->clock_tracker->SetGlobalClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_PERF));
   }
   parsing_state_ = ParsingState::kSeekRecords;
   return ParsingResult::kSuccess;
@@ -602,8 +597,7 @@ base::Status PerfDataTokenizer::OnPushDataToSorter() {
 }
 
 void PerfDataTokenizer::OnEventsFullyExtracted() {
-  // Phase 3: Finalize tracker
-  perf_tracker_.OnEventsFullyExtracted();
+  aux_manager_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

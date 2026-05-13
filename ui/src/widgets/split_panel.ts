@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
+import {ResizeHandle} from './resize_handle';
 
 type SplitSizePixels = {
   readonly pixels: number;
@@ -65,7 +66,7 @@ export function SplitPanel(
   // Internal state for uncontrolled mode
   let internalPercent = 50;
   let internalFixedPx = 150;
-  let isResizing = false;
+  let containerElement: HTMLElement | undefined;
 
   const initial = vnode.attrs.initialSplit ?? {percent: 50};
   if ('pixels' in initial) {
@@ -97,7 +98,6 @@ export function SplitPanel(
         `pf-split-${direction}`,
         vnode.attrs.className,
       );
-      const handleSize = 4;
 
       // Get current size - from controlled prop or internal state
       let currentPercent: number;
@@ -119,7 +119,7 @@ export function SplitPanel(
       // Use CSS min/max width/height to enforce size constraints
       const minProp = direction === 'horizontal' ? 'minWidth' : 'minHeight';
       const maxProp = direction === 'horizontal' ? 'maxWidth' : 'maxHeight';
-      const maxSize = `calc(100% - ${minSize}px - ${handleSize}px)`;
+      const maxSize = `calc(100% - ${minSize}px)`;
 
       if (isPixelMode) {
         // Pixel mode - one panel fixed, one flexible
@@ -143,44 +143,24 @@ export function SplitPanel(
         const firstPercent =
           controlledPanel === 'first' ? currentPercent : 100 - currentPercent;
         firstStyle = {
-          flex: `0 0 calc(${firstPercent}% - ${handleSize / 2}px)`,
+          flex: `0 0 ${firstPercent}%`,
           [minProp]: `${minSize}px`,
           [maxProp]: maxSize,
         };
         secondStyle = {
-          flex: `0 0 calc(${100 - firstPercent}% - ${handleSize / 2}px)`,
+          flex: `0 0 ${100 - firstPercent}%`,
           [minProp]: `${minSize}px`,
           [maxProp]: maxSize,
         };
       }
 
-      const onPointerDown = (e: PointerEvent) => {
-        e.preventDefault();
-        const handle = e.currentTarget as HTMLElement;
-        handle.setPointerCapture(e.pointerId);
-        isResizing = true;
-        document.body.style.cursor =
-          direction === 'horizontal' ? 'col-resize' : 'row-resize';
-        document.body.style.userSelect = 'none';
-        handle.classList.add('pf-split-handle--active');
-      };
+      const onResizeAbsolute = (pos: number) => {
+        if (!containerElement) return;
+        m.redraw();
 
-      const onPointerMove = (e: PointerEvent) => {
-        if (!isResizing) return;
-
-        const handle = e.currentTarget as HTMLElement;
-        const container = handle.parentElement!;
-        const rect = container.getBoundingClientRect();
+        const rect = containerElement.getBoundingClientRect();
         const containerSize =
           direction === 'horizontal' ? rect.width : rect.height;
-
-        // Calculate position from start of container
-        let pos: number;
-        if (direction === 'horizontal') {
-          pos = e.clientX - rect.left;
-        } else {
-          pos = e.clientY - rect.top;
-        }
 
         if (isPixelMode) {
           // Pixel mode
@@ -194,7 +174,7 @@ export function SplitPanel(
           // Clamp to min/max
           newSize = Math.max(
             minSize,
-            Math.min(containerSize - minSize - handleSize, newSize),
+            Math.min(containerSize - minSize, newSize),
           );
 
           // Update internal state only in uncontrolled mode
@@ -229,27 +209,23 @@ export function SplitPanel(
         }
       };
 
-      const onPointerUp = (e: PointerEvent) => {
-        if (isResizing) {
-          const handle = e.currentTarget as HTMLElement;
-          handle.releasePointerCapture(e.pointerId);
-          isResizing = false;
-          document.body.style.cursor = '';
-          document.body.style.userSelect = '';
-          handle.classList.remove('pf-split-handle--active');
-        }
-      };
-
-      return m('div', {class: containerClasses}, [
-        m('.pf-split-panel__first', {style: firstStyle}, firstPanel),
-        m('.pf-split-panel__handle', {
-          onpointerdown: onPointerDown,
-          onpointermove: onPointerMove,
-          onpointerup: onPointerUp,
-          onpointercancel: onPointerUp,
-        }),
-        m('.pf-split-panel__second', {style: secondStyle}, secondPanel),
-      ]);
+      return m(
+        'div',
+        {
+          class: containerClasses,
+          oncreate: (v: m.VnodeDOM) => {
+            containerElement = v.dom as HTMLElement;
+          },
+        },
+        [
+          m('.pf-split-panel__first', {style: firstStyle}, firstPanel),
+          m(ResizeHandle, {
+            direction: direction === 'horizontal' ? 'horizontal' : 'vertical',
+            onResizeAbsolute,
+          }),
+          m('.pf-split-panel__second', {style: secondStyle}, secondPanel),
+        ],
+      );
     },
   };
 }

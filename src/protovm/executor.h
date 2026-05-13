@@ -59,7 +59,7 @@ class Executor {
   virtual StatusOr<uint64_t> ReadRegister(uint8_t reg_id) const;
   virtual StatusOr<void> WriteRegister(const Cursors& cursors, uint8_t reg_id);
   virtual StatusOr<void> Delete(RwProto::Cursor* dst) const;
-  virtual StatusOr<void> Merge(Cursors* cursors) const;
+  virtual StatusOr<void> Merge(Cursors* cursors, bool skip_submessages) const;
   virtual StatusOr<void> Set(Cursors* cursors) const;
 
  private:

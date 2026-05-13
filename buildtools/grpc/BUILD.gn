@@ -2796,10 +2796,10 @@ source_set("grpc") {
     ":address_sorting",
     ":boringssl",
     ":gpr",
-    ":re2",
     ":upb_json_lib",
     ":upb_textformat_lib",
     "..:abseil_cpp",
+    "..:re2",
     "..:zlib",
   ]
   public_configs = [ "..:grpc_internal_config" ]
@@ -3826,58 +3826,6 @@ source_set("grpc_unsecure") {
     "..:abseil_cpp",
     "..:zlib",
   ]
-  public_configs = [ "..:grpc_internal_config" ]
-  configs -= [ "//gn/standalone:extra_warnings" ]
-  check_includes = true
-}
-
-static_library("re2") {
-  sources = [
-    "src/third_party/re2/re2/bitmap256.h",
-    "src/third_party/re2/re2/bitstate.cc",
-    "src/third_party/re2/re2/compile.cc",
-    "src/third_party/re2/re2/dfa.cc",
-    "src/third_party/re2/re2/filtered_re2.cc",
-    "src/third_party/re2/re2/filtered_re2.h",
-    "src/third_party/re2/re2/mimics_pcre.cc",
-    "src/third_party/re2/re2/nfa.cc",
-    "src/third_party/re2/re2/onepass.cc",
-    "src/third_party/re2/re2/parse.cc",
-    "src/third_party/re2/re2/perl_groups.cc",
-    "src/third_party/re2/re2/pod_array.h",
-    "src/third_party/re2/re2/prefilter.cc",
-    "src/third_party/re2/re2/prefilter.h",
-    "src/third_party/re2/re2/prefilter_tree.cc",
-    "src/third_party/re2/re2/prefilter_tree.h",
-    "src/third_party/re2/re2/prog.cc",
-    "src/third_party/re2/re2/prog.h",
-    "src/third_party/re2/re2/re2.cc",
-    "src/third_party/re2/re2/re2.h",
-    "src/third_party/re2/re2/regexp.cc",
-    "src/third_party/re2/re2/regexp.h",
-    "src/third_party/re2/re2/set.cc",
-    "src/third_party/re2/re2/set.h",
-    "src/third_party/re2/re2/simplify.cc",
-    "src/third_party/re2/re2/sparse_array.h",
-    "src/third_party/re2/re2/sparse_set.h",
-    "src/third_party/re2/re2/stringpiece.cc",
-    "src/third_party/re2/re2/stringpiece.h",
-    "src/third_party/re2/re2/tostring.cc",
-    "src/third_party/re2/re2/unicode_casefold.cc",
-    "src/third_party/re2/re2/unicode_casefold.h",
-    "src/third_party/re2/re2/unicode_groups.cc",
-    "src/third_party/re2/re2/unicode_groups.h",
-    "src/third_party/re2/re2/walker-inl.h",
-    "src/third_party/re2/util/logging.h",
-    "src/third_party/re2/util/mix.h",
-    "src/third_party/re2/util/mutex.h",
-    "src/third_party/re2/util/rune.cc",
-    "src/third_party/re2/util/strutil.cc",
-    "src/third_party/re2/util/strutil.h",
-    "src/third_party/re2/util/utf.h",
-    "src/third_party/re2/util/util.h",
-  ]
-  public_deps = []
   public_configs = [ "..:grpc_internal_config" ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   check_includes = true
@@ -5024,9 +4972,9 @@ source_set("grpc_authorization_provider") {
   public_deps = [
     ":address_sorting",
     ":gpr",
-    ":re2",
     ":upb_textformat_lib",
     "..:abseil_cpp",
+    "..:re2",
     "..:zlib",
   ]
   public_configs = [ "..:grpc_internal_config" ]

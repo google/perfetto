@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
+import {assertTrue} from '../base/assert';
 import {Workspace, WorkspaceManager} from '../public/workspace';
 import {featureFlags} from './feature_flags';
 

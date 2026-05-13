@@ -355,9 +355,11 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_init(
     jclass,
     jlong id,
     jstring name,
-    jlong parent_uuid) {
+    jlong parent_uuid,
+    jboolean is_name_static) {
   return toJLong(new sdk_for_jni::NamedTrack(
-      id, parent_uuid, StringBuffer::utf16_to_ascii(env, name).data()));
+      id, parent_uuid, StringBuffer::utf16_to_ascii(env, name).data(),
+      is_name_static));
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_delete() {
@@ -374,9 +376,11 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init(
     JNIEnv* env,
     jclass,
     jstring name,
-    jlong parent_uuid) {
+    jlong parent_uuid,
+    jboolean is_name_static) {
   return toJLong(new sdk_for_jni::RegisteredTrack(
-      1, parent_uuid, StringBuffer::utf16_to_ascii(env, name).data(), true));
+      1, parent_uuid, StringBuffer::utf16_to_ascii(env, name).data(), true,
+      is_name_static));
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_delete() {
@@ -567,7 +571,7 @@ static const JNINativeMethod gFlowMethods[] = {
 };
 
 static const JNINativeMethod gNamedTrackMethods[] = {
-    {"native_init", "(JLjava/lang/String;J)J",
+    {"native_init", "(JLjava/lang/String;JZ)J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_init},
     {"native_delete", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_delete},
@@ -576,7 +580,7 @@ static const JNINativeMethod gNamedTrackMethods[] = {
 };
 
 static const JNINativeMethod gCounterTrackMethods[] = {
-    {"native_init", "(Ljava/lang/String;J)J",
+    {"native_init", "(Ljava/lang/String;JZ)J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init},
     {"native_delete", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_delete},

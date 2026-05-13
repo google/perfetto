@@ -17,19 +17,17 @@
 .pf-text-input {
   display: inline-flex;
   align-items: baseline;
-  line-height: 1;
   font-family: var(--pf-font-compact);
   font-size: inherit;
-  border-bottom: solid 1px var(--pf-color-border); // Thin underline
-  background: none;
+  outline: none; // Disable the default outline
   padding: 2px 4px;
-  transition:
-    border $anim-timing,
-    box-shadow $anim-timing,
-    background $anim-timing;
   gap: 4px;
+  background: var(--pf-color-void);
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: $border-radius;
 
   &__input {
+    appearance: none;
     font-size: inherit;
     line-height: inherit;
     font-family: inherit;
@@ -48,25 +46,16 @@
   &__left-icon {
     align-self: center;
     line-height: inherit;
-    margin-inline: 2px;
+    color: var(--pf-color-text-muted);
   }
-
-  // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $border-radius $border-radius 0 0;
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    background: color_hover(transparent);
+    border-color: var(--pf-color-border);
   }
 
   &:has(.pf-text-input__input:focus) {
-    background: color_hover(transparent);
-    border-bottom: solid 1px var(--pf-color-primary);
-
-    // The box-shadow thickens the bottom border, without adding to the height.
-    // This is the same technique used by materializecss:
-    // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 var(--pf-color-primary);
+    border-color: var(--pf-color-primary);
   }
 
   &:has(.pf-text-input__input[disabled]) {

@@ -18,7 +18,7 @@ CREATE PERFETTO TABLE android_device_name (
   -- Device name.
   name STRING,
   -- Machine identifier
-  machine_id LONG
+  machine_id JOINID(machine.id)
 ) AS
 WITH
   -- Example str_value:

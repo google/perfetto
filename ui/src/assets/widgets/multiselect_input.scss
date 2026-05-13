@@ -21,15 +21,9 @@
   font-size: inherit;
   outline: none; // Disable the default outline
   border: none; // Disable the default border
-  border-bottom: solid 1px var(--pf-color-border); // Thin underline
-  background: none;
-  transition:
-    border $anim-timing,
-    box-shadow $anim-timing,
-    background $anim-timing;
-
-  // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $border-radius $border-radius 0 0;
+  background: var(--pf-color-void);
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: $border-radius;
 
   input {
     outline: none;
@@ -70,16 +64,10 @@
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    background: color_hover(transparent);
+    border-color: var(--pf-color-border);
   }
 
   &:focus-within {
-    background: color_hover(transparent);
-    border-bottom: solid 1px var(--pf-color-primary);
-
-    // The box-shadow thickens the bottom border, without adding to the height.
-    // This is the same technique used by materializecss:
-    // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 var(--pf-color-primary);
+    border-color: var(--pf-color-primary);
   }
 }

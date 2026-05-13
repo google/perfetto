@@ -22,7 +22,7 @@
 namespace perfetto {
 namespace trace_to_text {
 
-int SymbolizeProfile(std::istream* input, std::ostream* output);
+int SymbolizeProfile(std::istream* input, std::ostream* output, bool verbose);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

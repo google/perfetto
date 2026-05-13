@@ -14,7 +14,7 @@
 
 import {DisposableStack} from './disposable_stack';
 import {bindEventListener} from './dom_utils';
-import {assertTrue} from './logging';
+import {assertTrue} from './assert';
 
 export interface TouchArgs {
   clientX: number;

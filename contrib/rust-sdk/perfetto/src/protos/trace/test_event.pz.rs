@@ -24,12 +24,24 @@ pb_msg!(TestEvent {
     seq_value: u32, primitive, 2,
     counter: u64, primitive, 3,
     is_last: bool, primitive, 4,
-    payload: TestPayload, msg, 5,
+    payload: TestEventTestPayload, msg, 5,
+    protovm_patch: TestEventProtoVmPatch, msg, 6,
+    protovm_incremental_state: TestEventProtoVmIncrementalState, msg, 7,
 });
 
-pb_msg!(TestPayload {
+pb_msg!(TestEventProtoVmIncrementalState {
+    string_merged: String, primitive, 1,
+    int_merged: i32, primitive, 2,
+});
+
+pb_msg!(TestEventProtoVmPatch {
+    string_to_merge: String, primitive, 1,
+    int_to_merge: i32, primitive, 2,
+});
+
+pb_msg!(TestEventTestPayload {
     str: String, primitive, 1,
-    nested: TestPayload, msg, 2,
+    nested: TestEventTestPayload, msg, 2,
     single_string: String, primitive, 4,
     single_int: i32, primitive, 5,
     repeated_ints: i32, primitive, 6,

@@ -107,6 +107,7 @@ const CHROME_DEFAULT_PRESET: Preset = {
   subtitle: 'Common Chrome trace events',
   icon: 'public',
   session: {
+    kind: 'probes',
     mode: 'STOP_WHEN_FULL',
     bufSizeKb: 256 * 1024,
     durationMs: 30_000,
@@ -133,6 +134,7 @@ const CHROME_V8_PRESET: Preset = {
   subtitle: 'JavaScript, wasm & GC',
   icon: 'mode_fan',
   session: {
+    kind: 'probes',
     mode: 'STOP_WHEN_FULL',
     bufSizeKb: 256 * 1024,
     durationMs: 30_000,
@@ -174,6 +176,7 @@ export const ANDROID_PRESETS: Preset[] = [
     subtitle: 'The default config for general purpose tracing',
     icon: 'auto_awesome',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
       durationMs: 10_000,
@@ -206,6 +209,7 @@ export const ANDROID_PRESETS: Preset[] = [
     subtitle: 'Battery usage and power consumption',
     icon: 'battery_profile',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
       durationMs: 30_000,
@@ -231,6 +235,7 @@ export const ANDROID_PRESETS: Preset[] = [
     subtitle: 'Thermal throttling and mitigation',
     icon: 'thermostat',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
       durationMs: 30_000,
@@ -259,6 +264,7 @@ export const ANDROID_PRESETS: Preset[] = [
     subtitle: 'Graphics pipeline and system compositor',
     icon: 'layers',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
       durationMs: 30000,
@@ -297,6 +303,7 @@ export const LINUX_PRESETS: Preset[] = [
     subtitle: 'General purpose CPU and system tracing',
     icon: 'auto_awesome',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
       durationMs: 10_000,
@@ -318,6 +325,7 @@ export const LINUX_PRESETS: Preset[] = [
     subtitle: 'CPU scheduling and process activity',
     icon: 'schedule',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
       durationMs: 10_000,

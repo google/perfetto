@@ -96,7 +96,7 @@ pb_msg!(TrackEvent {
     correlation_id: u64, primitive, 52,
     correlation_id_str: String, primitive, 53,
     correlation_id_str_iid: u64, primitive, 54,
-    callstack: Callstack, msg, 55,
+    callstack: TrackEventCallstack, msg, 55,
     callstack_iid: u64, primitive, 56,
     debug_annotations: DebugAnnotation, msg, 4,
     task_execution: TaskExecution, msg, 5,
@@ -124,10 +124,10 @@ pb_msg!(TrackEvent {
     thread_time_absolute_us: i64, primitive, 17,
     thread_instruction_count_delta: i64, primitive, 8,
     thread_instruction_count_absolute: i64, primitive, 20,
-    legacy_event: LegacyEvent, msg, 6,
+    legacy_event: TrackEventLegacyEvent, msg, 6,
 });
 
-pb_msg!(LegacyEvent {
+pb_msg!(TrackEventLegacyEvent {
     name_iid: u64, primitive, 1,
     phase: i32, primitive, 2,
     duration_us: i64, primitive, 3,
@@ -146,11 +146,11 @@ pb_msg!(LegacyEvent {
     tid_override: i32, primitive, 19,
 });
 
-pb_msg!(Callstack {
-    frames: Frame, msg, 1,
+pb_msg!(TrackEventCallstack {
+    frames: TrackEventCallstackFrame, msg, 1,
 });
 
-pb_msg!(Frame {
+pb_msg!(TrackEventCallstackFrame {
     function_name: String, primitive, 1,
     source_file: String, primitive, 2,
     line_number: u32, primitive, 3,

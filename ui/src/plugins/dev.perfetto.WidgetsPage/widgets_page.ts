@@ -33,7 +33,7 @@ import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
 import {renderGrid} from './demos/grid_demo';
-import {renderHistogram} from './demos/histogram_demo';
+import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
 import {renderMenu} from './demos/menu_demo';
@@ -49,6 +49,7 @@ import {segmentedButtons} from './demos/segmented_buttons_demo';
 import {renderSelect} from './demos/select_demo';
 import {renderSpinner} from './demos/spinner_demo';
 import {renderSplitPanel} from './demos/split_panel_demo';
+import {renderCombobox} from './demos/combobox_demo';
 import {renderSwitch} from './demos/switch_demo';
 import {renderTabs} from './demos/tabs_demo';
 import {renderTabStrip} from './demos/tabstrip_demo';
@@ -59,7 +60,6 @@ import {renderTooltip} from './demos/tooltip_demo';
 import {renderTrackShell} from './demos/track_shell_demo';
 import {renderTree} from './demos/tree_demo';
 import {renderTreeTable} from './demos/treetable_demo';
-import {renderVegaView} from './demos/vega_view_demo';
 import {renderVirtualCanvas} from './demos/virtual_canvas_demo';
 
 interface WidgetSection {
@@ -76,9 +76,11 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'callout', label: 'Callout', view: renderCallout},
   {id: 'card-stack', label: 'CardStack', view: cardStack},
   {id: 'card', label: 'Card', view: renderCard},
+  {id: 'charts', label: 'Charts', view: renderCharts},
   {id: 'checkbox', label: 'Checkbox', view: renderCheckbox},
   {id: 'chip', label: 'Chip', view: renderChip},
   {id: 'codesnippet', label: 'CodeSnippet', view: renderCodeSnippet},
+  {id: 'combobox', label: 'Combobox', view: renderCombobox},
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
   {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},
@@ -87,7 +89,6 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
   {id: 'form', label: 'Form', view: renderForm},
   {id: 'grid', label: 'Grid', view: renderGrid},
-  {id: 'histogram', label: 'Histogram', view: renderHistogram},
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
   {id: 'icon', label: 'Icon', view: renderIcon},
   {id: 'menu', label: 'Menu', view: renderMenu},
@@ -113,7 +114,6 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'trackshell', label: 'TrackShell', view: renderTrackShell},
   {id: 'tree', label: 'Tree', view: renderTree},
   {id: 'treetable', label: 'TreeTable', view: renderTreeTable},
-  {id: 'vegaview', label: 'VegaView', view: renderVegaView},
   {id: 'virtualcanvas', label: 'VirtualCanvas', view: renderVirtualCanvas},
 ];
 

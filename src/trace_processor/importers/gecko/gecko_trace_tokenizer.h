@@ -17,13 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_TOKENIZER_H_
 
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -35,6 +39,11 @@ namespace perfetto::trace_processor::gecko_importer {
 // Forward declaration for internal struct.
 struct GeckoThread;
 
+struct Callsite {
+  CallsiteId id;
+  uint32_t depth;
+};
+
 class GeckoTraceTokenizer : public ChunkedTraceReader {
  public:
   explicit GeckoTraceTokenizer(TraceProcessorContext*);
@@ -45,15 +54,23 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   void OnEventsFullyExtracted() override {}
 
  private:
-  // Processes a parsed thread in legacy format.
-  void ProcessLegacyThread(const GeckoThread& t);
+  // Processes frames and stacks, returning callsites.
+  std::vector<Callsite> ProcessPreprocessedFramesAndStacks(
+      const GeckoThread& t);
+  std::vector<Callsite> ProcessLegacyFramesAndStacks(const GeckoThread& t);
 
-  // Processes a parsed thread in preprocessed format.
-  void ProcessPreprocessedThread(const GeckoThread& t);
+  // Processes samples using pre-built callsites.
+  void ProcessSamples(const GeckoThread& t,
+                      const std::vector<Callsite>& callsites);
+  void ProcessLegacySamples(const GeckoThread& t,
+                            const std::vector<Callsite>& callsites);
+
+  FrameId InternFrame(base::StringView name);
 
   TraceProcessorContext* const context_;
   std::unique_ptr<TraceSorter::Stream<GeckoEvent>> stream_;
   std::string pending_json_;
+  ClockTracker::ClockId trace_file_clock_;
 
   // Shared across all threads to avoid creating duplicate mappings.
   DummyMemoryMapping* dummy_mapping_ = nullptr;

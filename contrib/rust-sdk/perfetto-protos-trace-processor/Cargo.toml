@@ -1,0 +1,30 @@
+[package]
+edition = "2024"
+name = "perfetto-sdk-protos-trace-processor"
+version = "0.3.0"
+authors = ["David Reveman <reveman@meta.com>"]
+description = "Extra protobuf bindings for trace processor"
+readme = "README.md"
+keywords = [
+    "tracing",
+    "perfetto",
+]
+categories = ["development-tools::profiling"]
+license = "Apache-2.0"
+homepage = "https://www.perfetto.dev"
+repository = "https://github.com/google/perfetto"
+
+[features]
+default = ["vendored"]
+vendored = ["perfetto-sdk/vendored"]
+
+[dependencies]
+perfetto-sdk = { path = "../perfetto", version = "0.3", default-features = false }
+paste = "1"
+
+[dev-dependencies]
+ureq = "2"
+
+[[example]]
+name = "trace_processor_shell"
+path = "examples/trace_processor_shell.rs"

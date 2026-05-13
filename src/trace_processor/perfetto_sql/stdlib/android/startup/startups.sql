@@ -130,7 +130,7 @@ WHERE
 -- possible that the process dies during the activity startup and is respawned.
 CREATE PERFETTO TABLE android_startup_processes (
   -- Startup id.
-  startup_id LONG,
+  startup_id JOINID(android_startups.startup_id),
   -- Upid of process on which activity started.
   upid JOINID(process.id),
   -- Pid of process on which activity started.
@@ -206,7 +206,7 @@ CREATE PERFETTO VIEW android_startups (
   -- Timestamp of startup start.
   ts TIMESTAMP,
   -- Timestamp of startup end.
-  ts_end LONG,
+  ts_end TIMESTAMP,
   -- Startup duration.
   dur DURATION,
   -- Package name.
@@ -231,7 +231,7 @@ GROUP BY
 -- activity start.
 CREATE PERFETTO VIEW android_startup_threads (
   -- Startup id.
-  startup_id LONG,
+  startup_id JOINID(android_startups.startup_id),
   -- Timestamp of start.
   ts TIMESTAMP,
   -- Duration of startup.
@@ -277,9 +277,9 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups (
   -- Timestamp of startup.
   startup_ts TIMESTAMP,
   -- Timestamp of startup end.
-  startup_ts_end LONG,
+  startup_ts_end TIMESTAMP,
   -- Startup id.
-  startup_id LONG,
+  startup_id JOINID(android_startups.startup_id),
   -- UTID of thread with slice.
   utid JOINID(thread.id),
   --Tid of thread.
@@ -297,7 +297,7 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups (
   -- Timestamp of slice start.
   slice_ts TIMESTAMP,
   -- Slice duration.
-  slice_dur LONG
+  slice_dur DURATION
 ) AS
 SELECT
   st.ts AS startup_ts,
@@ -325,7 +325,7 @@ WHERE
 -- Given a startup id and GLOB for a slice name, returns matching slices with data.
 CREATE PERFETTO FUNCTION android_slices_for_startup_and_slice_name(
     -- Startup id.
-    startup_id LONG,
+    startup_id JOINID(android_startups.startup_id),
     -- Glob of the slice.
     slice_name STRING
 )
@@ -362,7 +362,7 @@ CREATE PERFETTO VIEW android_class_loading_for_startup (
   -- Id of the slice.
   slice_id JOINID(slice.id),
   -- Startup id.
-  startup_id LONG,
+  startup_id JOINID(android_startups.startup_id),
   -- Name of the slice.
   slice_name STRING,
   -- Timestamp of start of the slice.
@@ -392,7 +392,7 @@ WHERE
 -- Returns binder transaction slices for a given startup id with duration over threshold.
 CREATE PERFETTO FUNCTION android_binder_transaction_slices_for_startup(
     -- Startup id.
-    startup_id LONG,
+    startup_id JOINID(android_startups.startup_id),
     -- Only return slices with duration over threshold.
     threshold DOUBLE
 )
@@ -432,7 +432,7 @@ WHERE
 -- Sums duration of all slices of startup with provided name.
 CREATE PERFETTO FUNCTION android_sum_dur_for_startup_and_slice(
     -- Startup id.
-    startup_id LONG,
+    startup_id JOINID(android_startups.startup_id),
     -- Slice name.
     slice_name STRING
 )
@@ -449,7 +449,7 @@ WHERE
 -- Sums duration of all slices of startup with provided name only on main thread.
 CREATE PERFETTO FUNCTION android_sum_dur_on_main_thread_for_startup_and_slice(
     -- Startup id.
-    startup_id LONG,
+    startup_id JOINID(android_startups.startup_id),
     -- Slice name.
     slice_name STRING
 )

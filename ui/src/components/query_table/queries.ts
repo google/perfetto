@@ -58,7 +58,6 @@ export async function runQueryForQueryTable(
   if (maybeResult.ok) {
     const queryRes = maybeResult.value;
 
-    const durationMs = performance.now() - startMs;
     const rows: Row[] = [];
     const columns = queryRes.columns();
     for (const iter = queryRes.iter({}); iter.valid(); iter.next()) {
@@ -72,7 +71,7 @@ export async function runQueryForQueryTable(
 
     const result: QueryResponse = {
       query: sqlQuery,
-      durationMs,
+      durationMs: queryRes.elapsedTimeMs(),
       error: queryRes.error(),
       totalRowCount: queryRes.numRows(),
       columns,

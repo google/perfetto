@@ -87,6 +87,7 @@ namespace metadata {
   F(system_ram_gb,                     KeyType::kSingle,  Variadic::kInt,    Scope::kMachine),         \
   F(system_release,                    KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(system_version,                    KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
+  F(tracing_service_version,           KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(timezone_off_mins,                 KeyType::kSingle,  Variadic::kInt,    Scope::kMachine)
 // clang-format on
 

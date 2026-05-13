@@ -374,7 +374,7 @@ stacks, timestamps, process/thread identifiers, CPU number, and event names.
     format."
   - For robust visualization of CPU profiles from `perf.data` with a
     feature-rich intermediate format, consider converting `perf.data` to the
-    [Firefox Profiler JSON format](#firefox-profiler-json-format), which
+    [Firefox Profiler JSON format](#firefox-json-format), which
     Perfetto also supports for sample data.
 
 **How to Generate:**

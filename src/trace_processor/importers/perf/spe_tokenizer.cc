@@ -170,6 +170,7 @@ class SpeStream : public AuxDataStream {
 }  // namespace
 
 SpeTokenizer::~SpeTokenizer() = default;
+void SpeTokenizer::OnEventsFullyExtracted() {}
 base::StatusOr<AuxDataStream*> SpeTokenizer::InitializeAuxDataStream(
     AuxStream* stream) {
   streams_.push_back(std::make_unique<SpeStream>(context_, stream));

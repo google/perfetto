@@ -91,10 +91,11 @@ DEPS_ALLOWLIST = [
         ['/core/*', '/frontend/*', '/common/actions'],
     ),
 
-    # The record plugin needs access to the wasm .d.ts for trace_config_utils.
-    ('/plugins/dev.perfetto.RecordTraceV2/*', '/gen/trace_config_utils'),
+    # The record plugin needs access to the wasm .d.ts for proto_utils.
+    ('/plugins/dev.perfetto.RecordTraceV2/*', '/gen/proto_utils'),
 
     # Misc legitimate deps.
+    ('/base/proto_utils_wasm', '/gen/proto_utils'),
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
     ('/engine/wasm_bridge', '/gen/trace_processor_memory*'),
@@ -119,11 +120,22 @@ DEPS_ALLOWLIST = [
     ),
 
     # Bigtrace deps.
-    ('/bigtrace/*', ['/base/*', '/widgets/*', '/trace_processor/*']),
+    ('/bigtrace/*', [
+        '/bigtrace/*',
+        '/base/*',
+        '/widgets/*',
+        '/trace_processor/*',
+        '/components/*',
+        '/public/*',
+        '/frontend/theme_provider',
+        '/core/live_reload',
+        '/core/local_storage',
+        '/core/omnibox_manager',
+        '/core/command_manager',
+    ]),
 
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),
-    ('/bigtrace/index', ['/core/live_reload', '/core/raf_scheduler']),
     ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
 ]
 

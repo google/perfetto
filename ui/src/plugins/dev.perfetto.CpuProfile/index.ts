@@ -27,7 +27,7 @@ import {
   QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 

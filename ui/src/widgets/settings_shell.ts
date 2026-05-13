@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classForIntent, HTMLAttrs, Intent} from './common';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {Card} from './card';
 import {classNames} from '../base/classnames';
 import {Anchor} from './anchor';

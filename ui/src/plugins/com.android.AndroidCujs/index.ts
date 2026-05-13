@@ -15,7 +15,7 @@
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 
 /**
  * Adds the Debug Slice Track for given Jank CUJ name
@@ -272,6 +272,7 @@ function generateCujTrackConfig(
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidCujs';
+  static readonly dependencies = [QueryPagePlugin];
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'com.android.PinJankCUJs',
@@ -286,7 +287,7 @@ export default class implements PerfettoPlugin {
       name: 'Run query: Android jank CUJs',
       callback: async () => {
         await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: JANK_CUJ_QUERY,
           title: 'Android Jank CUJs',
         });
@@ -305,7 +306,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
       callback: () =>
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: LATENCY_CUJ_QUERY,
           title: 'Android Latency CUJs',
         }),

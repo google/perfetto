@@ -41,7 +41,7 @@ int StatsModule::Connect(sqlite3* db,
       value BIGINT,
       description TEXT,
       key BIGINT HIDDEN,
-      PRIMARY KEY(name)
+      PRIMARY KEY(name, idx)
     ) WITHOUT ROWID
   )";
   if (int ret = sqlite3_declare_vtab(db, kSchema); ret != SQLITE_OK) {

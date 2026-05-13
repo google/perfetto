@@ -115,3 +115,9 @@ message SchedWakeupTaskAttrFtraceEvent {
   optional uint64 uclamp_min = 4;
   optional uint64 vruntime = 5;
 }
+message SchedGroupTrackerFtraceEvent {
+  optional string comm = 1;
+  optional int32 pid = 2;
+  optional string group = 3;
+  optional int32 group_num = 4;
+}

@@ -22,12 +22,12 @@
 #include <functional>
 #include <list>
 #include <mutex>
-#include <regex>
 #include <string_view>
 #include <thread>
 #include <unordered_set>
 #include <vector>
 #include "perfetto/ext/base/flags.h"
+#include "perfetto/ext/base/regex.h"
 
 // We also want to test legacy trace events.
 #define PERFETTO_ENABLE_LEGACY_TRACE_EVENTS 1
@@ -6133,7 +6133,8 @@ TEST_P(PerfettoApiTest, ConsoleInterceptorVerify) {
     // Ignore timestamps and process/thread ids.
     std::string s(line.data() + 28);
     // Filter out durations.
-    s = std::regex_replace(s, std::regex(" [+][0-9]*ms"), "");
+    auto re = perfetto::base::Regex::CreateOrCheck(" [+][0-9]*ms");
+    s = re.GlobalReplace(s, "");
     lines.push_back(std::move(s));
   }
   fclose(f);

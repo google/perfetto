@@ -37,8 +37,8 @@ class PerfCounter {
 
   bool is_timebase() const { return is_timebase_; }
 
-  void AddDelta(int64_t ts, double delta);
-  void AddCount(int64_t ts, double count);
+  tables::CounterTable::Id AddDelta(int64_t ts, double delta);
+  tables::CounterTable::Id AddCount(int64_t ts, double count);
 
  private:
   tables::CounterTable& counter_table_;

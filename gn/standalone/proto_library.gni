@@ -291,12 +291,10 @@ template("proto_library") {
       }
 
       if (generate_cc) {
-        deps = [ "//gn:protobuf_lite" ]
-      } else {
-        deps = []
+        public_deps = [ "//gn:protobuf_lite" ]
       }
 
-      deps += [ ":$action_name" ]
+      deps = [ ":$action_name" ]
       if (defined(invoker.deps)) {
         deps += invoker.deps
       }

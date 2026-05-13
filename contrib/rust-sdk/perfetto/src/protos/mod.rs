@@ -67,6 +67,22 @@ macro_rules! pb_enum {
 /// Defines the type for a protobuf message. `name` is the name of the message type.
 #[macro_export]
 macro_rules! pb_msg {
+    // Empty message (no fields)
+    (
+        $name:ident {
+        }
+    ) => {
+        paste::paste! {
+            #[doc = concat!("Protobuf message struct for `", stringify!($name), "`")]
+            #[allow(non_camel_case_types)]
+            pub struct $name<'a, 'b> {
+                #[doc = concat!("PbMsg for protobuf message `", stringify!($name), "`")]
+                pub msg: &'a mut $crate::pb_msg::PbMsg<'b>,
+            }
+        }
+    };
+
+    // Message with fields
     (
         $name:ident {
             $( $field:ident : $tp:tt, $kind:ident, $id:literal ),+ $(,)?

@@ -28,6 +28,8 @@ source_set("art_method") {
     "art_method_parser.h",
     "art_method_tokenizer.cc",
     "art_method_tokenizer.h",
+    "art_method_v2_tokenizer.cc",
+    "art_method_v2_tokenizer.h",
   ]
   deps = [
     ":art_method_event",

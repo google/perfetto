@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';

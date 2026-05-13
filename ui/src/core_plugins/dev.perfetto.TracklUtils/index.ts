@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import z from 'zod';
-import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
@@ -91,7 +90,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         const omnibox = AppImpl.instance.omnibox;
-        omnibox.setMode(OmniboxMode.Query);
+        omnibox.activateRegisteredMode(':');
         omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,
         );
@@ -150,8 +149,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
         matchingTracks.forEach((track) => track.pin());
       },
@@ -190,8 +191,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
         matchingTracks.forEach((track) => track.expand());
       },
@@ -214,8 +217,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
         matchingTracks.forEach((track) => track.collapse());
       },
@@ -254,8 +259,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           ctx.workspaces.createEmptyWorkspace(workspaceName);
 
         // Find matching tracks from current workspace
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
 
         // Copy matching tracks to target workspace
@@ -330,8 +337,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           ctx.workspaces.createEmptyWorkspace(workspaceName);
 
         // Find matching tracks from current workspace
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
 
         // Copy matching tracks with their ancestors to target workspace
@@ -403,6 +412,36 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
 
         // Convert UTC Date to trace time using the trace's unix offset
         const traceTime = Time.fromDate(utcDate, ctx.traceInfo.unixOffset);
+
+        ctx.notes.addNote({
+          timestamp: traceTime,
+          text: noteText,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddNoteAtTimestamp',
+      name: 'Add note at nanosecond timestamp',
+      callback: async (timestampArg: unknown, noteTextArg: unknown) => {
+        const timestampStr =
+          typeof timestampArg === 'string'
+            ? timestampArg
+            : await ctx.omnibox.prompt('Enter timestamp...');
+        if (!timestampStr) return;
+
+        const noteText =
+          typeof noteTextArg === 'string'
+            ? noteTextArg
+            : await ctx.omnibox.prompt('Enter note text...');
+        if (noteText === undefined) return;
+
+        const timestamp = parseInt(timestampStr, 10);
+        if (isNaN(timestamp)) {
+          console.error(`invalid timestamp: ${timestampStr}`);
+          return;
+        }
+        const traceTime = Time.fromRaw(BigInt(timestamp));
 
         ctx.notes.addNote({
           timestamp: traceTime,
@@ -528,17 +567,28 @@ async function getQueryFromArgOrPrompt(
   return queryStr || null;
 }
 
-// Tests if a track matches the given regex pattern based on nameOrPath setting.
-// Returns true if the track name (when nameOrPath is 'name') or full path
-// (when nameOrPath is 'path') matches the regex pattern.
-function testTrackWithRegex(
-  track: TrackNode,
+// DFS the workspace, returning all tracks matching the regex against `name` or
+// full `path`. When a headless node matches, its subtree is skipped: a
+// headless node has no header in the rendered tree, so its `fullPath` is
+// identical to its children's, and a deep clone of the headless node already
+// covers them — recursing further would yield duplicate matches.
+function findTracksMatchingRegex(
+  workspace: Workspace,
   regex: RegExp,
   nameOrPath: 'name' | 'path',
-): boolean {
-  const testString =
-    nameOrPath === 'path' ? track.fullPath.join(' > ') : track.name;
-  return regex.test(testString);
+): TrackNode[] {
+  const matches: TrackNode[] = [];
+  const visit = (node: TrackNode): void => {
+    const target =
+      nameOrPath === 'path' ? node.fullPath.join(' > ') : node.name;
+    if (regex.test(target)) {
+      matches.push(node);
+      if (node.headless) return;
+    }
+    node.children.forEach(visit);
+  };
+  workspace.tracks.children.forEach(visit);
+  return matches;
 }
 
 // Copy tracks with their ancestor hierarchy preserved

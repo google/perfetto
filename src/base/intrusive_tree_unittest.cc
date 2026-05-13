@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#include "src/base/intrusive_tree.h"
-
 #include <random>
 #include <set>
 
 #include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/intrusive_tree.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

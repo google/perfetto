@@ -14,9 +14,10 @@
 
 import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {Trace} from '../../public/trace';
-import {Form, FormLabel, FormSection} from '../../widgets/form';
+import {Form, FormGrid, FormLabel, FormSection} from '../../widgets/form';
+import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {addDebugCounterTrack, addDebugSliceTrack} from './debug_tracks';
@@ -106,6 +107,7 @@ export class AddDebugTrackMenu
     return m(
       Form,
       {
+        className: 'pf-add-debug-track-menu',
         onSubmit: () => {
           attrs.onAdd?.();
           this.createTracks(attrs);
@@ -132,34 +134,16 @@ export class AddDebugTrackMenu
         this.trackName,
       ),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
-      this.renderTrackTypeSelect(),
+      m(SegmentedButtons, {
+        fillWidth: true,
+        options: [{label: 'Slice Track'}, {label: 'Counter Track'}],
+        selectedOption: trackTypes.indexOf(this.trackType),
+        onOptionSelected: (i) => (this.trackType = trackTypes[i]),
+      }),
       m(
         FormSection,
         {label: 'Column mapping'},
         this.renderOptions(attrs.availableColumns),
-      ),
-    );
-  }
-
-  private renderTrackTypeSelect() {
-    return m(
-      Select,
-      {
-        id: 'track_type',
-        oninput: (e: Event) => {
-          if (!e.target) return;
-          this.trackType = (e.target as HTMLSelectElement).value as TrackType;
-        },
-      },
-      trackTypes.map((value) =>
-        m(
-          'option',
-          {
-            value: value,
-            selected: this.trackType === value,
-          },
-          value,
-        ),
       ),
     );
   }
@@ -176,46 +160,33 @@ export class AddDebugTrackMenu
   }
 
   private renderSliceOptions(availableColumns: ReadonlyArray<string>) {
-    return [
-      this.renderFormSelectInput('Timestamp column', 'ts', availableColumns),
-      this.renderFormSelectInput('Duration column', 'dur', [
+    return m(
+      FormGrid,
+      this.renderFormSelectInput('Timestamp *', 'ts', availableColumns),
+      this.renderFormSelectInput('Duration *', 'dur', [
         '0',
         ...availableColumns,
       ]),
-      this.renderFormSelectInput('Name column', 'name', availableColumns),
+      this.renderFormSelectInput('Name *', 'name', availableColumns),
       this.renderColorSelect(availableColumns),
-      this.renderFormSelectInput(
-        'Arguments ID column (optional)',
-        'argSetId',
-        availableColumns,
-        {
-          optional: true,
-        },
-      ),
-      this.renderFormSelectInput(
-        'Pivot column (optional)',
-        'pivot',
-        availableColumns,
-        {
-          optional: true,
-        },
-      ),
-    ];
+      this.renderFormSelectInput('Args ID', 'argSetId', availableColumns, {
+        optional: true,
+      }),
+      this.renderFormSelectInput('Pivot on', 'pivot', availableColumns, {
+        optional: true,
+      }),
+    );
   }
 
   private renderCounterTrackOptions(availableColumns: ReadonlyArray<string>) {
-    return [
-      this.renderFormSelectInput('Timestamp column', 'ts', availableColumns),
-      this.renderFormSelectInput('Value column', 'value', availableColumns),
-      this.renderFormSelectInput(
-        'Pivot column (optional)',
-        'pivot',
-        availableColumns,
-        {
-          optional: true,
-        },
-      ),
-    ];
+    return m(
+      FormGrid,
+      this.renderFormSelectInput('Timestamp *', 'ts', availableColumns),
+      this.renderFormSelectInput('Value *', 'value', availableColumns),
+      this.renderFormSelectInput('Pivot on', 'pivot', availableColumns, {
+        optional: true,
+      }),
+    );
   }
 
   private renderColorSelect(availableColumns: ReadonlyArray<string>) {

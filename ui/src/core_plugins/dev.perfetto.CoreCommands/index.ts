@@ -18,7 +18,7 @@ import {copyToClipboard} from '../../base/clipboard';
 import {formatTimezone, Time, time, timezoneOffsetMap} from '../../base/time';
 import {exists} from '../../base/utils';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../../plugins/dev.perfetto.QueryPage';
 import {AppImpl} from '../../core/app_impl';
 import {commandInvocationSchema, macroSchema} from '../../core/command_manager';
 import {featureFlags} from '../../core/feature_flags';
@@ -32,18 +32,13 @@ import {
 } from '../../core/state_serialization';
 import {TraceImpl} from '../../core/trace_impl';
 import {trackMatchesFilter} from '../../core/track_manager';
-import {
-  isLegacyTrace,
-  openFileWithLegacyTraceViewer,
-  openInOldUIWithSizeCheck,
-} from '../../frontend/legacy_trace_viewer';
 import {shareTrace} from '../../frontend/trace_share_utils';
 import {PerfettoPlugin} from '../../public/plugin';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 
@@ -115,13 +110,6 @@ group by
 order by total_self_size desc
 limit 100;`;
 
-const SHOW_OPEN_WITH_LEGACY_UI_BUTTON = featureFlags.register({
-  id: 'showOpenWithLegacyUiButton',
-  name: 'Show "Open with legacy UI" button',
-  description: 'Show "Open with legacy UI" button in the sidebar',
-  defaultValue: false,
-});
-
 function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   if (exists(tsRaw)) {
     if (typeof tsRaw !== 'bigint') {
@@ -146,6 +134,7 @@ type LegacyMacrosConfig = z.infer<typeof legacyMacrosConfigSchema>;
 
 export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
+  static readonly dependencies = [QueryPagePlugin];
 
   static macrosSetting: Setting<MacrosConfig> | undefined = undefined;
   static legacyMacrosSetting: Setting<LegacyMacrosConfig> | undefined =
@@ -178,6 +167,17 @@ export default class CoreCommands implements PerfettoPlugin {
         defaultHotkey: '!Mod+B',
       });
     }
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.NameTab',
+      name: 'Rename current browser tab',
+      callback: async () => {
+        const name = await ctx.omnibox.prompt('Enter new window title...');
+        if (name !== undefined && name !== '') {
+          document.title = name;
+        }
+      },
+    });
 
     // Register the new macros setting (array format)
     const macroSettingsEditor = new JsonSettingsEditor<MacrosConfig>({
@@ -245,7 +245,6 @@ export default class CoreCommands implements PerfettoPlugin {
       id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
       callback: () => {
-        delete input.dataset['useCatapultLegacyUi'];
         input.click();
       },
       defaultHotkey: '!Mod+O',
@@ -256,23 +255,6 @@ export default class CoreCommands implements PerfettoPlugin {
       icon: 'folder_open',
       sortOrder: 1,
     });
-
-    const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
-    ctx.commands.registerCommand({
-      id: OPEN_LEGACY_COMMAND_ID,
-      name: 'Open with legacy UI',
-      callback: () => {
-        input.dataset['useCatapultLegacyUi'] = '1';
-        input.click();
-      },
-    });
-    if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
-      ctx.sidebar.addMenuItem({
-        commandId: OPEN_LEGACY_COMMAND_ID,
-        section: 'trace_files',
-        icon: 'filter_none',
-      });
-    }
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CloseTrace',
@@ -299,15 +281,17 @@ export default class CoreCommands implements PerfettoPlugin {
       // now we need the extras to be loaded.
       const macros = await app.macros();
       for (const macro of macros) {
-        ctx.commands.registerMacro(macro);
+        ctx.commands.registerMacro(macro, macro.source);
       }
     });
+
+    const queryPlugin = ctx.plugins.getPlugin(QueryPagePlugin);
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: ALL_PROCESSES_QUERY,
           title: 'All Processes',
         });
@@ -318,7 +302,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CPU_TIME_FOR_PROCESSES,
           title: 'CPU time by process',
         });
@@ -329,7 +313,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CYCLES_PER_P_STATE_PER_CPU,
           title: 'Cycles by p-state by CPU',
         });
@@ -340,7 +324,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CPU_TIME_BY_CPU_BY_PROCESS,
           title: 'CPU time by CPU by process',
         });
@@ -351,7 +335,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: HEAP_GRAPH_BYTES_PER_TYPE,
           title: 'Heap graph bytes per type',
         });
@@ -362,7 +346,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: SQL_STATS,
           title: 'Recent SQL queries',
         });
@@ -563,14 +547,8 @@ export default class CoreCommands implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.SwitchToQueryMode',
-      name: 'Switch to query mode',
-      callback: () => ctx.omnibox.setMode(OmniboxMode.Query),
-    });
-
-    ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQuery',
-      name: 'Runs an SQL query',
+      name: 'Runs a SQL query',
       callback: async (rawSql: unknown) => {
         const query =
           typeof rawSql === 'string'
@@ -597,7 +575,7 @@ export default class CoreCommands implements PerfettoPlugin {
 
         const title = typeof titleArg === 'string' ? titleArg : 'Command Query';
 
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query,
           title,
         });
@@ -907,23 +885,6 @@ function onInputElementFileSelectionChanged(e: Event) {
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
 
-  if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    openWithLegacyUi(file);
-    return;
-  }
-
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
   AppImpl.instance.openTraceFromFile(file);
-}
-
-async function openWithLegacyUi(file: File) {
-  // Switch back to the old catapult UI.
-  AppImpl.instance.analytics.logEvent(
-    'Trace Actions',
-    'Open trace in Legacy UI',
-  );
-  if (await isLegacyTrace(file)) {
-    return await openFileWithLegacyTraceViewer(file);
-  }
-  return await openInOldUIWithSizeCheck(file);
 }

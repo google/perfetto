@@ -14,36 +14,50 @@
 
 import {Time} from '../../base/time';
 import {
-  BaseCounterTrack,
-  CounterOptions,
-} from '../../components/tracks/base_counter_track';
+  CounterTrack,
+  CounterTrackAttrs,
+} from '../../components/tracks/counter_track';
 import {TrackEventDetails} from '../../public/selection';
-import {Trace} from '../../public/trace';
 import {TrackMouseEvent} from '../../public/track';
 import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {CounterDetailsPanel} from './counter_details_panel';
 
-export class TraceProcessorCounterTrack extends BaseCounterTrack {
-  constructor(
-    trace: Trace,
-    uri: string,
-    options: Partial<CounterOptions>,
-    private readonly trackId: number,
-    private readonly trackName: string,
-    private readonly rootTable: string = 'counter',
-  ) {
-    super(trace, uri, options);
-  }
+export interface TraceProcessorCounterTrackAttrs
+  extends Omit<CounterTrackAttrs, 'sqlSource'> {
+  /** The trace processor track id. */
+  readonly trackId: number;
 
-  getSqlSource() {
-    return `
-      select
-        id,
-        ts,
-        value
-      from ${this.rootTable}
-      where track_id = ${this.trackId}
+  /** The display name of the track. */
+  readonly trackName: string;
+
+  /** The root table to query. Defaults to 'counter'. */
+  readonly rootTable?: string;
+
+  /**
+   * SQL source selecting the necessary data.
+   * If omitted, defaults to selecting from rootTable where track_id = trackId.
+   */
+  readonly sqlSource?: string;
+}
+
+export class TraceProcessorCounterTrack extends CounterTrack {
+  protected readonly trackId: number;
+  protected readonly trackName: string;
+  protected readonly rootTable: string;
+
+  constructor(attrs: TraceProcessorCounterTrackAttrs) {
+    const {trackId, trackName, rootTable = 'counter', sqlSource} = attrs;
+    const resolvedSqlSource =
+      sqlSource ??
+      `
+      select id, ts, value, arg_set_id
+      from ${rootTable}
+      where track_id = ${trackId}
     `;
+    super({...attrs, sqlSource: resolvedSqlSource});
+    this.trackId = trackId;
+    this.trackName = trackName;
+    this.rootTable = rootTable;
   }
 
   onMouseClick({x, timescale}: TrackMouseEvent): boolean {
@@ -74,8 +88,8 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
     return true;
   }
 
-  // We must define this here instead of in `BaseCounterTrack` because
-  // `BaseCounterTrack` does not require the query to have an id column. Here,
+  // We must define this here instead of in `CounterTrack` because
+  // `CounterTrack` does not require the query to have an id column. Here,
   // however, we make the assumption that `rootTable` has an id column, as we
   // need it ot make selections in `onMouseClick` above. Whether or not we
   // SHOULD assume `rootTable` has an id column is another matter...
@@ -113,6 +127,13 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
   }
 
   detailsPanel() {
-    return new CounterDetailsPanel(this.trace, this.trackId, this.trackName);
+    return new CounterDetailsPanel(
+      this.trace,
+      this.trackName,
+      () => this.yMode,
+      this.unit,
+      this.rateUnit,
+      this.sqlSource,
+    );
   }
 }

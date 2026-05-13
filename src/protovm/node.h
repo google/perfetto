@@ -20,8 +20,7 @@
 #include <type_traits>
 #include <variant>
 
-#include "src/base/intrusive_tree.h"
-
+#include "perfetto/ext/base/intrusive_tree.h"
 #include "src/protovm/owned_ptr.h"
 #include "src/protovm/scalar.h"
 

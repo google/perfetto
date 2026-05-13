@@ -44,7 +44,8 @@ class AndroidBugreportReader {
   AndroidBugreportReader(TraceProcessorContext* context);
   ~AndroidBugreportReader();
 
-  bool IsAndroidBugReport(const std::vector<util::ZipFile>& zip_file_entries);
+  static bool IsAndroidBugReport(
+      const std::vector<util::ZipFile>& zip_file_entries);
   base::Status Parse(std::vector<util::ZipFile> zip_file_entries);
 
  private:

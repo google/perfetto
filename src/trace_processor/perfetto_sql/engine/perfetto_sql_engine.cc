@@ -51,7 +51,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -338,6 +337,8 @@ ArgumentTypeToDataframeType(sql_argument::Type type, bool bytes_as_int64) {
                  ? base::StatusOr<dataframe::AdhocDataframeBuilder::ColumnType>(
                        dataframe::AdhocDataframeBuilder::ColumnType::kInt64)
                  : base::ErrStatus("Bytes type is not supported");
+    case sql_argument::Type::kAny:
+      return base::ErrStatus("ANY type cannot be used in table columns");
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -1279,8 +1280,18 @@ base::Status PerfettoSqlEngine::RegisterDelegatingFunction(
 
   const IntrinsicFunctionInfo& info = *info_ptr;
 
+  // Determine the argument count. If the last argument is variadic, use -1
+  // (SQLite's indicator for variadic functions). Otherwise use the argument
+  // count from the prototype.
+  bool has_variadic = !cf.prototype.arguments.empty() &&
+                      cf.prototype.arguments.back().is_variadic();
+  int argc =
+      has_variadic ? -1 : static_cast<int>(cf.prototype.arguments.size());
+
+  // The prototype's argc must match the target function's argc.
+  PERFETTO_CHECK(argc == info.argc);
+
   // Check if function already exists and handle replace logic
-  int argc = static_cast<int>(cf.prototype.arguments.size());
   auto* existing_ctx = sqlite_engine()->GetFunctionContext(new_name, argc);
   if (existing_ctx) {
     if (!cf.replace) {
@@ -1358,7 +1369,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   for (const auto& arg : create_macro.args) {
     args.push_back(arg.first.sql());
   }
-  PerfettoSqlPreprocessor::Macro macro{
+  PerfettoSqlParser::Macro macro{
       create_macro.replace,
       create_macro.name.sql(),
       std::move(args),

@@ -31,16 +31,18 @@ namespace perfetto::profiling {
 
 namespace {
 
-TEST(BreakpadSymbolizerTest, NonExistantFile) {
+TEST(BreakpadSymbolizerTest, NonExistentFile) {
   const std::string kBadFilePath = "/bad/file/path";
   constexpr char kTestDir[] = "Unused";
   BreakpadSymbolizer symbolizer(kTestDir);
   symbolizer.SetBreakpadFileForTesting(kBadFilePath);
   std::vector<uint64_t> addresses = {0x1010u, 0x1040u, 0x10d0u, 0x1140u};
   Symbolizer::Environment env;
-  std::vector<std::vector<SymbolizedFrame>> frames =
+  SymbolizeResult result =
       symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
-  EXPECT_TRUE(frames.empty());
+  EXPECT_TRUE(result.frames.empty());
+  // Should report the failed attempt.
+  EXPECT_FALSE(result.attempts.empty());
 }
 
 // To make it easy to read, each FUNC record is followed by two LINE records:
@@ -77,17 +79,17 @@ TEST(BreakpadSymbolizerTest, SymbolFrames) {
   std::vector<uint64_t> addresses = {0x1010u, 0x1040u, 0x10d0u, 0x1140u,
                                      0xeu,    0x1036u, 0x30d0u, 0x113eu};
   Symbolizer::Environment env;
-  std::vector<std::vector<SymbolizedFrame>> frames =
+  SymbolizeResult result =
       symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
-  ASSERT_EQ(frames.size(), 8u);
-  EXPECT_EQ(frames[0][0].function_name, "foo_foo()");
-  EXPECT_EQ(frames[1][0].function_name, "bar_bar_bar()");
-  EXPECT_EQ(frames[2][0].function_name, "foo::bar()");
-  EXPECT_EQ(frames[3][0].function_name, "baz()");
-  EXPECT_TRUE(frames[4][0].function_name.empty());
-  EXPECT_TRUE(frames[5][0].function_name.empty());
-  EXPECT_TRUE(frames[6][0].function_name.empty());
-  EXPECT_TRUE(frames[7][0].function_name.empty());
+  ASSERT_EQ(result.frames.size(), 8u);
+  EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
+  EXPECT_EQ(result.frames[1][0].function_name, "bar_bar_bar()");
+  EXPECT_EQ(result.frames[2][0].function_name, "foo::bar()");
+  EXPECT_EQ(result.frames[3][0].function_name, "baz()");
+  EXPECT_TRUE(result.frames[4][0].function_name.empty());
+  EXPECT_TRUE(result.frames[5][0].function_name.empty());
+  EXPECT_TRUE(result.frames[6][0].function_name.empty());
+  EXPECT_TRUE(result.frames[7][0].function_name.empty());
 }
 
 // Test file contents with FILE and LINE records for source location tests.
@@ -122,24 +124,24 @@ TEST(BreakpadSymbolizerTest, SourceLocationInFrames) {
   // Test addresses that fall within line record ranges.
   std::vector<uint64_t> addresses = {0x1010u, 0x1050u, 0x10e0u};
   Symbolizer::Environment env;
-  std::vector<std::vector<SymbolizedFrame>> frames =
+  SymbolizeResult result =
       symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
-  ASSERT_EQ(frames.size(), 3u);
+  ASSERT_EQ(result.frames.size(), 3u);
 
   // First frame: address 0x1010 maps to foo.cc line 10.
-  EXPECT_EQ(frames[0][0].function_name, "foo_foo()");
-  EXPECT_EQ(frames[0][0].file_name, "/path/to/foo.cc");
-  EXPECT_EQ(frames[0][0].line, 10u);
+  EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
+  EXPECT_EQ(result.frames[0][0].file_name, "/path/to/foo.cc");
+  EXPECT_EQ(result.frames[0][0].line, 10u);
 
   // Second frame: address 0x1050 maps to bar.cc line 100.
-  EXPECT_EQ(frames[1][0].function_name, "bar_bar_bar()");
-  EXPECT_EQ(frames[1][0].file_name, "/path/to/bar.cc");
-  EXPECT_EQ(frames[1][0].line, 100u);
+  EXPECT_EQ(result.frames[1][0].function_name, "bar_bar_bar()");
+  EXPECT_EQ(result.frames[1][0].file_name, "/path/to/bar.cc");
+  EXPECT_EQ(result.frames[1][0].line, 100u);
 
   // Third frame: address 0x10e0 maps to baz.cc line 200.
-  EXPECT_EQ(frames[2][0].function_name, "foo::bar()");
-  EXPECT_EQ(frames[2][0].file_name, "/path/to/baz.cc");
-  EXPECT_EQ(frames[2][0].line, 200u);
+  EXPECT_EQ(result.frames[2][0].function_name, "foo::bar()");
+  EXPECT_EQ(result.frames[2][0].file_name, "/path/to/baz.cc");
+  EXPECT_EQ(result.frames[2][0].line, 200u);
 }
 
 TEST(BreakpadSymbolizerTest, SourceLocationNotFound) {
@@ -155,12 +157,12 @@ TEST(BreakpadSymbolizerTest, SourceLocationNotFound) {
   // empty even when the function name is found.
   std::vector<uint64_t> addresses = {0x1010u};
   Symbolizer::Environment env;
-  std::vector<std::vector<SymbolizedFrame>> frames =
+  SymbolizeResult result =
       symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
-  ASSERT_EQ(frames.size(), 1u);
-  EXPECT_EQ(frames[0][0].function_name, "foo_foo()");
-  EXPECT_TRUE(frames[0][0].file_name.empty());
-  EXPECT_EQ(frames[0][0].line, 0u);
+  ASSERT_EQ(result.frames.size(), 1u);
+  EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
+  EXPECT_TRUE(result.frames[0][0].file_name.empty());
+  EXPECT_EQ(result.frames[0][0].line, 0u);
 }
 
 }  // namespace

@@ -19,7 +19,7 @@ import {Slider} from './widgets/slider';
 import {RecordMode, TraceConfigBuilder} from '../config/trace_config_builder';
 import {ConfigManager} from '../config/config_manager';
 import {RecordSubpage} from '../config/config_interfaces';
-import {RecordSessionSchema} from '../serialization_schema';
+import {ProbesSessionSchema} from '../serialization_schema';
 import {Toggle} from './widgets/toggle';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
@@ -34,7 +34,7 @@ export function bufferConfigPage(recMgr: RecordingManager): RecordSubpage {
     render() {
       return m(BufferConfigPage, {recMgr});
     },
-    serialize(state: RecordSessionSchema) {
+    serialize(state: ProbesSessionSchema) {
       const tc: TraceConfigBuilder = recMgr.recordConfig.traceConfig;
       state.mode = tc.mode;
       state.bufSizeKb = tc.defaultBuffer.sizeKb;
@@ -43,7 +43,7 @@ export function bufferConfigPage(recMgr: RecordingManager): RecordSubpage {
       state.fileWritePeriodMs = tc.fileWritePeriodMs;
       state.compression = tc.compression;
     },
-    async deserialize(state: RecordSessionSchema) {
+    async deserialize(state: ProbesSessionSchema) {
       const tc: TraceConfigBuilder = recMgr.recordConfig.traceConfig;
       tc.mode = state.mode;
       tc.defaultBuffer.sizeKb = state.bufSizeKb;

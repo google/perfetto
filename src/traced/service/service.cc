@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
@@ -136,6 +137,23 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   init_opts.compressor_fn = &ZlibCompressFn;
 #endif
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // See /rfcs/0017-out-of-tree-protos.md .
+  std::vector<base::ScopedMmap> extension_descriptor_mmaps;
+  for (const char* path :
+       {"/etc/tracing_descriptors.gz", "/vendor/etc/tracing_descriptors.gz"}) {
+    auto mm = base::ReadMmapWholeFile(path);
+    if (!mm.IsValid())
+      continue;
+    PERFETTO_DLOG("Loaded extension descriptor: %s (%zu bytes)", path,
+                  mm.length());
+    init_opts.extension_descriptors.push_back(
+        {path, reinterpret_cast<const uint8_t*>(mm.data()), mm.length(),
+         /*gzipped=*/true});
+    extension_descriptor_mmaps.push_back(std::move(mm));
+  }
+#endif
+
   std::string relay_producer_socket;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   relay_producer_socket = base::GetAndroidProp("traced.relay_producer_port");

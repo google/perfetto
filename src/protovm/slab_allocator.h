@@ -22,8 +22,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/intrusive_list.h"
 #include "perfetto/ext/base/paged_memory.h"
-#include "src/base/intrusive_list.h"
 
 // An efficient allocator for elements with fixed size and alignment
 // requirements.

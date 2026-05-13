@@ -141,7 +141,7 @@ class RwProto {
   explicit RwProto(Allocator* allocator);
   ~RwProto();
   Cursor GetRoot();
-  std::string SerializeAsString() const;
+  void Serialize(protozero::Message*) const;
 
  private:
   void SerializeField(uint32_t field_id,

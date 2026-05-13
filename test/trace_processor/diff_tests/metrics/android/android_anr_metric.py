@@ -325,4 +325,21 @@ trace.add_atrace_counter(
     buf="Subject(for ErrorId 05122f25-2f5b-4650-aeeb-cf59a9d6295a):required notification not provided",
     cnt=1)
 
+# SYSTEM_SERVER_WATCHDOG_TIMEOUT
+trace.add_ftrace_packet(cpu=0)
+trace.add_atrace_counter(
+    ts=20000,
+    pid=SS_PID,
+    tid=SS_PID,
+    buf="ErrorId:system_server 1234#e701066e-985b-476b-8467-21a2548f134b",
+    cnt=1)
+
+trace.add_ftrace_packet(cpu=0)
+trace.add_atrace_counter(
+    ts=19001,
+    tid=SS_PID,
+    pid=SS_PID,
+    buf="Subject(for ErrorId e701066e-985b-476b-8467-21a2548f134b):Blocked in handler on foreground thread (android.fg) for 2s",
+    cnt=1)
+
 sys.stdout.buffer.write(trace.trace.SerializeToString())

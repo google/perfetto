@@ -15,6 +15,8 @@
  */
 
 #include "src/protovm/parser.h"
+#include "protos/perfetto/protovm/vm_program.pbzero.h"
+#include "src/protovm/error_handling.h"
 
 namespace perfetto {
 namespace protovm {
@@ -46,7 +48,7 @@ StatusOr<void> Parser::ParseInstructions(
               ? static_cast<AbortLevel>(instruction.abort_level())
               : AbortLevel::SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER;
       if (abort_level == AbortLevel::SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER) {
-        break;
+        return StatusOr<void>::Error();
       }
       if (abort_level == AbortLevel::ABORT) {
         PROTOVM_ABORT(
@@ -76,7 +78,7 @@ StatusOr<void> Parser::ParseInstruction(
     auto status = executor_->Delete(&cursors_.dst);
     PROTOVM_RETURN_IF_NOT_OK(status, "del");
   } else if (instruction.has_merge()) {
-    auto status = executor_->Merge(&cursors_);
+    auto status = ParseMerge(instruction);
     PROTOVM_RETURN_IF_NOT_OK(status, "merge");
   } else if (instruction.has_set()) {
     auto status = executor_->Set(&cursors_);
@@ -86,6 +88,14 @@ StatusOr<void> Parser::ParseInstruction(
   }
 
   return ParseInstructions(instruction.nested_instructions());
+}
+
+StatusOr<void> Parser::ParseMerge(
+    const protos::pbzero::VmInstruction::Decoder& instruction) {
+  protos::pbzero::VmOpMerge::Decoder merge(instruction.merge());
+  auto status = executor_->Merge(&cursors_, merge.skip_submessages());
+  PROTOVM_RETURN_IF_NOT_OK(status);
+  return status;
 }
 
 StatusOr<void> Parser::ParseRegLoad(

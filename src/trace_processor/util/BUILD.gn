@@ -26,6 +26,14 @@ source_set("stdlib") {
   sources = [ "sql_modules.h" ]
 }
 
+source_set("sql_bundle") {
+  sources = [ "sql_bundle.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("bump_allocator") {
   sources = [
     "bump_allocator.cc",
@@ -76,7 +84,10 @@ source_set("blob") {
 }
 
 source_set("clock") {
-  sources = [ "clock_synchronizer.h" ]
+  sources = [
+    "clock_synchronizer.cc",
+    "clock_synchronizer.h",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
@@ -155,8 +166,6 @@ source_set("descriptors") {
 
 source_set("proto_to_args_parser") {
   sources = [
-    "debug_annotation_parser.cc",
-    "debug_annotation_parser.h",
     "proto_to_args_parser.cc",
     "proto_to_args_parser.h",
   ]
@@ -207,14 +216,6 @@ source_set("glob") {
     "glob.cc",
     "glob.h",
   ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-  ]
-}
-
-source_set("regex") {
-  sources = [ "regex.h" ]
   deps = [
     "../../../gn:default_deps",
     "../../base",
@@ -277,7 +278,7 @@ source_set("simple_json_parser") {
   ]
 }
 
-# JSON args flattening using the streaming parser. No jsoncpp dependency.
+# JSON args flattening using the streaming parser.
 source_set("json_args") {
   sources = [
     "json_args.cc",
@@ -423,7 +424,6 @@ source_set("winscope_proto_mapping") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
-    "debug_annotation_parser_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
@@ -442,10 +442,6 @@ source_set("unittests") {
     "zip_reader_unittest.cc",
   ]
 
-  if (!is_win) {
-    sources += [ "regex_unittest.cc" ]
-  }
-
   testonly = true
   deps = [
     ":bump_allocator",
@@ -460,7 +456,6 @@ source_set("unittests") {
     ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
-    ":regex",
     ":simple_json_parser",
     ":simple_json_serializer",
     ":sql_argument",

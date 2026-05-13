@@ -16,9 +16,12 @@
 
 package dev.perfetto.sdk;
 
+import com.google.errorprone.annotations.CompileTimeConstant;
+
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -42,6 +45,8 @@ public final class PerfettoTrace {
   private static boolean sIsDebug = false;
   private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
       new PerfettoNativeMemoryCleaner();
+
+  private static final AtomicBoolean sAttemptedSystemRegistration = new AtomicBoolean(false);
 
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
@@ -187,6 +192,11 @@ public final class PerfettoTrace {
 
   private static native byte[] native_stop_session(long ptr);
 
+  // A function to support ravenwood infrastructure.
+  private static byte[] native_stop_session$ravenwood(long ptr) {
+    return new byte[1]; // Just return something to avoid confusing callers.
+  }
+
   /**
    * Writes a trace message to indicate a given section of code was invoked.
    *
@@ -236,8 +246,12 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
-  public static PerfettoTrackEventBuilder counter(Category category, long value, String trackName) {
+  public static PerfettoTrackEventBuilder counter(Category category, long value, @CompileTimeConstant String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
+  }
+
+  public static PerfettoTrackEventBuilder counterWithDynamicName(Category category, long value, String trackName) {
+    return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
   }
 
   /**
@@ -259,8 +273,13 @@ public final class PerfettoTrace {
    * @param trackName The trackName for the event.
    */
   public static PerfettoTrackEventBuilder counter(
-      Category category, double value, String trackName) {
+      Category category, double value, @CompileTimeConstant String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
+  }
+
+  public static PerfettoTrackEventBuilder counterWithDynamicName(
+      Category category, double value, String trackName) {
+    return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
   }
 
   /** Returns the next flow id to be used. */
@@ -290,6 +309,9 @@ public final class PerfettoTrace {
 
   /** Registers the process with Perfetto. */
   public static void register(boolean isBackendInProcess) {
+    if (!isBackendInProcess) {
+        sAttemptedSystemRegistration.set(true);
+    }
     native_register(isBackendInProcess);
   }
 
@@ -297,5 +319,57 @@ public final class PerfettoTrace {
   public static void registerWithDebugChecks(boolean isBackendInProcess) {
     sIsDebug = true;
     register(isBackendInProcess);
+  }
+
+  /**
+   * Writes a provided call stack to the Perfetto trace.
+   * A stack can be captured with Thread.getStackTrace() but note that it is expensive
+   * and should only be used for local debugging or low-frequency diagnostic events.
+   */
+  public static PerfettoTrackEventBuilder expensiveDebugCallStack(Category category,
+    String eventName, StackTraceElement[] stackTrace) {
+    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+        return PerfettoTrace.instant(category, eventName);
+    }
+
+    final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
+    final long FIELD_CALLSTACK_FRAMES = 1L;
+    final long FIELD_FRAME_FUNCTION_NAME = 1L;
+    final long FIELD_FRAME_SOURCE_FILE = 2L;
+    final long FIELD_FRAME_LINE_NUMBER = 3L;
+
+    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
+        .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
+
+    // Iterate from the bottom of the stack (main) up to the caller
+    // stackTrace[0] is getStackTrace()
+    // stackTrace[1] is emitStackInPerfetto()
+    // We start at the end and stop before reaching these internal methods
+    for (int i = stackTrace.length - 1; i >= 2; i--) {
+        StackTraceElement element = stackTrace[i];
+
+        builder = builder.beginNested(FIELD_CALLSTACK_FRAMES)
+            .addField(FIELD_FRAME_FUNCTION_NAME, element.getClassName() + "." + element.getMethodName());
+
+        if (element.getFileName() != null) {
+            builder = builder.addField(FIELD_FRAME_SOURCE_FILE, element.getFileName());
+        }
+        if (element.getLineNumber() >= 0) {
+            builder = builder.addField(FIELD_FRAME_LINE_NUMBER, element.getLineNumber());
+        }
+
+        builder = builder.endNested();
+    }
+
+    return builder.endNested().endProto();
+  }
+
+  /**
+   * Returns whether the calling process attempted to register with the system backend of perfetto
+   * by calling {@code register(false)}. A true return does not mean that the registration is
+   * already completed, as that is an asynchronous operation.
+   */
+  public static boolean getAttempedSystemRegistration() {
+      return sAttemptedSystemRegistration.get();
   }
 }

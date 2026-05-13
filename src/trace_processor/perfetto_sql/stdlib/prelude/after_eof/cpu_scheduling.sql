@@ -38,7 +38,7 @@ CREATE PERFETTO VIEW cpu (
   -- A string describing this core.
   processor STRING,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- Capacity of a CPU of a device, a metric which indicates the
   -- relative performance of a CPU on a device
   -- For details see:

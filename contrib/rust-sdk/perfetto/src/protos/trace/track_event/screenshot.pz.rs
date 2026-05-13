@@ -20,4 +20,6 @@ use crate::pb_msg;
 
 pb_msg!(Screenshot {
     jpg_image: String, primitive, 1,
+    pam_image: String, primitive, 2,
+    ppm_image: String, primitive, 3,
 });

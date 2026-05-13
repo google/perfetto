@@ -193,6 +193,35 @@ ts                   dur                  name
      ...
 ```
 
+Alternatively, results can be converted to a [Polars](https://pola.rs/) DataFrame
+using `as_polars_dataframe()`. Polars is an optional dependency.
+
+```python
+# Requires polars
+# pip install perfetto[polars]
+qr_it = tp.query('SELECT ts, dur, name FROM slice')
+qr_df = qr_it.as_polars_dataframe()
+print(qr_df)
+```
+
+**Output**
+
+```
+shape: (5, 3)
+┌─────────────────────┬────────┬─────────────────────────────┐
+│ ts                  ┆ dur    ┆ name                        │
+│ ---                 ┆ ---    ┆ ---                         │
+│ i64                 ┆ i64    ┆ str                         │
+╞═════════════════════╪════════╪═════════════════════════════╡
+│ 261187017446933     ┆ 358594 ┆ eglSwapBuffersWithDamageKHR │
+│ 261187017518340     ┆    357 ┆ onMessageReceived           │
+│ 261187020825163     ┆   9948 ┆ queueBuffer                 │
+│ 261187021345235     ┆    642 ┆ bufferLoad                  │
+│ 261187121345235     ┆    153 ┆ query                       │
+│ …                   ┆ …      ┆ …                           │
+└─────────────────────┴────────┴─────────────────────────────┘
+```
+
 You can use Pandas DataFrames to easily create visualizations from trace data.
 
 ```python

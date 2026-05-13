@@ -16,22 +16,21 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
-import {assertExists, assertUnreachable} from '../base/logging';
+import {assertExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
-import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {exists} from '../base/utils';
-import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {raf} from '../core/raf_scheduler';
 import {TraceImpl} from '../core/trace_impl';
 import {Button} from '../widgets/button';
 import {Chip} from '../widgets/chip';
-import {HTMLAttrs} from '../widgets/common';
+import {HTMLAttrs, Intent} from '../widgets/common';
 import {EmptyState} from '../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
 import {Spinner} from '../widgets/spinner';
+import {Command} from '../public/commands';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
@@ -39,6 +38,10 @@ const RECENT_COMMANDS_LIMIT = 6;
 // Omnibox attrs - simplified to just what's needed from outside
 export interface OmniboxAttrs {
   readonly trace?: TraceImpl;
+}
+
+interface CommandWithMatchInfo extends Command {
+  readonly segments: FuzzySegment[];
 }
 
 // Omnibox: Smart component that contains all omnibox business logic
@@ -65,10 +68,10 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       return this.renderCommandOmnibox();
     } else if (omniboxMode === OmniboxMode.Prompt) {
       return this.renderPromptOmnibox();
-    } else if (omniboxMode === OmniboxMode.Query) {
-      return this.renderQueryOmnibox(trace);
     } else if (omniboxMode === OmniboxMode.Search) {
       return this.renderSearchOmnibox(trace);
+    } else if (omniboxMode === OmniboxMode.RegisteredMode) {
+      return this.renderRegisteredMode();
     } else {
       assertUnreachable(omniboxMode);
     }
@@ -118,10 +121,19 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     });
   }
 
+  private fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
+    const app = AppImpl.instance;
+    const allCommands = app.commands.getCommands();
+    const finder = new FuzzyFinder(allCommands, ({name}) => name);
+    return finder.find(searchTerm).map((result) => {
+      return {segments: result.segments, ...result.item};
+    });
+  }
+
   private renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
     const {commands, omnibox} = AppImpl.instance;
-    const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
+    const filteredCmds = this.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
     // command register.
@@ -143,11 +155,12 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     });
 
     const options = sorted.map(({recentsIndex, cmd}): OmniboxOption => {
-      const {segments, id, defaultHotkey} = cmd;
+      const {segments, id, defaultHotkey, source} = cmd;
       return {
         key: id,
         displayName: segments,
         tag: recentsIndex !== -1 ? 'recently used' : undefined,
+        source,
         rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
       };
     });
@@ -191,53 +204,66 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       .splice(-RECENT_COMMANDS_LIMIT); // Limit items
   }
 
-  private renderQueryOmnibox(trace: TraceImpl | undefined): m.Children {
-    const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
+  private renderRegisteredMode(): m.Children {
+    const omnibox = AppImpl.instance.omnibox;
+    const desc = assertExists(omnibox.activeRegisteredMode);
     return m(OmniboxWidget, {
-      value: AppImpl.instance.omnibox.text,
-      placeholder: ph,
+      value: omnibox.text,
+      placeholder: desc.placeholder,
       inputRef: OMNIBOX_INPUT_REF,
-      className: 'pf-omnibox--query-mode',
-
+      className: desc.className,
       onInput: (value) => {
-        AppImpl.instance.omnibox.setText(value);
+        if (desc.onInput) {
+          desc.onInput(value);
+        } else {
+          omnibox.setText(value);
+        }
       },
-      onSubmit: (query, alt) => {
-        const config = {
-          query: undoCommonChatAppReplacements(query),
-          title: alt ? 'Pinned query' : 'Omnibox query',
-        };
-        const tag = alt ? undefined : 'omnibox_query';
-        if (trace === undefined) return;
-        addQueryResultsTab(trace, config, tag);
+      onSubmit: (value, alt) => {
+        desc.onSubmit(value, alt);
       },
       onClose: () => {
-        AppImpl.instance.omnibox.setText('');
-        if (this.omniboxInputEl) {
-          this.omniboxInputEl.blur();
+        if (desc.onClose) {
+          desc.onClose();
+        } else {
+          omnibox.setText('');
+          if (this.omniboxInputEl) {
+            this.omniboxInputEl.blur();
+          }
+          omnibox.reset();
         }
-        AppImpl.instance.omnibox.reset();
       },
       onGoBack: () => {
-        AppImpl.instance.omnibox.reset();
+        if (desc.onGoBack) {
+          desc.onGoBack();
+        } else {
+          omnibox.reset();
+        }
       },
     });
   }
 
   private renderSearchOmnibox(trace: TraceImpl | undefined): m.Children {
+    const omnibox = AppImpl.instance.omnibox;
+    const hints = ["'>' for commands"];
+    for (const desc of omnibox.registeredModes.values()) {
+      if (desc.hint) hints.push(desc.hint);
+    }
     return m(OmniboxWidget, {
-      value: AppImpl.instance.omnibox.text,
-      placeholder: "Search or type '>' for commands or ':' for SQL mode",
+      value: omnibox.text,
+      placeholder: `Search or type ${hints.join(', ')}`,
       inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
         if (value === '>') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Command);
-          return;
-        } else if (value === ':') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Query);
+          omnibox.setMode(OmniboxMode.Command);
           return;
         }
-        AppImpl.instance.omnibox.setText(value);
+        // Check registered mode triggers.
+        if (value.length === 1 && omnibox.registeredModes.has(value)) {
+          omnibox.activateRegisteredMode(value);
+          return;
+        }
+        omnibox.setText(value);
         if (trace === undefined) return; // No trace loaded.
         if (value.length >= 4) {
           trace.search.search(value);
@@ -343,19 +369,37 @@ interface OmniboxOptionRowAttrs extends HTMLAttrs {
 
   // Some tag to place on the right (to the left of the right content).
   readonly label?: string;
+
+  // Source label to show as a left-side chip (e.g. extension module name).
+  readonly source?: string;
 }
 
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   private highlightedBefore = false;
 
   view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void | m.Children {
-    const {displayName, highlighted, rightContent, label, ...htmlAttrs} = attrs;
+    const {
+      displayName,
+      highlighted,
+      rightContent,
+      label,
+      source,
+      ...htmlAttrs
+    } = attrs;
     return m(
       'li',
       {
         class: classNames(highlighted && 'pf-highlighted'),
         ...htmlAttrs,
       },
+      source &&
+        m(Chip, {
+          className: 'pf-omnibox__source',
+          label: source,
+          rounded: true,
+          compact: true,
+          intent: Intent.Primary,
+        }),
       m('span.pf-title', this.renderTitle(displayName)),
       label && m(Chip, {className: 'pf-omnibox__tag', label, rounded: true}),
       rightContent,
@@ -393,6 +437,9 @@ interface OmniboxOption {
 
   // Some tag to place on the right (to the left of the right content).
   readonly tag?: string;
+
+  // Source label to show as a left-side chip (e.g. extension module name).
+  readonly source?: string;
 
   // Arbitrary components to put on the right hand side of the option.
   readonly rightContent?: m.Children;
@@ -584,19 +631,22 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
       selectedOptionIndex,
     } = attrs;
 
-    const opts = options.map(({displayName, key, rightContent, tag}, index) => {
-      return m(OmniboxOptionRow, {
-        key,
-        label: tag,
-        displayName: displayName,
-        highlighted: index === selectedOptionIndex,
-        onclick: () => {
-          closeOnSubmit && onClose();
-          onSubmit(key, false, false);
-        },
-        rightContent,
-      });
-    });
+    const opts = options.map(
+      ({displayName, key, rightContent, tag, source}, index) => {
+        return m(OmniboxOptionRow, {
+          key,
+          label: tag,
+          source,
+          displayName: displayName,
+          highlighted: index === selectedOptionIndex,
+          onclick: () => {
+            closeOnSubmit && onClose();
+            onSubmit(key, false, false);
+          },
+          rightContent,
+        });
+      },
+    );
 
     return m('ul.pf-omnibox-options-container', opts);
   }

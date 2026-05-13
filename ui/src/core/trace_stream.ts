@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 import {exists} from '../base/utils';
 import {TraceChunk, TraceStream} from '../public/stream';
 

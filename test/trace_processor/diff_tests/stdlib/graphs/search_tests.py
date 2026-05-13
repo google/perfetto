@@ -135,6 +135,82 @@ class GraphSearchTests(TestSuite):
           "R","[NULL]"
         """))
 
+  def test_dfs_start_node_not_in_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 1 AS dest_node_id
+          )
+          SELECT * FROM graph_reachable_dfs!(foo, (SELECT 99 AS node_id));
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        99,"[NULL]"
+        """))
+
+  def test_dfs_mixed_start_nodes_in_and_not_in_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 1 AS dest_node_id
+          )
+          SELECT * FROM graph_reachable_dfs!(
+            foo,
+            (SELECT 0 AS node_id UNION ALL SELECT 99)
+          )
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        0,"[NULL]"
+        1,0
+        99,"[NULL]"
+        """))
+
+  def test_bfs_start_node_not_in_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 1 AS dest_node_id
+          )
+          SELECT * FROM graph_reachable_bfs!(foo, (SELECT 99 AS node_id));
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        99,"[NULL]"
+        """))
+
+  def test_bfs_mixed_start_nodes_in_and_not_in_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 1 AS dest_node_id
+          )
+          SELECT * FROM graph_reachable_bfs!(
+            foo,
+            (SELECT 0 AS node_id UNION ALL SELECT 99)
+          )
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        0,"[NULL]"
+        1,0
+        99,"[NULL]"
+        """))
+
   def test_bfs_empty_table(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),

@@ -21,11 +21,10 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/pixel_modem_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -92,13 +91,13 @@ ModuleResult PixelModemModule::TokenizePacket(
       continue;
     }
 
-    protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
-    // Keep the original timestamp to later extract as an arg; the sorter does
-    // not read this.
-    data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
-    data_packet->set_pixel_modem_events()->add_events(event_bytes);
-    auto [vec, size] = data_packet.SerializeAsUniquePtr();
-    TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+    TraceBlobView tbv =
+        context_->blob_packet_writer->WritePacket([&](auto* data_packet) {
+          // Keep the original timestamp to later extract as an arg; the sorter
+          // does not read this.
+          data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
+          data_packet->set_pixel_modem_events()->add_events(event_bytes);
+        });
     module_context_->trace_packet_stream->Push(
         ts, TracePacketData{std::move(tbv), state});
   }

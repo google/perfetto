@@ -29,7 +29,6 @@ if (enable_perfetto_grpc) {
       "../../../gn:cpp_httplib",
       "../../../gn:default_deps",
       "../../../gn:grpc",
-      "../../../gn:jsoncpp",
       "../../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",
       "../../../protos/perfetto/bigtrace:worker_grpc",
       "../../../protos/perfetto/bigtrace:worker_lite",

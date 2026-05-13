@@ -20,7 +20,7 @@ import {basicSetup, EditorView} from 'codemirror';
 import {javascript} from '@codemirror/lang-javascript';
 import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
 import {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';

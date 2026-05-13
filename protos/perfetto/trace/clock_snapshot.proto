@@ -72,9 +72,12 @@ message ClockSnapshot {
   }
   repeated Clock clocks = 1;
 
-  // The authoritative clock domain for the trace. Defaults to BOOTTIME, but can
-  // be overridden in TraceConfig's builtin_data_sources. Trace processor will
-  // attempt to translate packet/event timestamps from various data sources (and
-  // their chosen clock domains) to this domain during import.
+  // The authoritative clock domain for the trace. When set, this definitively
+  // overrides the trace time clock. If not set, the trace time clock remains
+  // at its default (BUILTIN_CLOCK_TRACE_FILE), unless a format-specific
+  // fallback applies (e.g. BOOTTIME for legacy proto traces without clock
+  // snapshots). Trace processor will attempt to translate packet/event
+  // timestamps from various data sources (and their chosen clock domains) to
+  // this domain during import.
   optional BuiltinClock primary_trace_clock = 2;
 }

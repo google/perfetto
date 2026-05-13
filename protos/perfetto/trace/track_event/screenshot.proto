@@ -19,5 +19,12 @@ syntax = "proto2";
 package perfetto.protos;
 
 message Screenshot {
+  // The JPEG (Joint Photographic Experts Group) file format.
   optional bytes jpg_image = 1;
+
+  // The PAM (Portable Arbitrary Map) file format.
+  optional bytes pam_image = 2;
+
+  // The PPM (Portable Pixmap) file format.
+  optional bytes ppm_image = 3;
 }

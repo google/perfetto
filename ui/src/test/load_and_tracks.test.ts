@@ -27,14 +27,18 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('load trace', async () => {
-  await pth.waitForIdleAndScreenshot('loaded.png');
+  await pth.waitForIdleAndScreenshot('loaded.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('info and stats', async () => {
   await pth.navigate('#!/info');
   await pth.waitForIdleAndScreenshot('into_and_stats.png');
   await pth.navigate('#!/viewer');
-  await pth.waitForIdleAndScreenshot('back_to_timeline.png');
+  await pth.waitForIdleAndScreenshot('back_to_timeline.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('omnibox search', async () => {
@@ -42,12 +46,16 @@ test('omnibox search', async () => {
   await pth.resetFocus();
   await page.keyboard.press('f');
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('search_slice.png');
+  await pth.waitForIdleAndScreenshot('search_slice.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Click on show process details in the details panel.
   await page.getByText('/system/bin/surfaceflinger [598]').click();
   await page.getByText('Show process details').click();
-  await pth.waitForIdleAndScreenshot('process_details.png');
+  await pth.waitForIdleAndScreenshot('process_details.png', {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
 
 test('mark', async () => {
@@ -61,21 +69,27 @@ test('mark', async () => {
   await page.keyboard.press('M');
   await pth.waitForPerfettoIdle();
 
-  await pth.waitForIdleAndScreenshot(`mark.png`);
+  await pth.waitForIdleAndScreenshot(`mark.png`, {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('track expand and collapse', async () => {
   const trackGroup = pth.locateTrack('traced_probes 1054');
   await trackGroup.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(trackGroup);
-  await pth.waitForIdleAndScreenshot('traced_probes_expanded.png');
+  await pth.waitForIdleAndScreenshot('traced_probes_expanded.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Click 5 times in rapid succession.
   for (let i = 0; i < 5; i++) {
     await trackGroup.click();
     await pth.waitForPerfettoIdle(50);
   }
-  await pth.waitForIdleAndScreenshot('traced_probes_compressed.png');
+  await pth.waitForIdleAndScreenshot('traced_probes_compressed.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('pin tracks', async () => {
@@ -84,10 +98,14 @@ test('pin tracks', async () => {
   let track = pth.locateTrack('traced 1055/mem.rss', trackGroup);
   await pth.pinTrackUsingShellBtn(track);
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('one_track_pinned.png');
+  await pth.waitForIdleAndScreenshot('one_track_pinned.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   track = pth.locateTrack('traced 1055/traced 1055', trackGroup);
   await pth.pinTrackUsingShellBtn(track);
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('two_tracks_pinned.png');
+  await pth.waitForIdleAndScreenshot('two_tracks_pinned.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });

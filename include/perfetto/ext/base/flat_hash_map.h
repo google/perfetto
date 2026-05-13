@@ -97,6 +97,14 @@ struct HashEq<std::string> {
   }
 };
 
+// Specialization for double to prevent spurious -Wfloat-equal warnings.
+//
+// Trace processor legitimately has a need to compare with exact equality
+template <>
+struct HashEq<double> {
+  bool operator()(double a, double b) const { return std::equal_to<>()(a, b); }
+};
+
 // Helper to check if a lookup key type K is allowed.
 // Returns true if:
 // 1. K can be implicitly converted to Key, OR
@@ -106,9 +114,7 @@ template <typename K, typename Key, typename Hasher>
 static constexpr bool IsLookupKeyAllowed() {
   if constexpr (HasIsTransparent<Hasher>::value) {
     return std::is_invocable_v<Hasher, const K&> &&
-           std::is_same_v<decltype(std::declval<const Key&>() ==
-                                   std::declval<const K&>()),
-                          bool>;
+           std::is_invocable_v<std::equal_to<>, const Key&, const K&>;
   } else if constexpr (std::is_convertible_v<K, Key>) {
     return true;
   } else {

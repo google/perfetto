@@ -82,7 +82,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=1,
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=1)
 trace.add_frame_end_event(ts=47000000, cookie=7)
 trace.add_actual_surface_frame_start_event(
     ts=32000000,
@@ -95,7 +96,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=1,
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=2)
 trace.add_frame_end_event(ts=40000000, cookie=8)
 
 # DisplayFrame with a janky SurfaceFrame
@@ -110,7 +112,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=1.5)
 trace.add_frame_end_event(ts=74000000, cookie=10)
 trace.add_actual_surface_frame_start_event(
     ts=41000000,
@@ -123,7 +126,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED | JankType.JANK_BUFFER_STUFFING,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=2.5)
 trace.add_frame_end_event(ts=75000000, cookie=11)
 
 trace.add_actual_surface_frame_start_event(
@@ -137,7 +141,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_SF_CPU_DEADLINE_MISSED,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=1.5)
 trace.add_frame_end_event(ts=95000000, cookie=15)
 trace.add_actual_surface_frame_start_event(
     ts=90000000,
@@ -150,7 +155,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_DROPPED,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=2.5)
 trace.add_frame_end_event(ts=96000000, cookie=16)
 
 trace.add_actual_surface_frame_start_event(
@@ -164,7 +170,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_SF_STUFFING,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=1.25)
 trace.add_frame_end_event(ts=12000000, cookie=20)
 
 trace.add_actual_surface_frame_start_event(
@@ -178,7 +185,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_SF_SCHEDULING,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=2.25)
 trace.add_frame_end_event(ts=14000000, cookie=25)
 
 trace.add_actual_surface_frame_start_event(
@@ -192,7 +200,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_SF_CPU_DEADLINE_MISSED,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=1.75)
 trace.add_frame_end_event(ts=15000000, cookie=30)
 
 trace.add_actual_surface_frame_start_event(
@@ -206,7 +215,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_SF_GPU_DEADLINE_MISSED,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=2.25)
 trace.add_frame_end_event(ts=16000000, cookie=35)
 
 trace.add_actual_surface_frame_start_event(
@@ -220,7 +230,8 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_SF_SCHEDULING | JankType.JANK_SF_STUFFING,
-    prediction_type=PredictionType.PREDICTION_VALID)
+    prediction_type=PredictionType.PREDICTION_VALID,
+    jank_score=3.25)
 trace.add_frame_end_event(ts=17000000, cookie=40)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

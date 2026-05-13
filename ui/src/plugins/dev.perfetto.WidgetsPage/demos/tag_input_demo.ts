@@ -21,10 +21,11 @@ function TagInputDemo() {
   let tagInputValue: string = '';
 
   return {
-    view: () => {
+    view: (vnode: m.Vnode<{leftIcon?: string}>) => {
       return m(TagInput, {
         tags,
         value: tagInputValue,
+        leftIcon: vnode.attrs.leftIcon,
         onTagAdd: (tag) => {
           tags.push(tag);
           tagInputValue = '';
@@ -51,8 +52,13 @@ export function renderTagInput(): m.Children {
       ),
     ),
     renderWidgetShowcase({
-      renderWidget: () => m(TagInputDemo),
-      initialOpts: {},
+      renderWidget: ({leftIcon}) =>
+        m(TagInputDemo, {
+          leftIcon: leftIcon ? 'search' : undefined,
+        }),
+      initialOpts: {
+        leftIcon: true,
+      },
     }),
   ];
 }

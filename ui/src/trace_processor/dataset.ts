@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 import {getOrCreate} from '../base/utils';
 import {checkExtends, NUM, SqlValue, unionTypes, UNKNOWN} from './query_result';
 import {sqlValueToSqliteString} from './sql_utils';

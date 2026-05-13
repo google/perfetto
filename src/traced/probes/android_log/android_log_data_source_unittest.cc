@@ -57,7 +57,8 @@ class AndroidLogDataSourceTest : public ::testing::Test {
   }
 
   void StartAndSimulateLogd(
-      const std::vector<std::vector<uint8_t>>& fake_events) {
+      const std::vector<std::vector<uint8_t>>& fake_events,
+      const char* expected_cmd = "stream tail=1 lids=0,2,3,4,7") {
     base::UnixSocketRaw send_sock;
     base::UnixSocketRaw recv_sock;
     // In theory this should be a kSeqPacket. We use kDgram here so that the
@@ -75,7 +76,7 @@ class AndroidLogDataSourceTest : public ::testing::Test {
 
     char cmd[64]{};
     EXPECT_GT(send_sock.Receive(cmd, sizeof(cmd) - 1), 0);
-    EXPECT_STREQ("stream tail=1 lids=0,2,3,4,7", cmd);
+    EXPECT_STREQ(expected_cmd, cmd);
 
     // Send back log messages emulating Android's logdr socket.
     for (const auto& buf : fake_events)
@@ -296,6 +297,27 @@ TEST_F(AndroidLogDataSourceTest, TextEventsWithPrioFiltering) {
   EXPECT_EQ(event_packet.android_log().events_size(), 1);
   const auto& decoded = event_packet.android_log().events();
   EXPECT_EQ(decoded[0].tag(), "libprocessgroup");
+}
+
+TEST_F(AndroidLogDataSourceTest, TextEventsWithPreserveLogBuffer) {
+  DataSourceConfig cfg;
+  AndroidLogConfig acfg;
+  acfg.set_preserve_log_buffer(true);
+  cfg.set_android_log_config_raw(acfg.SerializeAsString());
+
+  CreateInstance(cfg);
+  EXPECT_CALL(*data_source_, ReadEventLogDefinitions()).WillOnce(Return(""));
+  // When preserve_log_buffer is true, the command should not include "tail=1".
+  StartAndSimulateLogd(kValidTextEvents, "stream lids=0,2,3,4,7");
+
+  auto packets = writer_raw_->GetAllTracePackets();
+  ASSERT_TRUE(packets.size() == 2);
+  auto event_packet = packets[0];
+  auto stats_packet = packets[1];
+  EXPECT_TRUE(stats_packet.android_log().has_stats());
+
+  // Verify events are still parsed correctly.
+  EXPECT_EQ(event_packet.android_log().events_size(), 3);
 }
 
 TEST_F(AndroidLogDataSourceTest, BinaryEvents) {

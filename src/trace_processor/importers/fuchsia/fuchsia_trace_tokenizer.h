@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"

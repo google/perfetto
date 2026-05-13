@@ -14,15 +14,18 @@
 """Contains tables for finding ancestor events."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
+from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TABLE
 from src.trace_processor.tables.profiler_tables import STACK_PROFILE_FRAME_TABLE
@@ -235,6 +238,53 @@ SURFACE_FLINGER_HIERARCHY_PATH_TABLE = Table(
     ],
 )
 
+EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
+    python_module=__file__,
+    class_name='ExperimentalFlatSliceTable',
+    sql_name='experimental_flat_slice',
+    columns=[
+        C('ts', CppInt64(), cpp_access=CppAccess.READ),
+        C('dur', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('track_id', CppTableId(TRACK_TABLE)),
+        C('category', CppOptional(CppString())),
+        C('name', CppOptional(CppString())),
+        C('arg_set_id', CppOptional(CppUint32())),
+        C('source_id', CppOptional(CppTableId(SLICE_TABLE))),
+        C('start_bound', CppInt64(), flags=ColumnFlag.HIDDEN),
+        C('end_bound', CppInt64(), flags=ColumnFlag.HIDDEN),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          An experimental table which "flattens" stacks of slices to contain
+          only the "deepest" slice at any point in time on each track.
+        ''',
+        group='Slice',
+        columns={
+            'ts':
+                '''The timestamp at the start of the slice (in nanoseconds).''',
+            'dur':
+                '''The duration of the slice (in nanoseconds).''',
+            'track_id':
+                'The id of the track this slice is located on.',
+            'category':
+                '''
+                  The "category" of the slice. If this slice originated with
+                  track_event, this column contains the category emitted.
+                  Otherwise, it is likely to be null (with limited exceptions).
+                ''',
+            'name':
+                '''
+                  The name of the slice. The name describes what was happening
+                  during the slice.
+                ''',
+            'arg_set_id':
+                ColumnDoc(
+                    'The id of the argument set associated with this slice.',
+                    joinable='args.arg_set_id'),
+            'source_id':
+                'The id of the slice which this row originated from.',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANCESTOR_STACK_PROFILE_CALLSITE_TABLE,
@@ -243,6 +293,7 @@ ALL_TABLES = [
     DATAFRAME_QUERY_PLAN_DECODER_TABLE_TABLE,
     DFS_WEIGHT_BOUNDED_TABLE,
     EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE,
+    EXPERIMENTAL_FLAT_SLICE_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
     SLICE_SUBSET_TABLE,
     SURFACE_FLINGER_HIERARCHY_PATH_TABLE,

@@ -28,9 +28,10 @@ struct Span {
   using value_type = T;
   using const_iterator = T*;
 
-  T* b;
-  T* e;
+  T* b = nullptr;
+  T* e = nullptr;
 
+  Span() = default;
   Span(T* _b, T* _e) : b(_b), e(_e) {}
 
   T* begin() const { return b; }

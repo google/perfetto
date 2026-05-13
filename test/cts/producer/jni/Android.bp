@@ -21,6 +21,7 @@ cc_library_shared {
   shared_libs: [
     "libandroid",
     "liblog",
+    "libpcre2",
   ],
   compile_multilib: "both",
   stl: "libc++_static",

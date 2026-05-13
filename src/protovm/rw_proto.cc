@@ -16,8 +16,8 @@
 
 #include "src/protovm/rw_proto.h"
 
+#include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 
 namespace perfetto {
 namespace protovm {
@@ -33,25 +33,23 @@ RwProto::Cursor RwProto::GetRoot() {
   return Cursor{&root_, allocator_};
 }
 
-std::string RwProto::SerializeAsString() const {
+void RwProto::Serialize(protozero::Message* proto) const {
   if (root_.GetIf<Node::Empty>()) {
-    return "";
+    return;
   }
 
   if (auto* bytes = root_.GetIf<Node::Bytes>()) {
-    return std::string(static_cast<char*>(bytes->data.get()), bytes->size);
+    proto->AppendRawProtoBytes(bytes->data.get(), bytes->size);
+    return;
   }
 
-  protozero::HeapBuffered<protozero::Message> proto;
   auto* message = root_.GetIf<Node::Message>();
   PERFETTO_DCHECK(message);
 
   for (auto it = message->field_id_to_node.begin(); it; ++it) {
     auto field_id = static_cast<uint32_t>(it->key);
-    SerializeField(field_id, *it->value, proto.get());
+    SerializeField(field_id, *it->value, proto);
   }
-
-  return proto.SerializeAsString();
 }
 
 void RwProto::SerializeField(uint32_t field_id,

@@ -14,15 +14,7 @@ perfetto_py_binary(
         "tools/gen_amalgamated_sql.py",
     ],
     main = "tools/gen_amalgamated_sql.py",
-    python_version = "PY3",
-)
-
-perfetto_py_binary(
-    name = "gen_cc_proto_descriptor_py",
-    srcs = [
-        "tools/gen_cc_proto_descriptor.py",
-    ],
-    main = "tools/gen_cc_proto_descriptor.py",
+    deps = [perfetto_label("python:cpp_blob_emitter")],
     python_version = "PY3",
 )
 

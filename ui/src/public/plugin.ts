@@ -43,4 +43,5 @@ export interface PerfettoPlugin {
 
 export interface PluginManager {
   getPlugin<T extends PerfettoPlugin>(plugin: PerfettoPluginStatic<T>): T;
+  isPluginEnabled(id: string): boolean;
 }

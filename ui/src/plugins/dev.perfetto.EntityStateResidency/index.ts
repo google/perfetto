@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {createAggregationTab} from '../../components/aggregation_adapter';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -73,25 +73,19 @@ export default class implements PerfettoPlugin {
       // Create and register a track for the state residency.
       const uri = `/entity_state_residency_${it.entity}_${it.state}`;
       const name = it.state;
-      const track = await createQueryCounterTrack({
+      const track = await CounterTrack.createMaterialized({
         trace: ctx,
         uri,
-        data: {
-          sqlSource: `
-              SELECT
-                ts,
-                state_time_since_boot / 1e9 AS value
-              FROM android_entity_state_residency
-              WHERE track_id = ${it.trackId}
-            `,
-          columns: ['ts', 'value'],
-        },
-        columns: {ts: 'ts', value: 'value'},
-        options: {
-          yMode: 'rate',
-          yRangeSharingKey: `entity_state_residency_${it.entity}`,
-          unit: 's',
-        },
+        sqlSource: `
+            SELECT
+              ts,
+              state_time_since_boot / 1e9 AS value
+            FROM android_entity_state_residency
+            WHERE track_id = ${it.trackId}
+          `,
+        yMode: 'rate',
+        yRangeSharingKey: `entity_state_residency_${it.entity}`,
+        unit: 's',
       });
 
       ctx.tracks.registerTrack({

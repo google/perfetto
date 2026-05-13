@@ -304,6 +304,28 @@ inline FlexVector<T> CreateFlexVectorForTesting(
 }
 
 template <typename T>
+inline FlexVector<T> CreateFlexVectorForTesting(const std::vector<T>& values) {
+  FlexVector<T> vec;
+  for (const auto& value : values) {
+    vec.push_back(value);
+  }
+  return vec;
+}
+
+template <typename T, typename U>
+inline dataframe::Column CreateNonNullColumn(const std::vector<U>& data,
+                                             SortState sort_state,
+                                             DuplicateState duplicate_state) {
+  core::FlexVector<T> vec;
+  for (const U& val : data) {
+    vec.push_back(val);
+  }
+  return dataframe::Column{dataframe::Storage{std::move(vec)},
+                           dataframe::NullStorage::NonNull{}, sort_state,
+                           duplicate_state};
+}
+
+template <typename T>
 inline dataframe::Column CreateSparseNullableColumn(
     const std::vector<std::optional<T>>& data_with_nulls,
     SortState sort_state,

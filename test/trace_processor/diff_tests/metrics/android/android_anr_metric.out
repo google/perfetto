@@ -122,4 +122,11 @@ android_anr {
         subject: "required notification not provided"
         error_id: "05122f25-2f5b-4650-aeeb-cf59a9d6295a"
     }
+    anr {
+        process_name: "system_server"
+        pid: 1234
+        ts: 20000
+        subject: "Blocked in handler on foreground thread (android.fg) for 2s"
+        error_id: "e701066e-985b-476b-8467-21a2548f134b"
+    }
 }

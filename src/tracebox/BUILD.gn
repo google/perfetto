@@ -23,6 +23,7 @@ executable("tracebox") {
     "../perfetto_cmd",
     "../perfetto_cmd:trigger_perfetto_cmd",
     "../traced/service",
+    "../traced_relay:lib",
     "../websocket_bridge:lib",
   ]
   if (enable_perfetto_traced_probes) {

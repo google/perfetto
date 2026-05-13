@@ -205,7 +205,8 @@ StatusOr<void> RwProtoCursor::SetScalar(Scalar scalar) {
   return StatusOr<void>::Ok();
 }
 
-StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data) {
+StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
+                                    bool skip_submessages) {
   PERFETTO_DCHECK(node_);
 
   if (bool is_compatible = node_->GetIf<Node::Empty>() ||
@@ -232,6 +233,12 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data) {
     PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
 
     auto it = message->field_id_to_node.Find(field.id());
+    if (skip_submessages && it && it->value->GetIf<Node::Message>()) {
+      // Skip this node if it was merged by a previous operation and the flag is
+      // set
+      allocator_->Delete(status_or_map_value->release());
+      continue;
+    }
 
     if (!it) {
       auto status_or_it = MapInsert(&message->field_id_to_node, field.id(),

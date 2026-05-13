@@ -14,20 +14,17 @@
 
 @import "theme";
 
-@mixin omnibox-width() {
-}
-
 .pf-topbar {
   grid-area: topbar;
   position: relative;
   z-index: 3;
   overflow: visible;
   background-color: var(--pf-color-background-secondary);
-  box-shadow: $box-shadow-1;
   min-height: var(--topbar-height);
   display: flex;
   justify-content: center;
   align-items: center;
+  border-bottom: 1px solid var(--pf-color-border);
 
   &--hide-sidebar {
     .pf-omnibox--query-mode {
@@ -199,6 +196,11 @@
 
       .pf-omnibox__tag {
         font-size: smaller;
+      }
+
+      .pf-omnibox__source {
+        font-size: smaller;
+        flex-shrink: 0;
       }
 
       &:hover {

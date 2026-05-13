@@ -19,12 +19,10 @@ import {JANK_COLOR} from './jank_colors';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
 import {ScrollTimelineDetailsPanel} from './scroll_timeline_details_panel';
-import {
-  ScrollTimelineModel,
-  ScrollUpdateClassification,
-} from './scroll_timeline_model';
+import {ScrollUpdateClassification} from './scroll_timeline_model';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {SCROLL_TIMELINE_TRACK} from './tracks';
 
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
 const GRAY = makeColorScheme(new HSLColor([0, 0, 62]));
@@ -50,15 +48,13 @@ function toColorScheme(
   }
 }
 
-export function createScrollTimelineTrack(
-  trace: Trace,
-  model: ScrollTimelineModel,
-) {
+export function createScrollTimelineTrack(trace: Trace) {
   return SliceTrack.create({
     trace,
-    uri: model.trackUri,
+    uri: SCROLL_TIMELINE_TRACK.uri,
+    rootTableName: SCROLL_TIMELINE_TRACK.tableName,
     dataset: new SourceDataset({
-      src: model.tableName,
+      src: SCROLL_TIMELINE_TRACK.tableName,
       schema: {
         id: NUM,
         ts: LONG,
@@ -71,8 +67,6 @@ export function createScrollTimelineTrack(
     colorizer: (row) => {
       return toColorScheme(row.classification) ?? getColorForSlice(row.name);
     },
-    detailsPanel: (row) => {
-      return new ScrollTimelineDetailsPanel(trace, model, row.id);
-    },
+    detailsPanel: (row) => new ScrollTimelineDetailsPanel(trace, row.id),
   });
 }

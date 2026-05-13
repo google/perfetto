@@ -164,7 +164,10 @@ class Flow {
  */
 class NamedTrack {
  public:
-  NamedTrack(uint64_t id, uint64_t parent_uuid, const std::string& name);
+  NamedTrack(uint64_t id,
+             uint64_t parent_uuid,
+             const std::string& name,
+             bool is_name_static);
 
   static void delete_track(NamedTrack* track);
 
@@ -184,7 +187,9 @@ class RegisteredTrack {
   RegisteredTrack(uint64_t id,
                   uint64_t parent_uuid,
                   const std::string& name,
-                  bool is_counter);
+                  bool is_counter,
+                  bool is_name_static_);
+
   ~RegisteredTrack();
 
   void register_track();
@@ -201,6 +206,7 @@ class RegisteredTrack {
   const uint64_t id_;
   const uint64_t parent_uuid_;
   const bool is_counter_;
+  const bool is_name_static_;
 };
 
 /**

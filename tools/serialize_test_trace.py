@@ -53,9 +53,11 @@ def main():
     winscope_extensions_descriptor_path = os.path.join(trace_protos_path,
                                                        'android',
                                                        'winscope.descriptor')
+    gpu_track_event_descriptor_path = os.path.join(
+        trace_protos_path, 'gpu', 'gpu_track_event.descriptor')
     extension_descriptors = [
         chrome_extension_descriptor_path, test_extensions_descriptor_path,
-        winscope_extensions_descriptor_path
+        winscope_extensions_descriptor_path, gpu_track_event_descriptor_path
     ]
   elif args.descriptor and not args.out:
     trace_descriptor_path = args.descriptor

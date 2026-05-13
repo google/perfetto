@@ -108,25 +108,40 @@ describe('export_utils', () => {
 
   describe('formatAsJSON', () => {
     it('formats data as JSON', () => {
+      const columns = ['colA', 'colB', 'colC'];
+      const columnNames = {
+        colA: 'Column A',
+        colB: 'Column B',
+        colC: 'Column C',
+      };
       const rows = [
         {colA: '1', colB: 'foo', colC: 'null'},
         {colA: '2', colB: 'bar', colC: '123.4'},
       ];
 
-      const result = formatAsJSON(rows);
+      const expectedRows = [
+        {'Column A': '1', 'Column B': 'foo', 'Column C': 'null'},
+        {'Column A': '2', 'Column B': 'bar', 'Column C': '123.4'},
+      ];
+
+      const result = formatAsJSON(columns, columnNames, rows);
       const parsed = JSON.parse(result);
-      expect(parsed).toEqual(rows);
+      expect(parsed).toEqual(expectedRows);
     });
 
     it('formats empty array', () => {
+      const columns = ['a', 'b'];
+      const columnNames = {a: 'a', b: 'b'};
       const rows: Array<Record<string, string>> = [];
       const expected = '[]';
-      expect(formatAsJSON(rows)).toEqual(expected);
+      expect(formatAsJSON(columns, columnNames, rows)).toEqual(expected);
     });
 
     it('formats with indentation', () => {
+      const columns = ['a'];
+      const columnNames = {a: 'a'};
       const rows = [{a: '1'}];
-      const result = formatAsJSON(rows);
+      const result = formatAsJSON(columns, columnNames, rows);
       expect(result).toContain('\n'); // Should be pretty-printed
     });
   });

@@ -41,8 +41,9 @@ To build and serve the UI for development:
 
 ```sh
 # From the repository root
-ui/build    # Builds the UI
-ui/run-dev-server    # Starts the development server with live reload
+ui/build    # Builds the UI.
+ui/build --typecheck # Run tsc --noEmit, does't bundle (faster).
+ui/run-dev-server    # Starts the development server with live reload.
 ```
 
 The UI uses:
@@ -53,6 +54,17 @@ The UI uses:
 - **pnpm** for package management
 - **ESLint** for linting (based on Google style)
 - **Playwright** for integration tests
+
+## Type checking when a build is already running
+
+Each build claims a lockfile as it works, unless --no-build option is passed. If
+you try to run a build but encounter a failure due to one of those lockfiles
+being present, you can try just checking types using the following command 
+without interfering with the current build.
+
+```sh
+ui/build --typecheck --no-build
+```
 
 ## Plugin Architecture
 

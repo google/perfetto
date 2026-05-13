@@ -24,7 +24,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertExists, assertTrue} from '../../base/assert';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
@@ -226,21 +226,19 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             utid: utid ?? undefined,
             trackEvent: true,
           },
-          renderer: new TraceProcessorCounterTrack(
-            ctx,
+          renderer: new TraceProcessorCounterTrack({
+            trace: ctx,
             uri,
-            {
-              unit: unit ?? undefined,
-              // We combine the yAxisShareKey with the parentId to ensure that
-              // only tracks under the same parent are grouped.
-              yRangeSharingKey:
-                yAxisShareKey === null
-                  ? undefined
-                  : `trackEvent-${parentId}-${yAxisShareKey}`,
-            },
+            unit: unit ?? undefined,
+            // We combine the yAxisShareKey with the parentId to ensure that
+            // only tracks under the same parent are grouped.
+            yRangeSharingKey:
+              yAxisShareKey === null
+                ? undefined
+                : `trackEvent-${parentId}-${yAxisShareKey}`,
             trackId,
             trackName,
-          ),
+          }),
         });
       } else if (hasData) {
         ctx.tracks.registerTrack({

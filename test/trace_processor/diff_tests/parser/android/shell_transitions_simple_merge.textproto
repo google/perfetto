@@ -11,13 +11,19 @@ packet {
     start_transaction_id: 5738076308937
     finish_transaction_id: 5738076308938
     type: 1
-    targets {
+    changes {
       mode: 1
       layer_id: 244
       window_id: 219481253
       flags: 0
+      start_absolute_bounds {
+        left: 10
+        top: 20
+        right: 110
+        bottom: 120
+      }
     }
-    targets {
+    changes {
       mode: 4
       layer_id: 47
       window_id: 54474511

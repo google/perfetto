@@ -30,9 +30,11 @@ import {Setting} from 'src/public/settings';
 import {ChatPage} from './chat_page';
 import m from 'mithril';
 import {registerUiTools} from './uitools';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 
 export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
+  static readonly dependencies = [QueryPagePlugin];
   static readonly description = `
     This plugin adds support for a AI Chat window. 
     This is backed by Gemini and implement MCP (Model Context Protocol).

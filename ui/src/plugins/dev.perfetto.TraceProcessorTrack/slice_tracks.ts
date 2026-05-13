@@ -139,6 +139,26 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Display',
   },
   {
+    type: 'disp_frame_start_timeout',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
+    type: 'disp_frame_done_timeout',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
+    type: 'disp_frame_start_missing',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
+    type: 'disp_frame_done_missing',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
     type: 'drm_sched_ring',
     topLevelGroup: 'HARDWARE',
     group: 'DRM Sched Ring',
@@ -219,19 +239,9 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'mali_mcu_state',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
     type: 'pkvm_hypervisor',
     topLevelGroup: 'HYPERVISOR',
     group: undefined,
-  },
-  {
-    type: 'virtgpu_queue_event',
-    topLevelGroup: 'GPU',
-    group: 'Virtio GPU Events',
   },
   {
     type: 'virtio_video_queue_event',
@@ -249,24 +259,9 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'gpu_render_stage',
+    type: 'adreno_gpu_cmdbatch',
     topLevelGroup: 'GPU',
-    group: 'Render Stage',
-  },
-  {
-    type: 'vulkan_events',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
-    type: 'gpu_log',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
-    type: 'graphics_frame_event',
-    topLevelGroup: 'GPU',
-    group: undefined,
+    group: 'Adreno Cmdbatch',
   },
   {
     type: 'triggers',
@@ -360,5 +355,10 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     type: 'f2fs_write_checkpoint',
     topLevelGroup: 'IO',
     group: 'F2FS Write Checkpoint',
+  },
+  {
+    type: 'pixel_fwtp_slices',
+    topLevelGroup: 'HARDWARE',
+    group: 'Pixel Firmware',
   },
 ];

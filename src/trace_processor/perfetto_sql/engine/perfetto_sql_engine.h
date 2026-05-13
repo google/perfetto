@@ -38,7 +38,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
@@ -142,6 +141,19 @@ class PerfettoSqlEngine {
     engine_->RegisterVirtualTableModule(
         name, &Module::kModule, ctx.release(),
         [](void* ptr) { delete static_cast<typename Module::Context*>(ptr); });
+  }
+
+  // Registers a virtual table module from a plugin's SqliteModuleRegistration.
+  void RegisterSqliteModuleForPlugin(const char* name,
+                                     const sqlite3_module* module,
+                                     void* ctx,
+                                     void (*destructor)(void*),
+                                     bool is_state_manager) {
+    if (is_state_manager) {
+      virtual_module_state_managers_.push_back(
+          static_cast<sqlite::ModuleStateManagerBase*>(ctx));
+    }
+    engine_->RegisterVirtualTableModule(name, module, ctx, destructor);
   }
 
   // Registers a trace processor C++ function to be runnable from SQL.
@@ -413,7 +425,7 @@ class PerfettoSqlEngine {
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
-  base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
+  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 
   // Registry of intrinsic functions that can be aliased
   // Maps intrinsic_name -> (function_ptr, argc, ctx, deterministic)

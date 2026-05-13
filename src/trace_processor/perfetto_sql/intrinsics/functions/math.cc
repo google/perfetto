@@ -31,7 +31,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 struct Ln : public sqlite::Function<Ln> {
-  static constexpr char kName[] = "ln";
+  static constexpr char kName[] = "__intrinsic_ln";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
@@ -55,7 +55,7 @@ struct Ln : public sqlite::Function<Ln> {
 };
 
 struct Exp : public sqlite::Function<Exp> {
-  static constexpr char kName[] = "exp";
+  static constexpr char kName[] = "__intrinsic_exp";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
@@ -75,7 +75,7 @@ struct Exp : public sqlite::Function<Exp> {
 };
 
 struct Sqrt : public sqlite::Function<Sqrt> {
-  static constexpr char kName[] = "sqrt";
+  static constexpr char kName[] = "__intrinsic_sqrt";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {

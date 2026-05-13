@@ -85,8 +85,10 @@ command and Enter to run it.
 </video>
 
 For comprehensive documentation on automating the UI with commands, startup
-commands, and macros, see the
-[UI Automation guide](/docs/visualization/ui-automation.md).
+commands, and macros, see
+[Commands and Macros](/docs/visualization/ui-automation.md). For an overview of
+all extension mechanisms, see
+[Extending the UI](/docs/visualization/extending-the-ui.md).
 
 ## Showing/hiding the tab drawer
 
@@ -119,11 +121,17 @@ palette, or press the '?' hotkey to display all configured hotkeys.
 
 ## Next Steps
 
-Once you're comfortable with the basic UI interactions, you can significantly
-speed up your analysis workflow through automation:
+Once you're comfortable with the basic UI interactions, you can customize and
+extend the UI to speed up your analysis workflow:
 
 - **Automate repetitive tasks:** Use
-  [UI Automation](/docs/visualization/ui-automation.md) to configure startup
-  commands that automatically pin tracks or create debug tracks every time you
-  open a trace, and create macros for specific analysis workflows you run
-  occasionally.
+  [commands and macros](/docs/visualization/ui-automation.md) to configure
+  startup commands that automatically pin tracks or create debug tracks every
+  time you open a trace, and create macros for specific analysis workflows you
+  run occasionally.
+- **Share workflows with your team:** Use
+  [extension servers](/docs/visualization/extension-servers.md) to distribute
+  macros, SQL modules, and proto descriptors to your team.
+- **See all extension options:**
+  [Extending the UI](/docs/visualization/extending-the-ui.md) covers all the
+  ways to customize Perfetto, from simple macros to plugins.

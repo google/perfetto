@@ -271,6 +271,7 @@ packet {
     displays {
       id: 4619827677550801153
       name: "Common Panel"
+      layer_stack: 4294967295
       size { w: 1080 h: 2400 }
       layer_stack_space_rect { right: 1080 bottom: 2400 }
     }

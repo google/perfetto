@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {RecordingManager} from '../recording_manager';
-import {traceConfigToTxt} from '../config/trace_config_utils_wasm';
+import {traceConfigToTxt} from '../../../base/proto_utils_wasm';
 import protos from '../../../protos';
 import {RecordSubpage} from '../config/config_interfaces';
 import {Anchor} from '../../../widgets/anchor';
@@ -82,7 +82,10 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
   view({attrs}: m.CVnode<RecMgrAttrs>) {
     const recMgr = attrs.recMgr;
 
-    if (!recMgr.recordConfig.hasActiveProbes()) {
+    if (
+      !recMgr.hasCustomTraceConfig &&
+      !recMgr.recordConfig.hasActiveProbes()
+    ) {
       return m(
         '.note',
         "It looks like you didn't select any data source. ",

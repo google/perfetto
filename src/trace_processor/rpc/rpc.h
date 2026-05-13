@@ -26,9 +26,11 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/summarizer.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
@@ -164,6 +166,9 @@ class Rpc {
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;
+
+  // Manages Summarizer instances keyed by caller-provided ID.
+  base::FlatHashMap<std::string, std::unique_ptr<Summarizer>> summarizers_;
 };
 
 }  // namespace trace_processor

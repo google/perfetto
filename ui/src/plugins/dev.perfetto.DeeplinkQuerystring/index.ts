@@ -19,7 +19,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {Time} from '../../base/time';
 import {RouteArgs} from '../../public/route_schema';
 import {App} from '../../public/app';
@@ -42,6 +42,7 @@ let routeArgsForFirstTrace: RouteArgs | undefined;
  */
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.DeeplinkQuerystring';
+  static readonly dependencies = [QueryPagePlugin];
 
   static onActivate(app: App): void {
     routeArgsForFirstTrace = app.initialRouteArgs;
@@ -65,7 +66,7 @@ export default class implements PerfettoPlugin {
         );
       }
       if (initialRouteArgs.query !== undefined) {
-        addQueryResultsTab(trace, {
+        trace.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: initialRouteArgs.query,
           title: 'Deeplink Query',
         });

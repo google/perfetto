@@ -30,9 +30,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/statsd/statsd_atom.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -42,6 +40,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/atoms.descriptor.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -147,14 +146,14 @@ ModuleResult StatsdModule::TokenizePacket(
       atom_timestamp = packet_timestamp;
     }
 
-    protozero::HeapBuffered<TracePacket> forged;
-    forged->set_timestamp(static_cast<uint64_t>(atom_timestamp));
+    TraceBlobView tbv =
+        context_->blob_packet_writer->WritePacket([&](auto* forged) {
+          forged->set_timestamp(static_cast<uint64_t>(atom_timestamp));
 
-    auto* statsd = forged->set_statsd_atom();
-    statsd->AppendBytes(StatsdAtom::kAtomFieldNumber, (*it).data, (*it).size);
-
-    auto [vec, size] = forged.SerializeAsUniquePtr();
-    TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+          auto* statsd = forged->set_statsd_atom();
+          statsd->AppendBytes(StatsdAtom::kAtomFieldNumber, (*it).data,
+                              (*it).size);
+        });
     module_context_->trace_packet_stream->Push(
         atom_timestamp, TracePacketData{std::move(tbv), state});
   }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue, assertUnreachable} from '../base/logging';
+import {assertTrue, assertUnreachable} from '../base/assert';
 
 // This class is the TypeScript equivalent of the identically-named C++ class in
 // //protozero/proto_ring_buffer.h. See comments in that header for a detailed

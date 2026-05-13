@@ -49,6 +49,7 @@ void Allocator::Delete(Node* node) {
   DeleteReferencedData(node);
   node->~Node();
   slab_allocator_.Free(node);
+  used_memory_bytes_ -= sizeof(Node);
 }
 
 void Allocator::DeleteReferencedData(Node* node) {

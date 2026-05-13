@@ -115,3 +115,17 @@ class Zip(TestSuite):
         "count"
         58
         '''))
+
+  def test_multi_trace_single_machine_clock(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_trace_single_machine_clock.zip'),
+        query='''
+        SELECT ts
+        FROM slice
+        WHERE name = 'InterruptibleSleep::run_with_interval';
+        ''',
+        out=Csv('''
+        "ts"
+        1276407306585477
+        1276408471040116
+        '''))

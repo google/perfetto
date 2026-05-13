@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../../../../base/logging';
+import {assertTrue} from '../../../../base/assert';
 import {Result, okResult, errResult} from '../../../../base/result';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
 import {prefixWithHexLen} from '../../websocket/websocket_utils';

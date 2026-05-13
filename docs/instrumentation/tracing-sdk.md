@@ -26,10 +26,20 @@ Instrumentation][atrace-ds] for details.
 TIP: The code from these examples is also available
 [in the repository](/examples/sdk/README.md).
 
-To start using the Client API, first check out the latest SDK release:
+To start using the Client API, first download the SDK source files from the latest Perfetto release:
+1) Visit https://github.com/google/perfetto/releases/latest
+2) Download perfetto-cpp-sdk-src.zip and extract the files to sdk/perfetto
+   directory
+
+Alternatively, for development purposes, you can generate them using
+`tools/gen_amalgamated --output sdk/perfetto`.
+
+Then, build using CMake:
 
 ```bash
-git clone https://github.com/google/perfetto.git -b v50.1
+cd examples/sdk
+cmake -B build
+cmake --build build
 ```
 
 The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
@@ -310,7 +320,7 @@ data as it might disclose information about other processes and allow
 side-channel attacks.
 
 - On Android 9 (Pie) and beyond, traced is shipped as part of the platform.
-- On older versions of Android, traced can be built from sources using the the
+- On older versions of Android, traced can be built from sources using the
 [standalone NDK-based workflow](/docs/contributing/build-instructions.md) and
 sideloaded via adb shell.
 <!-- * On Linux and MacOS and Windows `traced` must be built and run separately. See

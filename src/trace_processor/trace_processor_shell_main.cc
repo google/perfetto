@@ -20,12 +20,5 @@
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 
 int main(int argc, char** argv) {
-  auto shell = perfetto::trace_processor::TraceProcessorShell::
-      CreateWithDefaultPlatform();
-  auto status = shell->Run(argc, argv);
-  if (!status.ok()) {
-    fprintf(stderr, "%s\n", status.c_message());
-    return 1;
-  }
-  return 0;
+  return perfetto::trace_processor::TraceProcessorShellMain(argc, argv);
 }

@@ -479,7 +479,8 @@ message ActivityRecordProto {
   optional bool should_override_force_resize_app = 44;
   optional bool should_enable_user_aspect_ratio_settings = 45;
   optional bool is_user_fullscreen_override_enabled = 46;
-  optional int64 request_open_in_browser_education_timestamp = 47;
+  optional int64 request_open_in_browser_education_timestamp = 47
+      [jstype = JS_STRING];
   optional bool should_allow_simulate_requested_orientation_for_camera_compat =
       48;
   optional RectProto safe_region_bounds = 49;
@@ -682,7 +683,7 @@ message InsetsSourceProviderProto {
   optional bool client_visible = 11;
   optional bool server_visible = 12;
   optional bool seamless_rotating = 13;
-  optional int64 finish_seamless_rotate_frame_number = 14;
+  optional int64 finish_seamless_rotate_frame_number = 14 [jstype = JS_STRING];
   optional bool controllable = 15;
   optional WindowStateProto source_window_state = 16 [deprecated = true];
 

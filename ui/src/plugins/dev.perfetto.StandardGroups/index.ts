@@ -35,8 +35,7 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.StandardGroups';
 
   private readonly groups: Record<StandardGroup, TrackNode> = {
-    // Expand this group by default
-    USER_INTERACTION: makeGroupNode('User Interaction', false),
+    USER_INTERACTION: makeGroupNode('User Interaction'),
     THERMALS: makeGroupNode('Thermals'),
     POWER: makeGroupNode('Power'),
     CPU: makeGroupNode('CPU'),

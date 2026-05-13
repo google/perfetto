@@ -22,6 +22,7 @@ source_set("dataframe") {
     "cursor_impl.h",
     "dataframe.cc",
     "dataframe.h",
+    "dataframe_register_cache.h",
     "query_plan.cc",
     "query_plan.h",
     "runtime_dataframe_builder.h",
@@ -33,9 +34,9 @@ source_set("dataframe") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../../base/regex",
     "../../containers",
     "../../util:glob",
-    "../../util:regex",
     "../common",
     "../interpreter",
     "../util",
@@ -56,8 +57,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../../base:test_support",
+    "../../../base/regex",
     "../../containers",
-    "../../util:regex",
     "../interpreter",
     "../util",
   ]

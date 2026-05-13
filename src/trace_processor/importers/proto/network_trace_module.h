@@ -21,8 +21,8 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -67,15 +67,14 @@ class NetworkTraceModule : public ProtoImporterModule {
   void ParseNetworkPacketEvent(int64_t ts, protozero::ConstBytes blob);
   void ParseNetworkPacketBundle(int64_t ts, protozero::ConstBytes blob);
 
-  // Helper to simplify pushing a TracePacket to the sorter. The caller fills in
-  // the packet buffer and uses this to push for sorting and reset the buffer.
+  // Pushes a serialized TracePacket to the sorter.
   void PushPacketBufferForSort(int64_t timestamp,
+                               TraceBlobView tbv,
                                RefPtr<PacketSequenceStateGeneration> state);
 
   StringId GetIpProto(protos::pbzero::NetworkPacketEvent::Decoder& evt);
 
   TraceProcessorContext* context_;
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet_buffer_;
 
   bool loaded_package_names_ = false;
   base::FlatHashMap<int64_t, StringId> package_names_;

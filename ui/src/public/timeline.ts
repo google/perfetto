@@ -203,7 +203,8 @@ export interface Timeline {
   hoverCursorTimestamp: time | undefined;
 
   hoveredNoteTimestamp: time | undefined;
-  highlightedSliceId: number | undefined;
+  highlightedSliceId: number | undefined; // Deprecated, only used for flows.
+  highlightedSliceName: string | undefined;
 
   hoveredUtid: number | undefined;
   hoveredPid: bigint | undefined;

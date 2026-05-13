@@ -24,8 +24,8 @@
 
 #include <sys/socket.h>
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
-// Requires the QNX Advanced Virtualization Framework
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX) && __has_include(<vm_sockets.h>)
+// QNX with Advanced Virtualization Framework
 #include <vm_sockets.h>
 #elif defined(AF_VSOCK)
 // Use system vm_socket.h if available.

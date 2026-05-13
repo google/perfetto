@@ -18,8 +18,7 @@ import {QuerySlot, SerialTaskQueue, QUERY_CANCELLED} from './query_slot';
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test('basic query execution', async () => {
-  const queue = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(queue);
+  const slot = new QuerySlot<number>();
 
   const queryFn = jest.fn().mockImplementation(async () => 42);
 
@@ -44,8 +43,7 @@ test('basic query execution', async () => {
 });
 
 test('cached result is returned without re-query', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(executor);
+  const slot = new QuerySlot<number>();
 
   const queryFn = jest.fn().mockResolvedValue(42);
 
@@ -120,8 +118,7 @@ test('multiple slots same executor run serially', async () => {
 });
 
 test('rapid key changes on same slot only runs first and last', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(executor);
+  const slot = new QuerySlot<number>();
 
   const queryFn1 = jest.fn().mockResolvedValue(1);
   const queryFn2 = jest.fn().mockResolvedValue(2);
@@ -143,8 +140,7 @@ test('rapid key changes on same slot only runs first and last', async () => {
 });
 
 test('retainOn allows showing previous data during compatible changes', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(executor);
+  const slot = new QuerySlot<number>();
 
   const queryFn1 = jest.fn().mockResolvedValue(100);
 
@@ -191,8 +187,7 @@ test('retainOn allows showing previous data during compatible changes', async ()
 });
 
 test('enabled prevents query from running', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(executor);
+  const slot = new QuerySlot<number>();
 
   const queryFn = jest.fn().mockResolvedValue(42);
 
@@ -227,8 +222,7 @@ test('enabled prevents query from running', async () => {
 });
 
 test('use after dispose throws', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(executor);
+  const slot = new QuerySlot<number>();
 
   const queryFn = jest.fn().mockResolvedValue(42);
 
@@ -270,8 +264,7 @@ test('queued work is cancelled when slot is disposed', async () => {
 });
 
 test('AsyncDisposable is disposed before running next queryFn', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<AsyncDisposable>(executor);
+  const slot = new QuerySlot<AsyncDisposable>();
 
   const events: string[] = [];
 
@@ -312,8 +305,7 @@ test('AsyncDisposable is disposed before running next queryFn', async () => {
 });
 
 test('slot dispose calls AsyncDisposable dispose after in-flight task completes', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<AsyncDisposable>(executor);
+  const slot = new QuerySlot<AsyncDisposable>();
 
   const events: string[] = [];
   let resolveQuery: () => void;
@@ -359,8 +351,7 @@ test('slot dispose calls AsyncDisposable dispose after in-flight task completes'
 });
 
 test('cancellation signal is set when new query is scheduled', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(executor);
+  const slot = new QuerySlot<number>();
 
   const events: string[] = [];
   let query1Signal: {isCancelled: boolean} | undefined;
@@ -417,8 +408,7 @@ test('cancellation signal is set when new query is scheduled', async () => {
 });
 
 test('QUERY_CANCELLED result is not cached', async () => {
-  const executor = new SerialTaskQueue();
-  const slot = new QuerySlot<number>(executor);
+  const slot = new QuerySlot<number>();
 
   // Query that always returns QUERY_CANCELLED
   const queryFn = jest.fn().mockImplementation(async () => QUERY_CANCELLED);

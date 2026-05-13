@@ -541,3 +541,16 @@ class ProcessTracking(TestSuite):
         27,27,"ksoftirqd/1","ksoftirqd/1"
         28,28,"kworker/1:0","kworker/1:0"
         """))
+
+  def test_track_event_process_rename(self):
+    return DiffTestBlueprint(
+        trace=DataPath('track_event_process_rename.pftrace'),
+        query="""
+        SELECT pid, name
+        FROM process
+        WHERE pid = 15;
+        """,
+        out=Csv("""
+        "pid","name"
+        15,"'sleep 1'"
+        """))

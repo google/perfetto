@@ -113,4 +113,14 @@ export class BigintMath {
   static abs(n: bigint) {
     return n < 0n ? -1n * n : n;
   }
+
+  static clamp(n: bigint, min: bigint, max: bigint): bigint {
+    if (n < min) {
+      return min;
+    } else if (n > max) {
+      return max;
+    } else {
+      return n;
+    }
+  }
 }

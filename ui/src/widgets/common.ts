@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 
 // This file contains interfaces for attributes for various HTML elements.
 // They are typically used by widgets which pass attributes down to their

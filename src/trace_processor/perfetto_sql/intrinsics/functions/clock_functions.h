@@ -37,7 +37,7 @@
 namespace perfetto::trace_processor {
 
 struct AbsTimeStr : public sqlite::Function<AbsTimeStr> {
-  static constexpr char kName[] = "abs_time_str";
+  static constexpr char kName[] = "__intrinsic_abs_time_str";
   static constexpr int kArgCount = 1;
 
   using UserData = ClockConverter;
@@ -72,7 +72,7 @@ void AbsTimeStr::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 struct ToMonotonic : public sqlite::Function<ToMonotonic> {
-  static constexpr char kName[] = "to_monotonic";
+  static constexpr char kName[] = "__intrinsic_to_monotonic";
   static constexpr int kArgCount = 1;
 
   using UserData = ClockConverter;
@@ -107,7 +107,7 @@ void ToMonotonic::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 struct ToRealtime : public sqlite::Function<ToRealtime> {
-  static constexpr char kName[] = "to_realtime";
+  static constexpr char kName[] = "__intrinsic_to_realtime";
   static constexpr int kArgCount = 1;
 
   using UserData = ClockConverter;
@@ -142,7 +142,7 @@ void ToRealtime::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 struct ToTimecode : public sqlite::Function<ToTimecode> {
-  static constexpr char kName[] = "to_timecode";
+  static constexpr char kName[] = "__intrinsic_to_timecode";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);

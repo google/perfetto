@@ -14,7 +14,9 @@
 
 @import "../theme";
 
-.pf-keycap {
+kbd.pf-keycap {
+  font-family: inherit; // Override the base kbd style
+
   user-select: none;
   line-height: 1;
   background-color: var(--pf-color-background-secondary);

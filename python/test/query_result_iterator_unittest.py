@@ -15,6 +15,7 @@
 import unittest
 
 from perfetto.common.exceptions import PerfettoException
+from perfetto.common.query_result_iterator import HAS_POLARS
 from perfetto.common.query_result_iterator import QueryResultIterator
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
 from perfetto.trace_processor.protos import ProtoFactory
@@ -337,3 +338,134 @@ class TestQueryResultIterator(unittest.TestCase):
     with self.assertRaises(Exception):
       qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
       _ = qr_iterator.as_pandas_dataframe()
+
+
+@unittest.skipUnless(HAS_POLARS, 'polars not installed')
+class TestQueryResultIteratorPolars(unittest.TestCase):
+  CELL_VARINT = PROTO_FACTORY.CellsBatch().CELL_VARINT
+  CELL_STRING = PROTO_FACTORY.CellsBatch().CELL_STRING
+  CELL_INVALID = PROTO_FACTORY.CellsBatch().CELL_INVALID
+  CELL_NULL = PROTO_FACTORY.CellsBatch().CELL_NULL
+
+  def test_one_batch_as_polars(self):
+    int_values = [100, 200]
+    str_values = ['bar1', 'bar2']
+
+    batch = PROTO_FACTORY.CellsBatch()
+    batch.cells.extend([
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_NULL,
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_NULL,
+    ])
+    batch.varint_cells.extend(int_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
+    batch.is_last_batch = True
+
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_null'],
+                                      [batch])
+    qr_df = qr_iterator.as_polars_dataframe()
+    for num in range(len(qr_df)):
+      self.assertEqual(qr_df['foo_id'][num], str_values[num])
+      self.assertEqual(qr_df['foo_num'][num], int_values[num])
+      self.assertIsNone(qr_df['foo_null'][num])
+
+  def test_many_batches_as_polars(self):
+    int_values = [100, 200, 300, 400]
+    str_values = ['bar1', 'bar2', 'bar3', 'bar4']
+
+    batch_1 = PROTO_FACTORY.CellsBatch()
+    batch_1.cells.extend([
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_NULL,
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_NULL,
+    ])
+    batch_1.varint_cells.extend(int_values[:2])
+    batch_1.string_cells = "\0".join(str_values[:2]) + "\0"
+    batch_1.is_last_batch = False
+
+    batch_2 = PROTO_FACTORY.CellsBatch()
+    batch_2.cells.extend([
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_NULL,
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_NULL,
+    ])
+    batch_2.varint_cells.extend(int_values[2:])
+    batch_2.string_cells = "\0".join(str_values[2:]) + "\0"
+    batch_2.is_last_batch = True
+
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_null'],
+                                      [batch_1, batch_2])
+    qr_df = qr_iterator.as_polars_dataframe()
+    for num in range(len(qr_df)):
+      self.assertEqual(qr_df['foo_id'][num], str_values[num])
+      self.assertEqual(qr_df['foo_num'][num], int_values[num])
+      self.assertIsNone(qr_df['foo_null'][num])
+
+  def test_empty_batch_as_polars(self):
+    batch = PROTO_FACTORY.CellsBatch()
+    batch.is_last_batch = True
+
+    qr_iterator = QueryResultIterator([], [batch])
+    qr_df = qr_iterator.as_polars_dataframe()
+    self.assertEqual(len(qr_df), 0)
+    self.assertEqual(len(qr_df.columns), 0)
+
+  def test_null_cells_as_polars(self):
+    int_values = [100, 200, 300, 500, 600]
+    str_values = ['bar1', 'bar2', 'bar3']
+
+    batch = PROTO_FACTORY.CellsBatch()
+    batch.cells.extend([
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_NULL,
+        TestQueryResultIteratorPolars.CELL_STRING,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+        TestQueryResultIteratorPolars.CELL_VARINT,
+    ])
+    batch.varint_cells.extend(int_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
+    batch.is_last_batch = True
+
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_num_2'],
+                                      [batch])
+    qr_df = qr_iterator.as_polars_dataframe()
+
+    # foo_num_2 of row 2 (index 1) was set to null
+    int_values_check = [100, 200, 300, None, 500, 600]
+    for num in range(len(qr_df)):
+      self.assertEqual(qr_df['foo_id'][num], str_values[num])
+      self.assertEqual(qr_df['foo_num'][num], int_values_check[num * 2])
+      self.assertEqual(qr_df['foo_num_2'][num], int_values_check[num * 2 + 1])
+
+  def test_missing_polars_dep(self):
+    # Verify the error message is helpful when polars is not available.
+    # Since we are in the @skipUnless(HAS_POLARS) class this path is only
+    # exercised indirectly; the symmetrical test lives outside this class.
+    pass
+
+
+@unittest.skipIf(HAS_POLARS, 'polars is installed, skipping missing-dep test')
+class TestQueryResultIteratorPolarsNotInstalled(unittest.TestCase):
+
+  def test_missing_polars_dep(self):
+    batch = PROTO_FACTORY.CellsBatch()
+    batch.cells.extend([PROTO_FACTORY.CellsBatch().CELL_VARINT])
+    batch.varint_cells.extend([1])
+    batch.is_last_batch = True
+
+    qr_iterator = QueryResultIterator(['foo'], [batch])
+    with self.assertRaises(PerfettoException):
+      _ = qr_iterator.as_polars_dataframe()

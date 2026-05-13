@@ -17,8 +17,14 @@
 #ifndef SRC_TRACE_REDACTION_PRUNE_PERF_EVENTS_H_
 #define SRC_TRACE_REDACTION_PRUNE_PERF_EVENTS_H_
 
+#include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
 
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_redaction/filtering.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
@@ -37,7 +43,7 @@ class PrunePerfEvents : public TransformPrimitive {
  private:
   base::Status OnPerfSample(const Context& context,
                             uint64_t ts,
-                            std::optional<int64_t> trace_packet_clock_id,
+                            std::optional<uint32_t> trace_packet_clock_id,
                             std::optional<int64_t> trusted_packet_sequence_id,
                             protozero::Field& field,
                             protos::pbzero::TracePacket* message) const;

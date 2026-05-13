@@ -19,6 +19,37 @@
 
 namespace perfetto::trace_processor::art_hprof {
 
+namespace {
+
+// Root type precedence ranking. Lower rank = higher priority.
+// Matches proto heap graph's kRootTypePrecedence:
+//   STICKY_CLASS (0) > JNI_GLOBAL (1) > JNI_LOCAL (2) > everything else (3)
+size_t RankRootType(HprofHeapRootTag tag) {
+  switch (tag) {
+    case HprofHeapRootTag::kStickyClass:
+      return 0;
+    case HprofHeapRootTag::kJniGlobal:
+      return 1;
+    case HprofHeapRootTag::kJniLocal:
+      return 2;
+    case HprofHeapRootTag::kJavaFrame:
+    case HprofHeapRootTag::kNativeStack:
+    case HprofHeapRootTag::kThreadBlock:
+    case HprofHeapRootTag::kMonitorUsed:
+    case HprofHeapRootTag::kThreadObj:
+    case HprofHeapRootTag::kInternedString:
+    case HprofHeapRootTag::kFinalizing:
+    case HprofHeapRootTag::kDebugger:
+    case HprofHeapRootTag::kVmInternal:
+    case HprofHeapRootTag::kJniMonitor:
+    case HprofHeapRootTag::kUnknown:
+      return 3;
+  }
+  return 3;
+}
+
+}  // namespace
+
 constexpr std::array<std::pair<const char*, FieldType>, 8> kPrimitiveArrayTypes{
     {
         {"boolean[]", FieldType::kBoolean},
@@ -55,25 +86,16 @@ void HeapGraphBuilder::PushBlob(TraceBlobView&& blob) {
 }
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
-  // Phase 3: Resolve the heap graph
-  resolver_ = std::make_unique<HeapGraphResolver>(context_, header_, objects_,
-                                                  classes_, roots_, stats_);
+  resolver_ = std::make_unique<HeapGraphResolver>(
+      context_, header_, objects_, classes_, roots_, string_class_id_, stats_);
   resolver_->ResolveGraph();
 
   stats_.Write(context_);
   HeapGraph graph(header_.GetTimestamp());
 
-  for (auto it = strings_.GetIterator(); it; ++it) {
-    graph.AddString(it.key(), it.value());
-  }
-
-  for (auto it = classes_.GetIterator(); it; ++it) {
-    graph.AddClass(it.value());
-  }
-
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    graph.AddObject(it.value());
-  }
+  graph.SetStrings(std::move(strings_));
+  graph.SetClasses(std::move(classes_));
+  graph.SetObjects(std::move(objects_));
 
   return graph;
 }
@@ -173,6 +195,10 @@ bool HeapGraphBuilder::ParseUtf8StringRecord(uint32_t length) {
     return false;
   }
 
+  if (length < header_.GetIdSize()) {
+    return false;
+  }
+
   std::string str;
   if (!iterator_->ReadString(str, length - header_.GetIdSize())) {
     return false;
@@ -206,6 +232,10 @@ bool HeapGraphBuilder::ParseClassDefinition() {
   ClassDefinition class_def(class_obj_id, class_name);
   classes_[class_obj_id] = class_def;
   stats_.class_count++;
+
+  if (class_name == kJavaLangString) {
+    string_class_id_ = class_obj_id;
+  }
 
   for (const auto& [type_name, field_type] : kPrimitiveArrayTypes) {
     if (class_name == type_name) {
@@ -324,7 +354,18 @@ bool HeapGraphBuilder::ParseRootRecord(HprofHeapRootTag tag) {
   }
 
   stats_.root_count++;
-  roots_[object_id] = tag;
+
+  // Root type precedence: only upgrade to a higher-priority root type.
+  // Matches proto heap graph's kRootTypePrecedence logic: STICKY_CLASS >
+  // JNI_GLOBAL > JNI_LOCAL > everything else (including VM_INTERNAL).
+  auto* existing = roots_.Find(object_id);
+  if (existing) {
+    if (RankRootType(tag) < RankRootType(*existing)) {
+      *existing = tag;
+    }
+  } else {
+    roots_[object_id] = tag;
+  }
   return true;
 }
 
@@ -622,8 +663,9 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
 
   size_t type_size = GetFieldTypeSize(element_type, header_.GetIdSize());
 
+  size_t data_length = static_cast<size_t>(element_count) * type_size;
   std::vector<uint8_t> data;
-  if (!iterator_->ReadBytes(data, element_count * type_size)) {
+  if (!iterator_->ReadBytes(data, data_length)) {
     return false;
   }
 

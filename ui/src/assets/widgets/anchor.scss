@@ -22,8 +22,12 @@
   text-decoration-thickness: 1px;
   text-decoration-color: var(--pf-color-primary);
 
-  & > .pf-icon {
+  &__icon--end {
     margin-left: 1px;
+  }
+
+  &__icon--start {
+    margin-right: 1px;
   }
 
   &:hover {

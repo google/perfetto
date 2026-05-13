@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import protos from '../protos';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';

@@ -16,13 +16,27 @@
 
 #include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 
+#include <array>
+#include <cstdint>
+#include <optional>
+#include <string>
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/android/android_input_event.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor {
@@ -100,8 +114,12 @@ void AndroidInputEventParser::ParseMotionEvent(
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::AndroidMotionEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
-  if (!status.ok())
+  if (!status.ok()) {
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+  }
+
+  TryConvertMonotonicTimestampFields(event_proto.event_time_nanos(),
+                                     event_proto.down_time_nanos(), writer);
 }
 
 void AndroidInputEventParser::ParseKeyEvent(
@@ -134,8 +152,12 @@ void AndroidInputEventParser::ParseKeyEvent(
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::AndroidKeyEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
-  if (!status.ok())
+  if (!status.ok()) {
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+  }
+
+  TryConvertMonotonicTimestampFields(event_proto.event_time_nanos(),
+                                     event_proto.down_time_nanos(), writer);
 }
 
 void AndroidInputEventParser::ParseWindowDispatchEvent(
@@ -168,6 +190,35 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
       nullptr /*parse all fields*/, writer);
   if (!status.ok())
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+}
+
+void AndroidInputEventParser::TryConvertMonotonicTimestampFields(
+    std::optional<int64_t> event_time_nanos,
+    std::optional<int64_t> down_time_nanos,
+    ArgsParser& writer) {
+  if (event_time_nanos.has_value()) {
+    ConvertMonotonicTimestampField(event_time_nanos.value(), KERNEL_TIME_KEY,
+                                   writer);
+  }
+  if (down_time_nanos.has_value()) {
+    ConvertMonotonicTimestampField(down_time_nanos.value(), DOWN_TIME_KEY,
+                                   writer);
+  }
+}
+
+void AndroidInputEventParser::ConvertMonotonicTimestampField(
+    int64_t monotonic_time,
+    const std::string& key_string,
+    ArgsParser& writer) {
+  auto boottime = context_.clock_tracker->ToTraceTime(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      monotonic_time);
+  if (boottime.has_value()) {
+    util::ProtoToArgsParser::Key key;
+    key.flat_key = key_string;
+    key.key = key_string;
+    writer.AddInteger(key, boottime.value());
+  }
 }
 
 }  // namespace perfetto::trace_processor

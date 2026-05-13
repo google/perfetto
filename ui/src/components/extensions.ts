@@ -16,7 +16,6 @@ import {type addDebugSliceTrack} from './tracks/debug_tracks';
 import {type addDebugCounterTrack} from './tracks/debug_tracks';
 import {type addLegacyTableTab} from './details/sql_table_tab';
 import {type addVisualizedArgTracks} from './tracks/visualized_args_tracks';
-import {type addQueryResultsTab} from './query_table/query_result_tab';
 
 // TODO(primiano & stevegolton): This injection is to break the circular
 // dependency cycle that there is between various tabs and tracks.
@@ -33,7 +32,6 @@ export interface ExtensionApi {
   addDebugCounterTrack: typeof addDebugCounterTrack;
   addLegacySqlTableTab: typeof addLegacyTableTab;
   addVisualizedArgTracks: typeof addVisualizedArgTracks;
-  addQueryResultsTab: typeof addQueryResultsTab;
 }
 
 export let extensions: ExtensionApi;

@@ -12,6 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Describes a custom omnibox mode that plugins can register.
+// When the user types the trigger character in search mode, the omnibox
+// switches to this mode. The mode controls placeholder text, styling, and
+// receives callbacks for user interactions.
+export interface OmniboxModeDescriptor {
+  // Single character that activates this mode from search mode (e.g. ':').
+  readonly trigger: string;
+
+  // Short hint shown in the search placeholder (e.g. "':' for SQL query").
+  // If provided, appended to the default search placeholder text.
+  readonly hint?: string;
+
+  // Placeholder text shown in the input when the mode is active.
+  readonly placeholder: string;
+
+  // Optional CSS class added to the omnibox container.
+  readonly className?: string;
+
+  // Called when the user presses Enter.
+  // |text| is the current omnibox text.
+  // |alt| is true when Alt+Enter (or Cmd+Enter on Mac) was pressed.
+  onSubmit(text: string, alt: boolean): void;
+
+  // Called when the omnibox text changes. If not provided, the default
+  // behavior is to update the omnibox text.
+  onInput?(text: string): void;
+
+  // Called when the user dismisses the omnibox (Escape or blur).
+  // If not provided, the omnibox resets to search mode.
+  onClose?(): void;
+
+  // Called when the user presses Backspace on an empty input.
+  // If not provided, the omnibox resets to search mode.
+  onGoBack?(): void;
+}
+
 export interface OmniboxManager {
   /**
    * Turns the omnibox into an interactive prompt for the user. Think of
@@ -68,6 +104,15 @@ export interface OmniboxManager {
     choices: ReadonlyArray<string>,
   ): Promise<string | undefined>;
   prompt<T>(text: string, choices: PromptChoices<T>): Promise<T | undefined>;
+
+  // Registers a custom omnibox mode. When the user types the trigger
+  // character in search mode, the omnibox switches to this mode.
+  // Returns a Disposable that unregisters the mode when disposed.
+  registerMode(desc: OmniboxModeDescriptor): Disposable;
+
+  // Programmatically activates a registered mode, optionally focusing the
+  // omnibox input.
+  activateRegisteredMode(trigger: string, focus?: boolean): void;
 }
 
 export interface PromptChoices<T> {

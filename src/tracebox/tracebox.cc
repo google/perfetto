@@ -48,6 +48,7 @@ struct Applet {
 const Applet g_applets[]{
     {"traced", ServiceMain},
     {"traced_probes", ProbesMain},
+    {"traced_relay", RelayServiceMain},
 #if PERFETTO_BUILDFLAG(PERFETTO_TRACED_PERF)
     {"traced_perf", TracedPerfMain},
 #endif

@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {byLengthAsc, Fzf} from 'fzf';
-import {SyncOptionsTuple} from 'fzf/dist/types/finders';
+import MiniSearch from 'minisearch';
 
 export interface FuzzySegment {
   matching: boolean;
@@ -28,36 +27,103 @@ export interface FuzzyResult<T> {
 export type KeyLookup<T> = (x: T) => string;
 
 // Finds approx matching in arbitrary lists of items.
+// Uses MiniSearch for word-order-independent fuzzy filtering, then computes
+// character-level highlight segments for rendering.
 export class FuzzyFinder<T> {
-  private readonly fzf: Fzf<ReadonlyArray<T>>;
+  private readonly miniSearch: MiniSearch;
+
   // Because we operate on arbitrary lists, a key lookup function is required to
   // so we know which part of the list is to be be searched. It should return
   // the relevant search string for each item.
   constructor(
-    items: ReadonlyArray<T>,
+    private readonly items: ReadonlyArray<T>,
     private readonly keyLookup: KeyLookup<T>,
   ) {
-    // NOTE(stevegolton): This type assertion because FZF appears to be very
-    // fussy about its input types.
-    const options = [
-      {selector: keyLookup, tiebreakers: [byLengthAsc]},
-    ] as SyncOptionsTuple<T>;
-    this.fzf = new Fzf<ReadonlyArray<T>>(items, ...options);
+    const docs = items.map((item, i) => ({id: i, text: keyLookup(item)}));
+    this.miniSearch = new MiniSearch({
+      fields: ['text'],
+      tokenize: camelCaseTokenize,
+      searchOptions: {
+        tokenize: camelCaseTokenize,
+        // Allow 1 edit for short terms, ~20% for longer ones.
+        fuzzy: (term: string) =>
+          term.length <= 3 ? 1 : Math.ceil(term.length * 0.2),
+        prefix: true,
+        combineWith: 'AND',
+      },
+    });
+    this.miniSearch.addAll(docs);
   }
 
   // Return a list of items that match any of the search terms.
+  // Search terms separated by spaces are matched independently (any order).
   find(searchTerm: string): FuzzyResult<T>[] {
-    return this.fzf.find(searchTerm).map((m) => {
-      const normalisedTerm = this.keyLookup(m.item);
-      return {
-        item: m.item,
-        segments: indiciesToSegments(
-          Array.from(m.positions).sort((a, b) => a - b),
-          normalisedTerm,
-        ),
-      };
+    if (searchTerm === '') {
+      return this.items.map((item) => {
+        const normalisedTerm = this.keyLookup(item);
+        return {
+          item,
+          segments: [{matching: false, value: normalisedTerm}],
+        };
+      });
+    }
+    return this.miniSearch.search(searchTerm).map((result) => {
+      const item = this.items[result.id as number];
+      const text = this.keyLookup(item);
+      return {item, segments: computeHighlightSegments(searchTerm, text)};
     });
   }
+}
+
+// Tokenize text by splitting on whitespace/punctuation AND camelCase boundaries.
+// E.g. "dev.perfetto.LiveMemory" -> ["dev", "perfetto", "Live", "Memory"]
+// This allows searching for "memory" to match "LiveMemory".
+function camelCaseTokenize(text: string): string[] {
+  // First split on non-alphanumeric characters (dots, spaces, underscores, etc.)
+  const coarseTokens = text.split(/[^a-zA-Z0-9]+/).filter(Boolean);
+  const tokens: string[] = [];
+  for (const token of coarseTokens) {
+    // Split camelCase: insert boundary before uppercase letter preceded by
+    // a lowercase letter, or before an uppercase letter followed by a
+    // lowercase letter when preceded by uppercase (e.g. "XMLParser" ->
+    // ["XML", "Parser"]).
+    const parts = token.split(/(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/);
+    tokens.push(...parts);
+  }
+  return tokens;
+}
+
+// Given a query (possibly multi-word) and candidate text, compute highlight
+// segments. Each query token is first tried as a substring match, then falls
+// back to sequential character matching.
+function computeHighlightSegments(query: string, text: string): FuzzySegment[] {
+  const tokens = query.split(/\s+/).filter(Boolean);
+  const lowerText = text.toLowerCase();
+  const highlightedIndices: number[] = [];
+
+  for (const token of tokens) {
+    const lowerToken = token.toLowerCase();
+    const idx = lowerText.indexOf(lowerToken);
+    if (idx !== -1) {
+      // Substring match — highlight the whole substring.
+      for (let i = idx; i < idx + lowerToken.length; i++) {
+        highlightedIndices.push(i);
+      }
+    } else {
+      // Fall back to sequential character match.
+      let j = 0;
+      for (const ch of lowerToken) {
+        while (j < lowerText.length && lowerText[j] !== ch) j++;
+        if (j < lowerText.length) {
+          highlightedIndices.push(j);
+          j++;
+        }
+      }
+    }
+  }
+
+  const unique = [...new Set(highlightedIndices)].sort((a, b) => a - b);
+  return indiciesToSegments(unique, text);
 }
 
 // Given a list of indicies of matching chars, and the original value, produce

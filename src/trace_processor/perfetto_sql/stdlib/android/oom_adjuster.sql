@@ -149,7 +149,8 @@ JOIN process_counter_track AS track
 JOIN process
   USING (upid)
 LEFT JOIN reason
-  ON counter.ts BETWEEN oom_adj_ts AND coalesce(oom_adj_next_ts, trace_end())
+  ON counter.ts > reason.oom_adj_ts
+  AND counter.ts <= coalesce(reason.oom_adj_next_ts, trace_end())
 WHERE
   track.name = 'oom_score_adj';
 

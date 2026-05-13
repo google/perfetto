@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
@@ -48,6 +49,8 @@
 #include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::dataframe {
+
+class Dataframe;
 
 // Specification for initializing a register before bytecode execution.
 // The plan contains abstract references (column indices, index IDs), and
@@ -208,6 +211,14 @@ struct QueryPlanImpl {
     return res;
   }
 
+  // Converts a RegisterInit spec to the actual register value for execution.
+  // Used by Cursor and TreeTransformer to initialize registers before
+  // bytecode execution.
+  static interpreter::RegValue GetRegisterInitValue(
+      const RegisterInit& init,
+      const Column* const* columns,
+      const Index* indexes);
+
   ExecutionParams params;
   interpreter::BytecodeVector bytecode;
   base::SmallVector<uint32_t, 24> col_to_output_offset;
@@ -236,30 +247,6 @@ class QueryPlanBuilder {
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
       uint64_t cols_used);
-
-  // Applies filter constraints to an existing BytecodeBuilder.
-  // This is useful for callers (like TreeTransformer) that want to reuse
-  // the filtering logic without building a full query plan.
-  //
-  // Parameters:
-  //   builder: The BytecodeBuilder to emit bytecode into
-  //   scope_id: Caller-managed cache scope for column register caching
-  //   input_indices: Input indices to filter
-  //   row_count: Total number of rows in the dataframe
-  //   columns: Column definitions
-  //   indexes: Index definitions
-  //   specs: Filter specifications (may be reordered)
-  //
-  // Returns the filtered indices register.
-  // Cost tracking is done internally and discarded at end of call.
-  static base::StatusOr<IndicesReg> Filter(
-      interpreter::BytecodeBuilder& builder,
-      uint32_t scope_id,
-      IndicesReg input_indices,
-      uint32_t row_count,
-      const std::vector<std::shared_ptr<Column>>& columns,
-      const std::vector<Index>& indexes,
-      std::vector<FilterSpec>& specs);
 
  private:
   // Indicates that the bytecode does not change the estimated or maximum number
@@ -296,9 +283,9 @@ class QueryPlanBuilder {
                                         LimitOffsetRowCount>;
 
   // Constructs a builder for the given indices and columns.
-  // scope_id is used for caching column/index registers in the BytecodeBuilder.
+  // cache is used for caching column/index registers.
   QueryPlanBuilder(interpreter::BytecodeBuilder& builder,
-                   uint32_t scope_id,
+                   DataframeRegisterCache& cache,
                    IndicesReg indices,
                    uint32_t row_count,
                    const std::vector<std::shared_ptr<Column>>& columns,
@@ -405,10 +392,6 @@ class QueryPlanBuilder {
   // Sets the result to an empty set. Use when a filter guarantees no matches.
   void SetGuaranteedToBeEmpty();
 
-  // Returns the prefix popcount register for the given column.
-  interpreter::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
-      uint32_t col);
-
   // Allocates a register for column data pointer and adds RegisterInit entry.
   // Returns a HandleBase that can be assigned to typed data_register fields.
   interpreter::RwHandle<interpreter::StoragePtr> StorageRegisterFor(
@@ -419,7 +402,14 @@ class QueryPlanBuilder {
   interpreter::RwHandle<Span<uint32_t>> IndexRegisterFor(uint32_t pos);
 
   // Returns the null bitvector register for the given column.
-  interpreter::ReadHandle<const BitVector*> NullBitvectorRegisterFor(
+  // For NonNull columns, returns an empty handle.
+  interpreter::ReadHandle<interpreter::NullBitvector> NullBitvectorRegisterFor(
+      uint32_t col);
+
+  // Returns the null bitvector register for the given column, ensuring a
+  // PrefixPopcount bytecode has been emitted for SparseNull columns.
+  // No-op for non-SparseNull columns or if already emitted.
+  interpreter::ReadHandle<interpreter::NullBitvector> EnsurePrefixPopcountFor(
       uint32_t col);
 
   // Returns the SmallValueEq bitvector register for the given column.
@@ -437,6 +427,9 @@ class QueryPlanBuilder {
 
   interpreter::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
       uint32_t size);
+
+  // Alias for scratch register type.
+  using Scratch = interpreter::BytecodeBuilder::ScratchRegisters;
 
   // Parameters for conversion to row layout.
   struct RowLayoutParams {
@@ -486,8 +479,14 @@ class QueryPlanBuilder {
   // and scratch management.
   interpreter::BytecodeBuilder& builder_;
 
-  // Scope ID for caching column/index registers across Filter() calls.
-  uint32_t scope_id_;
+  // Register cache for caching column/index registers across Filter() calls.
+  DataframeRegisterCache& cache_;
+
+  // Tracks which columns have had PrefixPopcount bytecode emitted.
+  base::FlatHashMap<uint32_t, bool> prefix_popcount_emitted_;
+
+  // Last scratch registers returned by GetOrCreateScratchSpanRegister.
+  std::optional<Scratch> scratch_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

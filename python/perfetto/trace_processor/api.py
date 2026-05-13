@@ -190,7 +190,8 @@ class TraceProcessor:
     Returns:
       A class which can iterate through each row of the results table. This
       can also be converted to a pandas dataframe by calling the
-      as_pandas_dataframe() function after calling query.
+      as_pandas_dataframe() function, or a polars dataframe by calling
+      as_polars_dataframe(), after calling query.
     """
     response = self.http.execute_query(sql)
     if response.error:
@@ -291,7 +292,7 @@ class TraceProcessor:
       parsed = p.netloc if p.netloc else p.path
       return TraceProcessorHttp(parsed, protos=self.protos)
 
-    url, self.subprocess = load_shell(
+    url, self.subprocess, self._tp_stdout, self._tp_stderr = load_shell(
         self.config.bin_path,
         self.config.unique_port,
         self.config.verbose,
@@ -345,6 +346,12 @@ class TraceProcessor:
       self.subprocess.wait()
       # Set to None so __del__ doesn't call this again.
       self.subprocess = None
+      if hasattr(self, '_tp_stdout') and self._tp_stdout:
+        self._tp_stdout.close()
+        self._tp_stdout = None
+      if hasattr(self, '_tp_stderr') and self._tp_stderr:
+        self._tp_stderr.close()
+        self._tp_stderr = None
 
     if hasattr(self, 'http'):
       self.http.conn.close()

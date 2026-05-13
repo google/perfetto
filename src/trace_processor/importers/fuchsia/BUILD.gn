@@ -38,6 +38,7 @@ source_set("full") {
     ":fuchsia_record",
     ":minimal",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/common:zero",
     "../../sorter",
     "../../storage",
     "../../tables",
