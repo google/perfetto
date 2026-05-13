@@ -168,31 +168,21 @@ WITH
       b.self_size,
       b.native_size,
       b.reachable,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mWidth' THEN p.int_value
-        END
-      ) AS width,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mHeight' THEN p.int_value
-        END
-      ) AS height,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mDensity' THEN p.int_value
-        END
-      ) AS density,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mId' THEN p.long_value
-        END
-      ) AS bitmap_id,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mSourceId' THEN p.long_value
-        END
-      ) AS source_id_raw
+      CASE
+        WHEN p.field_name = 'android.graphics.Bitmap.mWidth' THEN p.int_value
+      END AS width,
+      CASE
+        WHEN p.field_name = 'android.graphics.Bitmap.mHeight' THEN p.int_value
+      END AS height,
+      CASE
+        WHEN p.field_name = 'android.graphics.Bitmap.mDensity' THEN p.int_value
+      END AS density,
+      CASE
+        WHEN p.field_name = 'android.graphics.Bitmap.mId' THEN p.long_value
+      END AS bitmap_id,
+      CASE
+        WHEN p.field_name = 'android.graphics.Bitmap.mSourceId' THEN p.long_value
+      END AS source_id_raw
     FROM bitmap_objects AS b
     LEFT JOIN heap_graph_primitive AS p
       ON p.field_set_id = b.field_set_id
@@ -218,25 +208,21 @@ WITH
         cast_int!((bitmap_id % 10000000) / 1000000)
       ) AS bitmap_storage_type,
       CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
+        WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
         ELSE source_id_raw
       END AS source_id,
       CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
+        WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
         ELSE cast_int!(source_id_raw / 10000000)
       END AS source_pid,
       CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
+        WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
         ELSE _android_bitmap_storage_type_name(
           cast_int!((source_id_raw % 10000000) / 1000000)
         )
       END AS source_storage_type,
       CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
+        WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
         ELSE _android_bitmap_resolve_sender_upid(
           cast_int!(source_id_raw / 10000000),
           graph_sample_ts
