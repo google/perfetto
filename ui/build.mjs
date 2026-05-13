@@ -547,7 +547,7 @@ function compileProtos() {
     '-t',
     'static-module',
     '-w',
-    'commonjs',
+    'es6',
     '-p',
     ROOT_DIR,
     '-o',
