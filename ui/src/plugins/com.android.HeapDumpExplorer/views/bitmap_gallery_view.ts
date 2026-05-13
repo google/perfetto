@@ -31,6 +31,8 @@ import {
   shortClassName,
   BitmapImage,
   renderPath,
+  colHeader,
+  COL_INFO,
 } from '../components';
 import type {PathEntry} from '../types';
 import * as queries from '../queries';
@@ -65,6 +67,12 @@ function bitmapRowToRow(r: BitmapListRow): Row {
     reachable_count: r.row.reachableCount,
     heap: r.row.heap,
     buffer_hash: r.bufferHash,
+    storage: r.storageType,
+    bitmap_id: r.bitmapId === null ? null : r.bitmapId.toString(),
+    source_id: r.sourceId === null ? null : r.sourceId.toString(),
+    source_process_name: r.sourceProcessName,
+    source_pid: r.sourcePid,
+    source_storage: r.sourceStorageType,
   };
 }
 
@@ -149,6 +157,42 @@ function makeBitmapListSchema(navigate: NavFn): SchemaRegistry {
       pixel_count: {
         title: 'Pixels',
         columnType: 'quantitative',
+      },
+      storage: {
+        title: colHeader('Storage', COL_INFO.bitmapStorage),
+        columnType: 'text',
+        cellRenderer: (value: SqlValue) =>
+          m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+      },
+      bitmap_id: {
+        title: colHeader('Bitmap ID', COL_INFO.bitmapId),
+        columnType: 'text',
+        cellRenderer: (value: SqlValue) =>
+          m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+      },
+      source_id: {
+        title: colHeader('Source ID', COL_INFO.bitmapSource),
+        columnType: 'text',
+        cellRenderer: (value: SqlValue) =>
+          m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+      },
+      source_process_name: {
+        title: colHeader('Source Process', COL_INFO.bitmapSource),
+        columnType: 'text',
+        cellRenderer: (value: SqlValue) =>
+          m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+      },
+      source_pid: {
+        title: colHeader('Source PID', COL_INFO.bitmapSource),
+        columnType: 'quantitative',
+        cellRenderer: (value: SqlValue) =>
+          m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+      },
+      source_storage: {
+        title: colHeader('Source Storage', COL_INFO.bitmapSource),
+        columnType: 'text',
+        cellRenderer: (value: SqlValue) =>
+          m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
       },
     },
   };
@@ -274,6 +318,20 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
               {class: 'pf-hde-bitmap-card__secondary'},
               fmtSize(row.row.retainedTotal),
             ),
+            row.storageType !== null
+              ? m(
+                  'span',
+                  {class: 'pf-hde-bitmap-card__secondary'},
+                  row.storageType,
+                )
+              : null,
+            row.sourceId !== null
+              ? m(
+                  'span',
+                  {class: 'pf-hde-bitmap-card__secondary'},
+                  `from ${row.sourceProcessName ?? '?'} (${row.sourcePid ?? '?'})`,
+                )
+              : null,
           ),
           m(
             'button',
@@ -425,6 +483,10 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         {id: 'id', field: 'id'},
         {id: 'cls', field: 'cls'},
         {id: 'dimensions', field: 'dimensions'},
+        {id: 'storage', field: 'storage'},
+        {id: 'source_process_name', field: 'source_process_name'},
+        {id: 'source_pid', field: 'source_pid'},
+        {id: 'source_storage', field: 'source_storage'},
         {id: 'self_size', field: 'self_size'},
         {id: 'native_size', field: 'native_size'},
         {id: 'retained', field: 'retained'},
@@ -433,6 +495,8 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         {id: 'reachable_size', field: 'reachable_size'},
         {id: 'reachable_native', field: 'reachable_native'},
         {id: 'reachable_count', field: 'reachable_count'},
+        {id: 'bitmap_id', field: 'bitmap_id'},
+        {id: 'source_id', field: 'source_id'},
         {id: 'buffer_hash', field: 'buffer_hash'},
       ];
       const onFiltersChanged = (f: readonly Filter[]) => {
