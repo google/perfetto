@@ -135,7 +135,7 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
         }
         if (response_time) {
           inserter->AddArg(response_time_arg_,
-                           Variadic::UnsignedInteger(*response_time));
+                           Variadic::Integer(*response_time));
         }
         if (issuing_thread_id) {
           inserter->AddArg(issuing_thread_id_arg_,
