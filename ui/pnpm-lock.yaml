@@ -120,8 +120,8 @@ dependencies:
     specifier: ^1.1.2
     version: 1.1.2(protobufjs@7.5.5)
   syntaqlite:
-    specifier: ^0.5.6
-    version: 0.5.6
+    specifier: ^0.5.9
+    version: 0.5.9
   util:
     specifier: ^0.12.5
     version: 0.12.5
@@ -6015,8 +6015,8 @@ packages:
       tslib: 2.6.3
     dev: true
 
-  /syntaqlite@0.5.6:
-    resolution: {integrity: sha512-Y2DZ2799KdxJBNnPOIuPja4dXgjK41smrUBpIsM1rC4Xve22hU9sFzVpdK4Tw/lktnk2bFxPfo6uVXqfU3yYXw==}
+  /syntaqlite@0.5.9:
+    resolution: {integrity: sha512-hCJ58Nd+QVPv2UXQmMsd3BGikmoYIl4yynC6l9MSEoQ/m6Y2QbN1WipfM/C/6viyfSpdKsC1JwvmPdlmQ8prWw==}
     dev: false
 
   /tar-fs@3.1.1:
