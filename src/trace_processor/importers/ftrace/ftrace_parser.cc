@@ -543,6 +543,10 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       gpu_power_state_pg_id_(context->storage->InternString("PG")),
       gpu_power_state_on_id_(context->storage->InternString("ON")),
       ddic_underrun_id_(context_->storage->InternString("ddic_underrun")),
+      panel_settings_full_id_(
+          context_->storage->InternString("panel_settings_full")),
+      panel_settings_lite_id_(
+          context_->storage->InternString("panel_settings_lite")),
       memcg_reclaim_order_id_(
           context->storage->InternString("memcg_reclaim_order")),
       memcg_reclaim_may_writepage_id_(
@@ -1473,6 +1477,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParsePanelWriteGeneric(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kPanelSettingsFullFieldNumber: {
+        ParsePanelSettingsFull(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kPanelSettingsLiteFieldNumber: {
+        ParsePanelSettingsLite(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kGoogleIccEventFieldNumber: {
         ParseGoogleIccEvent(ts, fld_bytes);
         break;
@@ -2090,6 +2102,85 @@ void FtraceParser::ParseGramCollision(int64_t timestamp, ConstBytes blob) {
         inserter->AddArg(
             context_->storage->InternString(base::StringView("collision_cnt")),
             Variadic::Integer(ex.collision_cnt()));
+      });
+}
+
+void FtraceParser::ParsePanelSettingsFull(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::PanelSettingsFullFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "panel_settings_full",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("panel_index")),
+      tracks::FnNameBlueprint([](uint32_t panel_index) {
+        return base::StackString<256>("panel_settings_full[%u]", panel_index);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.panel_index()));
+  StringId slice_name_id = panel_settings_full_id_;
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("hbm")),
+            Variadic::Boolean(ex.hbm()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("irc")),
+            Variadic::Integer(ex.irc()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("h_pwm")),
+            Variadic::Boolean(ex.h_pwm()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("fi_auto")),
+            Variadic::Boolean(ex.fi_auto()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("fi_manual")),
+            Variadic::Boolean(ex.fi_manual()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("early_exit")),
+            Variadic::Boolean(ex.early_exit()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("min_rr")),
+            Variadic::Integer(ex.min_rr()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("max_rr")),
+            Variadic::Integer(ex.max_rr()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("te_freq")),
+            Variadic::Integer(ex.te_freq()));
+      });
+}
+
+void FtraceParser::ParsePanelSettingsLite(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::PanelSettingsLiteFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "panel_settings_lite",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("panel_index")),
+      tracks::FnNameBlueprint([](uint32_t panel_index) {
+        return base::StackString<256>("panel_settings_lite[%u]", panel_index);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.panel_index()));
+  StringId slice_name_id = panel_settings_lite_id_;
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("vrr")),
+            Variadic::Boolean(ex.vrr()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("min_rr")),
+            Variadic::Integer(ex.min_rr()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("max_rr")),
+            Variadic::Integer(ex.max_rr()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("te_freq")),
+            Variadic::Integer(ex.te_freq()));
       });
 }
 
