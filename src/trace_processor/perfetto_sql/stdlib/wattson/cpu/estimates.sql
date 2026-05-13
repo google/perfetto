@@ -84,7 +84,8 @@ SELECT
   )
   + static_1d AS static_mw,
   l3_lut.l3_hit,
-  l3_lut.l3_miss
+  l3_lut.l3_miss,
+  iif(base.suspended, 0, interconnect_lut.curve_value) AS interconnect_mw
 FROM _w_dependent_cpus_unique AS base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d AS lut0
@@ -130,7 +131,12 @@ LEFT JOIN _filtered_curves_2d AS lut7
 LEFT JOIN _filtered_curves_l3 AS l3_lut
   ON l3_lut.freq_khz = base.freq_0
   AND l3_lut.dep_policy = base.dep_policy_0
-  AND l3_lut.dep_freq = base.dep_freq_0;
+  AND l3_lut.dep_freq = base.dep_freq_0
+LEFT JOIN _filtered_curves_interconnect AS interconnect_lut
+  ON interconnect_lut.freq_khz = base.freq_0
+  AND interconnect_lut.dep_freq = base.dsu_freq
+  AND interconnect_lut.policy = 0
+  AND interconnect_lut.dep_policy = _dsu_dep!();
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
@@ -150,7 +156,8 @@ SELECT
   + (coalesce(slices.l3_hit_count * base.l3_hit, 0)
   + coalesce(slices.l3_miss_count * base.l3_miss, 0))
   * 1000
-  / slices.dur AS dsu_scu_mw
+  / slices.dur
+  + coalesce(base.interconnect_mw, 0) AS dsu_scu_mw
 FROM _w_independent_cpus_calc AS slices
 JOIN _unique_estimates_mw AS base USING (config_hash)
 WHERE

@@ -41,7 +41,8 @@ AS (
     t1.curve_value AS $curve_col,
     iif($cpu IN _device_policies, coalesce(t1.static, 0), 0) AS $static_col,
     coalesce(t1.freq, 0) AS $freq_col,
-    coalesce(t1.idle, deepest.idle) AS $idle_col
+    coalesce(t1.idle, deepest.idle) AS $idle_col,
+    t1.suspended
   FROM _idle_freq_materialized AS t1
   CROSS JOIN _deepest_idle AS deepest
   WHERE
@@ -53,7 +54,8 @@ AS (
     0,
     0,
     0,
-    idle
+    idle,
+    FALSE AS suspended
   FROM _deepest_idle()
   WHERE
     NOT EXISTS(
@@ -127,6 +129,7 @@ SELECT
   _stats_cpu5.cpu5_static,
   _stats_cpu6.cpu6_static,
   _stats_cpu7.cpu7_static,
+  _stats_cpu0.suspended,
   _wattson_dsu_frequency.dsu_freq,
   CAST(_bitmask8!(
     idle_0 != deepest.idle,
@@ -200,7 +203,8 @@ SELECT
     idle_6,
     freq_7,
     idle_7,
-    dsu_freq
+    dsu_freq,
+    suspended
   ) AS config_hash,
   freq_0,
   idle_0,
@@ -226,6 +230,7 @@ SELECT
   cpu5_curve,
   cpu6_curve,
   cpu7_curve,
+  suspended,
   dsu_freq,
   CAST(_bitmask8!(
     cpus_on_mask & m0,
@@ -294,7 +299,8 @@ WITH
       cpu7_curve,
       dsu_freq,
       static_1d,
-      policy_cpus_on_mask
+      policy_cpus_on_mask,
+      suspended
     FROM _w_independent_cpus_calc
     GROUP BY
       config_hash
