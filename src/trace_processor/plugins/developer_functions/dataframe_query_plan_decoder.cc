@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include "src/trace_processor/plugins/developer_functions/developer_functions.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 

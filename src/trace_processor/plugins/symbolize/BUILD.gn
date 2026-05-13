@@ -35,6 +35,7 @@ source_set("symbolize") {
   ]
   if (enable_perfetto_llvm_symbolizer) {
     deps += [
+      "../../perfetto_sql/intrinsics/types",
       "../../util/symbolizer:llvm_symbolizer",
       "../../util/symbolizer:llvm_symbolizer_c_api",
     ]
