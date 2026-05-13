@@ -1,3 +1,10 @@
+v55.1 - 2026-05-13:
+  Infra:
+    * Fix build of prebuilts on Windows.
+  Trace Processor:
+    * Fix parsing of timestamps of Adreno ftrace events.
+
+
 v55.0 - 2026-04-29:
   Tracing service and probes:
     * Breaking change: Renamed the `TraceMetadata` proto to `TraceAttributes`.

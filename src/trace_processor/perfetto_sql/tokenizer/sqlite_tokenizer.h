@@ -47,6 +47,7 @@ inline constexpr int kStar = 99;
 inline constexpr int kSpace = 185;
 inline constexpr int kComment = 186;
 inline constexpr int kIllegal = 187;
+inline constexpr int kBang = 188;
 }  // namespace sql_token
 
 // Tokenizes SQL statements according to SQLite SQL language specification:

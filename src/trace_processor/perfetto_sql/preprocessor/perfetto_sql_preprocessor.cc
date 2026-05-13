@@ -514,13 +514,11 @@ bool PerfettoSqlPreprocessor::NextStatement() {
     } else if (t.token_type == sql_token::kSemi) {
       token_type = PPTK_SEMI;
       frame->seen_semicolon = true;
+    } else if (t.token_type == sql_token::kBang) {
+      token_type = PPTK_EXCLAIM;
     } else if (t.token_type == sql_token::kIllegal) {
-      if (t.str.size() == 1 && t.str[0] == '!') {
-        token_type = PPTK_EXCLAIM;
-      } else {
-        status_ = ErrorAtToken(tk, t, "illegal token");
-        return false;
-      }
+      status_ = ErrorAtToken(tk, t, "illegal token");
+      return false;
     } else if (t.token_type == sql_token::kId) {
       token_type = PPTK_ID;
     } else if (t.token_type == sql_token::kLp) {

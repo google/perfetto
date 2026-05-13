@@ -57,6 +57,13 @@ class SqlSource {
   // implementation detail of trace processor.
   static SqlSource FromTraceProcessorImplementation(std::string sql);
 
+  // Creates a SqlSource instance wrapping the post-substitution body of a
+  // PerfettoSQL macro expansion.  Used as the "rewrite" SqlSource fed to
+  // SqlSource::Rewriter so that SQLite-side errors traceback through the
+  // macro's expansion back to the call site.
+  static SqlSource FromMacroExpansion(std::string sql,
+                                      const std::string& macro);
+
   // Returns this SqlSource instance as a string which can be appended as a
   // "traceback" frame to an error message. Callers should pass an |offset|
   // parameter which indicates the exact location of the error in the SQL
