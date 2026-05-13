@@ -42,10 +42,7 @@ if (perfetto_build_standalone) {
   shared_library("perfetto_fmt_dialect") {
     sources = _syntaqlite_sources
     deps = [ "../../../../gn:default_deps" ]
-    defines = [
-      "SYNTAQLITE_SHARED",
-      "SYNTAQLITE_OMIT_RUNTIME",
-    ]
+    defines = [ "SYNTAQLITE_SHARED" ]
     if (is_mac) {
       ldflags = [ "-Wl,-undefined,dynamic_lookup" ]
     }
