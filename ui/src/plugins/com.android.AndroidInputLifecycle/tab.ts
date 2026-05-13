@@ -139,7 +139,7 @@ export class AndroidInputLifecycleTab
           {},
           m(Checkbox, {
             checked: isRowPinned(row, pinningManager),
-            onchange: () => togglePinning(row, trace, pinningManager),
+            onchange: () => togglePinning(row, pinningManager),
           }),
         ),
         m(GridCell, {}, row.channel),
@@ -177,7 +177,6 @@ function isRowPinned(
 
 function togglePinning(
   row: InputChainRow,
-  trace: Trace,
   pinningManager: TrackPinningManager,
 ) {
   if (isRowPinned(row, pinningManager)) {
@@ -185,7 +184,6 @@ function togglePinning(
   } else {
     pinningManager.pinTracks(row.allTrackUris);
   }
-  pinningManager.applyPinning(trace);
 }
 
 function renderCell(

@@ -37,6 +37,7 @@
 
 #include "protos/perfetto/trace/etw/etw.pbzero.h"
 #include "protos/perfetto/trace/etw/etw_event.pbzero.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -108,6 +109,10 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
   }
   if (decoder.has_file_io_op_end()) {
     file_io_tracker->ParseFileIoOpEnd(ts, utid, decoder.file_io_op_end());
+  }
+  if (decoder.has_file_io_path_operation()) {
+    file_io_tracker->ParseFileIoPathOperation(ts, utid,
+                                              decoder.file_io_path_operation());
   }
 
   if (decoder.has_disk_io()) {
@@ -273,7 +278,7 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   StringId prev_state_string_id = TaskStateToStringId(prev_state);
   if (prev_state_string_id == kNullStringId) {
-    context_->storage->IncrementStats(stats::task_state_invalid);
+    context_->stats_tracker->IncrementStats(stats::task_state_invalid);
   }
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_tid == pending_sched->last_pid;
@@ -282,7 +287,8 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
                                                        prev_state_string_id);
     } else {
       // If the pids are not consistent, make a note of this.
-      context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
+      context_->stats_tracker->IncrementStats(
+          stats::mismatched_sched_switch_tids);
     }
   }
 

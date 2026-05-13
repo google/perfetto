@@ -35,6 +35,7 @@ GenericKernelModule::GenericKernelModule(
   RegisterForField(TracePacket::kGenericKernelProcessTreeFieldNumber);
   RegisterForField(TracePacket::kGenericKernelTaskStateEventFieldNumber);
   RegisterForField(TracePacket::kGenericKernelTaskRenameEventFieldNumber);
+  RegisterForField(TracePacket::kGenericGpuFrequencyEventFieldNumber);
 }
 
 void GenericKernelModule::ParseTracePacketData(
@@ -57,6 +58,10 @@ void GenericKernelModule::ParseTracePacketData(
     case TracePacket::kGenericKernelCpuFreqEventFieldNumber:
       parser_.ParseGenericCpuFrequencyEvent(
           ts, decoder.generic_kernel_cpu_freq_event());
+      return;
+    case TracePacket::kGenericGpuFrequencyEventFieldNumber:
+      parser_.ParseGenericGpuFrequencyEvent(
+          ts, decoder.generic_gpu_frequency_event());
       return;
   }
 }

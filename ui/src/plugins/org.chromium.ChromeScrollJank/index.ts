@@ -36,6 +36,15 @@ import {
   SCROLL_TIMELINE_V4_TRACK,
 } from './tracks';
 import {createEventLatencyModel} from './event_latency_model';
+import {
+  createFrameTimelineModel,
+  FrameTimelineModel,
+} from './frame_timeline_model';
+import {createFrameTimelineTrack} from './frame_timeline_track';
+import {v4} from 'uuid';
+import {showModal} from '../../widgets/modal';
+import m from 'mithril';
+import {AsyncLazy} from '../../base/async_lazy';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -54,6 +63,7 @@ export default class implements PerfettoPlugin {
     await this.addScrollTimelineTrack(ctx, group);
     await this.addScrollTimelineV4Track(ctx, group);
     await this.addVsyncTracks(ctx, group);
+    this.registerShowFrameTimelinesCommand(ctx, group);
     ctx.defaultWorkspace.addChildInOrder(group);
     group.expand();
   }
@@ -276,5 +286,57 @@ export default class implements PerfettoPlugin {
         group.addChildInOrder(new TrackNode({uri, name: step.name}));
       }
     }
+  }
+
+  private registerShowFrameTimelinesCommand(ctx: Trace, group: TrackNode) {
+    const model = new AsyncLazy<FrameTimelineModel>();
+    ctx.commands.registerCommand({
+      id: 'org.chromium.ChromeScrollJank#showFrameTimelines',
+      name: 'Chrome Scroll Jank: Show frame timelines',
+      callback: async () => {
+        const result = await model.getOrCreate(() =>
+          createFrameTimelineModel({
+            engine: ctx.engine,
+            tableName: 'org_chromium_ChromeScrollJank_frame_timelines',
+          }),
+        );
+        if (!result.ok) {
+          await showModal({
+            title: 'Failed to create frame timelines track',
+            icon: 'warning',
+            content: m('p', result.error),
+            buttons: [{text: 'OK', primary: true}],
+          });
+          return;
+        }
+
+        if (!result.value.hasFrameTimelines) {
+          await showModal({
+            title: "The trace doesn't contain any frame timelines",
+            icon: 'warning',
+            content: m(
+              'p',
+              'Please make sure that the "viz" Chrome browser tracing ' +
+                'category is enabled.',
+            ),
+            buttons: [{text: 'OK', primary: true}],
+          });
+          // Don't return early. There might still be some value in visualizing
+          // the frame time.
+        }
+
+        const uri = `org.chromium.ChromeScrollJank#frameTimelines_${v4()}`;
+        const track = createFrameTimelineTrack(
+          ctx,
+          uri,
+          result.value.tableName,
+        );
+        ctx.tracks.registerTrack({uri, renderer: track});
+        group.addChildInOrder(
+          new TrackNode({uri, name: 'Frame timelines', removable: true}),
+        );
+        ctx.scrollTo({track: {uri: uri, expandGroup: true}});
+      },
+    });
   }
 }

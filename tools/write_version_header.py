@@ -57,6 +57,12 @@ def get_latest_release(changelog_path):
 
 def get_git_sha1(commitish):
   """Returns the SHA1 of the provided commit-ish"""
+  # Embedders / forks can override the SCM revision via env var so the
+  # version string baked into the build identifies their checkout
+  # instead of perfetto's git HEAD.
+  override = os.environ.get('PERFETTO_VERSION_HEADER_OVERRIDE_SCM_REVISION')
+  if override:
+    return override
   commit_sha1 = SCM_REV_NOT_AVAILABLE
   git_dir = os.path.join(PROJECT_ROOT, '.git')
   if os.path.exists(git_dir):

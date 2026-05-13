@@ -20,7 +20,7 @@ import {assertExists, assertTrue} from '../base/assert';
 import TraceProcessor64 from '../gen/trace_processor_memory64';
 
 // The 32-bit variant may or may not be part of the build, depending on whether
-// the user passes --only-wasm-memory64 to ui/build.js. When we are building
+// the user passes --only-wasm-memory64 to ui/build.mjs. When we are building
 // also the 32-bit (e.g., in production builds) the import below will be
 // redirected by rollup to '../gen/trace_processor' (The 32-bit module).
 import TraceProcessor32 from './trace_processor_32_stub';

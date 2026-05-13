@@ -47,10 +47,12 @@ class FlowTracker;
 class BlobPacketWriter;
 class GlobalArgsTracker;
 class GlobalMetadataTracker;
+class GlobalStatsTracker;
 class ImportLogsTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
+class StatsTracker;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class ProtoTraceReader;
@@ -149,6 +151,7 @@ class TraceProcessorContext {
   GlobalPtr<TraceReaderRegistry> reader_registry;
   GlobalPtr<GlobalArgsTracker> global_args_tracker;
   GlobalPtr<GlobalMetadataTracker> global_metadata_tracker;
+  GlobalPtr<GlobalStatsTracker> global_stats_tracker;
   GlobalPtr<TraceFileTracker> trace_file_tracker;
   GlobalPtr<DescriptorPool> descriptor_pool_;
   GlobalPtr<ForkedContextState> forked_context_state;
@@ -230,6 +233,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
   PerTraceAndMachinePtr<MetadataTracker> metadata_tracker;
+  PerTraceAndMachinePtr<StatsTracker> stats_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass

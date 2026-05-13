@@ -50,7 +50,7 @@ class PerfettoSqlParser {
   // syntaqlite, false if it uses the handwritten PerfettoSqlPreprocessor.
   // Exposed so tests can gate path-specific assertions; will be removed
   // along with the legacy implementation when the cutover completes.
-  static constexpr bool kUsesSyntaqliteMacros = false;
+  static constexpr bool kUsesSyntaqliteMacros = true;
 
   // A CREATE PERFETTO MACRO definition. Aliased to the preprocessor type so
   // engine code can spell `PerfettoSqlParser::Macro` instead of reaching into

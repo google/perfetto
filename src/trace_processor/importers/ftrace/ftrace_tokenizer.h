@@ -58,8 +58,7 @@ class FtraceTokenizer {
   void TokenizeFtraceEvent(uint32_t cpu,
                            ClockTracker::ClockId,
                            TraceBlobView event,
-                           RefPtr<PacketSequenceStateGeneration> state,
-                           uint32_t packet_sequence_id);
+                           RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceCompactSched(uint32_t cpu,
                                   ClockTracker::ClockId,
                                   protozero::ConstBytes);
@@ -76,37 +75,28 @@ class FtraceTokenizer {
   base::StatusOr<ClockTracker::ClockId> HandleFtraceClockSnapshot(
       protos::pbzero::FtraceEventBundle::Decoder& decoder,
       uint32_t packet_sequence_id);
-  void TokenizeFtraceAdrenoCmdbatchSubmitted(
-      uint32_t cpu,
-      ClockTracker::ClockId clock_id,
-      uint64_t raw_timestamp,
-      TraceBlobView event,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t packet_sequence_id);
-  void TokenizeFtraceAdrenoCmdbatchRetired(
-      uint32_t cpu,
-      ClockTracker::ClockId clock_id,
-      uint64_t raw_timestamp,
-      TraceBlobView event,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t packet_sequence_id);
   void TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
+                                   int64_t raw_ts,
                                    TraceBlobView event,
                                    RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceThermalExynosAcpmBulk(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceParamSetValueCpm(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceFwtpPerfettoCounter(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceFwtpPerfettoSlice(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   std::optional<protozero::Field> GetFtraceEventField(
@@ -124,7 +114,6 @@ class FtraceTokenizer {
   GenericFtraceTracker* generic_tracker_;
 
   int64_t latest_ftrace_clock_snapshot_ts_ = 0;
-  bool adreno_gpu_clock_registered_ = false;
   std::vector<bool> per_cpu_seen_first_bundle_;
 };
 

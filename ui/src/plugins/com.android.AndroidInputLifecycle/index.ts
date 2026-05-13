@@ -43,7 +43,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
     const source = new AndroidInputEventSource(trace);
-    const pinningManager = new TrackPinningManager();
+    const pinningManager = new TrackPinningManager(trace);
 
     trace.tracks.registerOverlay(
       new RelatedEventsOverlay(trace, () => this.getConnections(trace, source)),
@@ -58,7 +58,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
           const {data: rows, isPending} = this.useRowState(trace, source);
 
           if (rows) {
-            this.applyInitialSelection(trace, rows, pinningManager);
+            this.applyInitialSelection(trace, rows);
           }
 
           return m(AndroidInputLifecycleTab, {
@@ -110,11 +110,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     return source.use(selection.eventId);
   }
 
-  private applyInitialSelection(
-    trace: Trace,
-    rows: InputChainRow[],
-    pinningManager: TrackPinningManager,
-  ) {
+  private applyInitialSelection(trace: Trace, rows: InputChainRow[]) {
     const selection = trace.selection.selection;
     if (selection.kind !== 'track_event') return;
 
@@ -137,8 +133,6 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
         break;
       }
     }
-
-    pinningManager.applyPinning(trace);
   }
 
   private getConnections(

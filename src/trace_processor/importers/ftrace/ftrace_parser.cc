@@ -46,6 +46,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
@@ -541,7 +542,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       gpu_power_state_off_id_(context->storage->InternString("OFF")),
       gpu_power_state_pg_id_(context->storage->InternString("PG")),
       gpu_power_state_on_id_(context->storage->InternString("ON")),
-      gpu_cmdbatch_slice_name_id_(context->storage->InternString("GPU")),
       ddic_underrun_id_(context_->storage->InternString("ddic_underrun")),
       memcg_reclaim_order_id_(
           context->storage->InternString("memcg_reclaim_order")),
@@ -648,69 +648,70 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
     int64_t read_events = static_cast<int64_t>(cpu_stats.read_events());
     int64_t now_ts = static_cast<int64_t>(cpu_stats.now_ts() * 1e9);
 
-    storage->SetIndexedStats(stats::ftrace_cpu_entries_begin + phase, cpu,
-                             entries);
-    storage->SetIndexedStats(stats::ftrace_cpu_overrun_begin + phase, cpu,
-                             overrun);
-    storage->SetIndexedStats(stats::ftrace_cpu_commit_overrun_begin + phase,
-                             cpu, commit_overrun);
-    storage->SetIndexedStats(stats::ftrace_cpu_bytes_begin + phase, cpu, bytes);
-    storage->SetIndexedStats(stats::ftrace_cpu_dropped_events_begin + phase,
-                             cpu, dropped_events);
-    storage->SetIndexedStats(stats::ftrace_cpu_read_events_begin + phase, cpu,
-                             read_events);
-    storage->SetIndexedStats(stats::ftrace_cpu_now_ts_begin + phase, cpu,
-                             now_ts);
+    context_->stats_tracker->SetIndexedStats(
+        stats::ftrace_cpu_entries_begin + phase, cpu, entries);
+    context_->stats_tracker->SetIndexedStats(
+        stats::ftrace_cpu_overrun_begin + phase, cpu, overrun);
+    context_->stats_tracker->SetIndexedStats(
+        stats::ftrace_cpu_commit_overrun_begin + phase, cpu, commit_overrun);
+    context_->stats_tracker->SetIndexedStats(
+        stats::ftrace_cpu_bytes_begin + phase, cpu, bytes);
+    context_->stats_tracker->SetIndexedStats(
+        stats::ftrace_cpu_dropped_events_begin + phase, cpu, dropped_events);
+    context_->stats_tracker->SetIndexedStats(
+        stats::ftrace_cpu_read_events_begin + phase, cpu, read_events);
+    context_->stats_tracker->SetIndexedStats(
+        stats::ftrace_cpu_now_ts_begin + phase, cpu, now_ts);
 
     if (is_end) {
-      auto opt_entries_begin =
-          storage->GetIndexedStats(stats::ftrace_cpu_entries_begin, cpu);
+      auto opt_entries_begin = context_->stats_tracker->GetIndexedStats(
+          stats::ftrace_cpu_entries_begin, cpu);
       if (opt_entries_begin) {
         int64_t delta_entries = entries - opt_entries_begin.value();
-        storage->SetIndexedStats(stats::ftrace_cpu_entries_delta, cpu,
-                                 delta_entries);
+        context_->stats_tracker->SetIndexedStats(
+            stats::ftrace_cpu_entries_delta, cpu, delta_entries);
       }
 
-      auto opt_overrun_begin =
-          storage->GetIndexedStats(stats::ftrace_cpu_overrun_begin, cpu);
+      auto opt_overrun_begin = context_->stats_tracker->GetIndexedStats(
+          stats::ftrace_cpu_overrun_begin, cpu);
       if (opt_overrun_begin) {
         int64_t delta_overrun = overrun - opt_overrun_begin.value();
-        storage->SetIndexedStats(stats::ftrace_cpu_overrun_delta, cpu,
-                                 delta_overrun);
+        context_->stats_tracker->SetIndexedStats(
+            stats::ftrace_cpu_overrun_delta, cpu, delta_overrun);
       }
 
-      auto opt_commit_overrun_begin =
-          storage->GetIndexedStats(stats::ftrace_cpu_commit_overrun_begin, cpu);
+      auto opt_commit_overrun_begin = context_->stats_tracker->GetIndexedStats(
+          stats::ftrace_cpu_commit_overrun_begin, cpu);
       if (opt_commit_overrun_begin) {
         int64_t delta_commit_overrun =
             commit_overrun - opt_commit_overrun_begin.value();
-        storage->SetIndexedStats(stats::ftrace_cpu_commit_overrun_delta, cpu,
-                                 delta_commit_overrun);
+        context_->stats_tracker->SetIndexedStats(
+            stats::ftrace_cpu_commit_overrun_delta, cpu, delta_commit_overrun);
       }
 
-      auto opt_bytes_begin =
-          storage->GetIndexedStats(stats::ftrace_cpu_bytes_begin, cpu);
+      auto opt_bytes_begin = context_->stats_tracker->GetIndexedStats(
+          stats::ftrace_cpu_bytes_begin, cpu);
       if (opt_bytes_begin) {
         int64_t delta_bytes = bytes - opt_bytes_begin.value();
-        storage->SetIndexedStats(stats::ftrace_cpu_bytes_delta, cpu,
-                                 delta_bytes);
+        context_->stats_tracker->SetIndexedStats(stats::ftrace_cpu_bytes_delta,
+                                                 cpu, delta_bytes);
       }
 
-      auto opt_dropped_events_begin =
-          storage->GetIndexedStats(stats::ftrace_cpu_dropped_events_begin, cpu);
+      auto opt_dropped_events_begin = context_->stats_tracker->GetIndexedStats(
+          stats::ftrace_cpu_dropped_events_begin, cpu);
       if (opt_dropped_events_begin) {
         int64_t delta_dropped_events =
             dropped_events - opt_dropped_events_begin.value();
-        storage->SetIndexedStats(stats::ftrace_cpu_dropped_events_delta, cpu,
-                                 delta_dropped_events);
+        context_->stats_tracker->SetIndexedStats(
+            stats::ftrace_cpu_dropped_events_delta, cpu, delta_dropped_events);
       }
 
-      auto opt_read_events_begin =
-          storage->GetIndexedStats(stats::ftrace_cpu_read_events_begin, cpu);
+      auto opt_read_events_begin = context_->stats_tracker->GetIndexedStats(
+          stats::ftrace_cpu_read_events_begin, cpu);
       if (opt_read_events_begin) {
         int64_t delta_read_events = read_events - opt_read_events_begin.value();
-        storage->SetIndexedStats(stats::ftrace_cpu_read_events_delta, cpu,
-                                 delta_read_events);
+        context_->stats_tracker->SetIndexedStats(
+            stats::ftrace_cpu_read_events_delta, cpu, delta_read_events);
       }
     }
 
@@ -726,33 +727,38 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
     // as int64_t.
     if (oldest_event_ts >=
         static_cast<double>(std::numeric_limits<int64_t>::max())) {
-      storage->SetIndexedStats(stats::ftrace_cpu_oldest_event_ts_begin + phase,
-                               cpu, std::numeric_limits<int64_t>::max());
+      context_->stats_tracker->SetIndexedStats(
+          stats::ftrace_cpu_oldest_event_ts_begin + phase, cpu,
+          std::numeric_limits<int64_t>::max());
     } else {
-      storage->SetIndexedStats(stats::ftrace_cpu_oldest_event_ts_begin + phase,
-                               cpu, static_cast<int64_t>(oldest_event_ts));
+      context_->stats_tracker->SetIndexedStats(
+          stats::ftrace_cpu_oldest_event_ts_begin + phase, cpu,
+          static_cast<int64_t>(oldest_event_ts));
     }
   }
 
   protos::pbzero::FtraceKprobeStats::Decoder kprobe_stats(evt.kprobe_stats());
-  storage->SetStats(stats::ftrace_kprobe_hits_begin + phase,
-                    kprobe_stats.hits());
-  storage->SetStats(stats::ftrace_kprobe_misses_begin + phase,
-                    kprobe_stats.misses());
+  context_->stats_tracker->SetStats(stats::ftrace_kprobe_hits_begin + phase,
+                                    kprobe_stats.hits());
+  context_->stats_tracker->SetStats(stats::ftrace_kprobe_misses_begin + phase,
+                                    kprobe_stats.misses());
   if (is_end) {
-    auto kprobe_hits_begin = storage->GetStats(stats::ftrace_kprobe_hits_begin);
+    auto kprobe_hits_begin =
+        context_->stats_tracker->GetStats(stats::ftrace_kprobe_hits_begin);
     auto kprobe_hits_end = kprobe_stats.hits();
     if (kprobe_hits_begin) {
       int64_t delta_hits = kprobe_hits_end - kprobe_hits_begin;
-      storage->SetStats(stats::ftrace_kprobe_hits_delta, delta_hits);
+      context_->stats_tracker->SetStats(stats::ftrace_kprobe_hits_delta,
+                                        delta_hits);
     }
 
     auto kprobe_misses_begin =
-        storage->GetStats(stats::ftrace_kprobe_misses_begin);
+        context_->stats_tracker->GetStats(stats::ftrace_kprobe_misses_begin);
     auto kprobe_misses_end = kprobe_stats.misses();
     if (kprobe_misses_begin) {
       int64_t delta_misses = kprobe_misses_end - kprobe_misses_begin;
-      storage->SetStats(stats::ftrace_kprobe_misses_delta, delta_misses);
+      context_->stats_tracker->SetStats(stats::ftrace_kprobe_misses_delta,
+                                        delta_misses);
     }
   }
 
@@ -766,19 +772,19 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
     if (seen_errors_for_sequence_id_.count(packet_sequence_id) == 0) {
       std::string error_str;
       for (auto it = evt.failed_ftrace_events(); it; ++it) {
-        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
         error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
       }
       for (auto it = evt.unknown_ftrace_events(); it; ++it) {
-        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
         error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
       }
       if (evt.atrace_errors().size > 0) {
-        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
         error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
       }
       if (evt.exclusive_feature_error().size > 0) {
-        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
         error_str += "Ftrace exclusive feature error: " +
                      evt.exclusive_feature_error().ToStdString();
       }
@@ -821,7 +827,7 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
         // See b/329396486#comment6, b/204564312#comment20.
         if (error_code ==
             FtraceParseStatus::FTRACE_STATUS_ABI_ZERO_DATA_LENGTH) {
-          context_->storage->IncrementStats(
+          context_->stats_tracker->IncrementStats(
               stats::ftrace_abi_errors_skipped_zero_data_length);
           continue;
         }
@@ -841,10 +847,17 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
 
 base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
-                                            const TracePacketData& data) {
+                                            const FtraceData& data) {
   MaybeOnFirstFtraceEvent();
-  if (PERFETTO_UNLIKELY(ts < drop_ftrace_data_before_ts_)) {
-    context_->storage->IncrementStats(
+  // Drop-window checks compare against the original event time. For events
+  // whose tokenizer synthesised a custom ts (e.g. retiming a kgsl
+  // cmdbatch_retired to its GPU start), `data.raw_ts` carries the original
+  // event time so we don't drop in-trace events that were merely placed
+  // earlier on the timeline.
+  const int64_t raw_ts =
+      data.raw_ts == FtraceData::kRawTsUnset ? ts : data.raw_ts;
+  if (PERFETTO_UNLIKELY(raw_ts < drop_ftrace_data_before_ts_)) {
+    context_->stats_tracker->IncrementStats(
         stats::ftrace_packet_before_tracing_start);
     return base::OkStatus();
   }
@@ -889,7 +902,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     // this event signifies a beginning of an operation that can end on a
     // different cpu, we could conclude that the operation never ends.
     // See b/192586066.
-    if (PERFETTO_UNLIKELY(ts < soft_drop_ftrace_data_before_ts_)) {
+    if (PERFETTO_UNLIKELY(raw_ts < soft_drop_ftrace_data_before_ts_)) {
       return base::OkStatus();
     }
 
@@ -924,10 +937,6 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kKgslGpuFrequencyFieldNumber: {
         ParseKgslGpuFreq(ts, fld_bytes);
-        break;
-      }
-      case FtraceEvent::kKgslAdrenoCmdbatchRetiredFieldNumber: {
-        ParseKgslAdrenoCmdbatchRetired(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCpuIdleFieldNumber: {
@@ -1574,7 +1583,7 @@ base::Status FtraceParser::ParseInlineSchedSwitch(
   if (PERFETTO_UNLIKELY(ts < soft_drop_ftrace_data_before_ts_)) {
     parse_only_into_raw = true;
     if (ts < drop_ftrace_data_before_ts_) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::ftrace_packet_before_tracing_start);
       return base::OkStatus();
     }
@@ -1598,7 +1607,7 @@ base::Status FtraceParser::ParseInlineSchedWaking(
   if (PERFETTO_UNLIKELY(ts < soft_drop_ftrace_data_before_ts_)) {
     parse_only_into_raw = true;
     if (ts < drop_ftrace_data_before_ts_) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::ftrace_packet_before_tracing_start);
       return base::OkStatus();
     }
@@ -1647,18 +1656,6 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
   // the |ftrace_events| table.
   SoftDropFtraceDataBefore soft_drop_before =
       context_->config.soft_drop_ftrace_data_before;
-
-  // TODO(b/344969928): Workaround, can be removed when perfetto v47+ traces are
-  // the norm in Android.
-  base::StringView unique_session_name =
-      context_->metadata_tracker->GetMetadata(metadata::unique_session_name)
-          .value_or(SqlValue::String(""))
-          .AsString();
-  if (unique_session_name ==
-      base::StringView("session_with_lightweight_battery_tracing")) {
-    soft_drop_before = SoftDropFtraceDataBefore::kNoDrop;
-  }
-
   switch (soft_drop_before) {
     case SoftDropFtraceDataBefore::kNoDrop: {
       soft_drop_ftrace_data_before_ts_ = 0;
@@ -1732,7 +1729,8 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
   if (!descriptor) {
     PERFETTO_DLOG("Failed to find descriptor for proto id %" PRIu32 "",
                   event_proto_id);
-    context_->storage->IncrementStats(stats::ftrace_generic_descriptor_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::ftrace_generic_descriptor_errors);
     return;
   }
 
@@ -1751,7 +1749,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
     if (PERFETTO_UNLIKELY(
             (fld.id() >= descriptor->fields.size()) ||
             (descriptor->fields[fld.id()].type == ProtoSchemaType::kUnknown))) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::ftrace_generic_descriptor_errors);
       PERFETTO_DLOG("Skipping unknown generic field with id %" PRIu32 "",
                     fld.id());
@@ -1933,37 +1931,6 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
-void FtraceParser::ParseKgslAdrenoCmdbatchRetired(int64_t timestamp,
-                                                  protozero::ConstBytes data) {
-  protos::pbzero::KgslAdrenoCmdbatchRetiredFtraceEvent::Decoder evt(data);
-
-  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
-      "adreno_gpu_cmdbatch",
-      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("context_id"),
-                                  tracks::UintDimensionBlueprint("prio")),
-      tracks::FnNameBlueprint([](uint32_t context_id, uint32_t prio) {
-        return base::StackString<64>("Adreno GPU Cmdbatch (Ctx=%u, Prio=%u)",
-                                     context_id, prio);
-      }));
-
-  if (evt.retire() < evt.start()) {
-    return;
-  }
-  // Adreno GPU ticks run at 19.2 MHz, fixed across all Qualcomm mobile SoCs
-  // (see KGSL_XO_CLK_FREQ in kgsl_pwrctrl.h).
-  constexpr int64_t kAdrenoGpuTicksPerUs = 19200;
-  const int64_t duration = static_cast<int64_t>((evt.retire() - evt.start()) *
-                                                1000000 / kAdrenoGpuTicksPerUs);
-
-  const uint32_t context_id = evt.id();
-  TrackId track_id = context_->track_compressor->InternScoped(
-      kBlueprint,
-      tracks::Dimensions(context_id, static_cast<uint32_t>(evt.prio())),
-      timestamp, duration);
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  gpu_cmdbatch_slice_name_id_, duration);
-}
-
 void FtraceParser::ParseCpuIdle(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::CpuIdleFtraceEvent::Decoder idle(blob);
   TrackId track = context_->track_tracker->InternTrack(
@@ -2013,7 +1980,7 @@ void FtraceParser::ParseMdssTracingMarkWrite(int64_t timestamp,
                                              ConstBytes blob) {
   protos::pbzero::TracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.has_trace_begin()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 
@@ -2027,7 +1994,7 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
                                             ConstBytes blob) {
   protos::pbzero::SdeTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.has_trace_type() && !evt.has_trace_begin()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 
@@ -2042,7 +2009,7 @@ void FtraceParser::ParseSamsungTracingMarkWrite(int64_t timestamp,
                                                 ConstBytes blob) {
   protos::pbzero::SamsungTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.has_trace_type()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 
@@ -2057,7 +2024,7 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
                                             ConstBytes blob) {
   protos::pbzero::DpuTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 
@@ -2131,7 +2098,7 @@ void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
                                             ConstBytes blob) {
   protos::pbzero::G2dTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 
@@ -2146,7 +2113,7 @@ void FtraceParser::ParseMaliTracingMarkWrite(int64_t timestamp,
                                              ConstBytes blob) {
   protos::pbzero::MaliTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 
@@ -2161,7 +2128,7 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
                                              ConstBytes blob) {
   protos::pbzero::LwisTracingMarkWriteFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 
@@ -2484,7 +2451,7 @@ void FtraceParser::ParseMmEventRecord(int64_t timestamp,
 
   const char* type_str = GetMmEventTypeStr(type);
   if (!type_str) {
-    context_->storage->IncrementStats(stats::mm_unknown_type);
+    context_->stats_tracker->IncrementStats(stats::mm_unknown_type);
     return;
   }
   context_->event_tracker->PushProcessCounterForThread(
@@ -4260,7 +4227,7 @@ void FtraceParser::ParsePanelWriteGeneric(int64_t timestamp,
                                           ConstBytes blob) {
   protos::pbzero::PanelWriteGenericFtraceEvent::Decoder evt(blob);
   if (!evt.type()) {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
     return;
   }
 

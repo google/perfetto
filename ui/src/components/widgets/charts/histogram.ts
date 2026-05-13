@@ -23,6 +23,37 @@ import {
 } from './histogram_loader';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
+import type {ChartThemeColors} from './chart_theme';
+
+const PALETTE_INDEX_KEY = '__pfPaletteIdx';
+
+function resolveBucketColors(
+  option: EChartsCoreOption,
+  colors: ChartThemeColors,
+): EChartsCoreOption {
+  const palette = colors.chartColors;
+  if (palette.length === 0) return option;
+  const series = (option as {series?: ReadonlyArray<Record<string, unknown>>})
+    .series;
+  if (series === undefined) return option;
+  for (const s of series) {
+    const data = s.data as
+      | ReadonlyArray<{itemStyle?: Record<string, unknown>}>
+      | undefined;
+    if (data === undefined) continue;
+    for (const item of data) {
+      const style = item.itemStyle;
+      if (style === undefined) continue;
+      const idx = style[PALETTE_INDEX_KEY];
+      if (typeof idx === 'number') {
+        style.color =
+          palette[((idx % palette.length) + palette.length) % palette.length];
+        delete style[PALETTE_INDEX_KEY];
+      }
+    }
+  }
+  return option;
+}
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
@@ -89,6 +120,19 @@ export interface HistogramAttrs {
   readonly barColor?: string;
 
   /**
+   * Per-bucket color override. Called once per bucket; return an index into
+   * the theme's chart color palette (`chartColors`) to colour that bar, or
+   * undefined to fall back to `barColor`. The index is taken modulo the
+   * palette length, so callers don't need to know how many colors exist.
+   * The NULL bar (when present) is passed `bucket = undefined`. Selection
+   * highlighting still takes precedence over the returned color.
+   */
+  readonly bucketColor?: (
+    bucket: HistogramBucket | undefined,
+    index: number,
+  ) => number | undefined;
+
+  /**
    * Bar hover color. Defaults to theme accent color.
    */
   readonly barHoverColor?: string;
@@ -124,6 +168,7 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
       empty: data !== undefined && !hasData,
       eventHandlers: buildEventHandlers(attrs, data),
       activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
+      resolveOption: resolveBucketColors,
     });
   }
 }
@@ -207,13 +252,23 @@ function buildOption(
 
   // Build per-bar styles, highlighting buckets that overlap the selection.
   const sel = attrs.selection;
+  const {bucketColor} = attrs;
   const styledData = seriesData.map((count, idx) => {
     const item: Record<string, unknown> = {value: count};
-    if (sel !== undefined && idx < data.buckets.length) {
-      const bucket = data.buckets[idx];
-      const overlaps = bucket.end > sel.start && bucket.start < sel.end;
-      if (overlaps) {
-        item.itemStyle = {color: SELECTION_COLOR};
+    const bucket = idx < data.buckets.length ? data.buckets[idx] : undefined;
+    const selected =
+      sel !== undefined &&
+      bucket !== undefined &&
+      bucket.end > sel.start &&
+      bucket.start < sel.end;
+    if (selected) {
+      item.itemStyle = {color: SELECTION_COLOR};
+    } else {
+      const paletteIdx = bucketColor?.(bucket, idx);
+      if (paletteIdx !== undefined) {
+        // Stashed here as a sentinel; resolveBucketColors swaps it for the
+        // real color once the theme palette is known at render time.
+        item.itemStyle = {[PALETTE_INDEX_KEY]: paletteIdx};
       }
     }
     return item;

@@ -309,21 +309,31 @@ class ChromeMetrics(TestSuite):
         query=Path('proto_content_test.sql'),
         out=Path('proto_content.out'))
 
-  # TODO(mayzner): Uncomment when it works
-  # def test_proto_content_path(self):
-  #   return DiffTestBlueprint(
-  #       trace=DataPath('chrome_scroll_without_vsync.pftrace'),
-  #       query=Path('proto_content_path_test.sql'),
-  #       out=Csv("""
-  #       "total_size","field_type","field_name","parent_id","event_category","event_name"
-  #       137426,"TracePacket","[NULL]","[NULL]","[NULL]","[NULL]"
-  #       59475,"TrackEvent","#track_event",415,"[NULL]","[NULL]"
-  #       37903,"TrackEvent","#track_event",17,"[NULL]","[NULL]"
-  #       35904,"int32","#trusted_uid",17,"[NULL]","[NULL]"
-  #       35705,"TracePacket","[NULL]","[NULL]","input,benchmark","LatencyInfo.Flow"
-  #       29403,"TracePacket","[NULL]","[NULL]","cc,input","[NULL]"
-  #       24703,"ChromeLatencyInfo","#chrome_latency_info",18,"[NULL]","[NULL]"
-  #       22620,"uint64","#time_us",26,"[NULL]","[NULL]"
-  #       18711,"TrackEvent","#track_event",1467,"[NULL]","[NULL]"
-  #       15606,"uint64","#timestamp",17,"[NULL]","[NULL]"
-  #       """))
+  def test_proto_content_path(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_scroll_without_vsync.pftrace'),
+        query="""
+        SELECT 
+          content.total_size,
+          frame.field_type, 
+          frame.field_name,
+          EXTRACT_ARG(frame.arg_set_id, 'event.category') AS event_category,
+          EXTRACT_ARG(frame.arg_set_id, 'event.name') AS event_name
+        FROM experimental_proto_path AS frame 
+        JOIN experimental_proto_content AS content ON content.path_id = frame.id
+        ORDER BY total_size DESC, path
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "total_size","field_type","field_name","event_category","event_name"
+        137426,"TracePacket","[NULL]","[NULL]","[NULL]"
+        59475,"TrackEvent","#track_event","[NULL]","[NULL]"
+        37903,"TrackEvent","#track_event","[NULL]","[NULL]"
+        35904,"int32","#trusted_uid","[NULL]","[NULL]"
+        35705,"TracePacket","[NULL]","input,benchmark","LatencyInfo.Flow"
+        29403,"TracePacket","[NULL]","cc,input","[NULL]"
+        24703,"ChromeLatencyInfo","#chrome_latency_info","[NULL]","[NULL]"
+        22620,"uint64","#time_us","[NULL]","[NULL]"
+        18711,"TrackEvent","#track_event","[NULL]","[NULL]"
+        15606,"uint64","#timestamp","[NULL]","[NULL]"
+        """))

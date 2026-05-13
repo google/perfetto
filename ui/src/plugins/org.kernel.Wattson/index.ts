@@ -215,12 +215,14 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
   const result = await engine.query(`
     INCLUDE PERFETTO MODULE android.gpu.frequency;
     INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
+    INCLUDE PERFETTO MODULE wattson.curves.utils;
     SELECT
       EXISTS (SELECT 1 FROM android_gpu_frequency) as freq,
-      EXISTS (SELECT 1 FROM _gpu_power_state) as idle
+      EXISTS (SELECT 1 FROM _gpu_power_state) as idle,
+      EXISTS (SELECT 1 FROM _gpu_filtered_curves) as has_curves
   `);
-  const row = result.firstRow({freq: NUM, idle: NUM});
-  return !!row.freq && !!row.idle;
+  const row = result.firstRow({freq: NUM, idle: NUM, has_curves: NUM});
+  return !!row.freq && !!row.idle && !!row.has_curves;
 }
 
 async function hasWattsonTpuSupport(engine: Engine): Promise<boolean> {

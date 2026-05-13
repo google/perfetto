@@ -313,6 +313,16 @@ void ConsumerEndpointImpl::QueryServiceState(
     producer->set_uid(static_cast<int32_t>(kv.second->uid()));
     producer->set_pid(static_cast<int32_t>(kv.second->pid()));
     producer->set_frozen(kv.second->IsAndroidProcessFrozen());
+    // We only surface machine info for non-host producers (those connected
+    // through traced_relay). The IPC layer fills in machine_name with the
+    // host's sysname for every locally-connected producer too, so guarding on
+    // machine_id is what tells host vs. relay apart.
+    if (kv.second->client_identity().has_non_default_machine_id()) {
+      producer->set_machine_id(kv.second->client_identity().machine_id());
+      if (!kv.second->machine_name_.empty()) {
+        producer->set_machine_name(kv.second->machine_name_);
+      }
+    }
   }
 
   for (const auto& kv : service_->data_sources_) {

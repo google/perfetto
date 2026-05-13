@@ -285,6 +285,76 @@ EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
                 'The id of the slice which this row originated from.',
         }))
 
+STDLIB_DOCS_MODULES_TABLE = Table(
+    python_module=__file__,
+    class_name="StdlibDocsModulesTable",
+    sql_name="__intrinsic_stdlib_modules",
+    columns=[
+        C("module", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("package", CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+    ],
+)
+
+STDLIB_DOCS_TABLES_TABLE = Table(
+    python_module=__file__,
+    class_name="StdlibDocsTablesTable",
+    sql_name="not_exposed_to_sql",
+    columns=[
+        C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("type", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("description",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("exposed", CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("cols", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+    ],
+)
+
+STDLIB_DOCS_FUNCTIONS_TABLE = Table(
+    python_module=__file__,
+    class_name="StdlibDocsFunctionsTable",
+    sql_name="not_exposed_to_sql",
+    columns=[
+        C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("description",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("exposed", CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("is_table_function",
+          CppInt64(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("return_type",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("return_description",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("args", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("cols", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+    ],
+)
+
+STDLIB_DOCS_MACROS_TABLE = Table(
+    python_module=__file__,
+    class_name="StdlibDocsMacrosTable",
+    sql_name="not_exposed_to_sql",
+    columns=[
+        C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("description",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("exposed", CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("return_type",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("return_description",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("args", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+    ],
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANCESTOR_STACK_PROFILE_CALLSITE_TABLE,
@@ -296,6 +366,10 @@ ALL_TABLES = [
     EXPERIMENTAL_FLAT_SLICE_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
     SLICE_SUBSET_TABLE,
+    STDLIB_DOCS_FUNCTIONS_TABLE,
+    STDLIB_DOCS_MACROS_TABLE,
+    STDLIB_DOCS_MODULES_TABLE,
+    STDLIB_DOCS_TABLES_TABLE,
     SURFACE_FLINGER_HIERARCHY_PATH_TABLE,
     TABLE_INFO_TABLE,
 ]

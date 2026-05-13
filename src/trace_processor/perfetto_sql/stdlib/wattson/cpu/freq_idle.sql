@@ -31,19 +31,16 @@ INCLUDE PERFETTO MODULE wattson.utils;
 CREATE PERFETTO TABLE _valid_window AS
 WITH
   window_start AS (
-    SELECT
-      ts AS start_ts
+    SELECT ts AS start_ts
     FROM _adjusted_cpu_freq
     WHERE
-      cpu = 0 AND freq IS NOT NULL
+      cpu = 0
+      AND freq IS NOT NULL
     ORDER BY
-      ts ASC
+      ts
     LIMIT 1
   )
-SELECT
-  start_ts AS ts,
-  trace_end() - start_ts AS dur,
-  cpu
+SELECT start_ts AS ts, trace_end() - start_ts AS dur, cpu
 FROM window_start
 CROSS JOIN _dev_cpu_policy_map;
 
@@ -58,18 +55,10 @@ SELECT
   -- Set idle since subsequent calculations are based on number of idle/active
   -- CPUs. If offline/suspended, set the CPU to the device specific deepest idle
   -- state.
-  iif(
-    suspend.suspended OR hotplug.offline,
-    (
-      SELECT
-        idle
-      FROM _deepest_idle
-    ),
-    idle.idle
-  ) AS idle,
+  iif(suspend.suspended OR hotplug.offline, deepest.idle, idle.idle) AS idle,
   -- If CPU is suspended or offline, set power estimate to 0
   iif(suspend.suspended OR hotplug.offline, 0, lut.curve_value) AS curve_value,
-  iif(suspend.suspended OR hotplug.offline, 0, lut.static) AS static
+  lut.static
 FROM _interval_intersect!(
   (
     _ii_subquery!(_valid_window),
@@ -90,4 +79,7 @@ JOIN _gapless_suspend_slices AS suspend
   ON suspend._auto_id = id_4
 -- Left join since some CPUs may only match the 2D LUT
 LEFT JOIN _filtered_curves_1d AS lut
-  ON freq.policy = lut.policy AND freq.freq = lut.freq_khz AND idle.idle = lut.idle;
+  ON freq.policy = lut.policy
+  AND freq.freq = lut.freq_khz
+  AND idle.idle = lut.idle
+CROSS JOIN _deepest_idle AS deepest;

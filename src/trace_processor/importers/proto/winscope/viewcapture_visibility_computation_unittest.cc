@@ -38,50 +38,96 @@ std::unordered_map<int32_t, bool> ComputeVisibility(
 }  // namespace
 
 TEST(ViewCaptureVisibilityComputation, RootNodeVisible) {
-  const auto snapshot = SnapshotProtoBuilder()
-                            .AddView(View().SetVisibility(0).SetParentId(-1))
-                            .Build();
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(
+              View().SetVisibility(0).SetHeight(1).SetWidth(1).SetParentId(-1))
+          .Build();
 
   auto result = ComputeVisibility(snapshot);
   ASSERT_TRUE(result.at(0));
 }
 
 TEST(ViewCaptureVisibilityComputation, ChildNodeVisible) {
-  const auto snapshot = SnapshotProtoBuilder()
-                            .AddView(View().SetVisibility(0).SetParentId(-1))
-                            .AddView(View().SetVisibility(0).SetParentId(0))
-                            .Build();
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(
+              View().SetVisibility(0).SetHeight(1).SetWidth(1).SetParentId(-1))
+          .AddView(
+              View().SetVisibility(0).SetHeight(1).SetWidth(1).SetParentId(0))
+          .Build();
 
   auto result = ComputeVisibility(snapshot);
   ASSERT_TRUE(result.at(0));
   ASSERT_TRUE(result.at(1));
 }
 
-TEST(ViewCaptureVisibilityComputation, RootNodeNotVisible) {
-  const auto snapshot = SnapshotProtoBuilder()
-                            .AddView(View().SetVisibility(4).SetParentId(-1))
-                            .Build();
+TEST(ViewCaptureVisibilityComputation, RootNodeNotVisibleDueToVisibility) {
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(
+              View().SetVisibility(4).SetHeight(1).SetWidth(1).SetParentId(-1))
+          .Build();
+
+  auto result = ComputeVisibility(snapshot);
+  ASSERT_FALSE(result.at(0));
+}
+
+TEST(ViewCaptureVisibilityComputation, RootNodeVisibleDueToZeroWidth) {
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(View().SetVisibility(0).SetWidth(1).SetParentId(-1))
+          .Build();
+
+  auto result = ComputeVisibility(snapshot);
+  ASSERT_FALSE(result.at(0));
+}
+
+TEST(ViewCaptureVisibilityComputation, RootNodeVisibleDueToZeroHeight) {
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(View().SetVisibility(0).SetHeight(1).SetParentId(-1))
+          .Build();
 
   auto result = ComputeVisibility(snapshot);
   ASSERT_FALSE(result.at(0));
 }
 
 TEST(ViewCaptureVisibilityComputation, ChildNodeNotVisibleDueToParent) {
-  const auto snapshot = SnapshotProtoBuilder()
-                            .AddView(View().SetVisibility(4).SetParentId(-1))
-                            .AddView(View().SetVisibility(0).SetParentId(0))
-                            .Build();
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(
+              View().SetVisibility(4).SetHeight(1).SetWidth(1).SetParentId(-1))
+          .AddView(
+              View().SetVisibility(0).SetHeight(1).SetWidth(1).SetParentId(0))
+          .Build();
 
   auto result = ComputeVisibility(snapshot);
   ASSERT_FALSE(result.at(0));
   ASSERT_FALSE(result.at(1));
 }
 
+TEST(ViewCaptureVisibilityComputation, ChildNodeVisibleWithZeroSizeParent) {
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(View().SetVisibility(0).SetParentId(-1))
+          .AddView(
+              View().SetVisibility(0).SetHeight(1).SetWidth(1).SetParentId(0))
+          .Build();
+
+  auto result = ComputeVisibility(snapshot);
+  ASSERT_FALSE(result.at(0));
+  ASSERT_TRUE(result.at(1));
+}
+
 TEST(ViewCaptureVisibilityComputation, ChildNodeNotVisibleButParentVisible) {
-  const auto snapshot = SnapshotProtoBuilder()
-                            .AddView(View().SetVisibility(0).SetParentId(-1))
-                            .AddView(View().SetVisibility(4).SetParentId(0))
-                            .Build();
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddView(
+              View().SetVisibility(0).SetHeight(1).SetWidth(1).SetParentId(-1))
+          .AddView(
+              View().SetVisibility(4).SetHeight(1).SetWidth(1).SetParentId(0))
+          .Build();
 
   auto result = ComputeVisibility(snapshot);
   ASSERT_TRUE(result.at(0));

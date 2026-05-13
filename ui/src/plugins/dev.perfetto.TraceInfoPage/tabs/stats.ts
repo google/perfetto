@@ -45,9 +45,11 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
       cast(ifnull(idx, '') as text) as idx,
       description,
       severity,
-      source
+      source,
+      machine_id as machineId,
+      trace_id as traceId
     from stats
-    order by name, idx
+    order by trace_id, machine_id, name, idx
   `);
   const allStats: StatsSectionRow[] = [];
   for (const iter = allStatsResult.iter(statsSpec); iter.valid(); iter.next()) {
@@ -58,6 +60,8 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
       idx: iter.idx,
       severity: iter.severity,
       source: iter.source,
+      machineId: iter.machineId,
+      traceId: iter.traceId,
     });
   }
 
@@ -117,6 +121,18 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
     });
   }
 
+  // Ensure every machine_id / trace_id observed in the stats rows is
+  // covered when deciding whether to show the per-machine/per-trace
+  // columns — the metadata table alone may not have seen all of them.
+  for (const stat of allStats) {
+    if (stat.machineId !== null) {
+      machineIds.add(stat.machineId);
+    }
+    if (stat.traceId !== null) {
+      traceIds.add(stat.traceId);
+    }
+  }
+
   return {
     traceMetadata,
     allStats,
@@ -152,7 +168,11 @@ export class StatsTab implements m.ClassComponent<StatsTabAttrs> {
           subtitle:
             'Complete dump of all trace statistics including errors, data losses, and debugging info',
         },
-        m(StatsSection, {data: attrs.data.allStats}),
+        m(StatsSection, {
+          data: attrs.data.allStats,
+          isMultiTrace: attrs.data.isMultiTrace,
+          isMultiMachine: attrs.data.isMultiMachine,
+        }),
       ),
     );
   }
@@ -225,6 +245,8 @@ class TraceMetadata implements m.ClassComponent<TraceMetadataAttrs> {
 // Stats Section
 interface StatsSectionAttrs {
   data: StatsSectionRow[];
+  isMultiTrace: boolean;
+  isMultiMachine: boolean;
 }
 
 class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
@@ -257,8 +279,24 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
         );
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
-      return m(
-        'tr.pf-trace-info-page__stats-table-row',
+      const cells = [];
+      if (attrs.isMultiTrace) {
+        cells.push(
+          m(
+            'td.pf-trace-info-page__stats-table-cell',
+            row.traceId === null ? '-' : row.traceId,
+          ),
+        );
+      }
+      if (attrs.isMultiMachine) {
+        cells.push(
+          m(
+            'td.pf-trace-info-page__stats-table-cell',
+            row.machineId === null ? '-' : row.machineId,
+          ),
+        );
+      }
+      cells.push(
         m(
           'td.pf-trace-info-page__stats-table-cell.pf-trace-info-page__stats-table-cell--name',
           `${row.name}${idx}`,
@@ -270,7 +308,25 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
           `${row.severity} (${row.source})`,
         ),
       );
+      return m('tr.pf-trace-info-page__stats-table-row', cells);
     });
+
+    const headerCols = [];
+    if (attrs.isMultiTrace) {
+      headerCols.push(
+        m('td.pf-trace-info-page__stats-table-head-cell', 'Trace'),
+      );
+    }
+    if (attrs.isMultiMachine) {
+      headerCols.push(
+        m('td.pf-trace-info-page__stats-table-head-cell', 'Machine'),
+      );
+    }
+    headerCols.push(
+      m('td.pf-trace-info-page__stats-table-head-cell', 'Name'),
+      m('td.pf-trace-info-page__stats-table-head-cell', 'Value'),
+      m('td.pf-trace-info-page__stats-table-head-cell', 'Type'),
+    );
 
     return m(
       'section.pf-trace-info-page__stats-section',
@@ -283,15 +339,7 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
       }),
       m(
         'table.pf-trace-info-page__stats-table',
-        m(
-          'thead',
-          m(
-            'tr',
-            m('td.pf-trace-info-page__stats-table-head-cell', 'Name'),
-            m('td.pf-trace-info-page__stats-table-head-cell', 'Value'),
-            m('td.pf-trace-info-page__stats-table-head-cell', 'Type'),
-          ),
-        ),
+        m('thead', m('tr', headerCols)),
         m('tbody', tableRows),
       ),
     );

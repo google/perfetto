@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
@@ -140,7 +141,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
           mapping->InternDummyFrame(symbol_name, base::StringView()));
     }
     if (frames.empty()) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::perf_text_importer_sample_no_frames);
       reader_.PopFrontUntil(it.file_offset());
       continue;

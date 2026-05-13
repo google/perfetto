@@ -30,17 +30,20 @@ VisibilityComputation::VisibilityComputation(
 
 std::unordered_map<int32_t, bool> VisibilityComputation::Compute() {
   std::unordered_map<int32_t, bool> computed_visibility;
+  std::unordered_map<int32_t, bool> visibility_flag_set;
   for (auto it = views_top_to_bottom_.begin(); it != views_top_to_bottom_.end();
        it++) {
     const auto& view = *it;
     auto node_id = view.id();
-    auto is_visible = view.visibility() == IS_VISIBLE;
 
-    auto parent = computed_visibility.find(view.parent_id());
-    if (is_visible && parent != computed_visibility.end()) {
-      is_visible = parent->second;
+    auto visibility_set = view.visibility() == IS_VISIBLE;
+    auto parent = visibility_flag_set.find(view.parent_id());
+    if (visibility_set && parent != visibility_flag_set.end()) {
+      visibility_set = parent->second;
     }
+    visibility_flag_set[node_id] = visibility_set;
 
+    auto is_visible = visibility_set && view.width() > 0 && view.height() > 0;
     computed_visibility[node_id] = is_visible;
   }
   return computed_visibility;

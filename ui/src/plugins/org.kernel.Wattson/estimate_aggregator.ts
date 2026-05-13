@@ -19,7 +19,7 @@ import {Aggregator} from '../../components/aggregation_adapter';
 import {Area, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {SqlValue} from '../../trace_processor/query_result';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
@@ -67,7 +67,9 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
 
       CREATE PERFETTO VIEW ${this.id} AS
       WITH window_stats AS (
-        SELECT * FROM _windowed_system_state_mw(${area.start}, ${duration})
+        SELECT * FROM _wattson_base_components_avg_mw!(
+          (SELECT ${area.start} AS ts, ${duration} AS dur, 0 AS period_id)
+        )
       )
     `;
 
@@ -91,14 +93,20 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
   }
 
   renderTopbarControls(): m.Children {
-    return m(SegmentedButtons, {
-      options: [{label: 'µW'}, {label: 'mW'}],
-      selectedOption: this.scaleNumericData ? 0 : 1,
-      onOptionSelected: (index) => {
-        this.scaleNumericData = index === 0;
+    return m(
+      RadioGroup,
+      {
+        selectedValue: this.scaleNumericData ? 'uw' : 'mw',
+        onValueChange: (value) => {
+          this.scaleNumericData = value === 'uw';
+        },
+        title: 'Select power units',
       },
-      title: 'Select power units',
-    });
+      [
+        m(RadioGroup.Button, {value: 'uw'}, 'µW'),
+        m(RadioGroup.Button, {value: 'mw'}, 'mW'),
+      ],
+    );
   }
 
   private powerUnits(): string {

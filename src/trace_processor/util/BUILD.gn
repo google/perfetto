@@ -14,6 +14,7 @@
 
 import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_cc_proto_descriptor.gni")
+import("../../../gn/perfetto_component.gni")
 
 # Track event args parsing logic here is tentatitively planned to eventually
 # move to src/util and will be used to implement writing typed args in console
@@ -32,6 +33,20 @@ source_set("sql_bundle") {
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
   ]
+}
+
+if (enable_perfetto_trace_processor_sqlite) {
+  source_set("sql_module_doc_parser") {
+    sources = [
+      "sql_module_doc_parser.cc",
+      "sql_module_doc_parser.h",
+    ]
+    deps = [
+      "../../../gn:default_deps",
+      "../../base",
+      "../perfetto_sql/syntaqlite",
+    ]
+  }
 }
 
 source_set("bump_allocator") {
@@ -61,7 +76,7 @@ source_set("gzip") {
   }
 }
 
-source_set("build_id") {
+perfetto_component("build_id") {
   sources = [
     "build_id.cc",
     "build_id.h",
@@ -104,6 +119,7 @@ source_set("profiler_util") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
     "../../../protos/perfetto/trace/profiling:zero",
+    "../importers/common:stats_tracker",
     "../storage:storage",
   ]
 }
@@ -489,6 +505,10 @@ source_set("unittests") {
   if (enable_perfetto_zlib) {
     sources += [ "gzip_utils_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]
+  }
+  if (enable_perfetto_trace_processor_sqlite) {
+    sources += [ "sql_module_doc_parser_unittest.cc" ]
+    deps += [ ":sql_module_doc_parser" ]
   }
 }
 

@@ -15,6 +15,7 @@
  */
 
 #include "src/traced/probes/android_log/android_log_data_source.h"
+#include <cstdlib>
 #include <optional>
 
 #include "perfetto/base/logging.h"

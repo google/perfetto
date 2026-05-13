@@ -60,7 +60,7 @@ where name = 'android_aflags_errors'
 
 name | severity | source | value | description
 -----|----------|--------|-------|------------
-android_aflags_errors | error | trace | 1 | Errors occurred during the collection of Android aconfig flags by the android.aflags data source. This typically happens if the aflags tool fails or its output is malformed.
+android_aflags_errors | info | trace | 1 | Errors occurred during the collection of Android aconfig flags by the android.aflags data source. This typically happens if the aflags tool fails or its output is malformed.
 
 ### TraceConfig
 

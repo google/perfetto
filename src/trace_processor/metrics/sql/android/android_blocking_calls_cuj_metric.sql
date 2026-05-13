@@ -18,6 +18,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+INCLUDE PERFETTO MODULE android.render_thread;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
 -- We have:
@@ -29,8 +30,8 @@ INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 --      slice, there needs to be 2 entries for that slice, one for each cuj id.
 --  (2) each slice needs to be trimmed to be fully inside the cuj associated
 --      (as we don't care about what's outside cujs)
-DROP TABLE IF EXISTS main_thread_slices_scoped_to_cujs;
-CREATE PERFETTO TABLE main_thread_slices_scoped_to_cujs AS
+DROP TABLE IF EXISTS blocking_call_slices_scoped_to_cujs;
+CREATE PERFETTO TABLE blocking_call_slices_scoped_to_cujs AS
 SELECT
     s.id,
     s.id AS slice_id,
@@ -49,8 +50,9 @@ FROM _android_critical_blocking_calls s
     ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
         -- and are from the same process
         AND s.upid = cuj.upid
-        -- from the CUJ ui thread only
-        AND s.utid = cuj.ui_thread;
+    LEFT JOIN _render_thread_per_process rt
+        ON rt.upid = cuj.upid
+    WHERE s.utid = cuj.ui_thread OR s.utid = rt.render_thread_utid;
 
 
 DROP TABLE IF EXISTS android_blocking_calls_cuj_calls;
@@ -66,7 +68,7 @@ SELECT
     cuj_name,
     process_name
 FROM
-    main_thread_slices_scoped_to_cujs
+    blocking_call_slices_scoped_to_cujs
 GROUP BY name, upid, cuj_id, cuj_name, process_name
 ORDER BY cuj_id;
 

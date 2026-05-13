@@ -27,7 +27,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 
@@ -76,8 +76,8 @@ std::vector<TableInfoTable::Row> GetColInfoRows(const dataframe::Dataframe* df,
 }  // namespace
 
 TableInfo::Cursor::Cursor(StringPool* string_pool,
-                          const PerfettoSqlEngine* engine)
-    : string_pool_(string_pool), engine_(engine), table_(string_pool) {}
+                          const PerfettoSqlConnection* connection)
+    : string_pool_(string_pool), engine_(connection), table_(string_pool) {}
 
 bool TableInfo::Cursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 1);
@@ -103,8 +103,9 @@ bool TableInfo::Cursor::Run(const std::vector<SqlValue>& arguments) {
                                    table_name_str.c_str()));
 }
 
-TableInfo::TableInfo(StringPool* string_pool, const PerfettoSqlEngine* engine)
-    : string_pool_(string_pool), engine_(engine) {}
+TableInfo::TableInfo(StringPool* string_pool,
+                     const PerfettoSqlConnection* connection)
+    : string_pool_(string_pool), engine_(connection) {}
 
 std::unique_ptr<StaticTableFunction::Cursor> TableInfo::MakeCursor() {
   return std::make_unique<Cursor>(string_pool_, engine_);

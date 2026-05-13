@@ -86,13 +86,11 @@ SELECT TraceMetadata(
     SELECT COUNT() FROM android_suspend_state WHERE power_state = 'suspended'
   ),
   'data_loss_count', (
-      SELECT COUNT()
-      FROM stats
+      SELECT COUNT() FROM stats
       WHERE severity = 'data_loss' AND value > 0
   ),
   'error_count', (
-      SELECT COUNT()
-      FROM stats
+      SELECT COUNT() FROM stats
       WHERE severity = 'error' AND value > 0
   )
 );

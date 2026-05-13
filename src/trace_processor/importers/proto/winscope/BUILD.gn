@@ -109,12 +109,14 @@ perfetto_unittest_source_set("unittests") {
     "../../../../../protos/perfetto/trace/android:winscope_extensions_zero",
     "../../../../../protos/perfetto/trace/android:winscope_regular_cpp",
     "../../../../../src/protozero",
+    "../../common",
   ]
   sources = [
     "surfaceflinger_layers_extractor_unittest.cc",
     "surfaceflinger_layers_test_utils.h",
     "surfaceflinger_layers_utils_unittest.cc",
     "surfaceflinger_layers_visibility_computation_unittest.cc",
+    "test/protolog_message_decoder_unittest.cc",
     "test/windowmanager_hierarchy_walker_unittest.cc",
     "test/windowmanager_sample_protos.h",
     "viewcapture_test_utils.h",

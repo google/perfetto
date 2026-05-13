@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -68,7 +69,8 @@ InternedMessageView* IncrementalState::GetInternedMessageView(uint32_t field_id,
       return &it->second;
     }
   }
-  context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+  context_->stats_tracker->IncrementStats(
+      stats::interned_data_tokenizer_errors);
   return nullptr;
 }
 
@@ -83,7 +85,8 @@ void IncrementalState::InternMessage(uint32_t field_id, TraceBlobView message) {
   auto field = decoder.FindField(kIidFieldNumber);
   if (PERFETTO_UNLIKELY(!field)) {
     PERFETTO_DLOG("Interned message without interning_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::interned_data_tokenizer_errors);
     return;
   }
   iid = field.as_uint64();

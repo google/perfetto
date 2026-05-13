@@ -26,6 +26,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/v8_sequence_state.h"
@@ -129,18 +130,18 @@ std::optional<uint32_t> V8Module::GetDefaultTid(
     PacketSequenceStateGeneration& generation) const {
   auto* tp_defaults = generation.GetTracePacketDefaults();
   if (!tp_defaults) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->stats_tracker->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
   if (!tp_defaults->has_v8_code_defaults()) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->stats_tracker->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
 
   V8CodeDefaults::Decoder v8_defaults(tp_defaults->v8_code_defaults());
 
   if (!v8_defaults.has_tid()) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->stats_tracker->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
 
