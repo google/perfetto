@@ -17,7 +17,7 @@ import {featureFlags} from '../core/feature_flags';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {TaskStatus} from './task_status';
-import {App} from '../public/app';
+import type {App} from '../public/app';
 
 const SHOW_TASK_TRACKER_FLAG = featureFlags.register({
   id: 'showTaskTracker',

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
-import {Engine} from 'src/trace_processor/engine';
+import type {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
+import type {Engine} from 'src/trace_processor/engine';
 import {z} from 'zod';
 import {runQueryForMcp} from './query';
 

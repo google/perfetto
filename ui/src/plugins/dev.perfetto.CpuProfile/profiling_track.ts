@@ -16,20 +16,20 @@ import m from 'mithril';
 import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {Time, time} from '../../base/time';
+import {Time, type time} from '../../base/time';
 import {
   Flamegraph,
-  FlamegraphState,
+  type FlamegraphState,
   FLAMEGRAPH_STATE_SCHEMA,
 } from '../../widgets/flamegraph';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {SourceDataset} from '../../trace_processor/dataset';
+import type {SourceDataset} from '../../trace_processor/dataset';
 
 /**
  * Configuration for creating a profiling track (CPU profile, perf samples, etc)

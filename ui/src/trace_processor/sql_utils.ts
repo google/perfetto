@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SortDirection} from '../base/comparison_utils';
+import type {SortDirection} from '../base/comparison_utils';
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
-import {Engine} from './engine';
-import {SqlValue} from './query_result';
+import type {Engine} from './engine';
+import type {SqlValue} from './query_result';
 
 export interface OrderClause {
   fieldName: string;

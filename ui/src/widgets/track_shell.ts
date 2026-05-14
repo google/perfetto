@@ -15,13 +15,13 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {currentTargetOffset} from '../base/dom_utils';
-import {Bounds2D, Point2D, Vector2D} from '../base/geom';
+import type {Bounds2D, Point2D, Vector2D} from '../base/geom';
 import {clamp} from '../base/math_utils';
-import {hasChildren, MithrilEvent} from '../base/mithril_utils';
+import {hasChildren, type MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {Button, ButtonBar, ButtonVariant} from './button';
 import {Chip} from './chip';
-import {HTMLAttrs, Intent} from './common';
+import {type HTMLAttrs, Intent} from './common';
 import {Popup} from './popup';
 import {Stack} from './stack';
 

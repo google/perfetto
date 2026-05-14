@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {Engine} from '../../trace_processor/engine';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {Engine} from '../../trace_processor/engine';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {EVENT_LATENCY_TRACK} from './tracks';
 

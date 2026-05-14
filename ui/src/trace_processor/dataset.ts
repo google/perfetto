@@ -14,7 +14,13 @@
 
 import {assertUnreachable} from '../base/assert';
 import {getOrCreate} from '../base/utils';
-import {checkExtends, NUM, SqlValue, unionTypes, UNKNOWN} from './query_result';
+import {
+  checkExtends,
+  NUM,
+  type SqlValue,
+  unionTypes,
+  UNKNOWN,
+} from './query_result';
 import {sqlValueToSqliteString} from './sql_utils';
 
 /**

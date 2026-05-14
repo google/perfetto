@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {Result} from '../../../base/result';
+import type m from 'mithril';
+import type {Result} from '../../../base/result';
 
 export interface WithPreflightChecks {
   /**

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {WidgetsPage} from './widgets_page';
 
 export default class implements PerfettoPlugin {

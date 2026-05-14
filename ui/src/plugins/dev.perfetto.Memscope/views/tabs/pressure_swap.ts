@@ -18,7 +18,7 @@ import {
   type LineChartData,
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
-import {LiveSession, type SnapshotData} from '../../sessions/live_session';
+import type {LiveSession, SnapshotData} from '../../sessions/live_session';
 import {
   counterPoints,
   formatKb,

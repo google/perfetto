@@ -12,13 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import protos from '../../../../protos';
-import m from 'mithril';
+import {
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
+import type protos from '../../../../protos';
+import type m from 'mithril';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';

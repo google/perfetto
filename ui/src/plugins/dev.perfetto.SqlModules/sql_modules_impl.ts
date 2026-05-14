@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {
+import type {
   SqlModules,
   SqlColumn,
   SqlFunction,
@@ -24,12 +24,12 @@ import {
   SqlTable,
   SqlTableFunction,
 } from './sql_modules';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
-import {Trace} from '../../public/trace';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {TableColumn} from '../../components/widgets/sql/table/table_column';
+import type {Trace} from '../../public/trace';
 import {
   parsePerfettoSqlTypeFromString,
-  PerfettoSqlType,
+  type PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
 import {unwrapResult} from '../../base/result';
 import {createTableColumn} from '../../components/widgets/sql/table/columns';

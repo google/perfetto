@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 
 /**

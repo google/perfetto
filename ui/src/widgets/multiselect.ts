@@ -19,7 +19,7 @@ import {Checkbox} from './checkbox';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
 import {TextInput} from './text_input';
-import {Intent} from './common';
+import type {Intent} from './common';
 
 export interface MultiSelectOption {
   // The ID is used to indentify this option, and is used in callbacks.

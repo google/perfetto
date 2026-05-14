@@ -15,24 +15,24 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {Duration} from '../../base/time';
-import {BarChartData} from '../../components/aggregation';
+import type {BarChartData} from '../../components/aggregation';
 import {
-  AggregatePivotModel,
-  Aggregation,
-  Aggregator,
+  type AggregatePivotModel,
+  type Aggregation,
+  type Aggregator,
   createIITable,
 } from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {Track} from '../../public/track';
+import type {AreaSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {Track} from '../../public/track';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {
-  Dataset,
-  DatasetSchema,
+  type Dataset,
+  type DatasetSchema,
   SourceDataset,
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,

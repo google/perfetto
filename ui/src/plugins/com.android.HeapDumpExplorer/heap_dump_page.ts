@@ -22,7 +22,7 @@ import type {TabsTab} from '../../widgets/tabs';
 import {formatDuration} from '../../components/time_utils';
 import type {NavState, NavView} from './nav_state';
 import type {OverviewData} from './types';
-import * as queries from './queries';
+import type * as queries from './queries';
 import OverviewView from './views/overview_view';
 import DominatorsView from './views/dominators_view';
 import ObjectView from './views/object_view';

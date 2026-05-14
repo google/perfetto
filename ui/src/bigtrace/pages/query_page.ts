@@ -17,7 +17,7 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
 import {Editor} from '../../widgets/editor';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {
+import type {
   SchemaRegistry,
   ColumnSchema,
 } from '../../components/widgets/datagrid/datagrid_schema';
@@ -30,20 +30,20 @@ import {Box} from '../../widgets/box';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
+import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import {queryHistoryStorage} from '../query/query_history_storage';
 import {QueryHistoryComponent} from '../query/query_history';
 import {sqlTablesLoader} from '../query/sql_tables';
 import {TableList} from '../query/table_list';
 import {Spinner} from '../../widgets/spinner';
-import {SettingFilter} from '../settings/settings_types';
+import type {SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {endpointStorage} from '../settings/endpoint_storage';
 import {HttpDataSource} from '../query/http_data_source';
-import {Tabs, TabsTab} from '../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {linkify} from '../../widgets/anchor';
 import {shortUuid} from '../../base/uuid';
-import {Row as DataGridRow} from '../../trace_processor/query_result';
+import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import {debounce} from '../../base/rate_limiters';
 
 interface QueryResponse {

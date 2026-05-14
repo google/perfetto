@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
-import {App} from '../../public/app';
+import type {App} from '../../public/app';
 import {renderAccordion} from './demos/accordion_demo';
 import {anchor} from './demos/anchor_demo';
 import {renderButtonDemo} from './demos/button_demo';

@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {App} from '../../../public/app';
+import type {App} from '../../../public/app';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {RadioGroup} from '../../../widgets/radio_group';
 import {GateDetector} from '../../../base/mithril_utils';
-import {LiveSession} from '../sessions/live_session';
+import type {LiveSession} from '../sessions/live_session';
 import {ProcessesTab} from './tabs/processes';
 import {renderSystemTab} from './tabs/system';
 import {renderPageCacheTab} from './tabs/page_cache';

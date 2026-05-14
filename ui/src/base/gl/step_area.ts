@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Transform2D} from '../geom';
-import {StepAreaBuffers} from '../renderer';
+import type {Transform2D} from '../geom';
+import type {StepAreaBuffers} from '../renderer';
 import {createBuffer, createProgram, getUniformLocation} from './gl';
 
 // Static quad geometry shared by all step area batches

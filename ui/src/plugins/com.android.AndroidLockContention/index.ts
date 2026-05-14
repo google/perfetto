@@ -15,7 +15,7 @@
 import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 import {LockOwnerDetailsPanel} from './lock_owner_details_panel';
 import {LOCK_CONTENTION_SQL} from './lock_contention_sql';
-import {Selection} from '../../public/selection';
+import type {Selection} from '../../public/selection';
 import {Time} from '../../base/time';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -26,7 +26,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {HSLColor} from '../../base/color';
-import {ArrowConnection} from '../../components/related_events/arrow_visualiser';
+import type {ArrowConnection} from '../../components/related_events/arrow_visualiser';
 import {
   getTrackUriForTrackId,
   enrichDepths,
@@ -35,8 +35,8 @@ import {
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
 
 export default class AndroidLockContentionPlugin implements PerfettoPlugin {

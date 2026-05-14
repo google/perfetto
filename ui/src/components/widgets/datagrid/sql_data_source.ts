@@ -14,18 +14,22 @@
 
 import {assertUnreachable} from '../../../base/assert';
 import {
-  QueryResult,
+  type QueryResult,
   QuerySlot,
   SerialTaskQueue,
 } from '../../../base/query_slot';
 import {maybeUndefined} from '../../../base/utils';
 import {shortUuid} from '../../../base/uuid';
-import {Engine} from '../../../trace_processor/engine';
-import {Row, SqlValue, UNKNOWN} from '../../../trace_processor/query_result';
-import {DataSource, DataSourceModel, DataSourceRows} from './data_source';
+import type {Engine} from '../../../trace_processor/engine';
+import {
+  type Row,
+  type SqlValue,
+  UNKNOWN,
+} from '../../../trace_processor/query_result';
+import type {DataSource, DataSourceModel, DataSourceRows} from './data_source';
 import {
   isSQLExpressionDef,
-  SQLSchemaRegistry,
+  type SQLSchemaRegistry,
   SQLSchemaResolver,
 } from './sql_schema';
 import {SQLDataSourceFlat} from './sql_data_source/flat';

@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import {addWattsonThreadTrack} from './wattson_thread_utils';
-import {App} from '../../public/app';
+import type {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
-import {RouteArgs} from '../../public/route_schema';
+import type {RouteArgs} from '../../public/route_schema';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {
   WattsonCpuPackageSelectionAggregator,

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLInputAttrs} from './common';
+import type {HTMLInputAttrs} from './common';
 import {Icon} from './icon'; // Import Icon component
 
 export type TextInputAttrs = HTMLInputAttrs & {

@@ -51,7 +51,7 @@
  */
 
 import m from 'mithril';
-import {HTMLAttrs, Intent} from './common';
+import {type HTMLAttrs, Intent} from './common';
 import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
 import {EmptyState} from './empty_state';

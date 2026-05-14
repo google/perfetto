@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {HTMLCheckboxAttrs} from './common';
+import type {HTMLCheckboxAttrs} from './common';
 
 export interface CheckboxAttrs extends HTMLCheckboxAttrs {
   // Optional text to show to the right of the checkbox.

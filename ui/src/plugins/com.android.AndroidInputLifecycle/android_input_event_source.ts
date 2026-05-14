@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {
   LONG_NULL,
   NUM_NULL,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {duration, time, Time, Duration} from '../../base/time';
+import {type duration, type time, Time, Duration} from '../../base/time';
 import {
   getTrackUriForTrackId,
   enrichDepths,
 } from '../../components/related_events/utils';
-import {QuerySlot, QueryResult} from '../../base/query_slot';
+import {QuerySlot, type QueryResult} from '../../base/query_slot';
 
 export interface NavTarget {
   id: number;

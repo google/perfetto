@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Engine} from '../../trace_processor/engine';
-import {SliceTrack, RowSchema} from '../../components/tracks/slice_track';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Engine} from '../../trace_processor/engine';
+import {SliceTrack, type RowSchema} from '../../components/tracks/slice_track';
 import {
   CounterTrack,
-  CounterTrackAttrs,
+  type CounterTrackAttrs,
 } from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import type {SourceDataset} from '../../trace_processor/dataset';
 import {STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {

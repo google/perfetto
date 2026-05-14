@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
+import {createPopper, type Instance, type OptionsGeneric} from '@popperjs/core';
 import m from 'mithril';
-import {MountOptions, Portal, PortalAttrs} from './portal';
+import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {assertExists} from '../base/assert';
 import {PopupPosition} from './popup';
-import {ExtendedModifiers} from './popper_utils';
+import type {ExtendedModifiers} from './popper_utils';
 
 export interface TooltipAttrs {
   // Which side of the trigger to place to tooltip.

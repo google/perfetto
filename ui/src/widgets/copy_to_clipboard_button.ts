@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
 import {ActionButtonHelper} from './action_button_helper';
-import {Button, ButtonVariant} from './button';
+import {Button, type ButtonVariant} from './button';
 import {copyToClipboard} from '../base/clipboard';
 import {isEmptyVnodes} from '../base/mithril_utils';
 

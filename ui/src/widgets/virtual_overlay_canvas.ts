@@ -32,13 +32,13 @@
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {Rect2D, Size2D} from '../base/geom';
+import type {Rect2D, Size2D} from '../base/geom';
 import {assertExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
-import {Renderer} from '../base/renderer';
-import {HTMLAttrs} from './common';
+import type {Renderer} from '../base/renderer';
+import type {HTMLAttrs} from './common';
 
 const CANVAS_CONTAINER_REF = 'canvas-container';
 const CANVAS_OVERDRAW_PX = 300;

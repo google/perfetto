@@ -15,13 +15,13 @@
 import {
   SERIALIZED_STATE_VERSION,
   APP_STATE_SCHEMA,
-  SerializedNote,
-  SerializedStoreState,
-  SerializedSelection,
-  SerializedAppState,
+  type SerializedNote,
+  type SerializedStoreState,
+  type SerializedSelection,
+  type SerializedAppState,
 } from './state_serialization_schema';
-import {TraceImpl} from './trace_impl';
-import {errResult, okResult, Result} from '../base/result';
+import type {TraceImpl} from './trace_impl';
+import {errResult, okResult, type Result} from '../base/result';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 // When it comes to serialization & permalinks there are two different use cases
