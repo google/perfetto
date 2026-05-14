@@ -73,6 +73,7 @@ import "protos/perfetto/trace/power/android_entity_state_residency.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
 import "protos/perfetto/trace/power/power_rails.proto";
 import "protos/perfetto/trace/statsd/statsd_atom.proto";
+import "protos/perfetto/trace/profiling/art_process_metadata.proto";
 import "protos/perfetto/trace/profiling/deobfuscation.proto";
 import "protos/perfetto/trace/profiling/heap_graph.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
@@ -119,7 +120,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 131.
+// Next id: 132.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -208,6 +209,7 @@ message TracePacket {
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
+    ArtProcessMetadata art_process_metadata = 131;
     HeapGraph heap_graph = 56;
     GraphicsFrameEvent graphics_frame_event = 57;
     VulkanMemoryEvent vulkan_memory_event = 62;

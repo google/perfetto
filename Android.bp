@@ -3672,6 +3672,7 @@ filegroup {
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
+        "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
@@ -8963,6 +8964,7 @@ genrule {
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
+        "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
@@ -10451,6 +10453,7 @@ genrule {
         "protos/perfetto/trace/gpu/vulkan_api_event.proto",
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
+        "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
@@ -12086,6 +12089,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_profiling_cpp",
     srcs: [
+        "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
@@ -12108,6 +12112,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/profiling/art_process_metadata.gen.cc",
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.gen.cc",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.gen.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.gen.cc",
@@ -12130,6 +12135,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/profiling/art_process_metadata.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.gen.h",
@@ -12146,6 +12152,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_profiling_lite",
     srcs: [
+        "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
@@ -12167,6 +12174,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/profiling/art_process_metadata.pb.cc",
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pb.cc",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.cc",
@@ -12188,6 +12196,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/profiling/art_process_metadata.pb.h",
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pb.h",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.h",
@@ -12204,6 +12213,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_profiling_zero",
     srcs: [
+        "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
@@ -12226,6 +12236,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/profiling/art_process_metadata.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
@@ -12248,6 +12259,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/profiling/art_process_metadata.pbzero.h",
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pbzero.h",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.h",
@@ -20814,6 +20826,7 @@ java_library {
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
+        "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",

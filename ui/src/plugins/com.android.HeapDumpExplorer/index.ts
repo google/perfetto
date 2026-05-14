@@ -54,6 +54,14 @@ export default class implements PerfettoPlugin {
       render: (subpage) => m(HeapDumpPage, {session, subpage}),
     });
 
+    if (
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(ctx))
+    ) {
+      session.autoNavigated = true;
+      ctx.initialPage.suggest('/heapdump', 100);
+    }
+
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
       .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
@@ -67,13 +75,5 @@ export default class implements PerfettoPlugin {
       href: '#!/heapdump',
       icon: 'memory',
     });
-
-    if (
-      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
-      !(await traceHasTimelineData(ctx))
-    ) {
-      session.autoNavigated = true;
-      ctx.onTraceReady.addListener(() => ctx.navigate('#!/heapdump'));
-    }
   }
 }

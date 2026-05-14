@@ -211,6 +211,8 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     return [
       multiStatementWarning,
       m(DataGrid, {
+        enablePivotControls: false, // In-memory datasource does not support pivoting
+        columns: data.columns.map((col) => ({id: col, field: col})),
         schema: schema,
         rootSchema: 'root',
         data: data.dataSource,
