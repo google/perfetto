@@ -41,7 +41,6 @@ source_set("engine") {
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
-    "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
     "../../types",
     "../../util:sql_argument",
@@ -64,7 +63,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base:test_support",
     "../..//tables:tables_python",
     "../../containers",
-    "../../perfetto_sql/intrinsics/table_functions:interface",
+    "../../core/plugin",
     "../../sqlite",
     "../../util:stdlib",
   ]

@@ -16,12 +16,16 @@ source_set("plugin") {
   sources = [
     "plugin.cc",
     "plugin.h",
+    "registration.h",
+    "static_table_function.cc",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:basic_types",
     "../../../base",
     "../../containers",
     "../../types",
+    "../dataframe",
     "../util",
   ]
 }

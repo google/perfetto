@@ -42,7 +42,6 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/summarizer.h"
@@ -86,21 +85,12 @@
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/stdlib_docs_table_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
+#include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/args/args.h"
 #include "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h"
 #include "src/trace_processor/plugins/base64_functions/base64_functions.h"
+#include "src/trace_processor/plugins/connected_flow/connected_flow.h"
 #include "src/trace_processor/plugins/core_functions/core_functions.h"
 #include "src/trace_processor/plugins/counter_intervals/counter_intervals.h"
 #include "src/trace_processor/plugins/counter_mipmap_operator/counter_mipmap_operator.h"
@@ -108,10 +98,16 @@
 #include "src/trace_processor/plugins/create_intervals/create_intervals.h"
 #include "src/trace_processor/plugins/create_view_function/create_view_function.h"
 #include "src/trace_processor/plugins/critical_path/critical_path.h"
+#include "src/trace_processor/plugins/descendant/descendant.h"
 #include "src/trace_processor/plugins/developer_functions/developer_functions.h"
+#include "src/trace_processor/plugins/dfs_weight_bounded/dfs_weight_bounded.h"
 #include "src/trace_processor/plugins/dominator_tree/dominator_tree.h"
 #include "src/trace_processor/plugins/etm_decode_chunk/etm_decode_chunk.h"
 #include "src/trace_processor/plugins/etm_iterate_range/etm_iterate_range.h"
+#include "src/trace_processor/plugins/experimental_annotated_stack/experimental_annotated_stack.h"
+#include "src/trace_processor/plugins/experimental_flamegraph/experimental_flamegraph.h"
+#include "src/trace_processor/plugins/experimental_flat_slice/experimental_flat_slice.h"
+#include "src/trace_processor/plugins/experimental_slice_layout/experimental_slice_layout.h"
 #include "src/trace_processor/plugins/graph_scan/graph_scan.h"
 #include "src/trace_processor/plugins/graph_traversal/graph_traversal.h"
 #include "src/trace_processor/plugins/import/import.h"
@@ -126,9 +122,11 @@
 #include "src/trace_processor/plugins/span_join_operator/span_join_operator.h"
 #include "src/trace_processor/plugins/sql_stats_table/sql_stats_table.h"
 #include "src/trace_processor/plugins/stack_functions/stack_functions.h"
+#include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 #include "src/trace_processor/plugins/string_functions/string_functions.h"
 #include "src/trace_processor/plugins/structural_tree_partition/structural_tree_partition.h"
 #include "src/trace_processor/plugins/symbolize/symbolize.h"
+#include "src/trace_processor/plugins/table_info/table_info.h"
 #include "src/trace_processor/plugins/table_pointer_module/table_pointer_module.h"
 #include "src/trace_processor/plugins/time_functions/time_functions.h"
 #include "src/trace_processor/plugins/to_ftrace/to_ftrace.h"
@@ -143,9 +141,16 @@
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
+#include "src/trace_processor/tables/counter_tables_py.h"   // IWYU pragma: keep
+#include "src/trace_processor/tables/etm_tables_py.h"       // IWYU pragma: keep
+#include "src/trace_processor/tables/flow_tables_py.h"      // IWYU pragma: keep
 #include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
 #include "src/trace_processor/tables/memory_tables_py.h"    // IWYU pragma: keep
 #include "src/trace_processor/tables/metadata_tables_py.h"  // IWYU pragma: keep
+#include "src/trace_processor/tables/perf_tables_py.h"      // IWYU pragma: keep
+#include "src/trace_processor/tables/profiler_tables_py.h"  // IWYU pragma: keep
+#include "src/trace_processor/tables/sched_tables_py.h"     // IWYU pragma: keep
+#include "src/trace_processor/tables/slice_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
@@ -181,8 +186,8 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_surfaceflinger_hierarchy_paths.h"
+#include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
+#include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -428,9 +433,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // issues, so instead each plugin exposes an explicit Register* function that
   // we call here before GetPluginSet() builds its cached set. Remove these
   // explicit calls once the static-init based registration is restored.
+  ancestor::RegisterPlugin();
   args::RegisterPlugin();
   art_heap_graph_functions::RegisterPlugin();
   base64_functions::RegisterPlugin();
+  connected_flow::RegisterPlugin();
   core_functions::RegisterPlugin();
   counter_intervals::RegisterPlugin();
   counter_mipmap_operator::RegisterPlugin();
@@ -438,10 +445,16 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   create_intervals::RegisterPlugin();
   create_view_function::RegisterPlugin();
   critical_path::RegisterPlugin();
+  descendant::RegisterPlugin();
   developer_functions::RegisterPlugin();
+  dfs_weight_bounded::RegisterPlugin();
   dominator_tree::RegisterPlugin();
   etm_decode_chunk::RegisterPlugin();
   etm_iterate_range::RegisterPlugin();
+  experimental_annotated_stack::RegisterPlugin();
+  experimental_flamegraph::RegisterPlugin();
+  experimental_flat_slice::RegisterPlugin();
+  experimental_slice_layout::RegisterPlugin();
   graph_scan::RegisterPlugin();
   graph_traversal::RegisterPlugin();
   import::RegisterPlugin();
@@ -456,9 +469,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   span_join_operator::RegisterPlugin();
   sql_stats_table::RegisterPlugin();
   stack_functions::RegisterPlugin();
+  stdlib_docs::RegisterPlugin();
   string_functions::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();
   symbolize::RegisterPlugin();
+  table_info::RegisterPlugin();
   table_pointer_module::RegisterPlugin();
   time_functions::RegisterPlugin();
   to_ftrace::RegisterPlugin();
@@ -467,6 +482,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   utils_functions::RegisterPlugin();
   wattson::RegisterPlugin();
   window_operator::RegisterPlugin();
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+  winscope_proto_to_args_with_defaults::RegisterPlugin();
+  winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
+#endif
 
   // Initialize plugins using the statically pre-computed PluginSet.
   // Dep indices are resolved once at static init time; here we just
@@ -1186,56 +1205,9 @@ TraceProcessorImpl::GetStaticTables(TraceStorage* storage) {
   return tables;
 }
 
-std::vector<std::unique_ptr<StaticTableFunction>>
-TraceProcessorImpl::CreateStaticTableFunctions(
-    TraceProcessorContext* context,
-    TraceStorage* storage,
-    PerfettoSqlConnection* connection) {
-  std::vector<std::unique_ptr<StaticTableFunction>> fns;
-  fns.emplace_back(std::make_unique<ExperimentalFlamegraph>(context));
-  fns.emplace_back(std::make_unique<ExperimentalSliceLayout>(
-      storage->mutable_string_pool(), &storage->slice_table()));
-  fns.emplace_back(
-      std::make_unique<TableInfo>(storage->mutable_string_pool(), connection));
-  fns.emplace_back(std::make_unique<Ancestor>(Ancestor::Type::kSlice, storage));
-  fns.emplace_back(std::make_unique<Ancestor>(
-      Ancestor::Type::kStackProfileCallsite, storage));
-  fns.emplace_back(
-      std::make_unique<Descendant>(Descendant::Type::kSlice, storage));
-  fns.emplace_back(std::make_unique<ConnectedFlow>(
-      ConnectedFlow::Mode::kDirectlyConnectedFlow, storage));
-  fns.emplace_back(std::make_unique<ConnectedFlow>(
-      ConnectedFlow::Mode::kPrecedingFlow, storage));
-  fns.emplace_back(std::make_unique<ConnectedFlow>(
-      ConnectedFlow::Mode::kFollowingFlow, storage));
-  fns.emplace_back(std::make_unique<ExperimentalAnnotatedStack>(context));
-  fns.emplace_back(std::make_unique<ExperimentalFlatSlice>(context));
-  fns.emplace_back(
-      std::make_unique<DfsWeightBounded>(storage->mutable_string_pool()));
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-  fns.emplace_back(std::make_unique<WinscopeProtoToArgsWithDefaults>(
-      storage->mutable_string_pool(), connection, context));
-  fns.emplace_back(std::make_unique<WinscopeSurfaceFlingerHierarchyPaths>(
-      storage->mutable_string_pool(), connection));
-#endif
-
-  fns.emplace_back(std::make_unique<StdlibDocsModules>(
-      storage->mutable_string_pool(), connection));
-  fns.emplace_back(std::make_unique<StdlibDocsTables>(
-      storage->mutable_string_pool(), connection));
-  fns.emplace_back(std::make_unique<StdlibDocsFunctions>(
-      storage->mutable_string_pool(), connection));
-  fns.emplace_back(std::make_unique<StdlibDocsMacros>(
-      storage->mutable_string_pool(), connection));
-
-  return fns;
-}
-
 std::unique_ptr<PerfettoSqlConnection>
 TraceProcessorImpl::InitPerfettoSqlConnection(
     const InitPerfettoSqlConnectionArgs& args) {
-  auto* context = args.context;
   auto* storage = args.storage;
   const auto& config = args.config;
   const auto& packages = args.packages;
@@ -1252,14 +1224,13 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
 
   PerfettoSqlConnection::Initializer init;
   init.static_tables = GetStaticTables(storage);
-  init.static_table_functions =
-      CreateStaticTableFunctions(context, storage, connection.get());
 
   // Plugin contributions.
   std::vector<PluginDataframe> plugin_dataframes;
   for (auto& p : plugins) {
     p->RegisterDataframes(plugin_dataframes);
-    p->RegisterStaticTableFunctions(init.static_table_functions);
+    p->RegisterStaticTableFunctions(connection.get(),
+                                    init.static_table_functions);
     p->RegisterSqliteModules(connection.get(), init.sqlite_modules);
     p->RegisterFunctions(connection.get(), init.functions);
     p->RegisterAggregateFunctions(connection.get(), init.aggregate_functions);
