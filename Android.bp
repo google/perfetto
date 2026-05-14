@@ -16366,6 +16366,7 @@ filegroup {
         "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.cc",
         "src/trace_processor/importers/proto/winscope/windowmanager_parser.cc",
         "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
         "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.cc",

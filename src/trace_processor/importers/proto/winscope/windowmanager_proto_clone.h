@@ -26,7 +26,8 @@ namespace perfetto::trace_processor::winscope::windowmanager_proto_clone {
 std::vector<uint8_t> CloneEntryProtoPruningChildren(
     const protos::pbzero::WindowManagerTraceEntry::Decoder&);
 std::vector<uint8_t> CloneRootWindowContainerProtoPruningChildren(
-    const protos::pbzero::RootWindowContainerProto::Decoder&);
+    const protos::pbzero::RootWindowContainerProto::Decoder&,
+    const protos::pbzero::WindowContainerProto::Decoder&);
 std::vector<uint8_t> CloneWindowContainerChildProtoPruningChildren(
     const protos::pbzero::WindowContainerChildProto::Decoder&);
 

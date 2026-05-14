@@ -17,8 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINDOWMANAGER_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINDOWMANAGER_PARSER_H_
 
+#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h"
+#include "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -34,7 +36,9 @@ class WindowManagerParser {
  private:
   tables::WindowManagerTable::Id InsertSnapshotRow(
       int64_t timestamp,
-      protos::pbzero::WindowManagerTraceEntry::Decoder& entry_decoder);
+      const protos::pbzero::WindowManagerTraceEntry::Decoder& entry_decoder,
+      const protos::pbzero::WindowManagerServiceDumpProto::Decoder&
+          service_decoder);
   void InsertWindowContainerRows(
       int64_t timestamp,
       tables::WindowManagerTable::Id snapshot_id,
@@ -51,6 +55,8 @@ class WindowManagerParser {
 
   WinscopeContext* const context_;
   WindowManagerHierarchyWalker hierarchy_walker_;
+  DfsWalkStrategy dfs_strategy_;
+  IterateWalkStrategy iterate_strategy_;
   util::ProtoToArgsParser args_parser_;
   std::optional<tables::WinscopeTransformTable::Id> transform_id_;
 };
