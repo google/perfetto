@@ -143,10 +143,17 @@ message HeapGraphObject {
   optional uint32 bitmap_width_field = 13;
   // `android.graphics.Bitmap.mHeight`: Height in pixels
   optional uint32 bitmap_height_field = 14;
+
+  // ApplicationInfo field captures
+  // `android.content.pm.ApplicationInfo.longVersionCode`: Used to identify
+  // the dumped process version code (without the full package list)
+  optional int64 application_info_long_version_code_field = 15;
 }
 
+// Next id: 11
 message HeapGraph {
   optional int32 pid = 1;
+  optional int64 heap_bytes_allocated = 10;
 
   // This contains all objects at the time this dump was taken. Some of these
   // will be live, some of those unreachable (garbage). To find the live

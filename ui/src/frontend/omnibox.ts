@@ -719,9 +719,17 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
   }
 
   private highlightPreviousOption(attrs: OmniboxWidgetAttrs) {
-    const {selectedOptionIndex = 0, onSelectedOptionChanged = () => {}} = attrs;
+    const {
+      selectedOptionIndex = 0,
+      onSelectedOptionChanged = () => {},
+      options = [],
+    } = attrs;
 
-    onSelectedOptionChanged(Math.max(0, selectedOptionIndex - 1));
+    if (options.length === 0) return;
+
+    onSelectedOptionChanged(
+      (selectedOptionIndex - 1 + options.length) % options.length,
+    );
   }
 
   private highlightNextOption(attrs: OmniboxWidgetAttrs) {
@@ -731,7 +739,8 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
       options = [],
     } = attrs;
 
-    const max = options.length - 1;
-    onSelectedOptionChanged(Math.min(max, selectedOptionIndex + 1));
+    if (options.length === 0) return;
+
+    onSelectedOptionChanged((selectedOptionIndex + 1) % options.length);
   }
 }

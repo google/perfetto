@@ -51,6 +51,7 @@ import {StatusbarManagerImpl} from './statusbar_manager';
 import {SettingDescriptor} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
+import {InitialPageManagerImpl} from './initial_page_manager';
 import {TraceStream} from '../public/stream';
 import {OmniboxModeDescriptor} from '../public/omnibox';
 
@@ -77,6 +78,7 @@ export class TraceImpl implements Trace, Disposable {
   readonly onTraceReady = new EvtSource<void>();
   readonly statusbar = new StatusbarManagerImpl();
   readonly minimap = new MinimapManagerImpl();
+  readonly initialPage = new InitialPageManagerImpl();
   readonly loadingErrors: string[] = [];
   readonly app: AppImpl;
   readonly store = createStore<Record<string, unknown>>({});
