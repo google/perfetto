@@ -112,7 +112,6 @@ source_set("wattson") {
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
-    "../../perfetto_sql/intrinsics/table_functions",
     "../../storage",
     "../../types",
     "../../util:gzip",

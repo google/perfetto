@@ -179,7 +179,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
   context->deobfuscation_tracker = nullptr;
   context->blob_packet_writer = Ptr<BlobPacketWriter>::MakeRoot();
-  context->register_additional_proto_modules = nullptr;
+  context->register_additional_proto_modules = {};
 
   // Per-Trace State (Miscategorized).
   context->registered_file_tracker =

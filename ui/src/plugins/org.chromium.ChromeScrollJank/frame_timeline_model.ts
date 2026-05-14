@@ -132,8 +132,8 @@ export interface FrameTimelineModel {
  *      time provided by Android,
  *   2. exactly one "Extend_VSync" slice, which is a copy of the original
  *      "Extend_VSync" slice, and
- *   3. multiple frame timelines, which correspond to possible frame timelines
- *      provided by Android, one of which Android marked as preferred.
+ *   3. one or more frame timelines, which correspond to possible frame
+ *      timelines provided by Android, one of which Android marked as preferred.
  *
  * If we zoom in on a single "Frame timelines" slice, its descendants typically
  * look like this:
@@ -153,6 +153,12 @@ export interface FrameTimelineModel {
  * where "FT" is "Frame time", "EV" is "Extend_VSync" and "X" is the token used
  * by Android to identify the frame timeline (some large integer). See
  * https://developer.android.com/ndk/reference/group/choreographer#achoreographerframecallbackdata_getframetimelinevsyncid.
+ *
+ * Note: With certain Chrome browser tracing configurations, Chrome only records
+ * the preferred frame timeline (via
+ * "android_choreographer_frame_callback_data.chrome_preferred_frame_timeline.*"
+ * arguments), in which case there is only one frame timeline slice named "X
+ * [preferred]".
  */
 export async function createFrameTimelineModel(
   args: CreateFrameTimelineModelArgs,
@@ -173,16 +179,10 @@ export async function createFrameTimelineModel(
           -- from monotonic clock time to a trace timestamp. We assume that
           -- TO_MONOTONIC(A) - TO_MONOTONIC(B) = A - B, substitute B=ts and
           -- TO_MONOTONIC(A)="frame_time_us"*1000 and rearrange to get A.
-          ts + COALESCE(
-            extract_arg(
-              arg_set_id,
-              'android_choreographer_frame_callback_data.frame_time_us'
-            ) * 1000 - TO_MONOTONIC(ts),
-            -- In case TO_MONOTONIC returns NULL for whatever reason, fall back
-            -- to the timestamp of the "Extend_VSync" slice as the frame
-            -- timestamp.
-            0
-          ) AS frame_ts,
+          ts + extract_arg(
+            arg_set_id,
+            'android_choreographer_frame_callback_data.frame_time_us'
+          ) * 1000 - TO_MONOTONIC(ts) AS frame_ts,
           extract_arg(
             arg_set_id,
             'android_choreographer_frame_callback_data.preferred_frame_timeline_index'
@@ -190,7 +190,7 @@ export async function createFrameTimelineModel(
         FROM slice
         WHERE name = 'Extend_VSync'
       ),
-      -- Extract the repeated arguments of all "Extend_VSync" slices.
+      -- Extract the frame timelines in all "Extend_VSync" slices.
       frame_timelines AS (
         -- Find indices N of all
         -- "android_choreographer_frame_callback_data.frame_timeline[N]"
@@ -223,13 +223,15 @@ export async function createFrameTimelineModel(
               i.timeline_index ||
               '].vsync_id'
           ) AS vsync_id,
-          s.frame_ts + extract_arg(
+          -- In case we don't have the frame time, approximate it with the
+          -- timestamp of the "Extend_VSync" slice.
+          COALESCE(s.frame_ts, s.ts) + extract_arg(
             s.arg_set_id,
             'android_choreographer_frame_callback_data.frame_timeline[' ||
               i.timeline_index ||
               '].latch_delta_us'
           ) * 1000 AS latch_ts,
-          s.frame_ts + extract_arg(
+          COALESCE(s.frame_ts, s.ts) + extract_arg(
             s.arg_set_id,
             'android_choreographer_frame_callback_data.frame_timeline[' ||
               i.timeline_index ||
@@ -237,6 +239,28 @@ export async function createFrameTimelineModel(
           ) * 1000 AS present_ts
         FROM frame_timeline_indices AS i
         JOIN extend_vsync_slices AS s USING (id)
+        UNION ALL
+        SELECT
+          id,
+          NULL AS timeline_index,
+          TRUE AS is_preferred,
+          extract_arg(
+            arg_set_id,
+            'android_choreographer_frame_callback_data.chrome_preferred_frame_timeline.vsync_id'
+          ) AS vsync_id,
+          COALESCE(frame_ts, ts) + extract_arg(
+            arg_set_id,
+            'android_choreographer_frame_callback_data.chrome_preferred_frame_timeline.latch_delta_us'
+          ) * 1000 AS latch_ts,
+          COALESCE(frame_ts, ts) + extract_arg(
+            arg_set_id,
+            'android_choreographer_frame_callback_data.chrome_preferred_frame_timeline.present_delta_us'
+          ) * 1000 AS present_ts
+        FROM extend_vsync_slices
+        WHERE extract_arg(
+          arg_set_id,
+          'android_choreographer_frame_callback_data.chrome_preferred_frame_timeline.vsync_id'
+        ) IS NOT NULL
       ),
       -- For each header slice (partitionByClause), lay out all its descendant
       -- slices (i.e. calculate their depths under the header slice so that
@@ -254,6 +278,7 @@ export async function createFrameTimelineModel(
               frame_ts AS ts,
               0 AS dur
             FROM extend_vsync_slices
+            WHERE frame_ts IS NOT NULL
             UNION ALL
             SELECT
               id,
@@ -265,10 +290,12 @@ export async function createFrameTimelineModel(
             UNION ALL
             SELECT
               id,
-              frame_timelines.vsync_id ||
-                ' [' ||
-                frame_timelines.timeline_index ||
-                IF(frame_timelines.is_preferred, ', preferred]', ']') AS name,
+              frame_timelines.vsync_id || ' [' ||
+                concat_ws(
+                  ', ',
+                  frame_timelines.timeline_index,
+                  IF(frame_timelines.is_preferred, 'preferred')
+                ) || ']'  AS name,
               IF(
                 frame_timelines.is_preferred,
                 ${FrameTimelineSliceClassification.PREFERRED_TIMELINE},

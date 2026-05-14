@@ -18,7 +18,6 @@
 
 #include <memory>
 
-#include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/etw/etw_module_impl.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
@@ -43,10 +42,6 @@
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-#include "src/trace_processor/importers/proto/winscope/winscope_module.h"
-#endif
 
 namespace perfetto::trace_processor {
 
@@ -89,11 +84,6 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
       new AppWakelockModule(module_context, context));
   module_context->modules.emplace_back(
       new GenericKernelModule(module_context, context));
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-  module_context->modules.emplace_back(
-      new WinscopeModule(module_context, context));
-#endif
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.

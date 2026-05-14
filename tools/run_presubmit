@@ -435,6 +435,33 @@ def CheckProtoComments(changed_files: List[str]) -> List[str]:
   return []
 
 
+def CheckTpPluginDeps(changed_files: List[str]) -> List[str]:
+  if sys.platform == 'win32':
+    return []
+  tool_rel_path = 'tools/check_tp_plugin_deps'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'src/trace_processor/*BUILD.gn',
+          'src/trace_processor/plugins/*',
+          tool_rel_path,
+      ])
+  if not files_to_check_list:
+    return []
+
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT)
+  except FileNotFoundError:
+    return [f"Tool not found: {tool}"]
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nSee {tool} for the rules being enforced.'
+    ]
+  return []
+
+
 def CheckBuild(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
@@ -1000,6 +1027,7 @@ def main():
       (CheckIncludeViolations, [changed_files]),
       (CheckIncludePaths, [changed_files]),
       (CheckProtoComments, [changed_files]),
+      (CheckTpPluginDeps, [changed_files]),
       (CheckBuild, [changed_files]),
       (CheckAndroidBlueprint, [changed_files]),
       (CheckBinaryDescriptors, [changed_files]),

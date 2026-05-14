@@ -13,8 +13,13 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_tp_tables.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
+
+perfetto_tp_tables("tables") {
+  sources = [ "tables.py" ]
+}
 
 source_set("developer_functions") {
   sources = [
@@ -23,14 +28,13 @@ source_set("developer_functions") {
     "developer_functions.h",
   ]
   deps = [
+    ":tables",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../base",
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
-    "../../perfetto_sql/intrinsics/table_functions:interface",
-    "../../perfetto_sql/intrinsics/table_functions:tables",
     "../../storage",
     "../../types",
   ]
