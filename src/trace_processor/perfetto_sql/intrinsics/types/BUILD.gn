@@ -27,6 +27,7 @@ source_set("types") {
     "sorted_timestamps.h",
     "struct.h",
     "value.h",
+    "wakeup_graph.h",
   ]
   deps = [
     "../../../../../gn:default_deps",

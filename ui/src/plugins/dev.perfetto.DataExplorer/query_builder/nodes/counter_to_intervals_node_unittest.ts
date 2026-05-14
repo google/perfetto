@@ -13,67 +13,14 @@
 // limitations under the License.
 
 import {CounterToIntervalsNode} from './counter_to_intervals_node';
-import {QueryNode, NodeType} from '../../query_node';
-import {ColumnInfo} from '../column_info';
+import {NodeType} from '../../query_node';
 import {
-  PerfettoSqlType,
-  PerfettoSqlTypes,
-} from '../../../../trace_processor/perfetto_sql_type';
-import protos from '../../../../protos';
+  createMockNodeWithStructuredQuery,
+  createColumnInfo,
+  expectValidationSuccess,
+} from '../testing/test_utils';
 
 describe('CounterToIntervalsNode', () => {
-  function createMockNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
-      nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      attrs: {},
-      context: {},
-      validate: () => true,
-      getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => ({sections: []}),
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockNode(id, columns),
-      getStructuredQuery: () => {
-        const sq = new protos.PerfettoSqlStructuredQuery();
-        sq.id = id;
-        sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-        sq.table.tableName = 'mock_table';
-        sq.table.columnNames = columns.map((c) => c.name);
-        return sq;
-      },
-    } as QueryNode;
-  }
-
-  function stringToSqlType(s: string): PerfettoSqlType {
-    switch (s.toUpperCase()) {
-      case 'INT':
-      case 'INT64':
-        return PerfettoSqlTypes.INT;
-      case 'STRING':
-        return PerfettoSqlTypes.STRING;
-      case 'DOUBLE':
-        return PerfettoSqlTypes.DOUBLE;
-      default:
-        return PerfettoSqlTypes.INT;
-    }
-  }
-
-  function createColumnInfo(
-    name: string,
-    type: string,
-    checked: boolean = true,
-  ): ColumnInfo {
-    const sqlType = stringToSqlType(type);
-    return {
-      name,
-      checked,
-      type: sqlType,
-    };
-  }
-
   describe('constructor', () => {
     it('should initialize with empty state', () => {
       const node = new CounterToIntervalsNode({});
@@ -109,12 +56,12 @@ describe('CounterToIntervalsNode', () => {
 
     it('should include all input columns plus dur, next_value, delta_value', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -136,12 +83,12 @@ describe('CounterToIntervalsNode', () => {
 
     it('should set correct types for new columns', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -158,12 +105,12 @@ describe('CounterToIntervalsNode', () => {
 
     it('should preserve input column order', () => {
       const inputCols = [
-        createColumnInfo('value', 'DOUBLE'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
+        createColumnInfo('value', 'double'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -190,7 +137,7 @@ describe('CounterToIntervalsNode', () => {
     });
 
     it('should fail validation when primary input is invalid', () => {
-      const inputNode = createMockNode('input', []);
+      const inputNode = createMockNodeWithStructuredQuery('input', []);
       inputNode.validate = () => false;
 
       const node = new CounterToIntervalsNode({});
@@ -204,11 +151,11 @@ describe('CounterToIntervalsNode', () => {
 
     it('should fail validation when input missing id column', () => {
       const inputCols = [
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -221,11 +168,11 @@ describe('CounterToIntervalsNode', () => {
 
     it('should fail validation when input missing ts column', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -238,11 +185,11 @@ describe('CounterToIntervalsNode', () => {
 
     it('should fail validation when input missing track_id column', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -255,11 +202,11 @@ describe('CounterToIntervalsNode', () => {
 
     it('should fail validation when input missing value column', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -272,13 +219,13 @@ describe('CounterToIntervalsNode', () => {
 
     it('should fail validation when input already has dur column', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('dur', 'duration'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -290,7 +237,7 @@ describe('CounterToIntervalsNode', () => {
     });
 
     it('should fail validation when input has no columns', () => {
-      const inputNode = createMockNode('input', []);
+      const inputNode = createMockNodeWithStructuredQuery('input', []);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -303,44 +250,44 @@ describe('CounterToIntervalsNode', () => {
 
     it('should pass validation when all requirements met', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should pass validation with extra columns', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('cpu', 'INT'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
+        createColumnInfo('name', 'string'),
+        createColumnInfo('cpu', 'int'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should clear previous validation errors on success', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       // First validation should fail
@@ -348,7 +295,7 @@ describe('CounterToIntervalsNode', () => {
 
       // Add input and validate again
       node.primaryInput = inputNode;
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
 
       // Issues should be cleared
       expect(node.context.issues?.queryError).toBeUndefined();
@@ -364,12 +311,12 @@ describe('CounterToIntervalsNode', () => {
 
     it('should return structured query when valid', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -382,12 +329,12 @@ describe('CounterToIntervalsNode', () => {
 
     it('should create query using experimentalCounterIntervals', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -400,12 +347,12 @@ describe('CounterToIntervalsNode', () => {
 
     it('should use input node query as inputQuery', () => {
       const inputCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const inputNode = createMockNode('input', inputCols);
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
@@ -420,11 +367,11 @@ describe('CounterToIntervalsNode', () => {
 
   describe('serializeState', () => {
     it('should serialize state correctly', () => {
-      const inputNode = createMockNode('input', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+      const inputNode = createMockNodeWithStructuredQuery('input', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ]);
 
       const node = new CounterToIntervalsNode({});
@@ -502,19 +449,22 @@ describe('CounterToIntervalsNode', () => {
   describe('integration tests', () => {
     it('should work end-to-end with counter data', () => {
       const counterCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
-        createColumnInfo('name', 'STRING'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
+        createColumnInfo('name', 'string'),
       ];
-      const counterNode = createMockNode('counter', counterCols);
+      const counterNode = createMockNodeWithStructuredQuery(
+        'counter',
+        counterCols,
+      );
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = counterNode;
 
       // Should validate successfully
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
 
       // Should produce output columns with dur, next_value, delta_value
       const finalCols = node.finalCols;
@@ -531,13 +481,16 @@ describe('CounterToIntervalsNode', () => {
 
     it('should reject interval data (data with dur)', () => {
       const intervalCols = [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('dur', 'duration'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ];
-      const intervalNode = createMockNode('interval', intervalCols);
+      const intervalNode = createMockNodeWithStructuredQuery(
+        'interval',
+        intervalCols,
+      );
 
       const node = new CounterToIntervalsNode({});
       node.primaryInput = intervalNode;
@@ -550,11 +503,11 @@ describe('CounterToIntervalsNode', () => {
     });
 
     it('should handle serialization round-trip', () => {
-      const inputNode = createMockNode('input', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('track_id', 'INT'),
-        createColumnInfo('value', 'DOUBLE'),
+      const inputNode = createMockNodeWithStructuredQuery('input', [
+        createColumnInfo('id', 'int'),
+        createColumnInfo('ts', 'timestamp'),
+        createColumnInfo('track_id', 'int'),
+        createColumnInfo('value', 'double'),
       ]);
 
       const node = new CounterToIntervalsNode({});

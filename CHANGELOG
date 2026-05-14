@@ -1,3 +1,23 @@
+Unreleased:
+  Tracing service and probes:
+    * Added `machine_id` and `machine_name` fields to `TracingServiceState`,
+      exposing the originating machine for producers connected via
+      `traced_relay`. `perfetto --query` and `--query-raw` surface these in a
+      new `MACHINE` column when more than one machine is involved.
+  Trace Processor:
+   *
+  UI:
+   *
+  SDK:
+   *
+
+
+v55.2 - 2026-05-14:
+  Trace Processor:
+    * Fix classic HTTP server command line parsing on Windows. This fixes
+      breakage of the Python API on Windows.
+
+
 v55.1 - 2026-05-13:
   Infra:
     * Fix build of prebuilts on Windows.

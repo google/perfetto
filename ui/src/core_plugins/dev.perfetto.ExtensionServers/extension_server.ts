@@ -362,30 +362,56 @@ async function loadProtoDescriptors(
 // =============================================================================
 
 // Loads a single server's enabled modules given an already in-flight manifest
-// promise. Returns the per-module result promises (for error aggregation).
+// promise. Each ctx.add* is called exactly once per server, with a Promise
+// that aggregates results from all enabled modules. SQL modules in particular
+// must be coalesced into a single package keyed by the server's namespace —
+// the trace_processor backend stores packages by name, so registering
+// separately per module would silently overwrite earlier registrations.
+// Returns the per-module result promises (for error aggregation).
 export function initializeServerFromManifest(
   ctx: AppImpl,
   server: ExtensionServer,
   manifest: Promise<Result<Manifest>>,
 ): Promise<Result<unknown>[]> {
-  const results: Promise<Result<unknown>>[] = [];
-  for (const mod of server.enabledModules) {
-    const macros = manifest.then((r) => loadMacros(r, server, mod));
-    const sqlPackage = manifest.then((r) => loadSqlPackage(r, server, mod));
-    const descs = manifest.then((r) => loadProtoDescriptors(r, server, mod));
-    results.push(macros, sqlPackage, descs);
-    ctx.addMacros(
-      manifest.then(async (r) => {
-        const macrosResult = await macros;
-        if (!macrosResult.ok) return [];
-        const source = sourceLabel(r, mod);
-        return macrosResult.value.map((m) => ({...m, source}));
-      }),
-    );
-    ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
-    ctx.addProtoDescriptors(descs.then((r) => (r.ok ? r.value : [])));
-  }
-  return Promise.all(results);
+  const macrosPerMod = server.enabledModules.map((mod) =>
+    manifest.then((r) => loadMacros(r, server, mod)),
+  );
+  const sqlPerMod = server.enabledModules.map((mod) =>
+    manifest.then((r) => loadSqlPackage(r, server, mod)),
+  );
+  const descsPerMod = server.enabledModules.map((mod) =>
+    manifest.then((r) => loadProtoDescriptors(r, server, mod)),
+  );
+
+  ctx.addMacros(
+    manifest.then(async (m) => {
+      const rs = await Promise.all(macrosPerMod);
+      return rs.flatMap((r, i) => {
+        if (!r.ok) return [];
+        const source = sourceLabel(m, server.enabledModules[i]);
+        return r.value.map((macro) => ({...macro, source}));
+      });
+    }),
+  );
+
+  ctx.addSqlPackages(
+    manifest.then(async (m) => {
+      if (!m.ok) return [];
+      const rs = await Promise.all(sqlPerMod);
+      const modules = rs.flatMap((r) =>
+        r.ok ? r.value.flatMap((p) => p.modules) : [],
+      );
+      return modules.length === 0 ? [] : [{name: m.value.namespace, modules}];
+    }),
+  );
+
+  ctx.addProtoDescriptors(
+    Promise.all(descsPerMod).then((rs) =>
+      rs.flatMap((r) => (r.ok ? r.value : [])),
+    ),
+  );
+
+  return Promise.all([...macrosPerMod, ...sqlPerMod, ...descsPerMod]);
 }
 
 // Initializes extension servers by fetching manifests and loading extensions

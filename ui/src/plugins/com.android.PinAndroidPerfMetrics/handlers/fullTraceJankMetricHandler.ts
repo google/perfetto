@@ -30,16 +30,16 @@ class FullTraceJankMetricHandler implements MetricHandler {
    */
   public match(metricKey: string): FullTraceMetricData | undefined {
     const matcher =
-      /perfetto_ft_(?<process>.*)-missed_(?<jankType>frames|sf_frames|app_frames)/;
+      /perfetto_ft_(?<process>.*)-(?<jps>weighted_)?missed_(?<jankType>frames|sf_frames|app_frames)/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;
     }
-    const metricData: FullTraceMetricData = {
+    return {
       process: expandProcessName(match.groups.process),
       jankType: match.groups.jankType as JankType,
+      isWeighted: !!match.groups.jps,
     };
-    return metricData;
   }
 
   /**

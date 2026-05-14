@@ -16,71 +16,36 @@ import {IntervalIntersectNode} from './interval_intersect_node';
 import {ModifyColumnsNode} from './modify_columns_node';
 import {QueryNode} from '../../query_node';
 import {notifyNextNodes} from '../graph_utils';
-import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
-import {createMockNode} from '../testing/test_utils';
+import {
+  createMockNode,
+  createMockIntervalNode,
+  createColumnInfo,
+  createColumnInfoWithType,
+  expectValidationSuccess,
+} from '../testing/test_utils';
+
+const intCols = (...names: string[]) =>
+  names.map((n) => createColumnInfo(n, 'int'));
+
+function makeIIN(
+  inputNodes: QueryNode[],
+  partitionColumns?: string[],
+  tsDurSource?: number,
+): IntervalIntersectNode {
+  return new IntervalIntersectNode(
+    {inputNodes, partitionColumns, tsDurSource},
+    {},
+  );
+}
 
 describe('IntervalIntersectNode', () => {
-  function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return createMockNode({
-      nodeId: id,
-      columns,
-      getTitle: () => `Mock ${id}`,
-    });
-  }
-
-  function stringToSqlType(s: string): PerfettoSqlType {
-    switch (s.toUpperCase()) {
-      case 'INT':
-      case 'INT64':
-        return PerfettoSqlTypes.INT;
-      case 'STRING':
-        return PerfettoSqlTypes.STRING;
-      case 'DOUBLE':
-        return PerfettoSqlTypes.DOUBLE;
-      default:
-        return PerfettoSqlTypes.INT;
-    }
-  }
-
-  function createColumnInfo(
-    name: string,
-    type: string,
-    checked: boolean = true,
-  ): ColumnInfo {
-    const sqlType = stringToSqlType(type);
-    return {
-      name,
-      checked,
-      type: sqlType,
-    };
-  }
-
-  // Creates a ColumnInfo with full PerfettoSqlType for the column.type field
-  function createColumnInfoWithSqlType(
-    name: string,
-    _displayType: string,
-    sqlType: PerfettoSqlType,
-    checked: boolean = true,
-  ): ColumnInfo {
-    return {
-      name,
-      checked,
-      type: sqlType,
-    };
-  }
-
   describe('constructor', () => {
     it('should set autoExecute to false by default', () => {
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [],
-        },
-        {},
-      );
+      const node = makeIIN([]);
 
       expect(node.context.autoExecute).toBeUndefined();
     });
@@ -88,34 +53,16 @@ describe('IntervalIntersectNode', () => {
 
   describe('finalCols', () => {
     it('should return empty array when no prev nodes', () => {
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [],
-        },
-        {},
-      );
+      const node = makeIIN([]);
 
       expect(node.finalCols).toEqual([]);
     });
 
     it('should include ts and dur from intersection without suffix', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       const cols = node.finalCols;
       expect(cols[0].name).toBe('ts');
@@ -123,26 +70,16 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should include partition columns without suffix', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], ['utid']);
 
       const cols = node.finalCols;
       expect(cols[0].name).toBe('ts');
@@ -151,28 +88,11 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should include id_N, ts_N, dur_N for each input with correct types', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
+      const node3 = createMockIntervalNode('node3');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2, node3],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2, node3]);
 
       const cols = node.finalCols;
 
@@ -202,26 +122,27 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should include non-duplicated columns from all inputs', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('value', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('status', 'STRING'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('value', 'int'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('status', 'string'),
+        ],
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       const cols = node.finalCols;
       const colNames = cols.map((c) => c.name);
@@ -251,27 +172,28 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should exclude duplicated columns entirely', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('value', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('name', 'STRING'), // Duplicate
-        createColumnInfo('status', 'STRING'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('value', 'int'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('name', 'string'), // Duplicate
+          createColumnInfo('status', 'string'),
+        ],
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       const cols = node.finalCols;
       const colNames = cols.map((c) => c.name);
@@ -284,28 +206,28 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should exclude partition columns from duplicated columns', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-        createColumnInfo('status', 'STRING'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('utid', 'int'),
+          createColumnInfo('name', 'string'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('utid', 'int'),
+          createColumnInfo('status', 'string'),
+        ],
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], ['utid']);
 
       const cols = node.finalCols;
       const colNames = cols.map((c) => c.name);
@@ -320,28 +242,16 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should handle multiple partition columns', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-        createColumnInfo('upid', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-        createColumnInfo('upid', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: intCols('id', 'ts', 'dur', 'utid', 'upid'),
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'ts', 'dur', 'utid', 'upid'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid', 'upid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], ['utid', 'upid']);
 
       const cols = node.finalCols;
       expect(cols[0].name).toBe('ts');
@@ -351,24 +261,25 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should set all columns as checked', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT', false),
-        createColumnInfo('ts', 'INT64', false),
-        createColumnInfo('dur', 'INT64', false),
-        createColumnInfo('name', 'STRING', false),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT', false),
-        createColumnInfo('ts', 'INT64', false),
-        createColumnInfo('dur', 'INT64', false),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'int', {checked: false}),
+          createColumnInfo('ts', 'int', {checked: false}),
+          createColumnInfo('dur', 'int', {checked: false}),
+          createColumnInfo('name', 'string', {checked: false}),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'int', {checked: false}),
+          createColumnInfo('ts', 'int', {checked: false}),
+          createColumnInfo('dur', 'int', {checked: false}),
+        ],
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       const cols = node.finalCols;
       // All columns should be checked
@@ -378,34 +289,38 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should preserve types for all columns including non-duplicated columns', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('name', 'STRING'),
-        createColumnInfo('value', 'DOUBLE'),
-        createColumnInfo('count', 'LONG'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('status', 'STRING'),
-        createColumnInfo('priority', 'INT'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('category', 'STRING'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('value', 'double'),
+          createColumnInfo('count', 'int'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('status', 'string'),
+          createColumnInfo('priority', 'int'),
+        ],
+      });
+      const node3 = createMockNode({
+        nodeId: 'node3',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('category', 'string'),
+        ],
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2, node3],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2, node3]);
 
       const cols = node.finalCols;
 
@@ -448,27 +363,22 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should exclude columns with conflicting types', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('value', 'DOUBLE'),
-        createColumnInfo('unique1', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('value', 'INT'), // Different type - duplicated
-        createColumnInfo('unique2', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('value', 'double'),
+          createColumnInfo('unique1', 'string'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'ts', 'dur', 'value', 'unique2'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       const cols = node.finalCols;
       const colNames = cols.map((c) => c.name);
@@ -483,18 +393,9 @@ describe('IntervalIntersectNode', () => {
 
   describe('validation', () => {
     it('should fail validation with less than two inputs', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1],
-        },
-        {},
-      );
+      const node = makeIIN([node1]);
 
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError?.message).toContain(
@@ -503,44 +404,22 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should pass validation with two valid inputs', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should fail validation when input is missing required id column', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('ts', 'dur'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError?.message).toContain(
@@ -550,22 +429,13 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should fail validation when input is missing required ts column', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'dur'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError?.message).toContain(
@@ -575,22 +445,13 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should fail validation when input is missing required dur column', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'ts'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError?.message).toContain(
@@ -600,87 +461,49 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should fail validation when prev node validation fails', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
       node2.validate = () => false;
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError?.message).toContain('is invalid');
     });
 
     it('should clear previous errors when validation starts', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1],
-        },
-        {},
-      );
+      const node = makeIIN([node1]);
 
       // First validation should fail
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError).toBeDefined();
 
       // Add second node to make it valid
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node2 = createMockIntervalNode('node2');
       node.secondaryInputs.connections.set(1, node2);
 
       // Second validation should pass and clear errors
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
       expect(node.context.issues?.queryError).toBeUndefined();
     });
 
     it('should fail validation when partition column is missing from an input', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        // Missing 'utid' column
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
+      const node3 = createMockNode({
+        nodeId: 'node3',
+        columns: intCols('id', 'ts', 'dur'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2, node3],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2, node3], ['utid']);
 
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError?.message).toContain(
@@ -692,59 +515,35 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should pass validation when all inputs have partition columns', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
+      const node3 = createMockNode({
+        nodeId: 'node3',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2, node3],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2, node3], ['utid']);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should fail validation when only some partition columns are missing', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-        createColumnInfo('upid', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-        // Missing 'upid' column
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: intCols('id', 'ts', 'dur', 'utid', 'upid'),
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid', 'upid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], ['utid', 'upid']);
 
       expect(node.validate()).toBe(false);
       expect(node.context.issues?.queryError?.message).toContain(
@@ -753,39 +552,22 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should pass validation with empty partition columns array', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('utid', 'INT'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: intCols('id', 'ts', 'dur', 'utid'),
+      });
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: [],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], []);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
       expect(node.context.issues?.queryError).toBeUndefined();
     });
   });
 
   describe('getTitle', () => {
     it('should return "Interval Intersect"', () => {
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [],
-        },
-        {},
-      );
+      const node = makeIIN([]);
 
       expect(node.getTitle()).toBe('Interval Intersect');
     });
@@ -793,24 +575,10 @@ describe('IntervalIntersectNode', () => {
 
   describe('clone', () => {
     it('should create a deep copy of the node', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], ['utid']);
 
       const cloned = node.clone() as IntervalIntersectNode;
 
@@ -822,24 +590,10 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should not share state arrays with original', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], ['utid']);
 
       const cloned = node.clone() as IntervalIntersectNode;
 
@@ -853,29 +607,11 @@ describe('IntervalIntersectNode', () => {
 
   describe('serializeState', () => {
     it('should serialize state correctly', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
+      const node3 = createMockIntervalNode('node3');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2, node3],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2, node3], ['utid']);
 
       const serialized = node.attrs;
 
@@ -883,23 +619,10 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should handle empty partition columns', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2]);
 
       const serialized = node.attrs;
 
@@ -924,45 +647,26 @@ describe('IntervalIntersectNode', () => {
   describe('ModifyColumnsNode integration', () => {
     it('should pass columns with correct types to ModifyColumnsNode', () => {
       // Create input nodes with proper SQL types
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('name', 'STRING', PerfettoSqlTypes.STRING),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType(
-          'status',
-          'STRING',
-          PerfettoSqlTypes.STRING,
-        ),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('name', PerfettoSqlTypes.STRING),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('status', PerfettoSqlTypes.STRING),
+        ],
+      });
 
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2]);
 
       // Create ModifyColumnsNode with IntervalIntersectNode as input
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
@@ -1009,42 +713,26 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should pass partition columns with original types to ModifyColumnsNode', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('utid', 'INT', PerfettoSqlTypes.INT),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('utid', 'INT', PerfettoSqlTypes.INT),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('utid', PerfettoSqlTypes.INT),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('utid', PerfettoSqlTypes.INT),
+        ],
+      });
 
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2], ['utid']);
 
       // Create ModifyColumnsNode with IntervalIntersectNode as input
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
@@ -1061,25 +749,26 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should pass all expected columns to ModifyColumnsNode', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('name', 'STRING'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-        createColumnInfo('status', 'STRING'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('name', 'string'),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+          createColumnInfo('status', 'string'),
+        ],
+      });
 
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2]);
 
       // Create ModifyColumnsNode with IntervalIntersectNode as input
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
@@ -1103,46 +792,27 @@ describe('IntervalIntersectNode', () => {
 
     it('should pass non-duplicated columns with original types to ModifyColumnsNode', () => {
       // Non-duplicated columns should preserve their types from input nodes
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('name', 'STRING', PerfettoSqlTypes.STRING),
-        createColumnInfoWithSqlType('value', 'DOUBLE', PerfettoSqlTypes.DOUBLE),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType(
-          'status',
-          'STRING',
-          PerfettoSqlTypes.STRING,
-        ),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('name', PerfettoSqlTypes.STRING),
+          createColumnInfoWithType('value', PerfettoSqlTypes.DOUBLE),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('status', PerfettoSqlTypes.STRING),
+        ],
+      });
 
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2]);
 
       // Create ModifyColumnsNode with IntervalIntersectNode as input
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
@@ -1170,39 +840,24 @@ describe('IntervalIntersectNode', () => {
 
     it('should have column.type set correctly on finalCols', () => {
       // Test that IntervalIntersectNode.finalCols has column.type set
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
 
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2]);
 
       const cols = intervalNode.finalCols;
 
@@ -1225,44 +880,29 @@ describe('IntervalIntersectNode', () => {
 
     it('should propagate partition columns to ModifyColumnsNode when added after creation', () => {
       // Create input nodes with partition columns available
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('utid', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType('track_id', 'INT', PerfettoSqlTypes.INT),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('utid', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType('track_id', 'INT', PerfettoSqlTypes.INT),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('utid', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('track_id', PerfettoSqlTypes.INT),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('utid', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('track_id', PerfettoSqlTypes.INT),
+        ],
+      });
 
       // Create IntervalIntersectNode WITHOUT partition columns initially
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2]);
 
       // Create ModifyColumnsNode with IntervalIntersectNode as input
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
@@ -1306,41 +946,25 @@ describe('IntervalIntersectNode', () => {
 
     it('should handle partition columns that do not exist in input nodes', () => {
       // Create input nodes WITHOUT the partition columns
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
 
       // Create IntervalIntersectNode with partition columns that DON'T exist
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid', 'track_id'], // These columns don't exist!
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2], ['utid', 'track_id']);
 
       const cols = intervalNode.finalCols;
 
@@ -1358,42 +982,26 @@ describe('IntervalIntersectNode', () => {
 
     it('should use first input node type for partition columns when types differ', () => {
       // Create input nodes with DIFFERENT types for the same partition column
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('utid', 'INT', PerfettoSqlTypes.INT),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-        createColumnInfoWithSqlType('utid', 'STRING', PerfettoSqlTypes.STRING), // Different type!
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('utid', PerfettoSqlTypes.INT),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+          createColumnInfoWithType('utid', PerfettoSqlTypes.STRING), // Different type!
+        ],
+      });
 
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          partitionColumns: ['utid'],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2], ['utid']);
 
       const cols = intervalNode.finalCols;
 
@@ -1406,27 +1014,17 @@ describe('IntervalIntersectNode', () => {
 
     it('should handle empty input nodes gracefully', () => {
       // Edge case: What if an input node is undefined?
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
 
       // Test edge case: undefined input node (implementation handles this gracefully)
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, undefined] as QueryNode[],
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, undefined] as QueryNode[]);
 
       const cols = intervalNode.finalCols;
 
@@ -1442,24 +1040,11 @@ describe('IntervalIntersectNode', () => {
 
   describe('tsDurSource', () => {
     it('should have id column only when tsDurSource is a number', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
       // Test with default (intersection) - no id column
-      const nodeDefault = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-        },
-        {},
-      );
+      const nodeDefault = makeIIN([node1, node2]);
 
       let cols = nodeDefault.finalCols;
       let colNames = cols.map((c) => c.name);
@@ -1475,13 +1060,7 @@ describe('IntervalIntersectNode', () => {
       expect(colNames).toContain('dur_1');
 
       // Test with tsDurSource = 0 - has id column
-      const nodeSource0 = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          tsDurSource: 0,
-        },
-        {},
-      );
+      const nodeSource0 = makeIIN([node1, node2], undefined, 0);
 
       cols = nodeSource0.finalCols;
       colNames = cols.map((c) => c.name);
@@ -1497,13 +1076,7 @@ describe('IntervalIntersectNode', () => {
       expect(colNames).toContain('dur_1');
 
       // Test with tsDurSource = 1 - has id column
-      const nodeSource1 = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          tsDurSource: 1,
-        },
-        {},
-      );
+      const nodeSource1 = makeIIN([node1, node2], undefined, 1);
 
       cols = nodeSource1.finalCols;
       colNames = cols.map((c) => c.name);
@@ -1520,24 +1093,10 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should serialize and deserialize tsDurSource correctly', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          tsDurSource: 1,
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], undefined, 1);
 
       const serialized = node.attrs;
       expect(serialized.tsDurSource).toBe(1);
@@ -1547,24 +1106,10 @@ describe('IntervalIntersectNode', () => {
     });
 
     it('should include tsDurSource in clone', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockIntervalNode('node1');
+      const node2 = createMockIntervalNode('node2');
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          tsDurSource: 0,
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], undefined, 0);
 
       const cloned = node.clone() as IntervalIntersectNode;
 
@@ -1573,24 +1118,20 @@ describe('IntervalIntersectNode', () => {
 
     it('should update id column type when tsDurSource changes to different input', () => {
       // Create two inputs with DIFFERENT id types
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'), // Input 0 has INT id
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'STRING'), // Input 1 has STRING id
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: intCols('id', 'ts', 'dur'),
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfo('id', 'string'), // Input 1 has STRING id
+          createColumnInfo('ts', 'int'),
+          createColumnInfo('dur', 'int'),
+        ],
+      });
 
-      const node = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          tsDurSource: 0, // Start with input 0
-        },
-        {},
-      );
+      const node = makeIIN([node1, node2], undefined, 0);
 
       // Check id type matches input 0
       let idCol = node.finalCols.find((c) => c.name === 'id');
@@ -1608,41 +1149,25 @@ describe('IntervalIntersectNode', () => {
 
     it('should propagate id column type change to downstream ModifyColumnsNode when tsDurSource changes', () => {
       // Create two inputs with DIFFERENT id types
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'STRING', PerfettoSqlTypes.STRING),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.STRING),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
 
       // Create IntervalIntersectNode with tsDurSource = 0
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          tsDurSource: 0,
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2], undefined, 0);
 
       // Create ModifyColumnsNode downstream
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
@@ -1667,41 +1192,25 @@ describe('IntervalIntersectNode', () => {
 
     it('should preserve user-modified type in ModifyColumnsNode when tsDurSource changes', () => {
       // Create two inputs with DIFFERENT id types
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfoWithSqlType('id', 'STRING', PerfettoSqlTypes.STRING),
-        createColumnInfoWithSqlType(
-          'ts',
-          'TIMESTAMP',
-          PerfettoSqlTypes.TIMESTAMP,
-        ),
-        createColumnInfoWithSqlType(
-          'dur',
-          'DURATION',
-          PerfettoSqlTypes.DURATION,
-        ),
-      ]);
+      const node1 = createMockNode({
+        nodeId: 'node1',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.INT),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
+      const node2 = createMockNode({
+        nodeId: 'node2',
+        columns: [
+          createColumnInfoWithType('id', PerfettoSqlTypes.STRING),
+          createColumnInfoWithType('ts', PerfettoSqlTypes.TIMESTAMP),
+          createColumnInfoWithType('dur', PerfettoSqlTypes.DURATION),
+        ],
+      });
 
       // Create IntervalIntersectNode with tsDurSource = 0
-      const intervalNode = new IntervalIntersectNode(
-        {
-          inputNodes: [node1, node2],
-          tsDurSource: 0,
-        },
-        {},
-      );
+      const intervalNode = makeIIN([node1, node2], undefined, 0);
 
       // Create ModifyColumnsNode downstream
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});

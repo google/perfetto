@@ -362,6 +362,8 @@ export class SQLHistogramLoader
       type: 'histogram',
       valueColumn: this.valCol,
       bucketCount,
+      bucketSize: config.bucketSize,
+      minValue: config.minValue,
       filters: rangeFilters(this.valCol, filter),
     };
   }
@@ -403,16 +405,26 @@ export class SQLHistogramLoader
       };
     }
 
-    // Build bucket array (including empty buckets)
-    let bucketSize = (max - min) / bucketCount;
-    if (config.integer === true) {
-      bucketSize = Math.max(1, Math.ceil(bucketSize));
+    // Build bucket array (including empty buckets). When the caller pinned
+    // the boundaries via {bucketSize, minValue}, use those directly so the
+    // displayed boundaries match what the SQL bucketed against. Otherwise
+    // compute the auto-binned boundaries from the data range.
+    let boundaryMin = min;
+    let bucketSize: number;
+    if (config.bucketSize !== undefined && config.minValue !== undefined) {
+      boundaryMin = config.minValue;
+      bucketSize = config.bucketSize;
+    } else {
+      bucketSize = (max - min) / bucketCount;
+      if (config.integer === true) {
+        bucketSize = Math.max(1, Math.ceil(bucketSize));
+      }
     }
     const buckets: HistogramBucket[] = [];
     for (let i = 0; i < bucketCount; i++) {
       buckets.push({
-        start: min + i * bucketSize,
-        end: min + (i + 1) * bucketSize,
+        start: boundaryMin + i * bucketSize,
+        end: boundaryMin + (i + 1) * bucketSize,
         count: bucketCounts.get(i) ?? 0,
       });
     }

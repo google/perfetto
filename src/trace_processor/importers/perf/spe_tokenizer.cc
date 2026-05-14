@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
@@ -140,7 +141,7 @@ class SpeStream : public AuxDataStream {
     if (cycles.has_value()) {
       perf_time = stream_.ConvertTscToPerfTime(*cycles);
     } else {
-      context_->storage->IncrementStats(stats::spe_no_timestamp);
+      context_->stats_tracker->IncrementStats(stats::spe_no_timestamp);
     }
 
     if (!perf_time && last_aux_record_->sample_id.has_value()) {

@@ -20,7 +20,7 @@ import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {SqlValue} from '../../trace_processor/query_result';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 
 // Base class to share logic between CPU and GPU package aggregators
 abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
@@ -58,14 +58,20 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
   abstract getTabName(): string;
 
   renderTopbarControls(): m.Children {
-    return m(SegmentedButtons, {
-      options: [{label: 'µW'}, {label: 'mW'}],
-      selectedOption: this.scaleNumericData ? 0 : 1,
-      onOptionSelected: (index) => {
-        this.scaleNumericData = index === 0;
+    return m(
+      RadioGroup,
+      {
+        selectedValue: this.scaleNumericData ? 'uw' : 'mw',
+        onValueChange: (value) => {
+          this.scaleNumericData = value === 'uw';
+        },
+        title: 'Select power units',
       },
-      title: 'Select power units',
-    });
+      [
+        m(RadioGroup.Button, {value: 'uw'}, 'µW'),
+        m(RadioGroup.Button, {value: 'mw'}, 'mW'),
+      ],
+    );
   }
 
   protected powerUnits(): string {

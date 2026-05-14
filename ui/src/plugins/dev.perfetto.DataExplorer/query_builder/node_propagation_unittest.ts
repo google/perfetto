@@ -21,6 +21,10 @@ import {
   expectColumnNames,
 } from './testing/test_utils';
 
+function makeAggNode(): AggregationNode {
+  return new AggregationNode({groupByColumns: [], aggregations: []}, {});
+}
+
 describe('Node Propagation', () => {
   describe('column rename propagation', () => {
     it('REGRESSION: should update AggregationNode when ModifyColumnsNode columns change', () => {
@@ -30,10 +34,7 @@ describe('Node Propagation', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -67,10 +68,7 @@ describe('Node Propagation', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -118,10 +116,7 @@ describe('Node Propagation', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -153,10 +148,7 @@ describe('Node Propagation', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -189,10 +181,7 @@ describe('Node Propagation', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -293,10 +282,7 @@ describe('Node Propagation', () => {
       // Setup: Source -> Modify1 -> Agg -> Modify2
       const sourceNode = createMockSourceNode();
       const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
@@ -422,10 +408,7 @@ describe('Node Propagation', () => {
     it('should be called on downstream nodes when upstream changes', () => {
       const sourceNode = createMockSourceNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -462,10 +445,7 @@ describe('Node Propagation', () => {
 
       // Setup: Source -> Aggregation -> ModifyColumns
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
@@ -523,10 +503,7 @@ describe('Node Propagation', () => {
     it('should propagate multiple aggregation column name changes', () => {
       // Setup: Source -> Aggregation -> ModifyColumns
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
@@ -578,10 +555,7 @@ describe('Node Propagation', () => {
     it('should handle propagation through: Source -> Agg -> ModifyColumns1 -> ModifyColumns2', () => {
       // Setup: Source -> Aggregation -> Modify1 -> Modify2
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
       const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
 
@@ -619,10 +593,7 @@ describe('Node Propagation', () => {
       // This test requires FilterNode, but we'll use ModifyColumns as a proxy
       // to test the general propagation pattern
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const middleNode = new ModifyColumnsNode({selectedColumns: []}, {});
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
@@ -656,14 +627,8 @@ describe('Node Propagation', () => {
 
     it('should handle multiple stacked aggregations: Source -> Agg1 -> Agg2 -> ModifyColumns', () => {
       const sourceNode = createMockSourceNode();
-      const agg1 = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
-      const agg2 = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const agg1 = makeAggNode();
+      const agg2 = makeAggNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect: Source -> Agg1 -> Agg2 -> ModifyColumns
@@ -725,10 +690,7 @@ describe('Node Propagation', () => {
       // it should NOT appear in the modify columns node below
 
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
@@ -776,10 +738,7 @@ describe('Node Propagation', () => {
       // it should appear in downstream nodes
 
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
@@ -821,10 +780,7 @@ describe('Node Propagation', () => {
       // When there are multiple aggregations, only valid ones should propagate
 
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
@@ -878,10 +834,7 @@ describe('Node Propagation', () => {
 
       // Setup: Source -> Aggregation -> ModifyColumns
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode(
-        {groupByColumns: [], aggregations: []},
-        {},
-      );
+      const aggNode = makeAggNode();
       const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes

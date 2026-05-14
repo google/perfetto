@@ -19,6 +19,9 @@ import {renderWidgetShowcase} from '../widgets_page_utils';
 import {languages} from '../sample_data';
 import {Anchor} from '../../../widgets/anchor';
 import {CodeSnippet} from '../../../widgets/code_snippet';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {Icons} from '../../../base/semantic_icons';
 
 export function renderGrid(): m.Children {
   return [
@@ -483,7 +486,21 @@ function renderSimpleGridDemo(
         m(GridCell, {wrap, align: 'right', menuItems}, row.id),
         m(GridCell, {wrap, menuItems}, renderValue(row.name)),
         m(GridCell, {wrap, align: 'right', menuItems}, renderValue(row.score)),
-        m(GridCell, {wrap, menuItems}, renderValue(row.notes)),
+        m(
+          GridCell,
+          {
+            wrap,
+            menuItems,
+            actionButtons: m(Button, {
+              label: 'Edit',
+              rounded: true,
+              intent: Intent.Primary,
+              icon: Icons.Edit,
+              variant: ButtonVariant.Filled,
+            }),
+          },
+          renderValue(row.notes),
+        ),
         m(GridCell, {wrap, menuItems}, renderValue(row.status)),
       ];
     }),

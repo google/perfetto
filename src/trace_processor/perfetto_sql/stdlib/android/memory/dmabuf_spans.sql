@@ -19,17 +19,13 @@ INCLUDE PERFETTO MODULE counters.intervals;
 CREATE PERFETTO TABLE _dmabuf_spans AS
 WITH
   dmabuf_track AS (
-    SELECT
-      counter.*
+    SELECT counter.*
     FROM counter
     JOIN counter_track AS track
-      ON track.id = counter.track_id AND track.name = 'mem.dmabuf_rss'
+      ON track.id = counter.track_id
+      AND track.name = 'mem.dmabuf_rss'
   )
-SELECT
-  upid,
-  ts,
-  dur,
-  CAST(value AS INTEGER) AS dmabuf_rss
+SELECT upid, ts, dur, CAST(value AS INTEGER) AS dmabuf_rss
 FROM counter_leading_intervals!(dmabuf_track) AS dmabuf_counter
 JOIN process_counter_track
   ON dmabuf_counter.track_id = process_counter_track.id;

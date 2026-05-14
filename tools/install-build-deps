@@ -507,41 +507,40 @@ BIGTRACE_DEPS = [
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
 ]
 
-# Syntaqlite CLI prebuilt binaries. Used by tools/gen_syntaqlite_parser to
+# Syntaqlite CLI prebuilt binaries. Used by tools/format-sql-sources to format
+# `.sql` files (via `syntaqlite fmt`) and by tools/gen_syntaqlite_parser to
 # regenerate src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
-# from the canonical perfetto.y + perfetto.synq grammar files. Only needed by
-# contributors editing the grammar; normal builds consume the committed
-# generated output. Gated behind the `--syntaqlite` flag.
+# from the canonical perfetto.y + perfetto.synq grammar files.
 SYNTAQLITE_DEPS = [
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.6/syntaqlite-linux-x64.tar.gz',
-        'f9bc7f071c248380cc8691a26e9c48f1c05a131181739475f06ed4a54d1ff662',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.9/syntaqlite-linux-x64.tar.gz',
+        '7f4f290ee3c7d167118eb81a0da85fcddc0bd45c0de502f401e15d67f95c5da0',
         'linux', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.6/syntaqlite-linux-arm64.tar.gz',
-        'c41cd50afa3d22639487187524f1c83e34f58d7d3fc01320dc370a2d8fffd398',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.9/syntaqlite-linux-arm64.tar.gz',
+        'c43b8d813f23b752ed87f95de6afaa3ca7d3113c418e7f96099c08ec439a1e24',
         'linux', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.6/syntaqlite-macos-x64.tar.gz',
-        '94611faa629839ee16d77a87988f945a1fe4fdf58efc9c4d586896903fe8f594',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.9/syntaqlite-macos-x64.tar.gz',
+        'efa2ebffc333584067865f5c7efb86053d0ad47494dc4b6ef21c65f802d17b94',
         'darwin', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.6/syntaqlite-macos-arm64.tar.gz',
-        'c27a4c870177d317050acffc03f5023ed81a1bb7f2586f90b817f99854d1323a',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.9/syntaqlite-macos-arm64.tar.gz',
+        '760416147c489b2b9a04a1ad98e4e94b429d6682f4c45a48611d9571039e1718',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.6/syntaqlite-windows-x64.zip',
-        'c1020ece9fd1e469bdbbae96e655e9699b9e03c861319408808bf49ffb166c45',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.9/syntaqlite-windows-x64.zip',
+        'fc94cfca32e4b4dac23c85e3b2b8450e9001fae8ea22c0fb31f515adbfa35342',
         'windows', 'x64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.6/syntaqlite-windows-arm64.zip',
-        '3b3bd0f1d2b9f2d36e1f10e34726b48144fdcf648c7ffc441b10a517b2066a00',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.9/syntaqlite-windows-arm64.zip',
+        '544843cb3ae2aee157fca4600a871f75b56c245586609ec47f9901565657d1fe',
         'windows', 'arm64'),
 ]
 
@@ -945,10 +944,6 @@ def Main():
       help='Override the autodetected build CPU architecture')
   parser.add_argument(
       '--rust', action='store_true', help='Rust toolchain to build Rust SDK')
-  parser.add_argument(
-      '--syntaqlite',
-      action='store_true',
-      help='Prebuilt syntaqlite CLI for regenerating the PerfettoSQL parser')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -982,8 +977,7 @@ def Main():
     deps += BIGTRACE_DEPS
   if args.rust:
     deps += BUILD_DEPS_RUST
-  if args.syntaqlite:
-    deps += SYNTAQLITE_DEPS
+  deps += SYNTAQLITE_DEPS
   deps_updated = False
   nodejs_updated = False
   rustup_updated = False

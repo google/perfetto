@@ -26,6 +26,7 @@ import {
   connectNodes,
   expectValidationError,
   createMockNodeWithStructuredQuery,
+  expectValidationSuccess,
 } from '../testing/test_utils';
 import {isColumnDef} from '../../../../components/widgets/datagrid/datagrid_schema';
 import protos from '../../../../protos';
@@ -54,6 +55,33 @@ function makeValueCol(
   customUnit?: string,
 ): ValueColumnConfig {
   return {column, unit, polarity, customUnit};
+}
+
+// Creates a MetricsNode connected to a simple createMockNode with [value/int].
+function makeConnected(
+  stateOverrides: Partial<MetricsNodeState> = {},
+): MetricsNode {
+  const inputNode = createMockNode({
+    columns: [createColumnInfo('value', 'int')],
+  });
+  const node = new MetricsNode(makeState(stateOverrides), {});
+  connectNodes(inputNode, node);
+  return node;
+}
+
+// Creates a MetricsNode connected to createMockNodeWithStructuredQuery with
+// [value/int] and availableColumns set to the same column list.
+function makeSpecNode(
+  stateOverrides: Partial<MetricsNodeState> = {},
+): MetricsNode {
+  const inputCols = [createColumnInfo('value', 'int')];
+  const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
+  const node = new MetricsNode(
+    makeState({availableColumns: inputCols, ...stateOverrides}),
+    {},
+  );
+  connectNodes(inputNode, node);
+  return node;
 }
 
 describe('MetricsNode', () => {
@@ -222,31 +250,19 @@ describe('MetricsNode', () => {
     });
 
     it('should fail validation when metric ID prefix is empty', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNode({columns: inputCols});
-
-      const node = new MetricsNode(makeState({metricIdPrefix: ''}), {});
-      connectNodes(inputNode, node);
+      const node = makeConnected({metricIdPrefix: ''});
 
       expectValidationError(node, 'Metric ID prefix is required');
     });
 
     it('should fail validation when metric ID prefix is only whitespace', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNode({columns: inputCols});
-
-      const node = new MetricsNode(makeState({metricIdPrefix: '   '}), {});
-      connectNodes(inputNode, node);
+      const node = makeConnected({metricIdPrefix: '   '});
 
       expectValidationError(node, 'Metric ID prefix is required');
     });
 
     it('should fail validation when no value columns set', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNode({columns: inputCols});
-
-      const node = new MetricsNode(makeState({valueColumns: []}), {});
-      connectNodes(inputNode, node);
+      const node = makeConnected({valueColumns: []});
 
       expectValidationError(node, 'At least one value column is required');
     });
@@ -278,16 +294,9 @@ describe('MetricsNode', () => {
     });
 
     it('should fail validation when custom unit not provided with CUSTOM unit', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNode({columns: inputCols});
-
-      const node = new MetricsNode(
-        makeState({
-          valueColumns: [makeValueCol('value', 'CUSTOM', 'NOT_APPLICABLE', '')],
-        }),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeConnected({
+        valueColumns: [makeValueCol('value', 'CUSTOM', 'NOT_APPLICABLE', '')],
+      });
 
       expectValidationError(node, 'Custom unit is required');
     });
@@ -330,7 +339,7 @@ describe('MetricsNode', () => {
       );
       connectNodes(inputNode, node);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should pass validation with multiple value columns', () => {
@@ -352,24 +361,17 @@ describe('MetricsNode', () => {
       );
       connectNodes(inputNode, node);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should pass validation with custom unit', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNode({columns: inputCols});
+      const node = makeConnected({
+        valueColumns: [
+          makeValueCol('value', 'CUSTOM', 'NOT_APPLICABLE', 'widgets'),
+        ],
+      });
 
-      const node = new MetricsNode(
-        makeState({
-          valueColumns: [
-            makeValueCol('value', 'CUSTOM', 'NOT_APPLICABLE', 'widgets'),
-          ],
-        }),
-        {},
-      );
-      connectNodes(inputNode, node);
-
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should clear previous validation errors on success', () => {
@@ -384,7 +386,7 @@ describe('MetricsNode', () => {
       const inputNode = createMockNode({columns: inputCols});
       connectNodes(inputNode, node);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
       expect(node.context.issues?.queryError).toBeUndefined();
     });
   });
@@ -412,14 +414,7 @@ describe('MetricsNode', () => {
     });
 
     it('should remove value column entry if the column no longer exists', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNode({columns: inputCols});
-
-      const node = new MetricsNode(
-        makeState({valueColumns: [makeValueCol('old_value')]}),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeConnected({valueColumns: [makeValueCol('old_value')]});
 
       node.onPrevNodesUpdated();
 
@@ -541,17 +536,9 @@ describe('MetricsNode', () => {
     });
 
     it('should return template spec with correct id prefix', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
-
-      const node = new MetricsNode(
-        makeState({
-          metricIdPrefix: 'my_metric_prefix',
-          availableColumns: inputCols,
-        }),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeSpecNode({
+        metricIdPrefix: 'my_metric_prefix',
+      });
 
       const spec = node.getMetricTemplateSpec();
 
@@ -744,14 +731,7 @@ describe('MetricsNode', () => {
     });
 
     it('should set dimension uniqueness to UNIQUE', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
-
-      const node = new MetricsNode(
-        makeState({dimensionUniqueness: 'UNIQUE', availableColumns: inputCols}),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeSpecNode({dimensionUniqueness: 'UNIQUE'});
 
       const spec = node.getMetricTemplateSpec();
 
@@ -761,17 +741,7 @@ describe('MetricsNode', () => {
     });
 
     it('should set dimension uniqueness to NOT_UNIQUE', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
-
-      const node = new MetricsNode(
-        makeState({
-          dimensionUniqueness: 'NOT_UNIQUE',
-          availableColumns: inputCols,
-        }),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeSpecNode({dimensionUniqueness: 'NOT_UNIQUE'});
 
       const spec = node.getMetricTemplateSpec();
 
@@ -781,19 +751,11 @@ describe('MetricsNode', () => {
     });
 
     it('should set custom unit in value spec', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
-
-      const node = new MetricsNode(
-        makeState({
-          valueColumns: [
-            makeValueCol('value', 'CUSTOM', 'NOT_APPLICABLE', 'my_custom_unit'),
-          ],
-          availableColumns: inputCols,
-        }),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeSpecNode({
+        valueColumns: [
+          makeValueCol('value', 'CUSTOM', 'NOT_APPLICABLE', 'my_custom_unit'),
+        ],
+      });
 
       const spec = node.getMetricTemplateSpec();
 
@@ -801,17 +763,9 @@ describe('MetricsNode', () => {
     });
 
     it('should set polarity in value spec', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
-
-      const node = new MetricsNode(
-        makeState({
-          valueColumns: [makeValueCol('value', 'COUNT', 'LOWER_IS_BETTER')],
-          availableColumns: inputCols,
-        }),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeSpecNode({
+        valueColumns: [makeValueCol('value', 'COUNT', 'LOWER_IS_BETTER')],
+      });
 
       const spec = node.getMetricTemplateSpec();
 
@@ -821,14 +775,7 @@ describe('MetricsNode', () => {
     });
 
     it('should include query from primary input', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
-
-      const node = new MetricsNode(
-        makeState({availableColumns: inputCols}),
-        {},
-      );
-      connectNodes(inputNode, node);
+      const node = makeSpecNode();
 
       const spec = node.getMetricTemplateSpec();
 
@@ -1180,7 +1127,7 @@ describe('MetricsNode', () => {
       );
       connectNodes(inputNode, node);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
 
       const sq = node.getStructuredQuery();
       expect(sq).toBeDefined();
@@ -1218,7 +1165,7 @@ describe('MetricsNode', () => {
       );
       connectNodes(inputNode, node);
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
 
       const spec = node.getMetricTemplateSpec();
       expect(spec?.valueColumnSpecs?.length).toBe(2);
@@ -1308,7 +1255,7 @@ describe('MetricsNode', () => {
       expect(restoredNode.attrs.valueColumns).toHaveLength(1);
       expect(restoredNode.attrs.valueColumns[0].column).toBe('metric_value');
       expect(restoredNode.getDimensions()).toEqual(['id', 'category']);
-      expect(restoredNode.validate()).toBe(true);
+      expectValidationSuccess(restoredNode);
     });
 
     it('should clear stale value columns if they no longer exist after reconnection', () => {

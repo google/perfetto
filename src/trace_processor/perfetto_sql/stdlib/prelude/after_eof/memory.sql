@@ -27,7 +27,7 @@ INCLUDE PERFETTO MODULE prelude.after_eof.views;
 -- Stores class information within ART heap graphs. It represents Java/Kotlin
 -- classes that exist in the heap, including their names, inheritance
 -- relationships, and loading context.
-CREATE PERFETTO VIEW heap_graph_class (
+CREATE PERFETTO VIEW heap_graph_class(
   -- Unique identifier for this heap graph class.
   id ID,
   -- (potentially obfuscated) name of the class.
@@ -43,7 +43,8 @@ CREATE PERFETTO VIEW heap_graph_class (
   classloader_id LONG,
   -- The kind of class.
   kind STRING
-) AS
+)
+AS
 SELECT
   id,
   name,
@@ -57,7 +58,7 @@ FROM __intrinsic_heap_graph_class;
 -- The objects on the Dalvik heap.
 --
 -- All rows with the same (upid, graph_sample_ts) are one dump.
-CREATE PERFETTO VIEW heap_graph_object (
+CREATE PERFETTO VIEW heap_graph_object(
   -- Unique identifier for this heap graph object.
   id ID,
   -- Unique PID of the target.
@@ -85,7 +86,8 @@ CREATE PERFETTO VIEW heap_graph_object (
   root_distance LONG,
   -- Optional ID into heap_graph_object_data for HPROF data.
   object_data_id LONG
-) AS
+)
+AS
 SELECT
   id,
   upid,
@@ -106,7 +108,7 @@ FROM __intrinsic_heap_graph_object;
 -- Contains decoded string content and primitive array blob references.
 -- Only populated for HPROF (ART) heap dumps, not for proto heap graphs.
 -- Linked from heap_graph_object.object_data_id.
-CREATE PERFETTO VIEW heap_graph_object_data (
+CREATE PERFETTO VIEW heap_graph_object_data(
   -- Unique identifier for this data entry.
   id ID,
   -- Join key with heap_graph_primitive containing primitive field values.
@@ -124,7 +126,8 @@ CREATE PERFETTO VIEW heap_graph_object_data (
   -- For primitive array objects, a 64-bit content hash of the raw element
   -- bytes. Two arrays with the same hash have identical content.
   array_data_hash LONG
-) AS
+)
+AS
 SELECT
   id,
   field_set_id,
@@ -139,7 +142,7 @@ FROM __intrinsic_heap_graph_object_data;
 --
 -- This associates the object with given reference_set_id with the objects
 -- that are referred to by its fields.
-CREATE PERFETTO VIEW heap_graph_reference (
+CREATE PERFETTO VIEW heap_graph_reference(
   -- Unique identifier for this heap graph reference.
   id ID,
   -- Join key to heap_graph_object reference_set_id.
@@ -155,7 +158,8 @@ CREATE PERFETTO VIEW heap_graph_reference (
   -- The deobfuscated name, if field_name was obfuscated and a deobfuscation
   -- mapping was provided for it.
   deobfuscated_field_name STRING
-) AS
+)
+AS
 SELECT
   id,
   reference_set_id,
@@ -170,7 +174,7 @@ FROM __intrinsic_heap_graph_reference;
 --
 -- This associates the object with given field_set_id with its primitive
 -- field values (for instances).
-CREATE PERFETTO VIEW heap_graph_primitive (
+CREATE PERFETTO VIEW heap_graph_primitive(
   -- Unique identifier for this field entry.
   id ID,
   -- Join key to heap_graph_object_data.field_set_id.
@@ -195,7 +199,8 @@ CREATE PERFETTO VIEW heap_graph_primitive (
   float_value DOUBLE,
   -- Value for double fields.
   double_value DOUBLE
-) AS
+)
+AS
 SELECT
   id,
   field_set_id,
@@ -212,7 +217,7 @@ SELECT
 FROM __intrinsic_heap_graph_primitive;
 
 -- Table with memory snapshots.
-CREATE PERFETTO VIEW memory_snapshot (
+CREATE PERFETTO VIEW memory_snapshot(
   -- Unique identifier for this snapshot.
   id ID,
   -- Time of the snapshot.
@@ -221,31 +226,24 @@ CREATE PERFETTO VIEW memory_snapshot (
   track_id JOINID(track.id),
   -- Detail level of this snapshot.
   detail_level STRING
-) AS
-SELECT
-  id,
-  timestamp,
-  track_id,
-  detail_level
-FROM __intrinsic_memory_snapshot;
+)
+AS
+SELECT id, timestamp, track_id, detail_level FROM __intrinsic_memory_snapshot;
 
 -- Table with process memory snapshots.
-CREATE PERFETTO VIEW process_memory_snapshot (
+CREATE PERFETTO VIEW process_memory_snapshot(
   -- Unique identifier for this snapshot.
   id ID,
   -- Snapshot ID for this snapshot.
   snapshot_id JOINID(memory_snapshot.id),
   -- Process for this snapshot.
   upid JOINID(process.id)
-) AS
-SELECT
-  id,
-  snapshot_id,
-  upid
-FROM __intrinsic_process_memory_snapshot;
+)
+AS
+SELECT id, snapshot_id, upid FROM __intrinsic_process_memory_snapshot;
 
 -- Table with memory snapshot nodes.
-CREATE PERFETTO VIEW memory_snapshot_node (
+CREATE PERFETTO VIEW memory_snapshot_node(
   -- Unique identifier for this node.
   id ID,
   -- Process snapshot ID for to this node.
@@ -260,7 +258,8 @@ CREATE PERFETTO VIEW memory_snapshot_node (
   effective_size LONG,
   -- Additional args of the node.
   arg_set_id ARGSETID
-) AS
+)
+AS
 SELECT
   id,
   process_snapshot_id,
@@ -272,7 +271,7 @@ SELECT
 FROM __intrinsic_memory_snapshot_node;
 
 -- Table with memory snapshot edge
-CREATE PERFETTO VIEW memory_snapshot_edge (
+CREATE PERFETTO VIEW memory_snapshot_edge(
   -- Unique identifier for this edge.
   id ID,
   -- Source node for this edge.
@@ -281,10 +280,7 @@ CREATE PERFETTO VIEW memory_snapshot_edge (
   target_node_id JOINID(memory_snapshot_node.id),
   -- Importance for this edge.
   importance LONG
-) AS
-SELECT
-  id,
-  source_node_id,
-  target_node_id,
-  importance
+)
+AS
+SELECT id, source_node_id, target_node_id, importance
 FROM __intrinsic_memory_snapshot_edge;

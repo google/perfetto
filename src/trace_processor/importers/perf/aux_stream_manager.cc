@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
@@ -131,17 +132,19 @@ base::Status AuxStream::OnAuxRecord(AuxRecord aux) {
                            aux.offset, aux_end_);
   }
   if (aux.offset > aux_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->stats_tracker->IncrementStats(
         stats::perf_aux_missing, static_cast<int64_t>(aux.offset - aux_end_));
   }
   if (aux.flags & PERF_AUX_FLAG_TRUNCATED) {
-    manager_.context()->storage->IncrementStats(stats::perf_aux_truncated);
+    manager_.context()->stats_tracker->IncrementStats(
+        stats::perf_aux_truncated);
   }
   if (aux.flags & PERF_AUX_FLAG_PARTIAL) {
-    manager_.context()->storage->IncrementStats(stats::perf_aux_partial);
+    manager_.context()->stats_tracker->IncrementStats(stats::perf_aux_partial);
   }
   if (aux.flags & PERF_AUX_FLAG_COLLISION) {
-    manager_.context()->storage->IncrementStats(stats::perf_aux_collision);
+    manager_.context()->stats_tracker->IncrementStats(
+        stats::perf_aux_collision);
   }
   outstanding_records_.emplace_back(std::move(aux));
   aux_end_ = aux.end();
@@ -155,7 +158,7 @@ base::Status AuxStream::OnAuxtraceRecord(AuxtraceRecord auxtrace,
     return base::ErrStatus("Overlapping AuxtraceData");
   }
   if (auxtrace.offset > auxtrace_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->stats_tracker->IncrementStats(
         stats::perf_auxtrace_missing,
         static_cast<int64_t>(auxtrace.offset - auxtrace_end_));
   }
@@ -245,11 +248,11 @@ base::Status AuxStream::NotifyEndOfStream() {
   }
 
   if (aux_end_ < auxtrace_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->stats_tracker->IncrementStats(
         stats::perf_aux_missing,
         static_cast<int64_t>(auxtrace_end_ - aux_end_));
   } else if (auxtrace_end_ < aux_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->stats_tracker->IncrementStats(
         stats::perf_auxtrace_missing,
         static_cast<int64_t>(aux_end_ - auxtrace_end_));
   }

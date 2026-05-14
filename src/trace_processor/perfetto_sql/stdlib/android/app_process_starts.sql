@@ -17,13 +17,11 @@ INCLUDE PERFETTO MODULE slices.with_context;
 
 -- All process starts.
 CREATE PERFETTO VIEW _proc_start AS
-SELECT
-  ts,
-  dur,
-  trim(substr(name, 12)) AS process_name
+SELECT ts, dur, trim(substr(name, 12)) AS process_name
 FROM thread_slice
 WHERE
-  name GLOB 'Start proc:*' AND process_name = 'system_server';
+  name GLOB 'Start proc:*'
+  AND process_name = 'system_server';
 
 -- Broadcast, service and activity cold starts.
 CREATE PERFETTO TABLE _cold_start AS
@@ -40,20 +38,26 @@ WITH
       pid,
       utid,
       CASE
-        WHEN name GLOB 'performCreate:*'
-        THEN 'activity'
-        WHEN name GLOB 'serviceCreate:*'
-        THEN 'service'
-        WHEN name GLOB 'broadcastReceiveComp:*'
-        THEN 'broadcast'
+        WHEN name GLOB 'performCreate:*' THEN 'activity'
+        WHEN name GLOB 'serviceCreate:*' THEN 'service'
+        WHEN name GLOB 'broadcastReceiveComp:*' THEN 'broadcast'
       END AS reason,
       CASE
-        WHEN name GLOB 'performCreate:*'
-        THEN str_split(name, 'performCreate:', 1)
-        WHEN name GLOB 'serviceCreate:*'
-        THEN str_split(str_split(name, '=', 2), ' ', 0)
-        WHEN name GLOB 'broadcastReceive*'
-        THEN str_split(name, 'broadcastReceiveComp:', 1)
+        WHEN name GLOB 'performCreate:*' THEN str_split(
+          name,
+          'performCreate:',
+          1
+        )
+        WHEN name GLOB 'serviceCreate:*' THEN str_split(
+          str_split(name, '=', 2),
+          ' ',
+          0
+        )
+        WHEN name GLOB 'broadcastReceive*' THEN str_split(
+          name,
+          'broadcastReceiveComp:',
+          1
+        )
       END AS intent
     FROM thread_slice AS slice
     WHERE
@@ -73,11 +77,7 @@ WITH
       lag(id) OVER (PARTITION BY track_id ORDER BY intent_ts) AS bind_app_id
     FROM lifecycle_slice
   )
-SELECT
-  *
-FROM cold_start
-WHERE
-  bind_app_name = 'bindApplication';
+SELECT * FROM cold_start WHERE bind_app_name = 'bindApplication';
 
 -- Join Broadcast, service and activity cold starts with process starts.
 CREATE PERFETTO VIEW _cold_proc_start AS
@@ -97,18 +97,11 @@ GROUP BY
 CREATE PERFETTO TABLE _provider_start AS
 WITH
   provider_start AS (
-    SELECT
-      id AS bind_app_id
-    FROM slice
-    WHERE
-      name = 'bindApplication'
+    SELECT id AS bind_app_id FROM slice WHERE name = 'bindApplication'
     EXCEPT
-    SELECT
-      bind_app_id
-    FROM _cold_start
+    SELECT bind_app_id FROM _cold_start
   )
-SELECT
-  *
+SELECT *
 FROM provider_start
 JOIN thread_slice
   ON id = bind_app_id;
@@ -129,7 +122,7 @@ GROUP BY
 
 -- All app cold starts with information about their cold start reason:
 -- broadcast, service, activity or provider.
-CREATE PERFETTO TABLE android_app_process_starts (
+CREATE PERFETTO TABLE android_app_process_starts(
   -- Slice id of the bindApplication slice in the app. Uniquely identifies a process start.
   start_id LONG,
   -- Slice id of intent received in the app.
@@ -160,7 +153,8 @@ CREATE PERFETTO TABLE android_app_process_starts (
   intent_dur DURATION,
   -- Total duration from proc_start dispatched to intent completed.
   total_dur LONG
-) AS
+)
+AS
 SELECT
   bind_app_id AS start_id,
   id,

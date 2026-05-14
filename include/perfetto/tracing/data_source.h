@@ -280,6 +280,12 @@ class DataSource : public DataSourceBase {
   constexpr static BufferExhaustedPolicy kBufferExhaustedPolicy =
       BufferExhaustedPolicy::kDrop;
 
+  // Returns the effective buffer exhausted policy. Derived classes can
+  // override this to provide a runtime value (e.g. from TracingInitArgs).
+  static BufferExhaustedPolicy GetDefaultBufferExhaustedPolicy() {
+    return DerivedDataSource::kBufferExhaustedPolicy;
+  }
+
   // Whether the kBufferExhaustedPolicy policy above is overridable via config.
   constexpr static bool kBufferExhaustedPolicyConfigurable = false;
 
@@ -506,7 +512,7 @@ class DataSource : public DataSourceBase {
     params.supports_multiple_instances =
         DerivedDataSource::kSupportsMultipleInstances;
     params.default_buffer_exhausted_policy =
-        DerivedDataSource::kBufferExhaustedPolicy;
+        DerivedDataSource::GetDefaultBufferExhaustedPolicy();
     params.buffer_exhausted_policy_configurable =
         DerivedDataSource::kBufferExhaustedPolicyConfigurable;
     return Helper::type().Register(
