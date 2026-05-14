@@ -632,9 +632,8 @@ perfetto_cc_library(
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -934,9 +933,8 @@ perfetto_cc_library(
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -1734,6 +1732,16 @@ perfetto_filegroup(
         "include/perfetto/tracing/track_event_legacy.h",
         "include/perfetto/tracing/track_event_state_tracker.h",
     ],
+)
+
+# GN target: //protos/third_party/android:extension_descriptor
+perfetto_protozero_descriptor_diff(
+    name = "protos_third_party_android_extension_descriptor",
+    outs = [
+        "protos/third_party/android/android_extensions_extension.descriptor",
+    ],
+    minuend = "protos_third_party_android_android_extensions_descriptor",
+    subtrahend = "protos_perfetto_trace_descriptor",
 )
 
 # GN target: //protos/third_party/chromium:extension_descriptor
@@ -2989,6 +2997,25 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/proto:gen_cc_android_extensions_descriptor
+perfetto_cpp_blob_header(
+    name = "src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
+    script = "python:cpp_blob_emitter_bin",
+    deps = [
+        ":protos_third_party_android_extension_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/importers/proto/android_extensions_extension.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/proto:gen_cc_chrome_track_event_descriptor
 perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
@@ -2998,44 +3025,6 @@ perfetto_cpp_blob_header(
     ],
     outs = [
         "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
-    ],
-    args = [
-        "--gen-dir=$(GENDIR)",
-        "--namespace",
-        "perfetto",
-        "--symbol-suffix",
-        "Descriptor",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/proto:gen_cc_frameworks_base_track_event_descriptor
-perfetto_cpp_blob_header(
-    name = "src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
-    script = "python:cpp_blob_emitter_bin",
-    deps = [
-        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_descriptor",
-    ],
-    outs = [
-        "src/trace_processor/importers/proto/frameworks_base_track_event.descriptor.h",
-    ],
-    args = [
-        "--gen-dir=$(GENDIR)",
-        "--namespace",
-        "perfetto",
-        "--symbol-suffix",
-        "Descriptor",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/proto:gen_cc_frameworks_native_track_event_descriptor
-perfetto_cpp_blob_header(
-    name = "src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
-    script = "python:cpp_blob_emitter_bin",
-    deps = [
-        ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_descriptor",
-    ],
-    outs = [
-        "src/trace_processor/importers/proto/frameworks_native_track_event.descriptor.h",
     ],
     args = [
         "--gen-dir=$(GENDIR)",
@@ -9539,14 +9528,34 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_descriptor
+# GN target: //protos/third_party/android:android_extensions_descriptor
 perfetto_proto_descriptor(
-    name = "protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_descriptor",
+    name = "protos_third_party_android_android_extensions_descriptor",
     deps = [
-        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_android_extensions_protos",
     ],
     outs = [
-        "protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_descriptor.bin",
+        "protos_third_party_android_android_extensions_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/third_party/android:android_extensions_source_set
+perfetto_proto_library(
+    name = "protos_third_party_android_android_extensions_protos",
+    srcs = [
+        "protos/third_party/android/android_extensions.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
+    ],
+    exports = [
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
     ],
 )
 
@@ -9564,17 +9573,6 @@ perfetto_proto_library(
     ],
     exports = [
         ":protos_perfetto_trace_track_event_protos",
-    ],
-)
-
-# GN target: //protos/third_party/android/frameworks/native/tracing:frameworks_native_track_event_descriptor
-perfetto_proto_descriptor(
-    name = "protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_descriptor",
-    deps = [
-        ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
-    ],
-    outs = [
-        "protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_descriptor.bin",
     ],
 )
 
@@ -10224,9 +10222,8 @@ perfetto_cc_library(
                ":src_base_regex_regex",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -10533,9 +10530,8 @@ perfetto_cc_binary(
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_base_track_event_descriptor",
-               ":src_trace_processor_importers_proto_gen_cc_frameworks_native_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
