@@ -20,7 +20,6 @@ structured output for consumption by various tools.
 """
 
 import os
-from collections import defaultdict
 from pathlib import Path
 from typing import List, Tuple, Optional
 
@@ -196,190 +195,61 @@ def format_entities(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
   }
 
 
-def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
-  """Format parsed modules as documentation JSON (for gen_stdlib_docs_json).
+def format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
+  """Format only the metadata not available from the TP table functions.
 
-  Output format matches what gen_stdlib_docs_json currently produces.
+  The TP exposes module names, packages, table/function/macro names,
+  descriptions, types, columns and args. This function emits only the
+  complementary metadata that lives outside the SQL syntax:
+    - tags and data-availability check SQL (module level)
+    - includes (INCLUDE PERFETTO MODULE directives)
+    - importance and data-availability check SQL (table level)
+
+  Output (keyed by module name so the UI can look up by key):
+  {
+    "android.memory": {
+      "tags": ["android"],
+      "includes": ["android.memory.heap"],
+      "data_check_sql": "SELECT EXISTS(...) AS has_data",  // null if absent
+      "tables": {                                          // omitted if empty
+        "android_heap_profile_allocation": {
+          "importance": "high",                           // null if absent
+          "data_check_sql": "SELECT EXISTS(...) AS has_data"  // null if absent
+        }
+      }
+    },
+    ...
+  }
   """
-
-  # Use the curated data check SQL map
-  data_check_sql_map = MODULE_DATA_CHECK_SQL
-
-  def _summary_desc(s: str) -> str:
-    """Extract the first sentence from a description."""
-    s = s.replace('\n', ' ')
-    if '. ' in s:
-      return s.split('. ')[0]
-    elif '.' in s:
-      return s.split('.')[0]
-    return s
-
-  def _create_field_dict(name: str, obj, include_desc: bool = True) -> dict:
-    """Create a dictionary for a column or argument.
-
-    Parses long_type to extract table and column references.
-    Expected format: "TYPE(table_name.column_name)" where TYPE is optional uppercase,
-    and table_name and column_name are lowercase with underscores.
-    If the format doesn't match, table and column are set to None.
-    """
-    import re
-
-    # Parse long type string to extract table and column references
-    # Expected format: "TYPE(table_name.column_name)"
-    table, column = None, None
-    if hasattr(obj, 'long_type') and obj.long_type:
-      pattern = r'[A-Z]*\(([a-z_]*)\.([a-z_]*)\)'
-      m = re.match(pattern, obj.long_type)
-      if m:
-        table, column = m.groups()
-
-    result = {
-        'name': name,
-        'type': obj.long_type if hasattr(obj, 'long_type') else None,
-        'table': table,
-        'column': column,
-    }
-    if include_desc:
-      result['desc'] = obj.description if hasattr(obj, 'description') else None
-    return result
-
-  packages = defaultdict(list)
+  result = {}
 
   for _, _, module_name, parsed in modules:
-    package_name = module_name.split(".")[0]
+    tags = get_tags(module_name)
+    includes = [inc.module for inc in parsed.includes]
+    data_check_sql = (
+        check_to_query(MODULE_DATA_CHECK_SQL[module_name])
+        if module_name in MODULE_DATA_CHECK_SQL else None)
 
-    module_dict = {
-        'module_name':
-            module_name,
-        'module_doc': {
-            'name': parsed.module_doc.name,
-            'desc': parsed.module_doc.desc,
-        } if parsed.module_doc else None,
-        'tags':
-            get_tags(module_name),
-        'includes': [inc.module for inc in parsed.includes],
-        'data_objects': [{
-            'name':
-                table.name,
-            'desc':
-                table.desc,
-            'summary_desc':
-                _summary_desc(table.desc),
-            'type':
-                table.type,
-            'visibility':
-                'private' if is_internal(table.name) else 'public',
-            'importance':
-                get_table_importance(table.name),
-            'data_check_sql':
-                check_to_query(TABLE_DATA_CHECK_SQL[table.name])
-                if table.name in TABLE_DATA_CHECK_SQL else None,
-            'cols': [
-                _create_field_dict(col_name, col)
-                for (col_name, col) in table.cols.items()
-            ]
+    tables = {}
+    for table in parsed.table_views:
+      importance = get_table_importance(table.name)
+      table_check = (
+          check_to_query(TABLE_DATA_CHECK_SQL[table.name])
+          if table.name in TABLE_DATA_CHECK_SQL else None)
+      if importance is not None or table_check is not None:
+        tables[table.name] = {
+            'importance': importance,
+            'data_check_sql': table_check,
         }
-                         for table in parsed.table_views],
-        'functions': [{
-            'name': function.name,
-            'desc': function.desc,
-            'summary_desc': _summary_desc(function.desc),
-            'visibility': 'private' if is_internal(function.name) else 'public',
-            'args': [
-                _create_field_dict(arg_name, arg)
-                for (arg_name, arg) in function.args.items()
-            ],
-            'return_type': function.return_type,
-            'return_desc': function.return_desc,
-        }
-                      for function in parsed.functions],
-        'table_functions': [{
-            'name':
-                function.name,
-            'desc':
-                function.desc,
-            'summary_desc':
-                _summary_desc(function.desc),
-            'visibility':
-                'private' if is_internal(function.name) else 'public',
-            'args': [
-                _create_field_dict(arg_name, arg)
-                for (arg_name, arg) in function.args.items()
-            ],
-            'cols': [
-                _create_field_dict(col_name, col)
-                for (col_name, col) in function.cols.items()
-            ]
-        }
-                            for function in parsed.table_functions],
-        'macros': [{
-            'name':
-                macro.name,
-            'desc':
-                macro.desc,
-            'summary_desc':
-                _summary_desc(macro.desc),
-            'visibility':
-                'private' if is_internal(macro.name) else 'public',
-            'return_desc':
-                macro.return_desc,
-            'return_type':
-                macro.return_type,
-            'args': [
-                _create_field_dict(arg_name, arg)
-                for (arg_name, arg) in macro.args.items()
-            ],
-        }
-                   for macro in parsed.macros],
-        'data_check_sql':
-            check_to_query(data_check_sql_map.get(module_name))
-            if module_name in data_check_sql_map else None,
-    }
-    packages[package_name].append(module_dict)
 
-  packages_list = [{
-      "name": name,
-      "modules": modules
-  } for name, modules in packages.items()]
-
-  return packages_list
-
-
-def format_full(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
-  """Format parsed modules with full information (for check_sql_modules.py).
-
-  Includes raw SQL and parsed module data for validation.
-  """
-  modules_list = []
-
-  for abs_path, rel_path, module_name, parsed in modules:
-    # Read raw SQL
-    with open(abs_path, 'r', encoding='utf-8') as f:
-      sql = f.read()
-
-    # Extract includes in the format needed
-    includes = [{
-        'package':
-            inc.package,
-        'module':
-            inc.module,
-        'full_name':
-            f"{inc.package}.{inc.module}" if inc.package else inc.module
-    } for inc in parsed.includes]
-
-    module_dict = {
-        'path': abs_path,
-        'rel_path': rel_path,
-        'module_name': module_name,
-        'package_name': parsed.package_name,
-        'sql': sql,
+    entry = {
+        'tags': tags,
         'includes': includes,
-        'errors': parsed.errors,
-        'functions_count': len(parsed.functions),
-        'table_functions_count': len(parsed.table_functions),
-        'table_views_count': len(parsed.table_views),
-        'macros_count': len(parsed.macros),
+        'data_check_sql': data_check_sql,
     }
-    modules_list.append(module_dict)
+    if tables:
+      entry['tables'] = tables
 
-  return {'modules': modules_list}
+    result[module_name] = entry
+
+  return result

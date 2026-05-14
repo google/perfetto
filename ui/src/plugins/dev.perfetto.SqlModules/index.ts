@@ -15,18 +15,18 @@
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {defer} from '../../base/deferred';
-import {extensions} from '../../components/extensions';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules, isTableEffectivelyDisabled} from './sql_modules';
+import {extensions} from '../../components/extensions';
 import {
-  SQL_MODULES_DOCS_SCHEMA,
-  SqlModulesDocsSchema,
-  SqlModulesImpl,
-} from './sql_modules_impl';
+  STDLIB_METADATA_SCHEMA,
+  StdlibMetadata,
+  loadSqlModulesFromTp,
+} from './sql_modules_from_tp';
 
-const docs = defer<SqlModulesDocsSchema>();
+const metadata = defer<StdlibMetadata>();
 
 export default class SqlModulesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
@@ -34,18 +34,14 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
   private sqlModules: SqlModules | undefined;
 
   static onActivate(_: App): void {
-    // Load the SQL modules JSON file when the plugin when the app starts up,
+    // Eagerly start loading the metadata when the plugin starts up,
     // rather than waiting until trace load.
-    loadJson().then(docs.resolve.bind(docs));
+    loadMetadata().then(metadata.resolve.bind(metadata));
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    docs.then(async (resolvedDocs) => {
-      const impl = new SqlModulesImpl(trace, resolvedDocs);
-      // Don't initialize immediately - let consumers trigger it when needed
-      this.sqlModules = impl;
-      m.redraw();
-    });
+    this.sqlModules = await loadSqlModulesFromTp(trace, await metadata);
+    m.redraw();
 
     trace.commands.registerCommand({
       id: 'dev.perfetto.OpenSqlModulesTable',
@@ -113,8 +109,8 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
   }
 }
 
-async function loadJson() {
+async function loadMetadata() {
   const x = await fetch(assetSrc('stdlib_docs.json'));
   const json = await x.json();
-  return SQL_MODULES_DOCS_SCHEMA.parse(json);
+  return STDLIB_METADATA_SCHEMA.parse(json);
 }
