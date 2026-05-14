@@ -407,23 +407,11 @@ Env-var overrides:
         transpileTsProject(prj, {noEmit: true});
       }
     } else {
-      for (const prj of tsProjects) {
-        // When in watch mode, don't error out if we get typescript errors in the
-        // initial build. Typescript errors on subsequent incremental builds don't
-        // error out so the initial build should behave in the same way.
-        //
-        // Note: In non-watch mode, we do still break on typescript errors,
-        // there's no change here.
-        transpileTsProject(prj, {noErrCheck: cfg.watch});
-      }
-
-      if (cfg.watch) {
-        for (const prj of tsProjects) {
-          transpileTsProject(prj, {watch: cfg.watch});
-        }
-      }
-
-      bundleJs('rollup.config.js');
+      // Vite owns TS transpile + bundling. The old tsc + rollup pair is gone.
+      // For now the service_worker / chrome_extension bundles still flow
+      // through rollup until they're moved into Vite; if cfg.check is false
+      // we don't typecheck (run with --typecheck for that).
+      runVite();
       genServiceWorkerManifestJson();
 
       // Watches the /dist. When changed:
@@ -784,36 +772,37 @@ function transpileTsProject(project, options) {
   }
 }
 
-// Creates the three {frontend, controller, engine}_bundle.js in one invocation.
-function bundleJs(cfgName) {
-  const rcfg = pjoin(ROOT_DIR, 'ui/config', cfgName);
-  const args = ['-c', rcfg, '--no-indent'];
-  if (cfg.bigtrace) {
-    args.push('--environment', 'ENABLE_BIGTRACE:true');
-  }
-  if (cfg.openPerfettoTrace) {
-    args.push('--environment', 'ENABLE_OPEN_PERFETTO_TRACE:true');
-  }
-  if (cfg.minifyJs) {
-    args.push('--environment', `MINIFY_JS:${cfg.minifyJs}`);
-  }
-  if (cfg.noSourceMaps) {
-    args.push('--environment', 'NO_SOURCE_MAPS:true');
-  }
-  if (cfg.noTreeshake) {
-    args.push('--environment', 'NO_TREESHAKE:true');
-  }
-  if (cfg.onlyWasmMemory64) {
-    args.push('--environment', `IS_MEMORY64_ONLY:${cfg.onlyWasmMemory64}`);
-  }
-  args.push(...(cfg.verbose ? [] : ['--silent']));
-  if (cfg.watch) {
-    // --waitForBundleInput is sadly quite busted so it is required ts
-    // has build at least once before invoking this.
-    args.push('--watch', '--no-watch.clearScreen');
-    addTask(execModule, ['rollup', args, {async: true}]);
-  } else {
-    addTask(execModule, ['rollup', args]);
+// Runs `vite build` (optionally in --watch mode) to transpile TS and produce
+// the {frontend, engine, traceconv}_bundle.js files in cfg.outDistDir. All
+// configuration lives in ui/vite.config.mjs; flags are passed via env vars to
+// keep parity with the old rollup.config.js conventions.
+function runVite() {
+  const baseEnv = {
+    NO_SOURCE_MAPS: cfg.noSourceMaps ? 'true' : '',
+    NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
+    MINIFY_JS: cfg.minifyJs || '',
+    IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
+  };
+  const bundles = [
+    'frontend',
+    'engine',
+    'traceconv',
+    'service_worker',
+    'chrome_extension',
+  ];
+  if (cfg.bigtrace) bundles.push('bigtrace');
+  if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
+  for (const bundle of bundles) {
+    const args = [
+      'build',
+      '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
+    ];
+    if (cfg.watch) args.push('--watch');
+    if (!cfg.verbose) args.push('--logLevel', 'warn');
+    addTask(execModule, ['vite', args, {
+      async: cfg.watch,
+      env: {...baseEnv, BUNDLE: bundle},
+    }]);
   }
 }
 
@@ -1116,6 +1105,9 @@ function exec(cmd, args, opts) {
   opts.stdout = opts.stdout || 'inherit';
   if (cfg.verbose) console.log(`${cmd} ${args.join(' ')}\n`);
   const spwOpts = {cwd: cfg.outDir, stdio: ['ignore', opts.stdout, 'inherit']};
+  if (opts.env) {
+    spwOpts.env = {...process.env, ...opts.env};
+  }
   const checkExitCode = (code, signal) => {
     if (signal === 'SIGINT' || signal === 'SIGTERM') return;
     if (code !== 0 && !opts.noErrCheck) {

@@ -77,7 +77,8 @@
     "sass": "^1.77.6",
     "source-map": "^0.7.6",
     "tslib": "^2.6.3",
-    "typescript": "5.5.2"
+    "typescript": "5.5.2",
+    "vite": "^6.4.2"
   },
   "scripts": {
     "build": "node build.mjs",
