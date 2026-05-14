@@ -305,6 +305,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           ),
         ),
       m(Editor, {
+        autofocus: true, // Auto focus when we create a new tab for instance.
         language: 'perfetto-sql',
         text: tab.editorText,
         extensions: attrs.editorExtensions?.(tab.id),
