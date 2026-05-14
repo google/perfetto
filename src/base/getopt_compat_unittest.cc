@@ -479,6 +479,37 @@ TYPED_TEST(GetoptCompatTest, PermutesPositionalsAfterOptions) {
     // Positionals start at optind; "pos1" must remain the first positional.
     EXPECT_STREQ(this->argv[t.optind], "pos1");
   }
+
+  // Short option with embedded argument ("-ab" => -a with arg "b") preceded
+  // by a positional. The permutation logic must not greedily grab the next
+  // argv as a second arg, because "b" is already the embedded argument.
+  {
+    LongOptionType lopts[]{
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "a:";
+    this->SetCmdline({"argv0", "pos1", "-ab", "pos2"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'a');
+    EXPECT_STREQ(t.optarg, "b");
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 2);
+    EXPECT_STREQ(this->argv[2], "pos1");
+    EXPECT_STREQ(this->argv[3], "pos2");
+  }
+
+  // Short option with separate required argument after a positional.
+  {
+    LongOptionType lopts[]{
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "x:";
+    this->SetCmdline({"argv0", "pos1", "-x", "v"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'x');
+    EXPECT_STREQ(t.optarg, "v");
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 3);
+    EXPECT_STREQ(this->argv[3], "pos1");
+  }
 }
 
 }  // namespace
