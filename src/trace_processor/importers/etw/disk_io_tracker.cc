@@ -88,7 +88,8 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
     return;
   }
   const auto opcode = static_cast<EventType>(decoder.opcode());
-  const auto irp = decoder.has_irp_ptr() ?  std::optional(decoder.irp_ptr()) : std::nullopt;
+  const auto irp =
+      decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt;
   const auto disk_number = decoder.has_disk_number()
                                ? std::optional(decoder.disk_number())
                                : std::nullopt;
