@@ -677,7 +677,8 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
   }
 
   view({attrs}: m.CVnode<ProcessTableAttrs>): m.Children {
-    const {processes, isUserDebug, searchQuery, onSearchChange} = attrs;
+    const {processes, isUserDebug, session, searchQuery, onSearchChange} =
+      attrs;
 
     const visible = processes.filter((p) => {
       if (this.showDebuggableOnly && !p.debuggable && !isUserDebug) {
@@ -776,35 +777,91 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
         if (mn > 0) return `${mn}m ${s}s`;
         return `${s}s`;
       })();
+      const canProfile = p.debuggable || isUserDebug;
+      const profileButton = m(Button, {
+        label: 'Profile',
+        rightIcon: 'arrow_forward',
+        rounded: true,
+        variant: ButtonVariant.Filled,
+        intent: Intent.Primary,
+        disabled: !canProfile,
+        tooltip: canProfile
+          ? undefined
+          : 'Process is not debuggable. A userdebug or eng build is required to heap profile.',
+        onclick: () =>
+          session.startProfile(p.pid, p.processName).then(() => m.redraw()),
+      });
+      const mutedStyle = canProfile
+        ? undefined
+        : {color: 'var(--pf-color-text-muted)', opacity: '0.7'};
+      // Chip cells skip opacity so the colored tags remain crisp.
+      const mutedTextOnly = canProfile
+        ? undefined
+        : {color: 'var(--pf-color-text-muted)'};
       return [
-        m(GridCell, p.processName),
-        m(GridCell, m(ColorChip, {color}, cat.name)),
-        m(GridCell, {align: 'right'}, `${p.pid}`),
         m(
           GridCell,
-          {align: 'right'},
+          {actionButtons: profileButton, style: mutedStyle},
+          p.processName,
+        ),
+        m(GridCell, {style: mutedTextOnly}, m(ColorChip, {color}, cat.name)),
+        m(GridCell, {align: 'right', style: mutedStyle}, `${p.pid}`),
+        m(
+          GridCell,
+          {align: 'right', style: mutedTextOnly},
           oomBucket
             ? m(ColorChip, {color: oomBucket.color}, oomLabel)
             : oomLabel,
         ),
-        m(GridCell, {align: 'right'}, ageStr),
-        m(GridCell, {align: 'right'}, formatKb(p.rssKb)),
-        m(GridCell, sparkline(p.rssTrendKb)),
+        m(GridCell, {align: 'right', style: mutedStyle}, ageStr),
+        m(GridCell, {align: 'right', style: mutedStyle}, formatKb(p.rssKb)),
+        m(GridCell, {style: mutedStyle}, sparkline(p.rssTrendKb)),
         m(
           GridCell,
-          {align: 'right'},
+          {align: 'right', style: mutedStyle},
           p.anonKb + p.swapKb > 0 ? formatKb(p.anonKb + p.swapKb) : '-',
         ),
-        m(GridCell, {align: 'right'}, p.fileKb > 0 ? formatKb(p.fileKb) : '-'),
         m(
           GridCell,
-          {align: 'right'},
+          {align: 'right', style: mutedStyle},
+          p.fileKb > 0 ? formatKb(p.fileKb) : '-',
+        ),
+        m(
+          GridCell,
+          {align: 'right', style: mutedStyle},
           p.shmemKb > 0 ? formatKb(p.shmemKb) : '-',
         ),
       ];
     });
 
+    const profile = session.profile;
+    const isStopping = profile?.state === 'stopping';
+
     return [
+      profile !== undefined &&
+        m(
+          '.pf-memscope-status-bar',
+          m('.pf-memscope-status-bar__dot'),
+          isStopping
+            ? `Stopping and reading trace for ${profile.processName}\u2026`
+            : `Recording heap profile for ${profile.processName} (PID ${profile.pid})`,
+          !isStopping && [
+            m(Button, {
+              label: 'Stop & Open',
+              icon: 'stop',
+              minimal: true,
+              intent: Intent.Danger,
+              onclick: () =>
+                session.stopAndOpenProfile().then(() => m.redraw()),
+            }),
+            m(Button, {
+              label: 'Cancel',
+              icon: 'close',
+              minimal: true,
+              onclick: () => session.cancelProfile().then(() => m.redraw()),
+            }),
+          ],
+        ),
       m(
         '.pf-memscope-panel__header.pf-memscope-search-row',
         m(TextInput, {
