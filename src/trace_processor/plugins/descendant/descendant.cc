@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/ancestor/tables_py.h"
 #include "src/trace_processor/plugins/descendant/descendant_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -225,9 +226,9 @@ bool Descendant::GetDescendantSlices(
 }
 
 namespace descendant {
-namespace {
 
-class DescendantPlugin : public Plugin<DescendantPlugin> {
+class DescendantPlugin
+    : public Plugin<DescendantPlugin, ancestor::AncestorPlugin> {
  public:
   ~DescendantPlugin() override;
 
@@ -241,8 +242,6 @@ class DescendantPlugin : public Plugin<DescendantPlugin> {
 };
 
 DescendantPlugin::~DescendantPlugin() = default;
-
-}  // namespace
 
 void RegisterPlugin() {
   static PluginRegistration reg(
