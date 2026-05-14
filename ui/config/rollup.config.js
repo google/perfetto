@@ -25,6 +25,11 @@ const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
 const NO_SOURCE_MAPS = process.env['NO_SOURCE_MAPS'] === 'true';
 const NO_TREESHAKE = process.env['NO_TREESHAKE'] === 'true';
+const BUNDLE_STATS = process.env['BUNDLE_STATS'] === 'true';
+
+const visualizer = BUNDLE_STATS
+  ? require('rollup-plugin-visualizer').visualizer
+  : null;
 
 // Plugin to embed minimal source maps directly into bundles
 function embedMinimalSourceMap() {
@@ -161,7 +166,9 @@ function defBundle(tsRoot, bundle, distDir) {
       // a minimal source map for error reporting. Skip both when source
       // maps are disabled.
       ...(NO_SOURCE_MAPS ? [] : [sourcemaps(), embedMinimalSourceMap()]),
-    ].concat(maybeUglify()),
+    ]
+    .concat(maybeUglify())
+    .concat(maybeVisualizer(bundle, distDir)),
     onwarn: function (warning, warn) {
       if (warning.code === 'CIRCULAR_DEPENDENCY') {
         // Ignore circular dependency warnings coming from third party code.
@@ -209,6 +216,22 @@ function maybeUglify() {
   const opts =
     minifyEnv === 'preserve_comments' ? {format: {comments: 'all'}} : undefined;
   return [terser(opts)];
+}
+
+// When BUNDLE_STATS=true, write an HTML treemap report next to each bundle
+// (e.g. dist_version/frontend_bundle.stats.html) with per-module + per-package
+// raw and gzipped sizes.
+function maybeVisualizer(bundle, distDir) {
+  if (!visualizer) return [];
+  return [
+    visualizer({
+      filename: `${OUT_SYMLINK}/${distDir}/${bundle}_bundle.stats.html`,
+      title: `${bundle} bundle stats`,
+      gzipSize: true,
+      brotliSize: true,
+      template: 'treemap',
+    }),
+  ];
 }
 
 const maybeBigtrace = process.env['ENABLE_BIGTRACE']
