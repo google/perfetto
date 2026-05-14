@@ -32,7 +32,7 @@ import {TagInput} from './tag_input';
 import {TextInput} from './text_input';
 import {Tooltip} from './tooltip';
 import {z} from 'zod';
-import {Rect2D, Size2D} from '../base/geom';
+import {Point2D, Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
 import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
 import {Color, HSLColor} from '../base/color';
@@ -363,6 +363,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
+  private scrollPosition: Point2D = {x: 0, y: 0};
 
   private renderNodesMonitor = new Monitor([
     () => this.attrs.data,
@@ -400,6 +401,21 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       this.zoomRegion = undefined;
       this.lastClickedNode = undefined;
       this.tooltipPos = undefined;
+      // Auto-scroll so the root (depth 0) is visible. In TOP_DOWN the root
+      // sits at the top of the canvas; in BOTTOM_UP it sits near the bottom
+      // (only callers/leaves above it); in PIVOT it sits somewhere in the
+      // middle with callers above and callees below.
+      if (attrs.data !== undefined) {
+        let y: number;
+        if (attrs.state.view.kind === 'BOTTOM_UP') {
+          // Large value — the browser clamps to scrollHeight - clientHeight.
+          y = Number.MAX_SAFE_INTEGER;
+        } else {
+          const rootY = -attrs.data.minDepth * NODE_HEIGHT;
+          y = Math.max(0, rootY - NODE_HEIGHT);
+        }
+        this.scrollPosition = {x: 0, y};
+      }
     }
     if (attrs.data === undefined) {
       return m(
@@ -436,18 +452,22 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
+          scrollPosition: this.scrollPosition,
           onscroll: (e: MithrilEvent<Event>) => {
+            const target = e.target as HTMLElement;
+            // Mirror the user's scroll into our state so the controlled
+            // scrollPosition prop doesn't fight them on the next render.
+            this.scrollPosition = {x: target.scrollLeft, y: target.scrollTop};
             // Only redraw if popup visibility would change
             if (!this.tooltipPos) {
               e.redraw = false;
               return;
             }
-            const target = e.target as HTMLElement;
-            const scrollTop = target.scrollTop;
             const clientHeight = target.clientHeight;
             const tooltipY = this.tooltipPos.y;
             const nowVisible =
-              tooltipY >= scrollTop && tooltipY <= scrollTop + clientHeight;
+              tooltipY >= this.scrollPosition.y &&
+              tooltipY <= this.scrollPosition.y + clientHeight;
             if (nowVisible === this.lastPopupVisible) {
               e.redraw = false;
             }

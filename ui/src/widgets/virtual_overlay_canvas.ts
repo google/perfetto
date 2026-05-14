@@ -32,7 +32,7 @@
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {Rect2D, Size2D} from '../base/geom';
+import {Point2D, Rect2D, Size2D} from '../base/geom';
 import {assertExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
@@ -94,6 +94,13 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // be called to redraw the canvas synchronously at any time. Any returned
   // disposable will be disposed of when the component is removed.
   onMount?(redrawCanvas: () => void): Disposable | void;
+
+  // The scroll position of the scrolling container, as (scrollLeft,
+  // scrollTop). When defined, VOC synchronizes the DOM scroll on every render.
+  // To support user scrolling, the parent should keep this value in sync with
+  // the actual scroll position by reading `event.target.scrollLeft` /
+  // `scrollTop` inside `onscroll` and updating its own state.
+  readonly scrollPosition?: Point2D;
 
   // Override styles from base interface, only allowing object type styles
   // rather than strings.
@@ -262,11 +269,24 @@ export class VirtualOverlayCanvas
     const disposable = attrs.onMount?.(this.redrawCanvas.bind(this));
     disposable && this.trash.use(disposable);
 
+    this.syncScrollPosition(attrs, toHTMLElement(dom));
+
     !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
   }
 
-  onupdate({attrs}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
+  onupdate({attrs, dom}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
+    this.syncScrollPosition(attrs, toHTMLElement(dom));
     !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
+  }
+
+  private syncScrollPosition(
+    attrs: VirtualOverlayCanvasAttrs,
+    scrollEl: HTMLElement,
+  ) {
+    const pos = attrs.scrollPosition;
+    if (pos === undefined) return;
+    if (scrollEl.scrollLeft !== pos.x) scrollEl.scrollLeft = pos.x;
+    if (scrollEl.scrollTop !== pos.y) scrollEl.scrollTop = pos.y;
   }
 
   onremove() {
