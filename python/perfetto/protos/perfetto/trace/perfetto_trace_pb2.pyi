@@ -7952,6 +7952,26 @@ class FileIoOpEndEtwEvent(_message.Message):
     nt_status: int
     def __init__(self, irp_ptr: _Optional[int] = ..., extra_info: _Optional[int] = ..., nt_status: _Optional[int] = ...) -> None: ...
 
+class FileIoPathOperationEtwEvent(_message.Message):
+    __slots__ = ("irp_ptr", "file_object", "file_key", "extra_info", "ttid", "info_class", "file_name", "opcode")
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
+    FILE_KEY_FIELD_NUMBER: _ClassVar[int]
+    EXTRA_INFO_FIELD_NUMBER: _ClassVar[int]
+    TTID_FIELD_NUMBER: _ClassVar[int]
+    INFO_CLASS_FIELD_NUMBER: _ClassVar[int]
+    FILE_NAME_FIELD_NUMBER: _ClassVar[int]
+    OPCODE_FIELD_NUMBER: _ClassVar[int]
+    irp_ptr: int
+    file_object: int
+    file_key: int
+    extra_info: int
+    ttid: int
+    info_class: int
+    file_name: str
+    opcode: int
+    def __init__(self, irp_ptr: _Optional[int] = ..., file_object: _Optional[int] = ..., file_key: _Optional[int] = ..., extra_info: _Optional[int] = ..., ttid: _Optional[int] = ..., info_class: _Optional[int] = ..., file_name: _Optional[str] = ..., opcode: _Optional[int] = ...) -> None: ...
+
 class StackWalkEtwEvent(_message.Message):
     __slots__ = ("trigger", "callstack_iid")
     TRIGGER_FIELD_NUMBER: _ClassVar[int]
@@ -7961,7 +7981,7 @@ class StackWalkEtwEvent(_message.Message):
     def __init__(self, trigger: _Optional[str] = ..., callstack_iid: _Optional[int] = ...) -> None: ...
 
 class EtwTraceEvent(_message.Message):
-    __slots__ = ("timestamp", "cpu", "thread_id", "c_switch", "ready_thread", "mem_info", "file_io_create", "file_io_dir_enum", "file_io_info", "file_io_read_write", "file_io_simple_op", "file_io_op_end", "stack_walk")
+    __slots__ = ("timestamp", "cpu", "thread_id", "c_switch", "ready_thread", "mem_info", "file_io_create", "file_io_dir_enum", "file_io_info", "file_io_read_write", "file_io_simple_op", "file_io_op_end", "stack_walk", "file_io_path_operation")
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     CPU_FIELD_NUMBER: _ClassVar[int]
     THREAD_ID_FIELD_NUMBER: _ClassVar[int]
@@ -7975,6 +7995,7 @@ class EtwTraceEvent(_message.Message):
     FILE_IO_SIMPLE_OP_FIELD_NUMBER: _ClassVar[int]
     FILE_IO_OP_END_FIELD_NUMBER: _ClassVar[int]
     STACK_WALK_FIELD_NUMBER: _ClassVar[int]
+    FILE_IO_PATH_OPERATION_FIELD_NUMBER: _ClassVar[int]
     timestamp: int
     cpu: int
     thread_id: int
@@ -7988,7 +8009,8 @@ class EtwTraceEvent(_message.Message):
     file_io_simple_op: FileIoSimpleOpEtwEvent
     file_io_op_end: FileIoOpEndEtwEvent
     stack_walk: StackWalkEtwEvent
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ..., file_io_create: _Optional[_Union[FileIoCreateEtwEvent, _Mapping]] = ..., file_io_dir_enum: _Optional[_Union[FileIoDirEnumEtwEvent, _Mapping]] = ..., file_io_info: _Optional[_Union[FileIoInfoEtwEvent, _Mapping]] = ..., file_io_read_write: _Optional[_Union[FileIoReadWriteEtwEvent, _Mapping]] = ..., file_io_simple_op: _Optional[_Union[FileIoSimpleOpEtwEvent, _Mapping]] = ..., file_io_op_end: _Optional[_Union[FileIoOpEndEtwEvent, _Mapping]] = ..., stack_walk: _Optional[_Union[StackWalkEtwEvent, _Mapping]] = ...) -> None: ...
+    file_io_path_operation: FileIoPathOperationEtwEvent
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ..., file_io_create: _Optional[_Union[FileIoCreateEtwEvent, _Mapping]] = ..., file_io_dir_enum: _Optional[_Union[FileIoDirEnumEtwEvent, _Mapping]] = ..., file_io_info: _Optional[_Union[FileIoInfoEtwEvent, _Mapping]] = ..., file_io_read_write: _Optional[_Union[FileIoReadWriteEtwEvent, _Mapping]] = ..., file_io_simple_op: _Optional[_Union[FileIoSimpleOpEtwEvent, _Mapping]] = ..., file_io_op_end: _Optional[_Union[FileIoOpEndEtwEvent, _Mapping]] = ..., stack_walk: _Optional[_Union[StackWalkEtwEvent, _Mapping]] = ..., file_io_path_operation: _Optional[_Union[FileIoPathOperationEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ("cpu", "event")

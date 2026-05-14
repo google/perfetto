@@ -1166,6 +1166,33 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMatchedKeysAndValues) {
               testing::ElementsAre("root.k1 root.k1 1", "root.k2 root.k2 2"));
 }
 
+// A failed parse must not leave stale work items behind for the next call to
+// resume (which would dereference dangling pointers).
+TEST_F(DebugAnnotationParserTest, ErrorClearsPersistentWorkState) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> bad_msg;
+  bad_msg->set_name("bad_root");
+  auto* nested = bad_msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  nested->add_dict_keys("k2");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool);
+
+  base::Status status = ParseDebugAnnotation(args_parser, bad_msg, *this);
+  EXPECT_FALSE(status.ok());
+
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> good_msg;
+  good_msg->set_name("good_root");
+  good_msg->set_int_value(42);
+
+  status = ParseDebugAnnotation(args_parser, good_msg, *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("good_root good_root 42"));
+}
+
 TEST_F(DebugAnnotationParserTest, InternedString) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
   msg->set_name("root");
