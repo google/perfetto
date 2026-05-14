@@ -103,6 +103,7 @@ public_targets = [
 # These targets will be exported with visibility only to our allowlist.
 allowlist_public_targets = [
     '//src/shared_lib:libperfetto_c',
+    '//src/shared_lib:libperfetto_c_headers',
     '//src/traceconv:libpprofbuilder',
 ]
 
