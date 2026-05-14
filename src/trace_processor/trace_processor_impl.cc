@@ -409,7 +409,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       [this](ProtoImporterModuleContext* mctx, TraceProcessorContext* tctx) {
         RegisterAdditionalModules(mctx, tctx);
         for (auto& p : plugins_) {
-          p->RegisterProtoImporterModules(mctx);
+          p->RegisterProtoImporterModules(mctx, tctx);
         }
       };
 

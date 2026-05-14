@@ -30,9 +30,10 @@ class WinscopeImporter : public Plugin<WinscopeImporter> {
   ~WinscopeImporter() override;
 
   void RegisterProtoImporterModules(
-      ProtoImporterModuleContext* module_context) override {
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* trace_context) override {
     module_context->modules.emplace_back(
-        new WinscopeModule(module_context, trace_context_));
+        new WinscopeModule(module_context, trace_context));
   }
 };
 
