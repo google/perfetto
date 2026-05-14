@@ -16,20 +16,20 @@ import {sqliteString} from '../../base/string_utils';
 import {uuidv4} from '../../base/uuid';
 import {SliceTrack} from './slice_track';
 import {CounterTrack} from './counter_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
-  SqlValue,
+  type SqlValue,
   LONG,
   NUM_NULL,
   STR,
   LONG_NULL,
-  QueryResult,
+  type QueryResult,
   NUM,
 } from '../../trace_processor/query_result';
-import {TrackRenderer} from '../../public/track';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackRenderer} from '../../public/track';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
 
 /**
  * Aggregation types for the BreakdownTracks.

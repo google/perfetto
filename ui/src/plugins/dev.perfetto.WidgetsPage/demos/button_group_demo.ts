@@ -16,7 +16,7 @@ import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {
   Button,
-  ButtonAttrs,
+  type ButtonAttrs,
   ButtonGroup,
   ButtonVariant,
 } from '../../../widgets/button';

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SchedSqlId} from '../sql_utils/core_types';
+import type {SchedSqlId} from '../sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 interface SchedRefAttrs {
   readonly trace: Trace;

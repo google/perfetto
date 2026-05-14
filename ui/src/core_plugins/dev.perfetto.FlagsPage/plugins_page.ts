@@ -17,7 +17,7 @@ import {classNames} from '../../base/classnames';
 import {assertUnreachable} from '../../base/assert';
 import {exists} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
-import {PluginWrapper} from '../../core/plugin_manager';
+import type {PluginWrapper} from '../../core/plugin_manager';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {CardStack} from '../../widgets/card';
 import {Chip} from '../../widgets/chip';

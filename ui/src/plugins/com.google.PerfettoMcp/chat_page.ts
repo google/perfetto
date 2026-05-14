@@ -13,17 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
+import type {
   Chat,
   GenerateContentResponse,
   GenerateContentResponseUsageMetadata,
 } from '@google/genai';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {TextInput} from '../../widgets/text_input';
 import markdownit from 'markdown-it';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
-import {Setting} from '../../public/settings';
+import type {Setting} from '../../public/settings';
 
 // Interface for a single message in the chat display
 

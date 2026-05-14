@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import {ColumnDef} from '../../components/aggregation';
-import {Aggregator} from '../../components/aggregation_adapter';
-import {Area, AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
-import {SqlValue} from '../../trace_processor/query_result';
+import type {ColumnDef} from '../../components/aggregation';
+import type {Aggregator} from '../../components/aggregation_adapter';
+import type {Area, AreaSelection} from '../../public/selection';
+import type {Engine} from '../../trace_processor/engine';
+import type {SqlValue} from '../../trace_processor/query_result';
 import {RadioGroup} from '../../widgets/radio_group';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,

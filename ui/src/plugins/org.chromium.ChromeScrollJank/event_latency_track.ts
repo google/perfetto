@@ -15,7 +15,7 @@
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {JANK_COLOR} from './jank_colors';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../../components/colorizer';

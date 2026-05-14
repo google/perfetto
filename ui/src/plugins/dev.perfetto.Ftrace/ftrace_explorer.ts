@@ -14,34 +14,34 @@
 
 import m from 'mithril';
 import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
-import {Store} from '../../base/store';
-import {time, Time} from '../../base/time';
+import type {Store} from '../../base/store';
+import {type time, Time} from '../../base/time';
 import {materialColorScheme} from '../../components/colorizer';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {Trace} from '../../public/trace';
-import {Engine} from '../../trace_processor/engine';
+import type {Trace} from '../../public/trace';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {
-  MultiSelectDiff,
-  MultiSelectOption,
+  type MultiSelectDiff,
+  type MultiSelectOption,
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
 import {
   Grid,
-  GridColumn,
+  type GridColumn,
   GridHeaderCell,
   GridCell,
-  GridRow,
+  type GridRow,
 } from '../../widgets/grid';
-import {FtraceFilter, FtraceStat} from './common';
+import type {FtraceFilter, FtraceStat} from './common';
 import {Icons} from '../../base/semantic_icons';
-import {Cpu} from '../../components/cpu';
+import type {Cpu} from '../../components/cpu';
 import {
   DataGridExportButton,
-  ExportFormat,
+  type ExportFormat,
 } from '../../components/widgets/datagrid/export_button';
 import {
   formatAsTSV,

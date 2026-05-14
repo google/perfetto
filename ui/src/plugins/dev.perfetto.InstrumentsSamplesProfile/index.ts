@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TrackData} from '../../components/tracks/track_data';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {TrackData} from '../../components/tracks/track_data';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {
   LONG,
   NUM,
@@ -26,18 +26,18 @@ import {assertExists} from '../../base/assert';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {
   Flamegraph,
   FLAMEGRAPH_STATE_SCHEMA,
-  FlamegraphState,
+  type FlamegraphState,
 } from '../../widgets/flamegraph';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {createProfilingTrack} from '../dev.perfetto.CpuProfile/profiling_track';

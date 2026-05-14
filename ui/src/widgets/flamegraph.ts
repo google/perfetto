@@ -32,12 +32,12 @@ import {TagInput} from './tag_input';
 import {TextInput} from './text_input';
 import {Tooltip} from './tooltip';
 import {z} from 'zod';
-import {Rect2D, Size2D} from '../base/geom';
+import type {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
-import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
-import {Color, HSLColor} from '../base/color';
+import {MenuItem, type MenuItemAttrs, PopupMenu} from './menu';
+import {type Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
-import {MithrilEvent} from '../base/mithril_utils';
+import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 
 const LABEL_FONT_STYLE = '12px Roboto';

@@ -16,14 +16,14 @@ import m from 'mithril';
 import {canvasSave} from '../../base/canvas_utils';
 import {DisposableStack} from '../../base/disposable_stack';
 import {toHTMLElement} from '../../base/dom_utils';
-import {Rect2D, Size2D} from '../../base/geom';
+import {Rect2D, type Size2D} from '../../base/geom';
 import {assertExists} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {
   VirtualOverlayCanvas,
-  VirtualOverlayCanvasDrawContext,
+  type VirtualOverlayCanvasDrawContext,
 } from '../../widgets/virtual_overlay_canvas';
 import {TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {NotesPanel} from './notes_panel';

@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Size2D} from '../../base/geom';
+import type {Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {assertExists, assertUnreachable} from '../../base/assert';
-import {Time, time, TimeSpan} from '../../base/time';
+import {Time, type time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {colorForCpu} from '../../components/colorizer';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {

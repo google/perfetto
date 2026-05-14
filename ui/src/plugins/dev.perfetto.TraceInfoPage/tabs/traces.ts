@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Hotkey} from '../../base/hotkeys';
+import type {Hotkey} from '../../base/hotkeys';
 import {HotkeyGlyphs, Keycap} from '../../widgets/hotkey_glyphs';
 import {showModal} from '../../widgets/modal';
 import {nodeRegistry} from './query_builder/node_registry';

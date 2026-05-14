@@ -15,18 +15,18 @@
 import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
 import {Icons} from '../../base/semantic_icons';
-import {duration, time, Time} from '../../base/time';
+import {type duration, type time, Time} from '../../base/time';
 import {createAggregationTab} from '../../components/aggregation_adapter';
-import {MinimapRow} from '../../public/minimap';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {MinimapRow} from '../../public/minimap';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {
   CPU_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../../public/track_kinds';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   LONG_NULL,
@@ -53,8 +53,8 @@ import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
 import {Cpu} from '../../components/cpu';
 import {ThreadStateByCpuAggregator} from './thread_state_by_cpu_aggregator';
-import {App} from '../../public/app';
-import {Flag} from '../../public/feature_flag';
+import type {App} from '../../public/app';
+import type {Flag} from '../../public/feature_flag';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;

@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer, Deferred} from '../../../../base/deferred';
+import {defer, type Deferred} from '../../../../base/deferred';
 import {assertFalse, assertTrue} from '../../../../base/assert';
 import {isString} from '../../../../base/object_utils';
 import {hexEncode, utf8Decode, utf8Encode} from '../../../../base/string_utils';
 import {exists} from '../../../../base/utils';
 import {closeModal, showModal} from '../../../../widgets/modal';
-import {AdbKeyManager} from './adb_key_manager';
+import type {AdbKeyManager} from './adb_key_manager';
 import {AdbDevice} from '../adb_device';
 import {
   encodeAdbMsg,
   encodeAdbData,
   parseAdbMsgHdr,
-  AdbMsg,
+  type AdbMsg,
   adbMsgToString,
 } from '../adb_msg';
-import {getAdbWebUsbInterface, AdbUsbInterface} from './adb_webusb_utils';
-import {errResult, okResult, Result} from '../../../../base/result';
+import {getAdbWebUsbInterface, type AdbUsbInterface} from './adb_webusb_utils';
+import {errResult, okResult, type Result} from '../../../../base/result';
 import {AdbWebusbStream} from './adb_webusb_stream';
 
 const ADB_MSG_SIZE = 6 * 4; // 6 * int32.

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {AdbWebsocketTargetProvider} from './adb/websocket/adb_websocket_target_provider';
 import {AdbWebusbTargetProvider} from './adb/webusb/adb_webusb_target_provider';
 import {ChromeExtensionTargetProvider} from './chrome/chrome_extension_target_provider';

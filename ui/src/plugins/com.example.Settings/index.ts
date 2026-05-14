@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
 
 export default class implements PerfettoPlugin {

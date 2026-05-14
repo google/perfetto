@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {language} from './language.js';
-import {TreeCursor} from '@lezer/common';
+import type {TreeCursor} from '@lezer/common';
 
 // Helper function to pretty-print the CST
 function printCST(cursor: TreeCursor, source: string, indent = 0) {

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ErrorDetails} from '../base/logging';
+import type {ErrorDetails} from '../base/logging';
 import {GcsUploader} from '../base/gcs_uploader';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';

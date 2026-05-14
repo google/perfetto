@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {V8RuntimeCallStatsTab} from './v8_runtime_call_stats_tab';
 import {V8SourcesTab} from './v8_sources_tab';
 

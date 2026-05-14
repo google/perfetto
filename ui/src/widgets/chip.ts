@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {HTMLAttrs, Intent, classForIntent} from './common';
+import {type HTMLAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Button} from './button';
 

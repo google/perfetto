@@ -16,7 +16,7 @@ import {classNames} from '../../../base/classnames';
 import {CursorTooltip} from '../../../widgets/cursor_tooltip';
 import m from 'mithril';
 import {PopupPosition} from '../../../widgets/popup';
-import {HTMLAttrs} from '../../../widgets/common';
+import type {HTMLAttrs} from '../../../widgets/common';
 
 export interface ChartTooltipRowAttrs {
   readonly name: string;

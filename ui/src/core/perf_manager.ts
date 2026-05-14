@@ -14,8 +14,12 @@
 
 import m from 'mithril';
 import {raf} from './raf_scheduler';
-import {PerfStats, PerfStatsContainer, runningStatStr} from './perf_stats';
-import {MithrilEvent} from '../base/mithril_utils';
+import {
+  type PerfStats,
+  type PerfStatsContainer,
+  runningStatStr,
+} from './perf_stats';
+import type {MithrilEvent} from '../base/mithril_utils';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 

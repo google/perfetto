@@ -46,8 +46,8 @@
 
 import {removeFalsyValues} from './array_utils';
 import {DisposableStack} from './disposable_stack';
-import {bindEventListener, CSSCursor} from './dom_utils';
-import {Point2D, Rect2D, Size2D, Vector2D} from './geom';
+import {bindEventListener, type CSSCursor} from './dom_utils';
+import {type Point2D, Rect2D, type Size2D, Vector2D} from './geom';
 import {convertTouchIntoMouseEvents} from './touchscreen_handler';
 
 export interface DragEvent {

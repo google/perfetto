@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Popup, PopupPosition} from './popup';
 import {TextInput} from './text_input';
-import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
+import {FuzzyFinder, type FuzzySegment} from '../base/fuzzy';
 import {classNames} from '../base/classnames';
 import {HotkeyGlyphs, Keycap} from './hotkey_glyphs';
 import {Menu, MenuDivider, MenuItem} from './menu';

@@ -13,17 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
+import {
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
 import protos from '../../../../protos';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
+import {type ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
 import {
   PerfettoSqlTypes,
-  PerfettoSqlType,
+  type PerfettoSqlType,
 } from '../../../../trace_processor/perfetto_sql_type';
 import {NodeIssues} from '../node_issues';
 import {
   StructuredQueryBuilder,
-  AggregationSpec,
+  type AggregationSpec,
 } from '../structured_query_builder';
 import {isColumnValidForAggregation} from '../utils';
 import {
@@ -31,10 +36,10 @@ import {
   InlineEditList,
   OutlinedField,
   OutlinedMultiSelect,
-  MultiSelectOption,
-  MultiSelectDiff,
+  type MultiSelectOption,
+  type MultiSelectDiff,
 } from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {loadNodeDoc} from '../node_doc_loader';
 import {ColumnName, NodeDetailsSpacer} from '../node_styling_widgets';
 

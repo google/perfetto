@@ -12,16 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, Row} from '../../../../trace_processor/query_result';
-import {ColumnOrderClause, SqlColumn, sqlColumnId} from './sql_column';
+import {NUM, type Row} from '../../../../trace_processor/query_result';
+import {
+  type ColumnOrderClause,
+  type SqlColumn,
+  sqlColumnId,
+} from './sql_column';
 import {buildSqlQuery} from './query_builder';
 import {raf} from '../../../../core/raf_scheduler';
-import {SortDirection} from '../../../../base/comparison_utils';
+import type {SortDirection} from '../../../../base/comparison_utils';
 import {assertTrue} from '../../../../base/assert';
-import {SqlTableDescription} from './table_description';
-import {Trace} from '../../../../public/trace';
-import {areFiltersEqual, Filter, Filters} from './filters';
-import {TableColumn, tableColumnAlias, tableColumnId} from './table_column';
+import type {SqlTableDescription} from './table_description';
+import type {Trace} from '../../../../public/trace';
+import {areFiltersEqual, type Filter, Filters} from './filters';
+import {
+  type TableColumn,
+  tableColumnAlias,
+  tableColumnId,
+} from './table_column';
 import {moveArrayItem} from '../../../../base/array_utils';
 import {uuidv4} from '../../../../base/uuid';
 

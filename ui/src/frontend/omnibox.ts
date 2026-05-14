@@ -17,7 +17,7 @@ import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
 import {
   FuzzyFinder,
-  FuzzySegment,
+  type FuzzySegment,
   computeHighlightSegments,
 } from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/assert';
@@ -26,15 +26,15 @@ import {exists} from '../base/utils';
 import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {raf} from '../core/raf_scheduler';
-import {TraceImpl} from '../core/trace_impl';
+import type {TraceImpl} from '../core/trace_impl';
 import {Button} from '../widgets/button';
 import {Chip} from '../widgets/chip';
-import {HTMLAttrs, Intent} from '../widgets/common';
+import {type HTMLAttrs, Intent} from '../widgets/common';
 import {EmptyState} from '../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
 import {Spinner} from '../widgets/spinner';
-import {Command} from '../public/commands';
+import type {Command} from '../public/commands';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;

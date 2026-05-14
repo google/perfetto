@@ -15,13 +15,13 @@
 import protos from '../../../protos';
 import {EvtSource} from '../../../base/events';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
-import {
+import type {
   TracingSession,
   TracingSessionLogEntry,
   TracingSessionState,
 } from '../interfaces/tracing_session';
-import {TracingProtocol} from './tracing_protocol';
-import {errResult, okResult, Result} from '../../../base/result';
+import type {TracingProtocol} from './tracing_protocol';
+import {errResult, okResult, type Result} from '../../../base/result';
 
 /**
  * A concrete implementation of {@link TracingSession} over a

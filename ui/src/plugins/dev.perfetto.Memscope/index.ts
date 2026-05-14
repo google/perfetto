@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';

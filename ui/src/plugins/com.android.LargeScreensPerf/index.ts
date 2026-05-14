@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {PerfettoPlugin} from '../../public/plugin';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {NUM} from '../../trace_processor/query_result';

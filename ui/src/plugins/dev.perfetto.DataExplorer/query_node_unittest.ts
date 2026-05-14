@@ -16,8 +16,8 @@ import {
   nextNodeId,
   NodeType,
   singleNodeOperation,
-  Query,
-  QueryNode,
+  type Query,
+  type QueryNode,
 } from './query_node';
 import {queryToRun, isAQuery} from './query_builder/query_builder_utils';
 import {notifyNextNodes} from './query_builder/graph_utils';

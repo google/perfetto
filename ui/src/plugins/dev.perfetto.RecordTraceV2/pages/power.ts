@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {RecordProbe, RecordSubpage} from '../config/config_interfaces';
-import {TraceConfigBuilder} from '../config/trace_config_builder';
+import type {RecordProbe, RecordSubpage} from '../config/config_interfaces';
+import type {TraceConfigBuilder} from '../config/trace_config_builder';
 import {POLL_INTERVAL_SLIDER, Slider} from './widgets/slider';
 
 export function powerRecordSection(): RecordSubpage {
