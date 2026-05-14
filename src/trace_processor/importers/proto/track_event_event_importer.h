@@ -27,7 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -268,8 +268,7 @@ class TrackEventEventImporter {
       if (decoder) {
         category_id = storage_->InternString(decoder->name());
       } else {
-        char buffer[32];
-        base::FixedStringWriter writer(buffer, sizeof(buffer));
+        base::DynamicStringWriter writer;
         writer.AppendLiteral("unknown(");
         writer.AppendUnsignedInt(category_iids[0]);
         writer.AppendChar(')');

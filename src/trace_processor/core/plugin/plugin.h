@@ -62,7 +62,8 @@ class PluginBase {
 
   virtual void RegisterImporters(TraceReaderRegistry& registry);
   virtual void RegisterProtoImporterModules(
-      ProtoImporterModuleContext* module_context);
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* trace_context);
   virtual void RegisterDataframes(std::vector<PluginDataframe>& tables);
   virtual void RegisterStaticTableFunctions(
       PerfettoSqlConnection* connection,
