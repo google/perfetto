@@ -34,14 +34,12 @@ source_set("engine") {
   deps = [
     "../..:metatrace",
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
-    "../../sqlite",
     "../../types",
     "../../util:sql_argument",
     "../../util:stdlib",
@@ -49,6 +47,9 @@ source_set("engine") {
     "../preprocessor",
     "../tokenizer",
   ]
+
+  # We export the SQLite bindings.
+  public_deps = [ "../../sqlite" ]
 }
 
 perfetto_unittest_source_set("unittests") {
