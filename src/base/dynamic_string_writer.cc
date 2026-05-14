@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/fixed_string_writer.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -23,15 +23,12 @@
 namespace perfetto {
 namespace base {
 
-void FixedStringWriter::AppendHexString(const uint8_t* data,
-                                        size_t size,
-                                        char separator) {
+void DynamicStringWriter::AppendHexString(const uint8_t* data,
+                                          size_t size,
+                                          char separator) {
   // Truncate to 64 bytes, as this is the maximum supported by the Linux
   // kernel's vsnprintf implementation.
   size_t printed_size = std::min<size_t>(size, size_t{64});
-  // Remove trailing separator from calculation if printed_size > 0.
-  size_t max_chars = printed_size * 3 - (printed_size > 0 ? 1 : 0);
-  PERFETTO_DCHECK(pos_ + max_chars <= size_);
 
   if (printed_size) {
     AppendPaddedHexInt(data[0], '0', 2);

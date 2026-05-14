@@ -28,7 +28,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -88,7 +88,7 @@ class ArgsSerializer {
                  tables::ArgTable::ConstCursor*,
                  NullTermStringView event_name,
                  std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
-                 base::FixedStringWriter*);
+                 base::DynamicStringWriter*);
 
   void SerializeArgs();
 
@@ -183,7 +183,7 @@ class ArgsSerializer {
 
   uint32_t start_row_ = 0;
 
-  base::FixedStringWriter* writer_ = nullptr;
+  base::DynamicStringWriter* writer_ = nullptr;
 };
 
 ArgsSerializer::ArgsSerializer(
@@ -192,7 +192,7 @@ ArgsSerializer::ArgsSerializer(
     tables::ArgTable::ConstCursor* cursor,
     NullTermStringView event_name,
     std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
-    base::FixedStringWriter* writer)
+    base::DynamicStringWriter* writer)
     : storage_(context->storage.get()),
       context_(context),
       cursor_(cursor),
@@ -711,9 +711,6 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
     uint32_t raw_row) {
   const auto& raw = storage_->ftrace_event_table();
 
-  char line[4096];
-  base::FixedStringWriter writer(line, sizeof(line));
-
   auto row = raw[raw_row];
   StringId event_name_id = row.name();
   NullTermStringView event_name = storage_->GetString(event_name_id);
@@ -722,27 +719,29 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
     return ScopedCString(nullptr, nullptr);
   }
 
-  SerializePrefix(raw_row, &writer);
+  line_writer_.Clear();
 
-  writer.AppendChar(' ');
+  SerializePrefix(raw_row, &line_writer_);
+
+  line_writer_.AppendChar(' ');
   if (event_name == "print" || event_name == "g2d_tracing_mark_write" ||
       event_name == "dpu_tracing_mark_write") {
-    writer.AppendString("tracing_mark_write");
+    line_writer_.AppendString("tracing_mark_write");
   } else {
-    writer.AppendString(event_name.c_str(), event_name.size());
+    line_writer_.AppendString(event_name.c_str(), event_name.size());
   }
-  writer.AppendChar(':');
+  line_writer_.AppendChar(':');
 
   ArgsSerializer serializer(context_, row.arg_set_id(), &cursor_, event_name,
                             &proto_id_to_arg_index_by_event_[event_name_id],
-                            &writer);
+                            &line_writer_);
   serializer.SerializeArgs();
 
-  return {writer.CreateStringCopy(), free};
+  return line_writer_.CreateStringCopy();
 }
 
 void SystraceSerializer::SerializePrefix(uint32_t raw_row,
-                                         base::FixedStringWriter* writer) {
+                                         base::DynamicStringWriter* writer) {
   const auto& raw = storage_->ftrace_event_table();
   const auto& cpu_table = storage_->cpu_table();
 
