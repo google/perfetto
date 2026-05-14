@@ -92,6 +92,10 @@ default_targets = [
 ipc_plugin = '//src/ipc/protoc_plugin:ipc_plugin(%s)' % gn_utils.HOST_TOOLCHAIN
 protozero_plugin = '//src/protozero/protoc_plugin:protozero_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
+# Exposed as a cc_binary_host in Android.bp so Android-tree genrules can
+# invoke it (via tools:) to generate .pzc.h headers at build time.
+protozero_c_plugin = '//src/protozero/protoc_plugin:protozero_c_plugin(%s)' % (
+    gn_utils.HOST_TOOLCHAIN)
 cppgen_plugin = '//src/protozero/protoc_plugin:cppgen_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
 protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_descriptor_diff(%s)' % (
@@ -101,6 +105,7 @@ default_targets += [
     '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
+    protozero_c_plugin,
     ipc_plugin,
 ]
 

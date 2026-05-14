@@ -27,7 +27,7 @@ import {MiddleEllipsis} from './middle_ellipsis';
 import {Popup, PopupPosition} from './popup';
 import {Select} from './select';
 import {Spinner} from './spinner';
-import {SegmentedButton, SegmentedButtons} from './segmented_buttons';
+import {RadioGroup} from './radio_group';
 import {TagInput} from './tag_input';
 import {TextInput} from './text_input';
 import {Tooltip} from './tooltip';
@@ -871,13 +871,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }),
       m('.pf-flamegraph-filter-bar-separator'),
       m(
-        SegmentedButtons,
+        RadioGroup,
         {
           selectedValue:
             this.attrs.state.view.kind === 'TOP_DOWN'
               ? 'top-down'
               : 'bottom-up',
-          onOptionSelected: (value) => {
+          onValueChange: (value) => {
             this.attrs.onStateChange({
               ...this.attrs.state,
               view: {kind: value === 'top-down' ? 'TOP_DOWN' : 'BOTTOM_UP'},
@@ -886,8 +886,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           disabled: this.attrs.state.view.kind === 'PIVOT',
         },
         [
-          m(SegmentedButton, {value: 'top-down'}, 'Top Down'),
-          m(SegmentedButton, {value: 'bottom-up'}, 'Bottom Up'),
+          m(RadioGroup.Button, {value: 'top-down'}, 'Top Down'),
+          m(RadioGroup.Button, {value: 'bottom-up'}, 'Bottom Up'),
         ],
       ),
     );

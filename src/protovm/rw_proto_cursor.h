@@ -49,6 +49,11 @@ class RwProtoCursor {
 
   RwProtoCursor();
   explicit RwProtoCursor(Node* node, Allocator* allocator);
+
+  bool operator==(const RwProtoCursor& other) const;
+  bool operator!=(const RwProtoCursor& other) const;
+
+  StatusOr<bool> IsRoot() const;
   StatusOr<bool> HasField(uint32_t field_id);
   StatusOr<void> EnterField(uint32_t field_id);
   StatusOr<void> EnterRepeatedFieldAt(uint32_t field_id, uint32_t index);
@@ -126,6 +131,8 @@ class RwProtoCursor {
                                              uint64_t key,
                                              OwnedPtr<Node> map_value);
   StatusOr<uint64_t> ReadScalarField(const Node& node, uint32_t field_id);
+
+  StatusOr<void> CheckIsValid() const;
 
   Node* node_ = nullptr;
   ParentLink parent_link_ = {};

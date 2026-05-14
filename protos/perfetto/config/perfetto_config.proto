@@ -2753,8 +2753,7 @@ message PerfEventConfig {
     optional uint32 process_shard_count = 6;
   }
 
-  // Userspace unwinding mode. A possible future addition is kernel-unwound
-  // callchains for frame pointer based systems.
+  // Userspace unwinding mode.
   enum UnwindMode {
     UNWIND_UNKNOWN = 0;
     // Do not unwind userspace:
@@ -2763,6 +2762,14 @@ message PerfEventConfig {
     UNWIND_DWARF = 2;
     // Use userspace frame pointer unwinder:
     UNWIND_FRAME_POINTER = 3;
+    // Ask the kernel to unwind the userspace stack via frame pointers, using
+    // PERF_SAMPLE_CALLCHAIN. The user stack bytes are not copied into the
+    // sample, which avoids the per-sample copy cost and the depth limit
+    // imposed by PERF_SAMPLE_STACK_USER. Requires that the userspace code
+    // (including system libraries) is built with frame pointers - the kernel
+    // walks the chain and returns instruction addresses, which still need to
+    // be symbolized offline using the recorded process mappings.
+    UNWIND_KERNEL_FRAME_POINTER = 4;
   }
 }
 
@@ -4332,7 +4339,11 @@ message SysStatsConfig {
 // - Values of
 // /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
 // datasource has no configuration options at present.
-message SystemInfoConfig {}
+message SystemInfoConfig {
+  // If true, records hardware interrupt ID-to-name mappings from
+  // /proc/interrupts.
+  optional bool irq_names = 1;
+}
 
 // End of protos/perfetto/config/system_info/system_info_config.proto
 

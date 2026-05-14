@@ -6,7 +6,7 @@ node PerfettoArgDef {
   semantic { column_def(name: arg_name, type: arg_type) }
 
   fmt {
-    child(arg_name) " " span(arg_type)
+    child(arg_name) space span(arg_type)
     if_flag(is_variadic) { "..." }
   }
 }
@@ -21,7 +21,7 @@ node PerfettoMacroArg {
   arg_type: inline SyntaqliteTextSpan
 
   fmt {
-    span(arg_name) " " span(arg_type)
+    span(arg_name) space span(arg_type)
   }
 }
 
@@ -86,10 +86,10 @@ node CreatePerfettoTableStmt {
   fmt {
     group {
       "CREATE"
-      if_flag(or_replace) { " OR REPLACE" }
-      " PERFETTO TABLE " span(table_name)
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "TABLE" space span(table_name)
       if_set(table_impl) {
-        " USING "
+        space "USING" space
         child(table_impl)
       }
       if_set(schema) {
@@ -118,8 +118,8 @@ node CreatePerfettoViewStmt {
   fmt {
     group {
       "CREATE"
-      if_flag(or_replace) { " OR REPLACE" }
-      " PERFETTO VIEW " span(view_name)
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "VIEW" space span(view_name)
       if_set(schema) {
         "("
         nest {
@@ -147,8 +147,8 @@ node CreatePerfettoFunctionStmt {
   fmt {
     group {
       "CREATE"
-      if_flag(or_replace) { " OR REPLACE" }
-      " PERFETTO FUNCTION " span(function_name)
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "FUNCTION" space span(function_name)
       "("
       if_set(args) {
         nest {
@@ -159,7 +159,7 @@ node CreatePerfettoFunctionStmt {
       }
       ")"
     }
-    hardline "RETURNS " child(return_type)
+    hardline "RETURNS" space child(return_type)
     hardline "AS"
     hardline child(select)
   }
@@ -175,8 +175,8 @@ node CreatePerfettoDelegatingFunctionStmt {
   fmt {
     group {
       "CREATE"
-      if_flag(or_replace) { " OR REPLACE" }
-      " PERFETTO FUNCTION " span(function_name)
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "FUNCTION" space span(function_name)
       "("
       if_set(args) {
         nest {
@@ -187,8 +187,8 @@ node CreatePerfettoDelegatingFunctionStmt {
       }
       ")"
     }
-    hardline "RETURNS " child(return_type)
-    hardline "DELEGATES TO " span(delegate_to)
+    hardline "RETURNS" space child(return_type)
+    hardline "DELEGATES" "TO" space span(delegate_to)
   }
 }
 
@@ -201,9 +201,9 @@ node CreatePerfettoIndexStmt {
   fmt {
     group {
       "CREATE"
-      if_flag(or_replace) { " OR REPLACE" }
-      " PERFETTO INDEX " span(index_name)
-      " ON " span(table_name)
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "INDEX" space span(index_name)
+      space "ON" space span(table_name)
       "("
       nest {
         softline
@@ -226,8 +226,8 @@ node CreatePerfettoMacroStmt {
   fmt {
     group {
       "CREATE"
-      if_flag(or_replace) { " OR REPLACE" }
-      " PERFETTO MACRO " span(macro_name)
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "MACRO" space span(macro_name)
       "("
       if_set(args) {
         nest {
@@ -238,8 +238,8 @@ node CreatePerfettoMacroStmt {
       }
       ")"
     }
-    hardline "RETURNS " span(return_type)
-    hardline "AS " span(body)
+    hardline "RETURNS" space span(return_type)
+    hardline "AS" space span(body)
   }
 }
 
@@ -249,7 +249,7 @@ node IncludePerfettoModuleStmt {
   semantic { import(module: module_name) }
 
   fmt {
-    "INCLUDE PERFETTO MODULE " span(module_name)
+    "INCLUDE" "PERFETTO" "MODULE" space span(module_name)
   }
 }
 
@@ -258,6 +258,6 @@ node DropPerfettoIndexStmt {
   table_name: inline SyntaqliteTextSpan
 
   fmt {
-    "DROP PERFETTO INDEX " span(index_name) " ON " span(table_name)
+    "DROP" "PERFETTO" "INDEX" space span(index_name) space "ON" space span(table_name)
   }
 }

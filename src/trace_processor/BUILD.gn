@@ -201,12 +201,47 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics",
       "perfetto_sql/engine",
       "perfetto_sql/generator",
-      "perfetto_sql/intrinsics/functions",
-      "perfetto_sql/intrinsics/functions/trees",
-      "perfetto_sql/intrinsics/operators",
       "perfetto_sql/intrinsics/table_functions",
       "perfetto_sql/stdlib",
+      "plugins/args",
+      "plugins/art_heap_graph_functions",
+      "plugins/base64_functions",
+      "plugins/core_functions",
+      "plugins/counter_intervals",
+      "plugins/counter_mipmap_operator",
+      "plugins/create_function",
+      "plugins/create_intervals",
+      "plugins/create_view_function",
+      "plugins/critical_path",
+      "plugins/developer_functions",
+      "plugins/dominator_tree",
+      "plugins/etm_decode_chunk",
+      "plugins/etm_iterate_range",
+      "plugins/graph_scan",
+      "plugins/graph_traversal",
+      "plugins/import",
+      "plugins/interval_intersect",
+      "plugins/layout_functions",
+      "plugins/math_functions",
+      "plugins/metadata",
+      "plugins/package_lookup",
+      "plugins/perf_counter",
+      "plugins/pprof_functions",
+      "plugins/slice_mipmap_operator",
+      "plugins/span_join_operator",
+      "plugins/sql_stats_table",
+      "plugins/stack_functions",
+      "plugins/string_functions",
+      "plugins/structural_tree_partition",
+      "plugins/symbolize",
+      "plugins/table_pointer_module",
+      "plugins/time_functions",
+      "plugins/to_ftrace",
+      "plugins/tree_functions",
+      "plugins/type_builder_functions",
+      "plugins/utils_functions",
       "plugins/wattson",
+      "plugins/window_operator",
       "sqlite",
       "storage",
       "tables",
@@ -225,10 +260,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     if (enable_perfetto_etm_importer) {
-      deps += [
-        "importers/etm",
-        "perfetto_sql/intrinsics/operators:etm",
-      ]
+      deps += [ "importers/etm" ]
     }
 
     public_deps = [
@@ -376,12 +408,12 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "perfetto_sql/engine:unittests",
-      "perfetto_sql/intrinsics/functions:unittests",
-      "perfetto_sql/intrinsics/operators:unittests",
       "perfetto_sql/intrinsics/table_functions:unittests",
       "perfetto_sql/parser:unittests",
       "perfetto_sql/preprocessor:unittests",
       "perfetto_sql/tokenizer:unittests",
+      "plugins/span_join_operator:unittests",
+      "plugins/string_functions:unittests",
       "sqlite:unittests",
     ]
   }

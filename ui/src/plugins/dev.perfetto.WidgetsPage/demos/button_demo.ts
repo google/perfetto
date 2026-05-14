@@ -168,7 +168,7 @@ m(Button, {label: 'Danger', intent: Intent.Danger})`,
         ]),
         m('li', [
           m('strong', 'Button Groups: '),
-          'Group related buttons with ButtonGroup or SegmentedButtons',
+          'Group related buttons with ButtonGroup',
         ]),
       ]),
     ]),

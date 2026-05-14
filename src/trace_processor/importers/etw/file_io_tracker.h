@@ -49,6 +49,8 @@ enum class EventType : uint32_t {
   kFilesystemControlEvent = 75,
   kEndOperation = 76,
   kDirectoryNotification = 77,
+  kDeletePath = 79,
+  kRenamePath = 80,
   kFltRead = 83,
   kFltWrite = 84,
   kFltSetInfo = 85,
@@ -168,6 +170,9 @@ class FileIoTracker {
   void ParseFileIoOpEnd(int64_t timestamp,
                         UniqueTid utid,
                         protozero::ConstBytes);
+  void ParseFileIoPathOperation(int64_t timestamp,
+                                UniqueTid utid,
+                                protozero::ConstBytes);
 
   void OnEventsFullyExtracted();
 
@@ -251,6 +256,7 @@ class FileIoTracker {
   const StringId file_attributes_arg_;
   const StringId file_index_arg_;
   const StringId file_key_arg_;
+  const StringId file_name_arg_;
   const StringId file_object_arg_;
   const StringId file_size_arg_;
   const StringId info_class_arg_;
@@ -270,6 +276,7 @@ class FileIoTracker {
   const StringId info_event_;
   const StringId read_write_event_;
   const StringId simple_op_event_;
+  const StringId path_operation_event_;
 };
 
 }  // namespace perfetto::trace_processor

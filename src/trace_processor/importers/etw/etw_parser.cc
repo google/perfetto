@@ -110,6 +110,10 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
   if (decoder.has_file_io_op_end()) {
     file_io_tracker->ParseFileIoOpEnd(ts, utid, decoder.file_io_op_end());
   }
+  if (decoder.has_file_io_path_operation()) {
+    file_io_tracker->ParseFileIoPathOperation(ts, utid,
+                                              decoder.file_io_path_operation());
+  }
 
   return base::OkStatus();
 }

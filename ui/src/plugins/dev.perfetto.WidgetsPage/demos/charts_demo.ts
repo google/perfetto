@@ -97,6 +97,7 @@ import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
 import {LineChartSvg} from '../../../components/widgets/charts_svg/line_chart_svg';
+import {HistogramSvg} from '../../../components/widgets/charts_svg/histogram_svg';
 
 // Generate sample data with normal distribution
 function generateNormalData(
@@ -210,6 +211,7 @@ export function renderCharts(app: App): m.Children {
           stacked: opts.stacked,
           gridLines: opts.gridLines,
           legendPosition: opts.legendPosition,
+          markers: opts.markers,
           useSvg: true,
         });
       },
@@ -235,6 +237,7 @@ export function renderCharts(app: App): m.Children {
           'right',
           'bottom',
         ] as const),
+        markers: false,
       },
     }),
 
@@ -311,6 +314,33 @@ export function renderCharts(app: App): m.Children {
           brushMode: opts.brushMode,
           logScale: opts.logScale,
           integer: opts.integer,
+          useSvg: false,
+        });
+      },
+      initialOpts: {
+        bucketCount: 20,
+        height: 250,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
+        logScale: false,
+        integer: false,
+      },
+    }),
+
+    // HistogramSvg section
+    m('h2', {style: {marginTop: '32px'}}, 'HistogramSvg'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(HistogramDemo, {
+          bucketCount: opts.bucketCount,
+          height: opts.height,
+          brushMode: opts.brushMode,
+          logScale: opts.logScale,
+          integer: opts.integer,
+          useSvg: true,
         });
       },
       initialOpts: {
@@ -639,6 +669,29 @@ function renderSQLDemos(app: App): m.Children[] {
         logScale: false,
       },
     }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLHistogramLoader (Svg)'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLHistogramDemo, {
+          trace,
+          bucketCount: opts.bucketCount,
+          height: opts.height,
+          brushMode: opts.brushMode,
+          logScale: opts.logScale,
+          useSvg: true,
+        });
+      },
+      initialOpts: {
+        bucketCount: 20,
+        height: 250,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
+        logScale: false,
+      },
+    }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLScatterChartLoader'),
     renderWidgetShowcase({
       renderWidget: (opts) => {
@@ -859,6 +912,7 @@ function HistogramDemo(): m.Component<{
   brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
   integer: boolean;
+  useSvg?: boolean;
 }> {
   const continuousData = generateNormalData(1000, 50, 15);
   const integerData = generateNormalData(1000, 50, 15, true);
@@ -882,7 +936,7 @@ function HistogramDemo(): m.Component<{
       };
       const {data} = loader.use(config);
       return m('div', [
-        m(Histogram, {
+        m(attrs.useSvg ? HistogramSvg : Histogram, {
           data,
           height: attrs.height,
           xAxisLabel: attrs.integer ? 'Thread Count' : 'Value',
@@ -1158,6 +1212,7 @@ function SQLHistogramDemo(): m.Component<{
   height: number;
   brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
+  useSvg?: boolean;
 }> {
   let loader: SQLHistogramLoader | undefined;
   let brushedRange: {start: number; end: number} | undefined;
@@ -1184,7 +1239,7 @@ function SQLHistogramDemo(): m.Component<{
       const {data, isPending} = loader.use(config);
 
       return m('div', [
-        m(Histogram, {
+        m(attrs.useSvg ? HistogramSvg : Histogram, {
           data,
           height: attrs.height,
           xAxisLabel: 'Duration (ns)',
@@ -1441,6 +1496,7 @@ function LineChartDemo(): m.Component<{
   stacked: boolean;
   gridLines: string;
   legendPosition: LegendPosition;
+  markers?: boolean;
   useSvg?: boolean;
 }> {
   let brushRange: {start: number; end: number} | undefined;
@@ -1475,6 +1531,9 @@ function LineChartDemo(): m.Component<{
               }
             : undefined,
         selection: attrs.brushMode === 'select' ? brushRange : undefined,
+        markers: attrs.markers
+          ? [{x: 4}, {x: 9, color: 'var(--pf-color-warning)'}, {x: 14}]
+          : undefined,
       };
 
       return m('div', [

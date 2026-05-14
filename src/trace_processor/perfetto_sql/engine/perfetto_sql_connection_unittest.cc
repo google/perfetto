@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -29,6 +30,8 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+using base::gtest_matchers::IsError;
 
 class PerfettoSqlConnectionTest : public ::testing::Test {
  protected:
@@ -41,8 +44,7 @@ sql_modules::RegisteredPackage CreateTestPackage(
     const std::vector<std::pair<std::string, std::string>>& files) {
   sql_modules::RegisteredPackage result;
   for (const auto& file : files) {
-    result.modules[file.first] =
-        sql_modules::RegisteredPackage::ModuleFile{file.second, false};
+    result.modules[file.first] = file.second;
   }
   return result;
 }
@@ -302,8 +304,9 @@ TEST_F(PerfettoSqlConnectionTest, Include_All) {
   auto res_create = connection_->Execute(
       SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE *"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(connection_->FindPackage("foo")->modules["foo.foo"].included);
-  ASSERT_TRUE(connection_->FindPackage("bar")->modules["bar.bar"].included);
+  auto* db = connection_->database_for_testing();
+  ASSERT_TRUE(db->IsModuleIncluded("foo.foo"));
+  ASSERT_TRUE(db->IsModuleIncluded("bar.bar"));
 }
 
 TEST_F(PerfettoSqlConnectionTest, Include_Module) {
@@ -320,9 +323,170 @@ TEST_F(PerfettoSqlConnectionTest, Include_Module) {
   auto res_create = connection_->Execute(
       SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.*"));
   ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  ASSERT_TRUE(connection_->FindPackage("foo")->modules["foo.foo1"].included);
-  ASSERT_TRUE(connection_->FindPackage("foo")->modules["foo.foo2"].included);
-  ASSERT_FALSE(connection_->FindPackage("bar")->modules["bar.bar"].included);
+  auto* db = connection_->database_for_testing();
+  ASSERT_TRUE(db->IsModuleIncluded("foo.foo1"));
+  ASSERT_TRUE(db->IsModuleIncluded("foo.foo2"));
+  ASSERT_FALSE(db->IsModuleIncluded("bar.bar"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, Include_FailingModulePoisons) {
+  // A module with a syntactically broken body. The first INCLUDE fails;
+  // subsequent INCLUDEs of the same key short-circuit with a poison
+  // error rather than re-running the broken body.
+  connection_->RegisterPackage(
+      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}}));
+
+  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
+                  "INCLUDE PERFETTO MODULE foo.bad")),
+              IsError());
+  ASSERT_TRUE(connection_->database_for_testing()->IsModulePoisoned("foo.bad"));
+
+  auto second = connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.bad"));
+  ASSERT_THAT(second, IsError());
+  EXPECT_THAT(second.status().c_message(),
+              testing::HasSubstr("poisoned by earlier failure"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, Include_AlreadyIncludedShortCircuits) {
+  // A module body whose successful execution has a side-effect (CREATE
+  // TABLE). The second INCLUDE must NOT re-run the body — if it did,
+  // SQLite would return "table already exists" and the second INCLUDE
+  // would fail.
+  connection_->RegisterPackage(
+      "foo", CreateTestPackage(
+                 {{"foo.t", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}}));
+
+  ASSERT_OK(connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.t")));
+  ASSERT_OK(connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.t")));
+}
+
+TEST_F(PerfettoSqlConnectionTest, Include_PoisonPropagatesUpStack) {
+  // foo.bad's body is broken; foo.good's body INCLUDEs foo.bad. Including
+  // foo.good fails, and BOTH foo.bad AND foo.good should be poisoned —
+  // poisoning walks up the stack as include frames are unwound on error.
+  connection_->RegisterPackage(
+      "foo",
+      CreateTestPackage({{"foo.bad", "this is not valid sql"},
+                         {"foo.good", "INCLUDE PERFETTO MODULE foo.bad"}}));
+
+  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
+                  "INCLUDE PERFETTO MODULE foo.good")),
+              IsError());
+
+  auto* db = connection_->database_for_testing();
+  ASSERT_TRUE(db->IsModulePoisoned("foo.bad"));
+  ASSERT_TRUE(db->IsModulePoisoned("foo.good"));
+}
+
+TEST_F(PerfettoSqlConnectionTest,
+       Include_PoisonError_Direct_HasImmediateTraceback) {
+  // Re-including a poisoned module via a direct INCLUDE statement should
+  // surface the immediate INCLUDE line in the error traceback, matching the
+  // error format produced by the asynchronous failure path.
+  connection_->RegisterPackage(
+      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}}));
+  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
+                  "INCLUDE PERFETTO MODULE foo.bad")),
+              IsError());
+
+  auto retry = connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.bad"));
+  ASSERT_THAT(retry, IsError());
+  EXPECT_THAT(retry.status().c_message(),
+              testing::HasSubstr("INCLUDE PERFETTO MODULE foo.bad"));
+  EXPECT_THAT(retry.status().c_message(),
+              testing::HasSubstr("poisoned by earlier failure"));
+}
+
+TEST_F(PerfettoSqlConnectionTest,
+       Include_PoisonError_Wildcard_HasImmediateTraceback) {
+  // Same as above but the retry happens via a wildcard expansion. The
+  // wildcard's own statement line should appear in the traceback.
+  connection_->RegisterPackage(
+      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}}));
+  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
+                  "INCLUDE PERFETTO MODULE foo.bad")),
+              IsError());
+
+  auto retry = connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.*"));
+  ASSERT_THAT(retry, IsError());
+  EXPECT_THAT(retry.status().c_message(),
+              testing::HasSubstr("INCLUDE PERFETTO MODULE foo.*"));
+  EXPECT_THAT(retry.status().c_message(),
+              testing::HasSubstr("poisoned by earlier failure"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, Include_PoisonReason_StableAcrossRetries) {
+  // Each retry of a poisoned include must produce an error message of the
+  // same length — the stored poison reason should not be padded with the
+  // retry's own traceback layers each time.
+  connection_->RegisterPackage(
+      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}}));
+  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
+                  "INCLUDE PERFETTO MODULE foo.bad")),
+              IsError());
+
+  auto a = connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.bad"));
+  auto b = connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.bad"));
+  ASSERT_THAT(a, IsError());
+  ASSERT_THAT(b, IsError());
+  EXPECT_EQ(a.status().message().size(), b.status().message().size());
+}
+
+TEST_F(PerfettoSqlConnectionTest, Include_CycleDetected) {
+  // foo.a includes foo.b, foo.b includes foo.a. Walking the connection's
+  // own execution stack catches the re-entry and surfaces a cycle error
+  // rather than re-entering |TryClaimInclude| (which would deadlock on its
+  // own claim).
+  connection_->RegisterPackage("foo",
+                               CreateTestPackage({
+                                   {"foo.a", "INCLUDE PERFETTO MODULE foo.b"},
+                                   {"foo.b", "INCLUDE PERFETTO MODULE foo.a"},
+                               }));
+
+  auto res = connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.a"));
+  ASSERT_THAT(res, IsError());
+  EXPECT_THAT(res.status().c_message(), testing::HasSubstr("cycle detected"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, RegisterPackage_FailsAfterModuleIncluded) {
+  // Re-registering a package whose module has already been imported is
+  // rejected: silently shadowing the imported body would surprise callers
+  // that have built on top of the original SQL.
+  ASSERT_OK(connection_->RegisterPackage(
+      "foo", CreateTestPackage(
+                 {{"foo.t", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}})));
+  ASSERT_OK(connection_->Execute(
+      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.t")));
+
+  auto status = connection_->RegisterPackage(
+      "foo", CreateTestPackage(
+                 {{"foo.t", "CREATE PERFETTO TABLE bar AS SELECT 1 AS x"}}));
+  ASSERT_THAT(status, IsError());
+  EXPECT_THAT(status.c_message(), testing::HasSubstr("foo.t"));
+  EXPECT_THAT(status.c_message(), testing::HasSubstr("already been included"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, RegisterPackage_FailsAfterModulePoisoned) {
+  // Likewise for the poisoned case.
+  ASSERT_OK(connection_->RegisterPackage(
+      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}})));
+  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
+                  "INCLUDE PERFETTO MODULE foo.bad")),
+              IsError());
+
+  auto status = connection_->RegisterPackage(
+      "foo", CreateTestPackage({{"foo.bad", "SELECT 1"}}));
+  ASSERT_THAT(status, IsError());
+  EXPECT_THAT(status.c_message(), testing::HasSubstr("foo.bad"));
+  EXPECT_THAT(status.c_message(), testing::HasSubstr("poisoned"));
 }
 
 TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_TargetNotFound) {

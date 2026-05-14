@@ -102,6 +102,7 @@ function buildEChartsTheme(colors: ChartThemeColors): Record<string, unknown> {
     backgroundColor: 'transparent',
     textStyle: {
       color: colors.textColor,
+      fontFamily: colors.fontFamily,
     },
     title: {
       textStyle: {color: colors.textColor},

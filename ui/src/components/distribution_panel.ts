@@ -33,7 +33,7 @@ import {Tooltip} from '../widgets/tooltip';
 import {Tree, TreeNode} from '../widgets/tree';
 import {extensions} from './extensions';
 import {DurationWidget} from './widgets/duration';
-import {Histogram} from './widgets/charts/histogram';
+import {HistogramSvg} from './widgets/charts_svg/histogram_svg';
 import {
   HistogramData,
   SQLHistogramLoader,
@@ -180,6 +180,11 @@ export interface DistributionSummaryAttrs extends DistributionInputs {
   readonly onBrushChange?: (
     brush: {readonly start: number; readonly end: number} | undefined,
   ) => void;
+
+  // When set, the histogram bucket containing this value is drawn in a
+  // distinct color — used to show "where does this slice's duration fall
+  // in the distribution?".
+  readonly highlightValue?: number;
 }
 
 // Reusable left-half: histogram (with brush) + percentile stats. Materializes
@@ -285,7 +290,7 @@ export class DistributionSummary
     data: HistogramData | undefined,
   ): m.Children {
     const onBrushChange = attrs.onBrushChange;
-    return m(Histogram, {
+    return m(HistogramSvg, {
       data,
       height: 220,
       xAxisLabel: attrs.valueColumn,
@@ -293,7 +298,11 @@ export class DistributionSummary
       formatXValue: (v) => formatDuration(attrs.trace, BigInt(Math.round(v))),
       onBrush:
         onBrushChange === undefined ? undefined : (r) => onBrushChange(r),
-      selection: attrs.brush,
+      selection:
+        attrs.brush ??
+        (attrs.highlightValue !== undefined
+          ? {start: attrs.highlightValue, end: attrs.highlightValue}
+          : undefined),
     });
   }
 

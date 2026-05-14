@@ -2753,8 +2753,7 @@ message PerfEventConfig {
     optional uint32 process_shard_count = 6;
   }
 
-  // Userspace unwinding mode. A possible future addition is kernel-unwound
-  // callchains for frame pointer based systems.
+  // Userspace unwinding mode.
   enum UnwindMode {
     UNWIND_UNKNOWN = 0;
     // Do not unwind userspace:
@@ -2763,6 +2762,14 @@ message PerfEventConfig {
     UNWIND_DWARF = 2;
     // Use userspace frame pointer unwinder:
     UNWIND_FRAME_POINTER = 3;
+    // Ask the kernel to unwind the userspace stack via frame pointers, using
+    // PERF_SAMPLE_CALLCHAIN. The user stack bytes are not copied into the
+    // sample, which avoids the per-sample copy cost and the depth limit
+    // imposed by PERF_SAMPLE_STACK_USER. Requires that the userspace code
+    // (including system libraries) is built with frame pointers - the kernel
+    // walks the chain and returns instruction addresses, which still need to
+    // be symbolized offline using the recorded process mappings.
+    UNWIND_KERNEL_FRAME_POINTER = 4;
   }
 }
 
@@ -4332,7 +4339,11 @@ message SysStatsConfig {
 // - Values of
 // /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
 // datasource has no configuration options at present.
-message SystemInfoConfig {}
+message SystemInfoConfig {
+  // If true, records hardware interrupt ID-to-name mappings from
+  // /proc/interrupts.
+  optional bool irq_names = 1;
+}
 
 // End of protos/perfetto/config/system_info/system_info_config.proto
 
@@ -6607,6 +6618,9 @@ message FrameTimelineEvent {
       LATCHED_DELAYED_LATCH_UNSIGNALED = 3;
     }
     optional LatchedFenceState latched_fence_state = 19;
+
+    // animation time (ms) used when drawing this frame.
+    optional float animation_time_millis = 20;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -8710,6 +8724,18 @@ message FileIoOpEndEtwEvent {
   optional uint32 nt_status = 3;
 }
 
+// Proto definition based on the `FileIo_PathOperation` class definition.
+message FileIoPathOperationEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+  optional string file_name = 7;
+  optional uint32 opcode = 8;
+}
+
 // Proto definition based on the `StackWalk_Event` class definition. See
 // `Callstack` in `perfetto/protos/perfetto/trace/track_event/track_event.proto`
 // for context on what is contained in it.
@@ -8717,7 +8743,6 @@ message StackWalkEtwEvent {
   optional string trigger = 1;
   optional uint64 callstack_iid = 2;
 }
-
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -8738,6 +8763,7 @@ message EtwTraceEvent {
     FileIoSimpleOpEtwEvent file_io_simple_op = 11;
     FileIoOpEndEtwEvent file_io_op_end = 12;
     StackWalkEtwEvent stack_walk = 13;
+    FileIoPathOperationEtwEvent file_io_path_operation = 14;
   }
 }
 
@@ -17648,12 +17674,43 @@ message SmapsEntry {
   optional uint64 shared_clean_resident_kb = 13;
   optional uint64 locked_kb = 14;
   optional uint64 proportional_resident_kb = 15;
-};
+}
+
+// Structure-of-arrays style smaps packet of a single process. All packed
+// repeated fields, if set, must have the same length.
+message PackedSmaps {
+  repeated string string_table = 1;
+
+  // Interned file paths as an index into |string_table|.
+  // Note: the "(deleted)" suffix is kept as part of the string_table entry, and
+  // is to be handled during trace import stage.
+  // Written only if config.unaggregated == true. Otherwise the string_table is
+  // exactly the ordered names of the aggregated mappings.
+  repeated uint32 name_id = 2 [packed = true];
+
+  // How many mappings were merged by name, summing the values below.
+  // Written only if config.unaggregated == false.
+  repeated uint32 aggregate_count = 3 [packed = true];
+
+  repeated uint64 size_kb = 4 [packed = true];
+  repeated uint64 rss_kb = 5 [packed = true];
+  repeated uint64 anonymous_kb = 6 [packed = true];
+  repeated uint64 swap_kb = 7 [packed = true];
+  repeated uint64 shared_clean_kb = 8 [packed = true];
+  repeated uint64 shared_dirty_kb = 9 [packed = true];
+  repeated uint64 private_clean_kb = 10 [packed = true];
+  repeated uint64 private_dirty_kb = 11 [packed = true];
+  repeated uint64 locked_kb = 12 [packed = true];
+  repeated uint64 pss_kb = 13 [packed = true];
+  repeated uint64 pss_dirty_kb = 14 [packed = true];
+  repeated uint64 swap_pss_kb = 15 [packed = true];
+}
 
 message SmapsPacket {
   optional uint32 pid = 1;
   repeated SmapsEntry entries = 2;
-};
+  optional PackedSmaps packed_entries = 3;
+}
 
 // End of protos/perfetto/trace/profiling/smaps.proto
 
@@ -18153,6 +18210,26 @@ message GpuInfo {
 }
 
 // End of protos/perfetto/trace/system_info/gpu_info.proto
+
+// Begin of protos/perfetto/trace/system_info/interrupt_info.proto
+
+// Hardware interrupt (IRQ) ID-to-name mappings collected from
+// /proc/interrupts at the start of a trace.
+// Emitted by the linux.system_info data source when irq_names: true is set
+// in SystemInfoConfig.
+message InterruptInfo {
+  message InterruptMapping {
+    // Numeric IRQ identifier.
+    optional uint32 irq_id = 1;
+    // Human-readable name for the IRQ (e.g. "arch_timer", "arm-pmu").
+    optional string name = 2;
+  }
+
+  // One entry per hardware IRQ found in /proc/interrupts.
+  repeated InterruptMapping irq_mapping = 1;
+}
+
+// End of protos/perfetto/trace/system_info/interrupt_info.proto
 
 // Begin of protos/perfetto/trace/test_event.proto
 
@@ -19073,6 +19150,7 @@ message TracePacket {
     TraceAttributes trace_attributes = 126;
     AndroidAflags android_aflags = 127;
     GpuInfo gpu_info = 128;
+    InterruptInfo interrupt_info = 130;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

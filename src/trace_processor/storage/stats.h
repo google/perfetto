@@ -24,7 +24,8 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
-  F(android_aflags_errors,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,          \
+  /* TODO(b/512786856): Restore severity to kError after flag rollout. */    \
+  F(android_aflags_errors,               kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,          \
        "Errors occurred during the collection of Android aconfig flags by the "\
        "android.aflags data source. This typically happens if the aflags tool "\
        "fails or its output is malformed."),                                   \

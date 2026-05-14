@@ -29,6 +29,8 @@
 #include "src/trace_processor/core/util/type_set.h"
 
 struct sqlite3_module;
+struct sqlite3_context;
+struct sqlite3_value;
 
 namespace perfetto::trace_processor::core::dataframe {
 class Dataframe;
@@ -36,11 +38,61 @@ class Dataframe;
 
 namespace perfetto::trace_processor {
 
+class PerfettoSqlConnection;
 class StaticTableFunction;
 class TraceProcessorContext;
 class TraceReaderRegistry;
 class TraceStorage;
 struct ProtoImporterModuleContext;
+
+// Registration entry for a scalar SQL function. Built via the
+// MakeFunctionRegistration() helper in perfetto_sql_connection.h and consumed
+// by PerfettoSqlConnection::Initialize.
+struct FunctionRegistration {
+  using Step = void(sqlite3_context*, int argc, sqlite3_value** argv);
+  using CtxDestructor = void(void*);
+
+  std::string name;
+  int argc = 0;
+  Step* step = nullptr;
+  void* ctx = nullptr;
+  CtxDestructor* ctx_destructor = nullptr;
+  bool deterministic = true;
+};
+
+// Registration entry for a SQL aggregate function.
+struct AggregateFunctionRegistration {
+  using Step = void(sqlite3_context*, int argc, sqlite3_value** argv);
+  using Final = void(sqlite3_context*);
+  using CtxDestructor = void(void*);
+
+  std::string name;
+  int argc = 0;
+  Step* step = nullptr;
+  Final* final_fn = nullptr;
+  void* ctx = nullptr;
+  CtxDestructor* ctx_destructor = nullptr;
+  bool deterministic = true;
+};
+
+// Registration entry for a SQL window function.
+struct WindowFunctionRegistration {
+  using Step = void(sqlite3_context*, int argc, sqlite3_value** argv);
+  using Inverse = void(sqlite3_context*, int argc, sqlite3_value** argv);
+  using Value = void(sqlite3_context*);
+  using Final = void(sqlite3_context*);
+  using CtxDestructor = void(void*);
+
+  std::string name;
+  int argc = 0;
+  Step* step = nullptr;
+  Inverse* inverse = nullptr;
+  Value* value = nullptr;
+  Final* final_fn = nullptr;
+  void* ctx = nullptr;
+  CtxDestructor* ctx_destructor = nullptr;
+  bool deterministic = true;
+};
 
 // Lightweight struct for plugin dataframe registration.
 struct PluginDataframe {
@@ -126,7 +178,16 @@ class PluginBase {
   virtual void RegisterStaticTableFunctions(
       std::vector<std::unique_ptr<StaticTableFunction>>& fns);
   virtual void RegisterSqliteModules(
+      PerfettoSqlConnection* connection,
       std::vector<SqliteModuleRegistration>& modules);
+  virtual void RegisterFunctions(PerfettoSqlConnection* connection,
+                                 std::vector<FunctionRegistration>& functions);
+  virtual void RegisterAggregateFunctions(
+      PerfettoSqlConnection* connection,
+      std::vector<AggregateFunctionRegistration>& functions);
+  virtual void RegisterWindowFunctions(
+      PerfettoSqlConnection* connection,
+      std::vector<WindowFunctionRegistration>& functions);
 
   virtual uint64_t GetBoundsMutationCount();
   virtual std::pair<int64_t, int64_t> GetTimestampBounds();

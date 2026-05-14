@@ -28,6 +28,7 @@ source_set("syntaqlite") {
   deps = [ "../../../../gn:default_deps" ]
   visibility = [
     "../../util:sql_module_doc_parser",
+    "../lineage_resolver:lineage_resolver",
     "../parser:*",
     "../tokenizer",
   ]
@@ -41,11 +42,6 @@ if (perfetto_build_standalone) {
   shared_library("perfetto_fmt_dialect") {
     sources = _syntaqlite_sources
     deps = [ "../../../../gn:default_deps" ]
-
-    # `SYNTAQLITE_SHARED` makes `SYNTAQLITE_API` expand to
-    # `visibility("default")`, exporting the public C API (including the
-    # `syntaqlite_perfetto_dialect_template` entry point the CLI dlsyms)
-    # while the `visibility_hidden` config keeps everything else hidden.
     defines = [ "SYNTAQLITE_SHARED" ]
     if (is_mac) {
       ldflags = [ "-Wl,-undefined,dynamic_lookup" ]

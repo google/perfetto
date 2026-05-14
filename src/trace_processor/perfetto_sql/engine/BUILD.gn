@@ -30,8 +30,6 @@ source_set("engine") {
     "runtime_table_function.h",
     "static_table_function_module.cc",
     "static_table_function_module.h",
-    "table_pointer_module.cc",
-    "table_pointer_module.h",
   ]
   deps = [
     "../..:metatrace",
@@ -42,6 +40,7 @@ source_set("engine") {
     "../../../base",
     "../../containers",
     "../../core/dataframe",
+    "../../core/plugin",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
     "../../types",
@@ -62,6 +61,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
+    "../../../base:test_support",
     "../..//tables:tables_python",
     "../../containers",
     "../../perfetto_sql/intrinsics/table_functions:interface",

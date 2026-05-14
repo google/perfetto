@@ -211,6 +211,8 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Surface frame token")),
       display_frame_token_id_(
           context->storage->InternString("Display frame token")),
+      animation_time_millis_id_(
+          context->storage->InternString("Animation Time (ms)")),
       present_delay_millis_id_(
           context->storage->InternString("Present Delay (ms)")),
       vsync_resynced_jitter_millis_id_(
@@ -526,6 +528,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   int64_t display_frame_token = event.display_frame_token();
   double jank_severity_score = static_cast<double>(event.jank_severity_score());
   double jank_debug_metadata = static_cast<double>(event.jank_debug_metadata());
+  double animation_time_millis =
+      static_cast<double>(event.animation_time_millis());
   double present_delay_millis =
       static_cast<double>(event.present_delay_millis());
   double vsync_resynced_jitter_millis =
@@ -617,6 +621,10 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
         inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
         inserter->AddArg(display_frame_token_id_,
                          Variadic::Integer(display_frame_token));
+        if (event.has_animation_time_millis()) {
+          inserter->AddArg(animation_time_millis_id_,
+                           Variadic::Real(animation_time_millis));
+        }
         inserter->AddArg(present_delay_millis_id_,
                          Variadic::Real(present_delay_millis));
         inserter->AddArg(vsync_resynced_jitter_millis_id_,
