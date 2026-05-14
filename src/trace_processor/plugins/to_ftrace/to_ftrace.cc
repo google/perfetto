@@ -30,6 +30,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/core/dataframe/specs.h"
@@ -476,7 +477,11 @@ void ArgsSerializer::SerializeArgs() {
     writer_->AppendString(" [action=");
     WriteValueForField(SIE::kVecFieldNumber, [this](const Variadic& value) {
       PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-      writer_->AppendString(kActionNames[value.uint_value]);
+      if (value.uint_value < base::ArraySize(kActionNames)) {
+        writer_->AppendString(kActionNames[value.uint_value]);
+      } else {
+        writer_->AppendUnsignedInt(value.uint_value);
+      }
     });
     writer_->AppendString("]");
     return;
@@ -486,7 +491,11 @@ void ArgsSerializer::SerializeArgs() {
     writer_->AppendString(" [action=");
     WriteValueForField(SIX::kVecFieldNumber, [this](const Variadic& value) {
       PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-      writer_->AppendString(kActionNames[value.uint_value]);
+      if (value.uint_value < base::ArraySize(kActionNames)) {
+        writer_->AppendString(kActionNames[value.uint_value]);
+      } else {
+        writer_->AppendUnsignedInt(value.uint_value);
+      }
     });
     writer_->AppendString("]");
     return;
