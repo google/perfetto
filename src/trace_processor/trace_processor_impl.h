@@ -155,13 +155,11 @@ class TraceProcessorImpl : public TraceProcessor,
     bool notify_eof_called;
     std::pair<int64_t, int64_t> cached_trace_bounds;
     std::vector<std::unique_ptr<PluginBase>>& plugins;
+    const std::vector<PluginDataframe>& plugin_dataframes;
   };
 
   static std::unique_ptr<PerfettoSqlConnection> InitPerfettoSqlConnection(
       const InitPerfettoSqlConnectionArgs& args);
-
-  static std::vector<PerfettoSqlConnection::StaticTable> GetStaticTables(
-      TraceStorage* storage);
 
   static void IncludeAfterEofPrelude(PerfettoSqlConnection*);
 
@@ -169,6 +167,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   // Registered plugins, topologically sorted by dependency order.
   std::vector<std::unique_ptr<PluginBase>> plugins_;
+
+  // Dataframes contributed by plugins, collected once after plugin
+  // construction. Both InitPerfettoSqlConnection and NotifyEndOfFile read
+  // from this list, so RegisterDataframes runs exactly once per plugin.
+  std::vector<PluginDataframe> plugin_dataframes_;
 
   std::unique_ptr<PerfettoSqlConnection> engine_;
 

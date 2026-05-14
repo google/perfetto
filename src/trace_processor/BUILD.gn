@@ -239,6 +239,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/sql_stats_table",
       "plugins/stack_functions",
       "plugins/stdlib_docs",
+      "plugins/storage_tables",
       "plugins/string_functions",
       "plugins/structural_tree_partition",
       "plugins/symbolize",

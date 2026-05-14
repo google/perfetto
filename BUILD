@@ -493,6 +493,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -779,6 +780,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -4831,6 +4833,15 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/stdlib_docs/all_tables_fwd.h",
         "src/trace_processor/plugins/stdlib_docs/tables_fwd.h",
         "src/trace_processor/plugins/stdlib_docs/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/storage_tables:storage_tables
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_storage_tables_storage_tables",
+    srcs = [
+        "src/trace_processor/plugins/storage_tables/storage_tables.cc",
+        "src/trace_processor/plugins/storage_tables/storage_tables.h",
     ],
 )
 
@@ -10083,6 +10094,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -10399,6 +10411,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
