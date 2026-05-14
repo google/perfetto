@@ -88,7 +88,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
       m(
         VirtualOverlayCanvas,
         {
-          onMount: (redrawCanvas) =>
+          onMount: ({redrawCanvas}) =>
             attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
           disableCanvasRedrawOnMithrilUpdates: true,
           onCanvasRedraw: (ctx) => {

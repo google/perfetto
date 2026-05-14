@@ -51,7 +51,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
     return m(
       VirtualOverlayCanvas,
       {
-        onMount: (redrawCanvas) =>
+        onMount: ({redrawCanvas}) =>
           attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
         disableCanvasRedrawOnMithrilUpdates: true,
         className: attrs.className,

@@ -32,7 +32,7 @@
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {Point2D, Rect2D, Size2D} from '../base/geom';
+import {Rect2D, Size2D} from '../base/geom';
 import {assertExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
@@ -70,6 +70,17 @@ export interface VirtualOverlayCanvasDrawContext {
 
 export type Overflow = 'hidden' | 'visible' | 'auto';
 
+// Imperative handle for controlling a VirtualOverlayCanvas. Handed to the
+// parent via the `onMount` callback.
+export interface VirtualOverlayCanvasApi {
+  // Redraw the canvas synchronously.
+  redrawCanvas(): void;
+
+  // Set the scroll position of the scrolling container. Either axis may be
+  // omitted to leave it unchanged. The browser clamps to the valid range.
+  scrollTo(opts: {x?: number; y?: number}): void;
+}
+
 export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Additional class names applied to the root element.
   readonly className?: string;
@@ -90,17 +101,10 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Default: false.
   readonly disableCanvasRedrawOnMithrilUpdates?: boolean;
 
-  // Called when the canvas is mounted. The passed redrawCanvas() function can
-  // be called to redraw the canvas synchronously at any time. Any returned
-  // disposable will be disposed of when the component is removed.
-  onMount?(redrawCanvas: () => void): Disposable | void;
-
-  // The scroll position of the scrolling container, as (scrollLeft,
-  // scrollTop). When defined, VOC synchronizes the DOM scroll on every render.
-  // To support user scrolling, the parent should keep this value in sync with
-  // the actual scroll position by reading `event.target.scrollLeft` /
-  // `scrollTop` inside `onscroll` and updating its own state.
-  readonly scrollPosition?: Point2D;
+  // Called when the canvas is mounted. The passed api object exposes
+  // imperative methods for controlling the canvas. Any returned disposable
+  // will be disposed of when the component is removed.
+  onMount?(api: VirtualOverlayCanvasApi): Disposable | void;
 
   // Override styles from base interface, only allowing object type styles
   // rather than strings.
@@ -266,27 +270,22 @@ export class VirtualOverlayCanvas
       this.redrawCanvas();
     });
 
-    const disposable = attrs.onMount?.(this.redrawCanvas.bind(this));
+    const scrollEl = toHTMLElement(dom);
+    const api: VirtualOverlayCanvasApi = {
+      redrawCanvas: this.redrawCanvas.bind(this),
+      scrollTo: ({x, y}) => {
+        if (x !== undefined) scrollEl.scrollLeft = x;
+        if (y !== undefined) scrollEl.scrollTop = y;
+      },
+    };
+    const disposable = attrs.onMount?.(api);
     disposable && this.trash.use(disposable);
 
-    this.syncScrollPosition(attrs, toHTMLElement(dom));
-
     !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
   }
 
-  onupdate({attrs, dom}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
-    this.syncScrollPosition(attrs, toHTMLElement(dom));
+  onupdate({attrs}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
     !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
-  }
-
-  private syncScrollPosition(
-    attrs: VirtualOverlayCanvasAttrs,
-    scrollEl: HTMLElement,
-  ) {
-    const pos = attrs.scrollPosition;
-    if (pos === undefined) return;
-    if (scrollEl.scrollLeft !== pos.x) scrollEl.scrollLeft = pos.x;
-    if (scrollEl.scrollTop !== pos.y) scrollEl.scrollTop = pos.y;
   }
 
   onremove() {
