@@ -203,7 +203,6 @@ bool Ancestor::GetAncestorSlices(
 }
 
 namespace ancestor {
-namespace {
 
 class AncestorPlugin : public Plugin<AncestorPlugin> {
  public:
@@ -221,8 +220,6 @@ class AncestorPlugin : public Plugin<AncestorPlugin> {
 };
 
 AncestorPlugin::~AncestorPlugin() = default;
-
-}  // namespace
 
 void RegisterPlugin() {
   static PluginRegistration reg(

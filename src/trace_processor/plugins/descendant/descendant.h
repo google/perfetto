@@ -19,6 +19,8 @@
 
 namespace perfetto::trace_processor::descendant {
 
+class DescendantPlugin;
+
 // Registers the Descendant plugin with the global plugin set. Idempotent;
 // only the first call has an effect. Must run before the first GetPluginSet()
 // call (i.e. before constructing TraceProcessorImpl).

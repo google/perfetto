@@ -32,9 +32,11 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/ancestor/ancestor_impl.h"
 #include "src/trace_processor/plugins/connected_flow/connected_flow_impl.h"
 #include "src/trace_processor/plugins/connected_flow/tables_py.h"
+#include "src/trace_processor/plugins/descendant/descendant.h"
 #include "src/trace_processor/plugins/descendant/descendant_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
@@ -306,7 +308,10 @@ uint32_t ConnectedFlow::GetArgumentCount() const {
 namespace connected_flow {
 namespace {
 
-class ConnectedFlowPlugin : public Plugin<ConnectedFlowPlugin> {
+class ConnectedFlowPlugin
+    : public Plugin<ConnectedFlowPlugin,
+                    ancestor::AncestorPlugin,
+                    descendant::DescendantPlugin> {
  public:
   ~ConnectedFlowPlugin() override;
 
