@@ -150,7 +150,7 @@ message HeapGraphObject {
   optional int64 application_info_long_version_code_field = 15;
 }
 
-// Next id: 12
+// Next id: 11
 message HeapGraph {
   optional int32 pid = 1;
   optional int64 heap_bytes_allocated = 10;
