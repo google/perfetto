@@ -4909,6 +4909,7 @@ perfetto_cpp_blob_header(
     name = "src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
     script = ":src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     deps = [
+        "src/trace_processor/plugins/wattson/data/MT6858/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/SM8750/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_1d.csv",
@@ -4935,6 +4936,7 @@ perfetto_cpp_blob_header(
     name = "src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
     script = ":src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     deps = [
+        "src/trace_processor/plugins/wattson/data/MT6858/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_2d.csv",
