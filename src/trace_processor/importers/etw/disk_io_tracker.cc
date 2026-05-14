@@ -84,11 +84,11 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
                                 UniqueTid utid,
                                 protozero::ConstBytes blob) {
   protos::pbzero::DiskIoEtwEvent::Decoder decoder(blob);
-  if (!decoder.has_opcode() || !decoder.has_irp_ptr()) {
+  if (!decoder.has_opcode()) {
     return;
   }
   const auto opcode = static_cast<EventType>(decoder.opcode());
-  const auto irp = decoder.irp_ptr();
+  const auto irp = decoder.has_irp_ptr() ?  std::optional(decoder.irp_ptr()) : std::nullopt;
   const auto disk_number = decoder.has_disk_number()
                                ? std::optional(decoder.disk_number())
                                : std::nullopt;
@@ -115,7 +115,7 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
       [this, disk_number, irp_flags, transfer_size, byte_offset, file_object,
        irp, response_time,
        issuing_thread_id](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(irp));
+        inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(*irp));
         if (disk_number) {
           inserter->AddArg(disk_number_arg_,
                            Variadic::UnsignedInteger(*disk_number));

@@ -8734,7 +8734,9 @@ message StackWalkEtwEvent {
   optional uint64 callstack_iid = 2;
 }
 
-// Proto definition based on the `DiskIo_TypeGroup3` class definition.
+// Proto definition based on the `DiskIo_TypeGroup1` class definition.
+// Also used for DiskIo_TypeGroup2 and DiskIo_TypeGroup3 events,
+// because its fields a super set of those types' fields.
 message DiskIoEtwEvent {
   optional uint32 disk_number = 1;
   optional uint32 irp_flags = 2;
