@@ -17,11 +17,4 @@ import("../../../../../../gn/proto_library.gni")
 perfetto_proto_library("frameworks_native_track_event_@TYPE@") {
   sources = [ "frameworks_native_track_event.proto" ]
   public_deps = [ "../../../../../perfetto/trace/track_event:@TYPE@" ]
-  generator_visibility = [ "../../../../../../src/trace_processor/importers/proto:gen_cc_frameworks_native_track_event_descriptor" ]
-  generate_descriptor = "frameworks_native_track_event.descriptor"
-  descriptor_root_source = "frameworks_native_track_event.proto"
-
-  # This is the descriptor for an extension. It shouldn't include the descriptor
-  # for the base message as well.
-  exclude_imports = true
 }
