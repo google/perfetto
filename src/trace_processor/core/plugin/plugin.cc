@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -132,6 +131,7 @@ void PluginBase::RegisterImporters(TraceReaderRegistry&) {}
 void PluginBase::RegisterProtoImporterModules(ProtoImporterModuleContext*) {}
 void PluginBase::RegisterDataframes(std::vector<PluginDataframe>&) {}
 void PluginBase::RegisterStaticTableFunctions(
+    PerfettoSqlConnection*,
     std::vector<std::unique_ptr<StaticTableFunction>>&) {}
 void PluginBase::RegisterSqliteModules(PerfettoSqlConnection*,
                                        std::vector<SqliteModuleRegistration>&) {

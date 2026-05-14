@@ -19,131 +19,20 @@
 
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <memory>
-#include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/core/util/type_set.h"
-
-struct sqlite3_module;
-struct sqlite3_context;
-struct sqlite3_value;
-
-namespace perfetto::trace_processor::core::dataframe {
-class Dataframe;
-}  // namespace perfetto::trace_processor::core::dataframe
 
 namespace perfetto::trace_processor {
 
 class PerfettoSqlConnection;
-class StaticTableFunction;
 class TraceProcessorContext;
 class TraceReaderRegistry;
 class TraceStorage;
 struct ProtoImporterModuleContext;
-
-// Registration entry for a scalar SQL function. Built via the
-// MakeFunctionRegistration() helper in perfetto_sql_connection.h and consumed
-// by PerfettoSqlConnection::Initialize.
-struct FunctionRegistration {
-  using Step = void(sqlite3_context*, int argc, sqlite3_value** argv);
-  using CtxDestructor = void(void*);
-
-  std::string name;
-  int argc = 0;
-  Step* step = nullptr;
-  void* ctx = nullptr;
-  CtxDestructor* ctx_destructor = nullptr;
-  bool deterministic = true;
-};
-
-// Registration entry for a SQL aggregate function.
-struct AggregateFunctionRegistration {
-  using Step = void(sqlite3_context*, int argc, sqlite3_value** argv);
-  using Final = void(sqlite3_context*);
-  using CtxDestructor = void(void*);
-
-  std::string name;
-  int argc = 0;
-  Step* step = nullptr;
-  Final* final_fn = nullptr;
-  void* ctx = nullptr;
-  CtxDestructor* ctx_destructor = nullptr;
-  bool deterministic = true;
-};
-
-// Registration entry for a SQL window function.
-struct WindowFunctionRegistration {
-  using Step = void(sqlite3_context*, int argc, sqlite3_value** argv);
-  using Inverse = void(sqlite3_context*, int argc, sqlite3_value** argv);
-  using Value = void(sqlite3_context*);
-  using Final = void(sqlite3_context*);
-  using CtxDestructor = void(void*);
-
-  std::string name;
-  int argc = 0;
-  Step* step = nullptr;
-  Inverse* inverse = nullptr;
-  Value* value = nullptr;
-  Final* final_fn = nullptr;
-  void* ctx = nullptr;
-  CtxDestructor* ctx_destructor = nullptr;
-  bool deterministic = true;
-};
-
-// Lightweight struct for plugin dataframe registration.
-struct PluginDataframe {
-  core::dataframe::Dataframe* dataframe;
-  std::string name;
-};
-
-namespace sqlite {
-class ModuleStateManagerBase;
-}  // namespace sqlite
-
-// Registration entry for a sqlite virtual table module.
-struct SqliteModuleRegistration {
-  using Destructor = void (*)(void*);
-
-  std::string name;
-  const sqlite3_module* module = nullptr;
-  void* context = nullptr;
-  Destructor destructor = nullptr;
-  bool is_state_manager = false;
-};
-
-// Helper to create a SqliteModuleRegistration with a non-owning context.
-template <typename Module>
-SqliteModuleRegistration MakeSqliteModule(std::string name,
-                                          typename Module::Context* ctx) {
-  SqliteModuleRegistration reg;
-  reg.name = std::move(name);
-  reg.module = &Module::kModule;
-  reg.context = ctx;
-  reg.is_state_manager = std::is_base_of_v<sqlite::ModuleStateManagerBase,
-                                           typename Module::Context>;
-  return reg;
-}
-
-// Helper to create a SqliteModuleRegistration with an owning context.
-template <typename Module>
-SqliteModuleRegistration MakeSqliteModule(
-    std::string name,
-    std::unique_ptr<typename Module::Context> ctx) {
-  SqliteModuleRegistration reg;
-  reg.name = std::move(name);
-  reg.module = &Module::kModule;
-  reg.context = ctx.release();
-  reg.destructor = [](void* p) {
-    delete static_cast<typename Module::Context*>(p);
-  };
-  reg.is_state_manager = std::is_base_of_v<sqlite::ModuleStateManagerBase,
-                                           typename Module::Context>;
-  return reg;
-}
 
 // Compile-time tag for plugin identity. Each Plugin subclass gets a unique
 // runtime ID via the address of a per-instantiation static member.
@@ -176,6 +65,7 @@ class PluginBase {
       ProtoImporterModuleContext* module_context);
   virtual void RegisterDataframes(std::vector<PluginDataframe>& tables);
   virtual void RegisterStaticTableFunctions(
+      PerfettoSqlConnection* connection,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns);
   virtual void RegisterSqliteModules(
       PerfettoSqlConnection* connection,

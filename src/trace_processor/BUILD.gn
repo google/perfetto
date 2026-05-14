@@ -201,11 +201,12 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics",
       "perfetto_sql/engine",
       "perfetto_sql/generator",
-      "perfetto_sql/intrinsics/table_functions",
       "perfetto_sql/stdlib",
+      "plugins/ancestor",
       "plugins/args",
       "plugins/art_heap_graph_functions",
       "plugins/base64_functions",
+      "plugins/connected_flow",
       "plugins/core_functions",
       "plugins/counter_intervals",
       "plugins/counter_mipmap_operator",
@@ -213,10 +214,16 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/create_intervals",
       "plugins/create_view_function",
       "plugins/critical_path",
+      "plugins/descendant",
       "plugins/developer_functions",
+      "plugins/dfs_weight_bounded",
       "plugins/dominator_tree",
       "plugins/etm_decode_chunk",
       "plugins/etm_iterate_range",
+      "plugins/experimental_annotated_stack",
+      "plugins/experimental_flamegraph",
+      "plugins/experimental_flat_slice",
+      "plugins/experimental_slice_layout",
       "plugins/graph_scan",
       "plugins/graph_traversal",
       "plugins/import",
@@ -231,9 +238,11 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/span_join_operator",
       "plugins/sql_stats_table",
       "plugins/stack_functions",
+      "plugins/stdlib_docs",
       "plugins/string_functions",
       "plugins/structural_tree_partition",
       "plugins/symbolize",
+      "plugins/table_info",
       "plugins/table_pointer_module",
       "plugins/time_functions",
       "plugins/to_ftrace",
@@ -261,6 +270,13 @@ if (enable_perfetto_trace_processor_sqlite) {
 
     if (enable_perfetto_etm_importer) {
       deps += [ "importers/etm" ]
+    }
+
+    if (enable_perfetto_winscope) {
+      deps += [
+        "plugins/winscope_proto_to_args_with_defaults",
+        "plugins/winscope_surfaceflinger_hierarchy_paths",
+      ]
     }
 
     public_deps = [
@@ -408,10 +424,14 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "perfetto_sql/engine:unittests",
-      "perfetto_sql/intrinsics/table_functions:unittests",
       "perfetto_sql/parser:unittests",
       "perfetto_sql/preprocessor:unittests",
       "perfetto_sql/tokenizer:unittests",
+      "plugins/ancestor:unittests",
+      "plugins/connected_flow:unittests",
+      "plugins/descendant:unittests",
+      "plugins/experimental_flat_slice:unittests",
+      "plugins/experimental_slice_layout:unittests",
       "plugins/span_join_operator:unittests",
       "plugins/string_functions:unittests",
       "sqlite:unittests",
