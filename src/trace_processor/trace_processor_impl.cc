@@ -172,6 +172,7 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+#include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
 #endif
@@ -376,6 +377,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   wattson::RegisterPlugin();
   window_operator::RegisterPlugin();
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+  winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
   winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
 #endif
@@ -403,7 +405,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       p->RegisterDataframes(plugin_dataframes_);
     }
   }
-  context()->register_additional_proto_modules = &RegisterAdditionalModules;
+  context()->register_additional_proto_modules =
+      [this](ProtoImporterModuleContext* mctx, TraceProcessorContext* tctx) {
+        RegisterAdditionalModules(mctx, tctx);
+        for (auto& p : plugins_) {
+          p->RegisterProtoImporterModules(mctx);
+        }
+      };
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   context()->perf_aux_tokenizer_registrations.push_back(

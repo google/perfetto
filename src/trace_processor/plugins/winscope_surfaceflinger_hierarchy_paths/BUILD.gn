@@ -37,10 +37,10 @@ source_set("winscope_surfaceflinger_hierarchy_paths") {
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
-    "../../importers/proto/winscope:full",
     "../../perfetto_sql/engine",
     "../../storage",
     "../../tables",
     "../../types",
+    "../winscope_importer",
   ]
 }

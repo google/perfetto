@@ -275,6 +275,7 @@ if (enable_perfetto_trace_processor_sqlite) {
 
     if (enable_perfetto_winscope) {
       deps += [
+        "plugins/winscope_importer",
         "plugins/winscope_proto_to_args_with_defaults",
         "plugins/winscope_surfaceflinger_hierarchy_paths",
       ]

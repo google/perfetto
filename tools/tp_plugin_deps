@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Verifies trace_processor plugin dependency graph rules.
+
+Two rules are enforced by walking GN BUILD.gn files under
+src/trace_processor/:
+
+  1. Targets outside src/trace_processor/plugins/ must not depend on any
+     plugin target. The only allowed sink for incoming plugin edges from
+     non-plugin code is the src/trace_processor:lib target.
+
+  2. plugin -> plugin GN deps must be matched by a #include of the
+     dependee plugin's public header in the depender plugin's sources.
+     The public header is plugins/<name>/<name>.h. Including the header
+     is what forces the C++ Plugin<Self, ...> template parameter to
+     resolve.
+"""
+
+from __future__ import print_function
+
+import os
+import re
+import sys
+from typing import Iterator, List, Optional, Set, Tuple
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TP_ROOT = 'src/trace_processor'
+PLUGIN_ROOT = os.path.join(TP_ROOT, 'plugins')
+LIB_BUILD = os.path.join(TP_ROOT, 'BUILD.gn')
+LIB_BUILD_TARGETS_ALLOWED = ('lib', 'unittests')
+
+TARGET_OPEN_RE = re.compile(
+    r'(?:^|\n)\s*([a-zA-Z_][\w]*)\s*\(\s*"([^"]+)"\s*\)\s*\{')
+DEPS_BLOCK_RE = re.compile(
+    r'(?:^|[^\w])(?:public_)?deps\s*(?:\+=|=)\s*\[([^\]]*)\]')
+QUOTED_RE = re.compile(r'"([^"]+)"')
+INCLUDE_RE = re.compile(r'^\s*#include\s+"([^"]+)"')
+
+
+def fail(msg: str) -> None:
+  print(msg, file=sys.stderr)
+
+
+def find_build_gn_files() -> List[str]:
+  results = []
+  tp_root_abs = os.path.join(ROOT_DIR, TP_ROOT)
+  for dirpath, _, fnames in os.walk(tp_root_abs):
+    if 'BUILD.gn' in fnames:
+      results.append(
+          os.path.relpath(os.path.join(dirpath, 'BUILD.gn'), ROOT_DIR))
+  return sorted(results)
+
+
+def parse_target_blocks(text: str) -> Iterator[Tuple[str, str, str]]:
+  """Yields (template_name, target_name, body) for each target block.
+
+  Best-effort. Skips constructs that don't have a quoted-string argument
+  followed by a brace (e.g. assert(), import(), if()).
+  """
+  for m in TARGET_OPEN_RE.finditer(text):
+    template_name = m.group(1)
+    target_name = m.group(2)
+    depth = 1
+    i = m.end()
+    while depth > 0 and i < len(text):
+      c = text[i]
+      if c == '{':
+        depth += 1
+      elif c == '}':
+        depth -= 1
+      i += 1
+    if depth != 0:
+      continue
+    yield (template_name, target_name, text[m.end():i - 1])
+
+
+def extract_deps(body: str) -> List[str]:
+  out = []
+  for m in DEPS_BLOCK_RE.finditer(body):
+    for q in QUOTED_RE.findall(m.group(1)):
+      out.append(q)
+  return out
+
+
+def resolve_dep(build_dir: str, dep: str) -> Optional[Tuple[str, str]]:
+  """Returns (path-from-repo-root, target-name) for a GN dep ref.
+
+  Returns None for absolute deps starting with '//' (none used in this
+  tree) or for the special-case empty strings.
+  """
+  if not dep or dep.startswith('//'):
+    return None
+  if ':' in dep:
+    rel_path, target = dep.split(':', 1)
+  else:
+    rel_path, target = dep, os.path.basename(dep)
+  abs_path = os.path.normpath(os.path.join(build_dir, rel_path))
+  return (abs_path, target)
+
+
+def is_plugin_dep(abs_path: str) -> bool:
+  prefix = PLUGIN_ROOT + os.sep
+  return abs_path.startswith(prefix) and abs_path != PLUGIN_ROOT
+
+
+def plugin_name_for_path(abs_path: str) -> Optional[str]:
+  """Extracts <name> from src/trace_processor/plugins/<name>[/...]."""
+  parts = abs_path.split(os.sep)
+  if 'plugins' not in parts:
+    return None
+  idx = parts.index('plugins')
+  if idx + 1 >= len(parts):
+    return None
+  return parts[idx + 1]
+
+
+def source_files_in_plugin(plugin: str) -> List[str]:
+  out = []
+  plugin_dir = os.path.join(ROOT_DIR, PLUGIN_ROOT, plugin)
+  for dirpath, _, fnames in os.walk(plugin_dir):
+    for f in fnames:
+      if f.endswith('.h') or f.endswith('.cc'):
+        out.append(os.path.join(dirpath, f))
+  return out
+
+
+def header_included_in_files(header: str, files: List[str]) -> bool:
+  for path in files:
+    try:
+      with open(path, 'r', encoding='utf-8') as f:
+        for line in f:
+          m = INCLUDE_RE.match(line)
+          if m and m.group(1) == header:
+            return True
+    except (OSError, UnicodeDecodeError):
+      continue
+  return False
+
+
+def check() -> List[str]:
+  errors = []
+  plugin_to_plugin: Set[Tuple[str, str]] = set()
+  for build_gn in find_build_gn_files():
+    build_dir = os.path.dirname(build_gn)
+    abs_build = os.path.join(ROOT_DIR, build_gn)
+    try:
+      with open(abs_build, 'r', encoding='utf-8') as f:
+        text = f.read()
+    except OSError:
+      continue
+
+    in_plugin_build = build_gn.startswith(PLUGIN_ROOT + os.sep)
+    is_lib_build = (build_gn == LIB_BUILD)
+    src_plugin = (plugin_name_for_path(build_dir) if in_plugin_build else None)
+
+    for template_name, target_name, body in parse_target_blocks(text):
+      for dep in extract_deps(body):
+        resolved = resolve_dep(build_dir, dep)
+        if resolved is None:
+          continue
+        dep_path, _ = resolved
+        if not is_plugin_dep(dep_path):
+          continue
+
+        dst_plugin = plugin_name_for_path(dep_path)
+        if dst_plugin is None:
+          continue
+
+        # Rule 1: who is allowed to import this plugin?
+        if in_plugin_build:
+          # Self-references inside the same plugin dir (e.g. a sub-target
+          # depending on a sibling) are unconditionally fine.
+          if src_plugin == dst_plugin:
+            continue
+          plugin_to_plugin.add((src_plugin, dst_plugin))
+        elif is_lib_build and target_name in LIB_BUILD_TARGETS_ALLOWED:
+          continue
+        else:
+          allowed = ' or '.join(
+              f'{LIB_BUILD}:{t}' for t in LIB_BUILD_TARGETS_ALLOWED)
+          errors.append(
+              f'{build_gn}: target "{target_name}" depends on plugin '
+              f'target "{dep}". Only plugin targets and {allowed} may '
+              f'depend on plugin targets.')
+
+  # Rule 2: each plugin->plugin GN edge must be matched by a #include of
+  # the dependee plugin's public header (plugins/<name>/<name>.h) in the
+  # depender plugin's sources. The include is what forces the C++
+  # Plugin<Self, OtherPluginClass> template parameter to resolve.
+  for src, dst in sorted(plugin_to_plugin):
+    expected = (f'src/trace_processor/plugins/{dst}/{dst}.h')
+    files = source_files_in_plugin(src)
+    if not header_included_in_files(expected, files):
+      errors.append(
+          f'plugin "{src}" GN-depends on plugin "{dst}" but no source '
+          f'file under {PLUGIN_ROOT}/{src}/ includes "{expected}". '
+          f'plugin->plugin deps must be matched by a Plugin<{src}, {dst}> '
+          f'template parameter, which requires including the dependee '
+          f"plugin's public header.")
+
+  return errors
+
+
+def main() -> int:
+  errors = check()
+  for e in errors:
+    fail(e)
+  return 1 if errors else 0
+
+
+if __name__ == '__main__':
+  sys.exit(main())
