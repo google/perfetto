@@ -17,6 +17,7 @@ import("../../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   deps = [ "../../common:@TYPE@" ]
   sources = [
+    "art_process_metadata.proto",
     "deobfuscation.proto",
     "heap_graph.proto",
     "profile_common.proto",

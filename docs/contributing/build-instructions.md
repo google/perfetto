@@ -31,7 +31,7 @@ git clone https://github.com/google/perfetto
 #### Pull dependent libraries and toolchains
 
 ```bash
-tools/install-build-deps [--android] [--ui] [--linux-arm]
+tools/install-build-deps [--android] [--ui] [--linux-arm] [--rust]
 ```
 
 `--android` will pull the Android NDK, emulator and other deps required
@@ -41,6 +41,11 @@ to build for `target_os = "android"`.
 Web UI. See the [UI Development](/docs/contributing/ui-getting-started.md) section below for more.
 
 `--linux-arm` will pull the sysroots for cross-compiling for Linux ARM/64.
+
+`--rust` will pull the Rust toolchain required to build the
+[Rust SDK](/docs/getting-started/rust-sdk.md). The Rust SDK can also
+be built using a system Rust toolchain (1.85+) via Cargo without this
+flag.
 
 WARNING: Note that if you're using an M1 or any later ARM Mac, your Python
 version should be at least 3.9.1 to work around
@@ -183,7 +188,7 @@ You need all of these both for MSVC and clang-cl:
 - [Python 3](https://www.python.org/downloads/windows/)
 
 The [`win_find_msvc.py`](/gn/standalone/toolchain/win_find_msvc.py) script will
-locate the higest version numbers available from
+locate the highest version numbers available from
 `C:\Program Files (x86)\Windows Kits\10` and
 `C:\Program Files (x86)\Microsoft Visual Studio\2019`.
 
@@ -246,7 +251,7 @@ target_sysroot = "/path/to/sysroot"
 target_triplet = "aarch64-linux-gnu"  # Or any other supported triplet.
 ```
 
-For more details see the [Using cutom toolchains](#custom-toolchain) section
+For more details see the [Using custom toolchains](#custom-toolchain) section
 below.
 
 ## Build configurations

@@ -22,6 +22,8 @@ import type {Engine} from '../../trace_processor/engine';
 import type {InstanceRow, PathEntry, PrimOrRef} from './types';
 import {fmtSize} from './format';
 import type {NavState} from './nav_state';
+import {Tooltip} from '../../widgets/tooltip';
+import {Icon} from '../../widgets/icon';
 
 export type NavFn = (
   view: NavState['view'],
@@ -43,7 +45,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
     view(vnode) {
       const {row, navigate} = vnode.attrs;
       if (!row || row.id === 0) {
-        return m('span', {class: 'ah-badge-referent'}, 'ROOT');
+        return m('span', {class: 'pf-hde-badge-referent'}, 'ROOT');
       }
       const full = 'className' in row ? (row as InstanceRow) : null;
       return m(
@@ -51,13 +53,17 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         full &&
           full.reachabilityName !== 'unreachable' &&
           full.reachabilityName !== 'strong'
-          ? m('span', {class: 'ah-badge-reachability'}, full.reachabilityName)
+          ? m(
+              'span',
+              {class: 'pf-hde-badge-reachability'},
+              full.reachabilityName,
+            )
           : null,
-        full?.isRoot ? m('span', {class: 'ah-badge-root'}, 'root') : null,
+        full?.isRoot ? m('span', {class: 'pf-hde-badge-root'}, 'root') : null,
         m(
           'button',
           {
-            class: 'ah-link',
+            class: 'pf-hde-link',
             onclick: () => navigate('object', {id: row.id, label: row.display}),
           },
           row.display,
@@ -66,7 +72,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
           ? m(
               'span',
               {
-                class: 'ah-badge-string',
+                class: 'pf-hde-badge-string',
                 title: row.str.length > 80 ? row.str : undefined,
               },
               '"' +
@@ -79,7 +85,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         full?.referent
           ? m(
               'span',
-              {class: 'ah-badge-referent'},
+              {class: 'pf-hde-badge-referent'},
               ' for ',
               m(InstanceLink, {
                 row: full.referent,
@@ -95,6 +101,9 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
 interface SectionAttrs {
   readonly title: string;
   readonly defaultOpen?: boolean;
+  // Optional inline actions rendered to the right of the title. Action
+  // clicks are isolated from the section toggle.
+  readonly actions?: m.Children;
 }
 export function Section(): m.Component<SectionAttrs> {
   let open = true;
@@ -105,32 +114,46 @@ export function Section(): m.Component<SectionAttrs> {
     view(vnode) {
       return m(
         'div',
-        {class: 'ah-section'},
+        {class: 'pf-hde-section'},
         m(
-          'button',
-          {
-            'class': 'ah-section__toggle',
-            'onclick': () => {
-              open = !open;
-            },
-            'aria-expanded': open,
-          },
-          m('span', {class: 'ah-section__title'}, vnode.attrs.title),
+          'div',
+          {class: 'pf-hde-section__header'},
           m(
-            'svg',
+            'button',
             {
-              class: `ah-section__chevron${open ? ' ah-section__chevron--open' : ''}`,
-              viewBox: '0 0 20 20',
-              fill: 'currentColor',
+              'class': 'pf-hde-section__toggle',
+              'onclick': () => {
+                open = !open;
+              },
+              'aria-expanded': open,
             },
-            m('path', {
-              'fill-rule': 'evenodd',
-              'd': 'M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z',
-              'clip-rule': 'evenodd',
-            }),
+            m('span', {class: 'pf-hde-section__title'}, vnode.attrs.title),
+            m(
+              'svg',
+              {
+                class: `pf-hde-section__chevron${open ? ' pf-hde-section__chevron--open' : ''}`,
+                viewBox: '0 0 20 20',
+                fill: 'currentColor',
+              },
+              m('path', {
+                'fill-rule': 'evenodd',
+                'd': 'M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z',
+                'clip-rule': 'evenodd',
+              }),
+            ),
           ),
+          vnode.attrs.actions !== undefined
+            ? m(
+                'div',
+                {
+                  class: 'pf-hde-section__actions',
+                  onclick: (e: Event) => e.stopPropagation(),
+                },
+                vnode.attrs.actions,
+              )
+            : null,
         ),
-        open ? m('div', {class: 'ah-section__body'}, vnode.children) : null,
+        open ? m('div', {class: 'pf-hde-section__body'}, vnode.children) : null,
       );
     },
   };
@@ -139,7 +162,7 @@ export function Section(): m.Component<SectionAttrs> {
 /** Renders a size value as a right-aligned formatted byte string. */
 export function sizeRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m('span', {class: 'ah-mono'}, fmtSize(Number(value ?? 0))),
+    content: m('span', {class: 'pf-hde-mono'}, fmtSize(Number(value ?? 0))),
     align: 'right',
   };
 }
@@ -147,7 +170,11 @@ export function sizeRenderer(value: SqlValue): CellRenderResult {
 /** Renders a numeric count value as a right-aligned locale string. */
 export function countRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m('span', {class: 'ah-mono'}, Number(value ?? 0).toLocaleString()),
+    content: m(
+      'span',
+      {class: 'pf-hde-mono'},
+      Number(value ?? 0).toLocaleString(),
+    ),
     align: 'right',
   };
 }
@@ -168,6 +195,67 @@ export function shortClassName(full: string): string {
     return dot >= 0 ? tok.slice(dot + 1) : tok;
   });
   return short + suffix;
+}
+
+// Hover-help text for size/count columns, shared across HDE views.
+export const COL_INFO = {
+  shallow:
+    'Java memory used by this object alone, excluding referenced objects.',
+  shallowNative:
+    'Native memory attributed to this object alone (e.g. a Bitmap pixel ' +
+    'buffer). Zero for most plain Java objects.',
+  retained:
+    'Java size of every object exclusively held by this one (dominator ' +
+    'subtree, self inclusive). If something is reachable from multiple ' +
+    'paths, it is not retained here — it is retained higher up at the ' +
+    'common ancestor.',
+  retainedNative:
+    'Native size of every object exclusively held by this one (dominator ' +
+    'subtree, self inclusive). Often zero in multi-rooted graphs where ' +
+    'native-bearing objects (e.g. Bitmaps) are reachable via multiple ' +
+    'paths — try Reachable Native if you expected a non-zero value.',
+  retainedCount:
+    'Number of objects exclusively held by this one (dominator subtree, ' +
+    'self inclusive).',
+  reachable:
+    'Java size of every object reachable from this one along the heap ' +
+    "graph's BFS shortest-path tree. Includes objects also reachable via " +
+    'other paths. Matches the flamegraph "Object Size" cumulative.',
+  reachableNative:
+    'Native size of every object reachable from this one (BFS tree). ' +
+    'Includes objects also reachable via other paths.',
+  reachableCount: 'Count of objects reachable from this one (BFS tree).',
+  bitmapStorage:
+    'Pixel-storage backing decoded from Bitmap.mId. ' +
+    "'heap' = malloc'd in this process — each duplicate is real RAM cost. " +
+    "'ashmem' = shared kernel memory — duplicates with the same source_id " +
+    'are kernel-shared (PSS-attributed), no real RAM cost. ' +
+    "'hardware' = AHardwareBuffer — duplicates may share GPU memory if " +
+    'they wrap the same buffer handle.',
+  bitmapId:
+    'Encoded Bitmap.mId — process-monotonic instance counter (' +
+    'pid·10⁷ + storage_type·10⁶ + counter). Stable identifier within one ' +
+    "process; it's never a dedup key (every Bitmap allocation gets a " +
+    'fresh value).',
+  bitmapSource:
+    'Parcel sender derived from Bitmap.mSourceId. Blank when this Bitmap ' +
+    "was allocated locally. When present, it's the sender's process name " +
+    'and pid at writeToParcel time. Multiple Bitmaps with the same ' +
+    'source_id and same content_hash are kernel-shared, NOT duplicated.',
+} as const;
+
+// Label + info icon for DataGrid column titles.
+export function colHeader(label: string, info: m.Children): m.Children {
+  return m(
+    'span',
+    {class: 'pf-hde-col-header'},
+    label,
+    m(
+      Tooltip,
+      {trigger: m(Icon, {className: 'pf-hde-col-header__info', icon: 'info'})},
+      info,
+    ),
+  );
 }
 
 /** SQL preamble that includes dominator tree and object tree modules. */
@@ -263,7 +351,7 @@ export function PrimOrRefCell(): m.Component<PrimOrRefCellAttrs> {
           navigate,
         });
       }
-      return m('span', {class: 'ah-mono'}, v.v);
+      return m('span', {class: 'pf-hde-mono'}, v.v);
     },
   };
 }
@@ -314,11 +402,11 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
     view(vnode) {
       const {format} = vnode.attrs;
       if (format === 'rgba') {
-        return m('canvas', {class: 'ah-bitmap-image'});
+        return m('canvas', {class: 'pf-hde-bitmap-image'});
       }
       // Always render the img element so oncreate fires and creates the blob URL.
       // Before the blob URL is ready, src is empty (blank image).
-      return m('img', {src: blobUrl ?? '', class: 'ah-bitmap-image'});
+      return m('img', {src: blobUrl ?? '', class: 'pf-hde-bitmap-image'});
     },
   };
 }
@@ -327,19 +415,19 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
 export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
   return m(
     'div',
-    {class: 'ah-view-stack--tight'},
+    {class: 'pf-hde-view-stack--tight'},
     path.map((pe, i) =>
       m(
         'div',
         {
           key: i,
-          class: `ah-path-entry${pe.isDominator ? ' ah-semibold' : ''}`,
-          style: {'--ah-depth': String(i)},
+          class: `pf-hde-path-entry${pe.isDominator ? ' pf-hde-semibold' : ''}`,
+          style: {'--pf-hde-depth': String(i)},
         },
         [
-          m('span', {class: 'ah-path-arrow'}, i === 0 ? '' : '\u2192'),
+          m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '\u2192'),
           m(InstanceLink, {row: pe.row, navigate}),
-          pe.field ? m('span', {class: 'ah-path-field'}, pe.field) : null,
+          pe.field ? m('span', {class: 'pf-hde-path-field'}, pe.field) : null,
         ],
       ),
     ),

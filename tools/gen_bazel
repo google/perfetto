@@ -118,6 +118,7 @@ default_targets = [
     '//src/tools/proto_filter:proto_filter',
     '//src/tools/proto_merger:proto_merger',
     '//src/trace_processor:trace_processor_shell_lib',
+    '//src/trace_processor/perfetto_sql/pfsql:pfsql',
     '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets + allowlist_public_targets
@@ -703,8 +704,12 @@ def gen_cpp_blob_header(target: GnParser.Target):
   # bazel/rules.bzl prepends `PERFETTO_CONFIG.root` to make the label work in
   # both standalone and embedded builds.
   script_to_bazel_label = {
-      'python/tools/cpp_blob_emitter.py': 'python:cpp_blob_emitter_bin',
-      'tools/gen_amalgamated_sql.py': ':gen_amalgamated_sql_py',
+      'python/tools/cpp_blob_emitter.py':
+          'python:cpp_blob_emitter_bin',
+      'src/trace_processor/plugins/wattson/gen_wattson_curves.py':
+          ':src_trace_processor_plugins_wattson_gen_wattson_curves_py',
+      'tools/gen_amalgamated_sql.py':
+          ':gen_amalgamated_sql_py',
   }
 
   label = BazelLabel(

@@ -95,35 +95,56 @@ export async function enrichDepths(
 }
 
 export class TrackPinningManager {
-  private pinnedTrackUris = new Set<string>();
+  // Tracks that were pinned by this manager. We only unpin tracks that are in this set
+  // to avoid overriding manual pins or pins by other plugins.
+  private managedPinnedTrackUris = new Set<string>();
+
+  constructor(private readonly trace: Trace) {}
 
   pinTracks(uris: ReadonlyArray<string>) {
-    uris.forEach((uri) => this.pinnedTrackUris.add(uri));
-  }
-
-  unpinTracks(uris: ReadonlyArray<string>) {
-    uris.forEach((uri) => this.pinnedTrackUris.delete(uri));
-  }
-
-  isTrackPinned(uri: string): boolean {
-    return this.pinnedTrackUris.has(uri);
-  }
-
-  applyPinning(trace: Trace) {
-    trace.currentWorkspace.flatTracks.forEach((trackNode) => {
-      if (!trackNode.uri) return;
-
-      const shouldBePinned = this.pinnedTrackUris.has(trackNode.uri);
-      if (shouldBePinned && !trackNode.isPinned) {
-        trackNode.pin();
-      } else if (!shouldBePinned && trackNode.isPinned) {
-        // TODO(ivankc) Consider tracks pinned by other means
-        trackNode.unpin();
+    uris.forEach((uri) => {
+      const trackNode = this.trace.currentWorkspace.getTrackByUri(uri);
+      if (trackNode) {
+        if (!trackNode.isPinned) {
+          trackNode.pin();
+          this.managedPinnedTrackUris.add(uri);
+        }
       }
     });
   }
 
+  unpinTracks(uris: ReadonlyArray<string>) {
+    uris.forEach((uri) => {
+      if (this.managedPinnedTrackUris.has(uri)) {
+        const trackNode = this.trace.currentWorkspace.getTrackByUri(uri);
+        if (trackNode && trackNode.isPinned) {
+          trackNode.unpin();
+        }
+        this.managedPinnedTrackUris.delete(uri);
+      }
+    });
+  }
+
+  isTrackPinned(uri: string): boolean {
+    const trackNode = this.trace.currentWorkspace.getTrackByUri(uri);
+    const isTimelinePinned = trackNode?.isPinned ?? false;
+
+    // If the track was unpinned manually on the timeline, forget that we managed it.
+    // This prevents accidentally unpinning it later if the user pins it again manually.
+    if (!isTimelinePinned && this.managedPinnedTrackUris.has(uri)) {
+      this.managedPinnedTrackUris.delete(uri);
+    }
+
+    return isTimelinePinned;
+  }
+
   getPinnedUris(): ReadonlySet<string> {
-    return this.pinnedTrackUris;
+    const uris = new Set<string>();
+    this.trace.currentWorkspace.flatTracks.forEach((t) => {
+      if (t.uri && t.isPinned) {
+        uris.add(t.uri);
+      }
+    });
+    return uris;
   }
 }

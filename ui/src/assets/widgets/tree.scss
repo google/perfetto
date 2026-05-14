@@ -101,3 +101,65 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     padding-left: 6px;
   }
 }
+
+// Bordered variant: renders the tree as a card with cell-like dividers and a
+// tinted label column. Works for flat key/value tables (e.g. stats) as well
+// as nested trees, where hierarchy is shown via the gutter caret on parent
+// rows and a label-column indent on nested rows.
+.pf-tree.pf-tree--bordered {
+  border: 1px solid var(--pf-color-border);
+  border-radius: $border-radius;
+  overflow: hidden;
+  row-gap: 0;
+
+  .pf-tree-left,
+  .pf-tree-right {
+    padding: 4px 10px;
+    border-top: 1px solid var(--pf-color-border);
+    border-radius: 0;
+  }
+
+  .pf-tree-left {
+    border-right: 1px solid var(--pf-color-border);
+  }
+
+  // The very first row reuses the outer container's top edge as its divider.
+  & > .pf-tree-node:first-child > .pf-tree-left,
+  & > .pf-tree-node:first-child > .pf-tree-right {
+    border-top: none;
+  }
+
+  // The default tree decorates each nested group with a left rule + 6px
+  // indent that clashes with the cell borders. Drop the ornaments so nested
+  // rows align with the outer columns; per-cell padding below provides the
+  // indent.
+  .pf-tree-children {
+    border-left: none;
+    margin-left: 0;
+    padding-left: 0;
+  }
+
+  // Indent the label on nested rows so hierarchy is visible while keeping
+  // column dividers aligned across the whole table.
+  .pf-tree-children > .pf-tree-node > .pf-tree-left {
+    padding-left: 26px;
+  }
+  .pf-tree-children .pf-tree-children > .pf-tree-node > .pf-tree-left {
+    padding-left: 42px;
+  }
+  .pf-tree-children
+    .pf-tree-children
+    .pf-tree-children
+    > .pf-tree-node
+    > .pf-tree-left {
+    padding-left: 58px;
+  }
+
+  // Hide the gutter on leaf rows so flat tables stay tight; parent rows keep
+  // theirs so the expand/collapse caret remains clickable.
+  .pf-tree-node:not(.pf-collapsed):not(.pf-expanded):not(.pf-loading)
+    > .pf-tree-left
+    > .pf-tree-gutter {
+    display: none;
+  }
+}

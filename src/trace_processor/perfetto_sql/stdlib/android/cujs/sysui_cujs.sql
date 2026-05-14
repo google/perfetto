@@ -18,7 +18,7 @@ INCLUDE PERFETTO MODULE android.frames.timeline;
 INCLUDE PERFETTO MODULE android.cujs.base;
 
 -- Table tracking all jank CUJs information.
-CREATE PERFETTO TABLE android_sysui_jank_cujs (
+CREATE PERFETTO TABLE android_sysui_jank_cujs(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- process id.
@@ -53,7 +53,8 @@ CREATE PERFETTO TABLE android_sysui_jank_cujs (
   begin_vsync LONG,
   -- vysnc id of the last frame that falls within the CUJ boundary.
   end_vsync LONG
-) AS
+)
+AS
 WITH
   -- select the first and last frame.
   cuj_frame_boundary AS (
@@ -64,24 +65,16 @@ WITH
       -- expected frame, and the end ts will be the end of the last Choreographer
       -- doFrame.
       (
-        SELECT
-          ts
+        SELECT ts
         FROM expected_frame_timeline_slice
         WHERE
           id = expected_frame_timeline_id
       ) AS start_frame_ts,
-      (
-        SELECT
-          (
-            ts + dur
-          ) AS ts_end
-        FROM slice
-        WHERE
-          id = do_frame_id
-      ) AS end_frame_ts_end
+      (SELECT (ts + dur) AS ts_end FROM slice WHERE id = do_frame_id) AS end_frame_ts_end
     FROM _android_distinct_frames_in_cuj
     WHERE
-      frame_idx = 1 OR frame_idx = frame_cnt
+      frame_idx = 1
+      OR frame_idx = frame_cnt
   )
 SELECT
   cuj.cuj_id,
@@ -93,26 +86,22 @@ SELECT
   cuj.slice_id,
   min(start_frame_ts) AS ts,
   max(end_frame_ts_end) AS ts_end,
-  (
-    max(end_frame_ts_end) - min(start_frame_ts)
-  ) AS dur,
+  (max(end_frame_ts_end) - min(start_frame_ts)) AS dur,
   CASE
-    WHEN EXISTS(
-      SELECT
-        1
+    WHEN EXISTS (
+      SELECT 1
       FROM _cuj_state_markers AS csm
       WHERE
-        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'cancel'
-    )
-    THEN 'canceled'
-    WHEN EXISTS(
-      SELECT
-        1
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'cancel'
+    ) THEN 'canceled'
+    WHEN EXISTS (
+      SELECT 1
       FROM _cuj_state_markers AS csm
       WHERE
-        csm.cuj_id = cuj.cuj_id AND csm.marker_type = 'end'
-    )
-    THEN 'completed'
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'end'
+    ) THEN 'completed'
     ELSE NULL
   END AS state,
   cuj_events.ui_thread,
@@ -120,36 +109,25 @@ SELECT
   cuj_events.begin_vsync,
   cuj_events.end_vsync
 FROM _jank_cujs_slices AS cuj
-JOIN _cuj_instant_events AS cuj_events
-  USING (cuj_id)
-JOIN cuj_frame_boundary AS boundary
-  USING (cuj_id)
+JOIN _cuj_instant_events AS cuj_events USING (cuj_id)
+JOIN cuj_frame_boundary AS boundary USING (cuj_id)
 JOIN android_frames_choreographer_do_frame AS do_frame
   ON do_frame_id = do_frame.id
 WHERE
   -- Filter only jank CUJs.
   cuj.cuj_slice_name GLOB 'J<*>'
-  AND (
-    state != 'canceled'
-    -- Older builds don't have the state markers so we allow NULL but filter out
-    -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
-    OR (
-      state IS NULL AND cuj.dur > 4e6
-    )
-  )
+  AND (state != 'canceled'
+  -- Older builds don't have the state markers so we allow NULL but filter out
+  -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
+  OR (state IS NULL AND cuj.dur > 4e6))
 GROUP BY
   cuj_id
 ORDER BY
-  ts ASC;
+  ts;
 
 -- Track IDs for all tracks named after Latency CUJs.
 CREATE PERFETTO TABLE _latency_cuj_tracks AS
-SELECT
-  id,
-  name
-FROM track
-WHERE
-  name GLOB 'L<*>';
+SELECT id, name FROM track WHERE name GLOB 'L<*>';
 
 -- Markers (cancel, timeout) related to Latency CUJ slices.
 CREATE PERFETTO TABLE _latency_cuj_markers AS
@@ -166,12 +144,10 @@ WHERE
   AND s.ts >= cuj_slice.ts
   AND s.ts <= cuj_slice.ts + cuj_slice.dur
   AND cuj_slice.name GLOB 'L<*>'
-  AND (
-    s.name = 'cancel' OR s.name = 'timeout'
-  );
+  AND (s.name = 'cancel' OR s.name = 'timeout');
 
 -- Table tracking all latency CUJs information.
-CREATE PERFETTO TABLE android_sysui_latency_cujs (
+CREATE PERFETTO TABLE android_sysui_latency_cujs(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- process id.
@@ -195,7 +171,8 @@ CREATE PERFETTO TABLE android_sysui_latency_cujs (
   dur DURATION,
   -- State of the CUJ whether it was completed/cancelled.
   state STRING
-) AS
+)
+AS
 SELECT
   row_number() OVER (ORDER BY ts) AS cuj_id,
   process.upid AS upid,
@@ -208,34 +185,32 @@ SELECT
   ts + dur AS ts_end,
   dur,
   CASE
-    WHEN EXISTS(
-      SELECT
-        1
+    WHEN EXISTS (
+      SELECT 1
       FROM _latency_cuj_markers AS m
       WHERE
-        m.cuj_slice_id = slice.id AND m.marker_type = 'cancel'
-    )
-    THEN 'canceled'
-    WHEN EXISTS(
-      SELECT
-        1
+        m.cuj_slice_id = slice.id
+        AND m.marker_type = 'cancel'
+    ) THEN 'canceled'
+    WHEN EXISTS (
+      SELECT 1
       FROM _latency_cuj_markers AS m
       WHERE
-        m.cuj_slice_id = slice.id AND m.marker_type = 'timeout'
-    )
-    THEN 'timeout'
+        m.cuj_slice_id = slice.id
+        AND m.marker_type = 'timeout'
+    ) THEN 'timeout'
     ELSE 'completed'
   END AS state
 FROM slice
 JOIN process_track
   ON slice.track_id = process_track.id
-JOIN process
-  USING (upid)
+JOIN process USING (upid)
 WHERE
-  slice.name GLOB 'L<*>' AND dur > 0;
+  slice.name GLOB 'L<*>'
+  AND dur > 0;
 
 -- Table tracking all jank/latency CUJs information.
-CREATE PERFETTO TABLE android_jank_latency_cujs (
+CREATE PERFETTO TABLE android_jank_latency_cujs(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- An alias for cuj_id for compatibility purposes.
@@ -275,13 +250,11 @@ CREATE PERFETTO TABLE android_jank_latency_cujs (
   end_vsync LONG,
   -- Type of CUJ, i.e. jank or latency.
   cuj_type STRING
-) AS
+)
+AS
 WITH
   combined_cujs AS (
-    SELECT
-      *,
-      "jank" AS cuj_type,
-      cuj_id AS original_cuj_id
+    SELECT *, "jank" AS cuj_type, cuj_id AS original_cuj_id
     FROM android_sysui_jank_cujs
     UNION ALL
     SELECT

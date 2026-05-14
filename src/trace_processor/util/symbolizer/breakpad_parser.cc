@@ -18,8 +18,8 @@
 #include "src/trace_processor/util/symbolizer/breakpad_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 
@@ -272,9 +272,7 @@ base::Status BreakpadParser::ParseIfRecord(base::StringView current_line,
   // Get the function name. Function names can have spaces, so any token is now
   // considered a part of the function name and will be appended to the buffer
   // in |func_name_writer|.
-  std::unique_ptr<char[]> joined_string(new char[current_line.size()]);
-  base::FixedStringWriter func_name_writer(joined_string.get(),
-                                           current_line.size());
+  base::DynamicStringWriter func_name_writer;
   bool first_token = true;
   while (words.Next()) {
     if (!first_token) {

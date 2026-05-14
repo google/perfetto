@@ -138,6 +138,24 @@ struct alignas(8) TracePacketData {
 };
 static_assert(sizeof(TracePacketData) % 8 == 0);
 
+// Used by the ftrace push path. Carries the original event timestamp (in trace
+// time) alongside the sorter-visible ts.
+//
+// For events whose tokenizer synthesises a custom ts (e.g. retiming a kgsl
+// cmdbatch_retired to its GPU start), `raw_ts` preserves the original event
+// time so drop-window checks in the parser see when the event actually
+// happened, not where it was placed. For all other events the field is left as
+// the kUnset sentinel and consumes no extra storage in the token buffer (the
+// descriptor records its presence in a single bit).
+struct alignas(8) FtraceData {
+  static constexpr int64_t kRawTsUnset = std::numeric_limits<int64_t>::max();
+
+  TraceBlobView packet;
+  RefPtr<PacketSequenceStateGeneration> sequence_state;
+  int64_t raw_ts = kRawTsUnset;
+};
+static_assert(sizeof(FtraceData) % 8 == 0);
+
 struct alignas(8) TrackEventData {
   TrackEventData(TraceBlobView pv,
                  RefPtr<PacketSequenceStateGeneration> generation)

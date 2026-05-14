@@ -24,6 +24,8 @@ import {
   createMockNode,
   createColumnInfo,
   connectNodes,
+  expectValidationError,
+  expectValidationSuccess,
 } from '../testing/test_utils';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 
@@ -540,7 +542,7 @@ describe('AggregationNode', () => {
         mockPrevNode,
       );
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should validate node with only aggregations (no group by)', () => {
@@ -561,7 +563,7 @@ describe('AggregationNode', () => {
         mockPrevNode,
       );
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should validate node with both group by and aggregations', () => {
@@ -583,7 +585,7 @@ describe('AggregationNode', () => {
         mockPrevNode,
       );
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should invalidate node with neither group by nor aggregations', () => {
@@ -599,8 +601,8 @@ describe('AggregationNode', () => {
         mockPrevNode,
       );
 
-      expect(node.validate()).toBe(false);
-      expect(node.context.issues?.queryError?.message).toContain(
+      expectValidationError(
+        node,
         'requires at least one group by column or aggregation function',
       );
     });
@@ -653,7 +655,7 @@ describe('AggregationNode', () => {
         mockPrevNode,
       );
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should invalidate node when group by columns are missing from input', () => {
@@ -669,10 +671,7 @@ describe('AggregationNode', () => {
         mockPrevNode,
       );
 
-      expect(node.validate()).toBe(false);
-      expect(node.context.issues?.queryError?.message).toContain(
-        'not found in input',
-      );
+      expectValidationError(node, 'not found in input');
     });
 
     it('should invalidate node without primaryInput', () => {

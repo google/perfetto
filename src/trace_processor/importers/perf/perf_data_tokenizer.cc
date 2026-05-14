@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/perf/attrs_section_reader.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
@@ -513,8 +514,8 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       break;
     }
     default:
-      context_->storage->IncrementIndexedStats(stats::perf_features_skipped,
-                                               feature_id);
+      context_->stats_tracker->IncrementIndexedStats(
+          stats::perf_features_skipped, feature_id);
   }
 
   return base::OkStatus();

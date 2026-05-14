@@ -18,10 +18,10 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 -- Returns a table with all CUJs and an additional column for the track id of thread_name
 -- passed as parameter, if present in the same process of the cuj.
 CREATE PERFETTO FUNCTION android_jank_cuj_app_thread(
-    -- Name of the thread for which information needs to be extracted.
-    thread_name STRING
+  -- Name of the thread for which information needs to be extracted.
+  thread_name STRING
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- process id.
@@ -32,23 +32,17 @@ RETURNS TABLE (
   name STRING,
   -- track id associated with the thread.
   track_id LONG
-) AS
-SELECT
-  cuj_id,
-  cuj.upid,
-  utid,
-  thread.name,
-  thread_track.id AS track_id
+)
+AS
+SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
-JOIN android_jank_cuj AS cuj
-  USING (upid)
-JOIN thread_track
-  USING (utid)
+JOIN android_jank_cuj AS cuj USING (upid)
+JOIN thread_track USING (utid)
 WHERE
   thread.name = $thread_name;
 
 -- Table captures thread information for 'RenderThread' for all CUJs.
-CREATE PERFETTO TABLE android_jank_cuj_render_thread (
+CREATE PERFETTO TABLE android_jank_cuj_render_thread(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- process id.
@@ -59,7 +53,6 @@ CREATE PERFETTO TABLE android_jank_cuj_render_thread (
   name STRING,
   -- track_id for the thread.
   track_id JOINID(track.id)
-) AS
-SELECT
-  *
-FROM android_jank_cuj_app_thread('RenderThread');
+)
+AS
+SELECT * FROM android_jank_cuj_app_thread('RenderThread');

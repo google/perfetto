@@ -76,22 +76,27 @@ class FtraceTokenizer {
       protos::pbzero::FtraceEventBundle::Decoder& decoder,
       uint32_t packet_sequence_id);
   void TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
+                                   int64_t raw_ts,
                                    TraceBlobView event,
                                    RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceThermalExynosAcpmBulk(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceParamSetValueCpm(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceFwtpPerfettoCounter(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   void TokenizeFtraceFwtpPerfettoSlice(
       uint32_t cpu,
+      int64_t raw_ts,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
   std::optional<protozero::Field> GetFtraceEventField(

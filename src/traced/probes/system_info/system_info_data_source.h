@@ -33,7 +33,8 @@ class SystemInfoDataSource : public ProbesDataSource {
 
   SystemInfoDataSource(TracingSessionID,
                        std::unique_ptr<TraceWriter> writer,
-                       std::unique_ptr<CpuFreqInfo> cpu_freq_info);
+                       std::unique_ptr<CpuFreqInfo> cpu_freq_info,
+                       const DataSourceConfig& config);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -46,6 +47,7 @@ class SystemInfoDataSource : public ProbesDataSource {
  private:
   std::unique_ptr<TraceWriter> writer_;
   std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
+  bool include_irq_mapping_ = false;
 };
 
 }  // namespace perfetto

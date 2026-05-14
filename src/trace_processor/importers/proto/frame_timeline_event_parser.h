@@ -82,6 +82,7 @@ class FrameTimelineEventParser {
 
   const StringId surface_frame_token_id_;
   const StringId display_frame_token_id_;
+  const StringId animation_time_millis_id_;
   const StringId present_delay_millis_id_;
   const StringId vsync_resynced_jitter_millis_id_;
   const StringId present_type_id_;

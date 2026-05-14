@@ -20,4 +20,7 @@ module.exports = {
     'jest-canvas-mock',
     'jest-localstorage-mock',
   ],
+  moduleNameMapper: {
+    '^syntaqlite$': __dirname + '/syntaqlite_mock.js',
+  },
 };

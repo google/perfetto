@@ -23,7 +23,7 @@ import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {Intent} from '../../widgets/common';
 import {SqlValue} from '../../trace_processor/query_result';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {Trace} from '../../public/trace';
 import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';
 
@@ -124,14 +124,20 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
   }
 
   renderTopbarControls(): m.Children {
-    return m(SegmentedButtons, {
-      options: [{label: 'µW'}, {label: 'mW'}],
-      selectedOption: this.scaleNumericData ? 0 : 1,
-      onOptionSelected: (index) => {
-        this.scaleNumericData = index === 0;
+    return m(
+      RadioGroup,
+      {
+        selectedValue: this.scaleNumericData ? 'uw' : 'mw',
+        onValueChange: (value) => {
+          this.scaleNumericData = value === 'uw';
+        },
+        title: 'Select power units',
       },
-      title: 'Select power units',
-    });
+      [
+        m(RadioGroup.Button, {value: 'uw'}, 'µW'),
+        m(RadioGroup.Button, {value: 'mw'}, 'mW'),
+      ],
+    );
   }
 
   private powerUnits(): string {

@@ -50,6 +50,8 @@ export const statsSpec = {
   idx: STR,
   severity: STR,
   source: STR,
+  machineId: NUM_NULL,
+  traceId: NUM_NULL,
 };
 
 export type StatsSectionRow = typeof statsSpec;
@@ -102,10 +104,12 @@ export async function loadStatsWithFilter(
       cast(ifnull(idx, '') as text) as idx,
       description,
       severity,
-      source
+      source,
+      machine_id as machineId,
+      trace_id as traceId
     from stats
     where ${whereClause}
-    order by name, idx
+    order by trace_id, machine_id, name, idx
   `);
 
   const stats: StatsSectionRow[] = [];
@@ -117,6 +121,8 @@ export async function loadStatsWithFilter(
       idx: iter.idx,
       severity: iter.severity,
       source: iter.source,
+      machineId: iter.machineId,
+      traceId: iter.traceId,
     });
   }
 
@@ -209,27 +215,45 @@ function categoryToId(categoryName: string): string {
 // Render a category section with detailed breakdown
 export function renderCategorySection(
   category: ErrorCategory,
-  options?: {className?: string},
+  options?: {
+    className?: string;
+    isMultiTrace?: boolean;
+    isMultiMachine?: boolean;
+  },
 ): m.Children {
+  const isMultiTrace = options?.isMultiTrace ?? false;
+  const isMultiMachine = options?.isMultiMachine ?? false;
+  const columns = [];
+  if (isMultiTrace) {
+    columns.push({key: 'trace_id', header: m(GridHeaderCell, 'Trace')});
+  }
+  if (isMultiMachine) {
+    columns.push({key: 'machine_id', header: m(GridHeaderCell, 'Machine')});
+  }
+  columns.push(
+    {key: 'idx', header: m(GridHeaderCell, 'Index')},
+    {key: 'value', header: m(GridHeaderCell, 'Count')},
+  );
   return m(
     '',
     m('h3', {id: categoryToId(category.name)}, category.name),
     category.description && m('p', category.description),
     m(Grid, {
-      columns: [
-        {
-          key: 'idx',
-          header: m(GridHeaderCell, 'Index'),
-        },
-        {
-          key: 'value',
-          header: m(GridHeaderCell, 'Count'),
-        },
-      ],
-      rowData: category.entries.map((row) => [
-        m(GridCell, row.idx !== '' ? row.idx : '-'),
-        m(GridCell, row.value !== null ? row.value : '-'),
-      ]),
+      columns,
+      rowData: category.entries.map((row) => {
+        const cells = [];
+        if (isMultiTrace) {
+          cells.push(m(GridCell, row.traceId !== null ? row.traceId : '-'));
+        }
+        if (isMultiMachine) {
+          cells.push(m(GridCell, row.machineId !== null ? row.machineId : '-'));
+        }
+        cells.push(
+          m(GridCell, row.idx !== '' ? row.idx : '-'),
+          m(GridCell, row.value !== null ? row.value : '-'),
+        );
+        return cells;
+      }),
       className: options?.className,
     }),
   );

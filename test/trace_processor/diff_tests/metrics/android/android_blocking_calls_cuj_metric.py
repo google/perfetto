@@ -18,14 +18,28 @@ import synth_common
 
 # com.android.systemui
 SYSUI_PID = 1000
+SYSUI_RTID = 1500
 # com.google.android.apps.nexuslauncher
 LAUNCHER_PID = 2000
+LAUNCHER_RTID = 2500
 
 THIRD_PROCESS_PID = 3000
+THIRD_PROCESS_RTID = 3500
 
 TOP_LEVEL_SLICES_PID = 4000
+TOP_LEVEL_SLICES_RTID = 4500
+
+RTID_MAP = {
+    SYSUI_PID: SYSUI_RTID,
+    LAUNCHER_PID: LAUNCHER_RTID,
+    THIRD_PROCESS_PID: THIRD_PROCESS_RTID,
+    TOP_LEVEL_SLICES_PID: TOP_LEVEL_SLICES_RTID,
+}
 
 NESTED_HANDLER_PID = 5000
+NESTED_HANDLER_RTID = 5500
+
+RTID_MAP[NESTED_HANDLER_PID] = NESTED_HANDLER_RTID
 
 # List of blocking calls
 blocking_call_names = [
@@ -153,6 +167,15 @@ def add_cuj_with_blocking_calls(trace, cuj_name, pid):
       buf=blocking_call_name,
       tid=pid,
       pid=pid)
+
+  # render thread blocking call completely inside
+  if pid in RTID_MAP:
+    trace.add_atrace_for_thread(
+        ts=cuj_begin + 8_000_000,
+        ts_end=cuj_begin + 9_000_000,
+        buf="CreateGraphicsPipeline",
+        tid=RTID_MAP[pid],
+        pid=pid)
 
 
 def add_cuj_with_top_level_slices(trace, cuj_name, pid):
@@ -525,6 +548,10 @@ def setup_trace():
       package_name="com.google.android.nested.handlers",
       uid=10005,
       pid=NESTED_HANDLER_PID)
+
+  for p, rt in RTID_MAP.items():
+    trace.add_thread(
+        tid=rt, tgid=p, cmdline="RenderThread", name="RenderThread")
   trace.add_ftrace_packet(cpu=0)
 
   trace.add_async_atrace_for_thread(

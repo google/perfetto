@@ -41,6 +41,28 @@ enum class WatchdogCrashReason {
   kTraceDidntStop = 4,
 };
 
+// Information about an imminent watchdog-triggered crash. Passed to the fatal
+// handler installed via Watchdog::Start() so embedders can record it (e.g. via
+// metatrace counters) before the process is force-killed.
+struct WatchdogCrashInfo {
+  int thread_id = 0;
+  WatchdogCrashReason reason = WatchdogCrashReason::kUnspecified;
+
+  // The time in CLOCK_BOOTTIME when the watchdog triggered.
+  int64_t alarm_time_ms = 0;
+
+  // The initial timeout passed to CreateFatalTimer.
+  int timeout_s = 0;
+
+  // Elapsed seconds, since the offending fatal timer was created, sampled
+  // from CLOCK_MONOTONIC, CLOCK_BOOTTIME and CLOCK_PROCESS_CPUTIME_ID
+  // respectively. These mirror the wdog_actual_{mono,boot,cpu} crash keys.
+  // They are 0 for cpu/memory guardrail crashes (no associated timer).
+  int actual_mono_s = 0;
+  int actual_boot_s = 0;
+  int actual_cpu_s = 0;
+};
+
 // Make the limits more relaxed on desktop, where multi-GB traces are likely.
 // Multi-GB traces can take bursts of cpu time to write into disk at the end of
 // the trace.

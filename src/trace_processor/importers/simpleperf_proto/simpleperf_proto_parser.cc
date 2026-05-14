@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -85,7 +86,7 @@ void SimpleperfProtoParser::Parse(int64_t ts,
       DummyMemoryMapping* mapping = tracker_->GetMapping(file_id);
       if (!mapping) {
         // Drop sample if file_id not found
-        context_->storage->IncrementStats(
+        context_->stats_tracker->IncrementStats(
             stats::simpleperf_missing_file_mapping);
         return;
       }

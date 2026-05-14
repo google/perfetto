@@ -16,16 +16,27 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
+source_set("intrinsic_macro_expansion") {
+  sources = [
+    "intrinsic_macro_expansion.cc",
+    "intrinsic_macro_expansion.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../syntaqlite",
+  ]
+}
+
 source_set("parser") {
   sources = [
     "function_util.cc",
     "function_util.h",
-    "intrinsic_macro_expansion.cc",
-    "intrinsic_macro_expansion.h",
     "perfetto_sql_parser.cc",
     "perfetto_sql_parser.h",
   ]
   deps = [
+    ":intrinsic_macro_expansion",
     "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",

@@ -6,6 +6,7 @@ src/test/diff_viewer
 out
 config
 build.js
+build.mjs
 eslint.config.js
 **/*.grammar.js
 **/*.grammar.terms.js

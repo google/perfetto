@@ -18,6 +18,16 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
+perfetto_py_binary(
+    name = "src_trace_processor_plugins_wattson_gen_wattson_curves_py",
+    srcs = [
+        "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    ],
+    main = "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    deps = [perfetto_label("python:cpp_blob_emitter")],
+    python_version = "PY3",
+)
+
 perfetto_go_proto_library(
     name = "protos_perfetto_config_protos_go_proto",
     visibility = PERFETTO_CONFIG.go_proto_library_visibility,

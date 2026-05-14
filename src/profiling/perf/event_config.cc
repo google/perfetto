@@ -354,6 +354,7 @@ bool IsSupportedUnwindMode(
     case PerfEventConfig::UNWIND_SKIP:
     case PerfEventConfig::UNWIND_DWARF:
     case PerfEventConfig::UNWIND_FRAME_POINTER:
+    case PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER:
       return true;
     default:
       return false;
@@ -649,7 +650,14 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   pe.clockid = ToClockId(pb_config.timebase().timestamp_clock());
   pe.use_clockid = true;
 
-  if (IsUserFramesEnabled(unwind_mode)) {
+  // UNWIND_KERNEL_FRAME_POINTER asks the kernel to walk the userspace frame
+  // pointer chain, returning the result via PERF_SAMPLE_CALLCHAIN. In this mode
+  // we do not request the user stack/regs, since no userspace unwinding will be
+  // performed.
+  bool kernel_unwinds_user_frames =
+      unwind_mode == protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER;
+
+  if (IsUserFramesEnabled(unwind_mode) && !kernel_unwinds_user_frames) {
     pe.sample_type |= PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
     // PERF_SAMPLE_STACK_USER:
     // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
@@ -661,9 +669,10 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     pe.sample_regs_user =
         PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
   }
-  if (kernel_frames) {
+  if (kernel_frames || kernel_unwinds_user_frames) {
     pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
-    pe.exclude_callchain_user = true;
+    pe.exclude_callchain_kernel = !kernel_frames;
+    pe.exclude_callchain_user = !kernel_unwinds_user_frames;
   }
 
   // Additional counters to include whenever the timebase is sampled, each
@@ -712,6 +721,7 @@ bool EventConfig::IsUserFramesEnabled(
     // almost always what the user wants.
     case PerfEventConfig::UNWIND_DWARF:
     case PerfEventConfig::UNWIND_FRAME_POINTER:
+    case PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER:
       return true;
     case PerfEventConfig::UNWIND_SKIP:
       return false;

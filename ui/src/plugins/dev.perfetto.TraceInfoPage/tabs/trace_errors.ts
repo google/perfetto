@@ -26,6 +26,8 @@ import {
 
 export interface TraceErrorsData {
   errors: StatsSectionRow[];
+  isMultiTrace: boolean;
+  isMultiMachine: boolean;
 }
 
 export async function loadTraceErrorsData(
@@ -35,7 +37,17 @@ export async function loadTraceErrorsData(
     engine,
     "severity = 'error' AND source = 'trace' AND value > 0",
   );
-  return {errors};
+  const traceIds = new Set<number>();
+  const machineIds = new Set<number>();
+  for (const e of errors) {
+    if (e.traceId !== null) traceIds.add(e.traceId);
+    if (e.machineId !== null) machineIds.add(e.machineId);
+  }
+  return {
+    errors,
+    isMultiTrace: traceIds.size > 1,
+    isMultiMachine: machineIds.size > 1,
+  };
 }
 
 export interface TraceErrorsTabAttrs {
@@ -77,6 +89,8 @@ export class TraceErrorsTab implements m.ClassComponent<TraceErrorsTabAttrs> {
           categories.map((cat) =>
             renderCategorySection(cat, {
               className: 'pf-trace-info-page__logs-grid',
+              isMultiTrace: attrs.data.isMultiTrace,
+              isMultiMachine: attrs.data.isMultiMachine,
             }),
           ),
         ),

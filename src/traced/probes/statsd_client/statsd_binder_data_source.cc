@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "statsd_binder_data_source.h"
+#include "src/traced/probes/statsd_client/statsd_binder_data_source.h"
 
 #include <unistd.h>
 
