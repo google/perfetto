@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import {
-  CallableTool,
+  type CallableTool,
   FunctionCallingConfigMode,
   GoogleGenAI,
   mcpToTool,
 } from '@google/genai';
 import {registerTraceTools} from './tracetools';
 import {z} from 'zod';
-import {Setting} from 'src/public/settings';
+import type {Setting} from 'src/public/settings';
 import {ChatPage} from './chat_page';
 import m from 'mithril';
 import {registerUiTools} from './uitools';

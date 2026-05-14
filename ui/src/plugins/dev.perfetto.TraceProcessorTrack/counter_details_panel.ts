@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, duration, time} from '../../base/time';
-import {Engine} from '../../trace_processor/engine';
-import {Trace} from '../../public/trace';
+import {Time, type duration, type time} from '../../base/time';
+import type {Engine} from '../../trace_processor/engine';
+import type {Trace} from '../../public/trace';
 import {
   LONG,
   LONG_NULL,
   NUM,
   NUM_NULL,
 } from '../../trace_processor/query_result';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
@@ -29,12 +29,12 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
-import {TrackEventSelection} from '../../public/selection';
+import type {TrackEventSelection} from '../../public/selection';
 import {hasArgs, renderArguments} from '../../components/details/args';
 import {asArgSetId} from '../../components/sql_utils/core_types';
-import {ArgsDict, getArgs} from '../../components/sql_utils/args';
+import {type ArgsDict, getArgs} from '../../components/sql_utils/args';
 import {
-  YMode,
+  type YMode,
   counterDisplayUnit,
   counterValueExpression,
 } from '../../components/tracks/counter_track';

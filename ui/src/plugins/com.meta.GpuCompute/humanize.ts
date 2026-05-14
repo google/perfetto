@@ -22,7 +22,7 @@
 // Also exposes unit-family classification ({@link unitInfo}) and cross-unit
 // conversion ({@link convertUnit}) used by the baseline comparison feature.
 
-import {Terminology} from './terminology';
+import type {Terminology} from './terminology';
 
 // Shape of a single metric row fed into the humanization pipeline.
 type RowShape = {

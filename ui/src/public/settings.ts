@@ -18,8 +18,8 @@
  * retrieve their values, and potentially render custom UI for them.
  */
 
-import {z} from 'zod';
-import m from 'mithril';
+import type {z} from 'zod';
+import type m from 'mithril';
 
 export type SettingRenderer<T> = (setting: Setting<T>) => m.Children;
 

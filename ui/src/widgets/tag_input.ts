@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLFocusableAttrs, Intent} from './common';
+import {type HTMLFocusableAttrs, Intent} from './common';
 import {findRef} from '../base/dom_utils';
 import {Chip} from './chip';
 import {Stack} from './stack';

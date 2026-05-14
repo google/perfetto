@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {errResult, Result, okResult} from '../../base/result';
-import {Engine} from '../../trace_processor/engine';
+import {errResult, type Result, okResult} from '../../base/result';
+import type {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {assertExists, assertUnreachable} from '../../base/assert';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {RadioGroup} from '../../widgets/radio_group';
 import {Editor} from '../../widgets/editor';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -29,8 +29,8 @@ import {Callout} from '../../widgets/callout';
 import {TextInput} from '../../widgets/text_input';
 import {Tabs} from '../../widgets/tabs';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import {Row} from '../../trace_processor/query_result';
+import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {Row} from '../../trace_processor/query_result';
 import protos from '../../protos';
 
 type Format = 'json' | 'prototext' | 'proto';

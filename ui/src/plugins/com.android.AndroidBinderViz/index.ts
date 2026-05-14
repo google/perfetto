@@ -16,8 +16,8 @@ import {
   BreakdownTrackAggType,
   BreakdownTracks,
 } from '../../components/tracks/breakdown_tracks';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {BinderSliceDetailsPanel} from './details_panel';
 
 export default class implements PerfettoPlugin {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {z} from 'zod';
 
@@ -21,7 +21,9 @@ export const AGGREGATE_PROFILES_PAGE_STATE_SCHEMA = z.object({
   selectedProfileId: z.string().optional(),
 });
 
-export type AggregateProfilesPageState = z.infer<typeof AGGREGATE_PROFILES_PAGE_STATE_SCHEMA>;
+export type AggregateProfilesPageState = z.infer<
+  typeof AGGREGATE_PROFILES_PAGE_STATE_SCHEMA
+>;
 
 export interface AggregateProfile {
   readonly id: string;

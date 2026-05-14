@@ -29,7 +29,7 @@ import {FilterDuringNode} from './filter_during_node';
 import {ModifyColumnsNode} from './modify_columns_node';
 import {FilterNode} from './filter_node';
 import {UnionNode} from './union_node';
-import {QueryNode, singleNodeOperation} from '../../query_node';
+import {type QueryNode, singleNodeOperation} from '../../query_node';
 import {
   insertNodeBetween,
   reconnectParentsToChildren,
@@ -44,7 +44,7 @@ import {
   removeSecondaryInput,
   validateSecondaryInputs,
 } from '../graph_utils';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 import {
   createMockNode,

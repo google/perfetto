@@ -18,10 +18,10 @@
  * shift+drag to pan and mouse wheel navigation.
  */
 
-import {Rect2D} from '../../base/geom';
-import {TimeScale} from '../../base/time_scale';
-import {Zone} from '../../base/zoned_interaction_handler';
-import {TraceImpl} from '../../core/trace_impl';
+import type {Rect2D} from '../../base/geom';
+import type {TimeScale} from '../../base/time_scale';
+import type {Zone} from '../../base/zoned_interaction_handler';
+import type {TraceImpl} from '../../core/trace_impl';
 
 const WHEEL_ZOOM_SPEED = -0.02;
 

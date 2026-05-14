@@ -29,7 +29,7 @@
 import m from 'mithril';
 import {
   AXIS_LABEL_FONT_SIZE,
-  LabelFormatter,
+  type LabelFormatter,
   collectYAxisLabels,
   formatLabel,
 } from './chart_option_builder';

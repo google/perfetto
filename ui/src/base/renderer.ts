@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Color} from './color';
-import {Transform1D, Transform2D} from './geom';
+import type {Color} from './color';
+import type {Transform1D, Transform2D} from './geom';
 
 // Flag bits for drawRect options
 export const RECT_PATTERN_HATCHED = 1; // Draw diagonal crosshatch pattern

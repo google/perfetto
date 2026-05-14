@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {time, Time} from '../base/time';
-import {Setting} from '../public/settings';
-import {DurationPrecision, TimestampFormat} from '../public/timeline';
-import {TraceInfo} from '../public/trace_info';
+import {type time, Time} from '../base/time';
+import type {Setting} from '../public/settings';
+import type {DurationPrecision, TimestampFormat} from '../public/timeline';
+import type {TraceInfo} from '../public/trace_info';
 import {TimelineImpl} from './timeline';
 
 function t(n: number): time {

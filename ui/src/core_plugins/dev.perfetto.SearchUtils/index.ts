@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SearchBenchmarkPage} from './search_benchmark_page';
 import {SearchResultsTab} from './search_results_tab';
 import {featureFlags} from '../../core/feature_flags';

@@ -13,13 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {RecordingManager} from '../recording_manager';
+import type {RecordingManager} from '../recording_manager';
 import {assetSrc} from '../../../base/assets';
 import {Slider} from './widgets/slider';
-import {RecordMode, TraceConfigBuilder} from '../config/trace_config_builder';
-import {ConfigManager} from '../config/config_manager';
-import {RecordSubpage} from '../config/config_interfaces';
-import {ProbesSessionSchema} from '../serialization_schema';
+import type {
+  RecordMode,
+  TraceConfigBuilder,
+} from '../config/trace_config_builder';
+import type {ConfigManager} from '../config/config_manager';
+import type {RecordSubpage} from '../config/config_interfaces';
+import type {ProbesSessionSchema} from '../serialization_schema';
 import {Toggle} from './widgets/toggle';
 
 type RecMgrAttrs = {recMgr: RecordingManager};

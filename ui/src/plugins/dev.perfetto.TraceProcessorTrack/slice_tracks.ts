@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {StandardGroup} from '../dev.perfetto.StandardGroups';
+import type {StandardGroup} from '../dev.perfetto.StandardGroups';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 

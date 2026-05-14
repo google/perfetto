@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLAnchorAttrs} from './common';
+import type {HTMLAnchorAttrs} from './common';
 import {Icon} from './icon';
 
 interface AnchorAttrs extends HTMLAnchorAttrs {

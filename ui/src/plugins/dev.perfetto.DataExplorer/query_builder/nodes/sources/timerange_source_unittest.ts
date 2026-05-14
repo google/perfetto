@@ -14,9 +14,9 @@
 
 import {
   TimeRangeSourceNode,
-  TimeRangeSourceNodeAttrs,
+  type TimeRangeSourceNodeAttrs,
 } from './timerange_source';
-import {Trace} from '../../../../../public/trace';
+import type {Trace} from '../../../../../public/trace';
 import {Time, TimeSpan} from '../../../../../base/time';
 import {expectValidationSuccess} from '../../testing/test_utils';
 

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {classForSpacing, HTMLAttrs, Spacing} from './common';
+import {classForSpacing, type HTMLAttrs, type Spacing} from './common';
 
 export interface BoxAttrs extends HTMLAttrs {
   readonly fillHeight?: boolean;

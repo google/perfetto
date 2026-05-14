@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {Storage} from './storage';
+import type {Storage} from './storage';
 import {SettingsManagerImpl} from './settings_manager';
 
 // Mock Storage implementation for testing

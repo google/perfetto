@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
-import {Row} from '../../../trace_processor/query_result';
+import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {Row} from '../../../trace_processor/query_result';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
+import type {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
-import {App} from '../../../public/app';
+import type {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';
 
 // Cache for the SQL data source - created once when page is first opened with a trace

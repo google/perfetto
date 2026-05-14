@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FullTraceMetricData} from './metricUtils';
+import type {FullTraceMetricData} from './metricUtils';
 import {pinFullTraceJankInstance} from './fullTraceJankMetricHandler';
 
 const validMetricsTest: {

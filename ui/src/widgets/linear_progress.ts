@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
 
 export interface LinearProgressAttrs extends HTMLAttrs {

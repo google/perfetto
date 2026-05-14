@@ -75,7 +75,7 @@ const pjoin = path.join;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ROOT_DIR = path.dirname(__dirname);  // The repo root.
+const ROOT_DIR = path.dirname(__dirname); // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
 const DEFAULT_PORT = 10000;
@@ -107,7 +107,7 @@ const cfg = {
   //      v1.2/  -> outDistDir     : JS bundles and assets
   //    chrome_extension/          : Chrome extension.
   outDir: pjoin(ROOT_DIR, 'out/ui'),
-  version: '',  // v1.2.3, derived from the CHANGELOG + git.
+  version: '', // v1.2.3, derived from the CHANGELOG + git.
   outUiDir: '',
   outUiTestArtifactsDir: '',
   outDistRootDir: '',
@@ -130,7 +130,10 @@ const RULES = [
   {r: /ui\/src\/assets\/(data_explorer\/node_info\/(.*)[.]md)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
-  {r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/, f: compileScss},
+  {
+    r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/,
+    f: compileScss,
+  },
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
@@ -146,18 +149,16 @@ const LIVE_SERVER_DEBOUNCE_MS = 250;
 let liveServerDebounceTimerId = 0;
 const notifyLiveServerPendingFiles = new Set();
 
-
 // Loads ~/.config/perfetto/ui-dev-server.env and injects any KEY=VALUE pairs
 // into process.env, without overriding variables already set in the environment.
 function loadDevServerEnvFile() {
   const home = process.env.HOME || process.env.USERPROFILE || '';
-  const envFile =
-      path.join(home, '.config', 'perfetto', 'ui-dev-server.env');
+  const envFile = path.join(home, '.config', 'perfetto', 'ui-dev-server.env');
   let content;
   try {
     content = fs.readFileSync(envFile, 'utf8');
   } catch (e) {
-    return;  // File absent or unreadable — not an error.
+    return; // File absent or unreadable — not an error.
   }
   for (const line of content.split('\n')) {
     const trimmed = line.trim();
@@ -222,7 +223,7 @@ Env-var overrides:
   parser.add_argument('--no-depscheck', {action: 'store_true'});
   parser.add_argument('--cross-origin-isolation', {action: 'store_true'});
   parser.add_argument('--test-filter', '-f', {
-    help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
+    help: "filter Jest tests by regex, e.g. 'chrome_render'",
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
   parser.add_argument('--typecheck', {
@@ -241,8 +242,11 @@ Env-var overrides:
   const syntheticArgv = [];
   for (const [key, val] of Object.entries(process.env)) {
     if (!key.startsWith(envPrefix)) continue;
-    const flag = '--' + key.slice(envPrefix.length).toLowerCase().replace(/_/g, '-');
-    const action = parser._actions.find(a => (a.option_strings || []).includes(flag));
+    const flag =
+      '--' + key.slice(envPrefix.length).toLowerCase().replace(/_/g, '-');
+    const action = parser._actions.find((a) =>
+      (a.option_strings || []).includes(flag),
+    );
     if (!action) continue;
     const isBoolFlag = action.nargs === 0;
     if (isBoolFlag) {
@@ -254,7 +258,7 @@ Env-var overrides:
   const args = parser.parse_args([...syntheticArgv, ...process.argv.slice(2)]);
   const clean = !args.no_build;
   cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
-  cfg.lockFile = pjoin(cfg.outDir, "watch.lock");
+  cfg.lockFile = pjoin(cfg.outDir, 'watch.lock');
 
   // Only create the build lock if we are actually going to build If --no-build
   // is passed, we can run simultaneoushy without worrying about the build lock,
@@ -289,8 +293,9 @@ Env-var overrides:
     cfg.outBigtraceDistDir = ensureDir(pjoin(cfg.outDistDir, 'bigtrace'));
   }
   if (cfg.openPerfettoTrace) {
-    cfg.outOpenPerfettoTraceDistDir = ensureDir(pjoin(cfg.outDistRootDir,
-                                                      'open_perfetto_trace'));
+    cfg.outOpenPerfettoTraceDistDir = ensureDir(
+      pjoin(cfg.outDistRootDir, 'open_perfetto_trace'),
+    );
   }
   if (args.serve_host) {
     cfg.httpServerListenHost = args.serve_host;
@@ -349,11 +354,7 @@ Env-var overrides:
       const result = childProcess.spawnSync('arch', ['-arm64', 'true']);
       const isArm64Capable = result.status === 0;
       if (isArm64Capable) {
-        const archArgs = [
-          'arch',
-          '-arch',
-          'arm64',
-        ];
+        const archArgs = ['arch', '-arch', 'arm64'];
         args = archArgs.concat(args);
       }
     }
@@ -378,7 +379,7 @@ Env-var overrides:
       transpileTsProject(prj, {noEmit: true});
     }
   } else if (!args.no_build) {
-    updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
+    updateSymlinks(); // Links //ui/out -> //out/xxx/ui/
 
     buildWasm(args.no_wasm);
     copySyntaqliteRuntime();
@@ -394,10 +395,7 @@ Env-var overrides:
     genVersion();
     generateStdlibDocs();
 
-    const tsProjects = [
-      'ui',
-      'ui/src/service_worker'
-    ];
+    const tsProjects = ['ui', 'ui/src/service_worker'];
     if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
     if (cfg.openPerfettoTrace) {
       scanDir('ui/src/open_perfetto_trace');
@@ -446,7 +444,8 @@ Env-var overrides:
     while (!isDistComplete()) {
       const secs = Math.ceil((performance.now() - tStart) / 1000);
       process.stdout.write(
-          `\t\tWaiting for first build to complete... ${secs} s\r`);
+        `\t\tWaiting for first build to complete... ${secs} s\r`,
+      );
       await new Promise((r) => setTimeout(r, 500));
     }
   }
@@ -496,7 +495,7 @@ function cpHtml(src, filename) {
   // Then copy it into the dist/ root by patching the version code.
   // TODO(primiano): in next CLs, this script should take a
   // --release_map=xxx.json argument, to populate this with multiple channels.
-  const versionMap = JSON.stringify({'stable': cfg.version});
+  const versionMap = JSON.stringify({stable: cfg.version});
   const bodyRegex = /data-perfetto_version='[^']*'/;
   html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
 
@@ -504,8 +503,9 @@ function cpHtml(src, filename) {
   // multiple dev server instances to distinguish browser tabs.
   if (cfg.titleOverride) {
     html = html.replace(
-        /<title>[^<]*<\/title>/,
-        `<title>${cfg.titleOverride}</title>`);
+      /<title>[^<]*<\/title>/,
+      `<title>${cfg.titleOverride}</title>`,
+    );
   }
 
   fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
@@ -612,8 +612,11 @@ function generateImports(dir, name) {
 // Generates a .ts source that defines the VERSION and SCM_REVISION constants.
 function genVersion() {
   const cmd = 'python3';
-  const args =
-      [VERSION_SCRIPT, '--ts_out', pjoin(cfg.outGenDir, 'perfetto_version.ts')];
+  const args = [
+    VERSION_SCRIPT,
+    '--ts_out',
+    pjoin(cfg.outGenDir, 'perfetto_version.ts'),
+  ];
   addTask(exec, [cmd, args]);
 }
 
@@ -621,9 +624,9 @@ function generateStdlibDocs() {
   const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_docs_json.py');
   const stdlibDir = pjoin(ROOT_DIR, 'src/trace_processor/perfetto_sql/stdlib');
 
-  const stdlibFiles =
-    listFilesRecursive(stdlibDir)
-    .filter((filePath) => path.extname(filePath) === '.sql');
+  const stdlibFiles = listFilesRecursive(stdlibDir).filter(
+    (filePath) => path.extname(filePath) === '.sql',
+  );
 
   addTask(exec, [
     cmd,
@@ -645,17 +648,21 @@ function updateSymlinks() {
 
   // /out/ui/test/data -> /test/data (For UI tests).
   mklink(
-      pjoin(ROOT_DIR, 'test/data'),
-      pjoin(ensureDir(pjoin(cfg.outDir, 'test')), 'data'));
+    pjoin(ROOT_DIR, 'test/data'),
+    pjoin(ensureDir(pjoin(cfg.outDir, 'test')), 'data'),
+  );
 
   // Creates a out/dist_version -> out/dist/v1.2.3 symlink, so rollup config
   // can point to that without having to know the current version number.
   mklink(
-      path.relative(cfg.outUiDir, cfg.outDistDir),
-      pjoin(cfg.outUiDir, 'dist_version'));
+    path.relative(cfg.outUiDir, cfg.outDistDir),
+    pjoin(cfg.outUiDir, 'dist_version'),
+  );
 
   mklink(
-      pjoin(ROOT_DIR, 'ui/node_modules'), pjoin(cfg.outTscDir, 'node_modules'));
+    pjoin(ROOT_DIR, 'ui/node_modules'),
+    pjoin(cfg.outTscDir, 'node_modules'),
+  );
 }
 
 // Invokes ninja for building the {trace_processor, traceconv} Wasm modules.
@@ -708,9 +715,12 @@ function copySyntaqliteRuntime() {
 function getBuildToolsBinDir() {
   function getBinDirName() {
     switch (process.platform) {
-      case 'darwin': return 'mac';
-      case 'linux': return 'linux64';
-      default: throw new Error(`Unsupported platform: ${process.platform}`);
+      case 'darwin':
+        return 'mac';
+      case 'linux':
+        return 'linux64';
+      default:
+        throw new Error(`Unsupported platform: ${process.platform}`);
     }
   }
 
@@ -721,14 +731,17 @@ function buildSyntaqlitePerfettoDialect() {
   const buildToolsBinDir = getBuildToolsBinDir();
   const emcc = pjoin(buildToolsBinDir, 'emsdk/emscripten/emcc');
   const src = pjoin(
-      ROOT_DIR,
-      'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c');
+    ROOT_DIR,
+    'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
+  );
   const dst = pjoin(cfg.outDistRootDir, 'assets', 'syntaqlite-perfetto.wasm');
   try {
     const srcMtime = fs.statSync(src).mtimeMs;
     const dstMtime = fs.statSync(dst).mtimeMs;
     if (dstMtime >= srcMtime) return;
-  } catch (e) { /* dst missing → rebuild */ }
+  } catch (e) {
+    /* dst missing → rebuild */
+  }
   ensureDir(path.dirname(dst));
   const emConfig = pjoin(ROOT_DIR, 'gn/standalone/.emscripten');
   const prevEmConfig = process.env.EM_CONFIG;
@@ -738,7 +751,8 @@ function buildSyntaqlitePerfettoDialect() {
       '-O2',
       '-sSIDE_MODULE=2',
       '-sEXPORTED_FUNCTIONS=_syntaqlite_perfetto_dialect_template',
-      '-o', dst,
+      '-o',
+      dst,
       src,
     ]);
   } finally {
@@ -757,10 +771,14 @@ function transpileTsProject(project, options) {
     addTask(execModule, ['tsc', args]);
   } else if (options !== undefined && options.watch) {
     args.push('--watch', '--preserveWatchOutput');
-    addTask(execModule, ['tsc', args, {
-      async: true,
-      noErrCheck: options.noErrCheck,
-    }]);
+    addTask(execModule, [
+      'tsc',
+      args,
+      {
+        async: true,
+        noErrCheck: options.noErrCheck,
+      },
+    ]);
   } else {
     addTask(execModule, ['tsc', args, {noErrCheck: options.noErrCheck}]);
   }
@@ -806,12 +824,19 @@ function genServiceWorkerManifestJson() {
     // itself and the copy of the index.html which is copied under /v1.2.3/.
     // The root /index.html will be fetched by service_worker.js separately.
     const skipRegex = /(\.map|manifest\.json|index.html)$/;
-    walk(cfg.outDistDir, (absPath) => {
-      const contents = fs.readFileSync(absPath);
-      const relPath = path.relative(cfg.outDistDir, absPath);
-      const b64 = crypto.createHash('sha256').update(contents).digest('base64');
-      manifest.resources[relPath] = 'sha256-' + b64;
-    }, skipRegex);
+    walk(
+      cfg.outDistDir,
+      (absPath) => {
+        const contents = fs.readFileSync(absPath);
+        const relPath = path.relative(cfg.outDistDir, absPath);
+        const b64 = crypto
+          .createHash('sha256')
+          .update(contents)
+          .digest('base64');
+        manifest.resources[relPath] = 'sha256-' + b64;
+      },
+      skipRegex,
+    );
     const manifestJson = JSON.stringify(manifest, null, 2);
     fs.writeFileSync(pjoin(cfg.outDistDir, 'manifest.json'), manifestJson);
   }
@@ -819,110 +844,113 @@ function genServiceWorkerManifestJson() {
 }
 
 function startServer() {
-  const server = http.createServer(function(req, res) {
-        console.debug(req.method, req.url);
-        let uri = req.url.split('?', 1)[0];
-        if (uri.endsWith('/')) {
-          uri += 'index.html';
+  const server = http.createServer(function (req, res) {
+    console.debug(req.method, req.url);
+    let uri = req.url.split('?', 1)[0];
+    if (uri.endsWith('/')) {
+      uri += 'index.html';
+    }
+
+    if (uri === '/live_reload') {
+      // Implements the Server-Side-Events protocol.
+      const head = {
+        'Content-Type': 'text/event-stream',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+      };
+      res.writeHead(200, head);
+      const arrayIdx = httpWatches.length;
+      // We never remove from the array, the delete leaves an undefined item
+      // around. It makes keeping track of the index easier at the cost of a
+      // small leak.
+      httpWatches.push(res);
+      req.on('close', () => delete httpWatches[arrayIdx]);
+      return;
+    }
+
+    let absPath = path.normalize(path.join(cfg.outDistRootDir, uri));
+    // We want to be able to use the data in '/test/' for e2e tests.
+    // However, we don't want do create a symlink into the 'dist/' dir,
+    // because 'dist/' gets shipped on the production server.
+    if (uri.startsWith('/test/')) {
+      absPath = pjoin(ROOT_DIR, uri);
+    }
+
+    // Don't serve contents outside of the project root (b/221101533).
+    if (path.relative(ROOT_DIR, absPath).startsWith('..')) {
+      res.writeHead(403);
+      res.end('403 Forbidden - Request path outside of the repo root');
+      return;
+    }
+
+    let stat;
+    try {
+      stat = fs.statSync(absPath);
+    } catch (statErr) {
+      res.writeHead(404);
+      res.end(JSON.stringify(statErr));
+      return;
+    }
+
+    // Truncate to second precision: HTTP dates have 1s resolution, so the
+    // sub-millisecond part of mtime would cause a permanent mismatch.
+    const mtimeSec = Math.floor(stat.mtime.getTime() / 1000) * 1000;
+    const mtimeStr = new Date(mtimeSec).toUTCString();
+
+    // Return 304 if the browser's cached copy is still fresh.
+    const ifModifiedSince = req.headers['if-modified-since'];
+    if (
+      ifModifiedSince !== undefined &&
+      new Date(ifModifiedSince).getTime() >= mtimeSec
+    ) {
+      res.writeHead(304);
+      res.end();
+      return;
+    }
+
+    fs.readFile(absPath, function (err, data) {
+      if (err) {
+        res.writeHead(404);
+        res.end(JSON.stringify(err));
+        return;
+      }
+
+      const mimeMap = {
+        html: 'text/html',
+        css: 'text/css',
+        js: 'application/javascript',
+        wasm: 'application/wasm',
+      };
+      const ext = uri.split('.').pop();
+      const cType = mimeMap[ext] || 'octect/stream';
+      const acceptsGzip = (req.headers['accept-encoding'] || '').includes(
+        'gzip',
+      );
+      const finalize = (body) => {
+        const head = {
+          'Content-Type': cType,
+          'Content-Length': body.length,
+          'Last-Modified': mtimeStr,
+          'Cache-Control': 'no-cache',
+        };
+        if (acceptsGzip) head['Content-Encoding'] = 'gzip';
+        if (cfg.crossOriginIsolation) {
+          head['Cross-Origin-Opener-Policy'] = 'same-origin';
+          head['Cross-Origin-Embedder-Policy'] = 'require-corp';
         }
-
-        if (uri === '/live_reload') {
-          // Implements the Server-Side-Events protocol.
-          const head = {
-            'Content-Type': 'text/event-stream',
-            'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache',
-          };
-          res.writeHead(200, head);
-          const arrayIdx = httpWatches.length;
-          // We never remove from the array, the delete leaves an undefined item
-          // around. It makes keeping track of the index easier at the cost of a
-          // small leak.
-          httpWatches.push(res);
-          req.on('close', () => delete httpWatches[arrayIdx]);
-          return;
-        }
-
-        let absPath = path.normalize(path.join(cfg.outDistRootDir, uri));
-        // We want to be able to use the data in '/test/' for e2e tests.
-        // However, we don't want do create a symlink into the 'dist/' dir,
-        // because 'dist/' gets shipped on the production server.
-        if (uri.startsWith('/test/')) {
-          absPath = pjoin(ROOT_DIR, uri);
-        }
-
-        // Don't serve contents outside of the project root (b/221101533).
-        if (path.relative(ROOT_DIR, absPath).startsWith('..')) {
-          res.writeHead(403);
-          res.end('403 Forbidden - Request path outside of the repo root');
-          return;
-        }
-
-        let stat;
-        try {
-          stat = fs.statSync(absPath);
-        } catch (statErr) {
-          res.writeHead(404);
-          res.end(JSON.stringify(statErr));
-          return;
-        }
-
-        // Truncate to second precision: HTTP dates have 1s resolution, so the
-        // sub-millisecond part of mtime would cause a permanent mismatch.
-        const mtimeSec = Math.floor(stat.mtime.getTime() / 1000) * 1000;
-        const mtimeStr = new Date(mtimeSec).toUTCString();
-
-        // Return 304 if the browser's cached copy is still fresh.
-        const ifModifiedSince = req.headers['if-modified-since'];
-        if (ifModifiedSince !== undefined &&
-            new Date(ifModifiedSince).getTime() >= mtimeSec) {
-          res.writeHead(304);
-          res.end();
-          return;
-        }
-
-        fs.readFile(absPath, function(err, data) {
-          if (err) {
-            res.writeHead(404);
-            res.end(JSON.stringify(err));
-            return;
-          }
-
-          const mimeMap = {
-            'html': 'text/html',
-            'css': 'text/css',
-            'js': 'application/javascript',
-            'wasm': 'application/wasm',
-          };
-          const ext = uri.split('.').pop();
-          const cType = mimeMap[ext] || 'octect/stream';
-          const acceptsGzip =
-              (req.headers['accept-encoding'] || '').includes('gzip');
-          const finalize = (body) => {
-            const head = {
-              'Content-Type': cType,
-              'Content-Length': body.length,
-              'Last-Modified': mtimeStr,
-              'Cache-Control': 'no-cache',
-            };
-            if (acceptsGzip) head['Content-Encoding'] = 'gzip';
-            if (cfg.crossOriginIsolation) {
-              head['Cross-Origin-Opener-Policy'] = 'same-origin';
-              head['Cross-Origin-Embedder-Policy'] = 'require-corp';
-            }
-            res.writeHead(200, head);
-            res.write(body);
-            res.end();
-          };
-          if (acceptsGzip) {
-            zlib.gzip(data, (gzErr, compressed) => {
-              finalize(gzErr ? data : compressed);
-            });
-          } else {
-            finalize(data);
-          }
+        res.writeHead(200, head);
+        res.write(body);
+        res.end();
+      };
+      if (acceptsGzip) {
+        zlib.gzip(data, (gzErr, compressed) => {
+          finalize(gzErr ? data : compressed);
         });
-      });
+      } else {
+        finalize(data);
+      }
+    });
+  });
 
   let port = cfg.httpServerListenPort ?? DEFAULT_PORT;
   let retryCount = 0;
@@ -938,11 +966,15 @@ function startServer() {
           ++retryCount;
           server.listen(port, cfg.httpServerListenHost);
         } else {
-          console.error(`ERROR: Port ${port} is in use, and no free port found after 10 tries. Exiting.`);
+          console.error(
+            `ERROR: Port ${port} is in use, and no free port found after 10 tries. Exiting.`,
+          );
           process.exit(1);
         }
       } else {
-        console.error(`ERROR: Port ${port} is in use, and --serve-port was explicitly set. Exiting.`);
+        console.error(
+          `ERROR: Port ${port} is in use, and --serve-port was explicitly set. Exiting.`,
+        );
         process.exit(1);
       }
     } else {
@@ -993,8 +1025,7 @@ function notifyLiveServer(changedFile) {
     for (const cli of httpWatches) {
       if (cli === undefined) continue;
       for (const file of notifyLiveServerPendingFiles) {
-        cli.write(
-            'data: ' + path.relative(cfg.outDistRootDir, file) + '\n\n');
+        cli.write('data: ' + path.relative(cfg.outDistRootDir, file) + '\n\n');
       }
     }
     notifyLiveServerPendingFiles.clear();
@@ -1029,13 +1060,13 @@ function addTask(func, args) {
 }
 
 function runTasks() {
-  const snapTasks = tasks.splice(0);  // snap = std::move(tasks).
+  const snapTasks = tasks.splice(0); // snap = std::move(tasks).
   tasksTot += snapTasks.length;
   for (const task of snapTasks) {
     const DIM = '\u001b[2m';
     const BRT = '\u001b[37m';
     const RST = '\u001b[0m';
-    const ms = (performance.now() - tStart) / 1000;;
+    const ms = (performance.now() - tStart) / 1000;
     const ts = `[${DIM}${ms.toFixed(3)}${RST}]`;
     const descr = task.description.substr(0, 80);
     console.log(`${ts} ${BRT}${++tasksRan}/${tasksTot}${RST}\t${descr}`);
@@ -1185,7 +1216,11 @@ function cp(src, dst) {
   ensureDir(path.dirname(dst));
   if (cfg.verbose) {
     console.log(
-        'cp', path.relative(ROOT_DIR, src), '->', path.relative(ROOT_DIR, dst));
+      'cp',
+      path.relative(ROOT_DIR, src),
+      '->',
+      path.relative(ROOT_DIR, dst),
+    );
   }
   fs.copyFileSync(src, dst);
 }
@@ -1214,8 +1249,12 @@ function prepareBuildLock() {
       running = false;
     }
     if (running) {
-      console.error(`Error: a build.mjs instance is already running (${cfg.lockFile} PID=${oldPid}).`);
-      console.error('Hint: use --no-build (-n) to skip the build and avoid the lock.');
+      console.error(
+        `Error: a build.mjs instance is already running (${cfg.lockFile} PID=${oldPid}).`,
+      );
+      console.error(
+        'Hint: use --no-build (-n) to skip the build and avoid the lock.',
+      );
       process.exit(1);
     } else {
       console.log(`Removing stale lock file for PID ${oldPid}`);
@@ -1232,7 +1271,7 @@ function releaseBuildLock() {
     if (pid === process.pid.toString()) {
       fs.unlinkSync(cfg.lockFile);
     } else {
-      console.warn(`Ignoring stale lock file PID ${pid}`)
+      console.warn(`Ignoring stale lock file PID ${pid}`);
     }
   }
 }

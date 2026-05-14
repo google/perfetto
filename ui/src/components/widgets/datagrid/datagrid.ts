@@ -19,15 +19,15 @@ import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
 import {shortUuid} from '../../../base/uuid';
 import {exists, isNumeric, maybeUndefined} from '../../../base/utils';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
 import {
   Grid,
-  GridApi,
+  type GridApi,
   GridCell,
-  GridColumn,
+  type GridColumn,
   GridHeaderCell,
   renderSortMenuItems,
 } from '../../../widgets/grid';
@@ -42,7 +42,7 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {
+import type {
   DataSource,
   DataSourceModel,
   DataSourceRows,
@@ -51,7 +51,7 @@ import {
   TreeModel,
 } from './data_source';
 import {
-  SchemaRegistry,
+  type SchemaRegistry,
   getColumnInfo,
   getDefaultVisibleColumns,
   isCellRenderResult,
@@ -68,15 +68,15 @@ import {
 } from './export_utils';
 import {InMemoryDataSource} from './in_memory_data_source';
 import {
-  AggregateColumn,
-  AggregateFunction,
-  Column,
+  type AggregateColumn,
+  type AggregateFunction,
+  type Column,
   DEFAULT_GROUP_DISPLAY,
-  Filter,
-  GroupPath,
-  IdBasedTree,
-  Pivot,
-  SortDirection,
+  type Filter,
+  type GroupPath,
+  type IdBasedTree,
+  type Pivot,
+  type SortDirection,
 } from './model';
 
 // Compare two SqlValues for equality, handling nulls, undefined, and different types.

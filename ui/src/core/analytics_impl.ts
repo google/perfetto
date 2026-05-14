@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ErrorDetails} from '../base/logging';
+import type {ErrorDetails} from '../base/logging';
 import {getCurrentChannel} from './channels';
 import {VERSION} from '../gen/perfetto_version';
 import {Router} from './router';
-import {Analytics, TraceCategories} from '../public/analytics';
+import type {Analytics, TraceCategories} from '../public/analytics';
 
 const PAGE_TITLE = 'no-page-title';
 

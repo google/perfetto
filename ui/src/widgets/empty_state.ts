@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {Icons} from '../base/semantic_icons';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {Icon} from './icon';
 
 export interface EmptyStateAttrs extends HTMLAttrs {
