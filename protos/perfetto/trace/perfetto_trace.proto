@@ -8726,6 +8726,18 @@ message FileIoOpEndEtwEvent {
   optional uint32 nt_status = 3;
 }
 
+// Proto definition based on the `FileIo_PathOperation` class definition.
+message FileIoPathOperationEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+  optional string file_name = 7;
+  optional uint32 opcode = 8;
+}
+
 // Proto definition based on the `StackWalk_Event` class definition. See
 // `Callstack` in `perfetto/protos/perfetto/trace/track_event/track_event.proto`
 // for context on what is contained in it.
@@ -8769,7 +8781,8 @@ message EtwTraceEvent {
     FileIoSimpleOpEtwEvent file_io_simple_op = 11;
     FileIoOpEndEtwEvent file_io_op_end = 12;
     StackWalkEtwEvent stack_walk = 13;
-    DiskIoEtwEvent disk_io = 14;
+    FileIoPathOperationEtwEvent file_io_path_operation = 14;
+    DiskIoEtwEvent disk_io = 15;
   }
 }
 
@@ -17086,6 +17099,19 @@ message PowerRails {
 
 // End of protos/perfetto/trace/power/power_rails.proto
 
+// Begin of protos/perfetto/trace/profiling/art_process_metadata.proto
+
+message ArtProcessMetadata {
+  optional int32 pid = 1;
+  optional int32 uid = 2;
+  // /proc/self/cmdline argv0
+  optional string process_name = 3;
+  // Set by VMRuntime.setProcessPackageName
+  optional string package_name = 4;
+}
+
+// End of protos/perfetto/trace/profiling/art_process_metadata.proto
+
 // Begin of protos/perfetto/trace/profiling/deobfuscation.proto
 
 message ObfuscatedMember {
@@ -17248,10 +17274,17 @@ message HeapGraphObject {
   optional uint32 bitmap_width_field = 13;
   // `android.graphics.Bitmap.mHeight`: Height in pixels
   optional uint32 bitmap_height_field = 14;
+
+  // ApplicationInfo field captures
+  // `android.content.pm.ApplicationInfo.longVersionCode`: Used to identify
+  // the dumped process version code (without the full package list)
+  optional int64 application_info_long_version_code_field = 15;
 }
 
+// Next id: 11
 message HeapGraph {
   optional int32 pid = 1;
+  optional int64 heap_bytes_allocated = 10;
 
   // This contains all objects at the time this dump was taken. Some of these
   // will be live, some of those unreachable (garbage). To find the live
@@ -19019,7 +19052,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 131.
+// Next id: 132.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -19108,6 +19141,7 @@ message TracePacket {
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
+    ArtProcessMetadata art_process_metadata = 131;
     HeapGraph heap_graph = 56;
     GraphicsFrameEvent graphics_frame_event = 57;
     VulkanMemoryEvent vulkan_memory_event = 62;

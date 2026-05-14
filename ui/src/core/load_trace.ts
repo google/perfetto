@@ -254,7 +254,6 @@ async function loadTraceIntoEngine(
   trace.timeline.setVisibleWindow(newViewport);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);
@@ -268,6 +267,11 @@ async function loadTraceIntoEngine(
   await app.plugins.onTraceLoad(trace, (id) => {
     updateStatus(app, `Running plugin: ${id}`);
   });
+
+  // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
+  // request that the app navigate somewhere other than /viewer.
+  const initialRoute = trace.initialPage.getWinner() ?? '/viewer';
+  Router.navigate(`#!${initialRoute}?local_cache_key=${cacheUuid}`);
 
   decideTabs(trace);
 

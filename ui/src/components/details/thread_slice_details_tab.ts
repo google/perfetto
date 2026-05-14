@@ -326,8 +326,8 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         precFlows,
         followingFlows,
         args,
-        distribution,
         additionalSections,
+        distribution,
       );
     } else {
       return undefined;

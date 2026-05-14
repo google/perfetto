@@ -116,7 +116,9 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
       [this, disk_number, irp_flags, transfer_size, byte_offset, file_object,
        irp, response_time,
        issuing_thread_id](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(*irp));
+        if (irp) {
+          inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(*irp));
+        }
         if (disk_number) {
           inserter->AddArg(disk_number_arg_,
                            Variadic::UnsignedInteger(*disk_number));

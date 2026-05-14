@@ -30,6 +30,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -218,6 +219,16 @@ base::Status ProtoToArgsParser::ParseMessage(
 }
 
 base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
+  // Drain scratch state on every exit path: work items hold raw pointers into
+  // descriptors and packet bytes that don't outlive this call. Pop in LIFO
+  // order so ScopedNestedKeyContext restores key_prefix_ correctly.
+  auto cleanup = base::OnScopeExit([this] {
+    while (!work_stack_.empty()) {
+      work_stack_.pop_back();
+    }
+    da_nested_storage_.clear();
+    nv_nested_storage_.clear();
+  });
   while (!work_stack_.empty()) {
     bool done = false;
     auto& top = work_stack_.back();
