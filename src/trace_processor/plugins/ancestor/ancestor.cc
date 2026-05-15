@@ -47,8 +47,8 @@ bool GetAncestors(const T& table,
                   base::Status& out_status) {
   auto start_ref = table.FindById(starting_id);
   if (!start_ref) {
-    out_status = base::ErrStatus("no row with id %" PRIu32 "",
-                                 static_cast<uint32_t>(starting_id.value));
+    out_status =
+        base::ErrStatus("no row with id %" PRIu32 "", starting_id.value);
     return false;
   }
 
@@ -91,8 +91,12 @@ bool Ancestor::SliceCursor::Run(const std::vector<SqlValue>& arguments) {
   const auto& slice_table = storage_->slice_table();
   switch (type_) {
     case Type::kSlice: {
-      auto id = static_cast<uint32_t>(arguments[0].long_value);
-      if (!GetAncestors(slice_table, SliceId(id), ancestors_, status_)) {
+      auto id = slice_table.TryCastId(arguments[0].long_value);
+      if (!id) {
+        return OnFailure(base::ErrStatus("no row with id %" PRId64,
+                                         arguments[0].long_value));
+      }
+      if (!GetAncestors(slice_table, *id, ancestors_, status_)) {
         return false;
       }
       break;
@@ -139,8 +143,12 @@ bool Ancestor::StackProfileCursor::Run(const std::vector<SqlValue>& arguments) {
     return OnFailure(base::ErrStatus("start id should be an integer."));
   }
   const auto& callsite = storage_->stack_profile_callsite_table();
-  auto id = static_cast<uint32_t>(arguments[0].long_value);
-  if (!GetAncestors(callsite, CallsiteId(id), ancestors_, status_)) {
+  auto id = callsite.TryCastId(arguments[0].long_value);
+  if (!id) {
+    return OnFailure(
+        base::ErrStatus("no row with id %" PRId64, arguments[0].long_value));
+  }
+  if (!GetAncestors(callsite, *id, ancestors_, status_)) {
     return false;
   }
   for (const auto& ancestor_row : ancestors_) {

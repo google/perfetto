@@ -342,18 +342,23 @@ bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
     return true;
   }
 
+  const auto& cs_table = context_.storage->stack_profile_callsite_table();
+  const auto& frame_table = context_.storage->stack_profile_frame_table();
+
   auto next = it;
   ++next;
   if (!next) {
     Stack::Entry::Decoder entry(it->as_bytes());
     if (entry.has_callsite_id() || entry.has_annotated_callsite_id()) {
       bool annotated = entry.has_annotated_callsite_id();
-      uint32_t callsite_id = entry.has_callsite_id()
-                                 ? entry.callsite_id()
-                                 : entry.annotated_callsite_id();
+      auto callsite_id = cs_table.TryCastId(
+          entry.has_callsite_id() ? entry.callsite_id()
+                                  : entry.annotated_callsite_id());
+      if (!callsite_id) {
+        return false;
+      }
       return samples_.AddSample(
-          GetLocationIdsForCallsite(CallsiteId(callsite_id), annotated),
-          values);
+          GetLocationIdsForCallsite(*callsite_id, annotated), values);
     }
   }
 
@@ -367,11 +372,14 @@ bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
           WriteFakeLocationIfNeeded(entry.name().ToStdString()));
     } else if (entry.has_callsite_id() || entry.has_annotated_callsite_id()) {
       bool annotated = entry.has_annotated_callsite_id();
-      uint32_t callsite_id = entry.has_callsite_id()
-                                 ? entry.callsite_id()
-                                 : entry.annotated_callsite_id();
+      auto callsite_id = cs_table.TryCastId(
+          entry.has_callsite_id() ? entry.callsite_id()
+                                  : entry.annotated_callsite_id());
+      if (!callsite_id) {
+        return false;
+      }
       const protozero::PackedVarInt& ids =
-          GetLocationIdsForCallsite(CallsiteId(callsite_id), annotated);
+          GetLocationIdsForCallsite(*callsite_id, annotated);
       for (const uint8_t* p = ids.data(); p < ids.data() + ids.size();) {
         uint64_t location_id;
         p = protozero::proto_utils::ParseVarInt(p, ids.data() + ids.size(),
@@ -379,8 +387,12 @@ bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
         location_ids.Append(location_id);
       }
     } else if (entry.has_frame_id()) {
-      location_ids.Append(WriteLocationIfNeeded(FrameId(entry.frame_id()),
-                                                CallsiteAnnotation::kNone));
+      auto frame_id = frame_table.TryCastId(entry.frame_id());
+      if (!frame_id) {
+        return false;
+      }
+      location_ids.Append(
+          WriteLocationIfNeeded(*frame_id, CallsiteAnnotation::kNone));
     }
   }
   return samples_.AddSample(location_ids, values);

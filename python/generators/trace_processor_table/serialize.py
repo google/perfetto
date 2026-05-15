@@ -620,6 +620,16 @@ class {self.table_name} {{
     return RowReference(this, row);
   }}
 
+  // Returns an `Id` for `value` if it refers to a valid row in this table, or
+  // std::nullopt otherwise. Use this whenever turning an untrusted integer
+  // (e.g. from SQL or a decoded proto) into a typed `Id`.
+  std::optional<Id> TryCastId(int64_t value) const {{
+    if (value < 0 || value >= row_count()) {{
+      return std::nullopt;
+    }}
+    return Id{{static_cast<uint32_t>(value)}};
+  }}
+
   ConstCursor CreateCursor(
       std::vector<dataframe::FilterSpec> filters = {{}},
       std::vector<dataframe::SortSpec> sorts = {{}}) const {{

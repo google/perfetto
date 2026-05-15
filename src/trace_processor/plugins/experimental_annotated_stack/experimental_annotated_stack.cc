@@ -161,18 +161,18 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
     return OnFailure(base::ErrStatus("invalid input callsite id"));
   }
 
-  CallsiteId start_id(static_cast<uint32_t>(arguments[0].AsLong()));
-  auto opt_start_ref = cs_table.FindById(start_id);
-  if (!opt_start_ref) {
-    return OnFailure(base::ErrStatus("callsite with id %" PRIu32 " not found",
-                                     start_id.value));
+  auto start_id = cs_table.TryCastId(arguments[0].AsLong());
+  if (!start_id) {
+    return OnFailure(base::ErrStatus("callsite with id %" PRId64 " not found",
+                                     arguments[0].AsLong()));
   }
+  auto start_ref = *cs_table.FindById(*start_id);
 
   // Iteratively walk the parent_id chain to construct the list of callstack
   // entries, each pointing at a frame.
   std::vector<CallsiteTable::RowNumber> cs_rows;
-  cs_rows.push_back(opt_start_ref->ToRowNumber());
-  std::optional<CallsiteId> maybe_parent_id = opt_start_ref->parent_id();
+  cs_rows.push_back(start_ref.ToRowNumber());
+  std::optional<CallsiteId> maybe_parent_id = start_ref.parent_id();
   while (maybe_parent_id) {
     auto parent_ref = *cs_table.FindById(*maybe_parent_id);
     cs_rows.push_back(parent_ref.ToRowNumber());
