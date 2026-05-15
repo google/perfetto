@@ -192,7 +192,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_process_table());
     AddDataframe(out, s->mutable_cpu_table());
     AddDataframe(out, s->mutable_interrupt_mapping_table());
-    AddDataframe(out, s->mutable_sched_slice_table());
+    AddDataframe(out, s->mutable_sched_slice_table(), {{"utid"}});
     AddDataframe(out, s->mutable_thread_state_table());
     AddDataframe(out, s->mutable_track_table());
     AddDataframe(out, s->mutable_counter_table());
