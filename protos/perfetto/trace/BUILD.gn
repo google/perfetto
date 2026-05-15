@@ -76,19 +76,19 @@ minimal_proto_sources = [
 ]
 
 non_minimal_core_proto_sources = [
-  "remote_clock_sync.proto",
-  "trace_packet_defaults.proto",
-  "trace_packet.proto",
-  "trace.proto",
   "extension_descriptor.proto",
+  "remote_clock_sync.proto",
+  "trace.proto",
+  "trace_packet.proto",
+  "trace_packet_defaults.proto",
 ]
 
 non_minimal_extras_proto_sources = [
+  "evdev.proto",
+  "memory_graph.proto",
   "test_event.proto",
   "test_extensions.proto",
-  "memory_graph.proto",
   "ui_state.proto",
-  "evdev.proto",
 ]
 
 # Per-domain trace proto sub-deps that trace_packet.proto's cppgen output
@@ -117,6 +117,7 @@ non_minimal_per_domain_proto_deps = [
 
 perfetto_proto_library("minimal_@TYPE@") {
   sources = minimal_proto_sources
+
   # Only common/builtin_clock.proto is imported (by clock_snapshot.proto);
   # depending on the slim config aggregator avoids leaking the full
   # config closure into trace:zero_minimal -> //src/shared_lib.
@@ -127,6 +128,7 @@ perfetto_proto_library("non_minimal_core_@TYPE@") {
   sources = non_minimal_core_proto_sources
   deps = [
     ":minimal_@TYPE@",
+
     # Only trace_config (minimal) is imported transitively from this
     # target's sources; depending on the slim config aggregator keeps
     # the per-data-source config sub-deps out of the C SDK closure
@@ -150,8 +152,7 @@ perfetto_proto_library("non_minimal_extras_@TYPE@") {
 # per-domain fields can resolve without pulling per-domain deps into the
 # zero-only :non_minimal_core_@TYPE@ that the C SDK closure depends on.
 perfetto_proto_library("non_minimal_full_cpp_only_@TYPE@") {
-  sources =
-      non_minimal_core_proto_sources + non_minimal_extras_proto_sources
+  sources = non_minimal_core_proto_sources + non_minimal_extras_proto_sources
   deps = non_minimal_per_domain_proto_deps + [
            "../config:@TYPE@",
            "interned_data:@TYPE@",
@@ -165,8 +166,7 @@ perfetto_proto_library("non_minimal_full_cpp_only_@TYPE@") {
 }
 
 perfetto_proto_library("lite_only_@TYPE@") {
-  sources =
-      non_minimal_core_proto_sources + non_minimal_extras_proto_sources
+  sources = non_minimal_core_proto_sources + non_minimal_extras_proto_sources
   deps = non_minimal_per_domain_proto_deps + [
            "../config:@TYPE@",
            "interned_data:@TYPE@",

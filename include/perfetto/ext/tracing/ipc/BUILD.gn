@@ -15,6 +15,7 @@
 source_set("ipc") {
   public_deps = [
     "../../base",
+
     # Pull the slim core variant so the C SDK closure (which reaches
     # this target via the system_backend -> tracing/ipc:common ->
     # ext/tracing/ipc chain) doesn't transitively pull

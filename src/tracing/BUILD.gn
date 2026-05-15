@@ -95,6 +95,7 @@ source_set("client_api_without_backends_minimal") {
   public_deps = [
     "../../gn:default_deps",
     "../../include/perfetto/tracing:tracing_minimal",
+
     # The .h surfaces of these proto deps are reachable from the
     # console_interceptor.cc / track_event_*.cc sources in the
     # :client_api_without_backends wrapper that depends on this target,

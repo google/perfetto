@@ -46,6 +46,7 @@ source_set("core_minimal") {
 source_set("core") {
   public_deps = [
     ":core_minimal",
+
     # Full proto / include surface that consumers (trace_processor,
     # perfetto_cmd, etc.) expect transitively from this header set.
     "../../../../../protos/perfetto/common:cpp",

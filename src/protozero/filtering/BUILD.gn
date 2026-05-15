@@ -42,6 +42,7 @@ source_set("message_filter_config") {
     ":message_filter",
     ":string_filter",
     "../../../gn:default_deps",
+
     # Only TraceConfig / TracePerfettoConfig types are used; the
     # per-data-source config sub-deps that come with the full :cpp
     # group aren't needed here, and depending on :minimal_cpp keeps
