@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DataExplorerState} from './data_explorer';
-import {QueryNode, NodeType, ensureCounterAbove} from './query_node';
+import type {DataExplorerState} from './data_explorer';
+import {type QueryNode, NodeType, ensureCounterAbove} from './query_node';
 import {getAllNodes as getAllNodesUtil} from './query_builder/graph_utils';
-import {Trace} from '../../public/trace';
-import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
+import type {Trace} from '../../public/trace';
+import type {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {nodeRegistry} from './query_builder/node_registry';
 import {restoreLegacySecondaryInputs} from './query_builder/legacy_connections';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   parsePerfettoSqlTypeFromString,
 } from '../../trace_processor/perfetto_sql_type';
-import {ColumnInfo} from './query_builder/column_info';
+import type {ColumnInfo} from './query_builder/column_info';
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {

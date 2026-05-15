@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, NodeActions} from './query_node';
+import type {QueryNode, NodeActions} from './query_node';
 
 // Handler functions that NodeActions delegates to.
 export interface NodeActionHandlers {

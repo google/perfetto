@@ -13,12 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
+import {
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
 import protos from '../../../../protos';
-import {ColumnInfo, newColumnInfo} from '../column_info';
+import {type ColumnInfo, newColumnInfo} from '../column_info';
 import {NodeIssues} from '../node_issues';
 import {OutlinedField} from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {loadNodeDoc} from '../node_doc_loader';
 import {
@@ -29,7 +34,7 @@ import {
 } from '../node_styling_widgets';
 import {isNumericType} from '../utils';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   perfettoSqlTypeToString,
 } from '../../../../trace_processor/perfetto_sql_type';
 import {assertUnreachable} from '../../../../base/assert';

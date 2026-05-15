@@ -16,11 +16,11 @@ import m from 'mithril';
 import z from 'zod';
 import {DisposableStack} from '../../base/disposable_stack';
 import {toHTMLElement} from '../../base/dom_utils';
-import {Rect2D} from '../../base/geom';
+import type {Rect2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
 import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {
@@ -37,8 +37,8 @@ import {
   TRACK_MIN_HEIGHT_SETTING,
 } from './track_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
-import {Flag} from '../../public/feature_flag';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Flag} from '../../public/feature_flag';
+import type {PerfettoPlugin} from '../../public/plugin';
 
 const MIN_TRACK_SHELL_WIDTH = 100;
 const MAX_TRACK_SHELL_WIDTH = 1000;

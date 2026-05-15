@@ -12,6 +12,12 @@ Unreleased:
    *
 
 
+v55.2 - 2026-05-14:
+  Trace Processor:
+    * Fix classic HTTP server command line parsing on Windows. This fixes
+      breakage of the Python API on Windows.
+
+
 v55.1 - 2026-05-13:
   Infra:
     * Fix build of prebuilts on Windows.

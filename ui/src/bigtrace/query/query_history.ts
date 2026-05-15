@@ -16,7 +16,10 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {Button} from '../../widgets/button';
 import {Stack} from '../../widgets/stack';
-import {queryHistoryStorage, QueryHistoryEntry} from './query_history_storage';
+import {
+  queryHistoryStorage,
+  type QueryHistoryEntry,
+} from './query_history_storage';
 
 interface QueryHistoryComponentAttrs {
   readonly className?: string;

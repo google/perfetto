@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import {
-  AggregatePivotModel,
-  Aggregation,
-  Aggregator,
+  type AggregatePivotModel,
+  type Aggregation,
+  type Aggregator,
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
+import type {AreaSelection} from '../../public/selection';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';

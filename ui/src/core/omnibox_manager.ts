@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import {
+import type {
   OmniboxManager,
   OmniboxModeDescriptor,
   PromptChoices,

@@ -14,9 +14,9 @@
 
 import {
   MetricsNode,
-  MetricsNodeAttrs,
-  MetricsNodeState,
-  ValueColumnConfig,
+  type MetricsNodeAttrs,
+  type MetricsNodeState,
+  type ValueColumnConfig,
 } from './metrics_node';
 import {parseMetricBundleForValue} from './metrics_export_modal';
 import {NodeType} from '../../query_node';

@@ -425,18 +425,6 @@ source_set("tar_writer") {
   ]
 }
 
-source_set("winscope_proto_mapping") {
-  sources = [ "winscope_proto_mapping.h" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
-    "../containers",
-    "../core/dataframe",
-    "../storage:storage",
-    "../tables",
-  ]
-}
-
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",

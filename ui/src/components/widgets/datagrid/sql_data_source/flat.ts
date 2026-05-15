@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import {
-  QueryResult,
+  type QueryResult,
   QuerySlot,
-  SerialTaskQueue,
+  type SerialTaskQueue,
 } from '../../../../base/query_slot';
-import {Engine} from '../../../../trace_processor/engine';
-import {NUM, Row} from '../../../../trace_processor/query_result';
+import type {Engine} from '../../../../trace_processor/engine';
+import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
-import {DataSourceRows, FlatModel} from '../data_source';
-import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
+import type {DataSourceRows, FlatModel} from '../data_source';
+import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
 
 export class SQLDataSourceFlat {

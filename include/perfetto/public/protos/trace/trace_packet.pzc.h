@@ -34,6 +34,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidUserList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockBundle);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ArtProcessMetadata);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BluetoothTraceEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeBenchmarkMetadata);
@@ -310,6 +311,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_StreamingProfilePacket,
                   streaming_profile_packet,
                   54);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_ArtProcessMetadata,
+                  art_process_metadata,
+                  131);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_HeapGraph,

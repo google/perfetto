@@ -17,11 +17,11 @@ import {uuidv4} from '../../../base/uuid';
 import {deferChunkedTask} from '../../../base/chunked_task';
 import {NUM, NUM_NULL, STR} from '../../../trace_processor/query_result';
 import {WasmEngineProxy} from '../../../trace_processor/wasm_engine_proxy';
-import {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
+import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {createAdbTracingSession} from '../../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
-import {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
-import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
-import {ConnectionResult} from '../views/connection';
+import type {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
+import type {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
+import type {ConnectionResult} from '../views/connection';
 
 const SNAPSHOT_INTERVAL_MS = 3_000; // How over to take a snapshot of the runnign trace and extract data.
 const INITIAL_SNAPSHOT_INTERVAL_MS = 1_000; // Use a shorter interval for the first snapshot to get data on screen faster.

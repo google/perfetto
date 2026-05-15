@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
-import {SourceDataset} from '../../trace_processor/dataset';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
+import type {SourceDataset} from '../../trace_processor/dataset';
 import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
@@ -23,7 +23,7 @@ import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
-import {RowSchema} from './slice_track';
+import type {RowSchema} from './slice_track';
 import {exists} from '../../base/utils';
 import {Time} from '../../base/time';
 

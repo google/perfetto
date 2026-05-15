@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row as DataGridRow} from '../../trace_processor/query_result';
-import {SettingFilter} from '../settings/settings_types';
+import type {Row as DataGridRow} from '../../trace_processor/query_result';
+import type {SettingFilter} from '../settings/settings_types';
 
 export class HttpDataSource {
   private static readonly DEFAULT_LIMIT = 1000000;

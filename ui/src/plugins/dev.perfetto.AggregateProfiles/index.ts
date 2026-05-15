@@ -14,16 +14,16 @@
 
 import m from 'mithril';
 
-import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {AggregateProfilesPage} from './aggregate_profiles_page';
 import {
-  AggregateProfilesPageState,
+  type AggregateProfilesPageState,
   AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
 } from './types';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {assertExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {

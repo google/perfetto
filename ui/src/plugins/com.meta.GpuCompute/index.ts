@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
-import {Engine} from '../../trace_processor/engine';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {Engine} from '../../trace_processor/engine';
 import {KernelMetricsSection, fetchSelectedKernelMetricData} from './details';
-import {TrackEventSelection} from '../../public/selection';
+import type {TrackEventSelection} from '../../public/selection';
 import {renderToolbar} from './toolbar';
 import type {InfoTab} from './toolbar';
 import type {
@@ -36,9 +36,9 @@ import {openclTerminology} from './terminology/opencl';
 import {TerminologyRegistry} from './terminology';
 import {SectionRegistry} from './section';
 import {
-  PerformanceAnalysisResult,
-  AnalysisCache,
-  AnalysisProvider,
+  type PerformanceAnalysisResult,
+  type AnalysisCache,
+  type AnalysisProvider,
   AnalysisProviderHolder,
 } from './analysis';
 import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';

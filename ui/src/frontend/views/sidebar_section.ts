@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
-import {AppImpl} from '../../core/app_impl';
-import {SidebarMenuItemInternal} from '../../core/sidebar_manager';
+import type {AppImpl} from '../../core/app_impl';
+import type {SidebarMenuItemInternal} from '../../core/sidebar_manager';
 import {SidebarItem} from './sidebar_item';
 
 export interface SidebarSectionAttrs {

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
@@ -23,7 +23,7 @@ import {
 } from '../../components/tracks/breakdown_tracks';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
-import {TimeSpan} from '../../base/time';
+import type {TimeSpan} from '../../base/time';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
   LONG,

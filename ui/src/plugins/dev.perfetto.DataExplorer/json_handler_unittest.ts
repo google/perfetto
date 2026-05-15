@@ -14,14 +14,18 @@
 
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {ModifyColumnsNode} from './query_builder/nodes/modify_columns_node';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
-import {serializeState, deserializeState, SerializedNode} from './json_handler';
-import {Trace} from '../../public/trace';
 import {
+  serializeState,
+  deserializeState,
+  type SerializedNode,
+} from './json_handler';
+import type {Trace} from '../../public/trace';
+import type {
   SqlModules,
   SqlTable,
 } from '../../plugins/dev.perfetto.SqlModules/sql_modules';
@@ -32,10 +36,10 @@ import {FilterNode} from './query_builder/nodes/filter_node';
 import {JoinNode} from './query_builder/nodes/join_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../trace_processor/perfetto_sql_type';
-import {NodeType} from './query_node';
+import {NodeType, type QueryNode} from './query_node';
 import {
   addConnection,
   removeConnection,
@@ -43,7 +47,7 @@ import {
   applyGroupRewiring,
   getAllNodes,
 } from './query_builder/graph_utils';
-import {ColumnInfo} from './query_builder/column_info';
+import type {ColumnInfo} from './query_builder/column_info';
 import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
 import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
 import {Time} from '../../base/time';
@@ -3075,7 +3079,7 @@ describe('JSON serialization/deserialization', () => {
     const json = serializeState(initialState);
     const deserialized = deserializeState(json, trace, sqlModules);
 
-    const allNodes = new Map<string, import('./query_node').QueryNode>();
+    const allNodes = new Map<string, QueryNode>();
     const queue = [...deserialized.rootNodes];
     while (queue.length > 0) {
       const node = queue.shift()!;

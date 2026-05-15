@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FilterDuringNode, FilterDuringNodeAttrs} from './filter_during_node';
-import {NodeType, QueryNode} from '../../query_node';
+import {
+  FilterDuringNode,
+  type FilterDuringNodeAttrs,
+} from './filter_during_node';
+import {NodeType, type QueryNode} from '../../query_node';
 import {
   createMockNodeWithStructuredQuery,
   createMockIntervalNode,

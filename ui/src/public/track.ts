@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {duration, time} from '../base/time';
-import {Size2D, VerticalBounds} from '../base/geom';
-import {TimeScale} from '../base/time_scale';
-import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {TrackEventDetailsPanel} from './details_panel';
-import {TrackEventDetails, TrackEventSelection} from './selection';
-import {SourceDataset} from '../trace_processor/dataset';
-import {TrackNode} from './workspace';
-import {CanvasColors} from './canvas_colors';
-import {Renderer} from '../base/renderer';
+import type m from 'mithril';
+import type {duration, time} from '../base/time';
+import type {Size2D, VerticalBounds} from '../base/geom';
+import type {TimeScale} from '../base/time_scale';
+import type {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import type {TrackEventDetailsPanel} from './details_panel';
+import type {TrackEventDetails, TrackEventSelection} from './selection';
+import type {SourceDataset} from '../trace_processor/dataset';
+import type {TrackNode} from './workspace';
+import type {CanvasColors} from './canvas_colors';
+import type {Renderer} from '../base/renderer';
 
 /**
  * Represents a snap point for the snap-to-boundaries feature.

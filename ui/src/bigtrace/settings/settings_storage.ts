@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {
+import type {
   Setting,
   SettingDescriptor,
   SettingsManager,

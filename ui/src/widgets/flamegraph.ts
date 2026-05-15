@@ -32,12 +32,15 @@ import {TagInput} from './tag_input';
 import {TextInput} from './text_input';
 import {Tooltip} from './tooltip';
 import {z} from 'zod';
-import {Rect2D, Size2D} from '../base/geom';
-import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
-import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
-import {Color, HSLColor} from '../base/color';
+import type {Rect2D, Size2D} from '../base/geom';
+import {
+  VirtualOverlayCanvas,
+  type VirtualOverlayCanvasApi,
+} from './virtual_overlay_canvas';
+import {MenuItem, type MenuItemAttrs, PopupMenu} from './menu';
+import {type Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
-import {MithrilEvent} from '../base/mithril_utils';
+import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 
 const LABEL_FONT_STYLE = '12px Roboto';
@@ -363,6 +366,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
+  private canvasApi?: VirtualOverlayCanvasApi;
+  private pendingScrollToY?: number;
 
   private renderNodesMonitor = new Monitor([
     () => this.attrs.data,
@@ -394,12 +399,41 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     this.attrs = attrs;
   }
 
+  oncreate() {
+    this.flushPendingScroll();
+  }
+
+  onupdate() {
+    this.flushPendingScroll();
+  }
+
+  private flushPendingScroll() {
+    if (this.pendingScrollToY === undefined || this.canvasApi === undefined) {
+      return;
+    }
+    this.canvasApi.scrollTo({y: this.pendingScrollToY});
+    this.pendingScrollToY = undefined;
+  }
+
   view({attrs}: m.Vnode<FlamegraphAttrs, this>): void | m.Children {
     this.attrs = attrs;
     if (this.dataChangeMonitor.ifStateChanged()) {
       this.zoomRegion = undefined;
       this.lastClickedNode = undefined;
       this.tooltipPos = undefined;
+      // Auto-scroll so the root (depth 0) is visible. In TOP_DOWN the root
+      // sits at the top of the canvas; in BOTTOM_UP it sits near the bottom
+      // (only callers/leaves above it); in PIVOT it sits somewhere in the
+      // middle with callers above and callees below.
+      if (attrs.data !== undefined) {
+        if (attrs.state.view.kind === 'BOTTOM_UP') {
+          // Large value — the browser clamps to scrollHeight - clientHeight.
+          this.pendingScrollToY = Number.MAX_SAFE_INTEGER;
+        } else {
+          const rootY = -attrs.data.minDepth * NODE_HEIGHT;
+          this.pendingScrollToY = Math.max(0, rootY - NODE_HEIGHT);
+        }
+      }
     }
     if (attrs.data === undefined) {
       return m(
@@ -436,6 +470,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
+          onMount: (api) => {
+            this.canvasApi = api;
+          },
           onscroll: (e: MithrilEvent<Event>) => {
             // Only redraw if popup visibility would change
             if (!this.tooltipPos) {

@@ -13,18 +13,21 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {RecordingManager} from '../recording_manager';
+import type {RecordingManager} from '../recording_manager';
 import {Icon} from '../../../widgets/icon';
-import {RecordSubpage, supportsPlatform} from '../config/config_interfaces';
+import {
+  type RecordSubpage,
+  supportsPlatform,
+} from '../config/config_interfaces';
 import {Probe} from './probe_renderer';
 import {Button} from '../../../widgets/button';
 import {classNames} from '../../../base/classnames';
 import {showModal} from '../../../widgets/modal';
 import {BUCKET_NAME} from '../../../base/gcs_uploader';
-import {RecordingTarget} from '../interfaces/recording_target';
+import type {RecordingTarget} from '../interfaces/recording_target';
 import {exists} from '../../../base/utils';
 import {SHARE_SUBPAGE} from '../config/config_sharing';
-import {App} from '../../../public/app';
+import type {App} from '../../../public/app';
 import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';

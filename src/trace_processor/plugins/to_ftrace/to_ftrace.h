@@ -23,7 +23,7 @@
 #include <optional>
 #include <vector>
 
-#include "perfetto/ext/base/fixed_string_writer.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -34,7 +34,7 @@ namespace perfetto::trace_processor {
 
 class SystraceSerializer {
  public:
-  using ScopedCString = std::unique_ptr<char, void (*)(void*)>;
+  using ScopedCString = base::DynamicStringWriter::ScopedCString;
 
   explicit SystraceSerializer(TraceProcessorContext* context);
 
@@ -44,12 +44,13 @@ class SystraceSerializer {
   using StringIdMap =
       base::FlatHashMap<StringId, std::vector<std::optional<uint32_t>>>;
 
-  void SerializePrefix(uint32_t raw_row, base::FixedStringWriter* writer);
+  void SerializePrefix(uint32_t raw_row, base::DynamicStringWriter* writer);
 
   StringIdMap proto_id_to_arg_index_by_event_;
   const TraceStorage* storage_ = nullptr;
   TraceProcessorContext* context_ = nullptr;
   tables::ArgTable::ConstCursor cursor_;
+  base::DynamicStringWriter line_writer_;
 };
 
 struct ToFtrace : public sqlite::Function<ToFtrace> {

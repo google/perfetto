@@ -15,12 +15,12 @@
 import {assertExists} from '../base/assert';
 import {Duration} from '../base/time';
 import {TimeScale} from '../base/time_scale';
-import {Track, TrackRenderContext} from '../public/track';
+import type {Track, TrackRenderContext} from '../public/track';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {TrackManagerImpl} from '../core/track_manager';
 import {TrackNode} from '../public/workspace';
-import {Renderer} from '../base/renderer';
+import type {Renderer} from '../base/renderer';
 
 interface MockTrack {
   render: jest.Mock;

@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {STR, NUM, LONG, UNKNOWN} from '../../trace_processor/query_result';
-import {Dataset, UnionDatasetWithLineage} from '../../trace_processor/dataset';
+import {
+  type Dataset,
+  UnionDatasetWithLineage,
+} from '../../trace_processor/dataset';
 
 const RELATION_SCHEMA = {
   id: NUM,

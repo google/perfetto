@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {
-  ColumnInfo,
+  type ColumnInfo,
   columnInfoFromSqlColumn,
   newColumnInfo,
 } from './column_info';
-import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../trace_processor/perfetto_sql_type';
 

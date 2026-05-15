@@ -19,14 +19,14 @@ import {
   NUM_NULL,
   STR,
 } from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {Time} from '../../base/time';
-import {App} from '../../public/app';
-import {RouteArgs} from '../../public/route_schema';
+import type {App} from '../../public/app';
+import type {RouteArgs} from '../../public/route_schema';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 const ANR_TRACK_URI = '/android_anrs';

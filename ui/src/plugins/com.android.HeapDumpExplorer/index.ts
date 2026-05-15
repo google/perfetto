@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import HeapProfilePlugin, {
   traceHasTimelineData,

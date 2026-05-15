@@ -15,11 +15,11 @@
 import {
   AggregationNode,
   placeholderNewColumnName,
-  Aggregation,
-  AggregationNodeAttrs,
+  type Aggregation,
+  type AggregationNodeAttrs,
 } from './aggregation_node';
-import {Trace} from '../../../../public/trace';
-import {QueryNode} from '../../query_node';
+import type {Trace} from '../../../../public/trace';
+import type {QueryNode} from '../../query_node';
 import {
   createMockNode,
   createColumnInfo,
