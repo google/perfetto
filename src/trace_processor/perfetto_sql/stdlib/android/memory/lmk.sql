@@ -137,7 +137,7 @@ AS
 SELECT
   ts,
   process.upid,
-  evt.pid,
+  cast_int!(evt.pid) AS pid,
   process.name AS process_name,
   oom_score_adj,
   _android_lmk_kill_reason_string(kill_reason_raw) AS kill_reason,
