@@ -12,74 +12,124 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
-# The core config protos, without the [lazy = true] imports pulled by
-# data_source_config.proto.
+# Config protos are split across three libraries (see
+# protos/perfetto/common/BUILD.gn for a full explanation of the same
+# pattern):
+#
+#   :minimal_@TYPE@     — sources reachable from the C SDK closure under
+#                         src/{shared_lib,tracing}/, plus the always-needed
+#                         deps. data_source_config.proto is in this set;
+#                         its [lazy=true] fields for per-data-source
+#                         configs (FtraceConfig, AndroidLogConfig,
+#                         GpuCounterConfig, ...) are honored by cppgen, so
+#                         the C SDK's .gen.h doesn't pull those in.
+#                         Generates zero + cpp only.
+#
+#   :non_minimal_@TYPE@ — chrome-only configs reachable only via
+#                         [lazy=true] fields and the per-data-source
+#                         config sub-deps. Generates zero + cpp only.
+#
+#   :lite_only_@TYPE@   — full source set + all sub-deps; generates lite
+#                         only. Lite is upstream protobuf's standard cpp
+#                         generator and emits unconditional #includes for
+#                         every typed import, including [lazy=true]
+#                         referents. Keeping all sources + deps in a
+#                         single library avoids cross-library .pb.h
+#                         cycles.
 
+minimal_proto_sources = [
+  "chrome/chrome_config.proto",  # non-lazy ChromeConfig field on
+                                 # data_source_config
+  "data_source_config.proto",
+  "interceptor_config.proto",
+  "test_config.proto",  # non-lazy `for_testing` field
+  "trace_config.proto",
+]
+
+non_minimal_proto_sources = [
+  "chrome/histogram_samples.proto",  # ChromiumHistogramSamplesConfig (lazy)
+  "chrome/scenario_config.proto",  # no importers
+  "chrome/system_metrics.proto",  # ChromiumSystemMetricsConfig (lazy)
+  "chrome/v8_config.proto",  # V8Config (lazy)
+  "etw/etw_config.proto",  # EtwConfig (lazy)
+  "stress_test_config.proto",  # no importers
+]
+
+minimal_proto_deps = [
+  "../common:@TYPE@",
+  "../common:semantic_type_@TYPE@",
+  "interceptors:@TYPE@",
+  "priority_boost:@TYPE@",
+  "protovm:@TYPE@",
+  "system_info:@TYPE@",
+  "track_event:@TYPE@",
+]
+
+non_minimal_proto_deps = [
+  "android:@TYPE@",
+  "ftrace:@TYPE@",
+  "gpu:@TYPE@",
+  "inode_file:@TYPE@",
+  "power:@TYPE@",
+  "process_stats:@TYPE@",
+  "profiling:@TYPE@",
+  "qnx:@TYPE@",
+  "statsd:@TYPE@",
+  "sys_stats:@TYPE@",
+]
+
+perfetto_proto_library("minimal_@TYPE@") {
+  sources = minimal_proto_sources
+  deps = minimal_proto_deps
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+}
+
+perfetto_proto_library("non_minimal_@TYPE@") {
+  sources = non_minimal_proto_sources
+  deps = non_minimal_proto_deps
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+}
+
+perfetto_proto_library("lite_only_@TYPE@") {
+  sources = minimal_proto_sources + non_minimal_proto_sources
+  deps = minimal_proto_deps + non_minimal_proto_deps
+  proto_generators = [ "lite" ]
+}
+
+group("zero") {
+  public_deps = [
+    ":minimal_zero",
+    ":non_minimal_zero",
+  ]
+}
+
+group("cpp") {
+  public_deps = [
+    ":minimal_cpp",
+    ":non_minimal_cpp",
+  ]
+}
+
+group("lite") {
+  public_deps = [ ":lite_only_lite" ]
+}
+
+# Aggregator that produces the :source_set sub-target (union of .proto
+# files) and the :descriptor target. The descriptor includes the full
+# transitive proto graph, so it depends on :lite_only_@TYPE@ which has
+# every source.
 perfetto_proto_library("@TYPE@") {
-  # Always-needed deps for the C SDK closure under src/{shared_lib,tracing}/.
-  # Only the configs whose pbzero/gen headers are actually #included by SDK
-  # code (or referenced by a non-`[lazy=true]` field reachable from
-  # data_source_config / trace_config) need to be in this list.
-  deps = [
-    "../common:@TYPE@",
-    "../common:semantic_type_@TYPE@",
-    "interceptors:@TYPE@",
-    "priority_boost:@TYPE@",
-    "protovm:@TYPE@",
-    "system_info:@TYPE@",
-    "track_event:@TYPE@",
-  ]
-
-  # Per-data-source config protos (FtraceConfig, AndroidLogConfig,
-  # GpuCounterConfig, ...). data_source_config.proto declares these as
-  # `[lazy = true]` fields, which means cppgen treats them as opaque bytes
-  # and never #includes the corresponding .gen.h files (see the matching
-  # transitive lazy-import skip in src/protozero/protoc_plugin/cppgen_plugin.cc).
-  # Drop them under the minimal-protos flag — the C SDK never instantiates
-  # the typed accessors on those fields. ~700 KB of generated code drops out
-  # of the amalgamated SDK source.
-  if (!enable_perfetto_minimal_trace_protos) {
-    deps += [
-      "android:@TYPE@",
-      "ftrace:@TYPE@",
-      "gpu:@TYPE@",
-      "inode_file:@TYPE@",
-      "power:@TYPE@",
-      "process_stats:@TYPE@",
-      "profiling:@TYPE@",
-      "qnx:@TYPE@",
-      "statsd:@TYPE@",
-      "sys_stats:@TYPE@",
-    ]
-  }
-
-  sources = [
-    "chrome/chrome_config.proto",  # non-lazy ChromeConfig field on
-                                   # data_source_config
-    "data_source_config.proto",
-    "interceptor_config.proto",
-    "test_config.proto",  # non-lazy `for_testing` field
-    "trace_config.proto",
-  ]
-
-  # Per-data-source / chrome-only configs reachable only via [lazy = true]
-  # fields on data_source_config or via not-importer-of-anything-kept
-  # paths. With cppgen's transitive lazy-import skip, the SDK closure no
-  # longer pulls these in at the .gen.h level.
-  if (!enable_perfetto_minimal_trace_protos) {
-    sources += [
-      "chrome/histogram_samples.proto",  # ChromiumHistogramSamplesConfig (lazy)
-      "chrome/scenario_config.proto",  # no importers
-      "chrome/system_metrics.proto",  # ChromiumSystemMetricsConfig (lazy)
-      "chrome/v8_config.proto",  # V8Config (lazy)
-      "etw/etw_config.proto",  # EtwConfig (lazy)
-      "stress_test_config.proto",  # no importers
-    ]
-  }
-
+  proto_generators = []
+  deps = [ ":lite_only_@TYPE@" ]
+  sources = []
   generate_descriptor = "config.descriptor"
   generator_visibility = [ "../../../src/proto_utils:gen_cc_config_descriptor" ]
   descriptor_root_source = "trace_config.proto"
