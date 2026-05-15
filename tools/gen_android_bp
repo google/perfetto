@@ -163,7 +163,6 @@ proto_groups = {
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',
             '//protos/perfetto/trace/android:winscope_extensions_source_set',
-            '//protos/perfetto/trace/android:android_track_event_source_set',
         ]
     },
     'config': {
@@ -178,12 +177,6 @@ proto_groups = {
         'types': ['filegroup'],
         'targets': ['//protos/perfetto/trace_summary:source_set',]
     },
-    'trace_android_track_event_extension': {
-        'types': ['lite'],
-        'targets': [
-            '//protos/perfetto/trace/android:android_track_event_source_set',
-        ]
-    }
 }
 
 needs_libfts = [
@@ -1222,6 +1215,7 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       module.proto = {'type': 'lite', 'canonical_path_from_root': False}
       module.srcs = module_sources
       module.host_supported = True
+      module.sdk_version = 'current'
       blueprint.add_module(module)
     elif type == 'python':
       name = label_to_module_name(module_name) + '_python_protos'

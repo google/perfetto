@@ -155,6 +155,10 @@ export interface BreakdownTrackProps {
    * Optional custom details panel for the slice tracks.
    */
   detailsPanel?: (trace: Trace) => TrackEventDetailsPanel;
+  /**
+   * Optional description for the root track.
+   */
+  description?: string;
 }
 
 interface Filter {
@@ -491,6 +495,8 @@ export class BreakdownTracks {
     this.props.trace.tracks.registerTrack({
       uri,
       renderer,
+      ...(filters.length === 0 &&
+        this.props.description && {description: this.props.description}),
     });
 
     let sortOrder: number | undefined;

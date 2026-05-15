@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
+import type {ToolRegistry} from './tool_registry';
 import {z} from 'zod';
 import type {Trace} from '../../public/trace';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {Time} from '../../base/time';
 import {assertTrue} from '../../base/assert';
 
-export function registerUiTools(server: McpServer, ctxt: Trace) {
+export function registerUiTools(server: ToolRegistry, ctxt: Trace) {
   server.tool(
     'show-perfetto-sql-view',
     `Shows a SQL query in the Perfetto SQL view.`,

@@ -13,29 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import type {
-  Chat,
-  GenerateContentResponse,
-  GenerateContentResponseUsageMetadata,
-} from '@google/genai';
 import type {Trace} from '../../public/trace';
 import {TextInput} from '../../widgets/text_input';
 import markdownit from 'markdown-it';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import type {Setting} from '../../public/settings';
-
-// Interface for a single message in the chat display
+import type {GeminiChat, GeminiUsage} from './gemini_client';
 
 interface ChatMessage {
   role: 'ai' | 'user' | 'error' | 'thought' | 'toolcall' | 'spacer';
   text: string;
 }
 
-// Interface for the component's attributes/properties
 export interface ChatPageAttrs {
   readonly trace: Trace;
-  readonly chat: Chat;
+  readonly chat: GeminiChat;
   readonly showThoughts: Setting<boolean>;
   readonly showTokens: Setting<boolean>;
 }
@@ -46,9 +39,9 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   private isLoading: boolean;
   private showThoughts: Setting<boolean>;
   private showTokens: Setting<boolean>;
-  private readonly chat: Chat;
+  private readonly chat: GeminiChat;
   private md: markdownit;
-  private usage?: GenerateContentResponseUsageMetadata;
+  private usage?: GeminiUsage;
 
   constructor({attrs}: m.CVnode<ChatPageAttrs>) {
     this.chat = attrs.chat;
@@ -65,51 +58,17 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
     ];
   }
 
-  async processResponse(response: GenerateContentResponse) {
-    if (this.showThoughts.get()) {
-      const candidateParts = response.candidates?.[0]?.content?.parts;
-      if (candidateParts !== undefined) {
-        candidateParts.forEach((part) => {
-          if (part.thought) {
-            this.messages.push({
-              role: 'thought',
-              text: part.text ?? 'unprintable',
-            });
-          } else if (part.functionCall) {
-            this.messages.push({
-              role: 'toolcall',
-              text: part.functionCall?.name ?? 'unprintable',
-            });
-          }
-        });
-      }
-    }
-
-    if (response.text !== undefined) {
-      this.updateAiResponse(response.text);
-    }
-
-    if (response.usageMetadata) {
-      this.usage = response.usageMetadata;
-    }
-
-    m.redraw();
-  }
-
-  updateAiResponse(text: string) {
-    const lastResponse = this.messages[this.messages.length - 1];
-    if (lastResponse.role == 'ai') {
-      lastResponse.text += text;
-      this.messages[this.messages.length - 1] = lastResponse;
+  private appendAiText(text: string) {
+    const last = this.messages[this.messages.length - 1];
+    if (last !== undefined && last.role === 'ai') {
+      last.text += text;
     } else {
-      this.messages.push({role: 'ai', text: text});
+      this.messages.push({role: 'ai', text});
     }
   }
 
   sendMessage = async () => {
     const trimmedInput = this.userInput.trim();
-
-    // Prevent sending empty messages or sending while a request is in flight
     if (trimmedInput === '' || this.isLoading) return;
 
     this.messages.push({role: 'user', text: trimmedInput});
@@ -118,14 +77,32 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
     m.redraw();
 
     try {
-      const responseStream = await this.chat.sendMessageStream({
-        message: trimmedInput,
-      });
-
-      for await (const part of responseStream) {
-        this.processResponse(part);
+      for await (const evt of this.chat.sendMessage(trimmedInput)) {
+        switch (evt.type) {
+          case 'text':
+            this.appendAiText(evt.text);
+            break;
+          case 'thought':
+            if (this.showThoughts.get()) {
+              this.messages.push({role: 'thought', text: evt.text});
+            }
+            break;
+          case 'toolcall':
+            if (this.showThoughts.get()) {
+              this.messages.push({role: 'toolcall', text: evt.name});
+            }
+            // After a tool call, the next AI text belongs to a new turn.
+            this.messages.push({role: 'spacer', text: ''});
+            break;
+          case 'toolresult':
+            // No-op for now; could surface errors here.
+            break;
+          case 'usage':
+            this.usage = evt.usage;
+            break;
+        }
+        m.redraw();
       }
-
       this.messages.push({role: 'spacer', text: ''});
       m.redraw();
     } catch (error) {
@@ -135,29 +112,24 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
         text: 'Sorry, something went wrong. ' + error,
       });
     } finally {
-      // Stop loading whether the request succeeded or failed
       this.isLoading = false;
       m.redraw();
     }
   };
 
   view() {
-    // We return a fragment (an array) containing the style and the chat container.
     return m(
       '.pf-ai-chat-panel',
       m(
         '.pf-ai-chat-panel__conversation',
         {
-          // This onupdate hook automatically scrolls to the bottom
-          // whenever the messages are updated.
           onupdate: (vnode: m.VnodeDOM) => {
             const element = vnode.dom as HTMLElement;
             element.scrollTop = element.scrollHeight;
           },
         },
-        // Map through messages and apply a class based on the role for styling
         this.messages.map((msg) => {
-          if (!msg.text && msg.role !== 'spacer') return null; // Don't render empty messages
+          if (!msg.text && msg.role !== 'spacer') return null;
           let role = 'other';
           switch (msg.role) {
             case 'ai':

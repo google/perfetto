@@ -170,12 +170,6 @@ proto_groups = {
         'sources': ['//protos/perfetto/trace_summary:source_set',],
         'visibility': ['//visibility:public'],
     },
-    'trace_android_track_event_extension': {
-        'sources': [
-            '//protos/perfetto/trace/android:android_track_event_source_set',
-        ],
-        'visibility': [],
-    },
     'proto_filter_options': {
         'sources': ['//protos/perfetto/proto_filtering:source_set'],
         'visibility': [],
@@ -248,7 +242,6 @@ external_java_android_sdk_deps: Dict[str, List[str]] = {
 additional_java_android_sdk_deps: Dict[str, List[str]] = {
     '//src/android_sdk/java/test:perfetto_trace_test_lib': [
         ':trace_java_proto_lite',
-        ':trace_android_track_event_extension_java_proto_lite',
     ],
 }
 

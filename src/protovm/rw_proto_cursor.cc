@@ -261,7 +261,7 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
       // Implements remove submessage semantics: empty src field means delete
       // the dst field
       message->field_id_to_node.Remove(*it);
-      allocator_->Delete(&GetOuterNode(*it));
+      allocator_->Delete(&*it);
       continue;
     }
 
@@ -337,7 +337,7 @@ StatusOr<void> RwProtoCursor::Delete() {
   PERFETTO_DCHECK(parent_link_.map_node);
 
   parent_link_.map->Remove(*parent_link_.map_node);
-  allocator_->Delete(&GetOuterNode(*parent_link_.map_node));
+  allocator_->Delete(parent_link_.map_node);
 
   // Delete operation invalidates cursor
   node_ = nullptr;
@@ -626,22 +626,18 @@ StatusOr<IntrusiveMap::Iterator> RwProtoCursor::MapInsert(
     uint64_t key,
     OwnedPtr<Node> map_value) {
   auto status_or_map_node =
-      allocator_->CreateNode<Node::MapNode>(key, std::move(map_value));
-  if (!status_or_map_node.IsOk()) {
-    allocator_->Delete(map_value.release());
-    PROTOVM_RETURN(status_or_map_node, "Failed to allocate node");
-  }
+      allocator_->CreateMapNode(key, std::move(map_value));
+  PROTOVM_RETURN_IF_NOT_OK(status_or_map_node, "Failed to allocate node");
 
-  auto [it, inserted] =
-      map->Insert(*status_or_map_node->release()->GetIf<Node::MapNode>());
+  auto [it, inserted] = map->Insert(*status_or_map_node->get());
   if (!inserted) {
-    allocator_->Delete(map_value.release());
     allocator_->Delete(status_or_map_node->release());
     PROTOVM_ABORT(
         "Failed to insert intrusive map entry (key = %d). Duplicated key?",
         static_cast<int>(key));
   }
 
+  status_or_map_node->release();
   return it;
 }
 
