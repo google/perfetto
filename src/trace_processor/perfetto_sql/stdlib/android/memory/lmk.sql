@@ -116,6 +116,35 @@ FROM _kill_one_process_events
 WHERE
   (SELECT s FROM selector) = '_kill_one_process_events';
 
+-- Resolves the upid for a given pid and timestamp.
+-- Uses the same logic as _android_bitmap_resolve_sender_upid to handle ambiguities.
+CREATE PERFETTO FUNCTION _android_lmk_resolve_upid(
+  -- Pid of the process.
+  pid LONG,
+  -- Timestamp of the event.
+  at_ts TIMESTAMP
+)
+-- The `process.upid` whose lifetime covers `at_ts`, or NULL if no match.
+RETURNS LONG
+AS
+WITH
+  process_lifetime AS (
+    SELECT
+      pid,
+      upid,
+      coalesce(start_ts, trace_start()) AS start_ts,
+      coalesce(end_ts, trace_end()) AS end_ts
+    FROM process
+  )
+SELECT upid
+FROM process_lifetime
+WHERE
+  pid = $pid
+  AND $at_ts BETWEEN start_ts AND end_ts
+ORDER BY
+  upid DESC
+LIMIT 1;
+
 -- Android Low-Memory Kill (LMK) events
 CREATE PERFETTO TABLE android_lmk_events(
   -- timestamp of the kill being requested by lmkd
@@ -134,16 +163,18 @@ CREATE PERFETTO TABLE android_lmk_events(
   kill_reason_raw LONG
 )
 AS
+WITH
+  lmk_with_upid AS (
+    SELECT *, _android_lmk_resolve_upid(pid, ts) AS upid
+    FROM _android_lmk_events
+  )
 SELECT
   ts,
-  process.upid,
+  upid,
   evt.pid,
   process.name AS process_name,
   oom_score_adj,
   _android_lmk_kill_reason_string(kill_reason_raw) AS kill_reason,
   kill_reason_raw
-FROM _android_lmk_events AS evt
-LEFT JOIN process
-  ON (evt.pid = process.pid
-  AND evt.ts >= coalesce(process.start_ts, trace_start())
-  AND evt.ts <= coalesce(process.end_ts, trace_end()));
+FROM lmk_with_upid AS evt
+LEFT JOIN process USING (upid);
