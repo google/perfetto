@@ -17,21 +17,35 @@ import("../../../../gn/proto_library.gni")
 # Single-source proto split for the C SDK closure (see
 # protos/perfetto/common/BUILD.gn for the full pattern explanation).
 # interned_data.proto imports several per-domain protos for typed fields
-# like InternedV8JsFunction (chrome/v8.proto) and AppWakelockInfo
-# (android/app_wakelock_data.proto). The C SDK never decodes these
-# interned tables, and the generated interned_data.pbzero.h only
-# forward-declares them (pbzero) / cppgen honors [lazy=true] for the
-# .gen.h, so the per-domain pbzero/gen headers can be dropped from the
-# C SDK closure. Lite (upstream protobuf) doesn't honor lazy-skip for
-# imports, so it gets a separate full-deps library.
+# like Mapping / Frame / Callstack (profiling/profile_common.proto),
+# InternedV8JsFunction (chrome/v8.proto) and AppWakelockInfo
+# (android/app_wakelock_data.proto). pbzero forward-declares those
+# cross-file types and the C SDK never decodes the interned tables, so
+# the per-domain pbzero headers can be dropped from the C SDK closure
+# at the zero level.
+#
+# cppgen and lite (upstream protobuf) emit unconditional #includes for
+# the typed fields above (which aren't [lazy=true]), so they can't be
+# split cleanly. Both keep the full per-domain dep set in their own
+# generator-specific libraries; the C SDK never depends on :cpp or
+# :lite for interned_data.
 
 perfetto_proto_library("minimal_@TYPE@") {
   sources = [ "interned_data.proto" ]
   deps = [ "../track_event:@TYPE@" ]
-  proto_generators = [
-    "zero",
-    "cpp",
+  proto_generators = [ "zero" ]
+}
+
+perfetto_proto_library("cpp_only_@TYPE@") {
+  sources = [ "interned_data.proto" ]
+  deps = [
+    "../android:@TYPE@",
+    "../chrome:@TYPE@",
+    "../gpu:@TYPE@",
+    "../profiling:@TYPE@",
+    "../track_event:@TYPE@",
   ]
+  proto_generators = [ "cpp" ]
 }
 
 perfetto_proto_library("lite_only_@TYPE@") {
@@ -51,7 +65,7 @@ group("zero") {
 }
 
 group("cpp") {
-  public_deps = [ ":minimal_cpp" ]
+  public_deps = [ ":cpp_only_cpp" ]
 }
 
 group("lite") {
