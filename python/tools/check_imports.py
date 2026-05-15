@@ -34,7 +34,10 @@ NODE_MODULES = '%node_modules%'  # placeholder to depend on any node module.
 # [a,b] -> [c,d] is equivalent to allowing a>c, a>d, b>c, b>d.
 DEPS_ALLOWLIST = [
     # Everything can depend on base/, protos and NPM packages.
-    ('*', ['/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES]),
+    ('*', [
+        '/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES,
+        'virtual:*'
+    ]),
 
     # Integration tests can depend on everything.
     ('/test/*', '*'),

@@ -37,8 +37,9 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
-#include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_extractor.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -190,7 +191,8 @@ uint32_t WinscopeSurfaceFlingerHierarchyPaths::GetArgumentCount() const {
 }
 
 class WinscopeSurfaceFlingerHierarchyPathsPlugin
-    : public Plugin<WinscopeSurfaceFlingerHierarchyPathsPlugin> {
+    : public Plugin<WinscopeSurfaceFlingerHierarchyPathsPlugin,
+                    winscope_importer::WinscopeImporter> {
  public:
   ~WinscopeSurfaceFlingerHierarchyPathsPlugin() override;
 
@@ -218,4 +220,5 @@ void RegisterPlugin() {
   base::ignore_result(reg);
 }
 
-}  // namespace perfetto::trace_processor::winscope_surfaceflinger_hierarchy_paths
+}  // namespace
+   // perfetto::trace_processor::winscope_surfaceflinger_hierarchy_paths

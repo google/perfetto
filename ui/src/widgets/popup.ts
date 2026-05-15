@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
+import {createPopper, type Instance, type OptionsGeneric} from '@popperjs/core';
 import type {Modifier} from '@popperjs/core';
 import m from 'mithril';
-import {MountOptions, Portal, PortalAttrs} from './portal';
+import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
 import {assertExists} from '../base/assert';
-import {ExtendedModifiers} from './popper_utils';
+import type {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
 // union of string literals corresponding to the values in this enum, but having

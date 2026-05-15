@@ -27,9 +27,7 @@
 // Widgets
 @import "widgets.scss";
 
-// Auto generated imports
-@import "../gen/all_plugins";
-@import "../gen/all_core_plugins";
+// Plugin styles are imported by each plugin's index.ts via Vite's CSS pipeline.
 
 // BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
 // collisions with existing Perfetto UI classes.

@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Row} from '../../../trace_processor/query_result';
+import type {Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../datagrid/datagrid';
-import {CellFormatter, SchemaRegistry} from '../datagrid/datagrid_schema';
+import type {CellFormatter, SchemaRegistry} from '../datagrid/datagrid_schema';
 
 /**
  * Data provided to a DatagridChart.

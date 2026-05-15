@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {App} from '../../public/app';
+import './styles.scss';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {App} from '../../public/app';
 import {showMultiTraceModal} from './multi_trace_modal';
 
 const MULTI_TRACE_COMMAND_ID = 'dev.perfetto.MultiTraceOpen#openMultipleTraces';

@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
-import {ArgsDict} from '../sql_utils/args';
-import {Trace} from '../../public/trace';
+import type {ArgsDict} from '../sql_utils/args';
+import type {Trace} from '../../public/trace';
 import {renderArguments} from './args';
 import {extensions} from '../extensions';
 import {sqliteString} from '../../base/string_utils';

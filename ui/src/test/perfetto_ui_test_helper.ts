@@ -14,16 +14,16 @@
 
 import {
   expect,
-  Locator,
-  Page,
-  PageAssertionsToHaveScreenshotOptions,
+  type Locator,
+  type Page,
+  type PageAssertionsToHaveScreenshotOptions,
 } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import {IdleDetectorWindow} from '../frontend/idle_detector_interface';
+import type {IdleDetectorWindow} from '../frontend/idle_detector_interface';
 import {assertExists} from '../base/assert';
-import {Size2D} from '../base/geom';
-import {AppImpl} from '../core/app_impl';
+import type {Size2D} from '../base/geom';
+import type {AppImpl} from '../core/app_impl';
 
 export class PerfettoTestHelper {
   private cachedSidebarSize?: Size2D;

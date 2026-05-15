@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Duration, duration, time, Time} from '../base/time';
-import {Trace} from '../public/trace';
+import {Duration, type duration, type time, Time} from '../base/time';
+import type {Trace} from '../public/trace';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 
 export function renderTimecode(time: time) {

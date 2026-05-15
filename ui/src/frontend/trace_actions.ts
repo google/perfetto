@@ -19,10 +19,10 @@ import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../core/metatracing';
-import {Engine} from '../trace_processor/engine';
+import type {Engine} from '../trace_processor/engine';
 import {AppImpl} from '../core/app_impl';
-import {Trace} from '../public/trace';
-import {TraceImpl} from '../core/trace_impl';
+import type {Trace} from '../public/trace';
+import type {TraceImpl} from '../core/trace_impl';
 import {download, downloadUrl} from '../base/download_utils';
 import {
   convertTraceToJsonAndDownload,

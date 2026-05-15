@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {classForIntent, HTMLAttrs, Intent} from './common';
+import {classForIntent, type HTMLAttrs, Intent} from './common';
 
 export interface IconAttrs extends HTMLAttrs {
   // The material icon name.

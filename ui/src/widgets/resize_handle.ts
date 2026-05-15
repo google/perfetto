@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLAttrs} from './common';
-import {MithrilEvent} from '../base/mithril_utils';
+import type {HTMLAttrs} from './common';
+import type {MithrilEvent} from '../base/mithril_utils';
 
 export interface ResizeHandleAttrs extends HTMLAttrs {
   // Called with delta (relative change)

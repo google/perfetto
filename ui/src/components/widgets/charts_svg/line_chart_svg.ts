@@ -24,7 +24,7 @@ import type {
   LineChartSeries,
 } from '../charts/line_chart';
 import {
-  AxisRange,
+  type AxisRange,
   TICK_LABEL_GAP,
   TICK_LENGTH,
   chartColorVar,

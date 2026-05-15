@@ -427,7 +427,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
-        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -441,8 +440,6 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_preprocessor_grammar",
-        ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
@@ -493,6 +490,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -507,6 +505,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
+        ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
@@ -549,7 +548,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
-        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
     ],
     hdrs = [
@@ -632,14 +630,13 @@ perfetto_cc_library(
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -650,6 +647,7 @@ perfetto_cc_library(
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",
                ":src_trace_processor_plugins_wattson_gen_l3_curves",
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
+               ":src_trace_processor_plugins_winscope_importer_gen_cc_winscope_descriptor",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
            ] + PERFETTO_CONFIG.deps.sqlite +
@@ -713,7 +711,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
-        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -727,8 +724,6 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_preprocessor_grammar",
-        ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
@@ -779,6 +774,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -793,6 +789,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
+        ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
@@ -841,7 +838,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_enrichment_trace_enrichment",
         ":src_trace_processor_util_trace_type",
-        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
         ":src_traceconv_lib",
         ":src_traceconv_pprofbuilder",
@@ -933,14 +929,13 @@ perfetto_cc_library(
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -951,6 +946,7 @@ perfetto_cc_library(
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",
                ":src_trace_processor_plugins_wattson_gen_l3_curves",
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
+               ":src_trace_processor_plugins_winscope_importer_gen_cc_winscope_descriptor",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
                ":src_trace_processor_util_deobfuscation_deobfuscator",
@@ -1312,7 +1308,6 @@ perfetto_filegroup(
         "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
-        "include/perfetto/ext/base/fixed_string_writer.h",
         "include/perfetto/ext/base/flags.h",
         "include/perfetto/ext/base/flat_hash_map.h",
         "include/perfetto/ext/base/flat_hash_map_v1.h",
@@ -1735,6 +1730,16 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //protos/third_party/android:extension_descriptor
+perfetto_protozero_descriptor_diff(
+    name = "protos_third_party_android_extension_descriptor",
+    outs = [
+        "protos/third_party/android/android_extensions_extension.descriptor",
+    ],
+    minuend = "protos_third_party_android_android_extensions_descriptor",
+    subtrahend = "protos_perfetto_trace_descriptor",
+)
+
 # GN target: //protos/third_party/chromium:extension_descriptor
 perfetto_protozero_descriptor_diff(
     name = "protos_third_party_chromium_extension_descriptor",
@@ -1837,9 +1842,9 @@ perfetto_cc_library(
         "src/base/cpu_info.cc",
         "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
+        "src/base/dynamic_string_writer.cc",
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
-        "src/base/fixed_string_writer.cc",
         "src/base/getopt_compat.cc",
         "src/base/intrusive_list.cc",
         "src/base/intrusive_tree.cc",
@@ -2915,78 +2920,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/importers/proto/winscope:full
-perfetto_filegroup(
-    name = "src_trace_processor_importers_proto_winscope_full",
-    srcs = [
-        "src/trace_processor/importers/proto/winscope/android_input_event_parser.cc",
-        "src/trace_processor/importers/proto/winscope/android_input_event_parser.h",
-        "src/trace_processor/importers/proto/winscope/protolog_message_decoder.cc",
-        "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h",
-        "src/trace_processor/importers/proto/winscope/protolog_parser.cc",
-        "src/trace_processor/importers/proto/winscope/protolog_parser.h",
-        "src/trace_processor/importers/proto/winscope/shell_transitions_parser.cc",
-        "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h",
-        "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.cc",
-        "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.cc",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.cc",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_rect_computation.cc",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_rect_computation.h",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_utils.h",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation.cc",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation.h",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
-        "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h",
-        "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.cc",
-        "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.h",
-        "src/trace_processor/importers/proto/winscope/viewcapture_parser.cc",
-        "src/trace_processor/importers/proto/winscope/viewcapture_parser.h",
-        "src/trace_processor/importers/proto/winscope/viewcapture_rect_computation.cc",
-        "src/trace_processor/importers/proto/winscope/viewcapture_rect_computation.h",
-        "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.cc",
-        "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.h",
-        "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.cc",
-        "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.h",
-        "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.cc",
-        "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h",
-        "src/trace_processor/importers/proto/winscope/windowmanager_parser.cc",
-        "src/trace_processor/importers/proto/winscope/windowmanager_parser.h",
-        "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.cc",
-        "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h",
-        "src/trace_processor/importers/proto/winscope/winscope_context.h",
-        "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
-        "src/trace_processor/importers/proto/winscope/winscope_geometry.h",
-        "src/trace_processor/importers/proto/winscope/winscope_module.cc",
-        "src/trace_processor/importers/proto/winscope/winscope_module.h",
-        "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.cc",
-        "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.h",
-        "src/trace_processor/importers/proto/winscope/winscope_transform_tracker.cc",
-        "src/trace_processor/importers/proto/winscope/winscope_transform_tracker.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/proto/winscope:gen_cc_winscope_descriptor
-perfetto_cpp_blob_header(
-    name = "src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
-    script = "python:cpp_blob_emitter_bin",
-    deps = [
-        ":protos_perfetto_trace_android_winscope_descriptor",
-    ],
-    outs = [
-        "src/trace_processor/importers/proto/winscope/winscope.descriptor.h",
-    ],
-    args = [
-        "--gen-dir=$(GENDIR)",
-        "--namespace",
-        "perfetto",
-        "--symbol-suffix",
-        "Descriptor",
-    ],
-)
-
 # GN target: //src/trace_processor/importers/proto:full
 perfetto_filegroup(
     name = "src_trace_processor_importers_proto_full",
@@ -3062,15 +2995,15 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor
+# GN target: //src/trace_processor/importers/proto:gen_cc_android_extensions_descriptor
 perfetto_cpp_blob_header(
-    name = "src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
+    name = "src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
     script = "python:cpp_blob_emitter_bin",
     deps = [
-        ":protos_perfetto_trace_android_android_track_event_descriptor",
+        ":protos_third_party_android_extension_descriptor",
     ],
     outs = [
-        "src/trace_processor/importers/proto/android_track_event.descriptor.h",
+        "src/trace_processor/importers/proto/android_extensions_extension.descriptor.h",
     ],
     args = [
         "--gen-dir=$(GENDIR)",
@@ -3688,25 +3621,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/parser/function_util.h",
         "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.cc",
         "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/preprocessor:grammar
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_preprocessor_grammar",
-    srcs = [
-        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.c",
-        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar.h",
-        "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar_interface.h",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/preprocessor:preprocessor
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_preprocessor_preprocessor",
-    srcs = [
-        "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.cc",
-        "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h",
     ],
 )
 
@@ -4836,6 +4750,15 @@ perfetto_cc_tp_tables(
     ],
 )
 
+# GN target: //src/trace_processor/plugins/storage_tables:storage_tables
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_storage_tables_storage_tables",
+    srcs = [
+        "src/trace_processor/plugins/storage_tables/storage_tables.cc",
+        "src/trace_processor/plugins/storage_tables/storage_tables.h",
+    ],
+)
+
 # GN target: //src/trace_processor/plugins/string_functions:string_functions
 perfetto_filegroup(
     name = "src_trace_processor_plugins_string_functions_string_functions",
@@ -5089,6 +5012,81 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/window_operator/window_operator.cc",
         "src/trace_processor/plugins/window_operator/window_operator.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/winscope_importer:gen_cc_winscope_descriptor
+perfetto_cpp_blob_header(
+    name = "src_trace_processor_plugins_winscope_importer_gen_cc_winscope_descriptor",
+    script = "python:cpp_blob_emitter_bin",
+    deps = [
+        ":protos_perfetto_trace_android_winscope_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/plugins/winscope_importer/winscope.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/winscope_importer:winscope_importer
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_winscope_importer_winscope_importer",
+    srcs = [
+        "src/trace_processor/plugins/winscope_importer/android_input_event_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/android_input_event_parser.h",
+        "src/trace_processor/plugins/winscope_importer/protolog_message_decoder.cc",
+        "src/trace_processor/plugins/winscope_importer/protolog_message_decoder.h",
+        "src/trace_processor/plugins/winscope_importer/protolog_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/protolog_parser.h",
+        "src/trace_processor/plugins/winscope_importer/shell_transitions_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/shell_transitions_parser.h",
+        "src/trace_processor/plugins/winscope_importer/shell_transitions_tracker.cc",
+        "src/trace_processor/plugins/winscope_importer/shell_transitions_tracker.h",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_extractor.cc",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_extractor.h",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_parser.h",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_rect_computation.cc",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_rect_computation.h",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_utils.h",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.cc",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_transactions_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/surfaceflinger_transactions_parser.h",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_args_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_args_parser.h",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_parser.h",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_rect_computation.cc",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_rect_computation.h",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_views_extractor.cc",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_views_extractor.h",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_visibility_computation.cc",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_visibility_computation.h",
+        "src/trace_processor/plugins/winscope_importer/windowmanager_hierarchy_walker.cc",
+        "src/trace_processor/plugins/winscope_importer/windowmanager_hierarchy_walker.h",
+        "src/trace_processor/plugins/winscope_importer/windowmanager_parser.cc",
+        "src/trace_processor/plugins/winscope_importer/windowmanager_parser.h",
+        "src/trace_processor/plugins/winscope_importer/windowmanager_proto_clone.cc",
+        "src/trace_processor/plugins/winscope_importer/windowmanager_proto_clone.h",
+        "src/trace_processor/plugins/winscope_importer/winscope_context.h",
+        "src/trace_processor/plugins/winscope_importer/winscope_geometry.cc",
+        "src/trace_processor/plugins/winscope_importer/winscope_geometry.h",
+        "src/trace_processor/plugins/winscope_importer/winscope_importer.cc",
+        "src/trace_processor/plugins/winscope_importer/winscope_importer.h",
+        "src/trace_processor/plugins/winscope_importer/winscope_module.cc",
+        "src/trace_processor/plugins/winscope_importer/winscope_module.h",
+        "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h",
+        "src/trace_processor/plugins/winscope_importer/winscope_rect_tracker.cc",
+        "src/trace_processor/plugins/winscope_importer/winscope_rect_tracker.h",
+        "src/trace_processor/plugins/winscope_importer/winscope_transform_tracker.cc",
+        "src/trace_processor/plugins/winscope_importer/winscope_transform_tracker.h",
     ],
 )
 
@@ -5813,14 +5811,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/util:winscope_proto_mapping
-perfetto_filegroup(
-    name = "src_trace_processor_util_winscope_proto_mapping",
-    srcs = [
-        "src/trace_processor/util/winscope_proto_mapping.h",
-    ],
-)
-
 # GN target: //src/trace_processor/util:zip_reader
 perfetto_filegroup(
     name = "src_trace_processor_util_zip_reader",
@@ -6508,7 +6498,6 @@ perfetto_android_library(
     manifest = "src/android_sdk/java/test/AndroidTestManifest.xml",
     deps = [
         ":src_android_sdk_java_main_perfetto_trace_lib",
-        ":trace_android_track_event_extension_java_proto_lite",
         ":trace_java_proto_lite",
     ] + PERFETTO_CONFIG.deps.android_test_common,
     tags = [
@@ -7216,55 +7205,6 @@ perfetto_dart_proto_library(
     ],
     deps = [
         ":trace_summary_proto",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
-perfetto_proto_library(
-    name = "trace_android_track_event_extension_proto",
-    deps = [
-        ":protos_perfetto_trace_android_android_track_event_protos",
-        ":protos_perfetto_trace_track_event_protos",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
-perfetto_cc_proto_library(
-    name = "trace_android_track_event_extension_cc_proto",
-    deps = [
-        ":trace_android_track_event_extension_proto",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
-perfetto_java_proto_library(
-    name = "trace_android_track_event_extension_java_proto",
-    deps = [
-        ":trace_android_track_event_extension_proto",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
-perfetto_java_lite_proto_library(
-    name = "trace_android_track_event_extension_java_proto_lite",
-    deps = [
-        ":trace_android_track_event_extension_proto",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
-perfetto_py_proto_library(
-    name = "trace_android_track_event_extension_py_pb2",
-    deps = [
-        ":trace_android_track_event_extension_proto",
-    ],
-)
-
-# GN target: [//protos/perfetto/trace/android:android_track_event_source_set]
-perfetto_dart_proto_library(
-    name = "trace_android_track_event_extension_dart_proto",
-    deps = [
-        ":trace_android_track_event_extension_proto",
     ],
 )
 
@@ -8439,34 +8379,6 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:android_track_event_descriptor
-perfetto_proto_descriptor(
-    name = "protos_perfetto_trace_android_android_track_event_descriptor",
-    deps = [
-        ":protos_perfetto_trace_android_android_track_event_protos",
-    ],
-    outs = [
-        "protos_perfetto_trace_android_android_track_event_descriptor.bin",
-    ],
-)
-
-# GN target: //protos/perfetto/trace/android:android_track_event_source_set
-perfetto_proto_library(
-    name = "protos_perfetto_trace_android_android_track_event_protos",
-    srcs = [
-        "protos/perfetto/trace/android/android_track_event.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_trace_track_event_protos",
-    ],
-    exports = [
-        ":protos_perfetto_trace_track_event_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/trace/android:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
@@ -9595,6 +9507,71 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/third_party/android:android_extensions_descriptor
+perfetto_proto_descriptor(
+    name = "protos_third_party_android_android_extensions_descriptor",
+    deps = [
+        ":protos_third_party_android_android_extensions_protos",
+    ],
+    outs = [
+        "protos_third_party_android_android_extensions_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/third_party/android:android_extensions_source_set
+perfetto_proto_library(
+    name = "protos_third_party_android_android_extensions_protos",
+    srcs = [
+        "protos/third_party/android/android_extensions.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
+    ],
+    exports = [
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
+    ],
+)
+
+# GN target: //protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_source_set
+perfetto_proto_library(
+    name = "protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+    srcs = [
+        "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+    exports = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
+# GN target: //protos/third_party/android/frameworks/native/tracing:frameworks_native_track_event_source_set
+perfetto_proto_library(
+    name = "protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
+    srcs = [
+        "protos/third_party/android/frameworks/native/tracing/frameworks_native_track_event.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+    exports = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
 # GN target: //protos/third_party/chromium:descriptor
 perfetto_proto_descriptor(
     name = "protos_third_party_chromium_descriptor",
@@ -10020,7 +9997,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
-        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -10034,8 +10010,6 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_preprocessor_grammar",
-        ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
@@ -10086,6 +10060,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -10100,6 +10075,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
+        ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
@@ -10141,7 +10117,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
-        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
     ],
     hdrs = [
@@ -10224,14 +10199,13 @@ perfetto_cc_library(
                ":src_base_regex_regex",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -10242,6 +10216,7 @@ perfetto_cc_library(
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",
                ":src_trace_processor_plugins_wattson_gen_l3_curves",
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
+               ":src_trace_processor_plugins_winscope_importer_gen_cc_winscope_descriptor",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
            ] + PERFETTO_CONFIG.deps.sqlite +
@@ -10336,7 +10311,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
-        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -10350,8 +10324,6 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_preprocessor_grammar",
-        ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
@@ -10402,6 +10374,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
+        ":src_trace_processor_plugins_storage_tables_storage_tables",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -10416,6 +10389,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
+        ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
@@ -10459,7 +10433,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_enrichment_trace_enrichment",
         ":src_trace_processor_util_trace_type",
-        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
         ":src_traceconv_lib",
         ":src_traceconv_main",
@@ -10532,14 +10505,13 @@ perfetto_cc_binary(
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
-               ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_android_extensions_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -10550,6 +10522,7 @@ perfetto_cc_binary(
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",
                ":src_trace_processor_plugins_wattson_gen_l3_curves",
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
+               ":src_trace_processor_plugins_winscope_importer_gen_cc_winscope_descriptor",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
                ":src_trace_processor_util_deobfuscation_deobfuscator",

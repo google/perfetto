@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
 import {FrameTimelineSliceClassification} from './frame_timeline_model';
-import {ColorScheme} from '../../base/color_scheme';
+import type {ColorScheme} from '../../base/color_scheme';
 import {HSLColor} from '../../base/color';
 
 const COLOR_LIGHTER_SLATE = makeColorScheme(new HSLColor([215, 16, 47]));

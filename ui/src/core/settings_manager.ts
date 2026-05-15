@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
-import {
+import type {z} from 'zod';
+import type {
   Setting,
   SettingDescriptor,
   SettingRenderer,
   SettingsManager,
 } from '../public/settings';
-import {Storage} from './storage';
+import type {Storage} from './storage';
 
 export const PERFETTO_SETTINGS_STORAGE_KEY = 'perfettoSettings';
 

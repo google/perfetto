@@ -14,7 +14,12 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
+import {
+  type HTMLAttrs,
+  type HTMLButtonAttrs,
+  Intent,
+  classForIntent,
+} from './common';
 import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
 import {assertUnreachable} from '../base/assert';

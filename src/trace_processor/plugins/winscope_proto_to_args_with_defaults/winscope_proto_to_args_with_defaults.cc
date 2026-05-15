@@ -47,12 +47,13 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
-#include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor::winscope_proto_to_args_with_defaults {
 
@@ -450,7 +451,8 @@ uint32_t WinscopeProtoToArgsWithDefaults::GetArgumentCount() const {
 }
 
 class WinscopeProtoToArgsWithDefaultsPlugin
-    : public Plugin<WinscopeProtoToArgsWithDefaultsPlugin> {
+    : public Plugin<WinscopeProtoToArgsWithDefaultsPlugin,
+                    winscope_importer::WinscopeImporter> {
  public:
   ~WinscopeProtoToArgsWithDefaultsPlugin() override;
 

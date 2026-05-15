@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {classNames} from '../../../base/classnames';
 import {shortUuid} from '../../../base/uuid';
 import {
@@ -28,9 +28,9 @@ import {ResultsPanelEmptyState} from '../query_builder/widgets';
 import {Icon} from '../../../widgets/icon';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
-  DashboardBrushFilter,
-  DashboardDataSource,
-  DashboardItem,
+  type DashboardBrushFilter,
+  type DashboardDataSource,
+  type DashboardItem,
   DEFAULT_COL_SPAN,
   DEFAULT_ROW_SPAN,
   GRID_COLUMNS,
@@ -52,7 +52,7 @@ import {
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {Card} from '../../../widgets/card';
 import {
-  ChartType,
+  type ChartType,
   getDefaultChartLabel,
 } from '../query_builder/nodes/visualisation_node';
 import {Popup, PopupPosition} from '../../../widgets/popup';

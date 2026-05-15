@@ -15,9 +15,9 @@
 import m from 'mithril';
 
 import {Monitor} from '../../base/monitor';
-import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
@@ -26,7 +26,7 @@ import {Callout} from '../../widgets/callout';
 import {TabStrip} from '../../widgets/tab_strip';
 import {Icon} from '../../widgets/icon';
 import {Flamegraph} from '../../widgets/flamegraph';
-import {AggregateProfile, AggregateProfilesPageState} from './types';
+import type {AggregateProfile, AggregateProfilesPageState} from './types';
 
 const HIDE_PAGE_EXPLANATION_KEY = 'hideAggregateProfilesPageExplanation';
 const HIDE_VIEW_EXPLANATION_KEY = 'hideAggregateProfilesViewExplanation';

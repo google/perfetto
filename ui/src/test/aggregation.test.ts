@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, Page} from '@playwright/test';
+import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 import {assertExists} from '../base/assert';
-import {Locator} from '@playwright/test';
+import type {Locator} from '@playwright/test';
 
 test.describe.configure({mode: 'serial'});
 

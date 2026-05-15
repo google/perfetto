@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {JoinNode} from './join_node';
-import {QueryNode} from '../../query_node';
-import {ColumnInfo} from '../column_info';
+import type {QueryNode} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {
   createMockNode,

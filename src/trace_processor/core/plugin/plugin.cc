@@ -128,7 +128,8 @@ PluginRegistration::PluginRegistration(Factory f,
 // Default no-op implementations.
 PluginBase::~PluginBase() = default;
 void PluginBase::RegisterImporters(TraceReaderRegistry&) {}
-void PluginBase::RegisterProtoImporterModules(ProtoImporterModuleContext*) {}
+void PluginBase::RegisterProtoImporterModules(ProtoImporterModuleContext*,
+                                              TraceProcessorContext*) {}
 void PluginBase::RegisterDataframes(std::vector<PluginDataframe>&) {}
 void PluginBase::RegisterStaticTableFunctions(
     PerfettoSqlConnection*,

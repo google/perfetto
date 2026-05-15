@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Migrate, Store} from '../base/store';
-import {TraceInfo} from './trace_info';
-import {Engine} from '../trace_processor/engine';
-import {App} from './app';
-import {TabManager} from './tab';
-import {TrackManager} from './track';
-import {Timeline} from './timeline';
-import {Workspace, WorkspaceManager} from './workspace';
-import {SelectionManager} from './selection';
-import {ScrollToArgs} from './scroll_helper';
-import {NoteManager} from './note';
-import {DisposableStack} from '../base/disposable_stack';
-import {Evt} from '../base/events';
-import {StatusbarManager} from './statusbar';
-import {MinimapManager} from './minimap';
-import {SearchManager} from './search';
-import {InitialPageManager} from './initial_page';
+import type {Migrate, Store} from '../base/store';
+import type {TraceInfo} from './trace_info';
+import type {Engine} from '../trace_processor/engine';
+import type {App} from './app';
+import type {TabManager} from './tab';
+import type {TrackManager} from './track';
+import type {Timeline} from './timeline';
+import type {Workspace, WorkspaceManager} from './workspace';
+import type {SelectionManager} from './selection';
+import type {ScrollToArgs} from './scroll_helper';
+import type {NoteManager} from './note';
+import type {DisposableStack} from '../base/disposable_stack';
+import type {Evt} from '../base/events';
+import type {StatusbarManager} from './statusbar';
+import type {MinimapManager} from './minimap';
+import type {SearchManager} from './search';
+import type {InitialPageManager} from './initial_page';
 
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.

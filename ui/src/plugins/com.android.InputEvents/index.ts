@@ -16,13 +16,13 @@ import {CounterTrack} from '../../components/tracks/counter_track';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {uuidv4} from '../../base/uuid';
 import {LONG, LONG_NULL, STR} from '../../trace_processor/query_result';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {TimeSpan} from '../../base/time';
+import type {TimeSpan} from '../../base/time';
 
 export default class AndroidInputEvents implements PerfettoPlugin {
   static readonly id = 'com.android.InputEvents';

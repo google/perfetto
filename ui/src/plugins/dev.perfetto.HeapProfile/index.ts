@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
-import {time} from '../../base/time';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {time} from '../../base/time';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
@@ -23,26 +23,26 @@ import {
   createPerfettoView,
 } from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {Track} from '../../public/track';
+import type {Track} from '../../public/track';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {assertExists} from '../../base/assert';
 import {
   isProfileDescriptor,
-  ProfileDescriptor,
+  type ProfileDescriptor,
   profileDescriptor,
   ProfileType,
 } from './common';
 import {
-  AreaSelection,
+  type AreaSelection,
   areaSelectionsEqual,
-  AreaSelectionTab,
+  type AreaSelectionTab,
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 import {EvtSource} from '../../base/events';
-import {App} from '../../public/app';
-import {Flag} from '../../public/feature_flag';
+import type {App} from '../../public/app';
+import type {Flag} from '../../public/feature_flag';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
