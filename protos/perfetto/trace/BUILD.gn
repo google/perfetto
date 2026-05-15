@@ -15,50 +15,59 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
-# Trace protos are split four ways so that the C SDK closure can depend on
-# a slim subset that doesn't pull in the per-domain pbzero/gen headers,
-# while standalone consumers (trace_processor, trace_redaction, tests, ...)
+# Trace protos are split so that the C SDK closure can depend on a slim
+# subset that doesn't pull in the per-domain pbzero/gen headers, while
+# standalone consumers (trace_processor, trace_redaction, tests, ...)
 # keep getting the full set:
 #
-#   :minimal_@TYPE@           — bare-minimum protos used by chrome / other
-#                               size-sensitive embedders. Existed before
-#                               this stack.
-#   :non_minimal_core_@TYPE@  — non-minimal sources reachable from the
-#                               C SDK closure under src/{shared_lib,
-#                               tracing}/. trace_packet.proto declares
-#                               typed fields for several per-domain
-#                               messages (UiState ui_state = 78,
-#                               EvdevEvent evdev_event = 121, etc.) but
-#                               only generates pbzero headers, which
-#                               forward-declare those types and don't
-#                               require the per-type pbzero.h to be
-#                               present unless something instantiates
-#                               them. cppgen mirrors this via lazy-skip.
-#                               The per-domain proto deps drop out for
-#                               the same reason. Generates zero + cpp.
-#   :non_minimal_extras_@TYPE@ — sources NOT reachable from the C SDK
-#                               closure (test_event, test_extensions,
-#                               memory_graph, ui_state, evdev) plus the
-#                               per-domain trace proto sub-deps. Pulled
-#                               in by trace_processor / trace_redaction /
-#                               tests via :non_minimal_@TYPE@ below.
-#                               Generates zero + cpp.
-#   :lite_only_@TYPE@         — full source set + full deps; generates
-#                               lite only. Lite is upstream protobuf's
-#                               standard cpp generator and emits
-#                               unconditional #includes for typed
-#                               imports, so it can't be split cleanly.
-#                               The C SDK never depends on :lite.
+#   :minimal_@TYPE@                 — bare-minimum protos used by chrome
+#                                     and other size-sensitive embedders.
+#                                     Generates zero + cpp + lite.
+#   :non_minimal_core_@TYPE@        — non-minimal sources reachable from
+#                                     the C SDK closure under
+#                                     src/{shared_lib,tracing}/.
+#                                     trace_packet.proto declares typed
+#                                     fields for many per-domain messages
+#                                     (UiState, FtraceEventBundle,
+#                                     ProcessTree, ChromeEventBundle, ...)
+#                                     but pbzero forward-declares them
+#                                     and never #includes their headers,
+#                                     so the C SDK doesn't need any
+#                                     per-domain dep at the zero level.
+#                                     Generates zero only — cpp goes
+#                                     through :non_minimal_full_cpp_only_@TYPE@
+#                                     because cppgen for trace_packet
+#                                     emits unconditional #includes for
+#                                     all those typed fields and would
+#                                     otherwise force the per-domain
+#                                     headers into this target's deps,
+#                                     leaking them into the SDK closure.
+#   :non_minimal_extras_@TYPE@      — sources NOT reachable from the
+#                                     C SDK closure (test_event,
+#                                     test_extensions, memory_graph,
+#                                     ui_state, evdev). Generates zero
+#                                     only, for the same reason.
+#   :non_minimal_full_cpp_only_@TYPE@ — full non-minimal source set + the
+#                                     per-domain trace deps that
+#                                     trace_packet.proto's cppgen output
+#                                     #includes. Generates cpp only. Not
+#                                     in the C SDK closure.
+#   :lite_only_@TYPE@               — full non-minimal source set + per-
+#                                     domain deps; generates lite only.
+#                                     Lite is upstream protobuf's
+#                                     standard cpp generator and emits
+#                                     unconditional #includes for typed
+#                                     imports too. The C SDK never
+#                                     depends on :lite.
 #
 # Aggregator groups expose the public surface:
 #   :zero / :cpp / :lite — full set, what consumers depend on today.
-#   :zero_minimal / :cpp_minimal — C SDK closure (minimal +
-#                               non_minimal_core), referenced from
-#                               //src/shared_lib in a later commit.
-#   :non_minimal_@TYPE@   — full non-minimal, preserves the existing
-#                               target name that trace_processor /
-#                               trace_redaction / tests depend on
-#                               directly.
+#   :zero_minimal — C SDK closure (minimal_zero + non_minimal_core_zero),
+#                   referenced from //src/shared_lib via tracing_minimal.
+#   :non_minimal_zero / :non_minimal_cpp / :non_minimal_source_set —
+#                   preserve the existing target names that
+#                   trace_processor, trace_redaction, tests, etc. depend
+#                   on directly.
 
 minimal_proto_sources = [
   "clock_snapshot.proto",
@@ -82,7 +91,13 @@ non_minimal_extras_proto_sources = [
   "evdev.proto",
 ]
 
-non_minimal_extras_proto_deps = [
+# Per-domain trace proto sub-deps that trace_packet.proto's cppgen output
+# transitively #includes via typed fields like FtraceEventBundle,
+# ProcessTree, ChromeEventBundle, GpuRenderStageEvent, etc. Only the cpp
+# generator (in :non_minimal_full_cpp_only_@TYPE@) and the lite generator
+# (in :lite_only_@TYPE@) need these. zero (pbzero) forward-declares
+# everything and doesn't.
+non_minimal_per_domain_proto_deps = [
   "../protovm:@TYPE@",
   "android:@TYPE@",
   "chrome:@TYPE@",
@@ -109,42 +124,43 @@ perfetto_proto_library("non_minimal_core_@TYPE@") {
   sources = non_minimal_core_proto_sources
   deps = [
     ":minimal_@TYPE@",
-
-    # core's cppgen for trace_packet.gen.cc emits unconditional #includes
-    # for typed-but-non-lazy fields whose types live in extras
-    # (UiState ui_state = 78, EvdevEvent evdev_event = 121,
-    # TestEvent for_testing = 900). The C SDK closure only consumes
-    # trace:zero (pbzero forward-declares cross-file types) — nothing
-    # under //src/shared_lib/ or //include/perfetto/tracing/ pulls
-    # trace:cpp — so this edge stays out of the C SDK amalgamation
-    # while keeping the standalone cpp build correct.
-    ":non_minimal_extras_@TYPE@",
-
     "../config:@TYPE@",
     "interned_data:@TYPE@",
     "perfetto:@TYPE@",
   ]
   public_deps = [ "track_event:@TYPE@" ]
-  proto_generators = [
-    "zero",
-    "cpp",
-  ]
+  proto_generators = [ "zero" ]
 }
 
 perfetto_proto_library("non_minimal_extras_@TYPE@") {
   sources = non_minimal_extras_proto_sources
-  deps = non_minimal_extras_proto_deps
   public_deps = [ "track_event:@TYPE@" ]
-  proto_generators = [
-    "zero",
-    "cpp",
+  proto_generators = [ "zero" ]
+}
+
+# Cpp generation for the full non-minimal source set. Lives in a single
+# library so trace_packet.gen.cc's unconditional #includes for typed
+# per-domain fields can resolve without pulling per-domain deps into the
+# zero-only :non_minimal_core_@TYPE@ that the C SDK closure depends on.
+perfetto_proto_library("non_minimal_full_cpp_only_@TYPE@") {
+  sources =
+      non_minimal_core_proto_sources + non_minimal_extras_proto_sources
+  deps = non_minimal_per_domain_proto_deps + [
+           "../config:@TYPE@",
+           "interned_data:@TYPE@",
+           "perfetto:@TYPE@",
+         ]
+  public_deps = [
+    ":minimal_@TYPE@",
+    "track_event:@TYPE@",
   ]
+  proto_generators = [ "cpp" ]
 }
 
 perfetto_proto_library("lite_only_@TYPE@") {
   sources =
       non_minimal_core_proto_sources + non_minimal_extras_proto_sources
-  deps = non_minimal_extras_proto_deps + [
+  deps = non_minimal_per_domain_proto_deps + [
            "../config:@TYPE@",
            "interned_data:@TYPE@",
            "perfetto:@TYPE@",
@@ -157,18 +173,11 @@ perfetto_proto_library("lite_only_@TYPE@") {
 }
 
 # C SDK closure: the trace protos that //src/shared_lib transitively
-# depends on after the slim split. Wired up in a later commit.
+# depends on after the slim split. Wired up by include/perfetto/tracing.
 group("zero_minimal") {
   public_deps = [
     ":minimal_zero",
     ":non_minimal_core_zero",
-  ]
-}
-
-group("cpp_minimal") {
-  public_deps = [
-    ":minimal_cpp",
-    ":non_minimal_core_cpp",
   ]
 }
 
@@ -198,8 +207,8 @@ group("lite") {
 
 # Existing :non_minimal_zero / :non_minimal_cpp / :non_minimal_source_set
 # names that trace_processor, trace_redaction, tests etc. depend on
-# directly. Keep them as groups aggregating core + extras so those
-# consumers continue to see the full non-minimal closure unchanged.
+# directly. Preserve them so those consumers see the same transitive
+# closure as before.
 group("non_minimal_zero") {
   public_deps = [
     ":non_minimal_core_zero",
@@ -208,10 +217,7 @@ group("non_minimal_zero") {
 }
 
 group("non_minimal_cpp") {
-  public_deps = [
-    ":non_minimal_core_cpp",
-    ":non_minimal_extras_cpp",
-  ]
+  public_deps = [ ":non_minimal_full_cpp_only_cpp" ]
 }
 
 group("non_minimal_source_set") {
