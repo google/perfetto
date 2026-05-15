@@ -77,7 +77,6 @@ const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.dirname(__dirname); // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
-const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
 const DEFAULT_PORT = 10000;
 
 const cfg = {
@@ -379,8 +378,6 @@ Env-var overrides:
 
     buildWasm(args.no_wasm);
     copySyntaqliteRuntime();
-    generateImports('ui/src/core_plugins', 'all_core_plugins');
-    generateImports('ui/src/plugins', 'all_plugins');
     scanDir('ui/src/assets');
     scanDir('ui/src/chrome_extension');
     scanDir('buildtools/typefaces');
@@ -564,19 +561,6 @@ function compileProtos() {
   // pinning a CPU core the whole time.
   const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execModule, ['pbts', pbtsArgs]);
-}
-
-function generateImports(dir, name) {
-  // We have to use the symlink (ui/src/gen) rather than cfg.outGenDir
-  // below since we want to generate the correct relative imports. For example:
-  // ui/src/frontend/foo.ts
-  //    import '../gen/all_plugins.ts';
-  // ui/src/gen/all_plugins.ts (aka ui/out/tsc/gen/all_plugins.ts)
-  //    import '../frontend/some_plugin.ts';
-  const dstTs = pjoin(ROOT_DIR, 'ui/src/gen', name);
-  const inputDir = pjoin(ROOT_DIR, dir);
-  const args = [GEN_IMPORTS_SCRIPT, inputDir, '--out', dstTs];
-  addTask(exec, ['python3', args]);
 }
 
 // Generates a .ts source that defines the VERSION and SCM_REVISION constants.

@@ -103,6 +103,82 @@ function pluginEmbedMinimalSourceMap() {
   };
 }
 
+// Generates barrel modules that import every plugin under ui/src/plugins (or
+// ui/src/core_plugins) and default-export an array of their default exports.
+// Replaces the on-disk barrels that tools/gen_ui_imports used to produce.
+//
+// Exposed as virtual modules so consumers do:
+//   import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
+//   import CORE_PLUGINS     from 'virtual:perfetto/all_core_plugins';
+//
+// Types live in ui/src/types/virtual-modules.d.ts.
+function pluginAllPluginsBarrel() {
+  const VIRTUALS = {
+    'virtual:perfetto/all_plugins':      path.join(SRC, 'plugins'),
+    'virtual:perfetto/all_core_plugins': path.join(SRC, 'core_plugins'),
+  };
+  const toCamelCase = (s) => {
+    const [first, ...rest] = s.split(/[._]/);
+    return first +
+        rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('');
+  };
+  const generate = (dir) => {
+    const entries = fs.readdirSync(dir)
+      .map((name) => ({name, full: path.join(dir, name)}))
+      .filter(({full}) => {
+        try {
+          return fs.statSync(full).isDirectory() &&
+                 fs.existsSync(path.join(full, 'index.ts'));
+        } catch (_) { return false; }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const imports = entries
+      .map(({name, full}) => `import ${toCamelCase(name)} from '${full}';`)
+      .join('\n');
+    const arr = entries.map(({name}) => `  ${toCamelCase(name)},`).join('\n');
+    return `${imports}\n\nexport default [\n${arr}\n];\n`;
+  };
+  let server = null;
+  return {
+    name: 'perfetto:all-plugins-barrel',
+    configureServer(s) {
+      server = s;
+      // Watch the parent dirs so adding/removing a plugin dir invalidates
+      // the barrel even before any file inside it changes. addWatchFile in
+      // load() only covers index.ts files that already exist at load time.
+      for (const dir of Object.values(VIRTUALS)) s.watcher.add(dir);
+    },
+    resolveId(id) {
+      if (id in VIRTUALS) return '\0' + id;
+    },
+    load(id) {
+      if (!id.startsWith('\0virtual:perfetto/')) return;
+      const realId = id.slice(1);
+      const dir = VIRTUALS[realId];
+      if (!dir) return;
+      // Tell Rollup we depend on every index.ts so edits/deletes trigger
+      // a rebuild in `vite build --watch`.
+      for (const name of fs.readdirSync(dir)) {
+        const idx = path.join(dir, name, 'index.ts');
+        if (fs.existsSync(idx)) this.addWatchFile(idx);
+      }
+      return generate(dir);
+    },
+    handleHotUpdate(ctx) {
+      // Invalidate the matching barrel when any file under one of the
+      // plugin parent dirs is added/changed/removed (catches new plugin
+      // dirs being dropped in). Edits to existing plugin source don't need
+      // to invalidate the barrel itself — Vite handles those normally.
+      if (!server) return;
+      for (const [realId, dir] of Object.entries(VIRTUALS)) {
+        if (!ctx.file.startsWith(dir + path.sep)) continue;
+        const mod = server.moduleGraph.getModuleById('\0' + realId);
+        if (mod) server.moduleGraph.invalidateModule(mod);
+      }
+    },
+  };
+}
+
 function pluginGenRelativeImports() {
   return {
     name: 'perfetto:gen-relative-imports',
@@ -151,6 +227,7 @@ export default defineConfig({
   // No HTML index — build.mjs handles HTML.
   appType: 'custom',
   plugins: [
+    pluginAllPluginsBarrel(),
     pluginGenRelativeImports(),
     ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
   ],
