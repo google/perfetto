@@ -16,23 +16,61 @@ import("../../../gn/fuzzer.gni")
 import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
 
-source_set("service") {
+_service_sources = [
+  "clock.cc",
+  "clock.h",
+  "dependencies.h",
+  "histogram.h",
+  "metatrace_writer.cc",
+  "metatrace_writer.h",
+  "packet_stream_validator.cc",
+  "packet_stream_validator.h",
+  "random.cc",
+  "random.h",
+  "trace_buffer.h",
+  "trace_buffer_v1.cc",
+  "trace_buffer_v1.h",
+  "trace_buffer_v1_with_v2_shadow.cc",
+  "trace_buffer_v1_with_v2_shadow.h",
+  "trace_buffer_v2.cc",
+  "trace_buffer_v2.h",
+  "tracing_service_endpoints_impl.cc",
+  "tracing_service_endpoints_impl.h",
+  "tracing_service_impl.cc",
+  "tracing_service_impl.h",
+  "tracing_service_session.cc",
+  "tracing_service_session.h",
+  "tracing_service_structs.h",
+]
+
+# C-SDK-closure variant of :service. Same .cc sources, but routes the
+# include/ + proto deps through the minimal aggregators so the C SDK
+# closure under //src/shared_lib doesn't pull common:non_minimal_cpp /
+# config:non_minimal_cpp / per-data-source config sub-deps via the
+# in-process backend.
+#
+# Audit: the service implementation under src/tracing/service/ doesn't
+# reference any per-data-source config type names (FtraceConfig,
+# GpuCounterConfig, ...); those are only touched by the per-data-source
+# probes in src/traced/probes/, which the in-process backend doesn't
+# pull. So the slim deps suffice for the service .cc compile.
+source_set("service_minimal") {
   public_deps = [
     "..:common",
     "../../../include/perfetto/ext/base",
-    "../../../include/perfetto/ext/tracing/core",
+    "../../../include/perfetto/ext/tracing/core:core_minimal",
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/tracing",
-    "../../../protos/perfetto/common:zero",
-    "../../../protos/perfetto/config:zero",
+    "../../../include/perfetto/tracing:tracing_minimal",
+    "../../../protos/perfetto/common:minimal_zero",
+    "../../../protos/perfetto/config:minimal_zero",
     "../../../protos/perfetto/config/protovm:cpp",
     "../../../protos/perfetto/protovm:cpp",
-    "../../../protos/perfetto/trace:zero",
+    "../../../protos/perfetto/trace:zero_minimal",
     "../../../protos/perfetto/trace/perfetto:zero",  # For MetatraceWriter.
     "../../android_stats",
-    "../../base",
+    "../../base:base_minimal",
     "../../base:clock_snapshots",
     "../../base:version",
     "../../base/regex",
@@ -40,40 +78,35 @@ source_set("service") {
     "../../protozero/filtering:message_filter",
     "../../protozero/filtering:message_filter_config",
     "../../protozero/filtering:string_filter",
-    "../core",
+    "../core:core_minimal",
   ]
-  sources = [
-    "clock.cc",
-    "clock.h",
-    "dependencies.h",
-    "histogram.h",
-    "metatrace_writer.cc",
-    "metatrace_writer.h",
-    "packet_stream_validator.cc",
-    "packet_stream_validator.h",
-    "random.cc",
-    "random.h",
-    "trace_buffer.h",
-    "trace_buffer_v1.cc",
-    "trace_buffer_v1.h",
-    "trace_buffer_v1_with_v2_shadow.cc",
-    "trace_buffer_v1_with_v2_shadow.h",
-    "trace_buffer_v2.cc",
-    "trace_buffer_v2.h",
-    "tracing_service_endpoints_impl.cc",
-    "tracing_service_endpoints_impl.h",
-    "tracing_service_impl.cc",
-    "tracing_service_impl.h",
-    "tracing_service_session.cc",
-    "tracing_service_session.h",
-    "tracing_service_structs.h",
-  ]
+  sources = _service_sources
   if (is_android && perfetto_build_with_android) {
     deps += [
       "../../android_internal:headers",
       "../../android_internal:lazy_library_loader",
     ]
   }
+}
+
+# Full version of the tracing service. Wraps :service_minimal so the
+# .cc sources are only compiled once, and adds the full-closure proto/
+# include deps for non-C-SDK consumers (trace_processor, perfetto_cmd,
+# tests, etc.) that may reach per-data-source config types
+# transitively.
+source_set("service") {
+  public_deps = [
+    ":service_minimal",
+    "../../../include/perfetto/ext/tracing/core",
+  ]
+  deps = [
+    "../../../include/perfetto/tracing",
+    "../../../protos/perfetto/common:zero",
+    "../../../protos/perfetto/config:zero",
+    "../../../protos/perfetto/trace:zero",
+    "../../base",
+    "../core",
+  ]
 }
 
 if (enable_perfetto_zlib) {

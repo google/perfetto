@@ -129,6 +129,15 @@ group("zero") {
   ]
 }
 
+# :minimal_@TYPE@ generates zero + cpp only, but lite consumers (e.g.,
+# trace:minimal_lite via per-gen-type @TYPE@ expansion) need a target
+# named `minimal_lite` to exist. Alias it to :lite_only_lite — lite
+# isn't in the C SDK closure, so the resulting fan-in on the full lite
+# library is harmless.
+group("minimal_lite") {
+  public_deps = [ ":lite_only_lite" ]
+}
+
 group("cpp") {
   public_deps = [
     ":minimal_cpp",

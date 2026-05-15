@@ -31,8 +31,14 @@ perfetto_proto_library("@TYPE@") {
     # Deliberately :cpp and not :@TYPE@. In both cases (:gen and :cpp target)
     # we want to depend on the "cpp" variants. This is because the generated
     # .ipc.h depends on the .gen.h coming from the various common/xxx.proto.
-    "../common:cpp",
-    "../config:cpp",
+    # All imported types live in the :minimal_cpp halves (commit_data_request,
+    # data_source_descriptor, observable_events, tracing_service_*,
+    # trace_stats, system_info from common; data_source_config / trace_config
+    # from config), so depending on the slim aggregators is sufficient and
+    # keeps the C SDK closure (which reaches this via the system backend
+    # consumer/producer chain) from pulling :non_minimal_cpp transitively.
+    "../common:minimal_cpp",
+    "../config:minimal_cpp",
   ]
 }
 
