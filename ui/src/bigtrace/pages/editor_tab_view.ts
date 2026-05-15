@@ -25,7 +25,9 @@ import {Icon} from '../../widgets/icon';
 import {linkify} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
+import {PopupPosition} from '../../widgets/popup';
 import {Stack, StackAuto} from '../../widgets/stack';
+import {Tooltip} from '../../widgets/tooltip';
 import {Switch} from '../../widgets/switch';
 import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
@@ -43,7 +45,12 @@ import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {setHistoryActiveTab} from '../query/query_history';
 import {BigtraceQueryClient} from '../query/bigtrace_query_client';
 import {QueryRunner} from '../query/query_runner';
-import {queryStore, TERMINAL_STATUSES} from '../query/query_store';
+import {
+  formatCompact,
+  queryStore,
+  statusDisplayLabel,
+  TERMINAL_STATUSES,
+} from '../query/query_store';
 import {
   BigTraceEditorTab,
   QueryResponse,
@@ -245,7 +252,6 @@ function renderResultsPanel(
     );
   }
 
-  const errorBanner = renderErrorBanner(tab);
   const processedRows = tab.execution?.processedRows ?? 0;
 
   // Sync re-open from history (rows not persisted): show a re-run hint
@@ -273,6 +279,9 @@ function renderResultsPanel(
   const hasRowsToShow = tab.materialize
     ? processedRows > 0
     : tab.queryResult.rows.length > 0;
+  // Default the error banner to expanded when there's no result data to look
+  // at (the error is the only signal); collapsed when rows came back too.
+  const errorBanner = renderErrorBanner(tab, hasRowsToShow);
 
   return m(
     '.pf-query-page__results-panel',
@@ -340,92 +349,106 @@ function renderStatusBox(tab: BigTraceEditorTab): m.Children {
   const totalTraces = tab.execution?.totalTraces ?? 0;
   const durationStr = formatDurationS(durationMs);
 
+  // Left group: refresh, status pill, duration.
+  const leftGroup = m(
+    '.pf-query-page__status-bar-group',
+    m(
+      'div.pf-query-page__status-bar-refresh',
+      m(Button, {
+        icon: 'refresh',
+        title: hasNewData
+          ? 'New data available. Click to refresh.'
+          : 'Refresh data',
+        onclick: () => refreshAsyncStatus(tab),
+      }),
+      hasNewData &&
+        m('span.pf-query-page__status-bar-notif', {
+          'aria-label': 'New data available',
+        }),
+    ),
+    m(
+      'span.pf-query-page__status-bar-pill',
+      {className: `pf-status-${status.toLowerCase().replace(/_/g, '-')}`},
+      statusDisplayLabel(status),
+    ),
+    m(
+      'span.pf-query-page__status-bar-duration',
+      m('span.pf-query-page__status-bar-duration-value', durationStr),
+    ),
+  );
+
+  // Right group: progress bars (Traces and Rows). While running, the CSS
+  // collapses labels/values to opacity 0 and hides the Traces bar so the
+  // user just sees the Rows progress bar; hovering reveals the numbers.
+  const rowsStatClasses = [
+    'pf-query-page__status-bar-stat',
+    'pf-query-page__status-bar-stat--rows',
+    processedRows === 0 && 'pf-query-page__status-bar-stat--empty',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const rightGroupContent = m(
+    '.pf-query-page__status-bar-group',
+    m(
+      'span.pf-query-page__status-bar-stat.pf-query-page__status-bar-stat--traces',
+      m('span.pf-query-page__status-bar-stat-label', 'Traces:'),
+      m(
+        'span.pf-query-page__status-bar-stat-value',
+        {
+          // Tooltip preserves exact counts; the displayed values are compact.
+          title:
+            `${processedTraces.toLocaleString()} of ` +
+            `${totalTraces.toLocaleString()}` +
+            (!isTerminal
+              ? ' — numerator lags the poll (≤3s); denominator is exact.'
+              : ''),
+        },
+        formatCompact(processedTraces),
+      ),
+      renderInlineProgressBar(processedTraces, totalTraces, !isTerminal),
+    ),
+    m(
+      'span',
+      {className: rowsStatClasses},
+      m('span.pf-query-page__status-bar-stat-label', 'Rows:'),
+      m(
+        'span.pf-query-page__status-bar-stat-value',
+        {
+          title: `${processedRows.toLocaleString()} of result limit ${tab.limit.toLocaleString()}`,
+        },
+        formatCompact(processedRows),
+      ),
+      renderInlineProgressBar(processedRows, tab.limit, !isTerminal),
+    ),
+  );
+
+  // While running, wrap the whole right group in a Tooltip — hovering
+  // anywhere on the right side reveals TRACES + ROWS counts that are
+  // collapsed to just the progress bar by default.
+  const rightGroup = !isTerminal
+    ? m(
+        Tooltip,
+        {
+          trigger: rightGroupContent,
+          position: PopupPosition.Top,
+        },
+        m(
+          '.pf-query-page__status-bar-progress-tooltip',
+          m('div', `Traces: ${formatCompact(processedTraces)}`),
+          m('div', `Rows: ${formatCompact(processedRows)}`),
+        ),
+      )
+    : rightGroupContent;
+
   return m(
     Box,
-    {className: 'pf-query-page__status-bar'},
-    m(
-      Stack,
-      {orientation: 'horizontal', gap: '16px', alignItems: 'center'},
-      m(
-        'div.pf-query-page__status-bar-refresh',
-        m(Button, {
-          icon: 'refresh',
-          title: hasNewData
-            ? 'New data available. Click to refresh.'
-            : 'Refresh data',
-          onclick: () => refreshAsyncStatus(tab),
-        }),
-        hasNewData &&
-          m('span.pf-query-page__status-bar-notif', {
-            'aria-label': 'New data available',
-          }),
-      ),
-      m(
-        'span.pf-query-page__status-bar-pill',
-        {className: `pf-status-${status.toLowerCase().replace(/_/g, '-')}`},
-        // Pre-first-poll UNKNOWN → "STARTING" to match body copy.
-        status === 'UNKNOWN' ? 'STARTING' : status.replace(/_/g, ' '),
-      ),
-      m('span.pf-query-page__toolbar-divider', {'aria-hidden': 'true'}),
-      // Duration gets its own chip — easy to miss as a plain stat pair.
-      m(
-        'span.pf-query-page__status-bar-duration',
-        {
-          title: !isTerminal ? 'Elapsed time (live)' : 'Total query duration',
-        },
-        m(Icon, {
-          icon: 'schedule',
-          className: 'pf-query-page__status-bar-duration-icon',
-        }),
-        m('span.pf-query-page__status-bar-duration-value', durationStr),
-      ),
-      m('span.pf-query-page__toolbar-divider', {'aria-hidden': 'true'}),
-      // Denominator is firm; numerator lags the 3s poll, dimmed while live.
-      m(
-        'span.pf-query-page__status-bar-stat',
-        m('span.pf-query-page__status-bar-stat-label', 'Traces'),
-        m(
-          'span.pf-query-page__status-bar-stat-value',
-          {
-            title: !isTerminal
-              ? 'Numerator updates on the next poll (≤3s lag); denominator is exact.'
-              : undefined,
-          },
-          m(
-            'span',
-            {
-              className: !isTerminal
-                ? 'pf-query-page__status-bar-live'
-                : undefined,
-            },
-            String(processedTraces),
-          ),
-          '/',
-          String(totalTraces),
-        ),
-        renderInlineProgressBar(processedTraces, totalTraces, !isTerminal),
-      ),
-      m('span.pf-query-page__toolbar-divider', {'aria-hidden': 'true'}),
-      m(
-        'span.pf-query-page__status-bar-stat',
-        {
-          className:
-            processedRows === 0
-              ? 'pf-query-page__status-bar-stat--empty'
-              : undefined,
-        },
-        m('span.pf-query-page__status-bar-stat-label', 'Rows'),
-        m(
-          'span.pf-query-page__status-bar-stat-value',
-          {
-            title: `${processedRows.toLocaleString()} of result limit ${tab.limit.toLocaleString()}`,
-          },
-          processedRows.toLocaleString(),
-        ),
-        // Denominator is the user-set limit (a soft cap, informational).
-        renderInlineProgressBar(processedRows, tab.limit, !isTerminal),
-      ),
-    ),
+    {
+      className: isTerminal
+        ? 'pf-query-page__status-bar'
+        : 'pf-query-page__status-bar pf-query-page__status-bar--running',
+    },
+    leftGroup,
+    rightGroup,
   );
 }
 
@@ -471,30 +494,10 @@ async function refreshAsyncStatus(tab: BigTraceEditorTab): Promise<void> {
   m.redraw();
 }
 
-// TP traceback shape: scaffolding then headline on the last non-empty line.
-function extractErrorHeadline(errorStr: string): string {
-  const normalized = errorStr.replaceAll('\\n', '\n');
-  const lines = normalized.split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const trimmed = lines[i].trim();
-    if (trimmed !== '' && trimmed !== '^') return trimmed;
-  }
-  return errorStr;
-}
-
-// Strip transport prefixes: "HTTP error! status: ...", "INVALID_ARGUMENT: …".
-const _GRPC_STATUS_RE =
-  /^\s*(?:status\s*:\s*\d+\s*[,:]?\s*)?(?:detail\s*:\s*)?(?:OK|CANCELLED|UNKNOWN|INVALID_ARGUMENT|DEADLINE_EXCEEDED|NOT_FOUND|ALREADY_EXISTS|PERMISSION_DENIED|RESOURCE_EXHAUSTED|FAILED_PRECONDITION|ABORTED|OUT_OF_RANGE|UNIMPLEMENTED|INTERNAL|UNAVAILABLE|DATA_LOSS|UNAUTHENTICATED)\s*[:\-]?\s*/i;
-const _HTTP_ERROR_RE =
-  /^\s*HTTP error!\s*status\s*:\s*\d+\s*,\s*message\s*:\s*/i;
-function stripGrpcStatus(text: string): string {
-  let stripped = text.replace(_HTTP_ERROR_RE, '');
-  stripped = stripped.replace(_GRPC_STATUS_RE, '').trim();
-  // Fall back to original if stripping consumed everything.
-  return stripped.length === 0 ? text : stripped;
-}
-
-function renderErrorBanner(tab: BigTraceEditorTab): m.Children {
+function renderErrorBanner(
+  tab: BigTraceEditorTab,
+  hasRowsToShow: boolean,
+): m.Children {
   const errorStr = tab.queryResult?.error;
   if (errorStr === undefined) return false;
 
@@ -504,51 +507,65 @@ function renderErrorBanner(tab: BigTraceEditorTab): m.Children {
   const displayTitle = isPreconditionFailure
     ? 'Results no longer available'
     : 'Query failed';
-  const headline = isPreconditionFailure
-    ? 'The persistent results table for this query has expired. You may need to ' +
-      'run the query again.'
-    : stripGrpcStatus(extractErrorHeadline(errorStr));
   const fullText = errorStr
     .replaceAll('\\n', '\n')
     .replaceAll('\\t', '  ')
     .replaceAll('\\u003e', '>');
-  const showDetailsToggle = fullText.trim() !== headline.trim();
+  // Default open when there's no row data to read; once the user toggles,
+  // their explicit choice (stored on the tab) overrides the default.
+  const isOpen = tab.errorBannerOpen ?? !hasRowsToShow;
 
   return m(
     '.pf-results-table__error',
-    m(Icon, {
-      className: 'pf-results-table__error-icon',
-      icon: 'error',
-      intent: Intent.Danger,
-    }),
-    m('.pf-results-table__error-body', [
+    // Headline row: icon + title + toggle on a single line. The icon's
+    // vertical centering is scoped to this row, so expanding (which adds
+    // the pre as a sibling below) doesn't move the icon.
+    m(
+      '.pf-results-table__error-headline',
+      m(Icon, {
+        className: 'pf-results-table__error-icon',
+        icon: 'error',
+        intent: Intent.Danger,
+      }),
       m('.pf-results-table__error-title', displayTitle),
-      // Headline always visible; full traceback collapsed in <details>.
-      m('.pf-results-table__error-headline', headline),
-      showDetailsToggle &&
-        m(
-          'details',
-          m(
-            'summary',
-            {style: {cursor: 'pointer', opacity: 0.7, fontSize: '0.85em'}},
-            'Show full error',
-          ),
-          m(
-            'pre.pf-results-table__error-message',
-            {
-              style: {
-                overflow: 'auto',
-                maxWidth: '100%',
-                textAlign: 'left',
-                marginTop: '6px',
-                fontSize: '0.85em',
-                opacity: 0.8,
-              },
-            },
-            fullText,
-          ),
-        ),
-    ]),
+      m(
+        'button.pf-results-table__error-toggle',
+        {
+          'type': 'button',
+          'aria-expanded': isOpen ? 'true' : 'false',
+          'onclick': () => {
+            tab.errorBannerOpen = !isOpen;
+          },
+        },
+        m(Icon, {
+          className: 'pf-results-table__error-toggle-icon',
+          icon: isOpen ? 'expand_more' : 'chevron_right',
+        }),
+        isOpen ? 'Hide error' : 'Show error',
+      ),
+    ),
+    isPreconditionFailure &&
+      m(
+        '.pf-results-table__error-hint',
+        'The persistent results table for this query has expired. ' +
+          'You may need to run the query again.',
+      ),
+    isOpen &&
+      m(
+        'pre.pf-results-table__error-message',
+        {
+          style: {
+            overflow: 'auto',
+            maxHeight: '12em',
+            maxWidth: '100%',
+            textAlign: 'left',
+            marginTop: '6px',
+            fontSize: '0.85em',
+            opacity: 0.8,
+          },
+        },
+        fullText,
+      ),
   );
 }
 

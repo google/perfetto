@@ -76,6 +76,14 @@ export class QueryHistoryStorage {
   async deleteQuery(uuid: string): Promise<void> {
     await this.client().deleteQueryExecution(uuid);
   }
+
+  // The listing endpoint clips perfettoSql; the per-uuid endpoint returns the
+  // full text. Use this on demand (e.g. when the user expands a clamped SQL
+  // preview in the history sidebar).
+  async fetchFullSql(uuid: string): Promise<string | undefined> {
+    const raw = await this.client().getQueryExecution(uuid);
+    return raw.perfettoSql;
+  }
 }
 
 function toQueryExecution(raw: RawQueryExecution): QueryExecution {

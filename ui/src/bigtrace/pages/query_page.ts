@@ -25,30 +25,27 @@ import {sqlTablesLoader} from '../query/sql_tables';
 import {TableList} from '../query/table_list';
 import {EditorTabView} from './editor_tab_view';
 import {QueryTabsState} from './query_tabs_state';
+import {queryState} from '../query/query_state';
 
 interface QueryPageAttrs {
   useBigtraceBackend?: boolean;
-  initialQuery?: string;
 }
 
 // Lets the globally-registered keyboard command reach into the active
 // QueryPage instance. Same pattern as sidebarToggleFn in index.ts.
 export let queryRightSidebarToggleFn: (() => void) | undefined;
 
-// Module-level: survives route navigation so in-flight sync queries
-// (UUID-less from the SPA) don't vanish on every page switch.
-const sharedTabsState = new QueryTabsState();
-let sharedHistoryRefreshSignal = 0;
-const sharedRunner = new QueryRunner({
-  onHistoryChanged: () => {
-    sharedHistoryRefreshSignal++;
-  },
-  markDirty: () => sharedTabsState.markDirty(),
-});
-
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private useBigtraceBackend = false;
   private sidebarVisible = true;
+  private readonly tabsState = new QueryTabsState();
+  private historyRefreshSignal = 0;
+  private readonly runner = new QueryRunner({
+    onHistoryChanged: () => {
+      this.historyRefreshSignal++;
+    },
+    markDirty: () => this.tabsState.markDirty(),
+  });
 
   oninit({attrs}: m.Vnode<QueryPageAttrs>) {
     this.useBigtraceBackend = attrs.useBigtraceBackend || false;
@@ -56,19 +53,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       this.sidebarVisible = !this.sidebarVisible;
       m.redraw();
     };
-    if (attrs.initialQuery) {
-      const activeTab = sharedTabsState.getActiveTab();
-      if (activeTab && activeTab.editorText.trim() === '') {
-        // Reuse the empty active tab and derive its title manually
-        // (addNewTab's title path doesn't fire on this branch).
-        activeTab.editorText = attrs.initialQuery;
-        sharedTabsState.maybeAutoNameTab(activeTab.id, attrs.initialQuery);
-      } else {
-        // addNewTab already derives the title from initialQuery (B62).
-        sharedTabsState.addNewTab(undefined, attrs.initialQuery);
-      }
-      sharedTabsState.markDirty();
-    }
     if (this.useBigtraceBackend) {
       bigTraceSettingsStorage.loadSettings();
     }
@@ -76,18 +60,33 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view() {
+    // Process initialQuery set by home-page example buttons.
+    // Read-and-clear: each value is consumed exactly once.
+    const initialQuery = queryState.initialQuery;
+    if (initialQuery !== undefined) {
+      queryState.initialQuery = undefined;
+      const activeTab = this.tabsState.getActiveTab();
+      if (activeTab && activeTab.editorText.trim() === '') {
+        activeTab.editorText = initialQuery;
+        this.tabsState.maybeAutoNameTab(activeTab.id, initialQuery);
+      } else {
+        this.tabsState.addNewTab(undefined, initialQuery);
+      }
+      this.tabsState.markDirty();
+    }
+
     // Build editor tabs for the Tabs widget.
-    const editorTabs: TabsTab[] = sharedTabsState.tabs.map((tab) => ({
+    const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({
       key: tab.id,
       title: tab.title,
       // Spinner on tabs with a query in flight, so tab-switching
       // doesn't make the running query "disappear".
       leftIcon: tab.isLoading ? 'progress_activity' : 'code',
-      closeButton: sharedTabsState.tabs.length > 1,
+      closeButton: this.tabsState.tabs.length > 1,
       content: m(EditorTabView, {
         tab,
-        tabsState: sharedTabsState,
-        runner: sharedRunner,
+        tabsState: this.tabsState,
+        runner: this.runner,
         useBigtraceBackend: this.useBigtraceBackend,
       }),
     }));
@@ -95,35 +94,35 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     const leftPanel = m(Tabs, {
       className: 'pf-query-page__editor-tabs',
       tabs: editorTabs,
-      activeTabKey: sharedTabsState.activeTabId,
+      activeTabKey: this.tabsState.activeTabId,
       reorderable: true,
       onTabChange: (key) => {
-        sharedTabsState.activeTabId = key;
-        sharedTabsState.markDirty();
+        this.tabsState.activeTabId = key;
+        this.tabsState.markDirty();
       },
-      onTabRename: (key, newTitle) => sharedTabsState.renameTab(key, newTitle),
+      onTabRename: (key, newTitle) => this.tabsState.renameTab(key, newTitle),
       onTabClose: (key) => {
         // closeTab is a no-op when only one tab remains; bail before
         // the confirm so middle-click doesn't dead-end.
-        if (sharedTabsState.tabs.length <= 1) return;
+        if (this.tabsState.tabs.length <= 1) return;
         // Confirm before closing a tab with an in-flight sync query
         // (Persistent queries keep running on the backend).
-        const tab = sharedTabsState.tabs.find((t) => t.id === key);
+        const tab = this.tabsState.tabs.find((t) => t.id === key);
         if (
           tab?.isLoading &&
           !window.confirm('A query is still running in this tab. Close anyway?')
         ) {
           return;
         }
-        sharedTabsState.closeTab(key);
+        this.tabsState.closeTab(key);
       },
       onTabReorder: (draggedKey, beforeKey) =>
-        sharedTabsState.reorderTab(draggedKey, beforeKey),
+        this.tabsState.reorderTab(draggedKey, beforeKey),
       newTabContent: [
         m(Button, {
           icon: 'add',
           className: 'pf-tabs__new-tab-btn',
-          onclick: () => sharedTabsState.addNewTab(),
+          onclick: () => this.tabsState.addNewTab(),
         }),
         m('div', {style: {flex: '1'}}),
         m(Button, {
@@ -147,7 +146,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           title: 'History',
           content: m(QueryHistoryComponent, {
             className: 'pf-query-page__history',
-            refreshSignal: sharedHistoryRefreshSignal,
+            refreshSignal: this.historyRefreshSignal,
             openQuery: async (
               query: string,
               uuid: string,
@@ -156,7 +155,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               limit?: number,
               startTime?: number,
             ) => {
-              const tab = sharedTabsState.addNewTab(
+              const tab = this.tabsState.addNewTab(
                 undefined,
                 query,
                 limit,
@@ -164,12 +163,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
                 materialize,
                 forceNew,
               );
-              sharedTabsState.activeTabId = tab.id;
-              sharedTabsState.markDirty();
+              this.tabsState.activeTabId = tab.id;
+              this.tabsState.markDirty();
               if (startTime !== undefined && tab.execution) {
                 tab.execution.startTime = startTime;
               }
-              await sharedRunner.resumeFromHistory(tab, query);
+              await this.runner.resumeFromHistory(tab, query);
             },
           }),
         },
@@ -228,7 +227,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     return m(TableList, {
       sqlModules: modules,
       onQueryTable: (tableName, query) => {
-        sharedTabsState.addNewTab(tableName, query);
+        this.tabsState.addNewTab(tableName, query);
       },
     });
   }

@@ -136,11 +136,40 @@
   opacity: 0.55;
 }
 
-// Async-query status bar (under the editor). Layout:
-// [Refresh] [Status pill] | [Duration] | [Traces n/m] | [Rows N].
+// Async-query status bar (under the editor). Two groups split by
+// space-between: left = [Refresh] [Status pill] [Duration],
+// right = [Traces n/m] [Rows N].
 .pf-query-page__status-bar {
   padding: 12px 16px;
   border-bottom: 1px solid var(--pf-color-border, #3c4048);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.pf-query-page__status-bar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+// Give the rows stat (the rightmost element of the right group) some
+// breathing room from the bar's right edge — without this, `~1.2M` butts
+// right up against the bar's border.
+.pf-query-page__status-bar-stat--rows {
+  margin-right: 16px;
+}
+
+// While the query is running, the right group collapses to just the Rows
+// inline progress bar — labels, numeric values, and the Traces stat hide.
+// A perfetto Tooltip wraps the bar; hovering it shows Traces n/m and Rows n.
+.pf-query-page__status-bar--running {
+  .pf-query-page__status-bar-stat--traces,
+  .pf-query-page__status-bar-stat-label,
+  .pf-query-page__status-bar-stat-value {
+    display: none;
+  }
 }
 
 // Refresh button + notification-dot wrapper.
@@ -160,12 +189,6 @@
   z-index: 10;
 }
 
-// Color comes from `.pf-status-*`; bump weight/tracking for the headline.
-.pf-query-page__status-bar-pill {
-  font-weight: 600;
-  letter-spacing: 0.4px;
-}
-
 .pf-query-page__status-bar-stat {
   display: inline-flex;
   align-items: baseline;
@@ -174,14 +197,7 @@
 }
 
 .pf-query-page__status-bar-stat-label {
-  opacity: 0.6;
-  font-size: 0.8em;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.pf-query-page__status-bar-stat-value {
-  font-weight: 500;
 }
 
 .pf-query-page__status-bar-stat--empty {
@@ -196,19 +212,6 @@
   align-items: baseline;
   gap: 6px;
   font-variant-numeric: tabular-nums;
-}
-
-.pf-query-page__status-bar-duration-icon {
-  font-size: 14px;
-  // Material Symbols' 1.2 line-box pushes the container to 18px without
-  // this clamp; line-height: 1 sits the glyph on the text baseline.
-  line-height: 1;
-  opacity: 0.7;
-}
-
-.pf-query-page__status-bar-duration-value {
-  font-weight: 600;
-  letter-spacing: 0.2px;
 }
 
 // At <520px container width, drop the Ctrl+Enter hint first; the hotkey
@@ -237,32 +240,12 @@
   background-color: var(--pf-color-border-secondary, #3c4048);
 }
 
-// Marks an in-flight numerator as "live"; pulse lives on the pill instead.
-.pf-query-page__status-bar-live {
-  opacity: 0.55;
-}
-
-// Pulse the IN_PROGRESS pill so work-in-flight reads even with 0 rows so far.
-.pf-query-page__status-bar-pill.pf-status-in-progress {
-  animation: pf-bigtrace-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes pf-bigtrace-pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-// Inline mini bar next to N/M in status-bar stats. width = done/total.
+// Inline progress bar next to N/M in status-bar stats. width = done/total.
+// Wider than a typical inline mini-bar because during a running query it is
+// the sole on-screen progress signal (labels/numbers are hover-revealed).
 .pf-query-page__inline-progress {
   display: inline-block;
-  width: 60px;
+  width: 140px;
   height: 6px;
   margin-left: 6px;
   border-radius: 2px;
@@ -282,8 +265,13 @@
 
 // Meta + pre form one unified card via matching L/R borders. `padding-right`
 // reserves ~56px for the absolute-positioned Open/Delete buttons.
+// Visual hierarchy: meta header is the loudest (bg-tertiary, darkest of the
+// three); the details band sits in the middle (bg-secondary); the SQL pre is
+// the quietest (bg-void = page bg in light theme).
 .pf-query-history__item-meta {
-  background: var(--pf-color-background-secondary);
+  // Anchor for the absolute-positioned Open/Delete buttons inside the meta.
+  position: relative;
+  background: var(--pf-color-background-tertiary);
   padding: 6px 8px;
   padding-right: 56px;
   // Top + right only; the earlier `border-left: 3px solid <status>` rule
@@ -338,43 +326,76 @@
   min-height: 0;
 }
 
-// Error banner: icon + body (title, headline, optional <details>).
-.pf-results-table__error-body {
-  display: flex;
+// Error banner — column-stack a single headline row (icon + title + toggle)
+// on top of an optional hint and the collapsible <pre>. Override the
+// QueryPage default (row flex of icon + body) so the icon's vertical
+// centering is scoped to the headline row, not the whole expanded banner.
+.pf-results-table__error {
   flex-direction: column;
+  align-items: stretch;
   gap: 4px;
-  flex: 1;
-  min-width: 0; // let <pre> wrap inside flexbox
+}
+
+.pf-results-table__error-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .pf-results-table__error-title {
   font-weight: 600;
 }
 
-.pf-results-table__error-headline {
-  font-family: var(--pf-font-monospace, monospace);
-  font-size: 0.9em;
-  word-break: break-word;
+.pf-results-table__error-hint {
+  font-size: var(--pf-font-size-s);
+  opacity: 0.8;
 }
+
+// Plain text-button look: matches the prior <summary> styling so the toggle
+// reads as an affordance without growing into a chunky button. Same body
+// font size as the title next to it.
+.pf-results-table__error-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0.7;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.pf-results-table__error-toggle:hover {
+  opacity: 1;
+}
+
+// Match the toggle text size so the chevron sits flush with "Show / Hide".
+.pf-results-table__error-toggle-icon {
+  font-size: var(--pf-font-size-m);
+  line-height: 1;
+}
+
+// Force the <pre> onto its own full-width row below the title+toggle.
 
 .pf-status-success {
   color: #1e8e3e;
-  font-weight: 500;
 }
 
 .pf-status-failed {
   color: #d93025;
-  font-weight: 500;
 }
 
 .pf-status-cancelled {
   color: #fbbc04;
-  font-weight: 500;
 }
 
 .pf-status-in-progress {
   color: #1a73e8;
-  font-weight: 500;
 }
 
 .pf-status-queued,
@@ -406,51 +427,44 @@
 }
 
 .pf-query-history__item-date {
-  // Muted so the eye lands on the status pill first.
-  opacity: 0.85;
   text-align: right;
 }
 
-// Pack "Rows:" + value tight; shrink the table-link sibling first.
-.pf-query-history__item-rows {
+// Materialized-only "details" band — a distinct middle section sandwiched
+// between the meta header (above) and the SQL pre (below). Its own background
+// shade + horizontal separators on top and bottom make it visibly a separate
+// section, not a row inside the header card.
+.pf-query-history__item-details {
+  background: var(--pf-color-background-secondary);
+  padding: 4px 8px;
+  border-left: 1px solid var(--pf-color-border-secondary);
+  border-right: 1px solid var(--pf-color-border-secondary);
+  border-top: 1px solid var(--pf-color-border-secondary);
+  border-bottom: 1px solid var(--pf-color-border-secondary);
   display: flex;
   align-items: baseline;
-  flex-shrink: 0;
   gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--pf-font-size-xs);
   font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-query-history__item-details--empty {
+  opacity: 0.55;
 }
 
 .pf-query-history__item-rows-value {
-  text-align: right;
-}
-
-// Row 2 (materialized): table link (left, ellipsis-shrinks) + rows (right).
-// `flex-wrap: wrap` is a safety net below the sidebar's 280px floor.
-.pf-query-history__item-details {
-  margin-top: 4px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pf-query-history__item-table-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  // `flex-basis: 0` so the long table name doesn't push Rows onto its own line.
-  flex: 1 1 0;
+  flex-shrink: 0;
 }
 
 .pf-query-history__item-table-link {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  // No `flex: 1` here: it'd grow the link past content size and wrap Rows.
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .pf-query-history__item-table-link--disabled {

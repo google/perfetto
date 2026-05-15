@@ -18,12 +18,18 @@ import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {Stack} from '../../widgets/stack';
 import {queryHistoryStorage} from './query_history_storage';
-import {queryStore, QueryExecution} from './query_store';
+import {
+  formatCompact,
+  queryStore,
+  QueryExecution,
+  statusDisplayLabel,
+} from './query_store';
 import {Tabs, TabsTab} from '../../widgets/tabs';
 
 import {formatDate} from '../../base/time';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
+import {showModal} from '../../widgets/modal';
 
 // Open-an-existing-history-entry callback.
 type OpenQueryFn = (
@@ -69,6 +75,73 @@ function formatCompactDate(d: Date): string {
   h = h % 12 || 12;
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${month} ${day}, ${year}, ${h}:${mm} ${m12}`;
+}
+
+// SQL block clamped to ~4 lines with a fade-out mask; click to toggle full
+// height. Used both by the sidebar history row and the delete-confirm modal,
+// so they share the same expand behaviour. The sidebar inherits its frame
+// (background + border + padding) from `.pf-query-history__item pre`; the
+// modal opts into `standalone: true` to add the equivalent frame inline.
+function renderClampedQuery(
+  queryText: string,
+  opts: {standalone?: boolean; onExpand?: () => void} = {},
+): m.Children {
+  if (queryText === '') {
+    return m(
+      'span.pf-query-history__item-query',
+      {style: {fontStyle: 'italic', opacity: '0.5'}},
+      '(no query text)',
+    );
+  }
+  const clamped = {
+    maxHeight: '4.5em',
+    maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)',
+    WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)',
+  };
+  const standaloneFrame = opts.standalone
+    ? {
+        fontFamily: 'var(--pf-font-monospace, monospace)',
+        background: 'var(--pf-color-void)',
+        border: 'solid 1px var(--pf-color-border-secondary)',
+        borderRadius: '4px',
+        padding: '8px',
+        margin: '0',
+        whiteSpace: 'pre-wrap',
+      }
+    : {};
+  return m(
+    'pre.pf-query-history__item-query',
+    {
+      style: {
+        ...clamped,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        position: 'relative',
+        ...standaloneFrame,
+      },
+      onclick: (e: Event) => {
+        const el = e.currentTarget as HTMLElement;
+        const expanded = el.classList.toggle(
+          'pf-query-history__item-query--expanded',
+        );
+        if (expanded) {
+          // Cap so a 1000-line query doesn't blow out the sidebar layout
+          // — long SQL scrolls inside the pre instead.
+          el.style.maxHeight = '50vh';
+          el.style.overflow = 'auto';
+          el.style.maskImage = '';
+          el.style.webkitMaskImage = '';
+          opts.onExpand?.();
+        } else {
+          el.style.maxHeight = clamped.maxHeight;
+          el.style.overflow = 'hidden';
+          el.style.maskImage = clamped.maskImage;
+          el.style.webkitMaskImage = clamped.WebkitMaskImage;
+        }
+      },
+    },
+    queryText,
+  );
 }
 
 // Module-level: survives sidebar toggles so we don't re-fetch on every show.
@@ -267,76 +340,83 @@ export class QueryHistoryComponent
           ? formatDate(new Date(startTime), {printTimezone: false})
           : 'N/A';
 
+      const buttonsRow = m(
+        Stack,
+        {
+          className: 'pf-query-history__item-buttons',
+          orientation: 'horizontal',
+        },
+        [
+          m(Button, {
+            onclick: () => {
+              if (openQuery && uuid) {
+                openQuery(
+                  queryText,
+                  uuid,
+                  isMaterialized,
+                  false,
+                  entry.limit,
+                  startTime,
+                );
+              }
+            },
+            icon: Icons.ChangeTab,
+            title: 'Open',
+          }),
+
+          m(Button, {
+            onclick: async () => {
+              if (!uuid) return;
+              let confirmed = false;
+              await showModal({
+                title: 'Delete query from history?',
+                content: m('div', [
+                  startTime !== undefined &&
+                    m(
+                      'div',
+                      {
+                        style: {marginBottom: '8px', opacity: '0.7'},
+                        title: `UTC: ${utcString}`,
+                      },
+                      localString,
+                    ),
+                  renderClampedQuery(queryText, {standalone: true}),
+                ]),
+                buttons: [
+                  {text: 'Cancel'},
+                  {
+                    text: 'Delete',
+                    primary: true,
+                    action: () => {
+                      confirmed = true;
+                    },
+                  },
+                ],
+              });
+              if (!confirmed) return;
+              await queryHistoryStorage.deleteQuery(uuid);
+              historyStore.refreshNow();
+            },
+            icon: Icons.Delete,
+            // Red hover so destructive intent reads before click.
+            intent: Intent.Danger,
+            title: 'Delete query',
+          }),
+        ],
+      );
+
       return m(
         '.pf-query-history__item',
         {key: `${uuid}-${index}`},
-        m(
-          Stack,
-          {
-            className: 'pf-query-history__item-buttons',
-            orientation: 'horizontal',
-          },
-          [
-            m(Button, {
-              onclick: () => {
-                if (openQuery && uuid) {
-                  openQuery(
-                    queryText,
-                    uuid,
-                    isMaterialized,
-                    false,
-                    entry.limit,
-                    startTime,
-                  );
-                }
-              },
-              icon: Icons.ChangeTab,
-              title: 'Open query (switches to tab if already open)',
-            }),
-
-            m(Button, {
-              onclick: async () => {
-                if (!uuid) return;
-                // Trash sits 4px from Open and delete is irreversible.
-                const oneLine = queryText
-                  .split('\n')
-                  .map((s) => s.trim())
-                  .filter((s) => s.length > 0)[0];
-                const preview =
-                  oneLine && oneLine.length > 60
-                    ? oneLine.slice(0, 59) + '…'
-                    : oneLine ?? uuid;
-                if (
-                  !window.confirm(
-                    `Delete this query from history?\n\n${preview}`,
-                  )
-                ) {
-                  return;
-                }
-                await queryHistoryStorage.deleteQuery(uuid);
-                historyStore.refreshNow();
-              },
-              icon: Icons.Delete,
-              // Red hover so destructive intent reads before click.
-              intent: Intent.Danger,
-              title: 'Delete query',
-            }),
-          ],
-        ),
         m('.pf-query-history__item-meta', [
-          // Row 1: status pill + start timestamp ("what / when").
+          buttonsRow,
           m('div.pf-query-history__item-header', [
             m(
               'span.pf-query-history__item-status',
               {
                 class: `pf-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
-                title: `Status: ${entry.status}`,
               },
-              // Display: "IN_PROGRESS" → "IN PROGRESS";
-              // transient "UNKNOWN" → "STARTING" so it doesn't alarm.
-              entry.status === 'UNKNOWN'
-                ? 'STARTING'
-                : entry.status.replace(/_/g, ' '),
+              statusDisplayLabel(entry.status),
             ),
             m(
               'span.pf-query-history__item-date',
@@ -344,94 +424,62 @@ export class QueryHistoryComponent
               localString,
             ),
           ]),
-          // Row 2 (materialized only): table link + row count.
-          isMaterialized &&
-            m('div.pf-query-history__item-details', [
-              m('span.pf-query-history__item-table-row', [
-                m('span', 'Table:'),
-                m(
-                  'a.pf-query-history__item-table-link',
-                  {
-                    class:
-                      rows === 0 || link === undefined || link === ''
-                        ? 'pf-query-history__item-table-link--disabled'
-                        : 'pf-query-history__item-table-link--active',
-                    href: link || '#',
-                    target: '_blank',
-                    title:
-                      rows === 0
-                        ? 'No table created for empty results'
-                        : 'View Table',
-                  },
-                  entry.tableName || 'N/A',
-                ),
-              ]),
-              m(
-                'span.pf-query-history__item-rows',
-                {
-                  // Dim empty results so they recede.
-                  className:
-                    rows === 0
-                      ? 'pf-query-history__item-rows--empty'
-                      : undefined,
-                },
-                m('span.pf-query-history__item-rows-label', 'Rows:'),
-                m(
-                  'span.pf-query-history__item-rows-value',
-                  rows.toLocaleString(),
-                ),
-              ),
-            ]),
         ]),
-        // Clamp to ~4 lines (long SQL was eating half the viewport);
-        // click toggles --expanded. Empty queryText → italic placeholder
-        // so the card height matches its peers.
-        queryText === '' &&
+        // Separate section (materialized only): a banded strip between the
+        // meta header and the SQL pre, with its own background and borders so
+        // it reads as a distinct section, not a row inside the header card.
+        isMaterialized &&
           m(
-            'span.pf-query-history__item-query',
+            'div.pf-query-history__item-details',
             {
-              style: {
-                fontStyle: 'italic',
-                opacity: 0.5,
-              },
+              className:
+                rows === 0
+                  ? 'pf-query-history__item-details--empty'
+                  : undefined,
             },
-            '(no query text)',
-          ),
-        queryText !== '' &&
-          m(
-            'pre.pf-query-history__item-query',
-            {
-              style: {
-                maxHeight: '4.5em',
-                overflow: 'hidden',
-                cursor: 'pointer',
-                position: 'relative',
-                maskImage:
-                  'linear-gradient(to bottom, black 70%, transparent 100%)',
-                WebkitMaskImage:
-                  'linear-gradient(to bottom, black 70%, transparent 100%)',
+            m(
+              'a.pf-query-history__item-table-link',
+              {
+                class:
+                  rows === 0 || link === undefined || link === ''
+                    ? 'pf-query-history__item-table-link--disabled'
+                    : 'pf-query-history__item-table-link--active',
+                href: link || '#',
+                target: '_blank',
+                title:
+                  rows === 0
+                    ? 'No table created for empty results'
+                    : entry.tableName || 'View Table',
               },
-              title: 'Click to toggle full query',
-              onclick: (e: Event) => {
-                const el = e.currentTarget as HTMLElement;
-                const expanded = el.classList.toggle(
-                  'pf-query-history__item-query--expanded',
-                );
-                if (expanded) {
-                  el.style.maxHeight = '';
-                  el.style.maskImage = '';
-                  el.style.webkitMaskImage = '';
-                } else {
-                  el.style.maxHeight = '4.5em';
-                  el.style.maskImage =
-                    'linear-gradient(to bottom, black 70%, transparent 100%)';
-                  el.style.webkitMaskImage =
-                    'linear-gradient(to bottom, black 70%, transparent 100%)';
+              entry.tableName || '—',
+            ),
+            m(
+              'span.pf-query-history__item-rows-value',
+              `${formatCompact(rows)} ${rows === 1 ? 'row' : 'rows'}`,
+            ),
+          ),
+        // Sidebar uses the .pf-query-history__item pre rule for the
+        // monospace look; modal callers opt in via `{standalone: true}`.
+        renderClampedQuery(queryText, {
+          // /query_executions clips perfettoSql at ~200 chars (suffix "…").
+          // First expand fetches the untruncated text via the per-uuid
+          // endpoint; the queryStore caches it so subsequent expands are
+          // already full.
+          onExpand:
+            uuid && queryText.endsWith('…')
+              ? () => {
+                  void queryHistoryStorage
+                    .fetchFullSql(uuid)
+                    .then((full) => {
+                      if (full && full !== queryText) {
+                        queryStore.update(uuid, {perfettoSql: full});
+                        m.redraw();
+                      }
+                    })
+                    .catch(() => {});
                 }
-              },
-            },
-            queryText,
-          ),
+              : undefined,
+        }),
       );
     });
   }

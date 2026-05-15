@@ -96,6 +96,10 @@ export interface BigTraceEditorTab {
   execution?: QueryExecution;
   // Stale-poll guard: bumped on each startPolling() call.
   pollGeneration: number;
+  // Error banner expand state. Undefined = use default (open when no rows
+  // were returned; collapsed when rows are present and the user can read
+  // them). Set once the user toggles, so their choice sticks across redraws.
+  errorBannerOpen?: boolean;
 }
 
 // Persisted subset of BigTraceEditorTab. Transient state is rebuilt on load.
@@ -114,7 +118,7 @@ interface StoredState {
   readonly activeTabId?: string;
 }
 
-// Survives QueryPage re-mounts so tab layout persists across navigation.
+// Manages editor tabs + localStorage persistence across page reloads.
 export class QueryTabsState {
   tabs: BigTraceEditorTab[] = [];
   activeTabId = '';

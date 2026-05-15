@@ -19,6 +19,54 @@ export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'CANCELLED',
 ]);
 
+// UI-display label for a wire status. Backend uses IN_PROGRESS; the UI shows
+// "Running" (shorter, no underscore). Transient UNKNOWN reads as "Starting".
+export function statusDisplayLabel(status: string): string {
+  if (status === 'IN_PROGRESS') return 'Running';
+  if (status === 'UNKNOWN') return 'Starting';
+  const s = status.replace(/_/g, ' ');
+  return s.charAt(0) + s.slice(1).toLowerCase();
+}
+
+// Compact integer format (1.2K, 3.4M, 1.5B) for cramped UI spots — status bar,
+// history sidebar. Precise value belongs in the surrounding tooltip. When
+// rounding loses precision the result is prefixed "~" (e.g. 3,383,384 →
+// "~3.4M") so users know to consult the tooltip.
+const COMPACT_FORMATTER = new Intl.NumberFormat('en', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+const COMPACT_SUFFIX_MULTIPLIER: Readonly<Record<string, number>> = {
+  '': 1,
+  'K': 1e3,
+  'M': 1e6,
+  'B': 1e9,
+  'T': 1e12,
+};
+export function formatCompact(n: number): string {
+  const compact = COMPACT_FORMATTER.format(n);
+  // Reconstruct the numeric value implied by the compact form and check
+  // whether it matches the input — if not, the compact form is rounded.
+  let numericPart = '';
+  let suffix = '';
+  for (const p of COMPACT_FORMATTER.formatToParts(n)) {
+    if (p.type === 'compact') {
+      suffix = p.value;
+    } else if (
+      p.type === 'integer' ||
+      p.type === 'decimal' ||
+      p.type === 'fraction' ||
+      p.type === 'minusSign'
+    ) {
+      numericPart += p.value;
+    }
+  }
+  const multiplier = COMPACT_SUFFIX_MULTIPLIER[suffix] ?? 1;
+  // Inputs are integer counts; round away float noise (3.4 * 1e6 ≠ 3.4e6).
+  const reconstructed = Math.round(parseFloat(numericPart) * multiplier);
+  return reconstructed === n ? compact : `~${compact}`;
+}
+
 // UI-side execution record; times are epoch ms (ISO→epoch happens at the
 // wire boundary in QueryHistoryStorage).
 export interface QueryExecution {

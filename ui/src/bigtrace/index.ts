@@ -24,7 +24,6 @@ import {OverlayContainer} from '../widgets/overlay_container';
 import {QueryPage, queryRightSidebarToggleFn} from './pages/query_page';
 import {HomePage} from './pages/home_page';
 import {bigTraceSettingsStorage} from './settings/bigtrace_settings_storage';
-import {queryState} from './query/query_state';
 import {SettingsPage} from './pages/settings_page';
 import {Topbar} from './layout/topbar';
 import {BigTraceApp as BigTraceAppSingleton} from './bigtrace_app';
@@ -182,19 +181,8 @@ class BigTraceLayout implements m.ClassComponent {
 // Root: routing + theme + hotkeys. Uses m.mount (not m.route) because
 // m.route bypasses the raf scheduler and breaks portal-based popups.
 class BigTraceRoot implements m.ClassComponent {
-  private prevRoute = '';
-  private queryInitialQuery: string | undefined;
-
   view(): m.Children {
     const route = getCurrentRoute();
-
-    // Capture initialQuery on first navigation to /query.
-    if (route === Routes.QUERY && this.prevRoute !== Routes.QUERY) {
-      this.queryInitialQuery = queryState.initialQuery;
-      queryState.initialQuery = undefined;
-    }
-    this.prevRoute = route;
-
     const page = this.resolvePage(route);
 
     const theme = settingsStorage.get('theme');
@@ -221,17 +209,17 @@ class BigTraceRoot implements m.ClassComponent {
   }
 
   private resolvePage(route: string): m.Children {
-    switch (route) {
-      case Routes.QUERY:
-        return m(QueryPage, {
-          useBigtraceBackend: true,
-          initialQuery: this.queryInitialQuery,
-        });
-      case Routes.SETTINGS:
-        return m(SettingsPage);
-      default:
-        return m(HomePage);
-    }
+    return [
+      // QueryPage stays mounted across route changes to preserve DataGrid
+      // state (filters, scroll position, sort order).
+      m(
+        'div',
+        {style: {display: route === Routes.QUERY ? 'contents' : 'none'}},
+        m(QueryPage, {useBigtraceBackend: true}),
+      ),
+      route === Routes.SETTINGS && m(SettingsPage),
+      route !== Routes.QUERY && route !== Routes.SETTINGS && m(HomePage),
+    ];
   }
 }
 

@@ -353,7 +353,12 @@ export class QueryRunner {
     }
     tab.queryUuid = data.queryUuid;
     // Always assign — otherwise the pill stays UNKNOWN after FAILED/SUCCESS.
-    tab.execution = queryStore.getOrCreate(tab.queryUuid, tab.execution);
+    // Seed with the SQL we just submitted (not the prior tab.execution which
+    // may carry a stale perfettoSql from a previously-opened query — that
+    // would surface as the wrong SQL in the new history entry).
+    tab.execution = queryStore.getOrCreate(tab.queryUuid, {
+      perfettoSql: query,
+    });
 
     // Best-effort fetch for a precise server start_time.
     try {
@@ -394,7 +399,12 @@ export class QueryRunner {
       throw new Error('Backend did not return a queryUuid for sync execute');
     }
     tab.queryUuid = result.queryUuid;
-    tab.execution = queryStore.getOrCreate(tab.queryUuid, tab.execution);
+    // See runAsync: seed with the SQL we just submitted, not the prior
+    // tab.execution (which may carry stale perfettoSql from an earlier
+    // opened-from-history query).
+    tab.execution = queryStore.getOrCreate(tab.queryUuid, {
+      perfettoSql: query,
+    });
     tab.queryResult = makeQueryResponse(query, {
       rows: [...result.rows],
       columns: [...result.columns],
