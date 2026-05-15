@@ -427,24 +427,20 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
 
   const auto& cs_table = context_.storage->stack_profile_callsite_table();
 
-  std::optional<tables::StackProfileCallsiteTable::ConstRowReference>
-      start_ref = cs_table.FindById(callsite_id);
-  if (!start_ref) {
-    return location_ids;
-  }
+  auto start_ref = cs_table[callsite_id];
 
   location_ids.Append(WriteLocationIfNeeded(
-      start_ref->frame_id(), annotated ? annotations_.GetAnnotation(*start_ref)
-                                       : CallsiteAnnotation::kNone));
+      start_ref.frame_id(), annotated ? annotations_.GetAnnotation(start_ref)
+                                      : CallsiteAnnotation::kNone));
 
-  std::optional<CallsiteId> parent_id = start_ref->parent_id();
+  std::optional<CallsiteId> parent_id = start_ref.parent_id();
   while (parent_id) {
-    auto parent_ref = cs_table.FindById(*parent_id);
+    auto parent_ref = cs_table[*parent_id];
     location_ids.Append(WriteLocationIfNeeded(
-        parent_ref->frame_id(), annotated
-                                    ? annotations_.GetAnnotation(*parent_ref)
-                                    : CallsiteAnnotation::kNone));
-    parent_id = parent_ref->parent_id();
+        parent_ref.frame_id(), annotated
+                                   ? annotations_.GetAnnotation(parent_ref)
+                                   : CallsiteAnnotation::kNone));
+    parent_id = parent_ref.parent_id();
   }
 
   return location_ids;
@@ -459,10 +455,10 @@ uint64_t GProfileBuilder::WriteLocationIfNeeded(FrameId frame_id,
   }
 
   const auto& frames = context_.storage->stack_profile_frame_table();
-  auto frame = *frames.FindById(key.frame_id);
+  auto frame = frames[key.frame_id];
 
   const auto& mappings = context_.storage->stack_profile_mapping_table();
-  auto mapping = *mappings.FindById(frame.mapping());
+  auto mapping = mappings[frame.mapping()];
   uint64_t mapping_id = WriteMappingIfNeeded(mapping);
 
   uint64_t& id =
@@ -577,28 +573,21 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
   v8_js_code_cursor_.Execute();
   if (!v8_js_code_cursor_.Eof()) {
     const auto& v8_js_funcs = context_.storage->v8_js_function_table();
-    auto maybe_jsf =
-        v8_js_funcs.FindById(v8_js_code_cursor_.v8_js_function_id());
-    if (maybe_jsf) {
-      auto jsf = *maybe_jsf;
-      auto jsf_name = context_.storage->string_pool().Get(jsf.name());
-      auto jsf_tier =
-          context_.storage->string_pool().Get(v8_js_code_cursor_.tier());
-      base::StackString<64> name(
-          "JS: %s:%u:%u [%s]",
-          jsf_name.empty() ? "(anonymous)" : jsf_name.c_str(),
-          jsf.line().value_or(0), jsf.col().value_or(0), jsf_tier.c_str());
+    auto jsf = v8_js_funcs[v8_js_code_cursor_.v8_js_function_id()];
+    auto jsf_name = context_.storage->string_pool().Get(jsf.name());
+    auto jsf_tier =
+        context_.storage->string_pool().Get(v8_js_code_cursor_.tier());
+    base::StackString<64> name(
+        "JS: %s:%u:%u [%s]",
+        jsf_name.empty() ? "(anonymous)" : jsf_name.c_str(),
+        jsf.line().value_or(0), jsf.col().value_or(0), jsf_tier.c_str());
 
-      const auto& v8_js_scripts = context_.storage->v8_js_script_table();
-      auto maybe_jss = v8_js_scripts.FindById(jsf.v8_js_script_id());
+    const auto& v8_js_scripts = context_.storage->v8_js_script_table();
+    auto jss = v8_js_scripts[jsf.v8_js_script_id()];
 
-      return {
-          Line{WriteFunctionIfNeeded(
-                   name.string_view(),
-                   maybe_jss.has_value() ? maybe_jss->name() : kNullStringId,
-                   annotation, mapping_id),
-               jsf.line().value_or(0)}};
-    }
+    return {Line{WriteFunctionIfNeeded(name.string_view(), jss.name(),
+                                       annotation, mapping_id),
+                 jsf.line().value_or(0)}};
   }
 
   v8_wasm_code_cursor_.SetFilterValueUnchecked(

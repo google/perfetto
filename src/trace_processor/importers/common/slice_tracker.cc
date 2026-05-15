@@ -188,7 +188,7 @@ std::optional<SliceId> SliceTracker::StartSlice(
       parent_ref ? std::make_optional(parent_ref->id()) : std::nullopt;
 
   SliceId id = inserter();
-  tables::SliceTable::RowReference ref = *slices->FindById(id);
+  tables::SliceTable::RowReference ref = (*slices)[id];
   if (depth >= kMaxDepth) {
     auto parent_name = context_->storage->GetString(
         parent_ref->name().value_or(kNullStringId));

@@ -154,9 +154,9 @@ void SpeRecordParserImpl::Parse(int64_t ts, TraceBlobView data) {
 
   if (inst.el == spe::ExceptionLevel::kEl0 && inflight_row_.utid) {
     const auto upid =
-        *context_->storage->thread_table()
-             .FindById(tables::ThreadTable::Id(*inflight_row_.utid))
-             ->upid();
+        *context_->storage
+             ->thread_table()[tables::ThreadTable::Id(*inflight_row_.utid)]
+             .upid();
 
     VirtualMemoryMapping* mapping =
         context_->mapping_tracker->FindUserMappingForAddress(upid,

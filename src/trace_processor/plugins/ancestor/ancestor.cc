@@ -44,20 +44,15 @@ template <typename T>
 bool GetAncestors(const T& table,
                   typename T::Id starting_id,
                   std::vector<typename T::RowNumber>& row_numbers_accumulator,
-                  base::Status& out_status) {
-  auto start_ref = table.FindById(starting_id);
-  if (!start_ref) {
-    out_status =
-        base::ErrStatus("no row with id %" PRIu32 "", starting_id.value);
-    return false;
-  }
+                  base::Status&) {
+  auto start_ref = table[starting_id];
 
   // It's important we insert directly into |row_numbers_accumulator| and not
   // overwrite it because we expect the existing elements in
   // |row_numbers_accumulator| to be preserved.
-  auto maybe_parent_id = start_ref->parent_id();
+  auto maybe_parent_id = start_ref.parent_id();
   while (maybe_parent_id) {
-    auto ref = *table.FindById(*maybe_parent_id);
+    auto ref = table[*maybe_parent_id];
     row_numbers_accumulator.emplace_back(ref.ToRowNumber());
     // Update the loop variable by looking up the next parent_id.
     maybe_parent_id = ref.parent_id();

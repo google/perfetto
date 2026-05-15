@@ -426,8 +426,8 @@ void GpuEventParser::PushGpuCounterValue(
   // previous counter event's value to the reported value.
   auto id = context_->event_tracker->PushCounter(ts, 0, track_id);
   if (*last_id) {
-    auto row = context_->storage->mutable_counter_table()->FindById(**last_id);
-    row->set_value(value);
+    auto row = (*context_->storage->mutable_counter_table())[**last_id];
+    row.set_value(value);
   }
   *last_id = id;
 }
@@ -640,7 +640,7 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
         inserter.AddArg(description_id_, Variadic::String(description));
       });
   TrackId track_id = context_->track_compressor->DefaultTrack(factory);
-  auto rr = *context_->storage->mutable_track_table()->FindById(track_id);
+  auto rr = (*context_->storage->mutable_track_table())[track_id];
   rr.set_name(name);
 
   PERFETTO_DCHECK(!rr.source_arg_set_id());

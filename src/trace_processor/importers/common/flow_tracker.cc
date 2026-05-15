@@ -79,9 +79,8 @@ void FlowTracker::Step(SliceId new_id, FlowId flow_id) {
     return;
   }
   SliceId existing_id = *it;
-  int64_t existing_ts =
-      context_->storage->slice_table().FindById(existing_id)->ts();
-  int64_t new_ts = context_->storage->slice_table().FindById(new_id)->ts();
+  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
+  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
   SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
   SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
   InsertFlow(flow_id, outgoing, incoming);
@@ -112,9 +111,8 @@ void FlowTracker::End(SliceId new_id, FlowId flow_id, bool close_flow) {
     return;
   }
   SliceId existing_id = *it;
-  int64_t existing_ts =
-      context_->storage->slice_table().FindById(existing_id)->ts();
-  int64_t new_ts = context_->storage->slice_table().FindById(new_id)->ts();
+  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
+  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
   SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
   SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
   if (close_flow)

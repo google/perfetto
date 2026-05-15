@@ -606,14 +606,14 @@ class {self.table_name} {{
     return dataframe_.mutations();
   }}
 
-  std::optional<ConstRowReference> FindById(Id id) const {{
+  ConstRowReference operator[](Id id) const {{
     return ConstRowReference(this, id.value);
   }}
   ConstRowReference operator[](uint32_t row) const {{
     return ConstRowReference(this, row);
   }}
 
-  std::optional<RowReference> FindById(Id id) {{
+  RowReference operator[](Id id) {{
     return RowReference(this, id.value);
   }}
   RowReference operator[](uint32_t row) {{

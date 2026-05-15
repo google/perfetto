@@ -166,7 +166,7 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
     return OnFailure(base::ErrStatus("callsite with id %" PRId64 " not found",
                                      arguments[0].AsLong()));
   }
-  auto start_ref = *cs_table.FindById(*start_id);
+  auto start_ref = cs_table[*start_id];
 
   // Iteratively walk the parent_id chain to construct the list of callstack
   // entries, each pointing at a frame.
@@ -174,7 +174,7 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
   cs_rows.push_back(start_ref.ToRowNumber());
   std::optional<CallsiteId> maybe_parent_id = start_ref.parent_id();
   while (maybe_parent_id) {
-    auto parent_ref = *cs_table.FindById(*maybe_parent_id);
+    auto parent_ref = cs_table[*maybe_parent_id];
     cs_rows.push_back(parent_ref.ToRowNumber());
     maybe_parent_id = parent_ref.parent_id();
   }
@@ -215,8 +215,8 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
   std::vector<StringPool::Id> annotations_reversed;
   for (auto it = cs_rows.rbegin(); it != cs_rows.rend(); ++it) {
     auto cs_ref = it->ToRowReference(cs_table);
-    auto frame_ref = *f_table.FindById(cs_ref.frame_id());
-    auto map_ref = *m_table.FindById(frame_ref.mapping());
+    auto frame_ref = f_table[cs_ref.frame_id()];
+    auto map_ref = m_table[frame_ref.mapping()];
 
     // Keep immediate callee of a JNI trampoline, but keep tagging all
     // successive libart frames as common.

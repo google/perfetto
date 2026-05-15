@@ -520,7 +520,7 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
 
       for (const FrameId frame_id : frame_ids) {
         auto* frames = context_->storage->mutable_stack_profile_frame_table();
-        auto rr = *frames->FindById(frame_id);
+        auto rr = (*frames)[frame_id];
         rr.set_symbol_set_id(symbol_set_id);
         frame_found = true;
       }
