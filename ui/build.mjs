@@ -460,8 +460,11 @@ Env-var overrides:
 
 function runTests(cfgFile) {
   const args = [
+    // Run jest against the TS sources directly. ts is transpiled on the fly
+    // by @swc/jest (see ui/config/jest.unittest.config.js); there's no
+    // tsc-emitted .js layer any more.
     '--rootDir',
-    cfg.outTscDir,
+    pjoin(ROOT_DIR, 'ui/src'),
     '--verbose',
     '--runInBand',
     '--detectOpenHandles',
