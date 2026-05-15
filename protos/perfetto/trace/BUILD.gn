@@ -15,65 +15,156 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
-# Trace protos are split logically into two groups:
-# 1. Full set of protos: :zero (for writers) and :lite (for readers).
-# 2. Minimal set: :minimal_zero, :minimal_lite. These are mainly for chrome, to
-#    avoid bloating binary size by pulling unnecessary protos.
+# Trace protos are split four ways so that the C SDK closure can depend on
+# a slim subset that doesn't pull in the per-domain pbzero/gen headers,
+# while standalone consumers (trace_processor, trace_redaction, tests, ...)
+# keep getting the full set:
 #
-# In practice, however, we need to split them in disjoint targets (minimal and
-# non-minimal) and then use a group() target for the full protos. This is
-# because build systems don't like two targets having genrules for the same
-# .proto files.
+#   :minimal_@TYPE@           — bare-minimum protos used by chrome / other
+#                               size-sensitive embedders. Existed before
+#                               this stack.
+#   :non_minimal_core_@TYPE@  — non-minimal sources reachable from the
+#                               C SDK closure under src/{shared_lib,
+#                               tracing}/. trace_packet.proto declares
+#                               typed fields for several per-domain
+#                               messages (UiState ui_state = 78,
+#                               EvdevEvent evdev_event = 121, etc.) but
+#                               only generates pbzero headers, which
+#                               forward-declare those types and don't
+#                               require the per-type pbzero.h to be
+#                               present unless something instantiates
+#                               them. cppgen mirrors this via lazy-skip.
+#                               The per-domain proto deps drop out for
+#                               the same reason. Generates zero + cpp.
+#   :non_minimal_extras_@TYPE@ — sources NOT reachable from the C SDK
+#                               closure (test_event, test_extensions,
+#                               memory_graph, ui_state, evdev) plus the
+#                               per-domain trace proto sub-deps. Pulled
+#                               in by trace_processor / trace_redaction /
+#                               tests via :non_minimal_@TYPE@ below.
+#                               Generates zero + cpp.
+#   :lite_only_@TYPE@         — full source set + full deps; generates
+#                               lite only. Lite is upstream protobuf's
+#                               standard cpp generator and emits
+#                               unconditional #includes for typed
+#                               imports, so it can't be split cleanly.
+#                               The C SDK never depends on :lite.
+#
+# Aggregator groups expose the public surface:
+#   :zero / :cpp / :lite — full set, what consumers depend on today.
+#   :zero_minimal / :cpp_minimal — C SDK closure (minimal +
+#                               non_minimal_core), referenced from
+#                               //src/shared_lib in a later commit.
+#   :non_minimal_@TYPE@   — full non-minimal, preserves the existing
+#                               target name that trace_processor /
+#                               trace_redaction / tests depend on
+#                               directly.
 
-# By default add new protos here. The unused-by-SDK list below is split out
-# only so that enable_perfetto_minimal_trace_protos can drop them without
-# affecting anyone else. trace_packet.proto declares typed fields for some
-# of them (e.g. UiState ui_state = 78, EvdevEvent evdev_event = 121,
-# TestEvent for_testing = 900), but trace_packet only generates pbzero
-# headers for the SDK build, which use forward decls and don't require the
-# per-type pbzero.h to be present unless something actually instantiates
-# the type. The matching public C ABI accessors in
-# include/perfetto/public/protos/trace/trace_packet.pzc.h use the same
-# forward-decl pattern.
-proto_sources_non_minimal = [
+minimal_proto_sources = [
+  "clock_snapshot.proto",
+  "trace_uuid.proto",
+  "trigger.proto",
+]
+
+non_minimal_core_proto_sources = [
   "remote_clock_sync.proto",
   "trace_packet_defaults.proto",
   "trace_packet.proto",
   "trace.proto",
   "extension_descriptor.proto",
 ]
-if (!enable_perfetto_minimal_trace_protos) {
-  proto_sources_non_minimal += [
-    "test_event.proto",
-    "test_extensions.proto",
-    "memory_graph.proto",
-    "ui_state.proto",
-    "evdev.proto",
+
+non_minimal_extras_proto_sources = [
+  "test_event.proto",
+  "test_extensions.proto",
+  "memory_graph.proto",
+  "ui_state.proto",
+  "evdev.proto",
+]
+
+non_minimal_extras_proto_deps = [
+  "../protovm:@TYPE@",
+  "android:@TYPE@",
+  "chrome:@TYPE@",
+  "etw:@TYPE@",
+  "filesystem:@TYPE@",
+  "ftrace:@TYPE@",
+  "generic_kernel:@TYPE@",
+  "gpu:@TYPE@",
+  "power:@TYPE@",
+  "profiling:@TYPE@",
+  "ps:@TYPE@",
+  "statsd:@TYPE@",
+  "sys_stats:@TYPE@",
+  "system_info:@TYPE@",
+  "translation:@TYPE@",
+]
+
+perfetto_proto_library("minimal_@TYPE@") {
+  sources = minimal_proto_sources
+  deps = [ "../config:@TYPE@" ]
+}
+
+perfetto_proto_library("non_minimal_core_@TYPE@") {
+  sources = non_minimal_core_proto_sources
+  deps = [
+    ":minimal_@TYPE@",
+    "../config:@TYPE@",
+    "interned_data:@TYPE@",
+    "perfetto:@TYPE@",
+  ]
+  public_deps = [ "track_event:@TYPE@" ]
+  proto_generators = [
+    "zero",
+    "cpp",
   ]
 }
 
-proto_sources_minimal = [
-  "clock_snapshot.proto",
-  "trace_uuid.proto",
-  "trigger.proto",
-]
+perfetto_proto_library("non_minimal_extras_@TYPE@") {
+  sources = non_minimal_extras_proto_sources
+  deps = non_minimal_extras_proto_deps + [ ":non_minimal_core_@TYPE@" ]
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+}
 
-# Most targets should either depend on :zero (writers) / :lite (readers)
-# or ":minimal_zero" / :minimal_lite (mostly for chrome).
+perfetto_proto_library("lite_only_@TYPE@") {
+  sources =
+      non_minimal_core_proto_sources + non_minimal_extras_proto_sources
+  deps = non_minimal_extras_proto_deps + [
+           "../config:@TYPE@",
+           "interned_data:@TYPE@",
+           "perfetto:@TYPE@",
+         ]
+  public_deps = [
+    ":minimal_@TYPE@",  # remote_clock_sync.proto imports clock_snapshot.proto
+    "track_event:@TYPE@",
+  ]
+  proto_generators = [ "lite" ]
+}
 
-# The full set of protozero-generated sources.
+# C SDK closure: the trace protos that //src/shared_lib transitively
+# depends on after the slim split. Wired up in a later commit.
+group("zero_minimal") {
+  public_deps = [
+    ":minimal_zero",
+    ":non_minimal_core_zero",
+  ]
+}
+
+group("cpp_minimal") {
+  public_deps = [
+    ":minimal_cpp",
+    ":non_minimal_core_cpp",
+  ]
+}
+
+# Existing public surface, preserved.
 group("zero") {
   public_deps = [
     ":minimal_zero",
     ":non_minimal_zero",
-  ]
-}
-
-# The full set of libprotobuf-generated sources.
-group("lite") {
-  public_deps = [
-    ":minimal_lite",
-    ":non_minimal_lite",
   ]
 }
 
@@ -86,62 +177,45 @@ group("cpp") {
   ]
 }
 
-perfetto_proto_library("non_minimal_@TYPE@") {
-  proto_generators = [
-    "cpp",
-    "lite",
-    "zero",
+group("lite") {
+  public_deps = [
+    ":lite_only_lite",
+    ":minimal_lite",
   ]
-
-  # Always-needed deps (in particular: any subdir whose generated pbzero
-  # headers are #included by the C SDK closure under src/{shared_lib,tracing}/
-  # and include/perfetto/{public,tracing,ext/tracing}/). Audit by grepping
-  # 'protos/perfetto/.*\.pbzero\.h' under those directories with tests
-  # excluded.
-  deps = [
-    ":minimal_@TYPE@",
-    "../config:@TYPE@",
-    "interned_data:@TYPE@",
-    "perfetto:@TYPE@",
-  ]
-
-  # Per-domain trace protos. The C SDK build never #includes any of these,
-  # but trace_packet.proto imports the corresponding messages so they're
-  # forward-declared in trace_packet.pbzero.h. Forward decls don't require
-  # the full pbzero.h to be available unless callers invoke accessor
-  # methods (which the SDK doesn't). Drop them under the minimal-protos
-  # flag to save ~4 MB in the amalgamated SDK source.
-  if (!enable_perfetto_minimal_trace_protos) {
-    deps += [
-      "../protovm:@TYPE@",
-      "android:@TYPE@",
-      "chrome:@TYPE@",
-      "etw:@TYPE@",
-      "filesystem:@TYPE@",
-      "ftrace:@TYPE@",
-      "generic_kernel:@TYPE@",
-      "gpu:@TYPE@",
-      "power:@TYPE@",
-      "profiling:@TYPE@",
-      "ps:@TYPE@",
-      "statsd:@TYPE@",
-      "sys_stats:@TYPE@",
-      "system_info:@TYPE@",
-      "translation:@TYPE@",
-    ]
-  }
-  sources = proto_sources_non_minimal
-  public_deps = [ "track_event:@TYPE@" ]
 }
 
-perfetto_proto_library("minimal_@TYPE@") {
-  deps = [ "../config:@TYPE@" ]
-  sources = proto_sources_minimal
+# Existing :non_minimal_zero / :non_minimal_cpp / :non_minimal_source_set
+# names that trace_processor, trace_redaction, tests etc. depend on
+# directly. Keep them as groups aggregating core + extras so those
+# consumers continue to see the full non-minimal closure unchanged.
+group("non_minimal_zero") {
+  public_deps = [
+    ":non_minimal_core_zero",
+    ":non_minimal_extras_zero",
+  ]
 }
 
+group("non_minimal_cpp") {
+  public_deps = [
+    ":non_minimal_core_cpp",
+    ":non_minimal_extras_cpp",
+  ]
+}
+
+group("non_minimal_source_set") {
+  public_deps = [
+    ":non_minimal_core_source_set",
+    ":non_minimal_extras_source_set",
+  ]
+}
+
+# Aggregator that produces the :source_set sub-target (union of .proto
+# files across every split half) and the :descriptor target. The
+# descriptor includes the full transitive proto graph, so it depends on
+# :lite_only_@TYPE@ which has every source.
 perfetto_proto_library("@TYPE@") {
   proto_generators = []
-  deps = [ ":non_minimal_@TYPE@" ]
+  deps = [ ":lite_only_@TYPE@" ]
   sources = []
   generate_descriptor = "trace.descriptor"
   generator_visibility = [
