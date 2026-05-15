@@ -199,6 +199,10 @@ export default defineConfig({
     },
     outDir: path.join(OUT_SYMLINK, bundleCfg.dir),
     emptyOutDir: false,           // build.mjs puts wasm/css/assets here too.
+    // Force a single CSS asset per bundle (named after the entry chunk, e.g.
+    // frontend.css). IIFE builds don't auto-inject <link> tags, so extraction
+    // needs to be explicit.
+    cssCodeSplit: false,
     sourcemap: !NO_SOURCE_MAPS,
     minify: MINIFY_JS ? 'terser' : false,
     terserOptions: MINIFY_JS === 'preserve_comments'
@@ -211,7 +215,14 @@ export default defineConfig({
         format: 'iife',
         name: BUNDLE,
         entryFileNames,
-        assetFileNames: '[name][extname]',
+        // With cssCodeSplit:false Vite emits the CSS as "style.css" by
+        // default. Rename it to <bundle>.css so that index.html's preload
+        // and the assetSrc('frontend.css') call match.
+        assetFileNames: (info) => {
+          const name = info.names?.[0] || info.name || '';
+          if (name.endsWith('.css')) return `${BUNDLE}.css`;
+          return '[name][extname]';
+        },
         inlineDynamicImports: true,
       },
       onwarn(warning, warn) {

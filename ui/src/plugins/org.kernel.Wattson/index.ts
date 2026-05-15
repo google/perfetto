@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import {addWattsonThreadTrack} from './wattson_thread_utils';
 import type {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';

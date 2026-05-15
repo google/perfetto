@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 import {LockOwnerDetailsPanel} from './lock_owner_details_panel';
 import {LOCK_CONTENTION_SQL} from './lock_contention_sql';

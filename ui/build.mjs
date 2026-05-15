@@ -130,10 +130,6 @@ const RULES = [
   {r: /ui\/src\/assets\/(data_explorer\/node_info\/(.*)[.]md)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
-  {
-    r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/,
-    f: compileScss,
-  },
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
@@ -386,8 +382,6 @@ Env-var overrides:
     generateImports('ui/src/core_plugins', 'all_core_plugins');
     generateImports('ui/src/plugins', 'all_plugins');
     scanDir('ui/src/assets');
-    scanDir('ui/src/plugins', /[.]scss$/);
-    scanDir('ui/src/core_plugins', /[.]scss$/);
     scanDir('ui/src/chrome_extension');
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
@@ -534,28 +528,6 @@ function copyAssets(src, dst) {
 
 function copyUiTestArtifactsAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outUiTestArtifactsDir, dst)]);
-}
-
-function compileScss() {
-  const src = pjoin(ROOT_DIR, 'ui/src/assets/perfetto.scss');
-  const dst = pjoin(cfg.outDistDir, 'perfetto.css');
-  // In watch mode, don't exit(1) if scss fails. It can easily happen by
-  // having a typo in the css. It will still print an error.
-  const noErrCheck = !!cfg.watch;
-  const args = [src, dst];
-  if (!cfg.verbose) {
-    args.unshift('--quiet');
-  }
-  addTask(execModule, ['sass', args, {noErrCheck}]);
-  if (cfg.bigtrace) {
-    const srcBt = pjoin(ROOT_DIR, 'ui/src/assets/bigtrace.scss');
-    const dstBt = pjoin(cfg.outBigtraceDistDir, 'bigtrace.css');
-    const argsBt = [srcBt, dstBt];
-    if (!cfg.verbose) {
-      argsBt.unshift('--quiet');
-    }
-    addTask(execModule, ['sass', argsBt, {noErrCheck}]);
-  }
 }
 
 function compileProtos() {
@@ -998,7 +970,7 @@ function isDistComplete() {
     'frontend_bundle.js',
     'engine_bundle.js',
     'traceconv_bundle.js',
-    'perfetto.css',
+    'frontend.css',
     ...cfg.wasmModules.map((wasmMod) => `${wasmMod}.wasm`),
   ];
   const relPaths = new Set();

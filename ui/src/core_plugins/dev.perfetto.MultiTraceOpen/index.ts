@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {App} from '../../public/app';
 import {showMultiTraceModal} from './multi_trace_modal';

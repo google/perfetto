@@ -13,9 +13,10 @@
 // limitations under the License.
 
 // Keep this import first.
-import z from 'zod';
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
+import '../assets/perfetto.scss';
+import z from 'zod';
 import NON_CORE_PLUGINS from '../gen/all_plugins';
 import CORE_PLUGINS from '../gen/all_core_plugins';
 import m from 'mithril';
@@ -302,7 +303,7 @@ function main() {
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = assetSrc('perfetto.css');
+  css.href = assetSrc('frontend.css');
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
   const favicon = document.head.querySelector('#favicon');
