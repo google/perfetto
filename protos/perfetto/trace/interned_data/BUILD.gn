@@ -14,8 +14,6 @@
 
 import("../../../../gn/proto_library.gni")
 
-# Single-source proto split for the C SDK closure (see
-# protos/perfetto/common/BUILD.gn for the full pattern explanation).
 # interned_data.proto imports several per-domain protos for typed fields
 # like Mapping / Frame / Callstack (profiling/profile_common.proto),
 # InternedV8JsFunction (chrome/v8.proto) and AppWakelockInfo
@@ -26,11 +24,11 @@ import("../../../../gn/proto_library.gni")
 #
 # cppgen and lite (upstream protobuf) emit unconditional #includes for
 # the typed fields above (which aren't [lazy=true]), so they can't be
-# split cleanly. Both keep the full per-domain dep set in their own
-# generator-specific libraries; the C SDK never depends on :cpp or
-# :lite for interned_data.
+# split cleanly. They live in their own generator-specific libraries
+# that pull the full per-domain dep set; the C SDK never depends on
+# :cpp or :lite for interned_data.
 
-perfetto_proto_library("minimal_@TYPE@") {
+perfetto_proto_library("@TYPE@") {
   sources = [ "interned_data.proto" ]
   deps = [ "../track_event:@TYPE@" ]
   proto_generators = [ "zero" ]
@@ -60,18 +58,10 @@ perfetto_proto_library("lite_only_@TYPE@") {
   proto_generators = [ "lite" ]
 }
 
-group("zero") {
-  public_deps = [ ":minimal_zero" ]
-}
-
 group("cpp") {
   public_deps = [ ":cpp_only_cpp" ]
 }
 
 group("lite") {
   public_deps = [ ":lite_only_lite" ]
-}
-
-group("source_set") {
-  public_deps = [ ":minimal_source_set" ]
 }

@@ -68,7 +68,7 @@ source_set("tracing_minimal") {
     "../../../protos/perfetto/config:minimal_cpp",
     "../../../protos/perfetto/config/track_event:cpp",
     "../../../protos/perfetto/trace:zero_minimal",
-    "../../../protos/perfetto/trace/interned_data:minimal_zero",
+    "../../../protos/perfetto/trace/interned_data:zero",
     "../../../protos/perfetto/trace/track_event:cpp",
     "../../../protos/perfetto/trace/track_event:zero",
     "../base",
@@ -85,6 +85,5 @@ source_set("tracing") {
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/trace:zero",
-    "../../../protos/perfetto/trace/interned_data:zero",
   ]
 }
