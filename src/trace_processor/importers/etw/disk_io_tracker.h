@@ -36,13 +36,6 @@ class DiskIoTracker {
   void ParseDiskIo(int64_t timestamp, UniqueTid utid, protozero::ConstBytes);
 
  private:
-  // Adds the event to the trace as a slice.
-  void HandleEvent(StringId name,
-                   UniqueTid utid,
-                   int64_t timestamp,
-                   int64_t response_time,
-                   SliceTracker::SetArgsCallback args);
-
   TraceProcessorContext* context_;
 
   // Strings interned in the constructor to improve performance.

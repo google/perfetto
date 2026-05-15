@@ -18,6 +18,7 @@
 
 #include <optional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/etw/etw.pbzero.h"
 #include "protos/perfetto/trace/etw/etw_event.pbzero.h"
@@ -147,25 +148,19 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
       };
 
   const char* event_type = GetEventTypeString(opcode);
-  if (!event_type)
+  if (!event_type) {
+    PERFETTO_DLOG("Unable to convert disk io opcode %d to event_type", opcode);
     return;
-  StringId name = context_->storage->InternString(event_type);
-  HandleEvent(name, issuing_thread_id.value_or(utid), timestamp,
-              response_time.value_or(0), std::move(set_args));
-}
-
-void DiskIoTracker::HandleEvent(StringId name,
-                                UniqueTid utid,
-                                int64_t timestamp,
-                                int64_t response_time,
-                                SliceTracker::SetArgsCallback args) {
-  const auto category = context_->storage->InternString(kCategory);
+  }
 
   const auto track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(utid), timestamp, response_time);
+      kBlueprint, tracks::Dimensions(utid), timestamp,
+      response_time.value_or(0));
 
-  context_->slice_tracker->Scoped(timestamp, track_id, category, name,
-                                  response_time, std::move(args));
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, context_->storage->InternString(kCategory),
+      context_->storage->InternString(event_type), response_time.value_or(0),
+      std::move(set_args));
 }
 
 }  // namespace perfetto::trace_processor
