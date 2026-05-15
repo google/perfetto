@@ -34,3 +34,10 @@ declare module 'virtual:perfetto/all_core_plugins' {
   const plugins: PerfettoPluginStatic<PerfettoPlugin>[];
   export default plugins;
 }
+
+// *.grammar files are compiled on import by Vite's @lezer/generator plugin.
+// The generated module exports a `parser` (and the .terms.* token IDs).
+declare module '*.grammar' {
+  import type {LRParser} from '@lezer/lr';
+  export const parser: LRParser;
+}

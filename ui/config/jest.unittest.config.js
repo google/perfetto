@@ -22,15 +22,6 @@ module.exports = {
         target: 'es2022',
       },
     }],
-    // Some first-party generated files (e.g. lezer .grammar.js) are ESM —
-    // run them through swc so jest's CJS runtime can require them.
-    '^.+\\.jsx?$': ['@swc/jest', {
-      jsc: {
-        parser: {syntax: 'ecmascript', jsx: false},
-        target: 'es2022',
-      },
-      module: {type: 'commonjs'},
-    }],
   },
   testRegex: '_(unittest|jsdomtest)[.]ts$',
   testEnvironment: __dirname + '/JestJsdomEnv.js',
@@ -42,6 +33,9 @@ module.exports = {
     '^syntaqlite$': __dirname + '/syntaqlite_mock.js',
     // Side-effect imports of CSS/SCSS become no-ops in tests.
     '\\.(css|scss)$': __dirname + '/style_mock.js',
+    // Lezer .grammar imports: stub out (Vite compiles them in production via
+    // @lezer/generator, but no test exercises the parser).
+    '\\.grammar$': __dirname + '/grammar_mock.js',
     // Some TS files use ESM-style explicit ".js" extensions on relative
     // imports of sibling TS sources (e.g. `import './language.js'`). Jest's
     // resolver doesn't map .js -> .ts, so strip the extension here.

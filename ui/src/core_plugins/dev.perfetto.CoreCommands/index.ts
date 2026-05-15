@@ -25,7 +25,7 @@ import {exists} from '../../base/utils';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
 import QueryPagePlugin from '../../plugins/dev.perfetto.QueryPage';
 import {AppImpl} from '../../core/app_impl';
-import {commandInvocationSchema, macroSchema} from '../../core/command_manager';
+import {macroSchema} from '../../core/command_manager';
 import {featureFlags} from '../../core/feature_flags';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {
@@ -46,6 +46,7 @@ import {showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/assert';
 import type {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
+import {legacyMacrosConfigSchema} from './legacy_macros_schema';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -130,11 +131,6 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
 const macrosConfigSchema = z.array(macroSchema);
 type MacrosConfig = z.infer<typeof macrosConfigSchema>;
 
-// Legacy macro schema (dictionary format) - deprecated, kept for migration
-export const legacyMacrosConfigSchema = z.record(
-  z.string(), // key: macro name
-  z.array(commandInvocationSchema).readonly(),
-);
 type LegacyMacrosConfig = z.infer<typeof legacyMacrosConfigSchema>;
 
 export default class CoreCommands implements PerfettoPlugin {
