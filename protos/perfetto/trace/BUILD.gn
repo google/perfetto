@@ -109,6 +109,17 @@ perfetto_proto_library("non_minimal_core_@TYPE@") {
   sources = non_minimal_core_proto_sources
   deps = [
     ":minimal_@TYPE@",
+
+    # core's cppgen for trace_packet.gen.cc emits unconditional #includes
+    # for typed-but-non-lazy fields whose types live in extras
+    # (UiState ui_state = 78, EvdevEvent evdev_event = 121,
+    # TestEvent for_testing = 900). The C SDK closure only consumes
+    # trace:zero (pbzero forward-declares cross-file types) — nothing
+    # under //src/shared_lib/ or //include/perfetto/tracing/ pulls
+    # trace:cpp — so this edge stays out of the C SDK amalgamation
+    # while keeping the standalone cpp build correct.
+    ":non_minimal_extras_@TYPE@",
+
     "../config:@TYPE@",
     "interned_data:@TYPE@",
     "perfetto:@TYPE@",
@@ -122,7 +133,8 @@ perfetto_proto_library("non_minimal_core_@TYPE@") {
 
 perfetto_proto_library("non_minimal_extras_@TYPE@") {
   sources = non_minimal_extras_proto_sources
-  deps = non_minimal_extras_proto_deps + [ ":non_minimal_core_@TYPE@" ]
+  deps = non_minimal_extras_proto_deps
+  public_deps = [ "track_event:@TYPE@" ]
   proto_generators = [
     "zero",
     "cpp",
