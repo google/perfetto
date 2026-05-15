@@ -35,6 +35,26 @@ group("client_api") {
   }
 }
 
+# C-SDK-closure variant of :client_api. Same shape as :client_api but
+# routes through :client_api_without_backends_minimal so the C++-only
+# console_interceptor / track_event_state_tracker / track_event_legacy
+# sources don't end up in //src/shared_lib's transitive closure. Wired
+# up by //src/shared_lib in a later commit.
+group("client_api_minimal") {
+  public_deps = [
+    ":client_api_without_backends_minimal",
+    ":in_process_backend",
+    "../../gn:default_deps",
+    "../../include/perfetto/tracing",
+    "../../include/perfetto/tracing/core",
+  ]
+  if (enable_perfetto_ipc) {
+    public_deps += [ ":system_backend" ]
+  } else {
+    public_deps += [ ":system_backend_fake" ]
+  }
+}
+
 # This target checks that the client API builds without backends. This is to
 # check that no references to the backends are leaked from the implementation
 # internals. In turn, this allows to dead-code-eliminate unused backends when
@@ -67,21 +87,27 @@ source_set("common") {
   sources = [ "trace_writer_base.cc" ]
 }
 
-# Base target for the client API. On its own doesn't provide any backend other
-# than the unsupported one.
-source_set("client_api_without_backends") {
-  deps = [
-    "../../include/perfetto/tracing/core",
+# Slim base target for the client API. Excludes the C++-only optional SDK
+# features that the C ABI doesn't expose (see :client_api_without_backends
+# below). The C SDK closure under //src/shared_lib depends on this via
+# :client_api_minimal.
+source_set("client_api_without_backends_minimal") {
+  public_deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/tracing",
+    # The .h surfaces of these proto deps are reachable from the
+    # console_interceptor.cc / track_event_*.cc sources in the
+    # :client_api_without_backends wrapper that depends on this target,
+    # so they have to propagate via public_deps for gn check.
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/interceptors:cpp",
     "../../protos/perfetto/config/track_event:cpp",
+  ]
+  deps = [
+    "../../include/perfetto/tracing/core",
     "../base",
     "core",
-  ]
-  public_deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/tracing",
   ]
   sources = [
     "data_source.cc",
@@ -107,28 +133,43 @@ source_set("client_api_without_backends") {
     "track_event_category_registry.cc",
     "virtual_destructors.cc",
   ]
-
-  # Optional C++-only SDK features that the C ABI doesn't expose:
-  #   - console_interceptor: pretty-printed text output for in-process trace
-  #     readback. Only used by C++ embedders calling
-  #     ConsoleInterceptor::Register; not surfaced via include/perfetto/public.
-  #   - track_event_state_tracker: helper for replaying TrackEvent state in a
-  #     consumer; only used by console_interceptor.
-  #   - track_event_legacy: implementation of LegacyTraceId::Write for the
-  #     PERFETTO_ENABLE_LEGACY_TRACE_EVENTS Chrome-style macros, off by
-  #     default. The internal::LegacyTraceId class is only constructed inside
-  #     `#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS` blocks in
-  #     internal/track_event_data_source.h, so the .cc symbol is never called
-  #     when the macro is off.
-  if (enable_perfetto_minimal_trace_protos) {
-    # Drop ~830 lines of C++ that the C SDK never reaches.
-  } else {
-    sources += [
-      "console_interceptor.cc",
-      "track_event_legacy.cc",
-      "track_event_state_tracker.cc",
+  assert_no_deps = [ "service" ]
+  if (enable_perfetto_ipc) {
+    assert_no_deps += [
+      "../ipc:common",
+      "ipc/common",
     ]
   }
+}
+
+# Base target for the client API. On its own doesn't provide any backend other
+# than the unsupported one. Adds the C++-only optional SDK features that the
+# C ABI doesn't expose:
+#   - console_interceptor: pretty-printed text output for in-process trace
+#     readback. Only used by C++ embedders calling
+#     ConsoleInterceptor::Register; not surfaced via include/perfetto/public.
+#   - track_event_state_tracker: helper for replaying TrackEvent state in a
+#     consumer; only used by console_interceptor.
+#   - track_event_legacy: implementation of LegacyTraceId::Write for the
+#     PERFETTO_ENABLE_LEGACY_TRACE_EVENTS Chrome-style macros, off by
+#     default. The internal::LegacyTraceId class is only constructed inside
+#     `#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS` blocks in
+#     internal/track_event_data_source.h, so the .cc symbol is never called
+#     when the macro is off.
+source_set("client_api_without_backends") {
+  public_deps = [ ":client_api_without_backends_minimal" ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/tracing/core",
+    "../../protos/perfetto/common:zero",
+    "../base",
+    "core",
+  ]
+  sources = [
+    "console_interceptor.cc",
+    "track_event_legacy.cc",
+    "track_event_state_tracker.cc",
+  ]
   assert_no_deps = [ "service" ]
   if (enable_perfetto_ipc) {
     assert_no_deps += [
