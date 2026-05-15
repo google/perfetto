@@ -327,8 +327,7 @@ phony {
     target: {
         android: {
             required: [
-                // TODO(primiano): uncomment after ag/38422283 lands.
-                // "system_tracing_protos_descriptor",
+                "system_tracing_protos_descriptor",
             ],
         }
     }
