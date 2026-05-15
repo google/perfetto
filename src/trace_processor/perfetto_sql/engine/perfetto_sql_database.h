@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/sqlite/committed_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_database.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -43,7 +43,7 @@ namespace perfetto::trace_processor {
 // committed view of per-vtab state for each vtab module.
 class PerfettoSqlDatabase {
  public:
-  using Macro = PerfettoSqlPreprocessor::Macro;
+  using Macro = PerfettoSqlParser::Macro;
 
   explicit PerfettoSqlDatabase(StringPool* pool);
   ~PerfettoSqlDatabase();
