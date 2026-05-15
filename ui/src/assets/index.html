@@ -135,7 +135,7 @@ Technical Information:
       }
 
       const script = document.createElement('script');
-      script.async = true;
+      script.type = 'module';
       script.src = version + '/frontend_bundle.js';
       script.onerror = () => errHandler(`Failed to load ${script.src}`);
       document.head.append(script);

@@ -287,6 +287,13 @@ export default defineConfig({
     },
   },
   build: {
+    // TODO(stevegolton): Do we need this?
+    commonjsOptions: {
+      transformMixedEsModules: true,
+      // The UMD wasm glue files don't look like CJS to rollup's auto-detect.
+      // Force CJS interpretation for everything under ui/src/gen/*.js.
+      include: [/node_modules/, /\/gen\/.*\.js$/],
+    },
     outDir: path.join(OUT_SYMLINK, bundleCfg.dir),
     emptyOutDir: false,           // build.mjs puts wasm/css/assets here too.
     // Force a single CSS asset per bundle (named after the entry chunk, e.g.
@@ -313,7 +320,6 @@ export default defineConfig({
           if (name.endsWith('.css')) return `${BUNDLE}.css`;
           return '[name][extname]';
         },
-        inlineDynamicImports: true,
       },
       onwarn(warning, warn) {
         if (warning.code === 'CIRCULAR_DEPENDENCY') {

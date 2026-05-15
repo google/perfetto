@@ -68,23 +68,18 @@ export function fetchWithProgress(
 }
 
 /**
- * NOTE: this function can only be called from synchronous contexts. It will
- * fail if called in timer handlers or async continuations (e.g. after an await)
- * Use assetSrc(relPath) which caches it on startup.
- * @returns the directory where the app is served from, e.g. 'v46.0-a2082649b'
+ * @returns the directory the app is served from, e.g.
+ *   'https://ui.perfetto.dev/v46.0-a2082649b/'.
  */
 export function getServingRoot() {
-  // Works out the root directory where the content should be served from
-  // e.g. `http://origin/v1.2.3/`.
-  const script = document.currentScript as HTMLScriptElement;
-
-  if (script === null) {
-    // Can be null in tests.
+  // import.meta.url is the URL of *this* module file after bundling, which
+  // sits next to frontend_bundle.js in the same /v1.2.3/ directory. Strip the
+  // filename to get the serving root.
+  const url = import.meta.url;
+  if (!url || url.startsWith('file://')) {
+    // Jest / node test contexts: no meaningful serving root.
     assertTrue(typeof jest !== 'undefined');
     return '';
   }
-
-  let root = script.src;
-  root = root.substring(0, root.lastIndexOf('/') + 1);
-  return root;
+  return url.substring(0, url.lastIndexOf('/') + 1);
 }
