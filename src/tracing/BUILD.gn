@@ -46,7 +46,7 @@ group("client_api_minimal") {
     ":in_process_backend",
     "../../gn:default_deps",
     "../../include/perfetto/tracing:tracing_minimal",
-    "../../include/perfetto/tracing/core",
+    "../../include/perfetto/tracing/core:core_minimal",
   ]
   if (enable_perfetto_ipc) {
     public_deps += [ ":system_backend" ]
@@ -82,7 +82,7 @@ source_set("platform_impl") {
 source_set("common") {
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/tracing",
+    "../../include/perfetto/tracing:tracing_minimal",
   ]
   sources = [ "trace_writer_base.cc" ]
 }
@@ -99,15 +99,15 @@ source_set("client_api_without_backends_minimal") {
     # console_interceptor.cc / track_event_*.cc sources in the
     # :client_api_without_backends wrapper that depends on this target,
     # so they have to propagate via public_deps for gn check.
-    "../../protos/perfetto/common:zero",
-    "../../protos/perfetto/config:cpp",
+    "../../protos/perfetto/common:minimal_zero",
+    "../../protos/perfetto/config:minimal_cpp",
     "../../protos/perfetto/config/interceptors:cpp",
     "../../protos/perfetto/config/track_event:cpp",
   ]
   deps = [
-    "../../include/perfetto/tracing/core",
+    "../../include/perfetto/tracing/core:core_minimal",
     "../base:base_minimal",
-    "core",
+    "core:core_minimal",
   ]
   sources = [
     "data_source.cc",
@@ -226,12 +226,12 @@ perfetto_unittest_source_set("unittests") {
 # Requires the IPC layer and is supported only on posix systems.
 if (enable_perfetto_ipc) {
   source_set("system_backend") {
-    public_deps = [ "../../include/perfetto/tracing" ]
+    public_deps = [ "../../include/perfetto/tracing:tracing_minimal" ]
     deps = [
-      ":client_api_without_backends",
+      ":client_api_without_backends_minimal",
       "../../gn:default_deps",
-      "../../include/perfetto/tracing/core",
-      "../base",
+      "../../include/perfetto/tracing/core:core_minimal",
+      "../base:base_minimal",
       "ipc:common",
       "ipc/producer",
       "ipc/service",
@@ -243,10 +243,10 @@ if (enable_perfetto_ipc) {
   }
 } else {
   source_set("system_backend_fake") {
-    public_deps = [ "../../include/perfetto/tracing" ]
+    public_deps = [ "../../include/perfetto/tracing:tracing_minimal" ]
     deps = [
       "../../gn:default_deps",
-      "../base",
+      "../base:base_minimal",
     ]
     sources = [ "internal/system_tracing_backend_fake.cc" ]
   }
@@ -256,13 +256,13 @@ if (enable_perfetto_ipc) {
 # thread. It depends only on having a valid "platform" target. It has a larger
 # binary size cost because links in all the service code.
 source_set("in_process_backend") {
-  public_deps = [ "../../include/perfetto/tracing" ]
+  public_deps = [ "../../include/perfetto/tracing:tracing_minimal" ]
   deps = [
-    ":client_api_without_backends",
+    ":client_api_without_backends_minimal",
     "../../gn:default_deps",
-    "../../include/perfetto/tracing/core",
-    "../base",
-    "core",
+    "../../include/perfetto/tracing/core:core_minimal",
+    "../base:base_minimal",
+    "core:core_minimal",
     "service",
   ]
   sources = [ "internal/in_process_tracing_backend.cc" ]

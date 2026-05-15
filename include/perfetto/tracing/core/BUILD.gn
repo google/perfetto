@@ -12,20 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("core") {
+_core_headers = [
+  "chrome_config.h",
+  "data_source_config.h",
+  "data_source_descriptor.h",
+  "flush_flags.h",
+  "trace_config.h",
+  "tracing_service_capabilities.h",
+  "tracing_service_state.h",
+]
+
+# C-SDK-closure variant of :core. Same headers, but routes the proto
+# public_deps through the minimal aggregators so the C SDK doesn't pull
+# the full common:cpp / config:cpp closures (and their per-data-source
+# sub-deps) into //src/shared_lib's transitive set.
+source_set("core_minimal") {
   public_deps = [
     ":forward_decls",
+    "../../../../protos/perfetto/common:minimal_cpp",
+    "../../../../protos/perfetto/config:minimal_cpp",
+  ]
+  sources = _core_headers
+}
+
+source_set("core") {
+  public_deps = [
+    ":core_minimal",
     "../../../../protos/perfetto/common:cpp",
     "../../../../protos/perfetto/config:cpp",
-  ]
-  sources = [
-    "chrome_config.h",
-    "data_source_config.h",
-    "data_source_descriptor.h",
-    "flush_flags.h",
-    "trace_config.h",
-    "tracing_service_capabilities.h",
-    "tracing_service_state.h",
   ]
 }
 
