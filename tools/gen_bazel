@@ -138,8 +138,13 @@ proto_groups = {
         'visibility': ['//visibility:public'],
     },
     'trace': {
+        # The non-minimal trace protos are split into a core (sources
+        # reachable from the C SDK closure) and extras (everything else)
+        # to keep //src/shared_lib slim; both halves go into the public
+        # :trace_proto Bazel aggregator. See protos/perfetto/trace/BUILD.gn.
         'sources': [
-            '//protos/perfetto/trace:non_minimal_source_set',
+            '//protos/perfetto/trace:non_minimal_core_source_set',
+            '//protos/perfetto/trace:non_minimal_extras_source_set',
             '//protos/perfetto/trace:minimal_source_set'
         ],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,

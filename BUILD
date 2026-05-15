@@ -6690,7 +6690,7 @@ perfetto_dart_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
+# GN target: [//protos/perfetto/trace:non_minimal_core_source_set, //protos/perfetto/trace:non_minimal_extras_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_proto_library(
     name = "trace_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
@@ -6709,13 +6709,12 @@ perfetto_proto_library(
         ":protos_perfetto_trace_minimal_protos",
         ":protos_perfetto_trace_non_minimal_core_protos",
         ":protos_perfetto_trace_non_minimal_extras_protos",
-        ":protos_perfetto_trace_non_minimal_protos",
         ":protos_perfetto_trace_perfetto_protos",
         ":protos_perfetto_trace_track_event_protos",
     ],
 )
 
-# GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
+# GN target: [//protos/perfetto/trace:non_minimal_core_source_set, //protos/perfetto/trace:non_minimal_extras_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_cc_proto_library(
     name = "trace_cc_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
@@ -6724,7 +6723,7 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
+# GN target: [//protos/perfetto/trace:non_minimal_core_source_set, //protos/perfetto/trace:non_minimal_extras_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_java_proto_library(
     name = "trace_java_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
@@ -6733,7 +6732,7 @@ perfetto_java_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
+# GN target: [//protos/perfetto/trace:non_minimal_core_source_set, //protos/perfetto/trace:non_minimal_extras_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_java_lite_proto_library(
     name = "trace_java_proto_lite",
     visibility = PERFETTO_CONFIG.public_visibility,
@@ -6742,7 +6741,7 @@ perfetto_java_lite_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
+# GN target: [//protos/perfetto/trace:non_minimal_core_source_set, //protos/perfetto/trace:non_minimal_extras_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_py_proto_library(
     name = "trace_py_pb2",
     visibility = PERFETTO_CONFIG.public_visibility,
@@ -6751,7 +6750,7 @@ perfetto_py_proto_library(
     ],
 )
 
-# GN target: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace:minimal_source_set]
+# GN target: [//protos/perfetto/trace:non_minimal_core_source_set, //protos/perfetto/trace:non_minimal_extras_source_set, //protos/perfetto/trace:minimal_source_set]
 perfetto_dart_proto_library(
     name = "trace_dart_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
@@ -10605,10 +10604,18 @@ perfetto_go_proto_library(
 )
 
 perfetto_go_proto_library(
-    name = "protos_perfetto_trace_non_minimal_protos_go_proto",
+    name = "protos_perfetto_trace_non_minimal_core_protos_go_proto",
     visibility = PERFETTO_CONFIG.go_proto_library_visibility,
     deps = [
-        ":protos_perfetto_trace_non_minimal_protos",
+        ":protos_perfetto_trace_non_minimal_core_protos",
+    ],
+)
+
+perfetto_go_proto_library(
+    name = "protos_perfetto_trace_non_minimal_extras_protos_go_proto",
+    visibility = PERFETTO_CONFIG.go_proto_library_visibility,
+    deps = [
+        ":protos_perfetto_trace_non_minimal_extras_protos",
     ],
 )
 
