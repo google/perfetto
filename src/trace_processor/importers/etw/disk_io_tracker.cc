@@ -18,7 +18,6 @@
 
 #include <optional>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/etw/etw.pbzero.h"
 #include "protos/perfetto/trace/etw/etw_event.pbzero.h"
@@ -26,6 +25,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto::trace_processor {
 
@@ -149,7 +149,7 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
 
   const char* event_type = GetEventTypeString(opcode);
   if (!event_type) {
-    PERFETTO_DLOG("Unable to convert disk io opcode %d to event_type", opcode);
+    context_->stats_tracker->IncrementStats(stats::missing_disk_io_event_name);
     return;
   }
 
