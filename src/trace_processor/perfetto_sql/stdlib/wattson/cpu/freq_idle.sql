@@ -58,7 +58,8 @@ SELECT
   iif(suspend.suspended OR hotplug.offline, deepest.idle, idle.idle) AS idle,
   -- If CPU is suspended or offline, set power estimate to 0
   iif(suspend.suspended OR hotplug.offline, 0, lut.curve_value) AS curve_value,
-  lut.static
+  lut.static,
+  suspend.suspended
 FROM _interval_intersect!(
   (
     _ii_subquery!(_valid_window),
