@@ -83,11 +83,26 @@ Entities interact with `traced` primarily through two channels:
     <prod_group>:<prod_mode>:<cons_group>:<cons_mode>`: Sets the group ownership
     and permission mode for the producer and consumer sockets. This is important
     for controlling which users and processes can connect to `traced`.
-*   `--enable-relay-endpoint`: Enables an endpoint for
-    [multi-machine tracing](/docs/deployment/multi-machine-architecture.md) via
-    `traced_relay`. See
+*   `--enable-relay-endpoint`: Exposes the `RelayPort` service used by
+    [multi-machine tracing](/docs/deployment/multi-machine-architecture.md)
+    on every producer socket named by `PERFETTO_PRODUCER_SOCK_NAME` (or the
+    default producer socket). This is the standard switch for multi-machine
+    setups; see
     [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md)
     for the host-side setup.
+
+    > **Security note:** when the producer socket list mixes a local
+    > AF_UNIX socket with a remote-capable one, this flag exposes
+    > `RelayPort` on the local socket too. Deployments that combine
+    > local and remote producer sockets should use
+    > `--enable-relay-endpoint-on` below to keep the relay port off the
+    > local socket.
+*   `--enable-relay-endpoint-on <socket>`: Like `--enable-relay-endpoint`,
+    but exposes the `RelayPort` service only on the named producer socket.
+    `<socket>` must be one of the entries in `PERFETTO_PRODUCER_SOCK_NAME`
+    (or the default producer socket): the flag selects which existing
+    producer sockets get `RelayPort`; it does not introduce new endpoints.
+    May be repeated.
 
 ## Built-in Producer
 
