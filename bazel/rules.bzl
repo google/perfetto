@@ -469,6 +469,9 @@ def perfetto_cc_tp_tables(name, srcs, outs, deps = [], **kwargs):
 def perfetto_agent_skill(**kwargs):
     _rule_override("agent_skill", **kwargs)
 
+def perfetto_validate_skill_test(**kwargs):
+    _rule_override("validate_skill_test", **kwargs)
+
 # +----------------------------------------------------------------------------+
 # | Misc utility functions                                                     |
 # +----------------------------------------------------------------------------+

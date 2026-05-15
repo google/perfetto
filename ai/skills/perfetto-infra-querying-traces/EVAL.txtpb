@@ -1,0 +1,26 @@
+# proto-file: learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# proto-message: EvalSuite
+# txtpbfmt: wrap_strings_after_newlines
+
+suite_name: "perfetto-infra-querying-traces"
+timeout_seconds: 300
+
+cases {
+  name: "quickstart_query"
+  prompt: "How do I run a quick query on a trace file?"
+  expectations: "The agent recommends using `trace_processor query TRACE_FILE \"QUERY\"`."
+}
+
+cases {
+  name: "long_running_mode"
+  prompt: "How do I avoid reparsing the trace for every query?"
+  expectations: "The agent recommends starting `trace_processor server http` on a random port."
+  expectations: "The agent shows how to connect using the Python `TraceProcessor` client."
+}
+
+cases {
+  name: "discover_tables"
+  prompt: "How do I see what tables are available in the trace?"
+  expectations: "The agent mentions `__intrinsic_stdlib_modules` or listing tables for a module."
+  expectations: "The agent mentions using `LIMIT 0` to read column schema."
+}

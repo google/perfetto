@@ -1,0 +1,26 @@
+# proto-file: learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# proto-message: EvalSuite
+# txtpbfmt: wrap_strings_after_newlines
+
+suite_name: "perfetto-workflow-android-heap-dump"
+timeout_seconds: 300
+
+cases {
+  name: "confirm_heap_graph"
+  prompt: "How do I check if my trace has a Java heap dump?"
+  expectations: "The agent recommends querying `android_heap_graph_stats`."
+}
+
+cases {
+  name: "find_dominators"
+  prompt: "How do I find what is taking up the most memory in the heap dump?"
+  expectations: "The agent recommends using `android_heap_graph_class_summary_tree`."
+  expectations: "The agent mentions sorting by `cumulative_size`."
+}
+
+cases {
+  name: "retention_chain"
+  prompt: "I found a leaky class. How do I find what's keeping it alive?"
+  expectations: "The agent recommends using `heap_graph_dominator_tree`."
+  expectations: "The agent explains walking up `idom_id` to find retention path."
+}

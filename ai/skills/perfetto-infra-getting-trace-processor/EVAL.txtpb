@@ -1,0 +1,20 @@
+# proto-file: learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# proto-message: EvalSuite
+# txtpbfmt: wrap_strings_after_newlines
+
+suite_name: "perfetto-infra-getting-trace-processor"
+timeout_seconds: 300
+
+cases {
+  name: "fetch_prebuilt_binary"
+  prompt: "How do I get the trace_processor binary?"
+  expectations: "The agent recommends using curl to fetch the official prebuilt binary from get.perfetto.dev/trace_processor."
+  expectations: "The agent mentions making it executable with chmod +x."
+}
+
+cases {
+  name: "setup_python_venv"
+  prompt: "How do I install the perfetto Python client?"
+  expectations: "The agent recommends creating an isolated venv."
+  expectations: "The agent mentions installing perfetto and protobuf packages."
+}
