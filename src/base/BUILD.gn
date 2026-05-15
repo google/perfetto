@@ -23,7 +23,20 @@ import("../../gn/wasm.gni")
 _subprocess_supported =
     is_linux || is_chromeos || is_android || is_mac || is_win || is_freebsd
 
-perfetto_component("base") {
+# :base is split into two components so that the C SDK closure under
+# src/{shared_lib,tracing}/ can depend on a slim core that doesn't pull
+# in host-tool helpers (perfetto_cmd, kallsyms loader, traced_perf
+# probes, command-line tools, tests). Mirrors the trace_processor_shell
+# vs trace_processor_minimal_shell pattern in src/trace_processor/.
+#
+#   :base_minimal — the universally-used base sources, plus the
+#                   platform-specific task runners. Reachable from the
+#                   C SDK closure.
+#   :base         — :base_minimal plus the host-tool helpers
+#                   (cpu_info / ctrl_c_handler / getopt_compat /
+#                   subprocess*). Same public surface as before; current
+#                   consumers are unchanged.
+perfetto_component("base_minimal") {
   deps = [
     "../../gn:base_platform",
     "../../gn:default_deps",
@@ -67,17 +80,6 @@ perfetto_component("base") {
     "weak_runner.cc",
   ]
 
-  # Sources only used by host tools (perfetto_cmd, trace_processor probes,
-  # tests). Not reachable from any SDK closure entry point — gated under the
-  # same C-SDK-minimal flag used to drop unused per-domain protos.
-  if (!enable_perfetto_minimal_trace_protos) {
-    sources += [
-      "cpu_info.cc",
-      "ctrl_c_handler.cc",
-      "getopt_compat.cc",
-    ]
-  }
-
   if (!is_nacl) {
     sources += [
       "lock_free_task_runner.cc",
@@ -86,16 +88,32 @@ perfetto_component("base") {
     ]
   }
 
-  if (_subprocess_supported && !enable_perfetto_minimal_trace_protos) {
+  if (enable_perfetto_stderr_crash_dump) {
+    deps += [ ":debug_crash_stack_trace" ]
+  }
+}
+
+perfetto_component("base") {
+  deps = [
+    "../../gn:base_platform",
+    "../../gn:default_deps",
+  ]
+  public_deps = [ ":base_minimal" ]
+
+  # Sources only used by host tools (perfetto_cmd, trace_processor probes,
+  # tests). Not reachable from any SDK closure entry point.
+  sources = [
+    "cpu_info.cc",
+    "ctrl_c_handler.cc",
+    "getopt_compat.cc",
+  ]
+
+  if (_subprocess_supported) {
     sources += [
       "subprocess.cc",
       "subprocess_posix.cc",
       "subprocess_windows.cc",
     ]
-  }
-
-  if (enable_perfetto_stderr_crash_dump) {
-    deps += [ ":debug_crash_stack_trace" ]
   }
 }
 
