@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SearchManagerImpl} from '../../core/search_manager';
-import {Trace} from '../../public/trace';
+import type {SearchManagerImpl} from '../../core/search_manager';
+import type {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {Row} from '../../trace_processor/query_result';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {Row} from '../../trace_processor/query_result';
+import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 
 interface TabAttrs {
   trace: Trace;

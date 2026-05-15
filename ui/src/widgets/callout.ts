@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classForIntent, HTMLAttrs, Intent} from './common';
+import {classForIntent, type HTMLAttrs, Intent} from './common';
 import {Button} from './button';
 import {Icon} from './icon';
 import {classNames} from '../base/classnames';

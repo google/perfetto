@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SettingsPage} from './settings_page';
 
 export default class implements PerfettoPlugin {

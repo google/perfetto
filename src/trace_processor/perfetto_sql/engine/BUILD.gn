@@ -22,46 +22,49 @@ source_set("engine") {
     "created_function.h",
     "dataframe_module.cc",
     "dataframe_module.h",
-    "perfetto_sql_engine.cc",
-    "perfetto_sql_engine.h",
+    "perfetto_sql_connection.cc",
+    "perfetto_sql_connection.h",
+    "perfetto_sql_database.cc",
+    "perfetto_sql_database.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
     "static_table_function_module.cc",
     "static_table_function_module.h",
-    "table_pointer_module.cc",
-    "table_pointer_module.h",
   ]
   deps = [
     "../..:metatrace",
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
     "../../containers",
     "../../core/dataframe",
-    "../../perfetto_sql/intrinsics/table_functions:interface",
-    "../../sqlite",
+    "../../core/plugin",
     "../../types",
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
+    "../preprocessor",
     "../tokenizer",
   ]
+
+  # We export the SQLite bindings.
+  public_deps = [ "../../sqlite" ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "perfetto_sql_engine_unittest.cc" ]
+  sources = [ "perfetto_sql_connection_unittest.cc" ]
   deps = [
     ":engine",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
+    "../../../base:test_support",
     "../..//tables:tables_python",
     "../../containers",
-    "../../perfetto_sql/intrinsics/table_functions:interface",
+    "../../core/plugin",
     "../../sqlite",
     "../../util:stdlib",
   ]

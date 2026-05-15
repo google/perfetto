@@ -18,7 +18,7 @@ import {assertFalse} from '../base/assert';
 import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {Router} from '../core/router';
-import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
+import type {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 import {Button} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Popup, PopupPosition} from '../widgets/popup';

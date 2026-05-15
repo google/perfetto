@@ -29,13 +29,17 @@ import {hasChildren} from '../base/mithril_utils';
 interface TreeAttrs {
   // Space delimited class list applied to our tree element.
   className?: string;
+  // When true, render the tree as a bordered card with a divider between
+  // every label/value row and a tinted label column. Use for stats/key-value
+  // tables where rows should look like proper cells.
+  bordered?: boolean;
 }
 
 export class Tree implements m.ClassComponent<TreeAttrs> {
   view({attrs, children}: m.Vnode<TreeAttrs>): m.Children {
-    const {className = ''} = attrs;
+    const {className = '', bordered} = attrs;
 
-    const classes = classNames(className);
+    const classes = classNames(className, bordered && 'pf-tree--bordered');
 
     return m('.pf-tree', {class: classes}, children);
   }

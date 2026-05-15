@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
@@ -89,7 +90,8 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
       protos::pbzero::InternedData::kMappingsFieldNumber,
       protos::pbzero::Mapping>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return nullptr;
   }
 
@@ -155,7 +157,8 @@ StackProfileSequenceState::LookupInternedBuildId(
       protos::pbzero::InternedData::kBuildIdsFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -170,7 +173,8 @@ StackProfileSequenceState::LookupInternedMappingPath(
       protos::pbzero::InternedData::kMappingPathsFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -188,7 +192,8 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
       protos::pbzero::InternedData::kCallstacksFieldNumber,
       protos::pbzero::Callstack>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_callstack_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_callstack_id);
     return std::nullopt;
   }
 
@@ -205,7 +210,8 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
   }
 
   if (!parent_callsite_id) {
-    context_->storage->IncrementStats(stats::stackprofile_empty_callstack);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_empty_callstack);
     return std::nullopt;
   }
 
@@ -225,7 +231,8 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
       protos::pbzero::InternedData::kFramesFieldNumber, protos::pbzero::Frame>(
       iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_frame_id);
     return std::nullopt;
   }
 
@@ -301,7 +308,8 @@ StackProfileSequenceState::LookupInternedFunctionName(
       protos::pbzero::InternedData::kFunctionNamesFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -319,7 +327,8 @@ StackProfileSequenceState::LookupInternedSourcePath(
       protos::pbzero::InternedData::kSourcePathsFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 

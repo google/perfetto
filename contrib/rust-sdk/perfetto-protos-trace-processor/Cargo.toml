@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk-protos-trace-processor"
-version = "0.3.0"
+version = "1.0.0"
 authors = ["David Reveman <reveman@meta.com>"]
 description = "Extra protobuf bindings for trace processor"
 readme = "README.md"
@@ -19,7 +19,7 @@ default = ["vendored"]
 vendored = ["perfetto-sdk/vendored"]
 
 [dependencies]
-perfetto-sdk = { path = "../perfetto", version = "0.3", default-features = false }
+perfetto-sdk = { path = "../perfetto", version = "1", default-features = false }
 paste = "1"
 
 [dev-dependencies]

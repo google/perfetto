@@ -27,17 +27,20 @@ import {MiddleEllipsis} from './middle_ellipsis';
 import {Popup, PopupPosition} from './popup';
 import {Select} from './select';
 import {Spinner} from './spinner';
-import {SegmentedButtons} from './segmented_buttons';
+import {RadioGroup} from './radio_group';
 import {TagInput} from './tag_input';
 import {TextInput} from './text_input';
 import {Tooltip} from './tooltip';
 import {z} from 'zod';
-import {Rect2D, Size2D} from '../base/geom';
-import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
-import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
-import {Color, HSLColor} from '../base/color';
+import type {Rect2D, Size2D} from '../base/geom';
+import {
+  VirtualOverlayCanvas,
+  type VirtualOverlayCanvasApi,
+} from './virtual_overlay_canvas';
+import {MenuItem, type MenuItemAttrs, PopupMenu} from './menu';
+import {type Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
-import {MithrilEvent} from '../base/mithril_utils';
+import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 
 const LABEL_FONT_STYLE = '12px Roboto';
@@ -82,9 +85,21 @@ interface ZoomRegion {
   readonly type: 'ABOVE_ROOT' | 'BELOW_ROOT' | 'ROOT';
 }
 
+// Context passed to a FlamegraphOptionalAction's execute callback.
+//
+// `properties` is the (reduced) kv map of the user-declared
+// unaggregatableProperties / aggregatableProperties on the metric.
+//
+// `node` is the clicked flamegraph node for node-level actions, and undefined
+// for root-level actions (where there is no specific node).
+export interface FlamegraphActionContext {
+  readonly properties: ReadonlyMap<string, string>;
+  readonly node?: FlamegraphNode;
+}
+
 export interface FlamegraphOptionalAction {
   readonly name: string;
-  execute?: (kv: ReadonlyMap<string, string>) => void;
+  execute?: (ctx: FlamegraphActionContext) => void;
   readonly subActions?: FlamegraphOptionalAction[];
 }
 
@@ -148,6 +163,8 @@ const FLAMEGRAPH_VIEW_SCHEMA = z
     z.object({
       kind: z.literal('PIVOT').readonly(),
       pivot: z.string().readonly(),
+      // Display text for the pivot chip; SQL match still uses `pivot`.
+      displayLabel: z.string().optional().readonly(),
     }),
   ])
   .readonly();
@@ -349,6 +366,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
+  private canvasApi?: VirtualOverlayCanvasApi;
+  private pendingScrollToY?: number;
 
   private renderNodesMonitor = new Monitor([
     () => this.attrs.data,
@@ -380,12 +399,41 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     this.attrs = attrs;
   }
 
+  oncreate() {
+    this.flushPendingScroll();
+  }
+
+  onupdate() {
+    this.flushPendingScroll();
+  }
+
+  private flushPendingScroll() {
+    if (this.pendingScrollToY === undefined || this.canvasApi === undefined) {
+      return;
+    }
+    this.canvasApi.scrollTo({y: this.pendingScrollToY});
+    this.pendingScrollToY = undefined;
+  }
+
   view({attrs}: m.Vnode<FlamegraphAttrs, this>): void | m.Children {
     this.attrs = attrs;
     if (this.dataChangeMonitor.ifStateChanged()) {
       this.zoomRegion = undefined;
       this.lastClickedNode = undefined;
       this.tooltipPos = undefined;
+      // Auto-scroll so the root (depth 0) is visible. In TOP_DOWN the root
+      // sits at the top of the canvas; in BOTTOM_UP it sits near the bottom
+      // (only callers/leaves above it); in PIVOT it sits somewhere in the
+      // middle with callers above and callees below.
+      if (attrs.data !== undefined) {
+        if (attrs.state.view.kind === 'BOTTOM_UP') {
+          // Large value — the browser clamps to scrollHeight - clientHeight.
+          this.pendingScrollToY = Number.MAX_SAFE_INTEGER;
+        } else {
+          const rootY = -attrs.data.minDepth * NODE_HEIGHT;
+          this.pendingScrollToY = Math.max(0, rootY - NODE_HEIGHT);
+        }
+      }
     }
     if (attrs.data === undefined) {
       return m(
@@ -422,6 +470,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
+          onMount: (api) => {
+            this.canvasApi = api;
+          },
           onscroll: (e: MithrilEvent<Event>) => {
             // Only redraw if popup visibility would change
             if (!this.tooltipPos) {
@@ -856,17 +907,26 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         },
       }),
       m('.pf-flamegraph-filter-bar-separator'),
-      m(SegmentedButtons, {
-        options: [{label: 'Top Down'}, {label: 'Bottom Up'}],
-        selectedOption: this.attrs.state.view.kind === 'TOP_DOWN' ? 0 : 1,
-        onOptionSelected: (num) => {
-          this.attrs.onStateChange({
-            ...this.attrs.state,
-            view: {kind: num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP'},
-          });
+      m(
+        RadioGroup,
+        {
+          selectedValue:
+            this.attrs.state.view.kind === 'TOP_DOWN'
+              ? 'top-down'
+              : 'bottom-up',
+          onValueChange: (value) => {
+            this.attrs.onStateChange({
+              ...this.attrs.state,
+              view: {kind: value === 'top-down' ? 'TOP_DOWN' : 'BOTTOM_UP'},
+            });
+          },
+          disabled: this.attrs.state.view.kind === 'PIVOT',
         },
-        disabled: this.attrs.state.view.kind === 'PIVOT',
-      }),
+        [
+          m(RadioGroup.Button, {value: 'top-down'}, 'Top Down'),
+          m(RadioGroup.Button, {value: 'bottom-up'}, 'Bottom Up'),
+        ],
+      ),
     );
   }
 
@@ -1085,18 +1145,24 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             copyToClipboard(this.buildStackString(node, true));
           },
         }),
-      actions.map((action) => this.renderMenuItem(action, properties)),
+      actions.map((action) => this.renderMenuItem(action, properties, node)),
     );
   }
 
   private renderMenuItem(
     action: FlamegraphOptionalAction,
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ): m.Vnode<MenuItemAttrs> {
     if (action.subActions !== undefined && action.subActions.length > 0) {
-      return this.renderParentMenuItem(action, action.subActions, properties);
+      return this.renderParentMenuItem(
+        action,
+        action.subActions,
+        properties,
+        node,
+      );
     } else if (action.execute) {
-      return this.renderExecutableMenuItem(action, properties);
+      return this.renderExecutableMenuItem(action, properties, node);
     } else {
       return this.renderDisabledMenuItem(action);
     }
@@ -1106,6 +1172,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     action: FlamegraphOptionalAction,
     subActions: FlamegraphOptionalAction[],
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ): m.Vnode<MenuItemAttrs> {
     return m(
       MenuItem,
@@ -1114,19 +1181,24 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         // No onclick handler for parent menu items
       },
       // Directly render sub-actions as children of the MenuItem
-      subActions.map((subAction) => this.renderMenuItem(subAction, properties)),
+      subActions.map((subAction) =>
+        this.renderMenuItem(subAction, properties, node),
+      ),
     );
   }
 
   private renderExecutableMenuItem(
     action: FlamegraphOptionalAction,
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ): m.Vnode<MenuItemAttrs> {
     return m(MenuItem, {
       label: action.name,
       onclick: () => {
-        const reducedProperties = this.createReducedProperties(properties);
-        action.execute!(reducedProperties);
+        action.execute!({
+          properties: this.createReducedProperties(properties),
+          node,
+        });
         this.tooltipPos = undefined; // Close tooltip after action
       },
     });
@@ -1473,7 +1545,9 @@ function toTags(state: FlamegraphState): ReadonlyArray<string> {
   };
   const filters = state.filters.map((x) => toString(x));
   return filters.concat(
-    state.view.kind === 'PIVOT' ? ['Pivot: ' + state.view.pivot] : [],
+    state.view.kind === 'PIVOT'
+      ? ['Pivot: ' + (state.view.displayLabel ?? state.view.pivot)]
+      : [],
   );
 }
 

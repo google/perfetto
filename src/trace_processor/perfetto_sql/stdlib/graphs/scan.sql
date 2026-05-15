@@ -16,13 +16,16 @@
 -- sqlformat file off
 
 CREATE PERFETTO MACRO _graph_scan_df_agg(x ColumnName, y ColumnName)
-RETURNS _ProjectionFragment AS __intrinsic_stringify!($x), init_table.$y;
+RETURNS _ProjectionFragment
+AS __intrinsic_stringify!($x), init_table.$y;
 
 CREATE PERFETTO MACRO _graph_scan_bind(x ColumnName, y ColumnName)
-RETURNS Expr AS __intrinsic_table_ptr_bind(result.$x, __intrinsic_stringify!($y));
+RETURNS Expr
+AS __intrinsic_table_ptr_bind(result.$x, __intrinsic_stringify!($y));
 
 CREATE PERFETTO MACRO _graph_scan_select(x ColumnName, y ColumnName)
-RETURNS _ProjectionFragment AS result.$x as $y;
+RETURNS _ProjectionFragment
+AS result.$x as $y;
 
 -- Performs a "scan" over the graph starting at `init_table` and using `graph_table`
 -- for edges to follow.
@@ -49,8 +52,8 @@ CREATE PERFETTO MACRO _graph_scan(
   -- Should return a column `id` and all columns specified by `scan_columns`.
   step_query TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   select
     c0 as id,
     __intrinsic_token_apply!(
@@ -108,8 +111,8 @@ CREATE PERFETTO MACRO _graph_aggregating_scan(
   -- a variable table labelled `$table`.
   agg_query TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   select
     c0 as id,
     __intrinsic_token_apply!(

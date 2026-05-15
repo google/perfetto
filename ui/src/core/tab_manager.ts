@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DetailsPanel} from '../public/details_panel';
-import {TabDescriptor, TabManager} from '../public/tab';
+import type {DetailsPanel} from '../public/details_panel';
+import type {TabDescriptor, TabManager} from '../public/tab';
 import {DrawerPanelVisibility, toggleVisibility} from '../widgets/drawer_panel';
 
 export interface ResolvedTab {

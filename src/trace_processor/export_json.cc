@@ -101,7 +101,7 @@ uint32_t LowerBoundIndex(uint32_t first,
   return first;
 }
 
-using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
+using IndexMap = std::map<int, int64_t>;
 
 const char kLegacyEventArgsKey[] = "legacy_event";
 const char kLegacyEventPassthroughUtidKey[] = "passthrough_utid";
@@ -1326,14 +1326,62 @@ class JsonExporter {
   }
 
   base::Status ExportStats() {
-    const auto& stats = storage_->stats();
+    // Aggregate StatsTable rows into per-key buckets so we can emit in
+    // stats::kNames[] enum order, matching the legacy JSON shape (which
+    // came from a std::array<Stats, kNumKeys> iterated in declaration
+    // order). Untouched kSingle stats default to value=0; untouched
+    // kIndexed stats produce no entries.
+    //
+    // JSON export only supports a single-machine, single-trace session —
+    // there's no consumer spec for representing stats from multi-machine
+    // forks or from genuinely independent traces bundled together. To
+    // pick the bucket we ignore container files (gzip/zip/tar wrappers)
+    // and look for the single underlying non-container trace; anything
+    // outside that bucket (or a second non-container trace) is rejected.
+    std::optional<tables::TraceFileTable::Id> primary_trace_id;
+    for (auto it = storage_->trace_file_table().IterateRows(); it; ++it) {
+      if (it.is_container()) {
+        continue;
+      }
+      if (primary_trace_id) {
+        return base::ErrStatus(
+            "ExportJson: stats from multi-machine/multi-trace sessions are "
+            "not supported");
+      }
+      primary_trace_id = it.id();
+    }
+    // Tests and direct-load paths that never register a TraceFile row
+    // still emit stats under (MachineId(0), TraceId(0)).
+    if (!primary_trace_id) {
+      primary_trace_id = tables::TraceFileTable::Id{0};
+    }
 
-    for (size_t idx = 0; idx < stats::kNumKeys; idx++) {
-      if (stats::kTypes[idx] == stats::kSingle) {
-        writer_.SetStats(stats::kNames[idx], stats[idx].value);
+    std::array<int64_t, stats::kNumKeys> single_values{};
+    std::array<IndexMap, stats::kNumKeys> indexed_values{};
+    for (auto it = storage_->stats_table().IterateRows(); it; ++it) {
+      auto m = it.machine_id();
+      auto t = it.trace_id();
+      if (m && m != tables::MachineTable::Id{0}) {
+        return base::ErrStatus(
+            "ExportJson: stats from multi-machine/multi-trace sessions are "
+            "not supported");
+      }
+      if (t && t != primary_trace_id) {
+        continue;
+      }
+      size_t key = static_cast<size_t>(it.key());
+      if (stats::kTypes[key] == stats::kSingle) {
+        single_values[key] = it.value();
       } else {
-        PERFETTO_DCHECK(stats::kTypes[idx] == stats::kIndexed);
-        writer_.SetStats(stats::kNames[idx], stats[idx].indexed_values);
+        PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
+        indexed_values[key][static_cast<int>(*it.idx())] = it.value();
+      }
+    }
+    for (size_t key = 0; key < stats::kNumKeys; key++) {
+      if (stats::kTypes[key] == stats::kSingle) {
+        writer_.SetStats(stats::kNames[key], single_values[key]);
+      } else {
+        writer_.SetStats(stats::kNames[key], indexed_values[key]);
       }
     }
 

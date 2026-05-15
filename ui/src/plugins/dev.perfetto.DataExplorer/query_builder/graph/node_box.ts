@@ -16,11 +16,11 @@ import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
 import {PopupMenu, MenuDivider, MenuTitle} from '../../../../widgets/menu';
-import {QueryNode} from '../../query_node';
+import type {QueryNode} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
 import {buildMenuItems} from './menu_utils';
 import {nodeRegistry} from '../node_registry';
-import {NodeDetailsAttrs} from '../../node_types';
+import type {NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsContent} from '../node_styling_widgets';
 
 export interface NodeBoxAttrs {

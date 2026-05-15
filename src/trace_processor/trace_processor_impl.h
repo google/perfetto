@@ -37,10 +37,7 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -146,7 +143,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   void CacheBoundsAndBuildTable();
 
-  struct InitPerfettoSqlEngineArgs {
+  struct InitPerfettoSqlConnectionArgs {
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
@@ -158,28 +155,25 @@ class TraceProcessorImpl : public TraceProcessor,
     bool notify_eof_called;
     std::pair<int64_t, int64_t> cached_trace_bounds;
     std::vector<std::unique_ptr<PluginBase>>& plugins;
+    const std::vector<PluginDataframe>& plugin_dataframes;
   };
 
-  static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
-      const InitPerfettoSqlEngineArgs& args);
+  static std::unique_ptr<PerfettoSqlConnection> InitPerfettoSqlConnection(
+      const InitPerfettoSqlConnectionArgs& args);
 
-  static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
-      TraceStorage* storage);
-
-  static std::vector<std::unique_ptr<StaticTableFunction>>
-  CreateStaticTableFunctions(TraceProcessorContext* context,
-                             TraceStorage* storage,
-                             const Config& config,
-                             PerfettoSqlEngine* engine);
-
-  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
+  static void IncludeAfterEofPrelude(PerfettoSqlConnection*);
 
   const Config config_;
 
   // Registered plugins, topologically sorted by dependency order.
   std::vector<std::unique_ptr<PluginBase>> plugins_;
 
-  std::unique_ptr<PerfettoSqlEngine> engine_;
+  // Dataframes contributed by plugins, collected once after plugin
+  // construction. Both InitPerfettoSqlConnection and NotifyEndOfFile read
+  // from this list, so RegisterDataframes runs exactly once per plugin.
+  std::vector<PluginDataframe> plugin_dataframes_;
+
+  std::unique_ptr<PerfettoSqlConnection> engine_;
 
   DescriptorPool metrics_descriptor_pool_;
 

@@ -43,6 +43,7 @@ PROD_FILES = [
     'protos/perfetto/common/semantic_type.proto',
     'protos/perfetto/config/data_source_config.proto',
     'protos/perfetto/config/trace_config.proto',
+    'protos/perfetto/config/protovm/protovm_config.proto',
     'protos/perfetto/config/track_event/track_event_config.proto',
     'protos/perfetto/trace/android/android_track_event.proto',
     'protos/perfetto/trace/clock_snapshot.proto',

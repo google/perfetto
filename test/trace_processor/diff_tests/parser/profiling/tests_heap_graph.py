@@ -47,6 +47,61 @@ class ProfilingHeapGraph(TestSuite):
         """,
         out=Path('heap_graph_flamegraph.out'))
 
+  def test_heap_graph_bitmap_fields(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          heap_graph {
+            pid: 2
+            types {
+              id: 1
+              class_name: "android.graphics.Bitmap"
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+              bitmap_id_field: 123
+              bitmap_source_id_field: 456
+              bitmap_width_field: 100
+              bitmap_height_field: 200
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT
+          p.field_name,
+          p.field_type,
+          p.long_value,
+          p.int_value
+        FROM heap_graph_object o
+          JOIN heap_graph_object_data d ON o.object_data_id = d.id
+          JOIN heap_graph_primitive p USING (field_set_id)
+        ORDER BY p.field_name;
+        """,
+        out=Csv('''
+          "field_name","field_type","long_value","int_value"
+          "android.graphics.Bitmap.mHeight","int","[NULL]",200
+          "android.graphics.Bitmap.mId","long",123,"[NULL]"
+          "android.graphics.Bitmap.mSourceId","long",456,"[NULL]"
+          "android.graphics.Bitmap.mWidth","int","[NULL]",100
+        '''))
+
   def test_heap_graph_object(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_baseapk.textproto'),

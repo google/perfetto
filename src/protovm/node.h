@@ -68,10 +68,6 @@ struct Node {
 
   struct IndexedRepeatedField {
     IntrusiveMap index_to_node;
-
-    // Flag needed to track the merge state of indexed repeated field
-    // (see implementation of Merge operation in RW proto)
-    bool has_been_merged;
   };
 
   struct Message {
@@ -98,6 +94,10 @@ struct Node {
                Message,
                Scalar>
       value;
+
+  // Flag needed to track the merge state of repeated fields
+  // (see implementation of Merge operation in RW proto)
+  bool has_been_merged = false;
 };
 
 Node& GetOuterNode(Node::MapNode& map_node);

@@ -24,18 +24,23 @@
 
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
-import {Bounds2D, Rect2D, Size2D, VerticalBounds} from '../../base/geom';
-import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
+import {
+  type Bounds2D,
+  Rect2D,
+  type Size2D,
+  type VerticalBounds,
+} from '../../base/geom';
+import type {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
-import {RequiredField} from '../../base/utils';
+import type {RequiredField} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
-import {TrackWrapper} from '../../core/track_manager';
-import {TrackRenderer, Track} from '../../public/track';
-import {TrackNode, Workspace} from '../../public/workspace';
+import type {TraceImpl} from '../../core/trace_impl';
+import type {TrackWrapper} from '../../core/track_manager';
+import type {TrackRenderer, Track} from '../../public/track';
+import type {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
 import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
@@ -43,13 +48,13 @@ import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {COLOR_ACCENT} from '../../frontend/css_constants';
 import {calculateResolution} from '../../base/resolution';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Anchor, linkify} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
-import {CanvasColors} from '../../public/canvas_colors';
+import type {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
-import {Renderer} from '../../base/renderer';
+import type {Renderer} from '../../base/renderer';
 
 export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;

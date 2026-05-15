@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../protos';
-import {NodeType, QueryNode} from './query_node';
+import {NodeType, type QueryNode} from './query_node';
 import {
   detectAndWrapPbtxt,
   decomposeStructuredQuery,
@@ -21,14 +21,14 @@ import {
   templateSpecToMetricsState,
   metricSpecToMetricsState,
 } from './pbtxt_import';
-import {SerializedGraph, deserializeState} from './json_handler';
+import {type SerializedGraph, deserializeState} from './json_handler';
 import {registerCoreNodes} from './query_builder/core_nodes';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import type {
   SqlModules,
   SqlTable,
 } from '../dev.perfetto.SqlModules/sql_modules';
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
 describe('detectAndWrapPbtxt', () => {
   it('passes through full TraceSummarySpec unchanged', () => {

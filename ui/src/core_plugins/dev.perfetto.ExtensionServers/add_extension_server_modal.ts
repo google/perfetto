@@ -17,11 +17,11 @@ import {AsyncLimiter} from '../../base/async_limiter';
 import {Button} from '../../widgets/button';
 import {showModal} from '../../widgets/modal';
 import {TextInput} from '../../widgets/text_input';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {Select} from '../../widgets/select';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
-import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
-import {ExtensionServer, UserInput} from './types';
+import {MultiSelect, type MultiSelectDiff} from '../../widgets/multiselect';
+import type {ExtensionServer, UserInput} from './types';
 import {defer} from '../../base/deferred';
 import {loadManifest} from './extension_server';
 import {normalizeHttpsUrl} from './url_utils';
@@ -122,29 +122,32 @@ class AddExtensionServerModal {
   }
 
   private renderServerTypePicker(): m.Children {
-    return m(SegmentedButtons, {
-      options: [
-        {label: 'GitHub', icon: 'link'},
-        {label: 'HTTPS', icon: 'public'},
-      ],
-      selectedOption: this.userInput.type === 'github' ? 0 : 1,
-      disabled: this.isEmbedderManaged,
-      onOptionSelected: (idx: number) => {
-        if (idx === 0 && this.userInput.type !== 'github') {
-          this.userInput = {
-            type: 'github',
-            repo: '',
-            ref: 'main',
-            path: '',
-            auth: {type: 'none'},
-          };
-          this.scheduleManifestFetch();
-        } else if (idx === 1 && this.userInput.type !== 'https') {
-          this.userInput = {type: 'https', url: '', auth: {type: 'none'}};
-          this.scheduleManifestFetch();
-        }
+    return m(
+      RadioGroup,
+      {
+        selectedValue: this.userInput.type,
+        disabled: this.isEmbedderManaged,
+        onValueChange: (value) => {
+          if (value === 'github' && this.userInput.type !== 'github') {
+            this.userInput = {
+              type: 'github',
+              repo: '',
+              ref: 'main',
+              path: '',
+              auth: {type: 'none'},
+            };
+            this.scheduleManifestFetch();
+          } else if (value === 'https' && this.userInput.type !== 'https') {
+            this.userInput = {type: 'https', url: '', auth: {type: 'none'}};
+            this.scheduleManifestFetch();
+          }
+        },
       },
-    });
+      [
+        m(RadioGroup.Button, {value: 'github', icon: 'link'}, 'GitHub'),
+        m(RadioGroup.Button, {value: 'https', icon: 'public'}, 'HTTPS'),
+      ],
+    );
   }
 
   private renderGithubFields(input: GithubUserInput): m.Children {

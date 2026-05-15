@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FullTraceMetricData} from './metricUtils';
+import type {FullTraceMetricData} from './metricUtils';
 import {pinFullTraceJankInstance} from './fullTraceJankMetricHandler';
 
 const validMetricsTest: {
@@ -24,6 +24,7 @@ const validMetricsTest: {
     expectedOutput: {
       process: 'com.google.android.apps.nexuslauncher',
       jankType: 'app_frames',
+      isWeighted: false,
     },
   },
   {
@@ -31,6 +32,7 @@ const validMetricsTest: {
     expectedOutput: {
       process: 'com.android.systemui',
       jankType: 'sf_frames',
+      isWeighted: false,
     },
   },
   {
@@ -38,6 +40,15 @@ const validMetricsTest: {
     expectedOutput: {
       process: 'com.android.systemui',
       jankType: 'app_frames',
+      isWeighted: false,
+    },
+  },
+  {
+    inputMetric: 'perfetto_ft_systemui-weighted_missed_app_frames-mean',
+    expectedOutput: {
+      process: 'com.android.systemui',
+      jankType: 'app_frames',
+      isWeighted: true,
     },
   },
 ];

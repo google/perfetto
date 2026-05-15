@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classForIntent, HTMLAttrs, Intent} from './common';
+import {classForIntent, type HTMLAttrs, type Intent} from './common';
 import {assertExists} from '../base/assert';
 import {Card} from './card';
 import {classNames} from '../base/classnames';
@@ -89,10 +89,21 @@ export interface SettingsCardAttrs extends HTMLAttrs {
 }
 
 export class SettingsCard implements m.ClassComponent<SettingsCardAttrs> {
+  private wasFocused = false;
+
   oncreate(vnode: m.VnodeDOM<SettingsCardAttrs>) {
+    this.wasFocused = vnode.attrs.focused ?? false;
     if (vnode.attrs.focused) {
       vnode.dom.scrollIntoView({behavior: 'smooth', block: 'center'});
     }
+  }
+
+  onupdate(vnode: m.VnodeDOM<SettingsCardAttrs>) {
+    const focused = vnode.attrs.focused ?? false;
+    if (focused && !this.wasFocused) {
+      vnode.dom.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+    this.wasFocused = focused;
   }
 
   view(vnode: m.Vnode<SettingsCardAttrs>) {

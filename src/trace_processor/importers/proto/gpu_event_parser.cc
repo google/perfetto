@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -36,10 +36,12 @@
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/proto/gpu_counter_sequence_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -50,10 +52,10 @@
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
-#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_interned_data.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
@@ -296,8 +298,7 @@ StringId GpuEventParser::FormatCounterUnit(
   if (!spec.has_numerator_units() && !spec.has_denominator_units()) {
     return kNullStringId;
   }
-  char buffer[1024];
-  base::FixedStringWriter unit(buffer, sizeof(buffer));
+  base::DynamicStringWriter unit;
   for (auto number = spec.numerator_units(); number; ++number) {
     if (unit.pos()) {
       unit.AppendChar(':');
@@ -443,7 +444,7 @@ void GpuEventParser::ParseGpuCounterEvent(
         protos::pbzero::InternedData::kGpuCounterDescriptorsFieldNumber,
         InternedGpuCounterDescriptor>(event.counter_descriptor_iid());
     if (!interned || !interned->has_counter_descriptor()) {
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+      context_->stats_tracker->IncrementStats(stats::gpu_counters_invalid_spec);
       return;
     }
 
@@ -467,7 +468,8 @@ void GpuEventParser::ParseGpuCounterEvent(
           continue;
         }
         if (!spec.has_name()) {
-          context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+          context_->stats_tracker->IncrementStats(
+              stats::gpu_counters_invalid_spec);
           break;
         }
         found = true;
@@ -487,14 +489,20 @@ void GpuEventParser::ParseGpuCounterEvent(
       }
 
       if (!found) {
-        context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+        context_->stats_tracker->IncrementStats(
+            stats::gpu_counters_invalid_spec);
       }
     }
 
-    // Insert custom counter groups once per interned descriptor.
+    // Insert custom counter groups once per interned descriptor. The cache
+    // lives on the sequence's IncrementalState (alongside the interned-data
+    // table the descriptor was looked up from), so two producers picking the
+    // same iid on different sequences each get their own cache.
     auto iid = event.counter_descriptor_iid();
-    if (!gpu_custom_groups_inserted_.Find(iid)) {
-      gpu_custom_groups_inserted_.Insert(iid, true);
+    auto* gpu_counter_state =
+        sequence_state->GetCustomState<GpuCounterSequenceState>();
+    if (!gpu_counter_state->custom_groups_inserted.Find(iid)) {
+      gpu_counter_state->custom_groups_inserted.Insert(iid, true);
       base::FlatHashMap<uint32_t, TrackId> counter_id_to_track;
       for (auto spec_it = desc.specs(); spec_it; ++spec_it) {
         GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*spec_it);
@@ -661,8 +669,7 @@ StringId GpuEventParser::ParseRenderSubpasses(
   if (!event.has_render_subpass_index_mask()) {
     return kNullStringId;
   }
-  char buf[256];
-  base::FixedStringWriter writer(buf, sizeof(buf));
+  base::DynamicStringWriter writer;
   uint32_t bit_index = 0;
   bool first = true;
   for (auto it = event.render_subpass_index_mask(); it; ++it) {

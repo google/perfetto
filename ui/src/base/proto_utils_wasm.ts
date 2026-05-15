@@ -15,7 +15,7 @@
 import protos from '../protos';
 import {assetSrc} from './assets';
 import {defer} from './deferred';
-import {errResult, okResult, Result} from './result';
+import {errResult, okResult, type Result} from './result';
 import {utf8Decode, utf8Encode} from './string_utils';
 import WasmModuleGen from '../gen/proto_utils';
 

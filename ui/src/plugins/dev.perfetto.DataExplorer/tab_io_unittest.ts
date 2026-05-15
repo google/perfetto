@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DashboardTabState, DataExplorerTab} from './data_explorer';
+import type {DashboardTabState, DataExplorerTab} from './data_explorer';
 import {
   isSerializedTabExport,
   deserializeDashboardsFromExport,
-  SerializedTabExport,
+  type SerializedTabExport,
 } from './graph_io';
 import {
   serializeDashboardsForTab,
-  SerializedDashboard,
+  type SerializedDashboard,
 } from './data_explorer_tabs_storage';
 
 describe('isSerializedTabExport', () => {

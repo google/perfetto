@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ChartConfig, BarOrientation} from '../nodes/visualisation_node';
+import type {ChartConfig, BarOrientation} from '../nodes/visualisation_node';
 import {
   CHART_TYPES,
   getChartTypeDefinition,
   isValidChartType,
 } from '../nodes/chart_type_registry';
-import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+import type {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
 import {Select} from '../../../../widgets/select';
 import {Form, FormLabel} from '../../../../widgets/form';
-import {ChartColumnProvider} from './chart_renderers';
+import type {ChartColumnProvider} from './chart_renderers';
 
 interface ColumnInfo {
   readonly name: string;

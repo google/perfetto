@@ -14,11 +14,15 @@
 
 import m from 'mithril';
 import {createAggregationTab} from '../../components/aggregation_adapter';
-import {LogFilteringCriteria, LogPanelCache, LogPanel} from './logs_panel';
+import {
+  type LogFilteringCriteria,
+  type LogPanelCache,
+  LogPanel,
+} from './logs_panel';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Engine} from '../../trace_processor/engine';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {
   createAndroidLogTrack,

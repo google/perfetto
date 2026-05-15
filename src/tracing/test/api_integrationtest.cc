@@ -331,6 +331,7 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
   struct DataSource {
     perfetto::DataSourceDescriptor dsd;
     perfetto::internal::DataSourceStaticState* static_state;
+    perfetto::internal::DataSourceParams params;
   };
 
   MockTracingMuxer() : TracingMuxer(nullptr), prev_instance_(instance_) {
@@ -341,10 +342,10 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
   bool RegisterDataSource(
       const perfetto::DataSourceDescriptor& dsd,
       DataSourceFactory,
-      perfetto::internal::DataSourceParams,
+      perfetto::internal::DataSourceParams params,
       bool,
       perfetto::internal::DataSourceStaticState* static_state) override {
-    data_sources.emplace_back(DataSource{dsd, static_state});
+    data_sources.emplace_back(DataSource{dsd, static_state, params});
     return true;
   }
 
@@ -1943,6 +1944,38 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
   EXPECT_EQ("slow_category", desc.available_categories()[7].name());
   EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
   EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[8].name());
+}
+
+// Verifies that TracingInitArgs::track_event_buffer_exhausted_policy is
+// plumbed through to the DataSourceParams at registration time.
+//
+// In production, the policy is set via TracingInitArgs:
+//   perfetto::TracingInitArgs args;
+//   args.track_event_buffer_exhausted_policy =
+//       perfetto::BufferExhaustedPolicy::kStall;
+//   perfetto::Tracing::Initialize(args);
+//
+// This test uses MockTracingMuxer to inspect the params, so it calls the
+// internal API that Tracing::Initialize() delegates to.
+TEST_P(PerfettoApiTest, TrackEventSetBufferExhaustedPolicy) {
+  perfetto::internal::TrackEventDataSource::ResetForTesting();
+  MockTracingMuxer muxer;
+
+  // By default, the policy should be kDrop.
+  perfetto::TrackEvent::Register();
+  ASSERT_EQ(1u, muxer.data_sources.size());
+  EXPECT_EQ(perfetto::BufferExhaustedPolicy::kDrop,
+            muxer.data_sources[0].params.default_buffer_exhausted_policy);
+
+  // Simulate TracingInitArgs::track_event_buffer_exhausted_policy = kStall.
+  muxer.data_sources.clear();
+  perfetto::internal::TrackEventDataSource::ResetForTesting();
+  perfetto::internal::TrackEventInternal::SetBufferExhaustedPolicy(
+      perfetto::BufferExhaustedPolicy::kStall);
+  perfetto::TrackEvent::Register();
+  ASSERT_EQ(1u, muxer.data_sources.size());
+  EXPECT_EQ(perfetto::BufferExhaustedPolicy::kStall,
+            muxer.data_sources[0].params.default_buffer_exhausted_policy);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {

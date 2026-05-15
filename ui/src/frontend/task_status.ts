@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TaskInfo} from '../public/task_tracker';
+import type {TaskInfo} from '../public/task_tracker';
 import {Tooltip} from '../widgets/tooltip';
 import {Icon} from '../widgets/icon';
 import {PopupPosition} from '../widgets/popup';
-import {App} from '../public/app';
+import type {App} from '../public/app';
 
 function formatElapsed(ms: number): string {
   if (ms < 1000) {

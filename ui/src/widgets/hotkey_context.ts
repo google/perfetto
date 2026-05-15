@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {checkHotkey, Hotkey} from '../base/hotkeys';
+import {checkHotkey, type Hotkey} from '../base/hotkeys';
 import {toHTMLElement} from '../base/dom_utils';
 import {classNames} from '../base/classnames';
 

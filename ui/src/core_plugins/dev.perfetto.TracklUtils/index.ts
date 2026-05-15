@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import z from 'zod';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
-import {exists, RequiredField} from '../../base/utils';
+import {exists, type RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
-import {TrackNode, Workspace} from '../../public/workspace';
-import {App} from '../../public/app';
-import {Setting} from '../../public/settings';
+import type {TrackNode, Workspace} from '../../public/workspace';
+import type {App} from '../../public/app';
+import type {Setting} from '../../public/settings';
 import {Time} from '../../base/time';
 
 export default class TrackUtilsPlugin implements PerfettoPlugin {

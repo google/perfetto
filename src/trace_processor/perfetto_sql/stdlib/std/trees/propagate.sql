@@ -35,10 +35,10 @@
 -- );
 -- ```
 CREATE PERFETTO FUNCTION _tree_propagate_down(
-    -- A TREE pointer from _tree_from_table or another tree operation.
-    tree_ptr ANY,
-    -- Propagation specs: 'AGG(source_col) AS output_col' (variadic)
-    specs ANY...
+  -- A TREE pointer from _tree_from_table or another tree operation.
+  tree_ptr ANY,
+  -- Propagation specs: 'AGG(source_col) AS output_col' (variadic)
+  specs ANY...
 )
 -- Returns a TREE pointer with the propagated columns added.
 RETURNS ANY

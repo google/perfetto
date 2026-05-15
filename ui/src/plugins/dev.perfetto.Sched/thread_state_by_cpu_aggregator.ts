@@ -13,17 +13,17 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {BarChartData} from '../../components/aggregation';
+import type {BarChartData} from '../../components/aggregation';
 import {
-  AggregatePivotModel,
-  Aggregation,
-  Aggregator,
+  type AggregatePivotModel,
+  type Aggregation,
+  type Aggregator,
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
+import type {AreaSelection} from '../../public/selection';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,

@@ -17,10 +17,10 @@ import {
   initializeServers,
   buildFetchRequest,
 } from './extension_server';
-import {AppImpl} from '../../core/app_impl';
-import {Macro} from '../../core/command_manager';
-import {SqlPackage} from '../../public/extra_sql_packages';
-import {ExtensionServer, UserInput} from './types';
+import type {AppImpl} from '../../core/app_impl';
+import type {Macro} from '../../core/command_manager';
+import type {SqlPackage} from '../../public/extra_sql_packages';
+import type {ExtensionServer, UserInput} from './types';
 
 // =============================================================================
 // Test Helpers

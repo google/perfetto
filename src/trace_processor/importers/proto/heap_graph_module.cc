@@ -25,6 +25,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -153,14 +154,27 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
           object.native_allocation_registry_size_field();
     }
 
+    if (object.has_bitmap_id_field()) {
+      obj.bitmap_id = object.bitmap_id_field();
+    }
+    if (object.has_bitmap_source_id_field()) {
+      obj.bitmap_source_id = object.bitmap_source_id_field();
+    }
+    if (object.has_bitmap_width_field()) {
+      obj.bitmap_width = object.bitmap_width_field();
+    }
+    if (object.has_bitmap_height_field()) {
+      obj.bitmap_height = object.bitmap_height_field();
+    }
+
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }
     if (!obj.field_name_ids.empty() &&
         (obj.field_name_ids.size() != obj.referred_objects.size())) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
     }
@@ -179,7 +193,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
         [&field_name_ids](uint64_t value) { field_name_ids.push_back(value); });
 
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
     }
@@ -238,7 +252,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
               src_root.object_ids.emplace_back(value);
             });
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }

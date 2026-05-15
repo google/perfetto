@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {AppImpl} from '../../core/app_impl';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {AppImpl} from '../../core/app_impl';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {FlagsPage} from './flags_page';
 import {PluginsPage} from './plugins_page';
 

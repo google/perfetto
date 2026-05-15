@@ -1,5 +1,5 @@
-import m, {Vnode} from 'mithril';
-import {Engine} from '../../trace_processor/engine';
+import m, {type Vnode} from 'mithril';
+import type {Engine} from '../../trace_processor/engine';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {linkify} from '../../widgets/anchor';
 

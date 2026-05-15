@@ -16,10 +16,10 @@
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 CREATE PERFETTO MACRO _android_heap_profile_callstacks_for_allocations(
-    allocations TableOrSubquery
+  allocations TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     metrics AS MATERIALIZED (
       SELECT

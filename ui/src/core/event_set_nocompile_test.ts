@@ -14,14 +14,14 @@
 
 import {
   Bool,
-  Event,
-  EventSet,
+  type Event,
+  type EventSet,
   Id,
-  KeySet,
+  type KeySet,
   Null,
   Num,
   Str,
-  UntypedEventSet,
+  type UntypedEventSet,
 } from './event_set';
 
 export function eventMustHaveAllKeys(): Event<KeySet> {

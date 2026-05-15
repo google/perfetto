@@ -26,12 +26,12 @@ import {
 } from '../base/gcs_uploader';
 import {
   SERIALIZED_STATE_VERSION,
-  SerializedAppState,
+  type SerializedAppState,
 } from '../core/state_serialization_schema';
 import {z} from 'zod';
 import {showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
-import {TraceImpl} from '../core/trace_impl';
+import type {TraceImpl} from '../core/trace_impl';
 
 // Permalink serialization has two layers:
 // 1. Serialization of the app state (state_serialization.ts):

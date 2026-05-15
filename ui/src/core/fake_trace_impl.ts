@@ -19,7 +19,7 @@ import {AppImpl} from './app_impl';
 import {InMemoryStorage} from './in_memory_storage';
 import {SettingsManagerImpl} from './settings_manager';
 import {TraceImpl} from './trace_impl';
-import {TraceInfoImpl} from './trace_info_impl';
+import type {TraceInfoImpl} from './trace_info_impl';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {commandInvocationArraySchema} from './command_manager';
 
