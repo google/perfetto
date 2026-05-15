@@ -28,7 +28,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -46,17 +45,13 @@ namespace perfetto::trace_processor {
 // RETURN_IF_ERROR(r.status());
 class PerfettoSqlParser {
  public:
-  // True if this parser delegates macro expansion + statement splitting to
-  // syntaqlite, false if it uses the handwritten PerfettoSqlPreprocessor.
-  // Exposed so tests can gate path-specific assertions; will be removed
-  // along with the legacy implementation when the cutover completes.
-  static constexpr bool kUsesSyntaqliteMacros = true;
-
-  // A CREATE PERFETTO MACRO definition. Aliased to the preprocessor type so
-  // engine code can spell `PerfettoSqlParser::Macro` instead of reaching into
-  // the preprocessor; the alias also reserves the name for future
-  // implementations that own the macro struct directly.
-  using Macro = PerfettoSqlPreprocessor::Macro;
+  // A CREATE PERFETTO MACRO definition.
+  struct Macro {
+    bool replace;
+    std::string name;
+    std::vector<std::string> args;
+    SqlSource sql;
+  };
 
   // Indicates that the specified SQLite SQL was extracted directly from a
   // PerfettoSQL statement and should be directly executed with SQLite.
