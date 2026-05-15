@@ -58,7 +58,7 @@ non_minimal_proto_sources = [
 ]
 
 minimal_proto_deps = [
-  "../common:@TYPE@",
+  "../common:minimal_@TYPE@",
   "../common:semantic_type_@TYPE@",
   "interceptors:@TYPE@",
   "priority_boost:@TYPE@",
@@ -91,7 +91,12 @@ perfetto_proto_library("minimal_@TYPE@") {
 
 perfetto_proto_library("non_minimal_@TYPE@") {
   sources = non_minimal_proto_sources
-  deps = non_minimal_proto_deps
+  deps = non_minimal_proto_deps + [
+           # Restore the full common closure for non-C-SDK consumers
+           # that depend on the full :@TYPE@ group; :minimal_@TYPE@
+           # itself only deps on common:minimal_@TYPE@.
+           "../common:non_minimal_@TYPE@",
+         ]
   proto_generators = [
     "zero",
     "cpp",
@@ -100,7 +105,20 @@ perfetto_proto_library("non_minimal_@TYPE@") {
 
 perfetto_proto_library("lite_only_@TYPE@") {
   sources = minimal_proto_sources + non_minimal_proto_sources
-  deps = minimal_proto_deps + non_minimal_proto_deps
+  deps = [
+           # Substitute common:@TYPE@ (the full :lite group) for the
+           # minimal_@TYPE@ used by :minimal_@TYPE@ above — common
+           # doesn't have a :minimal_lite (its minimal sibling only
+           # generates zero + cpp; lite lives in common:lite_only_@TYPE@,
+           # reachable via the :lite group).
+           "../common:@TYPE@",
+           "../common:semantic_type_@TYPE@",
+           "interceptors:@TYPE@",
+           "priority_boost:@TYPE@",
+           "protovm:@TYPE@",
+           "system_info:@TYPE@",
+           "track_event:@TYPE@",
+         ] + non_minimal_proto_deps
   proto_generators = [ "lite" ]
 }
 

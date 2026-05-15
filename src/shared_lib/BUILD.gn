@@ -29,8 +29,8 @@ source_set("shared_lib") {
     "../../gn:default_deps",
     "../../include/perfetto/protozero",
     "../../include/perfetto/public",
-    "../base",
-    "../tracing:client_api",
+    "../base:base_minimal",
+    "../tracing:client_api_minimal",
     "track_event",
   ]
   sources = [
