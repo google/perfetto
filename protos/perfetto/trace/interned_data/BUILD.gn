@@ -12,28 +12,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 
-perfetto_proto_library("@TYPE@") {
-  sources = [ "interned_data.proto" ]
+# Single-source proto split for the C SDK closure (see
+# protos/perfetto/common/BUILD.gn for the full pattern explanation).
+# interned_data.proto imports several per-domain protos for typed fields
+# like InternedV8JsFunction (chrome/v8.proto) and AppWakelockInfo
+# (android/app_wakelock_data.proto). The C SDK never decodes these
+# interned tables, and the generated interned_data.pbzero.h only
+# forward-declares them (pbzero) / cppgen honors [lazy=true] for the
+# .gen.h, so the per-domain pbzero/gen headers can be dropped from the
+# C SDK closure. Lite (upstream protobuf) doesn't honor lazy-skip for
+# imports, so it gets a separate full-deps library.
 
-  # interned_data.proto imports several per-domain protos for fields like
-  # InternedV8JsFunction (chrome/v8.proto) and AppWakelockInfo
-  # (android/app_wakelock_data.proto). The C SDK never decodes these
-  # interned tables, and the generated interned_data.pbzero.h only
-  # forward-declares them, so the per-domain pbzero headers can be dropped
-  # from the SDK build via the same flag used in protos/perfetto/trace
-  # (see comment on enable_perfetto_minimal_trace_protos in
-  # gn/perfetto.gni). The .proto source files themselves stay reachable to
-  # protoc via the project-root import path.
+perfetto_proto_library("minimal_@TYPE@") {
+  sources = [ "interned_data.proto" ]
   deps = [ "../track_event:@TYPE@" ]
-  if (!enable_perfetto_minimal_trace_protos) {
-    deps += [
-      "../android:@TYPE@",
-      "../chrome:@TYPE@",
-      "../gpu:@TYPE@",
-      "../profiling:@TYPE@",
-    ]
-  }
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+}
+
+perfetto_proto_library("lite_only_@TYPE@") {
+  sources = [ "interned_data.proto" ]
+  deps = [
+    "../android:@TYPE@",
+    "../chrome:@TYPE@",
+    "../gpu:@TYPE@",
+    "../profiling:@TYPE@",
+    "../track_event:@TYPE@",
+  ]
+  proto_generators = [ "lite" ]
+}
+
+group("zero") {
+  public_deps = [ ":minimal_zero" ]
+}
+
+group("cpp") {
+  public_deps = [ ":minimal_cpp" ]
+}
+
+group("lite") {
+  public_deps = [ ":lite_only_lite" ]
+}
+
+group("source_set") {
+  public_deps = [ ":minimal_source_set" ]
 }
