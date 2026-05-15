@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export default (() => {
+export default () => {
   throw new Error(
     'Unable to load the 32-bit trace_processor.wasm. ' +
       'This is because you are running in a browser that does NOT support ' +
       'Memory64 but passed --only-wasm-memory64 to ui/build ' +
       '(run-dev-server does that)',
   );
-}) as never;
+};

@@ -47,6 +47,9 @@ dependencies:
   '@types/color-convert':
     specifier: ^2.0.3
     version: 2.0.3
+  '@types/emscripten':
+    specifier: ^1.41.5
+    version: 1.41.5
   '@types/filesystem':
     specifier: ^0.0.36
     version: 0.0.36
@@ -2289,6 +2292,10 @@ packages:
 
   /@types/color-name@1.1.1:
     resolution: {integrity: sha512-rr+OQyAjxze7GgWrSaJwydHStIhHq2lvY3BOC2Mj7KnzI7XK0Uw1TOOdI9lDoajEbSWLiYgoo4f1R51erQfhPQ==}
+    dev: false
+
+  /@types/emscripten@1.41.5:
+    resolution: {integrity: sha512-cMQm7pxu6BxtHyqJ7mQZ2kXWV5SLmugybFdHCBbJ5eHzOo6VhBckEgAT3//rP5FwPHNPeEiq4SmQ5ucBwsOo4Q==}
     dev: false
 
   /@types/eslint@8.56.10:

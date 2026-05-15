@@ -69,8 +69,15 @@ template("wasm_lib") {
       "-s",
       "MODULARIZE=1",
 
+      # Emit an ES module (default export = the Module factory) instead of
+      # the legacy UMD-with-tacked-on-default shape. Lets Vite/Rollup pick
+      # the file up directly, no @rollup/plugin-commonjs handling needed.
+      "-s",
+      "EXPORT_ES6=1",
+
       # This is to prevent that two different wasm modules end up generating
-      # JS that overrides the same global variable (var Module = ...)
+      # JS that overrides the same global variable (var Module = ...). Less
+      # critical under EXPORT_ES6 (no global pollution), but harmless.
       "-s",
       "EXPORT_NAME=${target_name}",
 
@@ -149,10 +156,6 @@ template("wasm_lib") {
       args = [ "--noop" ]
       script = "//gn/standalone/build_tool_wrapper.py"
     }
-    copy("${_lib_name}.d.ts") {
-      sources = [ "//gn/standalone/wasm_typescript_declaration.d.ts" ]
-      outputs = [ "$root_out_dir/$_lib_name.d.ts" ]
-    }
   } else {  # is_wasm
     not_needed(invoker, "*")
   }
@@ -164,7 +167,6 @@ template("wasm_lib") {
       _wasm_32_or_64_toolchain = wasm_toolchain
     }
     deps = [
-      ":${_lib_name}.d.ts($_wasm_32_or_64_toolchain)",
       ":${_lib_name}.js($_wasm_32_or_64_toolchain)",
       ":${_lib_name}.wasm($_wasm_32_or_64_toolchain)",
     ]

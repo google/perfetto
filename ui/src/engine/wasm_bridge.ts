@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/assert';
+import {PerfettoWasmModule} from '../wasm/perfetto_wasm_module';
 
 // The 64-bit variant of TraceProcessor wasm is always built in all build
 // configurations and we can depend on it from typescript.
-import TraceProcessor64 from '../gen/trace_processor_memory64';
+import TraceProcessor64 from '../wasm/trace_processor_memory64';
 
 // The 32-bit variant may or may not be part of the build, depending on whether
 // the user passes --only-wasm-memory64 to ui/build.mjs. When we are building
 // also the 32-bit (e.g., in production builds) the import below will be
-// redirected by rollup to '../gen/trace_processor' (The 32-bit module).
-import TraceProcessor32 from './trace_processor_32_stub';
+// redirected by Vite to '../gen/trace_processor' (the 32-bit module).
+import TraceProcessor32 from '../wasm/trace_processor';
 
 // For manual testing of the Memory32 build, we can disable the Memory64 check.
 const DISABLE_MEMORY64_FOR_MANUAL_TEST = false;
@@ -46,7 +46,11 @@ const REQ_BUF_SIZE = 32 * 1024 * 1024;
 //               - [JS] postMessage() (this file)
 export class WasmBridge {
   private aborted: boolean;
-  private connection: TraceProcessor64.Module;
+  // Resolves once the wasm runtime is fully initialized AND the rpc init
+  // ccall has completed. All callers that need to touch `connection` must
+  // await this first.
+  private readonly ready: Promise<PerfettoWasmModule>;
+  private connection!: PerfettoWasmModule;
   private reqBufferAddr = 0;
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
@@ -54,33 +58,39 @@ export class WasmBridge {
 
   constructor() {
     this.aborted = false;
-    const deferredRuntimeInitialized = defer<void>();
     this.useMemory64 = hasMemory64Support();
     const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
-    this.connection = initModule({
+    this.ready = initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
-      onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
-    });
-
-    deferredRuntimeInitialized.then(() => {
-      const fn = this.connection.addFunction(this.onReply.bind(this), 'vpi');
+    }).then((module) => {
+      this.connection = module;
+      const fn = module.addFunction(this.onReply.bind(this), 'vpi');
       this.reqBufferAddr = this.wasmPtrCast(
-        this.connection.ccall(
+        // ccall: 'pointer' is what emscripten accepts at runtime, but DT's
+        // typings only model 'number'/'string'/'array'/'boolean'. Use
+        // 'number' here — emscripten treats them as equivalent for ccall
+        // arg/return marshalling.
+        module.ccall(
           'trace_processor_rpc_init',
-          /* return=*/ 'pointer',
-          /* args=*/ ['pointer', 'number'],
+          /* return=*/ 'number',
+          /* args=*/ ['number', 'number'],
           [fn, REQ_BUF_SIZE],
         ),
       );
+      return module;
     });
   }
 
-  initialize(port: MessagePort) {
+  async initialize(port: MessagePort) {
     // Ensure that initialize() is called only once.
     assertTrue(this.messagePort === undefined);
     this.messagePort = port;
+    // Wait until the wasm runtime + rpc buffer are ready before wiring the
+    // port handler — otherwise queued messages would land in onMessage()
+    // before `this.connection` exists.
+    await this.ready;
     // Note: setting .onmessage implicitly calls port.start() and dispatches the
     // queued messages. addEventListener('message') doesn't.
     this.messagePort.onmessage = this.onMessage.bind(this);
@@ -104,7 +114,7 @@ export class WasmBridge {
       try {
         this.connection.ccall(
           'trace_processor_on_rpc_request', // C function name.
-          'void', // Return type.
+          null, // Return type (void).
           ['number'], // Arg types.
           [sliceLen], // Args.
         );

@@ -244,11 +244,29 @@ export default defineConfig({
     // runtime. The symlinked ui/src/gen dir is handled below by aliasing
     // the importer side, not by preserving symlinks globally.
     alias: [
-      // The trace_processor_32_stub indirection (see old rollup.config.js).
-      ...(IS_MEMORY64_ONLY ? [] : [{
-        find: /.*\/trace_processor_32_stub$/,
-        replacement: path.join(SRC, 'gen/trace_processor'),
-      }]),
+      // The 32-bit trace_processor is optional: when IS_MEMORY64_ONLY is
+      // set, the .js glue isn't built, so '../wasm/trace_processor' must
+      // resolve to the local throw-on-load stub (src/wasm/trace_processor.js)
+      // rather than fall through to the generic src/wasm -> src/gen rule
+      // below (which would point at a non-existent file).
+      //
+      // Vite alias matching is order-sensitive, so this entry must come
+      // before the generic rule. In non-memory64-only mode, alias to the
+      // real .js glue under src/gen.
+      {
+        find: /^(?:\.\.\/)+wasm\/trace_processor$/,
+        replacement: IS_MEMORY64_ONLY
+          ? path.join(SRC, 'wasm/trace_processor')
+          : path.join(SRC, 'gen/trace_processor'),
+      },
+      // src/wasm/*.d.ts files are type-only shims for the emcc glue;
+      // redirect the runtime import to the actual .js file under src/gen.
+      // Constrained to relative imports to avoid clashing with anything
+      // else that contains "wasm/" in its path.
+      {
+        find: /^(?:\.\.\/)+wasm\/(.+)$/,
+        replacement: path.join(SRC, 'gen') + '/$1',
+      },
     ],
   },
   define: {
@@ -265,19 +283,6 @@ export default defineConfig({
     },
   },
   build: {
-    commonjsOptions: {
-      transformMixedEsModules: true,
-      // The UMD wasm glue files don't look like CJS to rollup's auto-detect.
-      // Force CJS interpretation for everything under ui/src/gen/*.js.
-      include: [/node_modules/, /\/gen\/.*\.js$/],
-      // ajv's JIT validator codegen emits strings like
-      //   `require("ajv/dist/runtime/equal").default`
-      // which @rollup/plugin-commonjs tries to resolve as transitive deps and
-      // then leaves dangling `require$$N` references in the IIFE. Those
-      // require()s are only ever evaluated inside ajv's own codegen layer,
-      // never at runtime in the browser. Tell commonjs not to analyse them.
-      ignoreDynamicRequires: true,
-    },
     outDir: path.join(OUT_SYMLINK, bundleCfg.dir),
     emptyOutDir: false,           // build.mjs puts wasm/css/assets here too.
     // Force a single CSS asset per bundle (named after the entry chunk, e.g.

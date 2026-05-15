@@ -20,7 +20,7 @@ let idleWasmWorker: Worker | undefined = undefined;
 
 export function warmupWasmWorker() {
   if (idleWasmWorker === undefined) {
-    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
+    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'), {type: 'module'});
   }
   return idleWasmWorker;
 }
@@ -51,7 +51,7 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
     // around. The latency is hidden by the fact that the user usually takes few
     // seconds until they click on "open trace file" and pick a file.
     this.worker = warmupWasmWorker(); // Ensures the spare instance exists.
-    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
+    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'), {type: 'module'});
 
     this.worker.postMessage(port1, [port1]);
     this.port.onmessage = this.onMessage.bind(this);

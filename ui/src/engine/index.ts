@@ -30,5 +30,5 @@ const wasmBridge = new WasmBridge();
 // Receives the boostrap message from the frontend with the MessagePort.
 selfWorker.onmessage = (msg: MessageEvent) => {
   const port = msg.data as MessagePort;
-  wasmBridge.initialize(port);
+  void wasmBridge.initialize(port);
 };

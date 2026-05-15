@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from '../base/deferred';
 import {addErrorHandler, type ErrorDetails, reportError} from '../base/logging';
 import {assertExists} from '../base/assert';
 import type {time} from '../base/time';
-import traceconv from '../gen/traceconv';
+import traceconv from '../wasm/traceconv';
 
 const selfWorker = self as {} as Worker;
 
@@ -65,21 +64,27 @@ function forwardError(error: ErrorDetails) {
   });
 }
 
-function fsNodeToBuffer(fsNode: traceconv.FileSystemNode): Uint8Array {
-  const fileSize = assertExists(fsNode.usedBytes);
-  return new Uint8Array(fsNode.contents.buffer, 0, fileSize);
+// Files under MEMFS / WORKERFS expose `.contents` (Uint8Array) and
+// `.usedBytes` (number) on their FSNode. @types/emscripten doesn't model
+// these (its FS.FSNode type is generic), so we use a local interface.
+interface PerfettoFsNode {
+  contents: Uint8Array;
+  usedBytes?: number;
+}
+
+function fsNodeToBuffer(fsNode: unknown): Uint8Array {
+  const n = fsNode as PerfettoFsNode;
+  const fileSize = assertExists(n.usedBytes);
+  return new Uint8Array(n.contents.buffer, 0, fileSize);
 }
 
 async function runTraceconv(trace: Blob, args: string[]) {
-  const deferredRuntimeInitialized = defer<void>();
-  const module = traceconv({
+  const module = await traceconv({
     noInitialRun: true,
     locateFile: (s: string) => s,
     print: updateStatus,
     printErr: updateStatus,
-    onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
   });
-  await deferredRuntimeInitialized;
   module.FS.mkdir('/fs');
   module.FS.mount(
     assertExists(module.FS.filesystems.WORKERFS),
@@ -127,7 +132,7 @@ async function ConvertTraceAndDownload(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS.lookupPath(outPath).node;
+    const fsNode = module.FS.lookupPath(outPath, {}).node;
     downloadFile(fsNodeToBuffer(fsNode), `trace.${format}`);
     module.FS.unlink(outPath);
   } finally {
@@ -162,9 +167,9 @@ async function ConvertTraceAndOpenInLegacy(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS.lookupPath(outPath).node;
+    const fsNode = module.FS.lookupPath(outPath, {}).node as PerfettoFsNode;
     const data = fsNode.contents.buffer;
-    const size = fsNode.usedBytes;
+    const size = assertExists(fsNode.usedBytes);
     const buffer = new Uint8Array(data, 0, size);
     openTraceInLegacy(buffer);
     module.FS.unlink(outPath);
@@ -200,15 +205,16 @@ async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
   try {
     const module = await runTraceconv(trace, args);
     const heapDirName = Object.keys(
-      module.FS.lookupPath('/tmp/').node.contents,
+      module.FS.lookupPath('/tmp/', {}).node.contents,
     )[0];
-    const heapDirContents = module.FS.lookupPath(`/tmp/${heapDirName}`).node
+    const heapDirContents = module.FS.lookupPath(`/tmp/${heapDirName}`, {}).node
       .contents;
     const heapDumpFiles = Object.keys(heapDirContents);
     for (let i = 0; i < heapDumpFiles.length; ++i) {
       const heapDump = heapDumpFiles[i];
       const fileNode = module.FS.lookupPath(
         `/tmp/${heapDirName}/${heapDump}`,
+        {},
       ).node;
       const fileName = `/heap_dump.${i}.${pid}.pb`;
       downloadFile(fsNodeToBuffer(fileNode), fileName);

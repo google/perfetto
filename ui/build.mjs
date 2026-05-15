@@ -645,11 +645,12 @@ function buildWasm(skipWasmBuild) {
       const src = `${wasmOutDir}/${wasmMod}${ext}`;
       addTask(cp, [src, pjoin(cfg.outDistDir, wasmMod + ext)]);
     }
-    // The .js / .ts go into intermediates, they will be bundled by rollup.
-    for (const ext of ['.js', '.d.ts']) {
-      const fname = `${wasmMod}${ext}`;
-      addTask(cp, [pjoin(wasmOutDir, fname), pjoin(cfg.outGenDir, fname)]);
-    }
+    // The .js (emcc EXPORT_ES6 glue) goes into intermediates so Vite can
+    // bundle it. tsc resolves the import via committed type shims under
+    // ui/src/wasm/<name>.d.ts (Vite redirects the runtime import to here);
+    // no .d.ts is written to gen at build time.
+    const jsName = `${wasmMod}.js`;
+    addTask(cp, [pjoin(wasmOutDir, jsName), pjoin(cfg.outGenDir, jsName)]);
   }
 }
 

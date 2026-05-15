@@ -14,10 +14,10 @@
 
 import protos from '../protos';
 import {assetSrc} from './assets';
-import {defer} from './deferred';
 import {errResult, okResult, type Result} from './result';
 import {utf8Decode, utf8Encode} from './string_utils';
-import WasmModuleGen from '../gen/proto_utils';
+import WasmModuleGen from '../wasm/proto_utils';
+import {PerfettoWasmModule} from '../wasm/perfetto_wasm_module';
 
 /**
  * This file is the TS-equivalent of src/proto_utils.
@@ -26,7 +26,7 @@ import WasmModuleGen from '../gen/proto_utils';
  * by using precisely the same code via WebAssembly.
  */
 interface WasmModule {
-  module: WasmModuleGen.Module;
+  module: PerfettoWasmModule;
   buf: Uint8Array;
 }
 
@@ -128,16 +128,13 @@ async function initWasmOnce(): Promise<WasmModule> {
     // emscripten uses sync-loading, which works only in Workers.
     const resp = await fetch(assetSrc('proto_utils.wasm'));
     const wasmBinary = await resp.arrayBuffer();
-    const deferredRuntimeInitialized = defer<void>();
-    const instance = WasmModuleGen({
+    const instance = await WasmModuleGen({
       noInitialRun: true,
       locateFile: (s: string) => s,
       print: (s: string) => console.log(s),
       printErr: (s: string) => console.error(s),
-      onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
       wasmBinary,
-    } as WasmModuleGen.ModuleArgs);
-    await deferredRuntimeInitialized;
+    });
     const bufAddr = instance.ccall('proto_utils_buf', 'number', [], []) >>> 0;
     const bufSize =
       instance.ccall('proto_utils_buf_size', 'number', [], []) >>> 0;
