@@ -1078,6 +1078,12 @@ base::Status PerfettoSqlConnection::ExecuteCreateIndex(
     return base::ErrStatus("CREATE PERFETTO INDEX: table '%s' does not exist",
                            create_index.table_name.c_str());
   }
+  if (!state->owned_dataframe) {
+    return base::ErrStatus(
+        "CREATE PERFETTO INDEX: indexes on intrinsic table '%s' must be "
+        "declared at compile time, not via SQL",
+        create_index.table_name.c_str());
+  }
   RETURN_IF_ERROR(DropIndexBeforeCreate(create_index));
 
   const auto& df = *state->dataframe;
@@ -1096,7 +1102,9 @@ base::Status PerfettoSqlConnection::ExecuteCreateIndex(
   ASSIGN_OR_RETURN(auto index,
                    state->dataframe->BuildIndex(
                        col_idxs.data(), col_idxs.data() + col_idxs.size()));
-  state->dataframe->AddIndex(std::move(index));
+  state->owned_dataframe = std::make_unique<dataframe::Dataframe>(
+      state->dataframe->AddIndex(std::move(index)));
+  state->dataframe = state->owned_dataframe.get();
   state->named_indexes.push_back(create_index.name);
   return base::OkStatus();
 }
@@ -1111,7 +1119,9 @@ base::Status PerfettoSqlConnection::DropIndexBeforeCreate(
               "CREATE PERFETTO INDEX: Index '%s' already exists",
               create_index.name.c_str());
         }
-        state->dataframe->RemoveIndexAt(i);
+        state->owned_dataframe = std::make_unique<dataframe::Dataframe>(
+            state->dataframe->RemoveIndexAt(i));
+        state->dataframe = state->owned_dataframe.get();
         state->named_indexes.erase(state->named_indexes.begin() +
                                    static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();
@@ -1133,7 +1143,9 @@ base::Status PerfettoSqlConnection::ExecuteDropIndex(
                    state->dataframe->finalized());
     for (uint32_t i = 0; i < state->named_indexes.size(); ++i) {
       if (state->named_indexes[i] == index.name) {
-        state->dataframe->RemoveIndexAt(i);
+        state->owned_dataframe = std::make_unique<dataframe::Dataframe>(
+            state->dataframe->RemoveIndexAt(i));
+        state->dataframe = state->owned_dataframe.get();
         state->named_indexes.erase(state->named_indexes.begin() +
                                    static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();

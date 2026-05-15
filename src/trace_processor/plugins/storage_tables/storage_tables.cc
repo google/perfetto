@@ -47,8 +47,10 @@ namespace perfetto::trace_processor::storage_tables {
 namespace {
 
 template <typename T>
-void AddDataframe(std::vector<PluginDataframe>& out, T* table) {
-  out.push_back({&table->dataframe(), T::Name()});
+void AddDataframe(std::vector<PluginDataframe>& out,
+                  T* table,
+                  std::vector<std::vector<std::string>> indexes = {}) {
+  out.push_back({&table->dataframe(), T::Name(), std::move(indexes)});
 }
 
 void InsertIntoBuildFlagsTable(tables::BuildFlagsTable* table,
@@ -143,7 +145,10 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
                  s->mutable_window_manager_shell_transition_handlers_table());
     AddDataframe(
         out, s->mutable_window_manager_shell_transition_participants_table());
-    AddDataframe(out, s->mutable_v8_js_code_table());
+    // The jit_code_id index is required for `callstacks.stack_profile` to
+    // join with `_v8_js_code` efficiently; without it, module import times
+    // on V8 traces regress significantly.
+    AddDataframe(out, s->mutable_v8_js_code_table(), {{"jit_code_id"}});
     AddDataframe(out, s->mutable_v8_internal_code_table());
     AddDataframe(out, s->mutable_v8_wasm_code_table());
     AddDataframe(out, s->mutable_v8_regexp_code_table());
@@ -194,9 +199,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_android_network_packets_table());
     AddDataframe(out, s->mutable_metadata_table());
     AddDataframe(out, s->mutable_stats_table());
-    AddDataframe(out, s->mutable_slice_table());
+    AddDataframe(out, s->mutable_slice_table(), {{"parent_id"}, {"track_id"}});
     AddDataframe(out, s->mutable_track_event_callstacks_table());
-    AddDataframe(out, s->mutable_flow_table());
+    AddDataframe(out, s->mutable_flow_table(), {{"slice_in"}, {"slice_out"}});
     AddDataframe(out, s->mutable_stack_profile_frame_table());
     AddDataframe(out, s->mutable_stack_profile_callsite_table());
   }

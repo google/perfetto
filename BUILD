@@ -4014,7 +4014,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/cpu_scheduling.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/events.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/gpu.sql",
-        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/indexes.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/memory.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tracks.sql",
