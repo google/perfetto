@@ -407,10 +407,17 @@ Env-var overrides:
         transpileTsProject(prj, {noEmit: true});
       }
     } else {
-      // Vite owns TS transpile + bundling. The old tsc + rollup pair is gone.
-      // For now the service_worker / chrome_extension bundles still flow
-      // through rollup until they're moved into Vite; if cfg.check is false
-      // we don't typecheck (run with --typecheck for that).
+      // Vite owns TS transpile + bundling. tsc is invoked separately purely
+      // for type checking. In non-watch builds it runs synchronously and a
+      // type error fails the build. In watch mode tsc --watch runs async in
+      // the background and prints errors without killing the build.
+      for (const prj of tsProjects) {
+        if (cfg.watch) {
+          transpileTsProject(prj, {watch: true, noEmit: true, noErrCheck: true});
+        } else {
+          transpileTsProject(prj, {noEmit: true});
+        }
+      }
       runVite();
       genServiceWorkerManifestJson();
 
@@ -753,11 +760,11 @@ function buildSyntaqlitePerfettoDialect() {
 // one go. The only project that has a dedicated invocation is service_worker.
 function transpileTsProject(project, options) {
   const args = ['--project', pjoin(ROOT_DIR, project)];
+  options = options || {};
 
-  if (options !== undefined && options.noEmit) {
-    args.push('--noEmit');
-    addTask(execModule, ['tsc', args]);
-  } else if (options !== undefined && options.watch) {
+  if (options.noEmit) args.push('--noEmit');
+
+  if (options.watch) {
     args.push('--watch', '--preserveWatchOutput');
     addTask(execModule, [
       'tsc',
@@ -767,6 +774,8 @@ function transpileTsProject(project, options) {
         noErrCheck: options.noErrCheck,
       },
     ]);
+  } else if (options.noEmit) {
+    addTask(execModule, ['tsc', args]);
   } else {
     addTask(execModule, ['tsc', args, {noErrCheck: options.noErrCheck}]);
   }
