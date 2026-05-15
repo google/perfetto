@@ -24,6 +24,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {SourceMapConsumer, SourceMapGenerator} from 'source-map';
+import {lezer} from '@lezer/generator/rollup';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.dirname(__dirname);
@@ -228,6 +229,9 @@ export default defineConfig({
   appType: 'custom',
   plugins: [
     pluginAllPluginsBarrel(),
+    // Compiles *.grammar files (lezer parser definitions) on import. Replaces
+    // the old "manually run lezer-generator and commit gen/*.js" workflow.
+    lezer(),
     pluginGenRelativeImports(),
     ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
   ],

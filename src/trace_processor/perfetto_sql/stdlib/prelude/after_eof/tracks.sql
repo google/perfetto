@@ -19,8 +19,6 @@
 -- This module provides the track concept and specialized track tables for
 -- organizing events by thread, process, CPU, and GPU contexts.
 
-INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
-
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Tracks are a fundamental concept in trace processor and represent a

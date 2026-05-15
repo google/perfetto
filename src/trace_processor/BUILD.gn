@@ -427,7 +427,6 @@ perfetto_unittest_source_set("unittests") {
     deps += [
       "perfetto_sql/engine:unittests",
       "perfetto_sql/parser:unittests",
-      "perfetto_sql/preprocessor:unittests",
       "perfetto_sql/tokenizer:unittests",
       "plugins/ancestor:unittests",
       "plugins/connected_flow:unittests",
