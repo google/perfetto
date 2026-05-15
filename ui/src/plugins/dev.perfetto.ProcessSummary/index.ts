@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {getThreadOrProcUri} from '../../public/utils';
 import {
   LONG_NULL,
@@ -25,7 +25,7 @@ import ThreadPlugin from '../dev.perfetto.Thread';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 import {uuidv4Sql} from '../../base/uuid';
 import {
-  Config,
+  type Config,
   SLICE_TRACK_SUMMARY_KIND,
   GroupSummaryTrack,
 } from './group_summary_track';

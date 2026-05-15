@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnInfo} from './column_info';
+import type {ColumnInfo} from './column_info';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
 import {DraggableItem} from './widgets';

@@ -32,7 +32,11 @@ import {
 } from '../../../../widgets/grid';
 import {TextInput} from '../../../../widgets/text_input';
 import {RadioGroup} from '../../../../widgets/radio_group';
-import {LiveSession, type SnapshotData} from '../../sessions/live_session';
+import type {
+  LiveSession,
+  ProcessInfo,
+  SnapshotData,
+} from '../../sessions/live_session';
 import {
   categorizeProcess,
   CATEGORIES,
@@ -233,7 +237,7 @@ function buildProcessDrilldown(
   data: SnapshotData,
   t0: number,
   counters: readonly string[],
-  filter: (info: import('../../sessions/live_session').ProcessInfo) => boolean,
+  filter: (info: ProcessInfo) => boolean,
 ): LineChartData | undefined {
   const tsSet = new Set<number>();
   const byProcTs = new Map<number, Map<string, number>>();

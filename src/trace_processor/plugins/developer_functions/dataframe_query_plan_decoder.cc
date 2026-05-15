@@ -30,9 +30,9 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/plugins/developer_functions/developer_functions.h"
+#include "src/trace_processor/plugins/developer_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -94,6 +94,7 @@ class DeveloperFunctionsPlugin : public Plugin<DeveloperFunctionsPlugin> {
   ~DeveloperFunctionsPlugin() override;
 
   void RegisterStaticTableFunctions(
+      PerfettoSqlConnection*,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns) override {
     if (trace_context_->config.enable_dev_features) {
       fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(

@@ -32,7 +32,7 @@ import {Icon} from '../widgets/icon';
 import {classNames} from '../base/classnames';
 import {Router} from '../core/router';
 import {
-  KeyboardLayoutMap,
+  type KeyboardLayoutMap,
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from '../base/keyboard_layout_map';

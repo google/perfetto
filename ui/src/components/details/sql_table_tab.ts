@@ -22,26 +22,30 @@ import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {getSelectableColumns, SqlTableState} from '../widgets/sql/table/state';
 import {SqlTable} from '../widgets/sql/table/table';
-import {SqlTableDefinition} from '../widgets/sql/table/table_description';
+import type {SqlTableDefinition} from '../widgets/sql/table/table_description';
 import {resolveTableDefinition} from '../widgets/sql/table/columns';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {addEphemeralTab} from './add_ephemeral_tab';
-import {Tab} from '../../public/tab';
-import {Filter, Filters, renderFilters} from '../widgets/sql/table/filters';
+import type {Tab} from '../../public/tab';
+import {
+  type Filter,
+  Filters,
+  renderFilters,
+} from '../widgets/sql/table/filters';
 import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
-import {TableColumn} from '../widgets/sql/table/table_column';
+import type {TableColumn} from '../widgets/sql/table/table_column';
 import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {BarChart} from '../widgets/charts/bar_chart';
 import {SQLBarChartLoader} from '../widgets/charts/bar_chart_loader';
 import {HistogramSvg} from '../widgets/charts_svg/histogram_svg';
 import {SQLHistogramLoader} from '../widgets/charts/histogram_loader';
-import {sqlColumnId, SqlColumn} from '../widgets/sql/table/sql_column';
+import {sqlColumnId, type SqlColumn} from '../widgets/sql/table/sql_column';
 import {buildSqlQuery} from '../widgets/sql/table/query_builder';
 import {uuidv4} from '../../base/uuid';
 import {StandardFilters} from '../widgets/sql/table/filters';
-import {TabOption, TabStrip} from '../../widgets/tab_strip';
+import {type TabOption, TabStrip} from '../../widgets/tab_strip';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
 

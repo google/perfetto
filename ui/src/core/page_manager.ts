@@ -15,8 +15,8 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/assert';
 import {Registry} from '../base/registry';
-import {PageHandler, PageManager} from '../public/page';
-import {Analytics} from '../public/analytics';
+import type {PageHandler, PageManager} from '../public/page';
+import type {Analytics} from '../public/analytics';
 import {Router} from './router';
 import {Gate} from '../base/mithril_utils';
 

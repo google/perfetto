@@ -14,17 +14,20 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import {ColumnDef} from '../../components/aggregation';
+import type {ColumnDef} from '../../components/aggregation';
 import {addWattsonThreadTrack} from './wattson_thread_utils';
-import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
+import type {
+  Aggregation,
+  Aggregator,
+} from '../../components/aggregation_adapter';
+import type {AreaSelection} from '../../public/selection';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {Intent} from '../../widgets/common';
-import {SqlValue} from '../../trace_processor/query_result';
+import type {SqlValue} from '../../trace_processor/query_result';
 import {RadioGroup} from '../../widgets/radio_group';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';
 
 export class WattsonThreadSelectionAggregator implements Aggregator {

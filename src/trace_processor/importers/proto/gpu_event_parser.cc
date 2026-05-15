@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -298,8 +298,7 @@ StringId GpuEventParser::FormatCounterUnit(
   if (!spec.has_numerator_units() && !spec.has_denominator_units()) {
     return kNullStringId;
   }
-  char buffer[1024];
-  base::FixedStringWriter unit(buffer, sizeof(buffer));
+  base::DynamicStringWriter unit;
   for (auto number = spec.numerator_units(); number; ++number) {
     if (unit.pos()) {
       unit.AppendChar(':');
@@ -670,8 +669,7 @@ StringId GpuEventParser::ParseRenderSubpasses(
   if (!event.has_render_subpass_index_mask()) {
     return kNullStringId;
   }
-  char buf[256];
-  base::FixedStringWriter writer(buf, sizeof(buf));
+  base::DynamicStringWriter writer;
   uint32_t bit_index = 0;
   bool first = true;
   for (auto it = event.render_subpass_index_mask(); it; ++it) {

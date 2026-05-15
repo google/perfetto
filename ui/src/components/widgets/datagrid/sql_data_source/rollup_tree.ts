@@ -13,21 +13,25 @@
 // limitations under the License.
 
 import {
-  QueryResult,
+  type QueryResult,
   QuerySlot,
-  SerialTaskQueue,
+  type SerialTaskQueue,
 } from '../../../../base/query_slot';
-import {Engine} from '../../../../trace_processor/engine';
-import {NUM, Row, SqlValue} from '../../../../trace_processor/query_result';
+import type {Engine} from '../../../../trace_processor/engine';
+import {
+  NUM,
+  type Row,
+  type SqlValue,
+} from '../../../../trace_processor/query_result';
 import {
   createPerfettoTable,
-  DisposableSqlEntity,
+  type DisposableSqlEntity,
 } from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
-import {DataSourceRows, PivotModel} from '../data_source';
-import {GroupPath} from '../model';
+import type {DataSourceRows, PivotModel} from '../data_source';
+import type {GroupPath} from '../model';
 import {serializeFilters} from './group_by';
-import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
+import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, sqlAggregateExpr, toAlias} from '../sql_utils';
 import {stringifyJsonWithBigints} from '../../../../base/json_utils';
 

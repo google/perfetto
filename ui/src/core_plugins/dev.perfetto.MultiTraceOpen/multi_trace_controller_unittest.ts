@@ -14,12 +14,12 @@
 
 import {assertExists} from '../../base/assert';
 import {MultiTraceController} from './multi_trace_controller';
-import {
+import type {
   TraceFileAnalyzed,
   TraceFileAnalyzing,
   TraceFileError,
 } from './multi_trace_types';
-import {TraceAnalysisResult, TraceAnalyzer} from './trace_analyzer';
+import type {TraceAnalysisResult, TraceAnalyzer} from './trace_analyzer';
 
 // Helper to create a mock TraceFileAnalyzed object for tests
 function createMockAnalyzedTrace(

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {FlagsForTesting as Flags} from '../core/feature_flags';
-import {Storage} from './storage';
+import type {Storage} from './storage';
 
 class TestFlagStore implements Storage {
   o: Record<string, unknown> = {};

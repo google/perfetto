@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Filter} from './filters';
-import {ColumnOrderClause, SqlColumn, SqlExpression} from './sql_column';
+import type {Filter} from './filters';
+import {
+  type ColumnOrderClause,
+  type SqlColumn,
+  SqlExpression,
+} from './sql_column';
 
 // The goal of this module is to generate a query statement from the list of columns, filters and order by clauses.
 // The main challenge is that the column definitions are independent, and the columns themselves can reference the same join multiple times:

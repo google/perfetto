@@ -164,9 +164,9 @@ class TraceProcessorContext {
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
   // modules.
-  using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
-                                                TraceProcessorContext*);
-  RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
+  using RegisterAdditionalProtoModulesFn =
+      std::function<void(ProtoImporterModuleContext*, TraceProcessorContext*)>;
+  RegisterAdditionalProtoModulesFn register_additional_proto_modules;
 
   // Registry of callbacks invoked when PerfTracker is created, allowing
   // external code (e.g. ETM) to register aux tokenizers.

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {AsyncGuard} from './async_guard';
-import {okResult, Result} from './result';
+import {okResult, type Result} from './result';
 
 /**
  * A utility class for lazily initializing and caching asynchronous values.

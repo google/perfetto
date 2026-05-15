@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AddColumnsNode, AddColumnsNodeAttrs} from './add_columns_node';
-import {QueryNode} from '../../query_node';
+import {AddColumnsNode} from './add_columns_node';
+import type {AddColumnsNodeAttrs} from './add_columns_types';
+import type {QueryNode} from '../../query_node';
 import protos from '../../../../protos';
 import {
   createMockNode,

@@ -15,7 +15,12 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {copyToClipboard} from '../../base/clipboard';
-import {formatTimezone, Time, time, timezoneOffsetMap} from '../../base/time';
+import {
+  formatTimezone,
+  Time,
+  type time,
+  timezoneOffsetMap,
+} from '../../base/time';
 import {exists} from '../../base/utils';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
 import QueryPagePlugin from '../../plugins/dev.perfetto.QueryPage';
@@ -30,16 +35,16 @@ import {
   parseAppState,
   serializeAppState,
 } from '../../core/state_serialization';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {shareTrace} from '../../frontend/trace_share_utils';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
-import {Workspace} from '../../public/workspace';
+import type {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/assert';
-import {Setting} from '../../public/settings';
+import type {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';

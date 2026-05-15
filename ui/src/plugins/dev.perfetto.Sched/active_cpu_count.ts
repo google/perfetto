@@ -14,7 +14,7 @@
 
 import {sqliteString} from '../../base/string_utils';
 import {CounterTrack} from '../../components/tracks/counter_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 export enum CPUType {
   Big = 'big',

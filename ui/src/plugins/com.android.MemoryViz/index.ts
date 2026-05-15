@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
-import {TimeSpan} from '../../base/time';
+import type {TimeSpan} from '../../base/time';
 
 export default class MemoryViz implements PerfettoPlugin {
   static readonly id = 'com.android.MemoryViz';

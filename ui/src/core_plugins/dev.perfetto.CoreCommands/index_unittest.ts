@@ -14,7 +14,7 @@
 
 import {legacyMacrosConfigSchema} from './index';
 import CoreCommands from './index';
-import {AppImpl} from '../../core/app_impl';
+import type {AppImpl} from '../../core/app_impl';
 
 describe('legacyMacrosConfigSchema', () => {
   it('parses a valid legacy macros config', () => {

@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult, QuerySlot, SerialTaskQueue} from '../../base/query_slot';
-import {duration, Duration, time, Time} from '../../base/time';
+import {
+  type QueryResult,
+  QuerySlot,
+  SerialTaskQueue,
+} from '../../base/query_slot';
+import {type duration, Duration, type time, Time} from '../../base/time';
 import {getTrackUriForTrackId} from '../../components/related_events/utils';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {
   LONG,
   LONG_NULL,

@@ -13,17 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {MountOptions, Portal} from './portal';
+import {type MountOptions, Portal} from './portal';
 import {bindEventListener} from '../base/dom_utils';
 import {DisposableStack} from '../base/disposable_stack';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {
   createPopper,
-  Instance as PopperInstance,
-  VirtualElement,
+  type Instance as PopperInstance,
+  type VirtualElement,
 } from '@popperjs/core';
 import {classNames} from '../base/classnames';
-import {Point2D, Vector2D} from '../base/geom';
+import {type Point2D, Vector2D} from '../base/geom';
 import {PopupPosition} from './popup';
 
 export interface CursorTooltipAttrs extends HTMLAttrs {

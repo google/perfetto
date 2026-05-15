@@ -426,6 +426,60 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   EXPECT_EQ(stats["ftrace_cpu_bytes_begin"][0].AsInt(), kFtraceBegin);
 }
 
+TEST_F(ExportJsonTest, StorageWithStatsFromGzipWrappedProto) {
+  // Simulate the layout produced when a proto trace is wrapped in a gzip
+  // container (which is the on-the-wire shape of Chrome/Edge traces):
+  // trace_file row 0 is the gzip wrapper, row 1 is the inner proto. Stats
+  // from the proto importer land under TraceId(1); they must still be
+  // exported.
+  context_.storage->mutable_trace_file_table()->Insert(
+      {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
+       context_.storage->InternString("gzip"),
+       /*processing_order=*/std::nullopt, /*is_container=*/1});
+  auto inner_id =
+      context_.storage->mutable_trace_file_table()
+          ->Insert({/*parent_id=*/std::nullopt, /*name=*/std::nullopt,
+                    /*size=*/0, context_.storage->InternString("proto"),
+                    /*processing_order=*/std::nullopt, /*is_container=*/0})
+          .id;
+
+  const int64_t kProducers = 7;
+  context_.global_stats_tracker->SetStats(
+      MachineId(kDefaultMachineId), inner_id, stats::traced_producers_connected,
+      kProducers);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+e");
+  base::Status status = ExportJson(context_.storage.get(), output);
+  EXPECT_TRUE(status.ok()) << status.message();
+
+  Dom result = ToJsonValue(ReadFile(output));
+  ASSERT_TRUE(result["metadata"]["trace_processor_stats"].HasMember(
+      "traced_producers_connected"));
+  EXPECT_EQ(
+      result["metadata"]["trace_processor_stats"]["traced_producers_connected"]
+          .AsInt(),
+      kProducers);
+}
+
+TEST_F(ExportJsonTest, StorageWithStatsFromMultipleNonContainerTracesFails) {
+  // Two genuine (non-container) trace files cannot be merged into one JSON
+  // stats block — export must reject rather than silently pick one.
+  context_.storage->mutable_trace_file_table()->Insert(
+      {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
+       context_.storage->InternString("proto"),
+       /*processing_order=*/std::nullopt, /*is_container=*/0});
+  context_.storage->mutable_trace_file_table()->Insert(
+      {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
+       context_.storage->InternString("proto"),
+       /*processing_order=*/std::nullopt, /*is_container=*/0});
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+e");
+  base::Status status = ExportJson(context_.storage.get(), output);
+  EXPECT_FALSE(status.ok());
+}
+
 TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
   const char* kName1 = "name1";
   const char* kName2 = "name2";

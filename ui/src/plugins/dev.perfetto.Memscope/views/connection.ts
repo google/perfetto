@@ -21,7 +21,7 @@ import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
 import {RadioGroup} from '../../../widgets/radio_group';
-import {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
+import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {
   WDP_TRACK_DEVICES_SCHEMA,
   type WdpDevice,

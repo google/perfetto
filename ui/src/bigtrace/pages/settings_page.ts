@@ -21,12 +21,12 @@ import {Switch} from '../../widgets/switch';
 import {Card, CardStack} from '../../widgets/card';
 import {classNames} from '../../base/classnames';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {Setting as BigTraceSetting} from '../settings/settings_types';
+import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import {renderSetting} from '../settings/settings_widgets';
 import {Button, ButtonVariant} from '../../widgets/button';
 
 import {endpointStorage} from '../settings/endpoint_storage';
-import {Setting} from '../../public/settings';
+import type {Setting} from '../../public/settings';
 
 import {TextInput} from '../../widgets/text_input';
 import {Stack, StackAuto} from '../../widgets/stack';

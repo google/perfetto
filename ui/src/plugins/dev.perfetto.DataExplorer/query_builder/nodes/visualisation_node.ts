@@ -13,14 +13,19 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import protos from '../../../../protos';
-import {isQuantitativeType} from '../../../../trace_processor/perfetto_sql_type';
-import {SqlValue} from '../../../../trace_processor/query_result';
-import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
 import {
-  UIFilter,
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
+import type protos from '../../../../protos';
+import {isQuantitativeType} from '../../../../trace_processor/perfetto_sql_type';
+import type {SqlValue} from '../../../../trace_processor/query_result';
+import type {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+import {
+  type UIFilter,
   createAutoGroupedFiltersProto,
   formatFilterSummary,
   formatFilterValue,
@@ -30,7 +35,7 @@ import {
 import {Chip} from '../../../../widgets/chip';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, NodeTitle} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {AddItemPlaceholder} from '../widgets';

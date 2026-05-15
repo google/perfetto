@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 import {assertExists} from '../../base/assert';
-import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
-import {PerfettoPlugin} from '../../public/plugin';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -32,12 +32,12 @@ import {
 import {
   Flamegraph,
   FLAMEGRAPH_STATE_SCHEMA,
-  FlamegraphState,
+  type FlamegraphState,
 } from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import CpuProfilePlugin from '../dev.perfetto.CpuProfile';
 import {SourceDataset} from '../../trace_processor/dataset';

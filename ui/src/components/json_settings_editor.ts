@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
+import type {z} from 'zod';
 import m from 'mithril';
 import {Editor} from '../widgets/editor';
 import {Callout} from '../widgets/callout';
 import {Intent} from '../widgets/common';
 import {Button} from '../widgets/button';
-import {Setting} from '../public/settings';
+import type {Setting} from '../public/settings';
 
 export interface JsonSettingsEditorOptions<T> {
   // Zod schema for validation

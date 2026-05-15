@@ -34,15 +34,12 @@ source_set("engine") {
   deps = [
     "../..:metatrace",
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
-    "../../perfetto_sql/intrinsics/table_functions:interface",
-    "../../sqlite",
     "../../types",
     "../../util:sql_argument",
     "../../util:stdlib",
@@ -50,6 +47,9 @@ source_set("engine") {
     "../preprocessor",
     "../tokenizer",
   ]
+
+  # We export the SQLite bindings.
+  public_deps = [ "../../sqlite" ]
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -64,7 +64,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base:test_support",
     "../..//tables:tables_python",
     "../../containers",
-    "../../perfetto_sql/intrinsics/table_functions:interface",
+    "../../core/plugin",
     "../../sqlite",
     "../../util:stdlib",
   ]

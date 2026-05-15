@@ -1332,21 +1332,42 @@ class JsonExporter {
     // order). Untouched kSingle stats default to value=0; untouched
     // kIndexed stats produce no entries.
     //
-    // JSON export only supports single-machine, single-trace sessions —
+    // JSON export only supports a single-machine, single-trace session —
     // there's no consumer spec for representing stats from multi-machine
-    // forks. Rows must therefore be either kGlobal (NULL, NULL) or live in
-    // the default (MachineId(0), TraceId(0)) bucket; anything else is
-    // rejected.
+    // forks or from genuinely independent traces bundled together. To
+    // pick the bucket we ignore container files (gzip/zip/tar wrappers)
+    // and look for the single underlying non-container trace; anything
+    // outside that bucket (or a second non-container trace) is rejected.
+    std::optional<tables::TraceFileTable::Id> primary_trace_id;
+    for (auto it = storage_->trace_file_table().IterateRows(); it; ++it) {
+      if (it.is_container()) {
+        continue;
+      }
+      if (primary_trace_id) {
+        return base::ErrStatus(
+            "ExportJson: stats from multi-machine/multi-trace sessions are "
+            "not supported");
+      }
+      primary_trace_id = it.id();
+    }
+    // Tests and direct-load paths that never register a TraceFile row
+    // still emit stats under (MachineId(0), TraceId(0)).
+    if (!primary_trace_id) {
+      primary_trace_id = tables::TraceFileTable::Id{0};
+    }
+
     std::array<int64_t, stats::kNumKeys> single_values{};
     std::array<IndexMap, stats::kNumKeys> indexed_values{};
     for (auto it = storage_->stats_table().IterateRows(); it; ++it) {
       auto m = it.machine_id();
       auto t = it.trace_id();
-      if ((m && m != tables::MachineTable::Id{0}) ||
-          (t && t != tables::TraceFileTable::Id{0})) {
+      if (m && m != tables::MachineTable::Id{0}) {
         return base::ErrStatus(
             "ExportJson: stats from multi-machine/multi-trace sessions are "
             "not supported");
+      }
+      if (t && t != primary_trace_id) {
+        continue;
       }
       size_t key = static_cast<size_t>(it.key());
       if (stats::kTypes[key] == stats::kSingle) {
