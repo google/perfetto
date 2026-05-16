@@ -2,7 +2,7 @@
 # proto-message: EvalSuite
 # txtpbfmt: wrap_strings_after_newlines
 
-suite_name: "perfetto-infra-getting-trace-processor"
+suite_name: "perfetto_infra_getting_trace_processor"
 timeout_seconds: 300
 
 cases {

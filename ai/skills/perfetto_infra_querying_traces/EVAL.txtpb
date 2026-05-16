@@ -2,7 +2,7 @@
 # proto-message: EvalSuite
 # txtpbfmt: wrap_strings_after_newlines
 
-suite_name: "perfetto-infra-querying-traces"
+suite_name: "perfetto_infra_querying_traces"
 timeout_seconds: 300
 
 cases {

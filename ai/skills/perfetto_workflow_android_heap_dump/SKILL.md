@@ -1,5 +1,5 @@
 ---
-name: perfetto-workflow-android-heap-dump
+name: perfetto_workflow_android_heap_dump
 description: Use when the user has an Android trace containing a Java heap
   graph (heap dump) and wants to investigate memory usage, find leaks, or
   understand what is retaining memory. Walks through a guided workflow
@@ -15,7 +15,7 @@ with this heap dump?", "why is this process using so much memory?", or
 data source and contains at least one Java heap graph.
 
 If the user has not yet loaded a trace into `trace_processor`, follow
-the `perfetto-infra-querying-traces` skill first, then come back here.
+the `perfetto_infra_querying_traces` skill first, then come back here.
 Recording-side reference for heap dumps:
 <https://perfetto.dev/docs/data-sources/java-heap-profiler>.
 
