@@ -437,7 +437,9 @@ function onCssLoaded(app: AppImpl) {
     (location.origin.startsWith('http://localhost:') ||
       location.origin.startsWith('http://127.0.0.1:')) &&
     !app.embeddedMode &&
-    !app.testingMode
+    !app.testingMode &&
+    // Vite's dev server provides its own HMR client; skip our SSE poll then.
+    !import.meta.hot
   ) {
     initLiveReload();
   }

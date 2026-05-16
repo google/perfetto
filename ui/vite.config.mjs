@@ -195,14 +195,6 @@ function pluginGenRelativeImports() {
   };
 }
 
-// IIFE output forces `inlineDynamicImports`, which forbids multiple inputs in
-// one rollup invocation. So we build one entry per `vite build` call, selected
-// by the BUNDLE env var. build.mjs spawns one invocation per bundle.
-const BUNDLE = process.env.BUNDLE;
-if (!BUNDLE) {
-  throw new Error('vite.config.mjs requires BUNDLE=<name> env var');
-}
-
 // Per-bundle config: input file, output dir (relative to ui/out), and output
 // filename. Most bundles follow the standard convention; service_worker and
 // chrome_extension differ.
@@ -220,16 +212,32 @@ const BUNDLE_CONFIGS = {
   service_worker:      {dir: 'dist',                         entry: 'service_worker.ts',
                         fileName: 'service_worker.js',       format: 'iife'},
 };
-const bundleCfg = BUNDLE_CONFIGS[BUNDLE];
-if (!bundleCfg) {
-  throw new Error(`Unknown BUNDLE: ${BUNDLE}`);
-}
-const inputPath = path.join(SRC, BUNDLE, bundleCfg.entry);
-const entryFileNames = bundleCfg.fileName || '[name]_bundle.js';
 
-export default defineConfig({
+// When invoked as `vite build`, BUNDLE selects one entry per invocation
+// (build.mjs spawns one process per bundle). When invoked programmatically
+// from build.mjs as a dev server (`createServer`), BUNDLE is unset and the
+// frontend index.html drives the module graph.
+const BUNDLE = process.env.BUNDLE;
+
+export default defineConfig(({command}) => {
+  const isBuild = command === 'build';
+  if (isBuild && !BUNDLE) {
+    throw new Error('vite.config.mjs requires BUNDLE=<name> env var for build');
+  }
+  const bundleCfg = isBuild ? BUNDLE_CONFIGS[BUNDLE] : null;
+  if (isBuild && !bundleCfg) {
+    throw new Error(`Unknown BUNDLE: ${BUNDLE}`);
+  }
+  const inputPath = isBuild ? path.join(SRC, BUNDLE, bundleCfg.entry) : null;
+  const entryFileNames = isBuild
+      ? (bundleCfg.fileName || '[name]_bundle.js')
+      : undefined;
+
+  return {
   root: SRC,
-  // No HTML index — build.mjs handles HTML.
+  // Vite is used purely as a TS transpiler + bundler in build mode, and as
+  // a module-serving dev server in serve mode. build.mjs owns HTML in both
+  // modes (in dev it calls server.transformIndexHtml() and serves at /).
   appType: 'custom',
   plugins: [
     pluginAllPluginsBarrel(),
@@ -286,7 +294,7 @@ export default defineConfig({
       // No-op for build, but keeps dev parity if we ever flip to `vite dev`.
     },
   },
-  build: {
+  build: isBuild ? {
     // TODO(stevegolton): Do we need this?
     commonjsOptions: {
       transformMixedEsModules: true,
@@ -330,5 +338,6 @@ export default defineConfig({
         warn(warning);
       },
     },
-  },
+  } : undefined,
+  };
 });

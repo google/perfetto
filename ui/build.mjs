@@ -438,7 +438,11 @@ Env-var overrides:
   if (cfg.watch) console.log('\nFirst build completed!');
 
   if (cfg.startHttpServer) {
-    startServer();
+    if (cfg.watch) {
+      await startViteDevServer();
+    } else {
+      startServer();
+    }
   }
   if (args.run_unittests) {
     runTests('jest.unittest.config.js');
@@ -745,6 +749,11 @@ function transpileTsProject(project, options) {
 // the {frontend, engine, traceconv}_bundle.js files in cfg.outDistDir. All
 // configuration lives in ui/vite.config.mjs; flags are passed via env vars to
 // keep parity with the old rollup.config.js conventions.
+//
+// In watch+serve mode the frontend bundle is replaced by an in-process Vite
+// dev server (see startViteDevServer) — workers and the service worker still
+// go through `vite build --watch` because they're loaded as separate files by
+// `new Worker(assetSrc(...))` / SW registration.
 function runVite() {
   const baseEnv = {
     NO_SOURCE_MAPS: cfg.noSourceMaps ? 'true' : '',
@@ -752,13 +761,14 @@ function runVite() {
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
+  const useDevServer = cfg.watch && cfg.startHttpServer;
   const bundles = [
-    'frontend',
     'engine',
     'traceconv',
     'service_worker',
     'chrome_extension',
   ];
+  if (!useDevServer) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
   for (const bundle of bundles) {
@@ -799,6 +809,137 @@ function genServiceWorkerManifestJson() {
     fs.writeFileSync(pjoin(cfg.outDistDir, 'manifest.json'), manifestJson);
   }
   addTask(makeManifest, []);
+}
+
+// In dev (--watch --serve), Vite owns the user-facing port. It serves the
+// frontend entry as native ESM transformed on the fly; everything else
+// (wasm, fonts, css, /test/, /v1.2.3/-relative paths) is layered on as
+// middleware. The custom HTTP server (startServer) is bypassed.
+async function startViteDevServer() {
+  const {createServer} = await import('vite');
+  const port = cfg.httpServerListenPort ?? DEFAULT_PORT;
+
+  const headers = cfg.crossOriginIsolation ? {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+  } : undefined;
+
+  const server = await createServer({
+    configFile: pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
+    server: {
+      host: cfg.httpServerListenHost,
+      port,
+      strictPort: false,
+      headers,
+      // Vite needs to read source files outside its root (ui/src/assets,
+      // ui/src/gen via the symlink to out/, buildtools/, etc.).
+      fs: {allow: [ROOT_DIR]},
+    },
+  });
+
+  // Read the source index.html, patch for dev (point the inline bootstrap
+  // at the frontend source entry), and serve at /.
+  const indexSrc = pjoin(ROOT_DIR, 'ui/src/assets/index.html');
+  const patchHtml = (raw) => {
+    // Replace the prod-relative bundle path with the dev source entry.
+    // Vite's transformIndexHtml will then resolve /frontend/index.ts through
+    // its module graph (with HMR client injected).
+    let html = raw.replace(
+        /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
+        `script.src = '/frontend/index.ts';`);
+    // Patch the version map (same job as cpHtml in prod). In dev there is
+    // exactly one channel served from the root, version '.'.
+    const versionMap = JSON.stringify({stable: cfg.version});
+    html = html.replace(
+        /data-perfetto_version='[^']*'/,
+        `data-perfetto_version='${versionMap}'`);
+    if (cfg.titleOverride) {
+      html = html.replace(
+          /<title>[^<]*<\/title>/,
+          `<title>${cfg.titleOverride}</title>`);
+    }
+    return html;
+  };
+
+  // Serve /test/* from the repo (used by some e2e flows). Mirrors the
+  // equivalent branch in startServer().
+  server.middlewares.use((req, res, next) => {
+    const url = req.url.split('?', 1)[0];
+    if (!url.startsWith('/test/')) return next();
+    const absPath = pjoin(ROOT_DIR, url);
+    if (path.relative(ROOT_DIR, absPath).startsWith('..')) {
+      res.statusCode = 403;
+      return res.end('403');
+    }
+    fs.readFile(absPath, (err, data) => {
+      if (err) { res.statusCode = 404; return res.end(); }
+      res.end(data);
+    });
+  });
+
+  // frontend/index.ts inserts `<link rel="stylesheet" href="frontend.css">`
+  // at runtime, which is needed in prod but in dev the styles come from the
+  // SCSS module that Vite transforms inline. Return a 200 empty body so the
+  // link's onload fires and init can proceed.
+  server.middlewares.use((req, res, next) => {
+    const url = req.url.split('?', 1)[0];
+    if (url === '/frontend.css' || url.endsWith('/frontend.css')) {
+      res.setHeader('Content-Type', 'text/css');
+      return res.end('/* dev stub: styles injected by Vite */');
+    }
+    next();
+  });
+
+  // Fall back to serving files from outDistDir for anything Vite hasn't
+  // claimed (wasm modules, fonts under /assets/, manifest.json, etc.).
+  server.middlewares.use((req, res, next) => {
+    const url = req.url.split('?', 1)[0];
+    // Vite handles JS/TS/CSS modules and HMR endpoints itself.
+    if (url === '/' || url === '/index.html') return next();
+    const absPath = path.normalize(pjoin(cfg.outDistRootDir, url));
+    if (path.relative(cfg.outDistRootDir, absPath).startsWith('..')) {
+      return next();
+    }
+    fs.stat(absPath, (err, stat) => {
+      if (err || !stat.isFile()) return next();
+      fs.readFile(absPath, (rerr, data) => {
+        if (rerr) return next();
+        const ext = url.split('.').pop();
+        const mime = {
+          wasm: 'application/wasm',
+          woff2: 'font/woff2',
+          png: 'image/png',
+          json: 'application/json',
+          css: 'text/css',
+          js: 'application/javascript',
+          html: 'text/html',
+        }[ext] || 'application/octet-stream';
+        res.setHeader('Content-Type', mime);
+        res.end(data);
+      });
+    });
+  });
+
+  // Last: serve the patched index.html at / (and any other unmatched route,
+  // mirroring the SPA convention).
+  server.middlewares.use(async (req, res, next) => {
+    const url = req.url.split('?', 1)[0];
+    if (url !== '/' && url !== '/index.html') return next();
+    try {
+      const raw = fs.readFileSync(indexSrc, 'utf8');
+      const patched = patchHtml(raw);
+      const transformed = await server.transformIndexHtml(url, patched);
+      res.setHeader('Content-Type', 'text/html');
+      res.end(transformed);
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  await server.listen();
+  server.printUrls();
+  // Make sure the dev server is shut down on process exit.
+  subprocesses.push({pid: 'vite-dev', kill: () => server.close()});
 }
 
 function startServer() {
@@ -951,11 +1092,14 @@ function startServer() {
 }
 
 function isDistComplete() {
+  // In watch+serve mode the frontend bundle and its CSS are served live by
+  // the Vite dev server, never materialised on disk. Only require the
+  // artifacts that genuinely have to exist before the user can load a trace.
+  const useDevServer = cfg.watch && cfg.startHttpServer;
   const requiredArtifacts = [
-    'frontend_bundle.js',
+    ...(useDevServer ? [] : ['frontend_bundle.js', 'frontend.css']),
     'engine_bundle.js',
     'traceconv_bundle.js',
-    'frontend.css',
     ...cfg.wasmModules.map((wasmMod) => `${wasmMod}.wasm`),
   ];
   const relPaths = new Set();
