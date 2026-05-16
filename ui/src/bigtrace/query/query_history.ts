@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../../base/classnames';
 import {Icons} from '../../base/semantic_icons';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
@@ -77,71 +78,72 @@ function formatCompactDate(d: Date): string {
   return `${month} ${day}, ${year}, ${h}:${mm} ${m12}`;
 }
 
-// SQL block clamped to ~4 lines with a fade-out mask; click to toggle full
-// height. Used both by the sidebar history row and the delete-confirm modal,
-// so they share the same expand behaviour. The sidebar inherits its frame
-// (background + border + padding) from `.pf-query-history__item pre`; the
-// modal opts into `standalone: true` to add the equivalent frame inline.
-function renderClampedQuery(
-  queryText: string,
-  opts: {standalone?: boolean; onExpand?: () => void} = {},
-): m.Children {
-  if (queryText === '') {
+// SQL block clamped to ~4 lines with a fade-out mask; click to expand.
+// Used by both the sidebar history row and the delete-confirm modal.
+// The sidebar inherits its frame from `.pf-query-history__item pre`; the
+// modal uses `standalone: true` for the `--standalone` CSS class.
+// Expand state is a Mithril instance field so it survives redraws.
+interface ClampedQueryAttrs {
+  readonly queryText: string;
+  readonly standalone?: boolean;
+  readonly onExpand?: () => void;
+}
+
+class ClampedQuery implements m.ClassComponent<ClampedQueryAttrs> {
+  private expanded = false;
+
+  view({attrs}: m.Vnode<ClampedQueryAttrs>): m.Children {
+    const {queryText, standalone, onExpand} = attrs;
+    if (queryText === '') {
+      return m(
+        'span.pf-query-history__item-query.pf-query-history__item-query--empty',
+        '(no query text)',
+      );
+    }
     return m(
-      'span.pf-query-history__item-query',
-      {style: {fontStyle: 'italic', opacity: '0.5'}},
-      '(no query text)',
+      'pre.pf-query-history__item-query',
+      {
+        className: classNames(
+          this.expanded && 'pf-query-history__item-query--expanded',
+          standalone && 'pf-query-history__item-query--standalone',
+        ),
+        onclick: () => {
+          this.expanded = !this.expanded;
+          if (this.expanded) {
+            onExpand?.();
+          }
+        },
+      },
+      queryText,
     );
   }
-  const clamped = {
-    maxHeight: '4.5em',
-    maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)',
-    WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)',
-  };
-  const standaloneFrame = opts.standalone
-    ? {
-        fontFamily: 'var(--pf-font-monospace, monospace)',
-        background: 'var(--pf-color-void)',
-        border: 'solid 1px var(--pf-color-border-secondary)',
-        borderRadius: '4px',
-        padding: '8px',
-        margin: '0',
-        whiteSpace: 'pre-wrap',
-      }
-    : {};
-  return m(
-    'pre.pf-query-history__item-query',
-    {
-      style: {
-        ...clamped,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        position: 'relative',
-        ...standaloneFrame,
-      },
-      onclick: (e: Event) => {
-        const el = e.currentTarget as HTMLElement;
-        const expanded = el.classList.toggle(
-          'pf-query-history__item-query--expanded',
-        );
-        if (expanded) {
-          // Cap so a 1000-line query doesn't blow out the sidebar layout
-          // — long SQL scrolls inside the pre instead.
-          el.style.maxHeight = '50vh';
-          el.style.overflow = 'auto';
-          el.style.maskImage = '';
-          el.style.webkitMaskImage = '';
-          opts.onExpand?.();
-        } else {
-          el.style.maxHeight = clamped.maxHeight;
-          el.style.overflow = 'hidden';
-          el.style.maskImage = clamped.maskImage;
-          el.style.webkitMaskImage = clamped.WebkitMaskImage;
+}
+
+// UUIDs whose full SQL has already been fetched via the per-uuid endpoint.
+const fetchedFullSql = new Set<string>();
+
+// Returns an onExpand callback that fetches the full SQL on first expand,
+// or undefined if already fetched / no uuid.
+function makeFullSqlExpander(
+  uuid: string | undefined,
+  currentText: string,
+): (() => void) | undefined {
+  if (!uuid || fetchedFullSql.has(uuid)) return undefined;
+  return () => {
+    fetchedFullSql.add(uuid);
+    void queryHistoryStorage
+      .fetchFullSql(uuid)
+      .then((full) => {
+        if (full && full !== currentText) {
+          queryStore.update(uuid, {perfettoSql: full});
+          m.redraw();
         }
-      },
-    },
-    queryText,
-  );
+      })
+      .catch((e) => {
+        fetchedFullSql.delete(uuid);
+        console.error('Failed to fetch full SQL:', e);
+      });
+  };
 }
 
 // Module-level: survives sidebar toggles so we don't re-fetch on every show.
@@ -370,18 +372,26 @@ export class QueryHistoryComponent
               let confirmed = false;
               await showModal({
                 title: 'Delete query from history?',
-                content: m('div', [
-                  startTime !== undefined &&
-                    m(
-                      'div',
-                      {
-                        style: {marginBottom: '8px', opacity: '0.7'},
-                        title: `UTC: ${utcString}`,
-                      },
-                      localString,
-                    ),
-                  renderClampedQuery(queryText, {standalone: true}),
-                ]),
+                content: () =>
+                  m('div', [
+                    startTime !== undefined &&
+                      m(
+                        'div',
+                        {
+                          style: {marginBottom: '8px', opacity: '0.7'},
+                          title: `UTC: ${utcString}`,
+                        },
+                        localString,
+                      ),
+                    m(ClampedQuery, {
+                      queryText: entry.perfettoSql || '',
+                      standalone: true,
+                      onExpand: makeFullSqlExpander(
+                        uuid,
+                        entry.perfettoSql || '',
+                      ),
+                    }),
+                  ]),
                 buttons: [
                   {text: 'Cancel'},
                   {
@@ -460,25 +470,11 @@ export class QueryHistoryComponent
           ),
         // Sidebar uses the .pf-query-history__item pre rule for the
         // monospace look; modal callers opt in via `{standalone: true}`.
-        renderClampedQuery(queryText, {
-          // /query_executions clips perfettoSql at ~200 chars (suffix "…").
-          // First expand fetches the untruncated text via the per-uuid
-          // endpoint; the queryStore caches it so subsequent expands are
-          // already full.
-          onExpand:
-            uuid && queryText.endsWith('…')
-              ? () => {
-                  void queryHistoryStorage
-                    .fetchFullSql(uuid)
-                    .then((full) => {
-                      if (full && full !== queryText) {
-                        queryStore.update(uuid, {perfettoSql: full});
-                        m.redraw();
-                      }
-                    })
-                    .catch(() => {});
-                }
-              : undefined,
+        // /query_executions clips perfettoSql; first expand fetches the
+        // full text via the per-uuid endpoint.
+        m(ClampedQuery, {
+          queryText,
+          onExpand: makeFullSqlExpander(uuid, queryText),
         }),
       );
     });

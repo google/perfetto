@@ -23,6 +23,7 @@ import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {sqlTablesLoader} from '../query/sql_tables';
 import {TableList} from '../query/table_list';
+import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
 import {QueryTabsState} from './query_tabs_state';
 import {queryState} from '../query/query_state';
@@ -101,20 +102,36 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         this.tabsState.markDirty();
       },
       onTabRename: (key, newTitle) => this.tabsState.renameTab(key, newTitle),
-      onTabClose: (key) => {
+      onTabClose: async (key) => {
         // closeTab is a no-op when only one tab remains; bail before
         // the confirm so middle-click doesn't dead-end.
         if (this.tabsState.tabs.length <= 1) return;
-        // Confirm before closing a tab with an in-flight sync query
-        // (Persistent queries keep running on the backend).
+        // Confirm only for ephemeral queries — closing loses the results.
+        // Persistent queries keep running on the backend (reopen from History).
         const tab = this.tabsState.tabs.find((t) => t.id === key);
-        if (
-          tab?.isLoading &&
-          !window.confirm('A query is still running in this tab. Close anyway?')
-        ) {
-          return;
+        if (tab?.isLoading && !tab.materialize) {
+          let confirmed = false;
+          await showModal({
+            title: 'Close tab?',
+            content: m(
+              'div',
+              'A query is still running. Closing this tab will lose the results.',
+            ),
+            buttons: [
+              {text: 'Keep open'},
+              {
+                text: 'Close',
+                primary: true,
+                action: () => {
+                  confirmed = true;
+                },
+              },
+            ],
+          });
+          if (!confirmed) return;
         }
         this.tabsState.closeTab(key);
+        m.redraw();
       },
       onTabReorder: (draggedKey, beforeKey) =>
         this.tabsState.reorderTab(draggedKey, beforeKey),

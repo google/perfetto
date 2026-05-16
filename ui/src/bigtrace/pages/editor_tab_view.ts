@@ -21,7 +21,6 @@ import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Editor} from '../../widgets/editor';
 import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {Icon} from '../../widgets/icon';
 import {linkify} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
@@ -228,7 +227,7 @@ class RunningQuerySpinner implements m.ClassComponent<{startMs: number}> {
 }
 
 // ---------------------------------------------------------------------------
-// Results panel: status box (async only) + error banner + DataGrid/Chart.
+// Results panel: status box (async only) + result tabs (Error/Table/Chart).
 // ---------------------------------------------------------------------------
 
 function renderResultsPanel(
@@ -279,42 +278,53 @@ function renderResultsPanel(
   const hasRowsToShow = tab.materialize
     ? processedRows > 0
     : tab.queryResult.rows.length > 0;
-  // Default the error banner to expanded when there's no result data to look
-  // at (the error is the only signal); collapsed when rows came back too.
-  const errorBanner = renderErrorBanner(tab, hasRowsToShow);
+
+  const hasError = tab.queryResult.error !== undefined;
+
+  // Table content: the primary result display.
+  let tableContent: m.Children;
+  if (isSyncReopenNoRerun) {
+    tableContent = m(EmptyState, {
+      title: 'Re-run the query to see results',
+      icon: 'refresh',
+      fillHeight: true,
+    });
+  } else if (isAsyncTableCleared) {
+    tableContent = m(EmptyState, {
+      title:
+        tab.execution?.status === 'CANCELLED'
+          ? 'Query was cancelled'
+          : 'Results no longer available',
+      icon: 'refresh',
+      fillHeight: true,
+    });
+  } else if (hasRowsToShow) {
+    tableContent = renderResultsGrid(tab, tabsState, runner);
+  } else if (tab.isLoading) {
+    tableContent = m('div');
+  } else {
+    tableContent = m(EmptyState, {
+      title: 'Query returned no rows',
+      icon: 'search',
+      fillHeight: true,
+    });
+  }
+
+  // Auto-select Error tab when it's the only signal; user override sticks.
+  // Reset stale key if the Error tab no longer exists.
+  if (tab.resultsTabKey === 'error' && !hasError) {
+    tab.resultsTabKey = undefined;
+  }
+  const defaultTab = hasError && !hasRowsToShow ? 'error' : 'table';
+  const activeTab = tab.resultsTabKey ?? defaultTab;
 
   return m(
     '.pf-query-page__results-panel',
     status,
-    m('.pf-query-page__results-container', [
-      errorBanner,
-      isSyncReopenNoRerun
-        ? m(EmptyState, {
-            title: 'Re-run the query to see results',
-            icon: 'refresh',
-            fillHeight: true,
-          })
-        : isAsyncTableCleared
-          ? m(EmptyState, {
-              // CANCELLED says so; TTL / post-failure share the generic msg.
-              title:
-                tab.execution?.status === 'CANCELLED'
-                  ? 'Query was cancelled'
-                  : 'Results no longer available',
-              icon: 'refresh',
-              fillHeight: true,
-            })
-          : hasRowsToShow
-            ? renderResultsGrid(tab, tabsState, runner)
-            : tab.isLoading
-              ? m('div')
-              : !tab.queryResult.error &&
-                m(EmptyState, {
-                  title: 'Query returned no rows',
-                  icon: 'search',
-                  fillHeight: true,
-                }),
-    ]),
+    m(
+      '.pf-query-page__results-container',
+      renderResultsTabs(tab, tableContent, activeTab),
+    ),
   );
 }
 
@@ -494,84 +504,56 @@ async function refreshAsyncStatus(tab: BigTraceEditorTab): Promise<void> {
   m.redraw();
 }
 
-function renderErrorBanner(
-  tab: BigTraceEditorTab,
-  hasRowsToShow: boolean,
-): m.Children {
-  const errorStr = tab.queryResult?.error;
-  if (errorStr === undefined) return false;
+// ---------------------------------------------------------------------------
+// Result grid (Table tab) + Error tab + Chart placeholder.
+// ---------------------------------------------------------------------------
 
-  const isPreconditionFailure =
-    errorStr.includes('FAILED_PRECONDITION') ||
-    errorStr.includes('failed_precondition');
-  const displayTitle = isPreconditionFailure
-    ? 'Results no longer available'
-    : 'Query failed';
+function renderErrorTab(tab: BigTraceEditorTab): m.Children {
+  const errorStr = tab.queryResult?.error ?? '';
   const fullText = errorStr
     .replaceAll('\\n', '\n')
     .replaceAll('\\t', '  ')
     .replaceAll('\\u003e', '>');
-  // Default open when there's no row data to read; once the user toggles,
-  // their explicit choice (stored on the tab) overrides the default.
-  const isOpen = tab.errorBannerOpen ?? !hasRowsToShow;
-
-  return m(
-    '.pf-results-table__error',
-    // Headline row: icon + title + toggle on a single line. The icon's
-    // vertical centering is scoped to this row, so expanding (which adds
-    // the pre as a sibling below) doesn't move the icon.
-    m(
-      '.pf-results-table__error-headline',
-      m(Icon, {
-        className: 'pf-results-table__error-icon',
-        icon: 'error',
-        intent: Intent.Danger,
-      }),
-      m('.pf-results-table__error-title', displayTitle),
-      m(
-        'button.pf-results-table__error-toggle',
-        {
-          'type': 'button',
-          'aria-expanded': isOpen ? 'true' : 'false',
-          'onclick': () => {
-            tab.errorBannerOpen = !isOpen;
-          },
-        },
-        m(Icon, {
-          className: 'pf-results-table__error-toggle-icon',
-          icon: isOpen ? 'expand_more' : 'chevron_right',
-        }),
-        isOpen ? 'Hide error' : 'Show error',
-      ),
-    ),
-    isPreconditionFailure &&
-      m(
-        '.pf-results-table__error-hint',
-        'The persistent results table for this query has expired. ' +
-          'You may need to run the query again.',
-      ),
-    isOpen &&
-      m(
-        'pre.pf-results-table__error-message',
-        {
-          style: {
-            overflow: 'auto',
-            maxHeight: '12em',
-            maxWidth: '100%',
-            textAlign: 'left',
-            marginTop: '6px',
-            fontSize: '0.85em',
-            opacity: 0.8,
-          },
-        },
-        fullText,
-      ),
-  );
+  return m('pre.pf-query-page__error-content', fullText);
 }
 
-// ---------------------------------------------------------------------------
-// Result grid (Table tab) + Chart placeholder.
-// ---------------------------------------------------------------------------
+function renderResultsTabs(
+  tab: BigTraceEditorTab,
+  tableContent: m.Children,
+  activeTab: string,
+): m.Children {
+  const hasError = tab.queryResult?.error !== undefined;
+  const tabs = [
+    ...(hasError
+      ? [
+          {
+            key: 'error',
+            title: m('span.pf-query-page__error-tab-title', 'Error'),
+            content: renderErrorTab(tab),
+          },
+        ]
+      : []),
+    {key: 'table', title: 'Table', content: tableContent},
+    {
+      key: 'chart',
+      title: 'Chart',
+      content: m(EmptyState, {
+        title: 'Charts are coming soon',
+        icon: 'bar_chart',
+      }),
+    },
+  ];
+
+  return m('.pf-query-page__results', [
+    m(Tabs, {
+      tabs,
+      activeTabKey: activeTab,
+      onTabChange: (key) => {
+        tab.resultsTabKey = key;
+      },
+    }),
+  ]);
+}
 
 function renderResultsGrid(
   tab: BigTraceEditorTab,
@@ -597,30 +579,13 @@ function renderResultsGrid(
     );
   }
 
-  // Caller gated on processedRows > 0, so partial-success failures
-  // (quota cut-off, mid-stream sqlite error) still render with banner.
+  // Caller gated on hasRowsToShow, so partial-success failures
+  // (quota cut-off, mid-stream sqlite error) still render the grid.
   const isTerminal =
     tab.execution?.status !== undefined &&
     TERMINAL_STATUSES.has(tab.execution.status);
 
   const tableContent: m.Children[] = [];
-
-  // Heuristic — runner doesn't populate `queryResult.statementCount`.
-  const statementCount = queryResult.query
-    .split(';')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0).length;
-  if (statementCount > 1) {
-    tableContent.push(
-      m(Box, [
-        m(
-          Callout,
-          {icon: 'warning', intent: Intent.None},
-          'Only the results from the last statement are displayed.',
-        ),
-      ]),
-    );
-  }
 
   // Sync uses static columns; async fills in once schema arrives.
   let columns = queryResult.columns;
@@ -644,7 +609,7 @@ function renderResultsGrid(
           fillHeight: true,
         }),
       );
-      return wrapInTabs(tableContent);
+      return tableContent;
     }
   }
 
@@ -663,48 +628,13 @@ function renderResultsGrid(
         m(Spinner),
       ),
     );
-    return wrapInTabs(tableContent);
+    return tableContent;
   }
 
   tableContent.push(
     renderDataGrid(tab, tabsState, runner, columns, queryResult, dataSource),
   );
-  return wrapInTabs(tableContent);
-}
-
-function wrapInTabs(tableContent: m.Children): m.Children {
-  return m('.pf-query-page__results', [
-    m(Tabs, {
-      tabs: [
-        {key: 'table', title: 'Table', content: tableContent},
-        {
-          key: 'chart',
-          title: 'Chart',
-          content: m(
-            EmptyState,
-            {
-              title: 'Charts are coming soon',
-              icon: 'bar_chart',
-            },
-            m(
-              'div',
-              {
-                style: {
-                  marginTop: '8px',
-                  opacity: 0.7,
-                  maxWidth: '420px',
-                  textAlign: 'center',
-                  lineHeight: '1.4',
-                },
-              },
-              "Run a query that returns numeric columns and you'll be " +
-                'able to plot the results here.',
-            ),
-          ),
-        },
-      ],
-    }),
-  ]);
+  return tableContent;
 }
 
 function renderDataGrid(

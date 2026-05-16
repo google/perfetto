@@ -96,10 +96,10 @@ export interface BigTraceEditorTab {
   execution?: QueryExecution;
   // Stale-poll guard: bumped on each startPolling() call.
   pollGeneration: number;
-  // Error banner expand state. Undefined = use default (open when no rows
-  // were returned; collapsed when rows are present and the user can read
-  // them). Set once the user toggles, so their choice sticks across redraws.
-  errorBannerOpen?: boolean;
+  // Active results tab (Table / Error / Chart). Undefined = auto-select:
+  // Error when the query failed with no rows, Table otherwise. Set once
+  // the user clicks a tab, so their choice sticks across redraws.
+  resultsTabKey?: string;
 }
 
 // Persisted subset of BigTraceEditorTab. Transient state is rebuilt on load.

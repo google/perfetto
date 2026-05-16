@@ -76,7 +76,7 @@
 .pf-query-page__editor-tabs > .pf-tabs__tabs {
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--pf-color-border-secondary, #3c4048) transparent;
+  scrollbar-color: var(--pf-color-border-secondary) transparent;
 
   // Cap tab width so long names don't push the "+" off-screen.
   > .pf-tabs__tab {
@@ -110,25 +110,25 @@
 }
 
 .pf-query-history__item:has(.pf-status-success) .pf-query-history__item-meta {
-  border-left-color: #1e8e3e;
+  border-left-color: var(--pf-color-success);
 }
 
 .pf-query-history__item:has(.pf-status-failed) .pf-query-history__item-meta {
-  border-left-color: #d93025;
+  border-left-color: var(--pf-color-danger);
 }
 
 .pf-query-history__item:has(.pf-status-cancelled) .pf-query-history__item-meta {
-  border-left-color: #fbbc04;
+  border-left-color: var(--pf-color-warning);
 }
 
 .pf-query-history__item:has(.pf-status-in-progress)
   .pf-query-history__item-meta {
-  border-left-color: #1a73e8;
+  border-left-color: var(--pf-color-primary);
 }
 
 .pf-query-history__item:has(.pf-status-queued) .pf-query-history__item-meta,
 .pf-query-history__item:has(.pf-status-unknown) .pf-query-history__item-meta {
-  border-left-color: #9aa0a6;
+  border-left-color: var(--pf-color-text-muted);
 }
 
 // Dim 0-row entries so the eye skips to entries that have data.
@@ -141,7 +141,6 @@
 // right = [Traces n/m] [Rows N].
 .pf-query-page__status-bar {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--pf-color-border, #3c4048);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -185,7 +184,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #1e8e3e;
+  background-color: var(--pf-color-success);
   z-index: 10;
 }
 
@@ -194,10 +193,6 @@
   align-items: baseline;
   gap: 6px;
   font-variant-numeric: tabular-nums;
-}
-
-.pf-query-page__status-bar-stat-label {
-  text-transform: uppercase;
 }
 
 .pf-query-page__status-bar-stat--empty {
@@ -237,7 +232,7 @@
   width: 1px;
   align-self: stretch;
   margin: 4px 4px;
-  background-color: var(--pf-color-border-secondary, #3c4048);
+  background-color: var(--pf-color-border-secondary);
 }
 
 // Inline progress bar next to N/M in status-bar stats. width = done/total.
@@ -249,7 +244,7 @@
   height: 6px;
   margin-left: 6px;
   border-radius: 2px;
-  border: 1px solid var(--pf-color-border, #3c4048);
+  border: 1px solid var(--pf-color-border);
   background-color: rgba(255, 255, 255, 0.04);
   overflow: hidden;
   vertical-align: middle;
@@ -258,7 +253,7 @@
 .pf-query-page__inline-progress-fill {
   display: block;
   height: 100%;
-  background-color: var(--pf-color-accent, #1a73e8);
+  background-color: var(--pf-color-accent);
   transition: width 0.3s ease-out;
   will-change: width;
 }
@@ -297,12 +292,72 @@
   font-family: var(--pf-font-monospace, monospace);
   font-size: 11px;
   white-space: pre-wrap;
-  max-height: none;
-  overflow: visible;
 }
 
 .pf-query-history__item pre:hover::after {
   content: none !important;
+}
+
+// Clamped SQL preview: ~4 lines with a fade-out mask; click to expand.
+// Uses `pre.` prefix so specificity (0,1,1) matches `.pf-query-history__item pre`.
+pre.pf-query-history__item-query {
+  cursor: pointer;
+  position: relative;
+  max-height: 4.5em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+pre.pf-query-history__item-query.pf-query-history__item-query--expanded {
+  // Cap so a 1000-line query doesn't blow out the sidebar layout.
+  max-height: 50vh;
+  overflow: auto;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+// Standalone frame for the delete-confirm modal (no .pf-query-history__item parent).
+pre.pf-query-history__item-query--standalone {
+  font-family: var(--pf-font-monospace, monospace);
+  background: var(--pf-color-void);
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  white-space: pre-wrap;
+  cursor: pointer;
+  position: relative;
+  max-height: 4.5em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+pre.pf-query-history__item-query--standalone.pf-query-history__item-query--expanded {
+  max-height: 50vh;
+  overflow: auto;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.pf-query-history__item-query--empty {
+  font-style: italic;
+  opacity: 0.5;
+}
+
+.pf-query-page__error-tab-title {
+  color: var(--pf-color-danger);
+}
+
+// Error tab content: scrollable pre with the full error text.
+.pf-query-page__error-content {
+  overflow: auto;
+  max-height: 100%;
+  padding: 12px;
+  margin: 0;
+  font-size: 0.85em;
+  white-space: pre-wrap;
 }
 
 // Propagate height down so DataGrid `fillHeight` has a parent to fill
@@ -326,81 +381,25 @@
   min-height: 0;
 }
 
-// Error banner — column-stack a single headline row (icon + title + toggle)
-// on top of an optional hint and the collapsible <pre>. Override the
-// QueryPage default (row flex of icon + body) so the icon's vertical
-// centering is scoped to the headline row, not the whole expanded banner.
-.pf-results-table__error {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-}
-
-.pf-results-table__error-headline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pf-results-table__error-title {
-  font-weight: 600;
-}
-
-.pf-results-table__error-hint {
-  font-size: var(--pf-font-size-s);
-  opacity: 0.8;
-}
-
-// Plain text-button look: matches the prior <summary> styling so the toggle
-// reads as an affordance without growing into a chunky button. Same body
-// font size as the title next to it.
-.pf-results-table__error-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  opacity: 0.7;
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-}
-
-.pf-results-table__error-toggle:hover {
-  opacity: 1;
-}
-
-// Match the toggle text size so the chevron sits flush with "Show / Hide".
-.pf-results-table__error-toggle-icon {
-  font-size: var(--pf-font-size-m);
-  line-height: 1;
-}
-
-// Force the <pre> onto its own full-width row below the title+toggle.
-
 .pf-status-success {
-  color: #1e8e3e;
+  color: var(--pf-color-success);
 }
 
 .pf-status-failed {
-  color: #d93025;
+  color: var(--pf-color-danger);
 }
 
 .pf-status-cancelled {
-  color: #fbbc04;
+  color: var(--pf-color-warning);
 }
 
 .pf-status-in-progress {
-  color: #1a73e8;
+  color: var(--pf-color-primary);
 }
 
 .pf-status-queued,
 .pf-status-unknown {
-  color: #9aa0a6;
+  color: var(--pf-color-text-muted);
   font-style: italic;
 }
 
@@ -475,7 +474,7 @@
 }
 
 .pf-query-history__item-table-link--active {
-  color: var(--pf-color-primary, #1a73e8);
+  color: var(--pf-color-primary);
   pointer-events: auto;
   text-decoration: underline;
 }
