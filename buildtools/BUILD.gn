@@ -1683,6 +1683,7 @@ config("sqlite_config") {
     "-DSQLITE_ENABLE_JSON1",
     "-DSQLITE_ENABLE_MATH_FUNCTIONS",
   ]
+  cflags += [ "-Wno-incompatible-pointer-types-discards-qualifiers" ]
   if (is_clang && is_win) {
     # SQLite uses __int64 which clang complains about unless
     # we specify this flag.

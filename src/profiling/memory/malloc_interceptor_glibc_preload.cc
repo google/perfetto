@@ -103,11 +103,13 @@ void free(void* ptr) {
 // https://elixir.bootlin.com/glibc/glibc-2.43/source/malloc/malloc.c#L3550.
 // Calling free() from here resolves back to our own free() override above
 // via the LD_PRELOAD chain, so the deallocation is still reported.
-void free_sized(void* ptr, size_t /*size*/) {
+void free_sized(void* ptr, size_t /*size*/) noexcept {
   free(ptr);
 }
 
-void free_aligned_sized(void* ptr, size_t /*alignment*/, size_t /*size*/) {
+void free_aligned_sized(void* ptr,
+                        size_t /*alignment*/,
+                        size_t /*size*/) noexcept {
   free(ptr);
 }
 
