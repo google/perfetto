@@ -150,12 +150,15 @@ group("lite") {
 }
 
 # Aggregator that produces the :source_set sub-target (union of .proto
-# files) and the :descriptor target. The descriptor includes the full
-# transitive proto graph, so it depends on :lite_only_@TYPE@ which has
-# every source.
+# files) and the :descriptor target. Routed through :non_minimal_@TYPE@
+# (which transitively reaches :minimal_@TYPE@'s sources via its own
+# deps) so :source_set picks up every .proto on disk for the descriptor
+# without exposing :lite_only_@TYPE@'s overlapping-source library to
+# the Bazel translator (Bazel proto_library rejects two libraries
+# claiming the same .proto).
 perfetto_proto_library("@TYPE@") {
   proto_generators = []
-  deps = [ ":lite_only_@TYPE@" ]
+  deps = [ ":non_minimal_@TYPE@" ]
   sources = []
   generate_descriptor = "config.descriptor"
   generator_visibility = [ "../../../src/proto_utils:gen_cc_config_descriptor" ]

@@ -235,12 +235,19 @@ group("non_minimal_source_set") {
 }
 
 # Aggregator that produces the :source_set sub-target (union of .proto
-# files across every split half) and the :descriptor target. The
-# descriptor includes the full transitive proto graph, so it depends on
-# :lite_only_@TYPE@ which has every source.
+# files across the non-overlapping halves) and the :descriptor target.
+# Routed through the explicit core + extras libraries (not :lite_only or
+# :non_minimal_full_cpp_only) because those duplicate sources across
+# generators, and the Bazel translator rejects two proto_library
+# targets claiming the same .proto. protoc-with-descriptor finds
+# imports via proto_in_dir, so source_set transitive membership doesn't
+# need to cover lite/cpp-only deps explicitly.
 perfetto_proto_library("@TYPE@") {
   proto_generators = []
-  deps = [ ":lite_only_@TYPE@" ]
+  deps = [
+    ":non_minimal_core_@TYPE@",
+    ":non_minimal_extras_@TYPE@",
+  ]
   sources = []
   generate_descriptor = "trace.descriptor"
   generator_visibility = [
