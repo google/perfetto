@@ -7227,6 +7227,8 @@ perfetto_proto_library(
         "protos/perfetto/common/commit_data_request.proto",
         "protos/perfetto/common/data_source_descriptor.proto",
         "protos/perfetto/common/descriptor.proto",
+        "protos/perfetto/common/ftrace_descriptor.proto",
+        "protos/perfetto/common/gpu_counter_descriptor.proto",
         "protos/perfetto/common/interceptor_descriptor.proto",
         "protos/perfetto/common/observable_events.proto",
         "protos/perfetto/common/system_info.proto",
@@ -7266,8 +7268,6 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/common/android_energy_consumer_descriptor.proto",
         "protos/perfetto/common/android_log_constants.proto",
-        "protos/perfetto/common/ftrace_descriptor.proto",
-        "protos/perfetto/common/gpu_counter_descriptor.proto",
         "protos/perfetto/common/perf_events.proto",
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",

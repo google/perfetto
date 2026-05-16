@@ -47,6 +47,17 @@ minimal_proto_sources = [
   "commit_data_request.proto",
   "data_source_descriptor.proto",
   "descriptor.proto",
+
+  # ftrace_descriptor and gpu_counter_descriptor are imported by
+  # data_source_descriptor.proto as [lazy = true] fields. cppgen elides
+  # the corresponding #include via lazy-skip, but Bazel's proto_library
+  # strict --direct_dependencies check rejects the import unless the
+  # files are reachable through srcs / direct deps. Putting them in
+  # the minimal sibling here means the C SDK pays ~24KB of .gen.cc
+  # source for two protos that runtime never accesses — small relative
+  # to the rest of the stack's ~6MB savings.
+  "ftrace_descriptor.proto",
+  "gpu_counter_descriptor.proto",
   "interceptor_descriptor.proto",
   "observable_events.proto",
   "system_info.proto",
@@ -59,8 +70,6 @@ minimal_proto_sources = [
 non_minimal_proto_sources = [
   "android_energy_consumer_descriptor.proto",
   "android_log_constants.proto",
-  "ftrace_descriptor.proto",  # imported by data_source_descriptor (lazy)
-  "gpu_counter_descriptor.proto",  # imported by data_source_descriptor (lazy)
   "perf_events.proto",
   "protolog_common.proto",
   "sys_stats_counters.proto",  # only referenced by sys_stats config + trace
