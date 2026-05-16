@@ -58,8 +58,8 @@ extern "C" {
 // Prototypes for the C23 size-aware deallocation entry points. <stdlib.h>
 // only declares them on glibc >= 2.41 and we may compile against older SDK
 // headers, so we declare them ourselves.
-void free_sized(void*, size_t);
-void free_aligned_sized(void*, size_t, size_t);
+void free_sized(void*, size_t) noexcept;
+void free_aligned_sized(void*, size_t, size_t) noexcept;
 
 // These are exported by GLibc to be used by functions overwriting malloc
 // to call back to the real implementation. Note: glibc does not export
@@ -103,11 +103,13 @@ void free(void* ptr) {
 // https://elixir.bootlin.com/glibc/glibc-2.43/source/malloc/malloc.c#L3550.
 // Calling free() from here resolves back to our own free() override above
 // via the LD_PRELOAD chain, so the deallocation is still reported.
-void free_sized(void* ptr, size_t /*size*/) {
+void free_sized(void* ptr, size_t /*size*/) noexcept {
   free(ptr);
 }
 
-void free_aligned_sized(void* ptr, size_t /*alignment*/, size_t /*size*/) {
+void free_aligned_sized(void* ptr,
+                        size_t /*alignment*/,
+                        size_t /*size*/) noexcept {
   free(ptr);
 }
 
