@@ -1004,7 +1004,12 @@ def gen_protozero_group_target(gn: GnParser):
   deps = set()
   for ss in [
       '//protos/perfetto/trace:minimal_zero',
-      '//protos/perfetto/trace:non_minimal_zero',
+      # :non_minimal_zero is a GN group aggregating the two halves
+      # below; Bazel doesn't translate groups, so list the underlying
+      # perfetto_proto_library targets directly. See
+      # protos/perfetto/trace/BUILD.gn for the split rationale.
+      '//protos/perfetto/trace:non_minimal_core_zero',
+      '//protos/perfetto/trace:non_minimal_extras_zero',
   ]:
     deps.add(ss)
     deps.update(t.name for t in gn.get_target(ss).transitive_proto_deps())
