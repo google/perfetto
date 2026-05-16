@@ -81,6 +81,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -184,6 +186,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -380,6 +384,8 @@ cc_library_shared {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -491,6 +497,8 @@ cc_library_shared {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -615,6 +623,8 @@ cc_library_shared {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -744,6 +754,8 @@ cc_library_shared {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -907,6 +919,8 @@ cc_library {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -1011,6 +1025,8 @@ cc_library {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -1125,6 +1141,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -1230,6 +1248,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -1296,6 +1316,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -1480,6 +1502,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -1574,6 +1598,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -1853,6 +1879,10 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_generic_kernel_cpp_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_cpp_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
@@ -2016,6 +2046,10 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_generic_kernel_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
@@ -2103,6 +2137,10 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_generic_kernel_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
@@ -2223,6 +2261,10 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_generic_kernel_cpp_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_cpp_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
@@ -2377,6 +2419,10 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_generic_kernel_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
@@ -2464,6 +2510,10 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_generic_kernel_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
@@ -2852,7 +2902,11 @@ cc_test {
         ":perfetto_protos_perfetto_trace_generic_kernel_lite_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
@@ -3264,7 +3318,11 @@ cc_test {
         "perfetto_protos_perfetto_trace_generic_kernel_lite_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
@@ -3655,9 +3713,11 @@ filegroup {
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
         "protos/perfetto/trace/generic_kernel/generic_task.proto",
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+        "protos/perfetto/trace/gpu/gpu_interned_data.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
         "protos/perfetto/trace/gpu/gpu_mem_event.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
         "protos/perfetto/trace/gpu/vulkan_api_event.proto",
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
@@ -8905,9 +8965,11 @@ genrule {
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
         "protos/perfetto/trace/generic_kernel/generic_task.proto",
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+        "protos/perfetto/trace/gpu/gpu_interned_data.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
         "protos/perfetto/trace/gpu/gpu_mem_event.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
         "protos/perfetto/trace/gpu/vulkan_api_event.proto",
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
@@ -10345,6 +10407,70 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/trace/gpu:gpu_interned_data_cpp
+filegroup {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp",
+    srcs: [
+        "protos/perfetto/trace/gpu/gpu_interned_data.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_interned_data_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_common_cpp",
+        ":perfetto_protos_perfetto_protovm_cpp",
+        ":perfetto_protos_perfetto_trace_android_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_common_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_cpp",
+        ":perfetto_protos_perfetto_trace_chrome_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp",
+        ":perfetto_protos_perfetto_trace_interned_data_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_track_event_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_interned_data.gen.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_interned_data_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_common_cpp",
+        ":perfetto_protos_perfetto_protovm_cpp",
+        ":perfetto_protos_perfetto_trace_android_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_common_cpp",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_cpp",
+        ":perfetto_protos_perfetto_trace_chrome_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp",
+        ":perfetto_protos_perfetto_trace_interned_data_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_track_event_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_interned_data.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/trace/gpu:gpu_interned_data_descriptor
 genrule {
     name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_descriptor",
@@ -10451,6 +10577,68 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/trace/gpu:gpu_interned_data_lite
+filegroup {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite",
+    srcs: [
+        "protos/perfetto/trace/gpu/gpu_interned_data.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_interned_data_lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_common_lite",
+        ":perfetto_protos_perfetto_protovm_lite",
+        ":perfetto_protos_perfetto_trace_android_lite",
+        ":perfetto_protos_perfetto_trace_android_winscope_common_lite",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_lite",
+        ":perfetto_protos_perfetto_trace_chrome_lite",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_gpu_lite",
+        ":perfetto_protos_perfetto_trace_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_profiling_lite",
+        ":perfetto_protos_perfetto_trace_track_event_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_interned_data.pb.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_interned_data_lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_common_lite",
+        ":perfetto_protos_perfetto_protovm_lite",
+        ":perfetto_protos_perfetto_trace_android_lite",
+        ":perfetto_protos_perfetto_trace_android_winscope_common_lite",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_lite",
+        ":perfetto_protos_perfetto_trace_chrome_lite",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_gpu_lite",
+        ":perfetto_protos_perfetto_trace_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_profiling_lite",
+        ":perfetto_protos_perfetto_trace_track_event_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_interned_data.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/trace/gpu:gpu_interned_data_zero
 filegroup {
     name: "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero",
@@ -10515,6 +10703,52 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_cpp
+filegroup {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp",
+    srcs: [
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp",
+        ":perfetto_protos_perfetto_trace_track_event_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_track_event.gen.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp",
+        ":perfetto_protos_perfetto_trace_track_event_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_track_event.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/trace/gpu:gpu_track_event_descriptor
 genrule {
     name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor",
@@ -10554,6 +10788,50 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
     out: [
         "perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor.bin",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_lite
+filegroup {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite",
+    srcs: [
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite",
+        ":perfetto_protos_perfetto_trace_track_event_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_track_event.pb.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite",
+        ":perfetto_protos_perfetto_trace_track_event_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_track_event.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
     ],
 }
 
@@ -11222,6 +11500,8 @@ genrule {
         ":perfetto_protos_perfetto_trace_ftrace_cpp",
         ":perfetto_protos_perfetto_trace_generic_kernel_cpp",
         ":perfetto_protos_perfetto_trace_gpu_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp",
         ":perfetto_protos_perfetto_trace_interned_data_cpp",
         ":perfetto_protos_perfetto_trace_minimal_cpp",
         ":perfetto_protos_perfetto_trace_non_minimal_cpp",
@@ -11286,6 +11566,8 @@ genrule {
         ":perfetto_protos_perfetto_trace_ftrace_cpp",
         ":perfetto_protos_perfetto_trace_generic_kernel_cpp",
         ":perfetto_protos_perfetto_trace_gpu_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp",
         ":perfetto_protos_perfetto_trace_interned_data_cpp",
         ":perfetto_protos_perfetto_trace_minimal_cpp",
         ":perfetto_protos_perfetto_trace_non_minimal_cpp",
@@ -11370,6 +11652,8 @@ genrule {
         ":perfetto_protos_perfetto_trace_filesystem_lite",
         ":perfetto_protos_perfetto_trace_ftrace_lite",
         ":perfetto_protos_perfetto_trace_generic_kernel_lite",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite",
         ":perfetto_protos_perfetto_trace_gpu_lite",
         ":perfetto_protos_perfetto_trace_interned_data_lite",
         ":perfetto_protos_perfetto_trace_minimal_lite",
@@ -11433,6 +11717,8 @@ genrule {
         ":perfetto_protos_perfetto_trace_filesystem_lite",
         ":perfetto_protos_perfetto_trace_ftrace_lite",
         ":perfetto_protos_perfetto_trace_generic_kernel_lite",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite",
         ":perfetto_protos_perfetto_trace_gpu_lite",
         ":perfetto_protos_perfetto_trace_interned_data_lite",
         ":perfetto_protos_perfetto_trace_minimal_lite",
@@ -11517,6 +11803,8 @@ genrule {
         ":perfetto_protos_perfetto_trace_filesystem_zero",
         ":perfetto_protos_perfetto_trace_ftrace_zero",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero",
         ":perfetto_protos_perfetto_trace_gpu_zero",
         ":perfetto_protos_perfetto_trace_interned_data_zero",
         ":perfetto_protos_perfetto_trace_minimal_zero",
@@ -11581,6 +11869,8 @@ genrule {
         ":perfetto_protos_perfetto_trace_filesystem_zero",
         ":perfetto_protos_perfetto_trace_ftrace_zero",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero",
         ":perfetto_protos_perfetto_trace_gpu_zero",
         ":perfetto_protos_perfetto_trace_interned_data_zero",
         ":perfetto_protos_perfetto_trace_minimal_zero",
@@ -20739,9 +21029,11 @@ java_library {
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
         "protos/perfetto/trace/generic_kernel/generic_task.proto",
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+        "protos/perfetto/trace/gpu/gpu_interned_data.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
         "protos/perfetto/trace/gpu/gpu_mem_event.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
         "protos/perfetto/trace/gpu/vulkan_api_event.proto",
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
@@ -20888,6 +21180,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_filesystem_lite_gen",
         ":perfetto_protos_perfetto_trace_ftrace_lite_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_lite_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_lite_gen",
         ":perfetto_protos_perfetto_trace_interned_data_lite_gen",
         ":perfetto_protos_perfetto_trace_minimal_lite_gen",
@@ -20935,6 +21229,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_lite_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_lite_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_lite_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_lite_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_lite_gen_headers",
@@ -20977,6 +21273,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_lite_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_lite_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_lite_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_lite_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_lite_gen_headers",
@@ -21141,7 +21439,11 @@ cc_test {
         ":perfetto_protos_perfetto_trace_generic_kernel_lite_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
@@ -21670,7 +21972,11 @@ cc_test {
         "perfetto_protos_perfetto_trace_generic_kernel_lite_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
@@ -21893,6 +22199,10 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_generic_kernel_cpp_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_cpp_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
@@ -22047,6 +22357,10 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_generic_kernel_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
@@ -22134,6 +22448,10 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_generic_kernel_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
@@ -22811,6 +23129,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -22865,6 +23185,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -23359,6 +23681,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -23479,6 +23803,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -23594,6 +23920,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -23681,6 +24009,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -23812,6 +24142,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -23902,6 +24234,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",

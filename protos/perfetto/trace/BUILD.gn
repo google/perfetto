@@ -90,6 +90,8 @@ perfetto_proto_library("non_minimal_@TYPE@") {
     "ftrace:@TYPE@",
     "generic_kernel:@TYPE@",
     "gpu:@TYPE@",
+    "gpu:gpu_interned_data_@TYPE@",
+    "gpu:gpu_track_event_@TYPE@",
     "interned_data:@TYPE@",
     "perfetto:@TYPE@",
     "power:@TYPE@",
