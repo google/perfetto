@@ -258,6 +258,36 @@ target_overrides = {
     }
 }
 
+# Per-proto-target Bazel-only deps appended to the auto-generated
+# `:protos_perfetto_<dir>_protos` source-set Bazel labels. Bazel's
+# proto_library descriptor generation is strict about imports being
+# reachable through srcs / direct deps (no project-wide proto_path
+# fallback), but the GN side intentionally drops those edges to keep
+# the C SDK closure slim — protozero forward-declares the types and
+# cppgen honors [lazy=true]. The deps below restore the imports for
+# Bazel only; gen_amalgamated walks the GN graph and so doesn't pull
+# them into the amalgamated SDK source.
+proto_target_extra_bazel_deps = {
+    '//protos/perfetto/trace/interned_data:source_set': [
+        ':protos_perfetto_trace_android_protos',
+        ':protos_perfetto_trace_chrome_protos',
+        ':protos_perfetto_trace_gpu_protos',
+        ':protos_perfetto_trace_profiling_protos',
+    ],
+    '//protos/perfetto/config:minimal_source_set': [
+        ':protos_perfetto_config_android_protos',
+        ':protos_perfetto_config_ftrace_protos',
+        ':protos_perfetto_config_gpu_protos',
+        ':protos_perfetto_config_inode_file_protos',
+        ':protos_perfetto_config_power_protos',
+        ':protos_perfetto_config_process_stats_protos',
+        ':protos_perfetto_config_profiling_protos',
+        ':protos_perfetto_config_qnx_protos',
+        ':protos_perfetto_config_statsd_protos',
+        ':protos_perfetto_config_sys_stats_protos',
+    ],
+}
+
 # Defines required for Bazel.
 bazel_required_defines = ["PERFETTO_SHLIB_SDK_IMPLEMENTATION"]
 
@@ -568,10 +598,13 @@ def gen_proto_label(target: GnParser.Target):
     assert (all(x.startswith('//') for x in target.sources))
     assert (all(x.endswith('.proto') for x in target.sources))
     sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
-    sources_label.deps = sorted([
-        ':' + get_bazel_proto_sources_label(x.name)
-        for x in target.transitive_proto_deps()
-    ])
+    extra_bazel_deps = proto_target_extra_bazel_deps.get(target.name, [])
+    sources_label.deps = sorted(
+        list(
+            set([
+                ':' + get_bazel_proto_sources_label(x.name)
+                for x in target.transitive_proto_deps()
+            ] + extra_bazel_deps)))
 
     # In Bazel, proto_paths are not a supported concept becauase strong
     # dependency checking is enabled. Instead, we need to depend on the target
