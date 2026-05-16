@@ -58,8 +58,8 @@ extern "C" {
 // Prototypes for the C23 size-aware deallocation entry points. <stdlib.h>
 // only declares them on glibc >= 2.41 and we may compile against older SDK
 // headers, so we declare them ourselves.
-void free_sized(void*, size_t);
-void free_aligned_sized(void*, size_t, size_t);
+void free_sized(void*, size_t) noexcept;
+void free_aligned_sized(void*, size_t, size_t) noexcept;
 
 // These are exported by GLibc to be used by functions overwriting malloc
 // to call back to the real implementation. Note: glibc does not export
