@@ -43,12 +43,14 @@ source_set("core_minimal") {
   sources = _core_headers
 }
 
-source_set("core") {
+# Thin wrapper: the .h sources live in :core_minimal; this target just
+# adds the full-closure proto / include surface that consumers
+# (trace_processor, perfetto_cmd, etc.) expect transitively from this
+# header set. Modeled as `group` rather than `source_set` so gen_bazel
+# doesn't emit an empty filegroup.
+group("core") {
   public_deps = [
     ":core_minimal",
-
-    # Full proto / include surface that consumers (trace_processor,
-    # perfetto_cmd, etc.) expect transitively from this header set.
     "../../../../../protos/perfetto/common:cpp",
     "../../../tracing/core",
   ]

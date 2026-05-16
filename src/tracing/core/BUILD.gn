@@ -51,10 +51,13 @@ source_set("core_minimal") {
 
 # Core tracing library, platform independent, no IPC layer, no service.
 # The .cc sources live in :core_minimal so they're only compiled once;
-# this target adds the full-closure proto / include deps on top so
-# consumers that need the full surface (trace_processor, perfetto_cmd,
-# etc.) still see them transitively.
-source_set("core") {
+# this target is a thin group that wraps :core_minimal and adds the
+# full-closure proto / include deps on top, so consumers that need the
+# full surface (trace_processor, perfetto_cmd, etc.) still see them
+# transitively. Using `group` rather than `source_set` so gen_bazel
+# doesn't translate it into an empty filegroup (which trips Bazel's
+# cc_library srcs check).
+group("core") {
   public_deps = [
     ":core_minimal",
     "../../../include/perfetto/ext/tracing/core",

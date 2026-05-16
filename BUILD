@@ -996,7 +996,6 @@ perfetto_cc_binary(
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
         ":include_perfetto_tracing_core_forward_decls",
-        ":include_perfetto_tracing_tracing",
         ":include_perfetto_tracing_tracing_minimal",
         "test/client_api_example.cc",
     ],
@@ -1059,12 +1058,10 @@ perfetto_cc_library(
         ":src_traced_service_builtin_producer",
         ":src_traced_service_service",
         ":src_tracing_common",
-        ":src_tracing_core_core",
         ":src_tracing_core_core_minimal",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_service_service",
-        ":src_tracing_service_service",
         ":src_tracing_service_service_minimal",
         ":src_tracing_service_zlib_compressor",
     ] + select({
@@ -1110,17 +1107,14 @@ perfetto_cc_library(
         ":include_perfetto_ext_protozero_protozero",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_ext_traced_traced",
-        ":include_perfetto_ext_tracing_core_core",
         ":include_perfetto_ext_tracing_core_core_minimal",
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
-        ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_core_minimal",
         ":include_perfetto_tracing_core_forward_decls",
-        ":include_perfetto_tracing_tracing",
         ":include_perfetto_tracing_tracing_minimal",
     ],
     deps = [
@@ -1409,11 +1403,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //include/perfetto/ext/tracing/core:core
-perfetto_filegroup(
-    name = "include_perfetto_ext_tracing_core_core",
-)
-
 # GN target: //include/perfetto/ext/tracing/core:core_minimal
 perfetto_filegroup(
     name = "include_perfetto_ext_tracing_core_core_minimal",
@@ -1603,11 +1592,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //include/perfetto/tracing/core:core
-perfetto_filegroup(
-    name = "include_perfetto_tracing_core_core",
-)
-
 # GN target: //include/perfetto/tracing/core:core_minimal
 perfetto_filegroup(
     name = "include_perfetto_tracing_core_core_minimal",
@@ -1628,11 +1612,6 @@ perfetto_filegroup(
     srcs = [
         "include/perfetto/tracing/core/forward_decls.h",
     ],
-)
-
-# GN target: //include/perfetto/tracing:tracing
-perfetto_filegroup(
-    name = "include_perfetto_tracing_tracing",
 )
 
 # GN target: //include/perfetto/tracing:tracing_minimal
@@ -6187,11 +6166,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/tracing/core:core
-perfetto_filegroup(
-    name = "src_tracing_core_core",
-)
-
 # GN target: //src/tracing/core:core_minimal
 perfetto_filegroup(
     name = "src_tracing_core_core_minimal",
@@ -6265,11 +6239,6 @@ perfetto_filegroup(
     srcs = [
         "src/tracing/ipc/default_socket.cc",
     ],
-)
-
-# GN target: //src/tracing/service:service
-perfetto_filegroup(
-    name = "src_tracing_service_service",
 )
 
 # GN target: //src/tracing/service:service_minimal
@@ -9605,7 +9574,6 @@ perfetto_cc_library(
         ":src_tracing_client_api_without_backends",
         ":src_tracing_client_api_without_backends_minimal",
         ":src_tracing_common",
-        ":src_tracing_core_core",
         ":src_tracing_core_core_minimal",
         ":src_tracing_in_process_backend",
         ":src_tracing_ipc_common",
@@ -9620,17 +9588,14 @@ perfetto_cc_library(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_ipc_ipc",
-        ":include_perfetto_ext_tracing_core_core",
         ":include_perfetto_ext_tracing_core_core_minimal",
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
-        ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_core_minimal",
         ":include_perfetto_tracing_core_forward_decls",
-        ":include_perfetto_tracing_tracing",
         ":include_perfetto_tracing_tracing_minimal",
         "include/perfetto/tracing.h",
     ],

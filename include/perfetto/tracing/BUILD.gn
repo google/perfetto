@@ -78,7 +78,12 @@ source_set("tracing_minimal") {
   sources = _tracing_headers
 }
 
-source_set("tracing") {
+# Thin wrapper: the .h sources live in :tracing_minimal; this target
+# just adds the full-closure proto deps for non-C-SDK consumers.
+# Modeled as `group` rather than `source_set` so gen_bazel doesn't
+# emit an empty perfetto_filegroup (which Bazel's cc_library srcs
+# check rejects).
+group("tracing") {
   public_deps = [
     ":tracing_minimal",
     "../../../protos/perfetto/common:cpp",

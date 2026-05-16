@@ -93,13 +93,12 @@ source_set("service_minimal") {
 # .cc sources are only compiled once, and adds the full-closure proto/
 # include deps for non-C-SDK consumers (trace_processor, perfetto_cmd,
 # tests, etc.) that may reach per-data-source config types
-# transitively.
-source_set("service") {
+# transitively. Modeled as `group` rather than `source_set` so
+# gen_bazel doesn't emit an empty filegroup.
+group("service") {
   public_deps = [
     ":service_minimal",
     "../../../include/perfetto/ext/tracing/core",
-  ]
-  deps = [
     "../../../include/perfetto/tracing",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/config:zero",
