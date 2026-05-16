@@ -8737,12 +8737,12 @@ message FileIoPathOperationEtwEvent {
 }
 
 // Proto definition based on the `StackWalk_Event` class definition. See
-// `Callstack` in `perfetto/protos/perfetto/trace/track_event/track_event.proto`
-// for context on what is contained in it.
+// `Callstack` in `protos/perfetto/trace/profiling/profile_common.proto` for
+// context on its contents.
 message StackWalkEtwEvent {
-  optional string trigger = 1;
-  optional uint64 callstack_iid = 2;
+  optional uint64 callstack_iid = 1;
 }
+
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
