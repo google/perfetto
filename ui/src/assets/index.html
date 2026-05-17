@@ -139,6 +139,8 @@ Technical Information:
       script.src = version + '/frontend_bundle.js';
       script.onerror = () => errHandler(`Failed to load ${script.src}`);
       document.head.append(script);
+
+      window.__GLOBAL_ASSET_ROOT__ = version + '/';
     })();
   </script>
 </body>

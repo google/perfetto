@@ -72,6 +72,7 @@ export function fetchWithProgress(
  *   'https://ui.perfetto.dev/v46.0-a2082649b/'.
  */
 export function getServingRoot() {
+  return window.__GLOBAL_ASSET_ROOT__ || '';
   // import.meta.url is the URL of *this* module file after bundling, which
   // sits next to frontend_bundle.js in the same /v1.2.3/ directory. Strip the
   // filename to get the serving root.
