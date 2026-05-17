@@ -22,11 +22,14 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include "perfetto/ext/base/flat_hash_map.h"
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -147,7 +150,7 @@ class TraceProcessorImpl : public TraceProcessor,
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
-    const std::vector<SqlPackage>& packages;
+    const std::deque<SqlPackage>& packages;
     std::vector<metrics::SqlMetricFile>& sql_metrics;
     const DescriptorPool* metrics_descriptor_pool;
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path;
@@ -178,7 +181,13 @@ class TraceProcessorImpl : public TraceProcessor,
   DescriptorPool metrics_descriptor_pool_;
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
-  std::vector<SqlPackage> registered_sql_packages_;
+  // deque (not vector) for stable element addresses: RegisteredPackage
+  // holds string_views into these std::strings.
+  std::deque<SqlPackage> registered_sql_packages_;
+  // Stdlib package names, used by RegisterSqlPackage for clash detection.
+  // Bundled stdlib bodies live in rodata and are loaded directly in
+  // InitPerfettoSqlConnection.
+  base::FlatHashMap<std::string, bool> stdlib_package_names_;
 
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;

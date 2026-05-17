@@ -233,10 +233,19 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
+// Module bodies are string_views into the strings owned by |package|: the
+// caller must keep |package| alive for the lifetime of the result.
 base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
     const SqlPackage& package) {
   const std::string& name = package.name;
   sql_modules::RegisteredPackage new_package;
+  // Pre-sized to the next pow2 above 2*size to fit FlatHashMap's <50% load
+  // factor without mid-loop rehash.
+  size_t target = package.modules.size() * 2;
+  size_t pow2 = 1;
+  while (pow2 < target)
+    pow2 <<= 1;
+  new_package.modules = base::FlatHashMap<std::string, std::string_view>(pow2);
   for (auto const& module_name_and_sql : package.modules) {
     const std::string& module_name = module_name_and_sql.first;
     // Module name must start with package name as prefix (and be longer)
@@ -246,7 +255,8 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
           "Module name '%s' must start with package name '%s.' as prefix.",
           module_name.c_str(), name.c_str());
     }
-    new_package.modules.Insert(module_name, module_name_and_sql.second);
+    new_package.modules.Insert(module_name,
+                               std::string_view(module_name_and_sql.second));
   }
   return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
@@ -274,17 +284,6 @@ void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
     PERFETTO_ELOG("Error registering table: %s", insert_error);
     sqlite3_free(insert_error);
   }
-}
-
-sql_modules::NameToPackage GetStdlibPackages() {
-  sql_modules::NameToPackage packages;
-  for (const auto& file_to_sql : SqlBundle(stdlib::kStdlib)) {
-    std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
-    std::string package_name = sql_modules::GetPackageName(module_name);
-    packages.Insert(package_name, {})
-        .first->emplace_back(module_name, file_to_sql.sql_view());
-  }
-  return packages;
 }
 
 // Aggregates GetBoundsMutationCount across all plugins.
@@ -513,15 +512,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     PERFETTO_CHECK(status.ok());
   }
 
-  // Register stdlib packages.
-  auto packages = GetStdlibPackages();
-  for (auto package = packages.GetIterator(); package; ++package) {
-    registered_sql_packages_.emplace_back<SqlPackage>({
-        /*name=*/package.key(),
-        /*modules=*/package.value(),
-        /*allow_override=*/false,
-    });
-  }
+  // Stdlib packages are streamed straight from SqlBundle(kStdlib) into the
+  // connection by InitPerfettoSqlConnection — never copied into
+  // |registered_sql_packages_|. The stdlib-name clash cache used by
+  // RegisterSqlPackage is built lazily on first call.
 
   // Compute initial trace bounds before any tables are finalized.
   cached_trace_bounds_ = AggregatePluginTimestampBounds(plugins_);
@@ -666,7 +660,35 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   const std::string& name = sql_package.name;
 
-  // Check for prefix clashes with existing packages
+  // Lazy: bundled stdlib bodies aren't in registered_sql_packages_, so
+  // build a name-only cache here and only when needed.
+  if (stdlib_package_names_.size() == 0) {
+    for (const auto& file_to_sql : SqlBundle(stdlib::kStdlib)) {
+      std::string include_key = sql_modules::GetIncludeKey(file_to_sql.path);
+      stdlib_package_names_.Insert(sql_modules::GetPackageName(include_key),
+                                   true);
+    }
+  }
+
+  // Check for prefix clashes with bundled stdlib packages.
+  for (auto it = stdlib_package_names_.GetIterator(); it; ++it) {
+    const std::string& stdlib_name = it.key();
+    if (name == stdlib_name) {
+      return base::ErrStatus(
+          "Package '%s' clashes with a bundled stdlib package of the same "
+          "name and cannot be overridden via RegisterSqlPackage.",
+          name.c_str());
+    }
+    if (sql_modules::IsPackagePrefixOf(name, stdlib_name) ||
+        sql_modules::IsPackagePrefixOf(stdlib_name, name)) {
+      return base::ErrStatus(
+          "Package '%s' clashes with bundled stdlib package '%s'. "
+          "Package names cannot be prefixes of each other.",
+          name.c_str(), stdlib_name.c_str());
+    }
+  }
+
+  // Check for clashes with previously-registered user packages.
   std::optional<size_t> same_package_idx;
   for (size_t i = 0; i < registered_sql_packages_.size(); ++i) {
     const std::string& existing_name = registered_sql_packages_[i].name;
@@ -676,7 +698,6 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
         sql_modules::IsPackagePrefixOf(existing_name, name);
 
     if (is_same_package) {
-      // Same package name: only allow if allow_override is set
       if (!sql_package.allow_override) {
         return base::ErrStatus(
             "Package '%s' is already registered. Choose a different name.\n"
@@ -687,7 +708,6 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
       }
       same_package_idx = i;
     } else if (has_prefix_clash) {
-      // Prefix clash with DIFFERENT package: always fail
       return base::ErrStatus(
           "Package '%s' clashes with existing package '%s'. "
           "Package names cannot be prefixes of each other.",
@@ -695,18 +715,19 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
     }
   }
 
-  ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
-
-  // If overriding same package, remove old one first
   if (same_package_idx.has_value()) {
     registered_sql_packages_.erase(registered_sql_packages_.begin() +
                                    static_cast<ptrdiff_t>(*same_package_idx));
     engine_->ErasePackage(name);
   }
 
-  // Save the name before moving sql_package
+  // Stable storage must happen first: ToRegisteredPackage builds string_views
+  // into the SqlPackage's std::strings; std::deque keeps those addresses
+  // valid across later appends.
   std::string pkg_name = name;
   registered_sql_packages_.emplace_back(std::move(sql_package));
+  const SqlPackage& stable = registered_sql_packages_.back();
+  ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(stable));
   return engine_->RegisterPackage(pkg_name, std::move(new_package));
 }
 
@@ -1055,7 +1076,31 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     }
   }
 
-  // Reregister manually added stdlib packages.
+  // Stream the bundled stdlib straight from rodata into the connection: no
+  // intermediate SqlPackage, bodies stay as string_views into kStdlib.
+  {
+    base::FlatHashMap<std::string, sql_modules::RegisteredPackage> by_pkg;
+    for (const auto& file_to_sql : SqlBundle(stdlib::kStdlib)) {
+      std::string include_key = sql_modules::GetIncludeKey(file_to_sql.path);
+      std::string pkg_name = sql_modules::GetPackageName(include_key);
+      sql_modules::RegisteredPackage* pkg = by_pkg.Find(pkg_name);
+      if (!pkg) {
+        pkg = by_pkg.Insert(pkg_name, sql_modules::RegisteredPackage()).first;
+      }
+      pkg->modules.Insert(std::move(include_key), file_to_sql.sql_view());
+    }
+    for (auto it = by_pkg.GetIterator(); it; ++it) {
+      auto status =
+          connection->RegisterPackage(it.key(), std::move(it.value()));
+      if (!status.ok()) {
+        PERFETTO_FATAL("%s", status.c_message());
+      }
+    }
+  }
+
+  // Re-register user-added packages. |packages| is the
+  // registered_sql_packages_ deque, so RegisteredPackage's string_views into
+  // its std::strings stay valid across later appends.
   for (const auto& package : packages) {
     auto new_package = ToRegisteredPackage(package);
     if (!new_package.ok()) {
