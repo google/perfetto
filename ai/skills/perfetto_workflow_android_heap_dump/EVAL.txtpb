@@ -2,7 +2,7 @@
 # proto-message: EvalSuite
 # txtpbfmt: wrap_strings_after_newlines
 
-suite_name: "perfetto-workflow-android-heap-dump"
+suite_name: "perfetto_workflow_android_heap_dump"
 timeout_seconds: 300
 
 cases {

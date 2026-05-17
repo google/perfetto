@@ -1,11 +1,11 @@
-# TEST for perfetto-infra-querying-traces
+# TEST for perfetto_infra_querying_traces
 
 ## Tier 1 — Build & Smoke Tests
 
 ### Test 1: File Existence
 Verify that the skill files exist.
 ```bash
-ls ai/skills/perfetto-infra-querying-traces/SKILL.md
+ls ai/skills/perfetto_infra_querying_traces/SKILL.md
 ```
 **Verify:** File exists.
 

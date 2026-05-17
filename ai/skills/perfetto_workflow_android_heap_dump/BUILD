@@ -21,7 +21,7 @@ perfetto_validate_skill_test(
 )
 
 perfetto_agent_skill(
-    name = "perfetto-workflow-android-heap-dump",
+    name = "perfetto_workflow_android_heap_dump",
     srcs = ["SKILL.md"] + glob(["references/**", "assets/**"]),
     scripts = glob(["scripts/**"]),
 )

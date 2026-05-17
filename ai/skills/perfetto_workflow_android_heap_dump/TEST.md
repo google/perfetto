@@ -1,11 +1,11 @@
-# TEST for perfetto-workflow-android-heap-dump
+# TEST for perfetto_workflow_android_heap_dump
 
 ## Tier 1 — Build & Smoke Tests
 
 ### Test 1: File Existence
 Verify that the skill files exist.
 ```bash
-ls ai/skills/perfetto-workflow-android-heap-dump/SKILL.md
+ls ai/skills/perfetto_workflow_android_heap_dump/SKILL.md
 ```
 **Verify:** File exists.
 

@@ -1,11 +1,11 @@
-# TEST for perfetto-infra-getting-trace-processor
+# TEST for perfetto_infra_getting_trace_processor
 
 ## Tier 1 — Build & Smoke Tests
 
 ### Test 1: File Existence
 Verify that the skill files exist.
 ```bash
-ls ai/skills/perfetto-infra-getting-trace-processor/SKILL.md
+ls ai/skills/perfetto_infra_getting_trace_processor/SKILL.md
 ```
 **Verify:** File exists.
 

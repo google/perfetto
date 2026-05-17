@@ -1,5 +1,5 @@
 ---
-name: perfetto-infra-querying-traces
+name: perfetto_infra_querying_traces
 description: Use when the user wants to load a Perfetto trace, run a
   PerfettoSQL query against it, or discover which tables, views, columns,
   or stdlib modules are available. Covers trace_processor invocation, the
@@ -20,7 +20,7 @@ runs on top of, including the Perfetto UI. Reference docs:
 > `trace_processor` is already on `PATH` (and, for the long-running RPC
 > mode below, that the Python client is installed). If neither is set
 > up, follow whatever skill the user's environment provides for
-> acquisition — typically `perfetto-infra-getting-trace-processor` for the
+> acquisition — typically `perfetto_infra_getting_trace_processor` for the
 > open-source path, or a team-specific variant inside Google or other
 > restricted environments. The rest of this skill is intentionally
 > orthogonal to *how* you got `trace_processor`.
@@ -166,7 +166,7 @@ A few commonly used modules to know:
 - `android.startup.startups` — one row per app startup.
 - `stacks.cpu_profiling` — flat samples and call-graph helpers.
 - `android.memory.heap_graph.dominator_tree` — retained-size analysis for
-  Java heap dumps (see the `perfetto-workflow-android-heap-dump`
+  Java heap dumps (see the `perfetto_workflow_android_heap_dump`
   skill for usage).
 
 The module name maps directly to the file path under the stdlib root:
