@@ -73,7 +73,7 @@ base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
   }
   PERFETTO_DCHECK(mod->size() <= std::numeric_limits<uint32_t>::max());
   auto parsed = stdlib_doc::ParseStdlibModule(
-      mod->c_str(), static_cast<uint32_t>(mod->size()));
+      mod->data(), static_cast<uint32_t>(mod->size()));
   for (const auto& err : parsed.errors) {
     PERFETTO_DLOG("stdlib docs: parse error in '%s': %s", module_key.c_str(),
                   err.c_str());

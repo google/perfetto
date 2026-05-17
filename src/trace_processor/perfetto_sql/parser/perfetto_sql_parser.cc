@@ -135,6 +135,7 @@ class MacroRewriteBuilder {
                       const base::FlatHashMap<std::string, Macro>& macros)
       : p_(p), stmt_(stmt), stmt_doc_offset_(stmt_doc_offset), macros_(macros) {
     uint32_t total = syntaqlite_result_macro_count(p_);
+    no_macros_ = (total == 0);
     children_.resize(total);
     for (uint32_t i = 0; i < total; i++) {
       auto r = syntaqlite_result_macro_rewrite_at(p_, i);
@@ -155,6 +156,9 @@ class MacroRewriteBuilder {
     if (syntaqlite_parser_node_text(p_, node_id, &len, &stmt_off) == nullptr)
       return std::nullopt;
     SqlSource base = stmt_.Substr(stmt_off + stmt_doc_offset_, len);
+    // No-macros parses can skip the per-node macro-free check.
+    if (no_macros_)
+      return base;
     if (syntaqlite_node_is_macro_free(p_, node_id))
       return base;
     return ApplyChildrenInRange(std::move(base), source_rooted_, stmt_off, len);
@@ -320,6 +324,8 @@ class MacroRewriteBuilder {
   const SqlSource& stmt_;
   uint32_t stmt_doc_offset_;
   const base::FlatHashMap<std::string, Macro>& macros_;
+  // Zero macros in the whole parse — lets NodeSource fast-path.
+  bool no_macros_ = true;
   // children_[parent_idx] = rewrite indices whose `parent_idx` equals that.
   std::vector<std::vector<uint32_t>> children_;
   // Rewrites whose parent is SYNTAQLITE_MACRO_PARENT_SOURCE.
@@ -535,13 +541,19 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 // (preprocessor-compat shims) and the engine-owned user macro registry.
 
 struct PerfettoSqlParser::Impl {
-  Impl(SqlSource src, const base::FlatHashMap<std::string, Macro>& m)
-      : source(std::move(src)), macros(m) {
+  explicit Impl(const base::FlatHashMap<std::string, Macro>& m)
+      : source(SqlSource::FromTraceProcessorImplementation("")), macros(m) {
     synq = syntaqlite_parser_create_with_dialect(nullptr,
                                                  syntaqlite_perfetto_dialect());
     PERFETTO_CHECK(synq != nullptr);
     PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
     syntaqlite_parser_set_macro_lookup(synq, &Impl::LookupMacro, this);
+  }
+
+  void Bind(SqlSource src) {
+    source = std::move(src);
+    current_statement.reset();
+    status = base::OkStatus();
     syntaqlite_parser_reset(synq, source.sql().data(),
                             static_cast<uint32_t>(source.sql().size()));
   }
@@ -668,9 +680,13 @@ bool PerfettoSqlParser::Impl::Next(
 }
 
 PerfettoSqlParser::PerfettoSqlParser(
-    SqlSource source,
     const base::FlatHashMap<std::string, Macro>& macros)
-    : impl_(std::make_unique<Impl>(std::move(source), macros)) {}
+    : impl_(std::make_unique<Impl>(macros)) {}
+
+void PerfettoSqlParser::Reset(SqlSource source) {
+  statement_sql_.reset();
+  impl_->Bind(std::move(source));
+}
 
 PerfettoSqlParser::~PerfettoSqlParser() = default;
 

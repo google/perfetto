@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -411,7 +412,7 @@ class PerfettoSqlConnection {
   // database; returns OkStatus on already-included, an error on poisoned,
   // or pushes an include frame on the execution stack on a fresh claim.
   base::Status IncludeModuleImpl(const std::string& key,
-                                 const std::string& sql,
+                                 std::string_view sql,
                                  const PerfettoSqlParser&);
 
   // Returns true iff |key| is the |include_key| of an active |kInclude|
@@ -483,6 +484,14 @@ class PerfettoSqlConnection {
       intrinsic_function_registry_;
 
   std::unique_ptr<SqliteConnection> connection_;
+
+  // PerfettoSqlParser pool, reused via Reset() to avoid the syntaqlite
+  // create/destroy round-trip per Execute(). Cap bounds growth under
+  // re-entrant Execute() / deep INCLUDE chains.
+  static constexpr size_t kMaxParserPoolSize = 4;
+  std::vector<std::unique_ptr<PerfettoSqlParser>> parser_pool_;
+  std::unique_ptr<PerfettoSqlParser> AcquirePooledParser();
+  void ReleasePooledParser(std::unique_ptr<PerfettoSqlParser> parser);
 };
 
 // The rest of this file is just implementation details which we need
