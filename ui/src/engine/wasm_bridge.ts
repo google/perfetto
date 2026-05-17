@@ -25,9 +25,6 @@ import TraceProcessor64 from '../gen/trace_processor_memory64';
 // redirected by rollup to '../gen/trace_processor' (The 32-bit module).
 import TraceProcessor32 from './trace_processor_32_stub';
 
-// For manual testing of the Memory32 build, we can disable the Memory64 check.
-const DISABLE_MEMORY64_FOR_MANUAL_TEST = false;
-
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the
 // input data on the stack, which has a limited (~1MB) size.
@@ -46,35 +43,70 @@ const REQ_BUF_SIZE = 32 * 1024 * 1024;
 //               - [JS] postMessage() (this file)
 export class WasmBridge {
   private aborted: boolean;
-  private connection: TraceProcessor64.Module;
+  private connection!: TraceProcessor64.Module;
   private reqBufferAddr = 0;
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
-  private useMemory64: boolean;
+  private useMemory64 = false;
+  private deferredInitialized = defer<void>();
+  private initStarted = false;
 
   constructor() {
     this.aborted = false;
-    const deferredRuntimeInitialized = defer<void>();
-    this.useMemory64 = hasMemory64Support();
+  }
+
+  // |useMemory64| is decided once on the main thread and threaded through;
+  // |precompiledModule|, if supplied, skips Emscripten's fetch + compile and
+  // instantiates the caller's Module directly. Sharing one Module across
+  // workers also lets V8 reuse the same tiered-up wasm code.
+  startInit(
+    useMemory64: boolean,
+    precompiledModule?: WebAssembly.Module,
+  ): void {
+    assertTrue(!this.initStarted);
+    this.initStarted = true;
+    this.useMemory64 = useMemory64;
     const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
-    this.connection = initModule({
+    const moduleArgs: TraceProcessor64.ModuleArgs = {
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
-      onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
-    });
+      onRuntimeInitialized: () => {},
+    };
+    if (precompiledModule !== undefined) {
+      moduleArgs.instantiateWasm = (imports, successCallback) => {
+        const instance = new WebAssembly.Instance(precompiledModule, imports);
+        successCallback(instance, precompiledModule);
+        return instance.exports;
+      };
+    }
+    initModule(moduleArgs).then(
+      (mod) => {
+        try {
+          this.connection = mod;
+          const fn = this.connection.addFunction(
+            this.onReply.bind(this),
+            'vpi',
+          );
+          this.reqBufferAddr = this.wasmPtrCast(
+            this.connection.ccall(
+              'trace_processor_rpc_init',
+              /* return=*/ 'pointer',
+              /* args=*/ ['pointer', 'number'],
+              [fn, REQ_BUF_SIZE],
+            ),
+          );
+          this.deferredInitialized.resolve();
+        } catch (err) {
+          this.deferredInitialized.reject(err);
+        }
+      },
+      (err) => this.deferredInitialized.reject(err),
+    );
+  }
 
-    deferredRuntimeInitialized.then(() => {
-      const fn = this.connection.addFunction(this.onReply.bind(this), 'vpi');
-      this.reqBufferAddr = this.wasmPtrCast(
-        this.connection.ccall(
-          'trace_processor_rpc_init',
-          /* return=*/ 'pointer',
-          /* args=*/ ['pointer', 'number'],
-          [fn, REQ_BUF_SIZE],
-        ),
-      );
-    });
+  whenInitialized(): Promise<void> {
+    return this.deferredInitialized;
   }
 
   initialize(port: MessagePort) {
@@ -154,23 +186,5 @@ export class WasmBridge {
     // behaviour when used as an offset on HEAP8U.
     assertTrue(typeof val === 'number');
     return Number(val) >>> 0; // static_cast<uint32_t>
-  }
-}
-
-// Checks if the current environment supports Memory64.
-function hasMemory64Support() {
-  if (DISABLE_MEMORY64_FOR_MANUAL_TEST) {
-    return false;
-  }
-  // Compiled version of WAT program `(module (memory i64 0))` to WASM.
-  const memory64DetectProgram = new Uint8Array([
-    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x04,
-    0x00, 0x00, 0x08, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x02, 0x01, 0x00,
-  ]);
-  try {
-    new WebAssembly.Module(memory64DetectProgram);
-    return true;
-  } catch (e) {
-    return false;
   }
 }

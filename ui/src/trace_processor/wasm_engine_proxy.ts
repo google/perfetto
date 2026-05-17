@@ -18,6 +18,44 @@ import {EngineBase} from '../trace_processor/engine';
 
 let idleWasmWorker: Worker | undefined = undefined;
 
+// Detected once for the whole page. Used to pick the .wasm URL and forwarded
+// to every worker via the bootstrap message.
+const USE_MEMORY64 = detectMemory64Support();
+
+function detectMemory64Support(): boolean {
+  // Compiled bytes for `(module (memory i64 0))`.
+  const program = new Uint8Array([
+    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x04,
+    0x00, 0x00, 0x08, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x02, 0x01, 0x00,
+  ]);
+  try {
+    new WebAssembly.Module(program);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Compiled once on the main thread and shared with every worker we spawn so
+// V8 reuses the same tiered-up wasm code across workers.
+const precompiledWasmModule: Promise<WebAssembly.Module | undefined> =
+  precompileTraceProcessorWasm();
+
+function precompileTraceProcessorWasm(): Promise<
+  WebAssembly.Module | undefined
+> {
+  if (
+    typeof WebAssembly === 'undefined' ||
+    typeof WebAssembly.compileStreaming !== 'function'
+  ) {
+    return Promise.resolve(undefined);
+  }
+  const wasmUrl = USE_MEMORY64
+    ? assetSrc('trace_processor_memory64.wasm')
+    : assetSrc('trace_processor.wasm');
+  return WebAssembly.compileStreaming(fetch(wasmUrl)).catch(() => undefined);
+}
+
 export function warmupWasmWorker() {
   if (idleWasmWorker === undefined) {
     idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
@@ -53,7 +91,12 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
     this.worker = warmupWasmWorker(); // Ensures the spare instance exists.
     idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
 
-    this.worker.postMessage(port1, [port1]);
+    const worker = this.worker;
+    precompiledWasmModule.then((wasmModule) => {
+      worker.postMessage({port: port1, useMemory64: USE_MEMORY64, wasmModule}, [
+        port1,
+      ]);
+    });
     this.port.onmessage = this.onMessage.bind(this);
   }
 
