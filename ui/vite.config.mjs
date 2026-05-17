@@ -235,6 +235,7 @@ function pluginGenWasmGlueEsm() {
 const BUNDLE_CONFIGS = {
   frontend: {dir: 'dist_version', entry: 'index.ts'},
   engine: {dir: 'dist_version', entry: 'index.ts'},
+  engine_bench: {dir: 'dist_version', entry: 'index.ts'},
   traceconv: {dir: 'dist_version', entry: 'index.ts'},
   bigtrace: {dir: 'dist_version/bigtrace', entry: 'index.ts'},
   open_perfetto_trace: {dir: 'dist/open_perfetto_trace', entry: 'index.ts'},

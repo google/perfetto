@@ -52,7 +52,7 @@ module.exports = [
   jsdoc.configs['flat/recommended'],
 
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'src/**/*.js'],
     plugins: {
       '@typescript-eslint': typescriptEslint,
       jsdoc,
