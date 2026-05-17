@@ -17,5 +17,8 @@ import {PerfettoWasmModule} from './perfetto_wasm_module';
 // Type shim for the emcc-emitted 'trace_processor_memory64' wasm glue. The runtime path is
 // resolved by Vite (alias 'src/wasm/*' -> 'src/gen/*') to the actual .js
 // file in the gen dir; tsc resolves this .d.ts and never reads the .js.
-declare const factory: EmscriptenModuleFactory<PerfettoWasmModule>;
+// Our emcc build uses WASM_ASYNC_COMPILATION=0, so the factory returns the
+// Module synchronously — not Promise<Module> as @types/emscripten's
+// EmscriptenModuleFactory would suggest.
+declare const factory: (opts?: Partial<PerfettoWasmModule>) => PerfettoWasmModule;
 export default factory;

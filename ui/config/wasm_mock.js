@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoWasmModule} from './perfetto_wasm_module';
-
-// Type shim for the emcc-emitted 'traceconv' wasm glue. The runtime path is
-// resolved by Vite (alias 'src/wasm/*' -> 'src/gen/*') to the actual .js
-// file in the gen dir; tsc resolves this .d.ts and never reads the .js.
-// Our emcc build uses WASM_ASYNC_COMPILATION=0, so the factory returns the
-// Module synchronously — not Promise<Module> as @types/emscripten's
-// EmscriptenModuleFactory would suggest.
-declare const factory: (opts?: Partial<PerfettoWasmModule>) => PerfettoWasmModule;
-export default factory;
+// Stub for `ui/src/wasm/*` imports under jest. Vite aliases these to the
+// emcc-emitted glue in `ui/src/gen/*` at build time; jest doesn't run that
+// alias, and no unit test exercises the wasm runtime. A factory that throws
+// makes accidental invocations obvious.
+const factory = () => {
+  throw new Error('wasm runtime is not available in jest');
+};
+module.exports = {default: factory, __esModule: true};

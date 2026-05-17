@@ -206,15 +206,19 @@ if (!BUNDLE) {
 // Per-bundle config: input file, output dir (relative to ui/out), and output
 // filename. Most bundles follow the standard convention; service_worker and
 // chrome_extension differ.
+// Bundles loaded into a Worker that needs `import.meta.url` (emscripten wasm
+// glue) MUST be ES modules — IIFE would rewrite import.meta.url into a
+// `document.currentScript` polyfill that crashes inside a worker.
+// Main-thread bundles loaded by a classic <script> tag stay as IIFE.
 const BUNDLE_CONFIGS = {
-  frontend:            {dir: 'dist_version',                 entry: 'index.ts'},
-  engine:              {dir: 'dist_version',                 entry: 'index.ts'},
-  traceconv:           {dir: 'dist_version',                 entry: 'index.ts'},
-  bigtrace:            {dir: 'dist_version/bigtrace',        entry: 'index.ts'},
-  open_perfetto_trace: {dir: 'dist/open_perfetto_trace',     entry: 'index.ts'},
-  chrome_extension:    {dir: 'chrome_extension',             entry: 'index.ts'},
+  frontend:            {dir: 'dist_version',                 entry: 'index.ts', format: 'iife'},
+  engine:              {dir: 'dist_version',                 entry: 'index.ts', format: 'es'},
+  traceconv:           {dir: 'dist_version',                 entry: 'index.ts', format: 'es'},
+  bigtrace:            {dir: 'dist_version/bigtrace',        entry: 'index.ts', format: 'iife'},
+  open_perfetto_trace: {dir: 'dist/open_perfetto_trace',     entry: 'index.ts', format: 'iife'},
+  chrome_extension:    {dir: 'chrome_extension',             entry: 'index.ts', format: 'iife'},
   service_worker:      {dir: 'dist',                         entry: 'service_worker.ts',
-                        fileName: 'service_worker.js'},
+                        fileName: 'service_worker.js',       format: 'iife'},
 };
 const bundleCfg = BUNDLE_CONFIGS[BUNDLE];
 if (!bundleCfg) {
@@ -298,7 +302,7 @@ export default defineConfig({
       input: {[BUNDLE]: inputPath},
       treeshake: NO_TREESHAKE ? false : undefined,
       output: {
-        format: 'iife',
+        format: bundleCfg.format,
         name: BUNDLE,
         entryFileNames,
         // With cssCodeSplit:false Vite emits the CSS as "style.css" by

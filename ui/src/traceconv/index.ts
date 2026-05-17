@@ -14,6 +14,7 @@
 
 import {addErrorHandler, type ErrorDetails, reportError} from '../base/logging';
 import {assertExists} from '../base/assert';
+import {defer} from '../base/deferred';
 import type {time} from '../base/time';
 import traceconv from '../wasm/traceconv';
 
@@ -79,12 +80,15 @@ function fsNodeToBuffer(fsNode: unknown): Uint8Array {
 }
 
 async function runTraceconv(trace: Blob, args: string[]) {
-  const module = await traceconv({
+  const deferredRuntimeInitialized = defer<void>();
+  const module = traceconv({
     noInitialRun: true,
     locateFile: (s: string) => s,
     print: updateStatus,
     printErr: updateStatus,
+    onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
   });
+  await deferredRuntimeInitialized;
   module.FS.mkdir('/fs');
   module.FS.mount(
     assertExists(module.FS.filesystems.WORKERFS),

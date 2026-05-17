@@ -86,7 +86,7 @@ async function makeWorkerAndPost(
     }
   }
 
-  const worker = new Worker(assetSrc('traceconv_bundle.js'));
+  const worker = new Worker(assetSrc('traceconv_bundle.js'), {type: 'module'});
   worker.onmessage = handleOnMessage;
   worker.postMessage(msg);
   return promise;

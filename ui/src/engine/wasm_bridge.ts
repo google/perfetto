@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/assert';
+import {defer} from '../base/deferred';
 import {PerfettoWasmModule} from '../wasm/perfetto_wasm_module';
 
 // The 64-bit variant of TraceProcessor wasm is always built in all build
@@ -46,11 +47,7 @@ const REQ_BUF_SIZE = 32 * 1024 * 1024;
 //               - [JS] postMessage() (this file)
 export class WasmBridge {
   private aborted: boolean;
-  // Resolves once the wasm runtime is fully initialized AND the rpc init
-  // ccall has completed. All callers that need to touch `connection` must
-  // await this first.
-  private readonly ready: Promise<PerfettoWasmModule>;
-  private connection!: PerfettoWasmModule;
+  private connection: PerfettoWasmModule;
   private reqBufferAddr = 0;
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
@@ -58,39 +55,33 @@ export class WasmBridge {
 
   constructor() {
     this.aborted = false;
+    const deferredRuntimeInitialized = defer<void>();
     this.useMemory64 = hasMemory64Support();
     const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
-    this.ready = initModule({
+    this.connection = initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
-    }).then((module) => {
-      this.connection = module;
-      const fn = module.addFunction(this.onReply.bind(this), 'vpi');
+      onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
+    });
+
+    deferredRuntimeInitialized.then(() => {
+      const fn = this.connection.addFunction(this.onReply.bind(this), 'vpi');
       this.reqBufferAddr = this.wasmPtrCast(
-        // ccall: 'pointer' is what emscripten accepts at runtime, but DT's
-        // typings only model 'number'/'string'/'array'/'boolean'. Use
-        // 'number' here — emscripten treats them as equivalent for ccall
-        // arg/return marshalling.
-        module.ccall(
+        this.connection.ccall(
           'trace_processor_rpc_init',
-          /* return=*/ 'number',
-          /* args=*/ ['number', 'number'],
+          /* return=*/ 'pointer' as 'number',
+          /* args=*/ ['pointer', 'number'] as ('number')[],
           [fn, REQ_BUF_SIZE],
         ),
       );
-      return module;
     });
   }
 
-  async initialize(port: MessagePort) {
+  initialize(port: MessagePort) {
     // Ensure that initialize() is called only once.
     assertTrue(this.messagePort === undefined);
     this.messagePort = port;
-    // Wait until the wasm runtime + rpc buffer are ready before wiring the
-    // port handler — otherwise queued messages would land in onMessage()
-    // before `this.connection` exists.
-    await this.ready;
     // Note: setting .onmessage implicitly calls port.start() and dispatches the
     // queued messages. addEventListener('message') doesn't.
     this.messagePort.onmessage = this.onMessage.bind(this);

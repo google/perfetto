@@ -46,6 +46,9 @@ module.exports = {
     // Lezer .grammar imports: stub out (Vite compiles them in production via
     // @lezer/generator, but no test exercises the parser).
     '\\.grammar$': __dirname + '/grammar_mock.js',
+    // ui/src/wasm/* shims point at emcc-emitted glue via a Vite alias. Jest
+    // doesn't replicate the alias and no test runs wasm — stub them out.
+    '/wasm/[^/]+$': __dirname + '/wasm_mock.js',
     // Some TS files use ESM-style explicit ".js" extensions on relative
     // imports of sibling TS sources (e.g. `import './language.js'`). Jest's
     // resolver doesn't map .js -> .ts, so strip the extension here.
