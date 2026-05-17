@@ -22,6 +22,16 @@ module.exports = {
         target: 'es2022',
       },
     }],
+    // pbjs now emits ES module .js files (e.g. out/.../gen/protos.js).
+    // Transpile those down to CJS so jest's Node runtime can require them.
+    // node_modules are still ignored by default.
+    '^.+\\.jsx?$': ['@swc/jest', {
+      jsc: {
+        parser: {syntax: 'ecmascript', jsx: false},
+        target: 'es2022',
+      },
+      module: {type: 'commonjs'},
+    }],
   },
   testRegex: '_(unittest|jsdomtest)[.]ts$',
   testEnvironment: __dirname + '/JestJsdomEnv.js',
