@@ -1975,7 +1975,6 @@ source_set("libunwindstack") {
   ]
   if (!is_android) {
     sources += [
-      "android-libbase/liblog_symbols.cpp",
       "android-libbase/logging.cpp",
       "android-libbase/threads.cpp",
       "android-logging/liblog/logger_write.cpp",
@@ -1995,7 +1994,17 @@ source_set("libunwindstack") {
     "//gn/standalone:extra_warnings",
     "//gn/standalone:visibility_hidden",
   ]
-  cflags = [ "-DFAKE_LOG_DEVICE=1" ]
+  cflags = [
+    "-DFAKE_LOG_DEVICE=1",
+
+    # android-unwinding/libunwindstack/Memory.cpp uses the macro
+    # TEMP_FAILURE_RETRY which is only defined in bionic and glibc.
+    # To fix the musl build, force include libbase's polyfill header.
+    # Android's musl build succeeds because of a separate polyfill:
+    # https://cs.android.com/android/platform/superproject/+/android-latest-release:external/musl/android/include/unistd.h;bpv=1
+    "-include",
+    "android-base/macros.h",
+  ]
   if (!is_win) {
     cflags += [
       "-Wno-deprecated-declarations",
