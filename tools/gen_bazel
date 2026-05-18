@@ -274,6 +274,29 @@ proto_target_extra_bazel_deps = {
         ':protos_perfetto_trace_gpu_protos',
         ':protos_perfetto_trace_profiling_protos',
     ],
+    '//protos/perfetto/trace:non_minimal_core_source_set': [
+        # trace_packet.proto imports per-domain trace types and the
+        # non_minimal_extras sources for typed-but-non-lazy oneof fields
+        # (FtraceEventBundle, ProcessTree, UiState, TestEvent, etc.).
+        # In GN those deps are pruned to keep the C SDK closure slim
+        # (pbzero forward-declares them, cppgen honors [lazy=true]),
+        # but Bazel's strict descriptor generation requires them.
+        ':protos_perfetto_trace_android_protos',
+        ':protos_perfetto_trace_chrome_protos',
+        ':protos_perfetto_trace_etw_protos',
+        ':protos_perfetto_trace_filesystem_protos',
+        ':protos_perfetto_trace_ftrace_protos',
+        ':protos_perfetto_trace_generic_kernel_protos',
+        ':protos_perfetto_trace_gpu_protos',
+        ':protos_perfetto_trace_non_minimal_extras_protos',
+        ':protos_perfetto_trace_power_protos',
+        ':protos_perfetto_trace_profiling_protos',
+        ':protos_perfetto_trace_ps_protos',
+        ':protos_perfetto_trace_statsd_protos',
+        ':protos_perfetto_trace_sys_stats_protos',
+        ':protos_perfetto_trace_system_info_protos',
+        ':protos_perfetto_trace_translation_protos',
+    ],
     '//protos/perfetto/config:minimal_source_set': [
         ':protos_perfetto_config_android_protos',
         ':protos_perfetto_config_ftrace_protos',
