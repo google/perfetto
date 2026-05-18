@@ -173,19 +173,18 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArg_init(JNIEnv* env,
       StringBuffer::utf16_to_ascii(env, name).data()));
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArg_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArg_delete() {
   return toJLong(&sdk_for_jni::DebugArg::delete_arg);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArg_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
   return toJLong(arg->get());
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_int64(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jlong val) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
   auto& arg_int64 = arg->get()->arg_int64;
@@ -195,7 +194,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_int64(
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_bool(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jboolean val) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
   auto& arg_bool = arg->get()->arg_bool;
@@ -205,7 +204,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_bool(
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_double(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jdouble val) {
   sdk_for_jni::DebugArg* arg = toPointer<sdk_for_jni::DebugArg>(ptr);
   auto& arg_double = arg->get()->arg_double;
@@ -226,41 +225,37 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_string(
   arg_string.value = StringBuffer::utf16_to_ascii(env, val).data();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_init(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_init() {
   return toJLong(new sdk_for_jni::ProtoField());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_init(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_init() {
   return toJLong(new sdk_for_jni::ProtoFieldNested());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_delete() {
   return toJLong(&sdk_for_jni::ProtoField::delete_field);
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_delete() {
   return toJLong(&sdk_for_jni::ProtoFieldNested::delete_field);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
   return toJLong(field->get());
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::ProtoFieldNested* field =
       toPointer<sdk_for_jni::ProtoFieldNested>(ptr);
   return toJLong(field->get());
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_int64(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jlong id,
     jlong val) {
   sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
@@ -271,7 +266,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_int64(
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_double(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jlong id,
     jdouble val) {
   sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
@@ -311,7 +306,7 @@ dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_with_interning(
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_add_field(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong field_ptr,
+    jlong field_ptr,
     jlong arg_ptr) {
   sdk_for_jni::ProtoFieldNested* field =
       toPointer<sdk_for_jni::ProtoFieldNested>(field_ptr);
@@ -319,20 +314,19 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_add_field(
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_set_id(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jlong id) {
   sdk_for_jni::ProtoFieldNested* field =
       toPointer<sdk_for_jni::ProtoFieldNested>(ptr);
   field->set_id(id);
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_init(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_init() {
   return toJLong(new sdk_for_jni::Flow());
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraFlow_set_process_flow(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jlong id) {
   sdk_for_jni::Flow* flow = toPointer<sdk_for_jni::Flow>(ptr);
   flow->set_process_flow(id);
@@ -340,19 +334,18 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraFlow_set_process_flow(
 
 static void
 dev_perfetto_sdk_PerfettoTrackEventExtraFlow_set_process_terminating_flow(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jlong id) {
   sdk_for_jni::Flow* flow = toPointer<sdk_for_jni::Flow>(ptr);
   flow->set_process_terminating_flow(id);
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_delete() {
   return toJLong(&sdk_for_jni::Flow::delete_flow);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::Flow* flow = toPointer<sdk_for_jni::Flow>(ptr);
   return toJLong(flow->get());
 }
@@ -369,13 +362,12 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_init(
       is_name_static));
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_delete() {
   return toJLong(&sdk_for_jni::NamedTrack::delete_track);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::NamedTrack* track = toPointer<sdk_for_jni::NamedTrack>(ptr);
   return toJLong(track->get());
 }
@@ -391,36 +383,33 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init(
       is_name_static));
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_delete() {
   return toJLong(&sdk_for_jni::RegisteredTrack::delete_track);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::RegisteredTrack* track =
       toPointer<sdk_for_jni::RegisteredTrack>(ptr);
   return toJLong(track->get());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init() {
   return toJLong(new sdk_for_jni::Counter());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_delete() {
   return toJLong(&sdk_for_jni::Counter::delete_counter);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
   return toJLong(counter->get());
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_int64(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jlong val) {
   sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
   auto& counter_int64 = counter->get()->counter_int64;
@@ -429,7 +418,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_int64(
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_double(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong ptr,
     jdouble val) {
   sdk_for_jni::Counter* counter = toPointer<sdk_for_jni::Counter>(ptr);
   auto& counter_double = counter->get()->counter_double;
@@ -437,25 +426,21 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_double(
   counter_double.value = val;
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_init(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_init() {
   return toJLong(new sdk_for_jni::Extra());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_delete() {
   return toJLong(&sdk_for_jni::Extra::delete_extra);
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtra_add_arg(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong extra_ptr,
-    jlong arg_ptr) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_add_arg(jlong extra_ptr,
+                                                             jlong arg_ptr) {
   sdk_for_jni::Extra* extra = toPointer<sdk_for_jni::Extra>(extra_ptr);
   extra->push_extra(toPointer<PerfettoTeHlExtra>(arg_ptr));
 }
 
-static void dev_perfetto_sdk_PerfettoTrackEventExtra_clear_args(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_clear_args(jlong ptr) {
   sdk_for_jni::Extra* extra = toPointer<sdk_for_jni::Extra>(ptr);
   extra->clear_extras();
 }
@@ -473,31 +458,29 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit(JNIEnv* env,
   StringBuffer::reset();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_init(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_init() {
   return toJLong(new sdk_for_jni::Proto());
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_delete(
-    PERFETTO_JNI_HOST_PARAMS) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_delete() {
   return toJLong(&sdk_for_jni::Proto::delete_proto);
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_get_extra_ptr(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::Proto* proto = toPointer<sdk_for_jni::Proto>(ptr);
   return toJLong(proto->get());
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraProto_add_field(
-    PERFETTO_JNI_HOST_PARAMS_COMMA long proto_ptr,
+    long proto_ptr,
     jlong arg_ptr) {
   sdk_for_jni::Proto* proto = toPointer<sdk_for_jni::Proto>(proto_ptr);
   proto->add_field(toPointer<PerfettoTeHlProtoField>(arg_ptr));
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraProto_clear_fields(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+    jlong ptr) {
   sdk_for_jni::Proto* proto = toPointer<sdk_for_jni::Proto>(ptr);
   proto->clear_fields();
 }
