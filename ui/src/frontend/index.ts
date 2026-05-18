@@ -15,7 +15,8 @@
 // Keep this import first.
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
-import '../assets/perfetto.scss';
+import '../assets/typefaces.scss';
+import '../assets/common.scss';
 import z from 'zod';
 import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
 import CORE_PLUGINS from 'virtual:perfetto/all_core_plugins';
