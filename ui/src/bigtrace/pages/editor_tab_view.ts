@@ -122,7 +122,7 @@ function renderEditorPanel(
               tabsState.markDirty();
             },
           }),
-          m('span.pf-query-page__toolbar-divider', {'aria-hidden': 'true'}),
+          m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
           m('span', 'Limit:'),
           m(TextInput, {
             type: 'number',

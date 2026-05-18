@@ -61,7 +61,7 @@ export function renderResultsPanel(
 
   if (!tab.dataSource || !tab.queryResult) {
     return m(
-      '.pf-query-page__results-panel',
+      '.pf-bt-results-panel',
       status,
       tab.isLoading
         ? m(RunningQuerySpinner, {startMs: tab.clientStartTime ?? Date.now()})
@@ -132,10 +132,10 @@ export function renderResultsPanel(
   const activeTab = tab.resultsTabKey ?? defaultTab;
 
   return m(
-    '.pf-query-page__results-panel',
+    '.pf-bt-results-panel',
     status,
     m(
-      '.pf-query-page__results-container',
+      '.pf-bt-results-container',
       renderResultsTabs(tab, tableContent, activeTab),
     ),
   );
@@ -151,7 +151,7 @@ function renderErrorTab(tab: BigTraceEditorTab): m.Children {
     .replaceAll('\\n', '\n')
     .replaceAll('\\t', '  ')
     .replaceAll('\\u003e', '>');
-  return m('pre.pf-query-page__error-content', fullText);
+  return m('pre.pf-bt-error-content', fullText);
 }
 
 function renderResultsTabs(
@@ -165,7 +165,7 @@ function renderResultsTabs(
       ? [
           {
             key: 'error',
-            title: m('span.pf-query-page__error-tab-title', 'Error'),
+            title: m('span.pf-bt-error-tab-title', 'Error'),
             content: renderErrorTab(tab),
           },
         ]

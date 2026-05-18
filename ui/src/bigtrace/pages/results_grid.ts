@@ -154,10 +154,7 @@ function renderDataGrid(
     showExportButton: true,
     emptyStateMessage: 'Query returned no rows',
     toolbarItemsLeft: [
-      m(
-        'span.pf-query-page__results-summary',
-        renderResultsSummary(tab, queryResult),
-      ),
+      m('span.pf-bt-results-summary', renderResultsSummary(tab, queryResult)),
     ],
     toolbarItemsRight: [
       m(CopyToClipboardButton, {

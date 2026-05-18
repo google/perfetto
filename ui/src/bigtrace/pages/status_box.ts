@@ -65,9 +65,9 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
   const durationStr = formatDurationS(durationMs);
 
   const leftGroup = m(
-    '.pf-query-page__status-bar-group',
+    '.pf-bt-status-bar-group',
     m(
-      'div.pf-query-page__status-bar-refresh',
+      'div.pf-bt-status-bar-refresh',
       m(Button, {
         icon: 'refresh',
         title: hasNewData
@@ -76,35 +76,35 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
         onclick: () => refreshAsyncStatus(tab),
       }),
       hasNewData &&
-        m('span.pf-query-page__status-bar-notif', {
+        m('span.pf-bt-status-bar-notif', {
           'aria-label': 'New data available',
         }),
     ),
     m(
-      'span.pf-query-page__status-bar-pill',
-      {className: `pf-status-${status.toLowerCase().replace(/_/g, '-')}`},
+      'span.pf-bt-status-bar-pill',
+      {className: `pf-bt-status-${status.toLowerCase().replace(/_/g, '-')}`},
       statusDisplayLabel(status),
     ),
     m(
-      'span.pf-query-page__status-bar-duration',
-      m('span.pf-query-page__status-bar-duration-value', durationStr),
+      'span.pf-bt-status-bar-duration',
+      m('span.pf-bt-status-bar-duration-value', durationStr),
     ),
   );
 
   const rowsStatClasses = [
-    'pf-query-page__status-bar-stat',
-    'pf-query-page__status-bar-stat--rows',
-    processedRows === 0 && 'pf-query-page__status-bar-stat--empty',
+    'pf-bt-status-bar-stat',
+    'pf-bt-status-bar-stat--rows',
+    processedRows === 0 && 'pf-bt-status-bar-stat--empty',
   ]
     .filter(Boolean)
     .join(' ');
   const rightGroupContent = m(
-    '.pf-query-page__status-bar-group',
+    '.pf-bt-status-bar-group',
     m(
-      'span.pf-query-page__status-bar-stat.pf-query-page__status-bar-stat--traces',
-      m('span.pf-query-page__status-bar-stat-label', 'Traces:'),
+      'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--traces',
+      m('span.pf-bt-status-bar-stat-label', 'Traces:'),
       m(
-        'span.pf-query-page__status-bar-stat-value',
+        'span.pf-bt-status-bar-stat-value',
         {
           title:
             `${processedTraces.toLocaleString()} of ` +
@@ -120,9 +120,9 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
     m(
       'span',
       {className: rowsStatClasses},
-      m('span.pf-query-page__status-bar-stat-label', 'Rows:'),
+      m('span.pf-bt-status-bar-stat-label', 'Rows:'),
       m(
-        'span.pf-query-page__status-bar-stat-value',
+        'span.pf-bt-status-bar-stat-value',
         {
           title: `${processedRows.toLocaleString()} of result limit ${tab.limit.toLocaleString()}`,
         },
@@ -140,7 +140,7 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
           position: PopupPosition.Top,
         },
         m(
-          '.pf-query-page__status-bar-progress-tooltip',
+          '.pf-bt-status-bar-progress-tooltip',
           m('div', `Traces: ${formatCompact(processedTraces)}`),
           m('div', `Rows: ${formatCompact(processedRows)}`),
         ),
@@ -151,8 +151,8 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
     Box,
     {
       className: isTerminal
-        ? 'pf-query-page__status-bar'
-        : 'pf-query-page__status-bar pf-query-page__status-bar--running',
+        ? 'pf-bt-status-bar'
+        : 'pf-bt-status-bar pf-bt-status-bar--running',
     },
     leftGroup,
     rightGroup,
@@ -168,8 +168,8 @@ function renderInlineProgressBar(
   if (total <= 0) return null;
   const pct = Math.max(0, Math.min(100, (done / total) * 100));
   return m(
-    'span.pf-query-page__inline-progress',
-    m('span.pf-query-page__inline-progress-fill', {
+    'span.pf-bt-inline-progress',
+    m('span.pf-bt-inline-progress-fill', {
       style: {width: `${pct}%`},
     }),
   );

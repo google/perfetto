@@ -84,14 +84,12 @@
   }
 }
 
+// `position: relative` anchors the absolute-positioned buttons; the shared
+// float otherwise created a BFC that squeezed the meta card.
 .pf-query-history__item {
   margin-bottom: 10px;
   max-height: none !important;
   overflow-y: visible !important;
-}
-
-// Absolute-position buttons; the shared float created a BFC that squeezed meta.
-.pf-query-history__item {
   position: relative;
 }
 
@@ -105,41 +103,36 @@
 
 // Status-colored left bar; on the meta card only (running it down the pre
 // makes it look uncomfortably tall and clashes with the pre's own border).
-.pf-query-history__item-meta {
+.pf-bt-history-item-meta {
   border-left: 3px solid transparent;
 }
 
-.pf-query-history__item:has(.pf-status-success) .pf-query-history__item-meta {
+.pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
   border-left-color: var(--pf-color-success);
 }
 
-.pf-query-history__item:has(.pf-status-failed) .pf-query-history__item-meta {
+.pf-query-history__item:has(.pf-bt-status-failed) .pf-bt-history-item-meta {
   border-left-color: var(--pf-color-danger);
 }
 
-.pf-query-history__item:has(.pf-status-cancelled) .pf-query-history__item-meta {
+.pf-query-history__item:has(.pf-bt-status-cancelled) .pf-bt-history-item-meta {
   border-left-color: var(--pf-color-warning);
 }
 
-.pf-query-history__item:has(.pf-status-in-progress)
-  .pf-query-history__item-meta {
+.pf-query-history__item:has(.pf-bt-status-in-progress)
+  .pf-bt-history-item-meta {
   border-left-color: var(--pf-color-primary);
 }
 
-.pf-query-history__item:has(.pf-status-queued) .pf-query-history__item-meta,
-.pf-query-history__item:has(.pf-status-unknown) .pf-query-history__item-meta {
+.pf-query-history__item:has(.pf-bt-status-queued) .pf-bt-history-item-meta,
+.pf-query-history__item:has(.pf-bt-status-unknown) .pf-bt-history-item-meta {
   border-left-color: var(--pf-color-text-muted);
-}
-
-// Dim 0-row entries so the eye skips to entries that have data.
-.pf-query-history__item-rows--empty {
-  opacity: 0.55;
 }
 
 // Async-query status bar (under the editor). Two groups split by
 // space-between: left = [Refresh] [Status pill] [Duration],
 // right = [Traces n/m] [Rows N].
-.pf-query-page__status-bar {
+.pf-bt-status-bar {
   padding: 12px 16px;
   display: flex;
   justify-content: space-between;
@@ -147,7 +140,7 @@
   gap: 16px;
 }
 
-.pf-query-page__status-bar-group {
+.pf-bt-status-bar-group {
   display: inline-flex;
   align-items: center;
   gap: 16px;
@@ -156,28 +149,28 @@
 // Give the rows stat (the rightmost element of the right group) some
 // breathing room from the bar's right edge — without this, `~1.2M` butts
 // right up against the bar's border.
-.pf-query-page__status-bar-stat--rows {
+.pf-bt-status-bar-stat--rows {
   margin-right: 16px;
 }
 
 // While the query is running, the right group collapses to just the Rows
 // inline progress bar — labels, numeric values, and the Traces stat hide.
 // A perfetto Tooltip wraps the bar; hovering it shows Traces n/m and Rows n.
-.pf-query-page__status-bar--running {
-  .pf-query-page__status-bar-stat--traces,
-  .pf-query-page__status-bar-stat-label,
-  .pf-query-page__status-bar-stat-value {
+.pf-bt-status-bar--running {
+  .pf-bt-status-bar-stat--traces,
+  .pf-bt-status-bar-stat-label,
+  .pf-bt-status-bar-stat-value {
     display: none;
   }
 }
 
 // Refresh button + notification-dot wrapper.
-.pf-query-page__status-bar-refresh {
+.pf-bt-status-bar-refresh {
   position: relative;
   display: inline-block;
 }
 
-.pf-query-page__status-bar-notif {
+.pf-bt-status-bar-notif {
   position: absolute;
   top: -2px;
   right: -2px;
@@ -188,19 +181,19 @@
   z-index: 10;
 }
 
-.pf-query-page__status-bar-stat {
+.pf-bt-status-bar-stat {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
   font-variant-numeric: tabular-nums;
 }
 
-.pf-query-page__status-bar-stat--empty {
+.pf-bt-status-bar-stat--empty {
   opacity: 0.55;
 }
 
 // Duration stat — flat treatment matches the peer TRACES / ROWS stats.
-.pf-query-page__status-bar-duration {
+.pf-bt-status-bar-duration {
   display: inline-flex;
   // Baseline so the value aligns with the SUCCESS pill and peer stats;
   // `center` would synthesize a first-baseline ~2px above.
@@ -227,7 +220,7 @@
 }
 
 // Vertical rule between toolbar param groups.
-.pf-query-page__toolbar-divider {
+.pf-bt-toolbar-divider {
   display: inline-block;
   width: 1px;
   align-self: stretch;
@@ -238,19 +231,21 @@
 // Inline progress bar next to N/M in status-bar stats. width = done/total.
 // Wider than a typical inline mini-bar because during a running query it is
 // the sole on-screen progress signal (labels/numbers are hover-revealed).
-.pf-query-page__inline-progress {
+.pf-bt-inline-progress {
   display: inline-block;
   width: 140px;
   height: 6px;
   margin-left: 6px;
   border-radius: 2px;
   border: 1px solid var(--pf-color-border);
-  background-color: rgba(255, 255, 255, 0.04);
+  // Theme-aware recessed surface; a hardcoded rgba(255,255,255,…) would
+  // vanish on the light theme (the default).
+  background-color: var(--pf-color-background-secondary);
   overflow: hidden;
   vertical-align: middle;
 }
 
-.pf-query-page__inline-progress-fill {
+.pf-bt-inline-progress-fill {
   display: block;
   height: 100%;
   background-color: var(--pf-color-accent);
@@ -263,7 +258,7 @@
 // Visual hierarchy: meta header is the loudest (bg-tertiary, darkest of the
 // three); the details band sits in the middle (bg-secondary); the SQL pre is
 // the quietest (bg-void = page bg in light theme).
-.pf-query-history__item-meta {
+.pf-bt-history-item-meta {
   // Anchor for the absolute-positioned Open/Delete buttons inside the meta.
   position: relative;
   background: var(--pf-color-background-tertiary);
@@ -300,7 +295,8 @@
 
 // Clamped SQL preview: ~4 lines with a fade-out mask; click to expand.
 // Uses `pre.` prefix so specificity (0,1,1) matches `.pf-query-history__item pre`.
-pre.pf-query-history__item-query {
+pre.pf-bt-history-item-query,
+pre.pf-bt-history-item-query--standalone {
   cursor: pointer;
   position: relative;
   max-height: 4.5em;
@@ -309,16 +305,19 @@ pre.pf-query-history__item-query {
   -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
-pre.pf-query-history__item-query.pf-query-history__item-query--expanded {
-  // Cap so a 1000-line query doesn't blow out the sidebar layout.
+// Cap so a 1000-line query doesn't blow out the sidebar layout.
+pre.pf-bt-history-item-query.pf-bt-history-item-query--expanded,
+pre.pf-bt-history-item-query--standalone.pf-bt-history-item-query--expanded {
   max-height: 50vh;
   overflow: auto;
   mask-image: none;
   -webkit-mask-image: none;
 }
 
-// Standalone frame for the delete-confirm modal (no .pf-query-history__item parent).
-pre.pf-query-history__item-query--standalone {
+// Standalone (delete-confirm modal) has no .pf-query-history__item parent, so
+// it declares the frame the sidebar variant inherits from
+// `.pf-query-history__item pre`.
+pre.pf-bt-history-item-query--standalone {
   font-family: var(--pf-font-monospace, monospace);
   background: var(--pf-color-void);
   border: solid 1px var(--pf-color-border-secondary);
@@ -326,32 +325,19 @@ pre.pf-query-history__item-query--standalone {
   padding: 8px;
   margin: 0;
   white-space: pre-wrap;
-  cursor: pointer;
-  position: relative;
-  max-height: 4.5em;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 
-pre.pf-query-history__item-query--standalone.pf-query-history__item-query--expanded {
-  max-height: 50vh;
-  overflow: auto;
-  mask-image: none;
-  -webkit-mask-image: none;
-}
-
-.pf-query-history__item-query--empty {
+.pf-bt-history-item-query--empty {
   font-style: italic;
   opacity: 0.5;
 }
 
-.pf-query-page__error-tab-title {
+.pf-bt-error-tab-title {
   color: var(--pf-color-danger);
 }
 
 // Error tab content: scrollable pre with the full error text.
-.pf-query-page__error-content {
+.pf-bt-error-content {
   overflow: auto;
   max-height: 100%;
   padding: 12px;
@@ -362,50 +348,50 @@ pre.pf-query-history__item-query--standalone.pf-query-history__item-query--expan
 
 // Propagate height down so DataGrid `fillHeight` has a parent to fill
 // and only the table body scrolls.
-.pf-query-page__results-panel {
+.pf-bt-results-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
 }
 
-.pf-query-page__results-container {
+.pf-bt-results-container {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-.pf-query-page__results-container > .pf-data-grid {
+.pf-bt-results-container > .pf-data-grid {
   flex: 1;
   min-height: 0;
 }
 
-.pf-status-success {
+.pf-bt-status-success {
   color: var(--pf-color-success);
 }
 
-.pf-status-failed {
+.pf-bt-status-failed {
   color: var(--pf-color-danger);
 }
 
-.pf-status-cancelled {
+.pf-bt-status-cancelled {
   color: var(--pf-color-warning);
 }
 
-.pf-status-in-progress {
+.pf-bt-status-in-progress {
   color: var(--pf-color-primary);
 }
 
-.pf-status-queued,
-.pf-status-unknown {
+.pf-bt-status-queued,
+.pf-bt-status-unknown {
   color: var(--pf-color-text-muted);
   font-style: italic;
 }
 
 // Row 1: status pill (intrinsic) on the left, start date (ellipsis-shrinks)
 // on the right; fixed slots keep edges aligned across rows.
-.pf-query-history__item-header {
+.pf-bt-history-item-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -421,11 +407,11 @@ pre.pf-query-history__item-query--standalone.pf-query-history__item-query--expan
 }
 
 // Pill never shrinks — date absorbs all the squeeze (else "SUCCESS"→"S...").
-.pf-query-history__item-status {
-  flex-shrink: 0 !important;
+.pf-bt-history-item-status {
+  flex-shrink: 0;
 }
 
-.pf-query-history__item-date {
+.pf-bt-history-item-date {
   text-align: right;
 }
 
@@ -433,7 +419,7 @@ pre.pf-query-history__item-query--standalone.pf-query-history__item-query--expan
 // between the meta header (above) and the SQL pre (below). Its own background
 // shade + horizontal separators on top and bottom make it visibly a separate
 // section, not a row inside the header card.
-.pf-query-history__item-details {
+.pf-bt-history-item-details {
   background: var(--pf-color-background-secondary);
   padding: 4px 8px;
   border-left: 1px solid var(--pf-color-border-secondary);
@@ -450,15 +436,15 @@ pre.pf-query-history__item-query--standalone.pf-query-history__item-query--expan
   color: var(--pf-color-text-muted);
 }
 
-.pf-query-history__item-details--empty {
+.pf-bt-history-item-details--empty {
   opacity: 0.55;
 }
 
-.pf-query-history__item-rows-value {
+.pf-bt-history-item-rows-value {
   flex-shrink: 0;
 }
 
-.pf-query-history__item-table-link {
+.pf-bt-history-item-table-link {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -466,14 +452,14 @@ pre.pf-query-history__item-query--standalone.pf-query-history__item-query--expan
   flex: 1 1 auto;
 }
 
-.pf-query-history__item-table-link--disabled {
+.pf-bt-history-item-table-link--disabled {
   // Theme-aware muted color.
   color: var(--pf-color-text-muted);
   pointer-events: none;
   text-decoration: none;
 }
 
-.pf-query-history__item-table-link--active {
+.pf-bt-history-item-table-link--active {
   color: var(--pf-color-primary);
   pointer-events: auto;
   text-decoration: underline;

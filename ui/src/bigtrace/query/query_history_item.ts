@@ -57,16 +57,16 @@ class ClampedQuery implements m.ClassComponent<ClampedQueryAttrs> {
     const {queryText, standalone, onExpand} = attrs;
     if (queryText === '') {
       return m(
-        'span.pf-query-history__item-query.pf-query-history__item-query--empty',
+        'span.pf-bt-history-item-query.pf-bt-history-item-query--empty',
         '(no query text)',
       );
     }
     return m(
-      'pre.pf-query-history__item-query',
+      'pre.pf-bt-history-item-query',
       {
         className: classNames(
-          this.expanded && 'pf-query-history__item-query--expanded',
-          standalone && 'pf-query-history__item-query--standalone',
+          this.expanded && 'pf-bt-history-item-query--expanded',
+          standalone && 'pf-bt-history-item-query--standalone',
         ),
         onclick: () => {
           this.expanded = !this.expanded;
@@ -206,18 +206,18 @@ export function renderHistoryItem(
   return m(
     '.pf-query-history__item',
     {key: `${uuid}-${index}`},
-    m('.pf-query-history__item-meta', [
+    m('.pf-bt-history-item-meta', [
       buttonsRow,
-      m('div.pf-query-history__item-header', [
+      m('div.pf-bt-history-item-header', [
         m(
-          'span.pf-query-history__item-status',
+          'span.pf-bt-history-item-status',
           {
-            class: `pf-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
+            class: `pf-bt-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
           },
           statusDisplayLabel(entry.status),
         ),
         m(
-          'span.pf-query-history__item-date',
+          'span.pf-bt-history-item-date',
           {title: `UTC: ${utcString}`},
           localString,
         ),
@@ -228,18 +228,18 @@ export function renderHistoryItem(
     // it reads as a distinct section, not a row inside the header card.
     isMaterialized &&
       m(
-        'div.pf-query-history__item-details',
+        'div.pf-bt-history-item-details',
         {
           className:
-            rows === 0 ? 'pf-query-history__item-details--empty' : undefined,
+            rows === 0 ? 'pf-bt-history-item-details--empty' : undefined,
         },
         m(
-          'a.pf-query-history__item-table-link',
+          'a.pf-bt-history-item-table-link',
           {
             class:
               rows === 0 || link === undefined || link === ''
-                ? 'pf-query-history__item-table-link--disabled'
-                : 'pf-query-history__item-table-link--active',
+                ? 'pf-bt-history-item-table-link--disabled'
+                : 'pf-bt-history-item-table-link--active',
             href: link || '#',
             target: '_blank',
             title:
@@ -250,7 +250,7 @@ export function renderHistoryItem(
           entry.tableName || '—',
         ),
         m(
-          'span.pf-query-history__item-rows-value',
+          'span.pf-bt-history-item-rows-value',
           `${formatCompact(rows)} ${rows === 1 ? 'row' : 'rows'}`,
         ),
       ),
