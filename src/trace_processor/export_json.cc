@@ -626,6 +626,10 @@ class JsonExporter {
         if (args.HasMember("debug")) {
           Dom debug = std::move(args["debug"]);
           args.RemoveMember("debug");
+          // Prevent spoofing legacy event args from trace data.
+          if (debug.HasMember(kLegacyEventArgsKey)) {
+            debug.RemoveMember(kLegacyEventArgsKey);
+          }
           for (const auto& member : debug.GetMemberNames()) {
             args[member] = debug[member].Copy();
           }
@@ -1585,11 +1589,7 @@ class JsonExporter {
 
   std::pair<int64_t, int64_t> UtidToPidAndTid(UniqueTid utid) {
     auto pid_and_tid_it = utids_to_exported_pids_and_tids_.find(utid);
-    // Trace data can make its way into the translated utids here, thus we
-    // might observe invalid ones.
-    if (pid_and_tid_it == utids_to_exported_pids_and_tids_.end()) {
-      return {0, 0};
-    }
+    PERFETTO_DCHECK(pid_and_tid_it != utids_to_exported_pids_and_tids_.end());
     return pid_and_tid_it->second;
   }
 
