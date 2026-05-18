@@ -455,7 +455,8 @@ PerfettoSqlConnection::PerfettoSqlConnection(
 
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
-  PerfettoSqlParser parser(std::move(sql_source), database_->macros());
+  PerfettoSqlParser parser(database_->macros());
+  parser.Reset(std::move(sql_source));
   if (!parser.Next()) {
     return base::ErrStatus("No statement found to prepare");
   }
@@ -473,11 +474,23 @@ PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
 }
 
 void PerfettoSqlConnection::Initialize(Initializer init) {
+  // One outer transaction across the static-table batch — avoids SQLite's
+  // implicit per-statement commit for each of the ~100 CREATEs.
+  {
+    auto begin_status = Execute(
+        SqlSource::FromTraceProcessorImplementation("BEGIN TRANSACTION"));
+    PERFETTO_CHECK(begin_status.ok());
+  }
   for (const auto& info : init.static_tables) {
     RegisterStaticTable(info.dataframe, info.name);
   }
   for (auto& info : init.static_table_functions) {
     RegisterStaticTableFunction(std::move(info));
+  }
+  {
+    auto commit_status =
+        Execute(SqlSource::FromTraceProcessorImplementation("COMMIT"));
+    PERFETTO_CHECK(commit_status.ok());
   }
   for (const auto& mod : init.sqlite_modules) {
     if (mod.is_state_manager) {
@@ -524,18 +537,26 @@ void PerfettoSqlConnection::RegisterStaticTable(dataframe::Dataframe* df,
   PERFETTO_CHECK(!dataframe_context_->temporary_create_state);
   dataframe_context_->temporary_create_state =
       std::make_unique<DataframeModule::State>(df);
-  base::StackString<1024> sql(
-      R"(
-        SAVEPOINT static_table;
-        CREATE VIRTUAL TABLE %s USING __intrinsic_dataframe;
-        INSERT INTO perfetto_tables(name) VALUES('%s');
-        RELEASE SAVEPOINT static_table;
-      )",
-      table_name.c_str(), table_name.c_str());
-  auto status =
-      Execute(SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
-  if (!status.ok()) {
-    PERFETTO_FATAL("%s", status.status().c_message());
+  // Two single-statement Execute() calls so each takes the fast path; both
+  // run inside the BEGIN/COMMIT that Initialize() opens.
+  {
+    base::StackString<512> create_sql(
+        "CREATE VIRTUAL TABLE %s USING __intrinsic_dataframe;",
+        table_name.c_str());
+    auto s = Execute(
+        SqlSource::FromTraceProcessorImplementation(create_sql.ToStdString()));
+    if (!s.ok()) {
+      PERFETTO_FATAL("%s", s.status().c_message());
+    }
+  }
+  {
+    base::StackString<512> insert_sql(
+        "INSERT INTO perfetto_tables(name) VALUES('%s');", table_name.c_str());
+    auto s = Execute(
+        SqlSource::FromTraceProcessorImplementation(insert_sql.ToStdString()));
+    if (!s.ok()) {
+      PERFETTO_FATAL("%s", s.status().c_message());
+    }
   }
   PERFETTO_CHECK(!dataframe_context_->temporary_create_state);
 }
@@ -561,17 +582,93 @@ void PerfettoSqlConnection::RegisterStaticTableFunction(
   PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
 }
 
+std::unique_ptr<PerfettoSqlParser>
+PerfettoSqlConnection::AcquirePooledParser() {
+  if (!parser_pool_.empty()) {
+    std::unique_ptr<PerfettoSqlParser> p = std::move(parser_pool_.back());
+    parser_pool_.pop_back();
+    return p;
+  }
+  return std::make_unique<PerfettoSqlParser>(database_->macros());
+}
+
+void PerfettoSqlConnection::ReleasePooledParser(
+    std::unique_ptr<PerfettoSqlParser> parser) {
+  if (parser_pool_.size() < kMaxParserPoolSize) {
+    parser_pool_.push_back(std::move(parser));
+  }
+}
+
 base::StatusOr<PerfettoSqlConnection::ExecutionStats>
 PerfettoSqlConnection::Execute(SqlSource sql) {
-  auto res = ExecuteUntilLastStatement(std::move(sql));
-  RETURN_IF_ERROR(res.status());
-  if (res->stmt.IsDone()) {
+  // Fast path: a single vanilla SQLite statement skips frame push/pop, the
+  // PreparedStatement wrapper, ParseStatement variant dispatch and the
+  // MacroRewriteBuilder NodeSource path. Anything else (multi-statement,
+  // PerfettoSql extensions, macros) falls through to
+  // ExecuteUntilLastStatement.
+  std::unique_ptr<PerfettoSqlParser> parser = AcquirePooledParser();
+  parser->Reset(sql);
+  bool has_first = parser->Next();
+  if (!has_first) {
+    base::Status s = parser->status();
+    ReleasePooledParser(std::move(parser));
+    if (!s.ok())
+      return s;
+    return base::ErrStatus("No statement found to execute");
+  }
+  const bool is_vanilla =
+      std::holds_alternative<PerfettoSqlParser::SqliteSql>(parser->statement());
+  // statement_sql() is arena-backed and invalidated by the next Next(),
+  // so snapshot it before peeking ahead.
+  SqlSource first_sql = parser->statement_sql();
+  const bool has_second = is_vanilla && parser->Next();
+  if (!parser->status().ok()) {
+    base::Status s = parser->status();
+    ReleasePooledParser(std::move(parser));
+    return s;
+  }
+  if (!is_vanilla || has_second) {
+    ReleasePooledParser(std::move(parser));
+    auto res = ExecuteUntilLastStatement(std::move(sql));
+    RETURN_IF_ERROR(res.status());
+    if (res->stmt.IsDone()) {
+      return res->stats;
+    }
+    while (res->stmt.Step()) {
+    }
+    RETURN_IF_ERROR(res->stmt.status());
     return res->stats;
   }
-  while (res->stmt.Step()) {
+  ReleasePooledParser(std::move(parser));
+
+  sqlite3* db = connection_->db();
+  sqlite3_stmt* stmt = nullptr;
+  int prep_rc =
+      sqlite3_prepare_v2(db, first_sql.sql().c_str(), -1, &stmt, nullptr);
+  if (prep_rc != SQLITE_OK) {
+    return base::ErrStatus("%s", sqlite3_errmsg(db));
   }
-  RETURN_IF_ERROR(res->stmt.status());
-  return res->stats;
+  ExecutionStats stats;
+  if (!stmt) {
+    // Bare comments / whitespace.
+    return stats;
+  }
+  bool produced_row = false;
+  int step_rc;
+  while ((step_rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    produced_row = true;
+  }
+  if (step_rc != SQLITE_DONE) {
+    base::Status err = base::ErrStatus("%s", sqlite3_errmsg(db));
+    sqlite3_finalize(stmt);
+    return err;
+  }
+  stats.statement_count = 1;
+  if (produced_row)
+    stats.statement_count_with_output = 1;
+  stats.column_count = static_cast<uint32_t>(sqlite3_column_count(stmt));
+  sqlite3_finalize(stmt);
+  return stats;
 }
 
 base::StatusOr<PerfettoSqlConnection::ExecutionResult>
@@ -601,6 +698,9 @@ PerfettoSqlConnection::ExecuteUntilLastStatement(SqlSource sql_source) {
       std::string traceback = frame.traceback_sql.AsTraceback(0);
       result = base::ErrStatus("%s%s", traceback.c_str(),
                                result.status().c_message());
+    }
+    if (frame.parser) {
+      ReleasePooledParser(std::move(frame.parser));
     }
     execution_stack_.pop_back();
   }
@@ -657,10 +757,11 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
     return FrameResult::kFrameDone;
   }
 
-  // Initialize parser on first access to this frame
+  // Take a parser from the pool on first access (returned on frame unwind).
   if (!execution_stack_[frame_idx].parser) {
-    execution_stack_[frame_idx].parser = std::make_unique<PerfettoSqlParser>(
-        std::move(execution_stack_[frame_idx].sql_source), database_->macros());
+    auto p = AcquirePooledParser();
+    p->Reset(std::move(execution_stack_[frame_idx].sql_source));
+    execution_stack_[frame_idx].parser = std::move(p);
   }
 
   // Try to get next statement from this frame
@@ -1199,7 +1300,7 @@ bool PerfettoSqlConnection::IsKeyOnIncludeStack(const std::string& key) const {
 
 base::Status PerfettoSqlConnection::IncludeModuleImpl(
     const std::string& key,
-    const std::string& sql,
+    std::string_view sql,
     const PerfettoSqlParser& parser) {
   if (IsKeyOnIncludeStack(key)) {
     std::string traceback = parser.statement_sql().AsTraceback(0);
@@ -1218,15 +1319,15 @@ base::Status PerfettoSqlConnection::IncludeModuleImpl(
         "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
         traceback.c_str(), key.c_str(), res.poison_reason.c_str());
   }
-  execution_stack_.push_back({FrameType::kInclude,
-                              SqlSource::FromModuleInclude(sql, key),
-                              /*parser=*/nullptr, /*accumulated_stats=*/{},
-                              /*current_stmt=*/std::nullopt, key,
-                              /*traceback_sql=*/parser.statement_sql(),
-                              /*include_claim=*/std::move(res.claim),
-                              /*wildcard_modules=*/{}, /*wildcard_index=*/0,
-                              /*wildcard_traceback_sql=*/
-                              SqlSource::FromTraceProcessorImplementation("")});
+  execution_stack_.push_back(
+      {FrameType::kInclude, SqlSource::FromModuleInclude(std::string(sql), key),
+       /*parser=*/nullptr, /*accumulated_stats=*/{},
+       /*current_stmt=*/std::nullopt, key,
+       /*traceback_sql=*/parser.statement_sql(),
+       /*include_claim=*/std::move(res.claim),
+       /*wildcard_modules=*/{}, /*wildcard_index=*/0,
+       /*wildcard_traceback_sql=*/
+       SqlSource::FromTraceProcessorImplementation("")});
   return base::OkStatus();
 }
 
