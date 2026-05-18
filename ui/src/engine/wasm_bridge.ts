@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/assert';
-import {TraceProcessor32, TraceProcessor64} from '../trace_processor/wasm_modules';
+import {
+  TraceProcessor32,
+  TraceProcessor64,
+} from '../trace_processor/wasm_modules';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the
