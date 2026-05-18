@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load("@perfetto//bazel:rules.bzl", "perfetto_agent_skill", "perfetto_validate_skill_test")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_applicable_licenses = [PERFETTO_CONFIG.root + ":license"],
+    default_visibility = ["//visibility:public"],
+)
 
 perfetto_validate_skill_test(
     name = "validate_perfetto_infra_getting_trace_processor_skill_test",
