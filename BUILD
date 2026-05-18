@@ -280,6 +280,21 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
+# GN target: //src/shared_lib:libperfetto_c_headers
+perfetto_cc_library(
+    name = "libperfetto_c_headers",
+    hdrs = [
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_abi_public",
+        ":include_perfetto_public_base",
+        ":include_perfetto_public_protos_protos",
+        ":include_perfetto_public_protozero",
+        ":include_perfetto_public_public",
+    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
+    linkstatic = True,
+)
+
 # GN target: //src/tools/proto_filter:proto_filter
 perfetto_cc_binary(
     name = "proto_filter",
