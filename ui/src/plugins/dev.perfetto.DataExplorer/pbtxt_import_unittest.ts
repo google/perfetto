@@ -2599,7 +2599,7 @@ describe('pbtxt import - end-to-end validation', () => {
       const valid = node.validate();
       if (!valid) {
         const err = node.context.issues?.queryError?.message ?? 'unknown';
-        fail(`${node.type} (${node.nodeId}) failed validation: ${err}`);
+        expect.fail(`${node.type} (${node.nodeId}) failed validation: ${err}`);
       }
     }
   });
