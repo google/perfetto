@@ -172,6 +172,9 @@ class SqliteConnection {
  private:
   std::optional<uint32_t> GetErrorOffset() const;
 
+  // Keys are stored lowercased to match SQLite's case-insensitive function
+  // namespace; otherwise a case-variant registration could free the SQLite
+  // context while we kept a dangling pointer here.
   base::FlatHashMap<std::pair<std::string, int>,
                     void*,
                     base::MurmurHash<std::pair<std::string, int>>>
