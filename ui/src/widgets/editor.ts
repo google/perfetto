@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './editor.scss';
 import {indentWithTab} from '@codemirror/commands';
 import {EditorState, type Transaction} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
