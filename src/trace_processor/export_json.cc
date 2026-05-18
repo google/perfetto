@@ -1585,7 +1585,9 @@ class JsonExporter {
 
   std::pair<int64_t, int64_t> UtidToPidAndTid(UniqueTid utid) {
     auto pid_and_tid_it = utids_to_exported_pids_and_tids_.find(utid);
-    PERFETTO_DCHECK(pid_and_tid_it != utids_to_exported_pids_and_tids_.end());
+    if (pid_and_tid_it == utids_to_exported_pids_and_tids_.end()) {
+      return {0, 0};
+    }
     return pid_and_tid_it->second;
   }
 
