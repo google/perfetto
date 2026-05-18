@@ -1,3 +1,11 @@
+v55.3 - 2026-05-19:
+  Trace Processor:
+    * Relaxed embedded proto descriptor loading to allow extensions re-declared
+      under a renamed package or type when wire-compatible.
+  UI:
+    * Default to the Heap Dump Explorer view when opening traces containing
+      heap graph data (configurable via `openHeapDumpExplorerByDefault` flag).
+
 v55.2 - 2026-05-14:
   Trace Processor:
     * Fix classic HTTP server command line parsing on Windows. This fixes
