@@ -22,15 +22,24 @@ describe('findMostRecentScreenshot', () => {
   ];
 
   it('finds exact match', () => {
-    expect(findMostRecentScreenshot(screenshots, 200n)).toEqual({id: 2, ts: 200n});
+    expect(findMostRecentScreenshot(screenshots, 200n)).toEqual({
+      id: 2,
+      ts: 200n,
+    });
   });
 
   it('finds most recent before timestamp', () => {
-    expect(findMostRecentScreenshot(screenshots, 250n)).toEqual({id: 2, ts: 200n});
+    expect(findMostRecentScreenshot(screenshots, 250n)).toEqual({
+      id: 2,
+      ts: 200n,
+    });
   });
 
   it('finds first if timestamp is exactly at first', () => {
-    expect(findMostRecentScreenshot(screenshots, 100n)).toEqual({id: 1, ts: 100n});
+    expect(findMostRecentScreenshot(screenshots, 100n)).toEqual({
+      id: 1,
+      ts: 100n,
+    });
   });
 
   it('returns undefined if timestamp is before first', () => {
@@ -38,7 +47,10 @@ describe('findMostRecentScreenshot', () => {
   });
 
   it('finds last if timestamp is after last', () => {
-    expect(findMostRecentScreenshot(screenshots, 400n)).toEqual({id: 3, ts: 300n});
+    expect(findMostRecentScreenshot(screenshots, 400n)).toEqual({
+      id: 3,
+      ts: 300n,
+    });
   });
 
   it('returns undefined if list is empty', () => {
