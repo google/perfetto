@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './form.scss';
 import m from 'mithril';
 import {Button, ButtonVariant} from './button';
 import type {HTMLAttrs, HTMLLabelAttrs} from './common';
