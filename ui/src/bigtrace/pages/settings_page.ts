@@ -17,99 +17,18 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import m from 'mithril';
 import {SettingsShell} from '../../widgets/settings_shell';
-import {Switch} from '../../widgets/switch';
-import {Card, CardStack} from '../../widgets/card';
-import {classNames} from '../../base/classnames';
+import {CardStack} from '../../widgets/card';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {Setting as BigTraceSetting} from '../settings/settings_types';
-import {renderSetting} from '../settings/settings_widgets';
 import {Button, ButtonVariant} from '../../widgets/button';
 
 import {endpointStorage} from '../settings/endpoint_storage';
-import type {Setting} from '../../public/settings';
 
 import {TextInput} from '../../widgets/text_input';
 import {Stack, StackAuto} from '../../widgets/stack';
 
-interface BigTraceSettingsCardAttrs extends m.Attributes {
-  id?: string;
-  title: string;
-  controls: m.Children;
-  description?: m.Children;
-  disabled?: boolean;
-  onChange?: (disabled: boolean) => void;
-  fullWidthControls?: boolean;
-}
-
-class BigTraceSettingsCard
-  implements m.ClassComponent<BigTraceSettingsCardAttrs>
-{
-  view(vnode: m.Vnode<BigTraceSettingsCardAttrs>) {
-    const {
-      id,
-      title,
-      controls,
-      description,
-      disabled,
-      onChange,
-      fullWidthControls,
-      ...rest
-    } = vnode.attrs;
-
-    const details = m(
-      '.pf-settings-card__details',
-      m('.pf-settings-card__title', [
-        disabled !== undefined &&
-          m(Switch, {
-            className: 'pf-settings-card__toggle',
-            style: {marginRight: '8px'},
-            checked: !disabled,
-            onchange: (e: Event) => {
-              const target = e.target as HTMLInputElement;
-              onChange?.(!target.checked);
-            },
-          }),
-        title,
-      ]),
-      id && m('.pf-settings-card__id', id),
-      description !== undefined &&
-        m('.pf-settings-card__description', description),
-    );
-
-    const controlsEl = m(
-      '.pf-settings-card__controls',
-      {
-        className: classNames(
-          disabled !== undefined &&
-            disabled &&
-            'pf-bt-settings-controls--disabled',
-        ),
-        style: fullWidthControls
-          ? {gridColumn: '1 / -1', minWidth: '0'}
-          : undefined,
-      },
-      controls,
-    );
-
-    return m(
-      'div',
-      {
-        className: classNames(
-          disabled && 'pf-bt-settings-card-wrapper--disabled',
-        ),
-      },
-      m(
-        Card,
-        {
-          id,
-          className: classNames('pf-settings-card', disabled && 'pf-disabled'),
-          ...rest,
-        },
-        [details, controlsEl],
-      ),
-    );
-  }
-}
+import {BigTraceSettingsCard, renderBigTraceSettingCard} from './settings_card';
+import {renderEndpointControl} from './endpoint_input';
 
 export class SettingsPage implements m.ClassComponent {
   private searchQuery = '';
@@ -157,10 +76,22 @@ export class SettingsPage implements m.ClassComponent {
       categories.get(categoryName)!.push(setting);
     }
 
+    // Show a "no matches" hint when search hides everything except
+    // the always-shown General card.
+    const hasOtherMatches = settings.length > 0;
+    const showNoMatchesHint =
+      this.searchQuery !== '' &&
+      !hasOtherMatches &&
+      !bigTraceSettingsStorage.execConfigLoadError;
+
+    // Only force-create the Trace Metadata section while loading or on error;
+    // an empty metadata response collapses the section entirely.
     if (
       this.searchQuery === '' &&
       !categories.has('Trace Metadata') &&
-      !bigTraceSettingsStorage.execConfigLoadError
+      !bigTraceSettingsStorage.execConfigLoadError &&
+      (bigTraceSettingsStorage.isMetadataLoading ||
+        bigTraceSettingsStorage.metadataLoadError)
     ) {
       categories.set('Trace Metadata', []);
     }
@@ -170,19 +101,11 @@ export class SettingsPage implements m.ClassComponent {
       {
         title: 'Settings',
         className: 'page',
+        // Reload-required affordance lives next to the endpoint
+        // input (renderEndpointControl), not in the header.
         stickyHeaderContent: m(
           Stack,
           {orientation: 'horizontal'},
-          endpointStorage.isReloadRequired() &&
-            m(Button, {
-              label: 'Reload required',
-              icon: 'refresh',
-              intent: Intent.Primary,
-              variant: ButtonVariant.Filled,
-              onclick: () => {
-                window.location.reload();
-              },
-            }),
           m(StackAuto),
           m(TextInput, {
             placeholder: 'Search...',
@@ -201,16 +124,6 @@ export class SettingsPage implements m.ClassComponent {
             icon: 'hourglass_empty',
             fillHeight: true,
           }),
-        bigTraceSettingsStorage.execConfigLoadError &&
-          m(
-            Callout,
-            {
-              intent: Intent.Danger,
-              icon: 'error',
-              title: 'Failed to Load Execution Configuration',
-            },
-            bigTraceSettingsStorage.execConfigLoadError,
-          ),
         Array.from(categories.entries()).map(([category, catSettings]) => {
           let categoryHeader: m.Children = m(
             'h2.pf-settings-page__plugin-title',
@@ -268,12 +181,12 @@ export class SettingsPage implements m.ClassComponent {
                   title: endpointSetting.name,
                   description: endpointSetting.description,
                   disabled: undefined,
-                  controls: this.renderEndpointControl(endpointSetting),
+                  controls: renderEndpointControl(endpointSetting),
                 }),
               );
             }
             for (const setting of catSettings) {
-              cards.push(this.renderBigTraceSettingCard(setting));
+              cards.push(renderBigTraceSettingCard(setting));
             }
             categoryContent = m(CardStack, cards);
           }
@@ -284,37 +197,24 @@ export class SettingsPage implements m.ClassComponent {
             categoryContent,
           );
         }),
+        // After the General card, so the callout's "Set the
+        // Endpoint above" copy points at a field above it.
+        bigTraceSettingsStorage.execConfigLoadError &&
+          m(
+            Callout,
+            {
+              intent: Intent.Danger,
+              icon: 'error',
+              title: 'Failed to Load Execution Configuration',
+            },
+            bigTraceSettingsStorage.execConfigLoadError,
+          ),
+        showNoMatchesHint &&
+          m(EmptyState, {
+            title: `No settings match "${this.searchQuery}"`,
+            icon: 'search_off',
+          }),
       ]),
     );
-  }
-
-  private renderEndpointControl(setting: Setting<unknown>) {
-    const currentValue = setting.get() as string;
-    return m(TextInput, {
-      value: currentValue,
-      style: {width: 'min(300px, 30vw)'},
-      oninput: (e: Event) => {
-        const target = e.target as HTMLInputElement;
-        setting.set(target.value);
-      },
-    });
-  }
-
-  private renderBigTraceSettingCard(setting: BigTraceSetting<unknown>) {
-    const disabled = setting.isDisabled();
-    const fullWidth =
-      setting.type === 'string-array' ||
-      (setting.type === 'string' && setting.format === 'sql');
-    return m(BigTraceSettingsCard, {
-      id: setting.id,
-      title: setting.name,
-      description: setting.description,
-      controls: renderSetting(setting),
-      disabled,
-      fullWidthControls: fullWidth,
-      onChange: (newDisabled: boolean) => {
-        setting.setDisabled(newDisabled);
-      },
-    });
   }
 }

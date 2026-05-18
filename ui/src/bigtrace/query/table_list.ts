@@ -31,6 +31,11 @@ interface FilteredTable {
   segments: FuzzySegment[];
 }
 
+// Single source so run-query, body, title, and Copy text stay in sync.
+function includeStatement(includeKey: string): string {
+  return `INCLUDE PERFETTO MODULE ${includeKey};`;
+}
+
 function renderHighlightedName(segments: FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('span.pf-simple-table-list__highlight', value) : value,
@@ -81,7 +86,8 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             '.pf-simple-table-list__items',
             m(
               Accordion,
-              {multi: false},
+              // multi:true so users can expand several tables for schema compare.
+              {multi: true},
               filteredTables.map(({table, segments}) =>
                 m(
                   AccordionSection,
@@ -89,6 +95,8 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                     key: table.name,
                     summary: m(
                       'code.pf-simple-table-list__item-name',
+                      // Ellipsis-truncated; tooltip reveals the full name.
+                      {title: table.name},
                       renderHighlightedName(segments),
                     ),
                   },
@@ -103,12 +111,26 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     );
   }
 
+  private renderIncludeRow(includeKey: string): m.Children {
+    const include = includeStatement(includeKey);
+    return m(
+      '.pf-simple-table-list__detail-row',
+      m('span.pf-simple-table-list__detail-label', 'Include'),
+      m('code.pf-simple-table-list__detail-value', {title: include}, include),
+      m(CopyToClipboardButton, {
+        className: 'pf-show-on-hover',
+        textToCopy: include,
+        tooltip: 'Copy include string to clipboard',
+      }),
+    );
+  }
+
   private generateQuery(table: SqlTable): string {
     const lines: string[] = [];
 
     // Add INCLUDE statement if needed
     if (table.includeKey) {
-      lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
+      lines.push(includeStatement(table.includeKey));
       lines.push('');
     }
 
@@ -138,7 +160,12 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       m(
         '.pf-simple-table-list__detail-row',
         m('span.pf-simple-table-list__detail-label', 'Table name'),
-        m('code.pf-simple-table-list__detail-value', table.name),
+        // Ellipsis-truncated; tooltip reveals the full name without copying.
+        m(
+          'code.pf-simple-table-list__detail-value',
+          {title: table.name},
+          table.name,
+        ),
         m(CopyToClipboardButton, {
           className: 'pf-show-on-hover',
           textToCopy: table.name,
@@ -154,20 +181,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           }),
       ),
       // Module
-      table.includeKey &&
-        m(
-          '.pf-simple-table-list__detail-row',
-          m('span.pf-simple-table-list__detail-label', 'Include'),
-          m(
-            'code.pf-simple-table-list__detail-value',
-            `INCLUDE PERFETTO MODULE ${table.includeKey};`,
-          ),
-          m(CopyToClipboardButton, {
-            className: 'pf-show-on-hover',
-            textToCopy: `INCLUDE PERFETTO MODULE ${table.includeKey};`,
-            tooltip: 'Copy include string to clipboard',
-          }),
-        ),
+      table.includeKey && this.renderIncludeRow(table.includeKey),
 
       // Columns
       table.columns.length > 0 &&

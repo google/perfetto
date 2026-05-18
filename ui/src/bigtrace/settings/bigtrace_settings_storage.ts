@@ -12,226 +12,111 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {z} from 'zod';
 import type {
   Setting,
   SettingDescriptor,
-  EnumOption,
   SettingFilter,
   SettingCategory,
 } from './settings_types';
-import {bigTraceSettingsService} from './bigtrace_settings_service';
+import {SettingImpl} from './setting_impl';
 import {LocalStorage} from '../../core/local_storage';
 import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_storage';
+import {SettingsLoader} from './settings_loader';
 import m from 'mithril';
 
-class SettingImpl<T> implements Setting<T> {
-  public readonly id: string;
-  public readonly name: string;
-  public readonly description: string;
-  public readonly type:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array';
-  public readonly schema: z.ZodType<T>;
-  public readonly defaultValue: T;
-  public readonly category?: string;
-  public readonly requiresReload?: boolean;
-  public readonly options?: readonly (string | EnumOption)[];
-  public readonly placeholder?: string;
-  public readonly format?: 'sql';
-  public readonly disabled: boolean;
-
-  constructor(
-    private settingsStorage: BigTraceSettingsStorageImpl,
-    descriptor: SettingDescriptor<T>,
-    private disabledStateStorage: LocalStorage,
-  ) {
-    this.id = descriptor.id;
-    this.name = descriptor.name;
-    this.description = descriptor.description;
-    this.type = descriptor.type;
-    this.schema = descriptor.schema;
-    this.defaultValue = descriptor.defaultValue;
-    this.category = descriptor.category;
-    this.requiresReload = descriptor.requiresReload;
-    this.options = descriptor.options;
-    this.placeholder = descriptor.placeholder;
-    this.format = descriptor.format;
-    this.disabled = descriptor.disabled ?? false;
-
-    if (this.disabled === true) {
-      const storedState = this.disabledStateStorage.load()[this.id];
-      if (storedState === undefined) {
-        this.setDisabled(true);
-      }
-    }
-  }
-
-  get isDefault(): boolean {
-    return this.get() === this.defaultValue;
-  }
-
-  get(): T {
-    const storedValue = this.settingsStorage.getStoredValue(this.id);
-    const parsed = this.schema.safeParse(storedValue);
-    if (parsed.success) {
-      return parsed.data;
-    }
-    return this.defaultValue;
-  }
-
-  set(value: T): void {
-    this.settingsStorage.setStoredValue(this.id, value);
-    m.redraw();
-  }
-
-  reset(): void {
-    this.settingsStorage.setStoredValue(this.id, this.defaultValue);
-    m.redraw();
-  }
-
-  isDisabled(): boolean {
-    const state = this.disabledStateStorage.load()[this.id];
-    return state === undefined ? false : Boolean(state);
-  }
-
-  setDisabled(disabled: boolean): void {
-    const data = this.disabledStateStorage.load();
-    data[this.id] = disabled;
-    this.disabledStateStorage.save(data);
-    m.redraw();
-  }
-
-  [Symbol.dispose](): void {
-    // Not implemented
-  }
-}
-
-interface BigTraceSettingsStorage {
+// Public interface consumed by the loader. Keeps the loader decoupled from
+// the concrete store implementation.
+export interface BigTraceSettingsStore {
   register<T>(setting: SettingDescriptor<T>): Setting<T>;
-  resetAll(): void;
-  getAllSettings(): ReadonlyArray<Setting<unknown>>;
-  isReloadRequired(): boolean;
   get<T>(id: string): Setting<T> | undefined;
-  reloadMetadataSettings(): Promise<void>;
-  loadSettings(force?: boolean): Promise<void>;
-  readonly loadError: string | undefined;
+  getAllSettings(): ReadonlyArray<Setting<unknown>>;
+  buildSettingFilters(): SettingFilter[];
+  removeByCategory(category: string): void;
+  snapshotMetadataFilters(filters: SettingFilter[]): void;
+  clear(): void;
 }
 
-class BigTraceSettingsStorageImpl implements BigTraceSettingsStorage {
+// Synchronous store for backend-provided settings. All async orchestration
+// lives in SettingsLoader which calls back into this store's register().
+class BigTraceSettingsStoreImpl implements BigTraceSettingsStore {
   private settings = new Map<string, Setting<unknown>>();
-  private storage: LocalStorage;
-  public isLoading = false; // Combined loading state
-  public isExecConfigLoading = false;
-  public execConfigLoadError: string | undefined = undefined;
-  public isMetadataLoading = false;
-  public metadataLoadError: string | undefined = undefined;
-  public get loadError(): string | undefined {
-    return this.execConfigLoadError || this.metadataLoadError;
-  }
-  private hasLoaded = false;
-  private loadPromise: Promise<void> | null = null;
+  private readonly storage: LocalStorage;
   private lastLoadedMetadataFilters: string | null = null;
+
+  // Loading is handled by the companion SettingsLoader instance.
+  readonly loader: SettingsLoader;
 
   constructor(storage: LocalStorage) {
     this.storage = storage;
+    this.loader = new SettingsLoader(this);
   }
 
-  async loadSettings(force = false): Promise<void> {
-    if (this.hasLoaded && !force) return;
-    if (this.loadPromise) return this.loadPromise;
+  // ----- Delegated to loader (convenience API) -----
 
-    this.loadPromise = this._loadSettingsInternal();
-    try {
-      await this.loadPromise;
-    } finally {
-      this.loadPromise = null;
-    }
-  }
-
-  private async _loadSettingsInternal(): Promise<void> {
-    this.isLoading = true;
-    this.isExecConfigLoading = true;
-    this.execConfigLoadError = undefined;
-    this.isMetadataLoading = false;
-    this.metadataLoadError = undefined;
-    this.settings.clear();
-    m.redraw();
-
-    try {
-      const execSettings = await bigTraceSettingsService.getExecutionSettings();
-      for (const setting of execSettings) {
-        this.register(setting);
-      }
-    } catch (e) {
-      this.execConfigLoadError = e instanceof Error ? e.message : String(e);
-      this.isExecConfigLoading = false;
-      this.isLoading = false;
-      this.hasLoaded = true;
-      m.redraw();
-      return; // Stop if exec config fails
-    }
-    this.isExecConfigLoading = false;
-
-    // Proceed to load metadata only if exec config succeeded
-    this.isMetadataLoading = true;
-    m.redraw();
-
-    try {
-      const filters = this.buildSettingFilters();
-      this.lastLoadedMetadataFilters = JSON.stringify(
-        filters.filter((f) => f.category === 'TRACE_ADDRESS'),
-      );
-      const metadataSettings =
-        await bigTraceSettingsService.getMetadataSettings(filters);
-      for (const setting of metadataSettings) {
-        this.register(setting);
-      }
-    } catch (e) {
-      this.metadataLoadError = e instanceof Error ? e.message : String(e);
-    } finally {
-      this.isMetadataLoading = false;
-      this.isLoading = false;
-      this.hasLoaded = true;
-      m.redraw();
-    }
+  async loadSettings(force?: boolean): Promise<void> {
+    return this.loader.loadSettings(force);
   }
 
   async reloadMetadataSettings(): Promise<void> {
-    this.isMetadataLoading = true;
-    this.metadataLoadError = undefined;
-    m.redraw();
-
-    const existingIds = Array.from(this.settings.keys());
-    for (const id of existingIds) {
-      const setting = this.settings.get(id);
-      if (setting && setting.category === 'TRACE_METADATA') {
-        this.settings.delete(id);
-      }
-    }
-
-    try {
-      const filters = this.buildSettingFilters();
-      this.lastLoadedMetadataFilters = JSON.stringify(
-        filters.filter((f) => f.category === 'TRACE_ADDRESS'),
-      );
-
-      const metadataSettings =
-        await bigTraceSettingsService.getMetadataSettings(filters);
-      for (const setting of metadataSettings) {
-        this.register(setting);
-      }
-    } catch (e) {
-      this.metadataLoadError = e instanceof Error ? e.message : String(e);
-    } finally {
-      this.isMetadataLoading = false;
-      m.redraw();
-    }
+    return this.loader.reloadMetadataSettings();
   }
+
+  get loadError(): string | undefined {
+    return this.loader.loadError;
+  }
+
+  get isLoading(): boolean {
+    return this.loader.isLoading;
+  }
+
+  get isExecConfigLoading(): boolean {
+    return this.loader.loadingPhase === 'exec';
+  }
+
+  get execConfigLoadError(): string | undefined {
+    return this.loader.execConfigLoadError;
+  }
+
+  get isMetadataLoading(): boolean {
+    return this.loader.loadingPhase === 'metadata';
+  }
+
+  get metadataLoadError(): string | undefined {
+    return this.loader.metadataLoadError;
+  }
+
+  // ----- Store CRUD -----
+
+  register<T>(descriptor: SettingDescriptor<T>): Setting<T> {
+    const setting = new SettingImpl(this, descriptor, disabledStateStorage);
+    this.settings.set(descriptor.id, setting as unknown as Setting<unknown>);
+    return setting;
+  }
+
+  get<T>(id: string): Setting<T> | undefined {
+    return this.settings.get(id) as Setting<T> | undefined;
+  }
+
+  getAllSettings(): ReadonlyArray<Setting<unknown>> {
+    return Array.from(this.settings.values());
+  }
+
+  getStoredValue(id: string): unknown {
+    return this.storage.load()[id];
+  }
+
+  setStoredValue(id: string, value: unknown): void {
+    const data = this.storage.load();
+    data[id] = value;
+    this.storage.save(data);
+  }
+
+  resetAll(): void {
+    this.storage.save({});
+    m.redraw();
+  }
+
+  // ----- Filter assembly -----
 
   buildSettingFilters(): SettingFilter[] {
     const filters: SettingFilter[] = [];
@@ -264,43 +149,34 @@ class BigTraceSettingsStorageImpl implements BigTraceSettingsStorage {
     return filters;
   }
 
-  register<T>(descriptor: SettingDescriptor<T>): Setting<T> {
-    const setting = new SettingImpl(this, descriptor, disabledStateStorage);
-    this.settings.set(descriptor.id, setting as Setting<unknown>);
-    return setting;
-  }
+  // ----- Reload detection -----
 
-  get<T>(id: string): Setting<T> | undefined {
-    return this.settings.get(id) as Setting<T> | undefined;
-  }
-
-  getAllSettings(): ReadonlyArray<Setting<unknown>> {
-    return Array.from(this.settings.values());
-  }
-
-  getStoredValue(id: string): unknown {
-    return this.storage.load()[id];
-  }
-
-  setStoredValue(id: string, value: unknown): void {
-    const data = this.storage.load();
-    data[id] = value;
-    this.storage.save(data);
-  }
-
-  resetAll(): void {
-    this.storage.save({});
-    m.redraw();
+  snapshotMetadataFilters(filters: SettingFilter[]): void {
+    this.lastLoadedMetadataFilters = JSON.stringify(
+      filters.filter((f) => f.category === 'TRACE_ADDRESS'),
+    );
   }
 
   isReloadRequired(): boolean {
-    if (!this.hasLoaded || this.lastLoadedMetadataFilters === null) {
-      return false;
-    }
+    if (this.lastLoadedMetadataFilters === null) return false;
     const currentFilters = this.buildSettingFilters().filter(
       (f) => f.category === 'TRACE_ADDRESS',
     );
     return JSON.stringify(currentFilters) !== this.lastLoadedMetadataFilters;
+  }
+
+  // ----- Bulk operations (used by loader) -----
+
+  removeByCategory(category: string): void {
+    for (const [id, setting] of this.settings) {
+      if (setting.category === category) {
+        this.settings.delete(id);
+      }
+    }
+  }
+
+  clear(): void {
+    this.settings.clear();
   }
 }
 
@@ -309,6 +185,6 @@ const disabledStateStorage = new LocalStorage(
   SETTINGS_DISABLED_STATE_STORAGE_KEY,
 );
 
-export const bigTraceSettingsStorage = new BigTraceSettingsStorageImpl(
+export const bigTraceSettingsStorage = new BigTraceSettingsStoreImpl(
   new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
 );

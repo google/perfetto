@@ -17,11 +17,12 @@ import {assetSrc} from '../../base/assets';
 import {Icon} from '../../widgets/icon';
 import {getOrCreate} from '../../base/utils';
 import {classNames} from '../../base/classnames';
+import {setRoute} from '../router';
+import {Routes} from '../routes';
 
 const SIDEBAR_SECTIONS = {
   bigtrace: {
     title: 'BigTrace',
-    summary: 'Query and analyze large traces',
     defaultCollapsed: false,
   },
 } as const;
@@ -55,20 +56,14 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
       [
         m('header.pf-sidebar__header', [
           m(
-            'h1',
+            'h1.pf-bt-sidebar-title',
             {
-              style: {
-                margin: 0,
-                fontSize: '18px',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              },
+              // Title clicks go home; setRoute keeps history/back working.
+              title: 'Go to BigTrace home',
+              onclick: () => setRoute(Routes.HOME),
             },
-            m('img', {
+            m('img.pf-bt-sidebar-logo', {
               src: assetSrc('assets/logo-128.png'),
-              style: {height: '1em'},
             }),
             'BigTrace',
           ),
