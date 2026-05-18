@@ -12,67 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {featureFlags} from '../core/feature_flags';
+import {debounce} from '../base/rate_limiters';
 
-let lastReloadDialogTime = 0;
-const kMinTimeBetweenDialogsMs = 10000;
-const changedPaths = new Set<string>();
+// Thrown to cancel Vite's automatic page reload in favour of our debounced
+// confirm prompt. error_dialog.ts filters this message out.
+export const VITE_RELOAD_CANCEL_MSG = 'Cancel vite reload';
+const DEBOUNCE_DELAY_MS = 250;
 
+// When served by the Vite dev server, subscribe to its full-reload events and
+// confirm with the user before reloading. In a prod build `import.meta.hot` is
+// undefined and this is a no-op.
 export function initLiveReload() {
-  const monitor = new EventSource('/live_reload');
-  monitor.onmessage = (msg) => {
-    const change = String(msg.data);
-    console.log('Live reload:', change);
-    changedPaths.add(change);
-    if (change.endsWith('.css')) {
-      reloadCSS();
-    } else if (change.endsWith('.html') || change.endsWith('.js')) {
-      reloadDelayed();
-    }
-  };
-  monitor.onerror = (err) => {
-    // In most cases the error is fired on reload, when the socket disconnects.
-    // Delay the error and the reconnection, so in the case of a reload we don't
-    // see any midleading message.
-    setTimeout(() => console.error('LiveReload SSE error', err), 1000);
-  };
-}
-
-function reloadCSS() {
-  const css = document.querySelector('link[rel=stylesheet]');
-  if (!css) return;
-  const parent = css.parentElement!;
-  parent.removeChild(css);
-  parent.appendChild(css);
-}
-
-const rapidReloadFlag = featureFlags.register({
-  id: 'rapidReload',
-  name: 'Development: rapid live reload',
-  defaultValue: false,
-  description:
-    'During development, instantly reload the page on change. ' +
-    'Enables lower latency of live reload at the cost of potential ' +
-    'multiple re-reloads.',
-  devOnly: true,
-});
-
-function reloadDelayed() {
-  setTimeout(
-    () => {
-      let pathsStr = '';
-      for (const path of changedPaths) {
-        pathsStr += path + '\n';
-      }
-      changedPaths.clear();
-      if (Date.now() - lastReloadDialogTime < kMinTimeBetweenDialogsMs) return;
-      const reload =
-        rapidReloadFlag.get() || confirm(`${pathsStr}changed, click to reload`);
-      lastReloadDialogTime = Date.now();
-      if (reload) {
-        window.location.reload();
-      }
-    },
-    rapidReloadFlag.get() ? 0 : 1000,
-  );
+  if (!import.meta.hot) return;
+  const pending = new Set<string>();
+  const prompt = debounce(() => {
+    const paths = [...pending];
+    pending.clear();
+    const list =
+      paths.length <= 3
+        ? paths.map((p) => `  • ${p}`).join('\n')
+        : paths
+            .slice(0, 3)
+            .map((p) => `  • ${p}`)
+            .join('\n') + `\n  • …and ${paths.length - 3} more`;
+    const msg = `Modules changed on disk:\n${list}\n\nReload now?`;
+    if (confirm(msg)) location.reload();
+  }, DEBOUNCE_DELAY_MS);
+  import.meta.hot.on('vite:beforeFullReload', (payload) => {
+    const p = payload as {path?: string; triggeredBy?: string};
+    // `path` may be "*" or missing; `triggeredBy` is the absolute path of the
+    // file that changed. Prefer the latter, shortened to a repo-relative form.
+    const raw = p.triggeredBy ?? p.path ?? 'unknown';
+    const shown = raw.includes('/') ? raw.split('/').slice(-2).join('/') : raw;
+    pending.add(shown);
+    prompt();
+    // Block Vite's automatic reload; prompt() will trigger one on accept.
+    // Throwing an error is the only way to reliably cancel the reload, since
+    // Vite doesn't provide an API for that.
+    throw new Error(VITE_RELOAD_CANCEL_MSG);
+  });
 }

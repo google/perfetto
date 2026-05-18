@@ -195,12 +195,26 @@ function pluginGenRelativeImports() {
   };
 }
 
-// IIFE output forces `inlineDynamicImports`, which forbids multiple inputs in
-// one rollup invocation. So we build one entry per `vite build` call, selected
-// by the BUNDLE env var. build.mjs spawns one invocation per bundle.
-const BUNDLE = process.env.BUNDLE;
-if (!BUNDLE) {
-  throw new Error('vite.config.mjs requires BUNDLE=<name> env var');
+// Dev-mode shim for the UMD wasm glue files in ui/src/gen/*.js. They end with
+//   if (typeof exports === 'object' && typeof module === 'object') {
+//     module.exports = X; module.exports.default = X;
+//   }
+// which Vite's native ESM serving doesn't recognise — the browser sees no
+// `export default`. In build mode @rollup/plugin-commonjs handles this; in
+// dev we transform the source: run the UMD body with a synthesised
+// `module`/`exports`, then re-export `module.exports.default` as ESM default.
+function pluginGenWasmGlueEsm() {
+  return {
+    name: 'perfetto:gen-wasm-glue-esm',
+    enforce: 'pre',
+    async load(id) {
+      const file = id.split('?', 1)[0];
+      if (!/\/gen\/(proto_utils|trace_processor(_memory64)?|traceconv)\.js$/.test(file)) return null;
+      const src = await fs.promises.readFile(file, 'utf8');
+      // Wrap the UMD in a CJS-style shim and re-export as ESM.
+      return `const module = {exports: {}};\nconst exports = module.exports;\n${src}\nexport default module.exports.default ?? module.exports;\n`;
+    },
+  };
 }
 
 // Per-bundle config: input file, output dir (relative to ui/out), and output
@@ -216,23 +230,43 @@ const BUNDLE_CONFIGS = {
   service_worker:      {dir: 'dist',                         entry: 'service_worker.ts',
                         fileName: 'service_worker.js'},
 };
-const bundleCfg = BUNDLE_CONFIGS[BUNDLE];
-if (!bundleCfg) {
-  throw new Error(`Unknown BUNDLE: ${BUNDLE}`);
-}
-const inputPath = path.join(SRC, BUNDLE, bundleCfg.entry);
-const entryFileNames = bundleCfg.fileName || '[name]_bundle.js';
 
-export default defineConfig({
+// When invoked as `vite build`, BUNDLE selects one entry per invocation
+// (build.mjs spawns one process per bundle). When invoked programmatically
+// from build.mjs as a dev server (`createServer`), BUNDLE is unset and the
+// frontend index.html drives the module graph.
+const BUNDLE = process.env.BUNDLE;
+
+export default defineConfig(({command}) => {
+  const isBuild = command === 'build';
+  if (isBuild && !BUNDLE) {
+    throw new Error('vite.config.mjs requires BUNDLE=<name> env var for build');
+  }
+  const bundleCfg = isBuild ? BUNDLE_CONFIGS[BUNDLE] : null;
+  if (isBuild && !bundleCfg) {
+    throw new Error(`Unknown BUNDLE: ${BUNDLE}`);
+  }
+  const inputPath = isBuild ? path.join(SRC, BUNDLE, bundleCfg.entry) : null;
+  const entryFileNames = isBuild
+      ? (bundleCfg.fileName || '[name]_bundle.js')
+      : undefined;
+
+  return {
   root: SRC,
-  // No HTML index — build.mjs handles HTML.
+  // Vite is used purely as a TS transpiler + bundler in build mode, and as
+  // a module-serving dev server in serve mode. build.mjs owns HTML in both
+  // modes (in dev it calls server.transformIndexHtml() and serves at /).
   appType: 'custom',
+  // We have a real source directory at ui/src/public — disable Vite's
+  // magic "publicDir" handling so it doesn't try to serve it at /.
+  publicDir: false,
   plugins: [
     pluginAllPluginsBarrel(),
     // Compiles *.grammar files (lezer parser definitions) on import. Replaces
     // the old "manually run lezer-generator and commit gen/*.js" workflow.
     lezer(),
     pluginGenRelativeImports(),
+    ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
     ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
   ],
   resolve: {
@@ -264,7 +298,7 @@ export default defineConfig({
       // No-op for build, but keeps dev parity if we ever flip to `vite dev`.
     },
   },
-  build: {
+  build: isBuild ? {
     commonjsOptions: {
       transformMixedEsModules: true,
       // The UMD wasm glue files don't look like CJS to rollup's auto-detect.
@@ -304,7 +338,6 @@ export default defineConfig({
           if (name.endsWith('.css')) return `${BUNDLE}.css`;
           return '[name][extname]';
         },
-        inlineDynamicImports: true,
       },
       onwarn(warning, warn) {
         if (warning.code === 'CIRCULAR_DEPENDENCY') {
@@ -315,5 +348,6 @@ export default defineConfig({
         warn(warning);
       },
     },
-  },
+  } : undefined,
+  };
 });
