@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult, SerialTaskQueue} from '../../../../base/query_slot';
-import {Engine} from '../../../../trace_processor/engine';
-import {Row} from '../../../../trace_processor/query_result';
-import {DataSourceRows, PivotModel} from '../data_source';
+import type {QueryResult, SerialTaskQueue} from '../../../../base/query_slot';
+import type {Engine} from '../../../../trace_processor/engine';
+import type {Row} from '../../../../trace_processor/query_result';
+import type {DataSourceRows, PivotModel} from '../data_source';
 import {SQLDataSourceGroupBy} from './group_by';
 import {SQLDataSourceRollupTree} from './rollup_tree';
-import {SQLSchemaRegistry} from '../sql_schema';
+import type {SQLSchemaRegistry} from '../sql_schema';
 
 // Pivot datasource for DataGrid - delegates to flat or tree implementations.
 export class SQLDataSourcePivot {

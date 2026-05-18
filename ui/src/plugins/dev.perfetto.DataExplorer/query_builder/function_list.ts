@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, FuzzySegment} from '../../../base/fuzzy';
-import {
+import {FuzzyFinder, type FuzzySegment} from '../../../base/fuzzy';
+import type {
   SqlModules,
   SqlFunction,
   SqlModule,

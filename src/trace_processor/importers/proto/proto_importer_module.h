@@ -167,7 +167,7 @@ class ProtoImporterModule {
 //
 // Used to store per-trace state in a place where everyone can access it.
 struct ProtoImporterModuleContext {
-  void PushFtraceEvent(uint32_t cpu, int64_t ts, TracePacketData data);
+  void PushFtraceEvent(uint32_t cpu, int64_t ts, FtraceData data);
   void PushEtwEvent(uint32_t cpu, int64_t ts, TracePacketData data);
   void PushInlineSchedSwitch(uint32_t cpu, int64_t ts, InlineSchedSwitch data);
   void PushInlineSchedWaking(uint32_t cpu, int64_t ts, InlineSchedWaking data);
@@ -184,10 +184,9 @@ struct ProtoImporterModuleContext {
   std::unique_ptr<TraceSorter::Stream<TrackEventData>> track_event_stream;
 
   using FtraceStreamFactory =
-      std::function<std::unique_ptr<TraceSorter::Stream<TracePacketData>>(
-          uint32_t)>;
+      std::function<std::unique_ptr<TraceSorter::Stream<FtraceData>>(uint32_t)>;
   FtraceStreamFactory ftrace_stream_factory;
-  std::vector<std::unique_ptr<TraceSorter::Stream<TracePacketData>>>
+  std::vector<std::unique_ptr<TraceSorter::Stream<FtraceData>>>
       ftrace_event_streams;
 
   using EtwStreamFactory =

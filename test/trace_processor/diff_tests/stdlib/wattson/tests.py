@@ -247,7 +247,9 @@ class WattsonStdlib(TestSuite):
           cpu6_mw,
           cpu7_mw,
           dsu_scu_mw
-        FROM _windowed_system_state_mw(362426061658, 5067704349)
+        FROM _wattson_base_components_avg_mw!(
+          (SELECT 362426061658 AS ts, 5067704349 AS dur, 0 AS period_id)
+        )
         """,
         out=Csv("""
             "cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
@@ -546,4 +548,33 @@ class WattsonStdlib(TestSuite):
             13399714898045,48464,"android",750.380000,0.000000
             13399714946509,263607,"GPU Idle",0.000000,750.380000
             13399715210116,1828255,"GPU Idle",0.000000,750.380000
+            """))
+
+  def test_wattson_multiple_1d_static(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_multiple_1d_static.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.estimates;
+            SELECT ts, dur, static_1d
+            FROM _w_independent_cpus_calc
+            WHERE ts >= 159400423427
+            LIMIT 15
+            """),
+        out=Csv("""
+            "ts","dur","static_1d"
+            159400423427,47188,20.790000
+            159400470615,51875,45.340000
+            159400522490,625,83.940000
+            159400523115,573,83.940000
+            159400523688,469,83.940000
+            159400524157,520,83.940000
+            159400524677,469,83.940000
+            159400525146,6042,83.940000
+            159400531188,40052,83.940000
+            159400571240,49375,83.940000
+            159400620615,250781,59.390000
+            159400871396,59844,59.390000
+            159400931240,142656,59.390000
+            159401073896,17031,59.390000
+            159401090927,37032,59.390000
             """))

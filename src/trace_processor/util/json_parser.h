@@ -766,6 +766,48 @@ class Iterator {
     return ReturnCode::kOk;
   }
 
+  // Captures the raw JSON bytes of the object or array scope just entered by
+  // ParseAndRecurse, including the surrounding `{}`/`[]`. Pops the parse stack,
+  // consumes any trailing `,`, advances `cur_` past the closing delimiter, and
+  // updates `value()` to be the fully-populated Object/Array variant. Must be
+  // called when `value()` is an empty Object{}/Array{} marker (i.e. we just
+  // entered a nested scope and haven't iterated into it).
+  ReturnCode CollectCurrentScope(std::string_view& out) {
+    PERFETTO_DCHECK(!parse_stack_.empty());
+    bool is_obj = parse_stack_.back() == ParseType::kObject;
+    PERFETTO_DCHECK((is_obj && std::holds_alternative<Object>(value_)) ||
+                    (!is_obj && std::holds_alternative<Array>(value_)));
+    // ParseAndRecurse advanced `cur_` past the opener and any trailing
+    // whitespace. Step back over that whitespace to find the `{`/`[`.
+    const char open = is_obj ? '{' : '[';
+    const char* start = cur_ - 1;
+    while (*start == ' ' || *start == '\t' || *start == '\n' ||
+           *start == '\r') {
+      --start;
+    }
+    PERFETTO_DCHECK(*start == open);
+    const char* cur = start;
+    if (auto e = internal::ScanToEndOfDelimitedBlock(
+            start, end_, is_obj ? '{' : '[', is_obj ? '}' : ']', cur, status_);
+        PERFETTO_UNLIKELY(e != internal::ReturnCode::kOk)) {
+      return static_cast<ReturnCode>(e);
+    }
+    out = std::string_view(start, static_cast<size_t>(cur - start));
+    parse_stack_.pop_back();
+    cur_ = cur;
+    if (!parse_stack_.empty()) {
+      if (auto e = OnPostValue(cur_); PERFETTO_UNLIKELY(e != ReturnCode::kOk)) {
+        return e;
+      }
+    }
+    if (is_obj) {
+      value_ = Object{out};
+    } else {
+      value_ = Array{out};
+    }
+    return ReturnCode::kOk;
+  }
+
   // Returns the key of the last parsed object field.
   std::string_view key() const { return key_; }
   // Returns the value of the last parsed field or array element.

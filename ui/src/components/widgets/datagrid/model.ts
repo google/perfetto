@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlValue} from '../../../trace_processor/query_result';
+import type {SqlValue} from '../../../trace_processor/query_result';
 
 type PercentileAggregation = 'P25' | 'P50' | 'P75' | 'P90' | 'P95' | 'P99';
 

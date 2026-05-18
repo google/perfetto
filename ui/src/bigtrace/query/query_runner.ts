@@ -16,7 +16,7 @@ import m from 'mithril';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {endpointStorage} from '../settings/endpoint_storage';
-import {SettingFilter} from '../settings/settings_types';
+import type {SettingFilter} from '../settings/settings_types';
 import {BigtraceAsyncDataSource} from './bigtrace_async_data_source';
 import {
   BigtraceQueryClient,
@@ -24,7 +24,7 @@ import {
   QueryNotFoundError,
 } from './bigtrace_query_client';
 import {forwardAbort} from './abort_utils';
-import {isoToEpochMs, RawQueryExecution} from './query_history_storage';
+import {isoToEpochMs, type RawQueryExecution} from './query_history_storage';
 import {queryStore, TERMINAL_STATUSES} from './query_store';
 import {makeQueryResponse} from '../pages/query_tabs_state';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';

@@ -18,6 +18,8 @@ import {
   removeFalsyValues,
   range,
   moveArrayItem,
+  min,
+  max,
 } from './array_utils';
 
 describe('range', () => {
@@ -96,4 +98,60 @@ test('moveArrayItem.moveBackward', () => {
   const input = range(3);
   moveArrayItem(input, 2, 0);
   expect(input).toEqual([2, 0, 1]);
+});
+
+describe('min', () => {
+  it('returns the smallest element', () => {
+    expect(min([3, 1, 4, 1, 5, 9, 2, 6])).toBe(1);
+  });
+
+  it('handles negative numbers', () => {
+    expect(min([-3, -1, -4, -1])).toBe(-4);
+  });
+
+  it('returns the only element for a singleton array', () => {
+    expect(min([42])).toBe(42);
+  });
+
+  it('returns undefined for an empty array', () => {
+    expect(min([])).toBeUndefined();
+  });
+
+  it('returns NaN if any element is NaN', () => {
+    expect(min([1, NaN, 3])).toBeNaN();
+    expect(min([NaN])).toBeNaN();
+  });
+
+  it('handles Infinity', () => {
+    expect(min([Infinity, 1, 2])).toBe(1);
+    expect(min([-Infinity, 1, 2])).toBe(-Infinity);
+  });
+});
+
+describe('max', () => {
+  it('returns the largest element', () => {
+    expect(max([3, 1, 4, 1, 5, 9, 2, 6])).toBe(9);
+  });
+
+  it('handles negative numbers', () => {
+    expect(max([-3, -1, -4, -1])).toBe(-1);
+  });
+
+  it('returns the only element for a singleton array', () => {
+    expect(max([42])).toBe(42);
+  });
+
+  it('returns undefined for an empty array', () => {
+    expect(max([])).toBeUndefined();
+  });
+
+  it('returns NaN if any element is NaN', () => {
+    expect(max([1, NaN, 3])).toBeNaN();
+    expect(max([NaN])).toBeNaN();
+  });
+
+  it('handles Infinity', () => {
+    expect(max([Infinity, 1, 2])).toBe(Infinity);
+    expect(max([-Infinity, 1, 2])).toBe(2);
+  });
 });

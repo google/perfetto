@@ -19,7 +19,7 @@ import m from 'mithril';
 import {SettingsShell} from '../../widgets/settings_shell';
 import {CardStack} from '../../widgets/card';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {Setting as BigTraceSetting} from '../settings/settings_types';
+import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import {Button, ButtonVariant} from '../../widgets/button';
 
 import {endpointStorage} from '../settings/endpoint_storage';

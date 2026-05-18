@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import {Registry} from '../base/registry';
-import {
+import type {
   TrackRenderer,
   Track,
   TrackManager,
   TrackFilterCriteria,
   Overlay,
 } from '../public/track';
-import {TrackRenderContext} from '../public/track';
-import {TrackNode} from '../public/workspace';
-import {TraceImpl} from './trace_impl';
+import type {TrackRenderContext} from '../public/track';
+import type {TrackNode} from '../public/workspace';
+import type {TraceImpl} from './trace_impl';
 
 export interface TrackWrapper {
   readonly track: TrackRenderer;

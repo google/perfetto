@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {indentWithTab} from '@codemirror/commands';
-import {EditorState, Transaction} from '@codemirror/state';
+import {EditorState, type Transaction} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {keymap} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
@@ -22,7 +22,7 @@ import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
 import {assertUnreachable} from '../base/assert';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
 
 type EditorLanguage = 'perfetto-sql' | 'javascript';
@@ -55,6 +55,9 @@ export interface EditorAttrs extends HTMLAttrs {
   // Callback for the Ctrl/Cmd + S key binding.
   onSave?: () => void;
 
+  // Callback for the Alt/Opt + Shift + F key binding.
+  onFormat?: (text: string) => void;
+
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
 }
@@ -72,6 +75,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
     const onSave = attrs.onSave;
+    const onFormat = attrs.onFormat;
     const onUpdate = attrs.onUpdate;
 
     if (onExecute) {
@@ -102,6 +106,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         key: 'Mod-s',
         run: (_view: EditorView) => {
           onSave();
+          m.redraw();
+          return true;
+        },
+      });
+    }
+
+    if (onFormat) {
+      keymaps.push({
+        key: 'Alt-Shift-f',
+        run: (view: EditorView) => {
+          onFormat(view.state.doc.toString());
           m.redraw();
           return true;
         },

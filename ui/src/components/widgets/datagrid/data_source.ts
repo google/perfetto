@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult} from '../../../base/query_slot';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {AggregateFunction, Filter, GroupPath, IdBasedTree} from './model';
+import type {QueryResult} from '../../../base/query_slot';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
+import type {AggregateFunction, Filter, GroupPath, IdBasedTree} from './model';
 
 /**
  * Data source interface for DataGrid.

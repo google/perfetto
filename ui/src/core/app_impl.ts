@@ -16,17 +16,21 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
-import {App} from '../public/app';
-import {SqlPackage} from '../public/extra_sql_packages';
-import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
-import {Raf} from '../public/raf';
-import {RouteArgs} from '../public/route_schema';
-import {Setting} from '../public/settings';
-import {TraceStream} from '../public/stream';
-import {DurationPrecision, TimestampFormat} from '../public/timeline';
-import {NewEngineMode} from '../trace_processor/engine';
-import {AnalyticsInternal, initAnalytics} from './analytics_impl';
-import {CommandInvocation, CommandManagerImpl, Macro} from './command_manager';
+import type {App} from '../public/app';
+import type {SqlPackage} from '../public/extra_sql_packages';
+import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
+import type {Raf} from '../public/raf';
+import type {RouteArgs} from '../public/route_schema';
+import type {Setting} from '../public/settings';
+import type {TraceStream} from '../public/stream';
+import type {DurationPrecision, TimestampFormat} from '../public/timeline';
+import type {NewEngineMode} from '../trace_processor/engine';
+import {type AnalyticsInternal, initAnalytics} from './analytics_impl';
+import {
+  type CommandInvocation,
+  CommandManagerImpl,
+  type Macro,
+} from './command_manager';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -35,13 +39,13 @@ import {PerfManager} from './perf_manager';
 import {PluginManagerImpl} from './plugin_manager';
 import {raf} from './raf_scheduler';
 import {Router} from './router';
-import {SettingsManagerImpl} from './settings_manager';
+import type {SettingsManagerImpl} from './settings_manager';
 import {SidebarManagerImpl} from './sidebar_manager';
-import {SerializedAppState} from './state_serialization_schema';
-import {TraceImpl} from './trace_impl';
-import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import type {SerializedAppState} from './state_serialization_schema';
+import type {TraceImpl} from './trace_impl';
+import type {TraceArrayBufferSource, TraceSource} from './trace_source';
 import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
-import {Embedder} from './embedder/embedder';
+import type {Embedder} from './embedder/embedder';
 import {createEmbedder} from './embedder/create_embedder';
 
 export type OpenTraceArrayBufArgs = Omit<

@@ -14,7 +14,7 @@
 
 import {TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
-import {Trace} from './trace';
+import type {Trace} from './trace';
 
 export function getTrackName(
   args: Partial<{

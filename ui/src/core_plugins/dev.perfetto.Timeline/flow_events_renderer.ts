@@ -12,18 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ArrowHeadStyle, drawBezierArrow} from '../../base/bezier_arrow';
+import {type ArrowHeadStyle, drawBezierArrow} from '../../base/bezier_arrow';
 import {
-  HorizontalBounds,
-  Point2D,
-  Size2D,
+  type HorizontalBounds,
+  type Point2D,
+  type Size2D,
   Vector2D,
-  VerticalBounds,
+  type VerticalBounds,
 } from '../../base/geom';
-import {TimeScale} from '../../base/time_scale';
-import {ALL_CATEGORIES, Flow, getFlowCategories} from '../../core/flow_types';
-import {TraceImpl} from '../../core/trace_impl';
-import {TrackNode} from '../../public/workspace';
+import type {TimeScale} from '../../base/time_scale';
+import {
+  ALL_CATEGORIES,
+  type Flow,
+  getFlowCategories,
+} from '../../core/flow_types';
+import type {TraceImpl} from '../../core/trace_impl';
+import type {TrackNode} from '../../public/workspace';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;

@@ -21,7 +21,7 @@ import {
   expectValidationError,
   expectValidationSuccess,
 } from '../../testing/test_utils';
-import {Trace} from '../../../../../public/trace';
+import type {Trace} from '../../../../../public/trace';
 
 describe('SqlSourceNode', () => {
   // Mock trace object for tests

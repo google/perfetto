@@ -12,21 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {errResult, okResult, Result} from '../../../../base/result';
-import {PreflightCheck} from '../../interfaces/connection_check';
+import {errResult, okResult, type Result} from '../../../../base/result';
+import type {PreflightCheck} from '../../interfaces/connection_check';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
-import {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
+import type {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
 import {EvtSource} from '../../../../base/events';
 import {WebDeviceProxyTarget as WdpDeviceProxyTarget} from './wdp_target';
 import {showPopupWindow} from '../../../../base/popup_window';
 import {
-  WdpTrackDevicesResponse,
-  WdpDevice,
+  type WdpTrackDevicesResponse,
+  type WdpDevice,
   WDP_TRACK_DEVICES_SCHEMA,
 } from './wdp_schema';
 import {disposeWebsocket} from '../../websocket/websocket_utils';
 import {AsyncLazy} from '../../../../base/async_lazy';
-import {RecordTraceV2Settings} from '../../settings';
 
 const WDP_URL = 'https://tools.google.com/dlpage/android_web_device_proxy';
 
@@ -44,8 +43,6 @@ export class WebDeviceProxyTargetProvider implements RecordingTargetProvider {
   readonly supportedPlatforms = ['ANDROID'] as const;
   readonly onTargetsChanged = new EvtSource<void>();
   private targets = new Map<string, WdpDeviceProxyTarget>();
-
-  constructor(private readonly settings: RecordTraceV2Settings) {}
 
   // Wraps the websocket listening for device changes on /track-devices.json.
   private trackDevicesConn = new AsyncLazy<TrackDevicesConnection>();
@@ -175,11 +172,7 @@ export class WebDeviceProxyTargetProvider implements RecordingTargetProvider {
         existingDevice.updateWdpState(devJson);
       } else {
         const wsUrl = 'ws://127.0.0.1:9167/adb-json';
-        const newTarget = new WdpDeviceProxyTarget(
-          wsUrl,
-          devJson,
-          this.settings,
-        );
+        const newTarget = new WdpDeviceProxyTarget(wsUrl, devJson);
         this.targets.set(serial, newTarget);
       }
     }

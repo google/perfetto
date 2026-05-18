@@ -15,18 +15,18 @@
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {findRef} from '../../base/dom_utils';
-import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
+import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
 import {assertExists, assertUnreachable} from '../../base/assert';
 import {isString} from '../../base/object_utils';
 import {exists} from '../../base/utils';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Chip} from '../../widgets/chip';
-import {HTMLAttrs, Intent} from '../../widgets/common';
+import {type HTMLAttrs, Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../../widgets/hotkey_glyphs';
 import {Popup} from '../../widgets/popup';
 import {BigTraceApp} from '../bigtrace_app';
-import {Command} from '../../public/commands';
+import type {Command} from '../../public/commands';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;

@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ModifyColumnsNode, ModifyColumnsNodeAttrs} from './modify_columns_node';
-import {QueryNode} from '../../query_node';
+import {
+  ModifyColumnsNode,
+  type ModifyColumnsNodeAttrs,
+} from './modify_columns_node';
+import type {QueryNode} from '../../query_node';
 import {
   createMockNode,
   createColumnInfo,

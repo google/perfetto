@@ -13,39 +13,45 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {AdbDevice} from './adb_device';
+import type {AdbDevice} from './adb_device';
 import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
-import {errResult, okResult, Result} from '../../../base/result';
+import {errResult, okResult, type Result} from '../../../base/result';
 import {exists} from '../../../base/utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
-import {RecordTraceV2Settings} from '../settings';
 
-export async function createAdbTracingSession(
+let tracedSocket = '/dev/socket/traced_consumer';
+export function setTracedSocket(socket: string) {
+  tracedSocket = socket;
+}
+
+export function createAdbTracingSession(
   adbDevice: AdbDevice,
   traceConfig: protos.ITraceConfig,
-  settings: RecordTraceV2Settings,
 ): Promise<Result<ConsumerIpcTracingSession>> {
+  return ConsumerIpcTracingSession.create({
+    ipcFactory: () => openAdbConsumerIpc(adbDevice),
+    traceConfig,
+  });
+}
+
+async function openAdbConsumerIpc(
+  adbDevice: AdbDevice,
+): Promise<Result<TracingProtocol>> {
   const streamStatus = await adbDevice.createStream(
-    settings.getTracedConsumerSocketAddressForAdb(),
+    getTracedConsumerSocketAddressForAdb(),
   );
   if (!streamStatus.ok) return streamStatus;
-  const stream = streamStatus.value;
-  const consumerIpc = await TracingProtocol.create(stream);
-  const session = new ConsumerIpcTracingSession(consumerIpc, traceConfig);
-  return okResult(session);
+  return okResult(await TracingProtocol.create(streamStatus.value));
 }
 
 export async function getAdbTracingServiceState(
   adbDevice: AdbDevice,
-  settings: RecordTraceV2Settings,
 ): Promise<Result<protos.ITracingServiceState>> {
   const status = await adbDevice.createStream(
-    settings.getTracedConsumerSocketAddressForAdb(),
+    getTracedConsumerSocketAddressForAdb(),
   );
   if (!status.ok) {
-    return errResult(
-      `Failed to connect to ${settings.getTracedConsumerSocketAddress()}: ${status.error}`,
-    );
+    return errResult(`Failed to connect to ${tracedSocket}: ${status.error}`);
   }
   const stream = status.value;
   using consumerPort = await TracingProtocol.create(stream);
@@ -56,4 +62,13 @@ export async function getAdbTracingServiceState(
     return errResult('Failed to decode QueryServiceStateResponse');
   }
   return okResult(resp.serviceState);
+}
+
+// Return the fully formed ADB socket address according to the settings
+// The address is of the form <type>:<address>
+function getTracedConsumerSocketAddressForAdb() {
+  if (tracedSocket.startsWith('@')) {
+    return `localabstract:${tracedSocket.slice(1)}`;
+  }
+  return `localfilesystem:${tracedSocket}`;
 }

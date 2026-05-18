@@ -28,10 +28,10 @@ import {endpointStorage} from '../settings/endpoint_storage';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {setHistoryActiveTab} from '../query/query_history';
 import {BigtraceQueryClient} from '../query/bigtrace_query_client';
-import {QueryRunner} from '../query/query_runner';
+import type {QueryRunner} from '../query/query_runner';
 import {
-  BigTraceEditorTab,
-  QueryTabsState,
+  type BigTraceEditorTab,
+  type QueryTabsState,
   deriveTitleFromQuery,
 } from './query_tabs_state';
 import {renderResultsPanel} from './results_panel';

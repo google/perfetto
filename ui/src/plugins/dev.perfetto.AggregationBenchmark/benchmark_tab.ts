@@ -15,15 +15,15 @@
 import m from 'mithril';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {
-  AreaSelection,
-  AreaSelectionTab,
+  type AreaSelection,
+  type AreaSelectionTab,
   areaSelectionsEqual,
 } from '../../public/selection';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {Spinner} from '../../widgets/spinner';
-import {BenchmarkResult, runBenchmarks} from './benchmark';
+import {type BenchmarkResult, runBenchmarks} from './benchmark';
 
 function formatApproach(approach: string): string {
   switch (approach) {

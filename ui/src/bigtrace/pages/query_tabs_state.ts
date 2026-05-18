@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DataSource} from '../../components/widgets/datagrid/data_source';
-import {Row as DataGridRow} from '../../trace_processor/query_result';
+import type {DataSource} from '../../components/widgets/datagrid/data_source';
+import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import {debounce} from '../../base/rate_limiters';
 import {shortUuid} from '../../base/uuid';
-import {BigtraceQueryClient} from '../query/bigtrace_query_client';
-import {queryStore, QueryExecution} from '../query/query_store';
-import {SettingFilter} from '../settings/settings_types';
+import type {BigtraceQueryClient} from '../query/bigtrace_query_client';
+import {queryStore, type QueryExecution} from '../query/query_store';
+import type {SettingFilter} from '../settings/settings_types';
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';

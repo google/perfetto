@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
+import type {
   DataSource,
   DataSourceModel,
   DataSourceRows,
 } from '../../components/widgets/datagrid/data_source';
-import {Filter} from '../../components/widgets/datagrid/model';
-import {Row, SqlValue} from '../../trace_processor/query_result';
-import {QueryResult} from '../../base/query_slot';
+import type {Filter} from '../../components/widgets/datagrid/model';
+import type {Row, SqlValue} from '../../trace_processor/query_result';
+import type {QueryResult} from '../../base/query_slot';
 import {
-  BigtraceQueryClient,
+  type BigtraceQueryClient,
   QueryCancelledError,
 } from './bigtrace_query_client';
 import {encodeFilters} from './filter_encoding';

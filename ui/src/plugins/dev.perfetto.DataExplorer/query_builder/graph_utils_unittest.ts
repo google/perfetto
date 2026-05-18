@@ -23,10 +23,10 @@ import {
   applyGroupRewiring,
   ungroupNode,
 } from './graph_utils';
-import {QueryNode, NodeType} from '../query_node';
+import {type QueryNode, NodeType} from '../query_node';
 import {TableSourceNode} from './nodes/sources/table_source';
-import {Trace} from '../../../public/trace';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {Trace} from '../../../public/trace';
+import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {
   createMockNode,
   connectNodes,

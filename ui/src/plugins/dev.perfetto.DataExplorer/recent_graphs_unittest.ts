@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {recentGraphsStorage, RecentGraphEntry} from './recent_graphs';
+import {recentGraphsStorage, type RecentGraphEntry} from './recent_graphs';
 
 describe('RecentGraphsStorage', () => {
   beforeEach(() => {

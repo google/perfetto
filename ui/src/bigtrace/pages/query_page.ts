@@ -17,7 +17,7 @@ import {Button} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Spinner} from '../../widgets/spinner';
-import {Tabs, TabsTab} from '../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {QueryHistoryComponent} from '../query/query_history';
 import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';

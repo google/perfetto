@@ -14,7 +14,7 @@
 
 import {endpointStorage} from '../settings/endpoint_storage';
 import {BigtraceQueryClient} from './bigtrace_query_client';
-import {QueryExecution} from './query_store';
+import type {QueryExecution} from './query_store';
 
 // Wire shape from /query_executions[*].
 // Times are ISO-8601; `readonly` marks the wire boundary.

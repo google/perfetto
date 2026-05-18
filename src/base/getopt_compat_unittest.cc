@@ -395,6 +395,123 @@ TYPED_TEST(GetoptCompatTest, OpterrHandling) {
   EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
 }
 
+// Verifies that options can be freely interleaved with positional arguments
+// (GNU getopt's default permuting behavior), so that callers can collect
+// positionals from argv[optind..argc) after parsing.
+TYPED_TEST(GetoptCompatTest, PermutesPositionalsAfterOptions) {
+  auto& t = this->impl;
+  using LongOptionType = typename decltype(this->impl)::LongOptionType;
+
+  // Short option after a positional.
+  {
+    LongOptionType lopts[]{
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "a";
+    this->SetCmdline({"argv0", "pos1", "-a"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'a');
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 2);
+    EXPECT_STREQ(this->argv[2], "pos1");
+  }
+
+  // Long option with separate required argument after a positional.
+  {
+    LongOptionType lopts[]{
+        {"port", 1 /*required_argument*/, nullptr, 'p'},
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "";
+    this->SetCmdline({"argv0", "pos1", "--port", "9001"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'p');
+    EXPECT_STREQ(t.optarg, "9001");
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 3);
+    EXPECT_STREQ(this->argv[3], "pos1");
+  }
+
+  // Subcommand-style usage: positional mode, then flags. This is the case
+  // that previously broke trace_processor_shell on Windows.
+  {
+    LongOptionType lopts[]{
+        {"port", 1 /*required_argument*/, nullptr, 'p'},
+        {"no-ftrace-raw", 0 /*no_argument*/, nullptr, 'n'},
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "";
+    this->SetCmdline({"argv0", "http", "--port", "49997", "--no-ftrace-raw"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'p');
+    EXPECT_STREQ(t.optarg, "49997");
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'n');
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 4);
+    EXPECT_STREQ(this->argv[4], "http");
+  }
+
+  // Multiple positionals interspersed with options preserve their order.
+  {
+    LongOptionType lopts[]{
+        {"req", 1 /*required_argument*/, nullptr, 'r'},
+        {"flag", 0 /*no_argument*/, nullptr, 'f'},
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "";
+    this->SetCmdline({"argv0", "pos1", "--flag", "pos2", "--req", "v", "pos3"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'f');
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'r');
+    EXPECT_STREQ(t.optarg, "v");
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 4);
+    EXPECT_STREQ(this->argv[4], "pos1");
+    EXPECT_STREQ(this->argv[5], "pos2");
+    EXPECT_STREQ(this->argv[6], "pos3");
+  }
+
+  // "--" suppresses permutation: subsequent options are treated as positionals.
+  {
+    LongOptionType lopts[]{
+        {"flag", 0 /*no_argument*/, nullptr, 'f'},
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "";
+    this->SetCmdline({"argv0", "pos1", "--", "--flag"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    // Positionals start at optind; "pos1" must remain the first positional.
+    EXPECT_STREQ(this->argv[t.optind], "pos1");
+  }
+
+  // Short option with embedded argument ("-ab" => -a with arg "b") preceded
+  // by a positional. The permutation logic must not greedily grab the next
+  // argv as a second arg, because "b" is already the embedded argument.
+  {
+    LongOptionType lopts[]{
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "a:";
+    this->SetCmdline({"argv0", "pos1", "-ab", "pos2"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'a');
+    EXPECT_STREQ(t.optarg, "b");
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 2);
+    EXPECT_STREQ(this->argv[2], "pos1");
+    EXPECT_STREQ(this->argv[3], "pos2");
+  }
+
+  // Short option with separate required argument after a positional.
+  {
+    LongOptionType lopts[]{
+        {nullptr, 0, nullptr, 0},
+    };
+    const char* sops = "x:";
+    this->SetCmdline({"argv0", "pos1", "-x", "v"});
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), 'x');
+    EXPECT_STREQ(t.optarg, "v");
+    EXPECT_EQ(t.getopt_long(this->argc, this->argv, sops, lopts, nullptr), -1);
+    EXPECT_EQ(t.optind, 3);
+    EXPECT_STREQ(this->argv[3], "pos1");
+  }
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

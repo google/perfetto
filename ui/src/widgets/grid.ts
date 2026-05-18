@@ -14,14 +14,14 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {isEmptyVnodes, MithrilEvent} from '../base/mithril_utils';
+import {isEmptyVnodes, type MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
 import {Button} from './button';
 import {MenuItem, PopupMenu} from './menu';
 import {PopupPosition} from './popup';
 import {VirtualScrollHelper} from './virtual_scroll_helper';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 
 const DEFAULT_ROW_HEIGHT = 24;
 const COL_WIDTH_INITIAL_MAX_PX = 600;
@@ -171,6 +171,7 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly indent?: number;
   readonly chevron?: 'expanded' | 'collapsed' | 'leaf';
   readonly onChevronClick?: () => void;
+  readonly actionButtons?: m.Children;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -185,6 +186,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       indent,
       chevron,
       onChevronClick,
+      actionButtons,
       ...htmlAttrs
     } = attrs;
 
@@ -221,6 +223,24 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       });
     };
 
+    const cellMenu =
+      !isEmptyVnodes(menuItems) &&
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            className: 'pf-visible-on-hover',
+            icon: Icons.ContextMenuAlt,
+            rounded: true,
+            ariaLabel: 'Cell menu',
+          }),
+          position: PopupPosition.Bottom,
+        },
+        menuItems,
+      );
+
+    const cellActions = [actionButtons, cellMenu];
+
     return m(
       '.pf-grid-cell',
       {
@@ -237,20 +257,8 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       renderIndent(),
       renderChevron(),
       m('.pf-grid-cell__content', children),
-      !isEmptyVnodes(menuItems) &&
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              className: 'pf-visible-on-hover pf-grid-cell__menu-button',
-              icon: Icons.ContextMenuAlt,
-              rounded: true,
-              ariaLabel: 'Cell menu',
-            }),
-            position: PopupPosition.Bottom,
-          },
-          menuItems,
-        ),
+      !isEmptyVnodes(cellActions) &&
+        m('.pf-grid-cell__actions.pf-visible-on-hover', cellActions),
     );
   }
 }

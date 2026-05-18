@@ -17,7 +17,7 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {TextInput} from '../../widgets/text_input';
 import {Stack} from '../../widgets/stack';
-import {Setting} from '../../public/settings';
+import type {Setting} from '../../public/settings';
 import {endpointStorage} from '../settings/endpoint_storage';
 
 export function renderEndpointControl(setting: Setting<unknown>): m.Children {

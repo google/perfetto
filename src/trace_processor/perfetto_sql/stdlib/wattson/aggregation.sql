@@ -17,8 +17,6 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.cpu.idle;
 
-INCLUDE PERFETTO MODULE wattson.device_infos;
-
 INCLUDE PERFETTO MODULE wattson.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.attribution;
@@ -33,12 +31,12 @@ INCLUDE PERFETTO MODULE wattson.utils;
 -- Low-level macro to calculate energy and power attribution per thread/process.
 -- ========================================================
 CREATE PERFETTO MACRO _wattson_threads_aggregation(
-    tasks_table TableOrSubquery,
-    window_table TableOrSubquery,
-    cpus_table TableOrSubquery
+  tasks_table TableOrSubquery,
+  window_table TableOrSubquery,
+  cpus_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     active_summary AS (
       SELECT
@@ -117,12 +115,12 @@ RETURNS TableOrSubquery AS
 --     estimated_mws, estimated_mw, idle_transitions_mws, total_mws
 -- ========================================================
 CREATE PERFETTO MACRO wattson_threads_aggregation(
-    -- Intereseted window table with columns:
-    -- (ts, dur, period_id).
-    window_table TableOrSubquery
+  -- Intereseted window table with columns:
+  -- (ts, dur, period_id).
+  window_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     windowed_active_state AS (
       SELECT
@@ -168,105 +166,6 @@ RETURNS TableOrSubquery AS
 );
 
 -- ========================================================
--- MACRO: _wattson_base_components_avg_mw
---
--- Low-level macro to calculate base power components average mW.
---
--- Input:
---   window_table: A table with columns (ts, dur, period_id).
---
--- Output:
---   Wide table with CPU policy, average power per core, DSU, and GPU.
--- ========================================================
-CREATE PERFETTO MACRO _wattson_base_components_avg_mw(
-    window_table TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  SELECT
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 0
-    ) AS cpu0_poli,
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 1
-    ) AS cpu1_poli,
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 2
-    ) AS cpu2_poli,
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 3
-    ) AS cpu3_poli,
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 4
-    ) AS cpu4_poli,
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 5
-    ) AS cpu5_poli,
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 6
-    ) AS cpu6_poli,
-    (
-      SELECT
-        m.policy
-      FROM _dev_cpu_policy_map AS m
-      WHERE
-        m.cpu = 7
-    ) AS cpu7_poli,
-    sum(ii.dur * ss.cpu0_mw) / nullif(sum(ii.dur), 0) AS cpu0_mw,
-    sum(ii.dur * ss.cpu1_mw) / nullif(sum(ii.dur), 0) AS cpu1_mw,
-    sum(ii.dur * ss.cpu2_mw) / nullif(sum(ii.dur), 0) AS cpu2_mw,
-    sum(ii.dur * ss.cpu3_mw) / nullif(sum(ii.dur), 0) AS cpu3_mw,
-    sum(ii.dur * ss.cpu4_mw) / nullif(sum(ii.dur), 0) AS cpu4_mw,
-    sum(ii.dur * ss.cpu5_mw) / nullif(sum(ii.dur), 0) AS cpu5_mw,
-    sum(ii.dur * ss.cpu6_mw) / nullif(sum(ii.dur), 0) AS cpu6_mw,
-    sum(ii.dur * ss.cpu7_mw) / nullif(sum(ii.dur), 0) AS cpu7_mw,
-    sum(ii.dur * ss.dsu_scu_mw) / nullif(sum(ii.dur), 0) AS dsu_scu_mw,
-    sum(ii.dur * ss.gpu_mw) / nullif(sum(ii.dur), 0) AS gpu_mw,
-    sum(ii.dur * ss.tpu_mw) / nullif(sum(ii.dur), 0) AS tpu_mw,
-    sum(ii.dur) AS period_dur,
-    ii.id_0 AS period_id
-  FROM _interval_intersect!(
-    (
-      (SELECT period_id AS id, * FROM $window_table),
-      _ii_subquery!(_system_state_mw)
-    ),
-    ()
-  ) AS ii
-  JOIN _system_state_mw AS ss
-    ON ss._auto_id = id_1
-  GROUP BY
-    period_id
-);
-
--- ========================================================
 -- MACRO: wattson_rails_aggregation
 --
 -- Flattening and unpivoting of rail data into a standard breakdown.
@@ -278,12 +177,12 @@ RETURNS TableOrSubquery AS
 --   Flat breakdown including CORE, POLICY, DSU and SUBSYSTEM TOTAL.
 -- ========================================================
 CREATE PERFETTO MACRO wattson_rails_aggregation(
-    -- Intereseted window table with columns:
-    -- (ts, dur, period_id).
-    window_table TableOrSubquery
+  -- Intereseted window table with columns:
+  -- (ts, dur, period_id).
+  window_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- 1. Cache base components
   WITH
     base_components AS (
@@ -483,7 +382,7 @@ RETURNS TableOrSubquery AS
 --
 -- Shared metadata for all Wattson metrics.
 -- ========================================================
-CREATE PERFETTO VIEW wattson_metric_metadata (
+CREATE PERFETTO VIEW wattson_metric_metadata(
   -- Wattson metric version
   metric_version LONG,
   -- Wattson power curve version
@@ -491,12 +390,9 @@ CREATE PERFETTO VIEW wattson_metric_metadata (
   -- Wattson estimation will be crude
   -- if missing cpu/idle counter
   is_crude_estimate BOOL
-) AS
+)
+AS
 SELECT
   4 AS metric_version,
   1 AS power_model_version,
-  CAST(NOT EXISTS(
-    SELECT
-      1
-    FROM _wattson_cpuidle_counters_exist
-  ) AS INTEGER) AS is_crude_estimate;
+  CAST(NOT EXISTS (SELECT 1 FROM _wattson_cpuidle_counters_exist) AS INTEGER) AS is_crude_estimate;

@@ -241,17 +241,27 @@ class Dataframe {
   base::StatusOr<Index> BuildIndex(const uint32_t* columns_start,
                                    const uint32_t* columns_end) const;
 
-  // Adds an index to the dataframe.
+  // Returns a new dataframe identical to this one but with `index` appended
+  // to its list of indexes.
   //
-  // Note: indexes can only be added to a finalized dataframe; it's
-  // undefined behavior to call this on a non-finalized dataframe.
-  void AddIndex(Index index);
+  // The original dataframe is unchanged. The returned dataframe shares
+  // column storage and existing indexes with the original (via shared_ptr),
+  // so the operation is cheap regardless of dataframe size.
+  //
+  // Note: indexes can only be added to a finalized dataframe; calling this
+  // on a non-finalized dataframe will fail.
+  [[nodiscard]] Dataframe AddIndex(Index index) const;
 
-  // Removes the index at the specified position.
+  // Returns a new dataframe identical to this one but with the index at
+  // `pos` removed.
   //
-  // Note: indexes can only be removed from a finalized dataframe;it's
-  // undefined behavior to call this on a non-finalized dataframe.
-  void RemoveIndexAt(uint32_t);
+  // The original dataframe is unchanged. The returned dataframe shares
+  // column storage and remaining indexes with the original (via shared_ptr),
+  // so the operation is cheap regardless of dataframe size.
+  //
+  // Note: indexes can only be removed from a finalized dataframe; calling
+  // this on a non-finalized dataframe will fail.
+  [[nodiscard]] Dataframe RemoveIndexAt(uint32_t pos) const;
 
   // Marks the dataframe as "finalized": a finalized dataframe cannot have any
   // more rows added to it (note this is different from being immutable as

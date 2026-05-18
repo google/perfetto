@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Brand} from '../../../../base/brand';
+import type {Brand} from '../../../../base/brand';
 import {Time} from '../../../../base/time';
 import {exists} from '../../../../base/utils';
 import {raf} from '../../../../core/raf_scheduler';
-import {Engine} from '../../../../trace_processor/engine';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
+import type {Engine} from '../../../../trace_processor/engine';
+import type {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
-import {ArgsDict, getArgs} from '../../../sql_utils/args';
+import {type ArgsDict, getArgs} from '../../../sql_utils/args';
 import {asArgSetId} from '../../../sql_utils/core_types';
 import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
@@ -30,7 +30,7 @@ import {hasArgs} from '../../../details/args';
 import {DurationWidget} from '../../../widgets/duration';
 import {Timestamp as TimestampWidget} from '../../../widgets/timestamp';
 import {sqlIdRegistry} from './sql_ref_renderer_registry';
-import {Trace} from '../../../../public/trace';
+import type {Trace} from '../../../../public/trace';
 import {renderSliceArguments} from '../../../details/slice_args';
 
 // This file contains the helper to render the details tree (based on Tree

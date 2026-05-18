@@ -22,7 +22,7 @@ import {queryHistoryStorage} from './query_history_storage';
 import {
   formatCompact,
   queryStore,
-  QueryExecution,
+  type QueryExecution,
   statusDisplayLabel,
 } from './query_store';
 import {formatDate} from '../../base/time';

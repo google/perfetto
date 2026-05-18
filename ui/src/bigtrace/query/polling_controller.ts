@@ -14,7 +14,7 @@
 
 import {BigtraceAsyncDataSource} from './bigtrace_async_data_source';
 import {QueryNotFoundError} from './bigtrace_query_client';
-import {isoToEpochMs, RawQueryExecution} from './query_history_storage';
+import {isoToEpochMs, type RawQueryExecution} from './query_history_storage';
 import {queryStore, TERMINAL_STATUSES} from './query_store';
 import {makeQueryResponse} from '../pages/query_tabs_state';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';

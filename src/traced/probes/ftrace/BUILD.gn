@@ -89,18 +89,20 @@ perfetto_proto_library("test_messages_@TYPE@") {
 
 # These tests require access to a real ftrace implementation and must
 # run with sudo.
-source_set("integrationtests") {
-  testonly = true
-  deps = [
-    ":ftrace",
-    ":test_support",
-    ":tracefs",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../base",
-    "../../../tracing/core",
-  ]
-  sources = [ "tracefs_integrationtest.cc" ]
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtests") {
+    testonly = true
+    deps = [
+      ":ftrace",
+      ":test_support",
+      ":tracefs",
+      "../../../../gn:default_deps",
+      "../../../../gn:gtest_and_gmock",
+      "../../../base",
+      "../../../tracing/core",
+    ]
+    sources = [ "tracefs_integrationtest.cc" ]
+  }
 }
 
 source_set("ftrace") {

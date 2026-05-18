@@ -304,6 +304,15 @@ message VmOpMerge {
   // the deepest submessages first, then moving up to the parent
   // message and merging it with skip_submessages = true.
   optional bool skip_submessages = 1;
+
+  // When true, the merge operation will remove the dst field if the src field
+  // is empty.
+  //
+  // This can be used to replicate the removal of a subobject within the
+  // producer's state. E.g.
+  // This event on the producer side: mProducerState.mSubobject = nullptr
+  // can be represented by this patch: { producer_state { subobject {} }}
+  optional bool del_if_src_empty = 2;
 }
 
 // Copies SRC into DST. If a message, replaces the DST node, discarding any
@@ -409,6 +418,19 @@ message TracingServiceState {
     // Returns true if the process appears to be frozen (Android only).
     // Introduced in Perfetto V49 / Android 24Q4.
     optional bool frozen = 6;
+
+    // Identifies the machine this producer is connected from in multi-machine
+    // tracing setups (e.g. when going through traced_relay). Unset (or zero)
+    // means the producer is connected from the local/host machine where the
+    // tracing service is running.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional uint32 machine_id = 7;
+
+    // Human-readable name of the machine, as advertised by the relay (usually
+    // the value of PERFETTO_MACHINE_NAME on the remote, falling back to the
+    // remote's `uname -s`). Only set when machine_id is non-zero.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional string machine_name = 8;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
@@ -1213,6 +1235,19 @@ message WindowManagerConfig {
     LOG_LEVEL_CRITICAL = 3;
   }
   optional LogLevel log_level = 2;
+
+  enum LogMode {
+    LOG_MODE_UNSPECIFIED = 0;
+
+    // Always logs a full state dump of the window hierarchy.
+    LOG_MODE_FULL_STATE = 1;
+
+    // Logs a full state dump of the window hierarchy only when tracing starts.
+    // The following trace packets are lightweight patches containing only the
+    // last changes.
+    LOG_MODE_INCREMENTAL = 2;
+  }
+  optional LogMode log_mode = 3;
 }
 
 // End of protos/perfetto/config/android/windowmanager_config.proto
@@ -2718,8 +2753,7 @@ message PerfEventConfig {
     optional uint32 process_shard_count = 6;
   }
 
-  // Userspace unwinding mode. A possible future addition is kernel-unwound
-  // callchains for frame pointer based systems.
+  // Userspace unwinding mode.
   enum UnwindMode {
     UNWIND_UNKNOWN = 0;
     // Do not unwind userspace:
@@ -2728,6 +2762,14 @@ message PerfEventConfig {
     UNWIND_DWARF = 2;
     // Use userspace frame pointer unwinder:
     UNWIND_FRAME_POINTER = 3;
+    // Ask the kernel to unwind the userspace stack via frame pointers, using
+    // PERF_SAMPLE_CALLCHAIN. The user stack bytes are not copied into the
+    // sample, which avoids the per-sample copy cost and the depth limit
+    // imposed by PERF_SAMPLE_STACK_USER. Requires that the userspace code
+    // (including system libraries) is built with frame pointers - the kernel
+    // walks the chain and returns instruction addresses, which still need to
+    // be symbolized offline using the recorded process mappings.
+    UNWIND_KERNEL_FRAME_POINTER = 4;
   }
 }
 
@@ -4297,7 +4339,11 @@ message SysStatsConfig {
 // - Values of
 // /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
 // datasource has no configuration options at present.
-message SystemInfoConfig {}
+message SystemInfoConfig {
+  // If true, records hardware interrupt ID-to-name mappings from
+  // /proc/interrupts.
+  optional bool irq_names = 1;
+}
 
 // End of protos/perfetto/config/system_info/system_info_config.proto
 
@@ -6572,6 +6618,9 @@ message FrameTimelineEvent {
       LATCHED_DELAYED_LATCH_UNSIGNALED = 3;
     }
     optional LatchedFenceState latched_fence_state = 19;
+
+    // animation time (ms) used when drawing this frame.
+    optional float animation_time_millis = 20;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -7807,7 +7856,7 @@ message AndroidUserList {
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
 message WinscopeExtensions {
-  extensions 1 to 7;
+  extensions 1 to 8;
 }
 
 // End of protos/perfetto/trace/android/winscope_extensions.proto
@@ -8675,6 +8724,18 @@ message FileIoOpEndEtwEvent {
   optional uint32 nt_status = 3;
 }
 
+// Proto definition based on the `FileIo_PathOperation` class definition.
+message FileIoPathOperationEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+  optional string file_name = 7;
+  optional uint32 opcode = 8;
+}
+
 // Proto definition based on the `StackWalk_Event` class definition. See
 // `Callstack` in `perfetto/protos/perfetto/trace/track_event/track_event.proto`
 // for context on what is contained in it.
@@ -8682,7 +8743,6 @@ message StackWalkEtwEvent {
   optional string trigger = 1;
   optional uint64 callstack_iid = 2;
 }
-
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -8703,6 +8763,7 @@ message EtwTraceEvent {
     FileIoSimpleOpEtwEvent file_io_simple_op = 11;
     FileIoOpEndEtwEvent file_io_op_end = 12;
     StackWalkEtwEvent stack_walk = 13;
+    FileIoPathOperationEtwEvent file_io_path_operation = 14;
   }
 }
 
@@ -17019,6 +17080,19 @@ message PowerRails {
 
 // End of protos/perfetto/trace/power/power_rails.proto
 
+// Begin of protos/perfetto/trace/profiling/art_process_metadata.proto
+
+message ArtProcessMetadata {
+  optional int32 pid = 1;
+  optional int32 uid = 2;
+  // /proc/self/cmdline argv0
+  optional string process_name = 3;
+  // Set by VMRuntime.setProcessPackageName
+  optional string package_name = 4;
+}
+
+// End of protos/perfetto/trace/profiling/art_process_metadata.proto
+
 // Begin of protos/perfetto/trace/profiling/deobfuscation.proto
 
 message ObfuscatedMember {
@@ -17181,10 +17255,17 @@ message HeapGraphObject {
   optional uint32 bitmap_width_field = 13;
   // `android.graphics.Bitmap.mHeight`: Height in pixels
   optional uint32 bitmap_height_field = 14;
+
+  // ApplicationInfo field captures
+  // `android.content.pm.ApplicationInfo.longVersionCode`: Used to identify
+  // the dumped process version code (without the full package list)
+  optional int64 application_info_long_version_code_field = 15;
 }
 
+// Next id: 11
 message HeapGraph {
   optional int32 pid = 1;
+  optional int64 heap_bytes_allocated = 10;
 
   // This contains all objects at the time this dump was taken. Some of these
   // will be live, some of those unreachable (garbage). To find the live
@@ -17593,12 +17674,43 @@ message SmapsEntry {
   optional uint64 shared_clean_resident_kb = 13;
   optional uint64 locked_kb = 14;
   optional uint64 proportional_resident_kb = 15;
-};
+}
+
+// Structure-of-arrays style smaps packet of a single process. All packed
+// repeated fields, if set, must have the same length.
+message PackedSmaps {
+  repeated string string_table = 1;
+
+  // Interned file paths as an index into |string_table|.
+  // Note: the "(deleted)" suffix is kept as part of the string_table entry, and
+  // is to be handled during trace import stage.
+  // Written only if config.unaggregated == true. Otherwise the string_table is
+  // exactly the ordered names of the aggregated mappings.
+  repeated uint32 name_id = 2 [packed = true];
+
+  // How many mappings were merged by name, summing the values below.
+  // Written only if config.unaggregated == false.
+  repeated uint32 aggregate_count = 3 [packed = true];
+
+  repeated uint64 size_kb = 4 [packed = true];
+  repeated uint64 rss_kb = 5 [packed = true];
+  repeated uint64 anonymous_kb = 6 [packed = true];
+  repeated uint64 swap_kb = 7 [packed = true];
+  repeated uint64 shared_clean_kb = 8 [packed = true];
+  repeated uint64 shared_dirty_kb = 9 [packed = true];
+  repeated uint64 private_clean_kb = 10 [packed = true];
+  repeated uint64 private_dirty_kb = 11 [packed = true];
+  repeated uint64 locked_kb = 12 [packed = true];
+  repeated uint64 pss_kb = 13 [packed = true];
+  repeated uint64 pss_dirty_kb = 14 [packed = true];
+  repeated uint64 swap_pss_kb = 15 [packed = true];
+}
 
 message SmapsPacket {
   optional uint32 pid = 1;
   repeated SmapsEntry entries = 2;
-};
+  optional PackedSmaps packed_entries = 3;
+}
 
 // End of protos/perfetto/trace/profiling/smaps.proto
 
@@ -18098,6 +18210,26 @@ message GpuInfo {
 }
 
 // End of protos/perfetto/trace/system_info/gpu_info.proto
+
+// Begin of protos/perfetto/trace/system_info/interrupt_info.proto
+
+// Hardware interrupt (IRQ) ID-to-name mappings collected from
+// /proc/interrupts at the start of a trace.
+// Emitted by the linux.system_info data source when irq_names: true is set
+// in SystemInfoConfig.
+message InterruptInfo {
+  message InterruptMapping {
+    // Numeric IRQ identifier.
+    optional uint32 irq_id = 1;
+    // Human-readable name for the IRQ (e.g. "arch_timer", "arm-pmu").
+    optional string name = 2;
+  }
+
+  // One entry per hardware IRQ found in /proc/interrupts.
+  repeated InterruptMapping irq_mapping = 1;
+}
+
+// End of protos/perfetto/trace/system_info/interrupt_info.proto
 
 // Begin of protos/perfetto/trace/test_event.proto
 
@@ -18901,7 +19033,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 130.
+// Next id: 132.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18990,6 +19122,7 @@ message TracePacket {
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
+    ArtProcessMetadata art_process_metadata = 131;
     HeapGraph heap_graph = 56;
     GraphicsFrameEvent graphics_frame_event = 57;
     VulkanMemoryEvent vulkan_memory_event = 62;
@@ -19017,6 +19150,7 @@ message TracePacket {
     TraceAttributes trace_attributes = 126;
     AndroidAflags android_aflags = 127;
     GpuInfo gpu_info = 128;
+    InterruptInfo interrupt_info = 130;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

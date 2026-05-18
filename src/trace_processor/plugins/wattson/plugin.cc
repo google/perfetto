@@ -21,15 +21,17 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/plugins/wattson/cpu_1d_curves.h"
 #include "src/trace_processor/plugins/wattson/cpu_2d_curves.h"
 #include "src/trace_processor/plugins/wattson/gpu_curves.h"
 #include "src/trace_processor/plugins/wattson/l3_curves.h"
 #include "src/trace_processor/plugins/wattson/table_function.h"
 #include "src/trace_processor/plugins/wattson/tpu_curves.h"
+#include "src/trace_processor/plugins/wattson/wattson.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -67,6 +69,7 @@ class WattsonPlugin : public Plugin<WattsonPlugin> {
   ~WattsonPlugin() override;
 
   void RegisterStaticTableFunctions(
+      PerfettoSqlConnection*,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns) override {
     StringPool* pool = trace_context_->storage->mutable_string_pool();
     fns.emplace_back(std::make_unique<WattsonCurvesTableFunction>(
@@ -121,6 +124,18 @@ class WattsonPlugin : public Plugin<WattsonPlugin> {
 
 WattsonPlugin::~WattsonPlugin() = default;
 
-PERFETTO_TP_REGISTER_PLUGIN(WattsonPlugin);
+// TODO(lalitm): switch back to PERFETTO_TP_REGISTER_PLUGIN(WattsonPlugin) once
+// the global-constructor-based registration is viable in all build configs.
+// The function-local static below registers exactly once on first call and
+// produces no global constructor, so the linker can't drop it.
+void RegisterPlugin() {
+  static PluginRegistration reg(
+      []() -> std::unique_ptr<PluginBase> {
+        return std::make_unique<WattsonPlugin>();
+      },
+      WattsonPlugin::kPluginId, WattsonPlugin::kDepIds.data(),
+      WattsonPlugin::kDepIds.size());
+  base::ignore_result(reg);
+}
 
 }  // namespace perfetto::trace_processor::wattson

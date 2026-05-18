@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
+import type {z} from 'zod';
 import m from 'mithril';
-import {LocalStorage} from '../../core/local_storage';
-import {Setting, SettingDescriptor, EnumOption} from './settings_types';
+import type {LocalStorage} from '../../core/local_storage';
+import type {Setting, SettingDescriptor, EnumOption} from './settings_types';
 
 // Minimal interface both LocalSettingsStorage and BigTraceSettingsStorageImpl
 // satisfy. Decouples SettingImpl from a specific storage class.

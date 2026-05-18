@@ -13,11 +13,12 @@
 // limitations under the License.
 
 // Keep this import first.
-import z from 'zod';
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
-import NON_CORE_PLUGINS from '../gen/all_plugins';
-import CORE_PLUGINS from '../gen/all_core_plugins';
+import '../assets/perfetto.scss';
+import z from 'zod';
+import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
+import CORE_PLUGINS from 'virtual:perfetto/all_core_plugins';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
@@ -31,13 +32,13 @@ import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
-import {Route, Router} from '../core/router';
+import {type Route, Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
-import {IdleDetectorWindow} from './idle_detector_interface';
+import type {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
 import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
@@ -58,10 +59,10 @@ import {ThemeProvider} from './theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
 import {JsonSettingsEditor} from '../components/json_settings_editor';
 import {
-  CommandInvocation,
+  type CommandInvocation,
   commandInvocationArraySchema,
 } from '../core/command_manager';
-import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
+import {type HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
 
 // =============================================================================
@@ -302,7 +303,7 @@ function main() {
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = assetSrc('perfetto.css');
+  css.href = assetSrc('frontend.css');
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
   const favicon = document.head.querySelector('#favicon');

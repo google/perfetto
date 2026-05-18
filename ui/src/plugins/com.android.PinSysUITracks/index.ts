@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {NUM} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 
 // List of tracks to pin
 const TRACKS_TO_PIN: string[] = [

@@ -17,7 +17,7 @@ import {GcsUploader} from '../../../base/gcs_uploader';
 import {assertExists} from '../../../base/assert';
 import {CopyableLink} from '../../../widgets/copyable_link';
 import {showModal} from '../../../widgets/modal';
-import {RecordSessionSchema} from '../serialization_schema';
+import type {RecordSessionSchema} from '../serialization_schema';
 
 export const SHARE_SUBPAGE = 'share';
 

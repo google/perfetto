@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Tabs, TabsTab} from '../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {Button} from '../../widgets/button';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
-import {QueryExecution} from './query_store';
+import type {QueryExecution} from './query_store';
 import {historyStore} from './history_store';
-import {renderHistoryItem, OpenQueryFn} from './query_history_item';
+import {renderHistoryItem, type OpenQueryFn} from './query_history_item';
 
 export {OpenQueryFn} from './query_history_item';
 

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row as DataGridRow} from '../../trace_processor/query_result';
-import {Filter} from '../../components/widgets/datagrid/model';
-import {SettingFilter} from '../settings/settings_types';
+import type {Row as DataGridRow} from '../../trace_processor/query_result';
+import type {Filter} from '../../components/widgets/datagrid/model';
+import type {SettingFilter} from '../settings/settings_types';
 import {encodeFilters} from './filter_encoding';
-import {RawQueryExecution} from './query_history_storage';
+import type {RawQueryExecution} from './query_history_storage';
 
 // Tabular wire shape. Values are always strings, 'null' denotes SQL NULL.
 interface QueryResponsePayload {

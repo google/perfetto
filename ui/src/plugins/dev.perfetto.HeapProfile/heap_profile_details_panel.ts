@@ -15,19 +15,19 @@
 import m from 'mithril';
 
 import {extensions} from '../../components/extensions';
-import {time} from '../../base/time';
+import type {time} from '../../base/time';
 import {
-  QueryFlamegraph,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
   metricsFromTableOrSubquery,
 } from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {
+import type {
   TrackEventDetailsPanel,
   TrackEventDetailsPanelSerializeArgs,
 } from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
@@ -35,14 +35,14 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {Modal, showModal} from '../../widgets/modal';
 import {
   Flamegraph,
-  FlamegraphState,
+  type FlamegraphState,
   FLAMEGRAPH_STATE_SCHEMA,
-  FlamegraphOptionalAction,
+  type FlamegraphOptionalAction,
 } from '../../widgets/flamegraph';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
-import {ProfileDescriptor, ProfileType} from './common';
+import {type ProfileDescriptor, ProfileType} from './common';
 
 interface Props {
   ts: time;
@@ -52,7 +52,6 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel
   implements TrackEventDetailsPanel
 {
-  private flamegraph: QueryFlamegraph;
   private readonly props: Props;
   private flamegraphModalDismissed = false;
 
@@ -85,7 +84,6 @@ export class HeapProfileFlamegraphDetailsPanel
     }) => void,
   ) {
     this.props = {ts, type: profileDescriptor.type};
-    this.flamegraph = new QueryFlamegraph(trace);
     this.metrics = flamegraphMetrics(
       this.trace,
       this.profileDescriptor,
@@ -141,7 +139,8 @@ export class HeapProfileFlamegraphDetailsPanel
               }),
           ]),
         },
-        this.flamegraph.render({
+        m(FlamegraphPanel, {
+          trace: this.trace,
           metrics: this.metrics,
           state: this.state,
           onStateChange: (state) => {
@@ -553,14 +552,15 @@ function getHeapGraphNodeOptionalActions(
   return [
     {
       name: 'Open in Heapdump Explorer',
-      execute: async (kv: ReadonlyMap<string, string>) => {
-        const pathHashes = kv.get('path_hash_stable');
+      execute: async ({properties, node}) => {
+        const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
 
         onNodeSelected?.(pathHashes, isDominator);
 
-        const name = kv.get('name');
-        const nameSuffix = name ? `_${encodeURIComponent(name)}` : '';
+        const name = node?.name;
+        const nameSuffix =
+          name !== undefined ? `_${encodeURIComponent(name)}` : '';
         trace.navigate(`#!/heapdump/flamegraph_objects${nameSuffix}`);
       },
     },
@@ -574,7 +574,7 @@ function getHeapGraphRootOptionalActions(
   return [
     {
       name: 'Reference paths by class',
-      execute: async (_kv: ReadonlyMap<string, string>) => {
+      execute: async () => {
         const viewName = `_heap_graph${tableModifier(isDominator)}duplicate_objects`;
         const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
         const macroExpr = `_heap_graph_duplicate_objects_agg!(${macroArgs})`;

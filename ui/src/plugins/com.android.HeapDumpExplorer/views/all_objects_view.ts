@@ -28,17 +28,20 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
-import {clearNavParam} from '../nav_state';
-import {dumpFilterSql} from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly initialClass?: string;
 }
 
-function buildQuery(): string {
+function buildQuery(activeDump: HeapDump): string {
   return `
     SELECT
       base.*,
@@ -61,7 +64,7 @@ function buildQuery(): string {
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
       WHERE o.reachable != 0
-        AND ${dumpFilterSql('o')}
+        AND ${dumpFilterSql(activeDump, 'o')}
     ) base
     LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
   `;
@@ -82,7 +85,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             m(
               'button',
               {
-                class: 'ah-link',
+                class: 'pf-hde-link',
                 onclick: () =>
                   navigate('object', {id, label: str ? `"${str}"` : display}),
               },
@@ -91,7 +94,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             str
               ? m(
                   'span',
-                  {class: 'ah-str-badge'},
+                  {class: 'pf-hde-str-badge'},
                   ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
                 )
               : null,
@@ -99,42 +102,50 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Native',
+        title: colHeader('Native', COL_INFO.shallowNative),
+        titleString: 'Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained #',
+        title: colHeader('Retained #', COL_INFO.retainedCount),
+        titleString: 'Retained #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -159,7 +170,10 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
-  function applyNavFilter(cls: string | undefined) {
+  function applyNavFilter(
+    cls: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!cls) return;
     filters = [{field: 'cls', op: '=' as const, value: cls}];
     counter.onFiltersChanged(filters);
@@ -168,8 +182,8 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
-      const query = buildQuery();
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
         sqlSchema: createSimpleSchema(query),
@@ -177,18 +191,18 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
-      applyNavFilter(vnode.attrs.initialClass);
+      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialClass);
+      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Objects')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Objects')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           rootSchema: 'query',

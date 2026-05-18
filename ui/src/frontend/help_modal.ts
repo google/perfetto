@@ -19,7 +19,7 @@ import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
 import {
-  KeyboardLayoutMap,
+  type KeyboardLayoutMap,
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from '../base/keyboard_layout_map';

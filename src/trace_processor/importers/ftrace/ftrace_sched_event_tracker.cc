@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
@@ -92,7 +93,7 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   StringId prev_state_string_id = TaskStateToStringId(prev_state);
   if (prev_state_string_id == kNullStringId) {
-    context_->storage->IncrementStats(stats::task_state_invalid);
+    context_->stats_tracker->IncrementStats(stats::task_state_invalid);
   }
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
@@ -101,7 +102,8 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
                                                        prev_state_string_id);
     } else {
       // If the pids are not consistent, make a note of this.
-      context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
+      context_->stats_tracker->IncrementStats(
+          stats::mismatched_sched_switch_tids);
     }
   }
 
@@ -147,7 +149,8 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // discarded.
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
-    context_->storage->IncrementStats(stats::compact_sched_switch_skipped);
+    context_->stats_tracker->IncrementStats(
+        stats::compact_sched_switch_skipped);
 
     pending_sched->last_pid = next_pid;
     pending_sched->last_utid = next_utid;
@@ -162,7 +165,7 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   StringId prev_state_str_id = TaskStateToStringId(prev_state);
   if (prev_state_str_id == kNullStringId) {
-    context_->storage->IncrementStats(stats::task_state_invalid);
+    context_->stats_tracker->IncrementStats(stats::task_state_invalid);
   }
   if (pending_slice_idx != std::numeric_limits<uint32_t>::max()) {
     context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
@@ -224,7 +227,8 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   // compact waking events.
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
-    context_->storage->IncrementStats(stats::compact_sched_waking_skipped);
+    context_->stats_tracker->IncrementStats(
+        stats::compact_sched_waking_skipped);
     return;
   }
   auto curr_utid = pending_sched->last_utid;

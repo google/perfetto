@@ -51,6 +51,8 @@ constexpr std::pair<EventType, const char*> kEventTypeNames[] = {
     {EventType::kFilesystemControlEvent, "FilesystemControlEvent"},
     {EventType::kEndOperation, "EndOperation"},
     {EventType::kDirectoryNotification, "DirectoryNotification"},
+    {EventType::kDeletePath, "DeletePath"},
+    {EventType::kRenamePath, "RenamePath"},
     {EventType::kFltRead, "FltRead"},
     {EventType::kFltWrite, " FltWrite"},
     {EventType::kFltSetInfo, "FltSetInfo"},
@@ -188,6 +190,7 @@ FileIoTracker::FileIoTracker(TraceProcessorContext* context)
       file_attributes_arg_(context->storage->InternString("File Attributes")),
       file_index_arg_(context->storage->InternString("File Index")),
       file_key_arg_(context->storage->InternString("File Key")),
+      file_name_arg_(context->storage->InternString("File Name")),
       file_object_arg_(context->storage->InternString("File Object")),
       file_size_arg_(context->storage->InternString("File Size")),
       info_class_arg_(context->storage->InternString("Info Class")),
@@ -208,7 +211,8 @@ FileIoTracker::FileIoTracker(TraceProcessorContext* context)
       dir_enum_event_(context->storage->InternString("DirEnum")),
       info_event_(context->storage->InternString("Info")),
       read_write_event_(context->storage->InternString("ReadOrWrite")),
-      simple_op_event_(context->storage->InternString("SimpleOp")) {
+      simple_op_event_(context->storage->InternString("SimpleOp")),
+      path_operation_event_(context->storage->InternString("PathOperation")) {
   for (const auto& event_type : kEventTypeNames) {
     event_types_[GetEventTypeIndex(event_type.first)] =
         context->storage->InternString(event_type.second);
@@ -456,6 +460,52 @@ void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp,
   EndEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
       timestamp, utid, std::move(args));
+}
+
+void FileIoTracker::ParseFileIoPathOperation(int64_t timestamp,
+                                             UniqueTid utid,
+                                             ConstBytes blob) {
+  protos::pbzero::FileIoPathOperationEtwEvent::Decoder decoder(blob);
+  SliceTracker::SetArgsCallback args =
+      [this, &decoder](ArgsTracker::BoundInserter* inserter) {
+        if (decoder.has_irp_ptr()) {
+          inserter->AddArg(irp_arg_, Variadic::Pointer(decoder.irp_ptr()));
+        }
+        if (decoder.has_file_object()) {
+          inserter->AddArg(file_object_arg_,
+                           Variadic::Pointer(decoder.file_object()));
+        }
+        if (decoder.has_file_key()) {
+          inserter->AddArg(file_key_arg_,
+                           Variadic::Pointer(decoder.file_key()));
+        }
+        if (decoder.has_extra_info()) {
+          inserter->AddArg(extra_info_arg_,
+                           Variadic::UnsignedInteger(decoder.extra_info()));
+        }
+        if (decoder.has_ttid()) {
+          inserter->AddArg(thread_id_arg_,
+                           Variadic::UnsignedInteger(decoder.ttid()));
+        }
+        if (decoder.has_info_class()) {
+          inserter->AddArg(info_class_arg_,
+                           GetInfoClassValue(static_cast<FileInfoClass>(
+                               decoder.info_class())));
+        }
+        if (decoder.has_file_name()) {
+          inserter->AddArg(file_name_arg_,
+                           Variadic::String(context_->storage->InternString(
+                               decoder.file_name())));
+        }
+      };
+  // Get event name from the opcode if possible, otherwise use a generic name.
+  const StringId name =
+      decoder.has_opcode()
+          ? GetEventName(decoder.opcode()).value_or(path_operation_event_)
+          : path_operation_event_;
+  StartEvent(
+      decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
+      name, timestamp, utid, std::move(args));
 }
 
 void FileIoTracker::OnEventsFullyExtracted() {

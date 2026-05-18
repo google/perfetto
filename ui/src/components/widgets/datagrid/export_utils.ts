@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {CellFormatter, SchemaRegistry, getColumnInfo} from './datagrid_schema';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
+import {
+  type CellFormatter,
+  type SchemaRegistry,
+  getColumnInfo,
+} from './datagrid_schema';
 
 /**
  * Default value formatter that converts SqlValue to string.

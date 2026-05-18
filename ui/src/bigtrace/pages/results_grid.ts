@@ -18,16 +18,16 @@ import {EmptyState} from '../../widgets/empty_state';
 import {linkify} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
-import {
+import type {DataSource} from '../../components/widgets/datagrid/data_source';
+import type {
   ColumnSchema,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import {SettingFilter} from '../settings/settings_types';
+import type {SettingFilter} from '../settings/settings_types';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {TERMINAL_STATUSES} from '../query/query_store';
-import {QueryRunner} from '../query/query_runner';
-import {
+import type {QueryRunner} from '../query/query_runner';
+import type {
   BigTraceEditorTab,
   QueryResponse,
   QueryTabsState,

@@ -17,7 +17,7 @@ import {Card} from '../../widgets/card';
 import {Icon} from '../../widgets/icon';
 import {Switch} from '../../widgets/switch';
 import {classNames} from '../../base/classnames';
-import {Setting as BigTraceSetting} from '../settings/settings_types';
+import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import {renderSetting} from '../settings/settings_widgets';
 
 export interface BigTraceSettingsCardAttrs extends m.Attributes {

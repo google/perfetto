@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
-import {
+import type {
   SqlModules,
   SqlModule,
   SqlTable,
@@ -23,11 +23,11 @@ import {
   SqlTableFunction,
   SqlMacro,
 } from './sql_modules';
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {TableColumn} from '../../components/widgets/sql/table/table_column';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {
   parsePerfettoSqlTypeFromString,
-  PerfettoSqlType,
+  type PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
 import {unwrapResult} from '../../base/result';
 

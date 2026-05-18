@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer, Deferred} from '../base/deferred';
+import {defer, type Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/assert';
 import {exists} from '../base/utils';
-import {TraceChunk, TraceStream} from '../public/stream';
+import type {TraceChunk, TraceStream} from '../public/stream';
 
 export const TRACE_SLICE_SIZE = 32 * 1024 * 1024;
 

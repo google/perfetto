@@ -20,15 +20,13 @@
 -- events and slices including ftrace events, graphics frames, GPU events,
 -- and frame timeline information.
 
-INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
-
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Contains all the ftrace events in the trace. This table exists only for
 -- debugging purposes and should not be relied on in production usecases (i.e.
 -- metrics, standard library etc). Note also that this table might be empty if
 -- raw ftrace parsing has been disabled.
-CREATE PERFETTO VIEW ftrace_event (
+CREATE PERFETTO VIEW ftrace_event(
   -- Unique identifier for this ftrace event.
   id ID,
   -- The timestamp of this event.
@@ -48,21 +46,14 @@ CREATE PERFETTO VIEW ftrace_event (
   common_flags LONG,
   -- The unique CPU identifier that this event was emitted on.
   ucpu LONG
-) AS
-SELECT
-  id,
-  ts,
-  name,
-  ucpu AS cpu,
-  utid,
-  arg_set_id,
-  common_flags,
-  ucpu
+)
+AS
+SELECT id, ts, name, ucpu AS cpu, utid, arg_set_id, common_flags, ucpu
 FROM __intrinsic_ftrace_event;
 
 -- This table is deprecated. Use `ftrace_event` instead which contains the same
 -- rows; this table is simply a (badly named) alias.
-CREATE PERFETTO VIEW raw (
+CREATE PERFETTO VIEW raw(
   -- Unique identifier for this raw event.
   id ID,
   -- The timestamp of this event.
@@ -83,13 +74,12 @@ CREATE PERFETTO VIEW raw (
   common_flags LONG,
   -- The unique CPU identifier that this event was emitted on.
   ucpu LONG
-) AS
-SELECT
-  *
-FROM ftrace_event;
+)
+AS
+SELECT * FROM ftrace_event;
 
 -- Table containing graphics frame events on Android.
-CREATE PERFETTO VIEW frame_slice (
+CREATE PERFETTO VIEW frame_slice(
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -118,7 +108,8 @@ CREATE PERFETTO VIEW frame_slice (
   acquire_to_latch_time LONG,
   -- The time between latch and present for this buffer and layer.
   latch_to_present_time LONG
-) AS
+)
+AS
 SELECT
   s.id,
   s.ts,
@@ -141,7 +132,7 @@ WHERE
   t.type = 'graphics_frame_event';
 
 -- Table containing graphics frame events on Android.
-CREATE PERFETTO VIEW gpu_slice (
+CREATE PERFETTO VIEW gpu_slice(
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -186,7 +177,8 @@ CREATE PERFETTO VIEW gpu_slice (
   render_subpasses STRING,
   -- Render stage category (0=OTHER, 1=GRAPHICS, 2=COMPUTE).
   render_stage_category LONG
-) AS
+)
+AS
 SELECT
   s.id,
   s.ts,
@@ -218,7 +210,7 @@ WHERE
 
 -- This table contains information on the expected timeline of either a display
 -- frame or a surface frame.
-CREATE PERFETTO TABLE expected_frame_timeline_slice (
+CREATE PERFETTO TABLE expected_frame_timeline_slice(
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -245,7 +237,8 @@ CREATE PERFETTO TABLE expected_frame_timeline_slice (
   upid JOINID(process.id),
   -- Layer name if this is a surface frame.
   layer_name STRING
-) AS
+)
+AS
 SELECT
   s.id,
   s.ts,
@@ -271,7 +264,7 @@ ORDER BY
 -- This table contains information on the actual timeline and additional
 -- analysis related to the performance of either a display frame or a surface
 -- frame.
-CREATE PERFETTO TABLE actual_frame_timeline_slice (
+CREATE PERFETTO TABLE actual_frame_timeline_slice(
   -- Alias of `slice.id`.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -326,7 +319,8 @@ CREATE PERFETTO TABLE actual_frame_timeline_slice (
   -- State of the fence when a SF tried to latch the buffer in the first
   -- attempt.
   latched_fence_state STRING
-) AS
+)
+AS
 SELECT
   s.id,
   s.ts,

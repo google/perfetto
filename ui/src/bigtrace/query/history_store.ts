@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {queryHistoryStorage} from './query_history_storage';
-import {queryStore, QueryExecution} from './query_store';
+import {queryStore, type QueryExecution} from './query_store';
 
 const HISTORY_REFRESH_DEBOUNCE_MS = 1000;
 

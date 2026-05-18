@@ -22,12 +22,110 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/cpu_info.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
+#include "protos/perfetto/config/system_info/system_info_config.gen.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
+#include "protos/perfetto/trace/system_info/interrupt_info.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
+
+namespace {
+
+struct InterruptMapping {
+  uint32_t irq_id;
+  std::string name;
+};
+
+std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
+  std::vector<InterruptMapping> mappings;
+
+  base::StringSplitter lines(std::move(content), '\n');
+  if (!lines.Next())
+    return mappings;
+
+  // Count CPUs from the header line (tokens starting with "CPU").
+  size_t num_cpus = 0;
+  {
+    base::StringSplitter header_tok(&lines, ' ');
+    while (header_tok.Next()) {
+      if (base::StartsWith(header_tok.cur_token(), "CPU"))
+        num_cpus++;
+    }
+  }
+
+  if (num_cpus == 0)
+    return mappings;
+
+  while (lines.Next()) {
+    std::vector<std::string> tokens;
+    {
+      base::StringSplitter tok(&lines, ' ');
+      while (tok.Next())
+        tokens.emplace_back(tok.cur_token(), tok.cur_token_size());
+    }
+
+    if (tokens.size() <= num_cpus)
+      continue;
+
+    // First token must be numeric "IRQ_NUM:". Non-numeric pseudo-IRQ rollup
+    // lines are intentionally skipped (e.g. "NMI: Non-maskable interrupts",
+    // "LOC: Local timer interrupts").
+    const std::string& id_token = tokens[0];
+    if (id_token.empty() || id_token.back() != ':')
+      continue;
+    auto irq_id_opt =
+        base::CStringToUInt32(id_token.substr(0, id_token.size() - 1).c_str());
+    if (!irq_id_opt)
+      continue;
+    uint32_t irq_id = *irq_id_opt;
+
+    // Find the trigger token to anchor the name. ARM GIC uses standalone
+    // "Level"/"Edge"; x86 IO-APIC embeds the trigger in the hw-irq field
+    // (e.g. "16-fasteoi", "2-edge"). Searching backwards is efficient since
+    // the trigger appears within a few tokens of the end. Handles multi-word
+    // chip names (e.g. "cs40l26 IRQ1 Controller"). Falls back to the last
+    // token when no trigger is recognised.
+    auto is_trigger = [](const std::string& t) {
+      return t == "Level" || t == "Edge" || base::EndsWith(t, "-edge") ||
+             base::EndsWith(t, "-fasteoi") || base::EndsWith(t, "-level") ||
+             base::EndsWith(t, "-fasteoi-level");
+    };
+
+    ssize_t trigger_idx = -1;
+    for (size_t i = tokens.size() - 1; i > num_cpus; --i) {
+      if (is_trigger(tokens[i])) {
+        trigger_idx = static_cast<ssize_t>(i);
+        break;
+      }
+    }
+
+    size_t name_start = (trigger_idx != -1)
+                            ? static_cast<size_t>(trigger_idx + 1)
+                            : tokens.size() - 1;
+
+    if (name_start >= tokens.size() || name_start < num_cpus + 2)
+      continue;
+
+    InterruptMapping mapping;
+    mapping.irq_id = irq_id;
+    for (size_t j = name_start; j < tokens.size(); ++j) {
+      if (!mapping.name.empty())
+        mapping.name += " ";
+      mapping.name += tokens[j];
+    }
+
+    if (!mapping.name.empty())
+      mappings.push_back(std::move(mapping));
+  }
+
+  return mappings;
+}
+
+}  // namespace
 
 // static
 const ProbesDataSource::Descriptor SystemInfoDataSource::descriptor = {
@@ -39,10 +137,12 @@ const ProbesDataSource::Descriptor SystemInfoDataSource::descriptor = {
 SystemInfoDataSource::SystemInfoDataSource(
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
-    std::unique_ptr<CpuFreqInfo> cpu_freq_info)
+    std::unique_ptr<CpuFreqInfo> cpu_freq_info,
+    const DataSourceConfig& config)
     : ProbesDataSource(session_id, &descriptor),
       writer_(std::move(writer)),
-      cpu_freq_info_(std::move(cpu_freq_info)) {}
+      cpu_freq_info_(std::move(cpu_freq_info)),
+      include_irq_mapping_(config.system_info_config().irq_names()) {}
 
 void SystemInfoDataSource::Start() {
   auto packet = writer_->NewTracePacket();
@@ -88,6 +188,21 @@ void SystemInfoDataSource::Start() {
   }
 
   packet->Finalize();
+
+  if (include_irq_mapping_) {
+    auto mappings = ReadInterruptMappings(ReadFile("/proc/interrupts"));
+    if (!mappings.empty()) {
+      auto irq_packet = writer_->NewTracePacket();
+      irq_packet->set_timestamp(
+          static_cast<uint64_t>(base::GetBootTimeNs().count()));
+      auto* interrupt_info = irq_packet->set_interrupt_info();
+      for (const auto& mapping : mappings) {
+        auto* irq_proto = interrupt_info->add_irq_mapping();
+        irq_proto->set_irq_id(mapping.irq_id);
+        irq_proto->set_name(mapping.name);
+      }
+    }
+  }
   writer_->Flush();
 }
 

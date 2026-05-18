@@ -17,8 +17,8 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Spinner} from '../../widgets/spinner';
 import {Tabs} from '../../widgets/tabs';
 import {TERMINAL_STATUSES} from '../query/query_store';
-import {QueryRunner} from '../query/query_runner';
-import {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
+import type {QueryRunner} from '../query/query_runner';
+import type {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
 import {renderStatusBox, formatDurationS} from './status_box';
 import {renderResultsGrid} from './results_grid';
 

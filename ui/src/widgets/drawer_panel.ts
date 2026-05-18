@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 import {assertUnreachable} from '../base/assert';
-import {Gate, MithrilEvent} from '../base/mithril_utils';
+import {Gate, type MithrilEvent} from '../base/mithril_utils';
 import {Button, ButtonBar} from './button';
 import {classNames} from '../base/classnames';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {Icons} from '../base/semantic_icons';
 
 export interface TabAttrs extends HTMLAttrs {

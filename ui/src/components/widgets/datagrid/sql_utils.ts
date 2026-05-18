@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../base/assert';
-import {SqlValue} from '../../../trace_processor/query_result';
-import {AggregateFunction, Filter} from './model';
+import type {SqlValue} from '../../../trace_processor/query_result';
+import type {AggregateFunction, Filter} from './model';
 
 /**
  * Converts a SqlValue to its SQL string representation.

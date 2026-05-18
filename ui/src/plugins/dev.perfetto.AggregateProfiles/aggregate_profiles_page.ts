@@ -15,11 +15,9 @@
 import m from 'mithril';
 
 import {Monitor} from '../../base/monitor';
-import {
-  QueryFlamegraph,
-  QueryFlamegraphWithMetrics,
-} from '../../components/query_flamegraph';
-import {Trace} from '../../public/trace';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import type {Trace} from '../../public/trace';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
@@ -28,7 +26,7 @@ import {Callout} from '../../widgets/callout';
 import {TabStrip} from '../../widgets/tab_strip';
 import {Icon} from '../../widgets/icon';
 import {Flamegraph} from '../../widgets/flamegraph';
-import {AggregateProfile, AggregateProfilesPageState} from './types';
+import type {AggregateProfile, AggregateProfilesPageState} from './types';
 
 const HIDE_PAGE_EXPLANATION_KEY = 'hideAggregateProfilesPageExplanation';
 const HIDE_VIEW_EXPLANATION_KEY = 'hideAggregateProfilesViewExplanation';
@@ -40,10 +38,12 @@ export interface AggregateProfilesPageAttrs {
   readonly profiles: ReadonlyArray<AggregateProfile>;
 }
 
-export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
+export class AggregateProfilesPage
+  implements m.ClassComponent<AggregateProfilesPageAttrs>
+{
   private profiles?: ReadonlyArray<AggregateProfile>;
   private readonly monitor = new Monitor([() => this.profiles]);
-  private flamegraphWithMetrics?: QueryFlamegraphWithMetrics;
+  private flamegraphMetrics?: ReadonlyArray<QueryFlamegraphMetric>;
   private currentTab = 'flamegraph';
 
   view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
@@ -83,10 +83,11 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
           m(StackFixed, this.renderViewExplanation()),
         m(StackAuto, [
-          this.flamegraphWithMetrics &&
+          this.flamegraphMetrics &&
             attrs.state.flamegraphState &&
-            this.flamegraphWithMetrics.flamegraph.render({
-              metrics: this.flamegraphWithMetrics.metrics,
+            m(FlamegraphPanel, {
+              trace: attrs.trace,
+              metrics: this.flamegraphMetrics,
               state: attrs.state.flamegraphState,
               onStateChange: (state) => {
                 attrs.onStateChange({
@@ -95,15 +96,18 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
                 });
               },
             }),
-          !this.flamegraphWithMetrics && this.renderEmptyState(),
+          !this.flamegraphMetrics && this.renderEmptyState(),
         ]),
       ],
     );
   }
 
-  private createFlamegraph(attrs: AggregateProfilesPageAttrs, profile: AggregateProfile): void {
+  private createFlamegraph(
+    attrs: AggregateProfilesPageAttrs,
+    profile: AggregateProfile,
+  ): void {
     if (profile.metrics.length === 0) {
-      this.flamegraphWithMetrics = undefined;
+      this.flamegraphMetrics = undefined;
       attrs.onStateChange({
         ...attrs.state,
         flamegraphState: undefined,
@@ -116,10 +120,7 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         ? Flamegraph.updateState(attrs.state.flamegraphState, profile.metrics)
         : Flamegraph.createDefaultState(profile.metrics),
     });
-    this.flamegraphWithMetrics = {
-      flamegraph: new QueryFlamegraph(attrs.trace),
-      metrics: profile.metrics,
-    };
+    this.flamegraphMetrics = profile.metrics;
   }
 
   private shouldShowExplanation(key: string): boolean {
@@ -228,7 +229,11 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
 
   private renderProfileSelector(attrs: AggregateProfilesPageAttrs): m.Children {
     return m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
-      m('label', {className: 'pf-aggregate-profiles-page__profile-label'}, 'Profile:'),
+      m(
+        'label',
+        {className: 'pf-aggregate-profiles-page__profile-label'},
+        'Profile:',
+      ),
       m(
         Select,
         {

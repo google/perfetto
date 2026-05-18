@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from './button';
-import {HTMLAttrs, HTMLLabelAttrs} from './common';
+import type {HTMLAttrs, HTMLLabelAttrs} from './common';
 import {Popup} from './popup';
 import {Intent} from '../widgets/common';
 

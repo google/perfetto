@@ -38,39 +38,39 @@ void MachineTracker::SetMachineInfo(StringId sysname,
                                     StringId arch) {
   auto row = getRow();
 
-  row->set_sysname(sysname);
-  row->set_release(release);
-  row->set_version(version);
-  row->set_arch(arch);
+  row.set_sysname(sysname);
+  row.set_release(release);
+  row.set_version(version);
+  row.set_arch(arch);
 }
 
 void MachineTracker::SetNumCpus(uint32_t cpus) {
-  getRow()->set_num_cpus(cpus);
+  getRow().set_num_cpus(cpus);
 }
 
 void MachineTracker::SetAndroidBuildFingerprint(StringId build_fingerprint) {
-  getRow()->set_android_build_fingerprint(build_fingerprint);
+  getRow().set_android_build_fingerprint(build_fingerprint);
 }
 
 void MachineTracker::SetAndroidDeviceManufacturer(
     StringId device_manufacturer) {
-  getRow()->set_android_device_manufacturer(device_manufacturer);
+  getRow().set_android_device_manufacturer(device_manufacturer);
 }
 
 void MachineTracker::SetAndroidSdkVersion(int64_t sdk_version) {
-  getRow()->set_android_sdk_version(sdk_version);
+  getRow().set_android_sdk_version(sdk_version);
 }
 
 void MachineTracker::SetSystemRamBytes(int64_t system_ram_bytes) {
   auto row = getRow();
-  row->set_system_ram_bytes(system_ram_bytes);
-  row->set_system_ram_gb(BytesToGB(system_ram_bytes));
+  row.set_system_ram_bytes(system_ram_bytes);
+  row.set_system_ram_gb(BytesToGB(system_ram_bytes));
 }
 
 PERFETTO_ALWAYS_INLINE
-std::optional<MachineTable::RowReference> MachineTracker::getRow() {
+MachineTable::RowReference MachineTracker::getRow() {
   auto& machines = *context_->storage->mutable_machine_table();
-  return machines.FindById(machine_id_);
+  return machines[machine_id_];
 }
 
 // static

@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Setting, EnumOption} from './settings_types';
+import type {Setting, EnumOption} from './settings_types';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {
   PopupMultiSelect,
-  MultiSelectDiff,
-  MultiSelectOption,
+  type MultiSelectDiff,
+  type MultiSelectOption,
 } from '../../widgets/multiselect';
 import {Checkbox} from '../../widgets/checkbox';
 import {Editor} from '../../widgets/editor';

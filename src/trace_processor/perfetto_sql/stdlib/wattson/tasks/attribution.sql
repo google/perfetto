@@ -75,131 +75,47 @@ JOIN _gpu_estimates_mw AS p
   ON p._auto_id = id_1;
 
 CREATE PERFETTO TABLE _unioned_wattson_estimates_mw AS
-SELECT
-  ts,
-  dur,
-  0 AS cpu,
-  cpu0_mw AS estimated_mw
+SELECT ts, dur, 0 AS cpu, cpu0_mw AS estimated_mw
 FROM _system_state_cpu0_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      0 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 0 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  1 AS cpu,
-  cpu1_mw AS estimated_mw
+SELECT ts, dur, 1 AS cpu, cpu1_mw AS estimated_mw
 FROM _system_state_cpu1_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      1 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 1 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  2 AS cpu,
-  cpu2_mw AS estimated_mw
+SELECT ts, dur, 2 AS cpu, cpu2_mw AS estimated_mw
 FROM _system_state_cpu2_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      2 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 2 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  3 AS cpu,
-  cpu3_mw AS estimated_mw
+SELECT ts, dur, 3 AS cpu, cpu3_mw AS estimated_mw
 FROM _system_state_cpu3_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      3 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 3 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  4 AS cpu,
-  cpu4_mw AS estimated_mw
+SELECT ts, dur, 4 AS cpu, cpu4_mw AS estimated_mw
 FROM _system_state_cpu4_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      4 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 4 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  5 AS cpu,
-  cpu5_mw AS estimated_mw
+SELECT ts, dur, 5 AS cpu, cpu5_mw AS estimated_mw
 FROM _system_state_cpu5_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      5 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 5 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  6 AS cpu,
-  cpu6_mw AS estimated_mw
+SELECT ts, dur, 6 AS cpu, cpu6_mw AS estimated_mw
 FROM _system_state_cpu6_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      6 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 6 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  7 AS cpu,
-  cpu7_mw AS estimated_mw
+SELECT ts, dur, 7 AS cpu, cpu7_mw AS estimated_mw
 FROM _system_state_cpu7_mw
 WHERE
-  EXISTS(
-    SELECT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      7 = cpu
-  )
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu)
 UNION ALL
-SELECT
-  ts,
-  dur,
-  -1 AS cpu,
-  dsu_scu_mw AS estimated_mw
+SELECT ts, dur, -1 AS cpu, dsu_scu_mw AS estimated_mw
 FROM _system_state_dsu_scu_mw;
 
 CREATE PERFETTO TABLE _estimates_w_tasks_attribution AS
@@ -232,28 +148,13 @@ JOIN _wattson_task_slices AS s
 CREATE PERFETTO TABLE _gpu_estimates_w_tasks_attribution AS
 WITH
   _unique_packages AS (
-    SELECT
-      uid,
-      min(package_name) AS package_name
-    FROM package_list
-    GROUP BY
-      uid
+    SELECT uid, min(package_name) AS package_name FROM package_list GROUP BY uid
   ),
   _combined AS (
-    SELECT
-      ts,
-      dur,
-      uid,
-      estimated_mw,
-      0.0 AS idle_mw
+    SELECT ts, dur, uid, estimated_mw, 0.0 AS idle_mw
     FROM _gpu_tasks_attribution
     UNION ALL
-    SELECT
-      ts,
-      dur,
-      uid,
-      0.0 AS estimated_mw,
-      estimated_mw AS idle_mw
+    SELECT ts, dur, uid, 0.0 AS estimated_mw, estimated_mw AS idle_mw
     FROM _gpu_gap_attribution
   )
 SELECT
@@ -270,8 +171,4 @@ LEFT JOIN _unique_packages AS pkg
 
 -- List of all physical CPUs that have Wattson estimates
 CREATE PERFETTO TABLE _wattson_cpus AS
-SELECT DISTINCT
-  cpu
-FROM _unioned_wattson_estimates_mw
-WHERE
-  cpu >= 0;
+SELECT DISTINCT cpu FROM _unioned_wattson_estimates_mw WHERE cpu >= 0;

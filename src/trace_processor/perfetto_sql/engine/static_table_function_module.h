@@ -25,8 +25,8 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -49,6 +49,8 @@ struct StaticTableFunctionModule : sqlite::Module<StaticTableFunctionModule> {
     std::unique_ptr<StaticTableFunction> function;
   };
   struct Context : sqlite::ModuleStateManager<StaticTableFunctionModule> {
+    explicit Context(sqlite::CommittedStateManager& store)
+        : sqlite::ModuleStateManager<StaticTableFunctionModule>(store) {}
     std::unique_ptr<State> temporary_create_state;
   };
   struct Vtab : sqlite::Module<StaticTableFunctionModule>::Vtab {
