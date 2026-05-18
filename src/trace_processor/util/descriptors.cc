@@ -93,8 +93,8 @@ base::Status CheckExtensionField(
       field.raw_type_name() != existing_field->raw_type_name()) {
     // Same tag, same fundamental type, but the message/enum is named
     // differently (e.g. a package rename during an out-of-tree migration).
-    // Defer a recursive structural-equality check until after type
-    // resolution has populated resolved_type_name() for all fields.
+    // Defer a structural-compatibility check until after type resolution
+    // has populated resolved_type_name() for all fields.
     extension_type_checks->push_back(
         {/*extendee_full_name=*/proto_descriptor.full_name(),
          /*field_name=*/field.name(),
@@ -166,9 +166,10 @@ bool DescriptorPool::DescriptorsStructurallyEqual(
       return false;
     }
 
-    // If both sides are enums, they match only if they have the same set of
-    // values (same numbers and same value names). Enums have no sub-types to
-    // queue.
+    // If both sides are enums, they match when every value number they both
+    // define maps to the same name; a number on only one side is allowed
+    // (one enum gained values the other doesn't have). Enums have no
+    // sub-types to queue.
     if (existing_desc.type() == ProtoDescriptor::Type::kEnum) {
       if (!existing_desc.EnumValuesCompatibleWith(candidate_desc)) {
         return false;
@@ -184,7 +185,6 @@ bool DescriptorPool::DescriptorsStructurallyEqual(
       const FieldDescriptor* candidate_field =
           candidate_desc.FindFieldByTag(existing_field.number());
 
-      // Present only on the existing side.
       if (candidate_field == nullptr) {
         continue;
       }
@@ -405,8 +405,8 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     }
   }
 
-  // Fourth pass: verify deferred type equivalences are structurally
-  // identical now that all field types have been resolved.
+  // Fourth pass: verify deferred type checks are structurally compatible
+  // now that all field types have been resolved.
   for (const auto& check : extension_type_checks) {
     std::optional<uint32_t> opt_existing_idx =
         ResolveShortType(check.extendee_full_name, check.existing_raw_type);

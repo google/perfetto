@@ -116,9 +116,9 @@ std::vector<uint8_t> BuildDescriptorSet(bool structurally_equal_extensions,
 
 // Builds a descriptor set with two extension messages that are each
 // self-referential (a field of the message points back at the message
-// itself), registered at the same extendee tag. This forces the coinductive
-// cycle guard in DescriptorsStructurallyEqual to trigger; without it the
-// comparison would not terminate.
+// itself), registered at the same extendee tag. This forces the cycle guard
+// in DescriptorsStructurallyEqual to trigger; without it the comparison
+// would not terminate.
 std::vector<uint8_t> BuildSelfReferentialDescriptorSet() {
   protozero::HeapBuffered<FileDescriptorSet> fds;
   auto* file = fds->add_file();
@@ -422,7 +422,8 @@ TEST(DescriptorsTest, NonIdenticalExtensionReDeclarationRejected) {
 }
 
 // A difference one level deep inside a nested message is rejected. This
-// proves the comparison is genuinely recursive, not shallow.
+// proves the comparison genuinely descends into nested types, not just the
+// top level.
 TEST(DescriptorsTest, DeepNestedDifferenceRejected) {
   DescriptorPool pool;
   std::vector<uint8_t> fds_bytes =
@@ -516,8 +517,10 @@ TEST(DescriptorsTest, IdenticalEnumExtensionReDeclarationAllowed) {
   EXPECT_NE(pool.descriptors()[base_idx.value()].FindFieldByTag(10), nullptr);
 }
 
-// A renamed enum whose values differ is rejected.
-TEST(DescriptorsTest, NonIdenticalEnumExtensionReDeclarationRejected) {
+// A renamed enum whose shared value number maps to a different name is a
+// genuine conflict and is rejected. (Differing value *sets* without a shared
+// conflict are allowed; that case is covered by the superset tests.)
+TEST(DescriptorsTest, ConflictingEnumValueReDeclarationRejected) {
   DescriptorPool pool;
   std::vector<uint8_t> fds_bytes =
       BuildEnumExtDescriptorSet(/*enums_equal=*/false);
