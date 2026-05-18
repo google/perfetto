@@ -1371,7 +1371,7 @@ base::Status PerfettoSqlConnection::RegisterDelegatingFunction(
 
   // Look up the target function in our registry
   IntrinsicFunctionInfo* info_ptr =
-      intrinsic_function_registry_.Find(target_function_name);
+      intrinsic_function_registry_.Find(base::ToLower(target_function_name));
   if (info_ptr == nullptr) {
     return base::ErrStatus(
         "Target function '%s' not found in registry. "
@@ -1432,7 +1432,7 @@ base::Status PerfettoSqlConnection::RegisterFunctionAndAddToRegistry(
   info.argc = argc;
   info.ctx = ctx;
   info.deterministic = deterministic;
-  intrinsic_function_registry_[name] = info;
+  intrinsic_function_registry_[base::ToLower(name)] = info;
 
   return base::OkStatus();
 }

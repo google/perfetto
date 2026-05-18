@@ -994,7 +994,7 @@ describe('MetricsNode', () => {
     });
 
     it('should preserve onchange callback', () => {
-      const onchange = jest.fn();
+      const onchange = vi.fn();
       const node = new MetricsNode(makeState(), {onchange});
 
       const cloned = node.clone() as MetricsNode;

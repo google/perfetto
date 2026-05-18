@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './ui_main.scss';
 import m from 'mithril';
 import {AppImpl} from '../core/app_impl';
 import {CookieConsent} from '../core/cookie_consent';

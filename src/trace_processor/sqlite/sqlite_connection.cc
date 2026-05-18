@@ -25,6 +25,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -186,7 +187,7 @@ base::Status SqliteConnection::RegisterFunction(const char* name,
         "Unable to register function with name %s: %s (SQLite error code: %d)",
         name, sqlite3_errmsg(db_.get()), ret);
   }
-  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
+  *fn_ctx_.Insert(std::make_pair(base::ToLower(name), argc), ctx).first = ctx;
   return base::OkStatus();
 }
 
@@ -244,7 +245,7 @@ base::Status SqliteConnection::UnregisterFunction(const char* name, int argc) {
         "%d)",
         name, sqlite3_errmsg(db_.get()), ret);
   }
-  fn_ctx_.Erase({name, argc});
+  fn_ctx_.Erase({base::ToLower(name), argc});
   return base::OkStatus();
 }
 
@@ -259,7 +260,7 @@ void SqliteConnection::RegisterVirtualTableModule(
 }
 
 void* SqliteConnection::GetFunctionContext(const std::string& name, int argc) {
-  auto* res = fn_ctx_.Find(std::make_pair(name, argc));
+  auto* res = fn_ctx_.Find(std::make_pair(base::ToLower(name), argc));
   return res ? *res : nullptr;
 }
 

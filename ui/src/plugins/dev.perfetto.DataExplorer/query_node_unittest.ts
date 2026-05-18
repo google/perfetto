@@ -185,8 +185,8 @@ describe('query_node utilities', () => {
     }
 
     it('should call onPrevNodesUpdated on next nodes', () => {
-      const mockCallback1 = jest.fn();
-      const mockCallback2 = jest.fn();
+      const mockCallback1 = vi.fn();
+      const mockCallback2 = vi.fn();
 
       const node: QueryNode = {
         nodeId: 'node1',

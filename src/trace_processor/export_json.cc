@@ -626,6 +626,10 @@ class JsonExporter {
         if (args.HasMember("debug")) {
           Dom debug = std::move(args["debug"]);
           args.RemoveMember("debug");
+          // Prevent spoofing legacy event args from trace data.
+          if (debug.HasMember(kLegacyEventArgsKey)) {
+            debug.RemoveMember(kLegacyEventArgsKey);
+          }
           for (const auto& member : debug.GetMemberNames()) {
             args[member] = debug[member].Copy();
           }

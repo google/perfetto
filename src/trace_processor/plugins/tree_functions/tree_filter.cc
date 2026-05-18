@@ -31,6 +31,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/owned_sql_value.h"
 
 namespace perfetto::trace_processor {
 
@@ -77,10 +78,15 @@ base::StatusOr<core::dataframe::Op> StringOperatorToOp(
 }
 
 // Represents a single filter constraint (column, operator, value).
+//
+// |value| is stored as OwnedSqlValue (rather than SqlValue) because
+// SQLite-provided string/blob memory is only valid for the duration of the
+// owning function call, and FilterConstraints are held across multiple
+// SQL function invocations via SQLite's pointer-passing API.
 struct FilterConstraint {
   std::string column_name;
   std::string op_str;
-  SqlValue value;
+  OwnedSqlValue value;
 };
 
 // Represents a list of filter constraints combined with a logical operator.
@@ -112,14 +118,16 @@ void TreeConstraint::Step(sqlite3_context* ctx,
       sqlite::utils::ExtractArgument(static_cast<uint32_t>(argc), argv, "op", 1,
                                      SqlValue::Type::kString));
 
-  // Extract value (any type).
+  // Extract value (any type). The SqlValue returned here borrows string/blob
+  // memory from SQLite which is only valid for the duration of this call,
+  // so deep-copy it into an OwnedSqlValue before storing it on the heap.
   auto value = sqlite::utils::SqliteValueToSqlValue(argv[2]);
 
   // Create and return a FilterConstraint pointer.
   auto constraint = std::make_unique<FilterConstraint>();
   constraint->column_name = column_name.AsString();
   constraint->op_str = op.AsString();
-  constraint->value = value;
+  constraint->value = OwnedSqlValue(value);
 
   return sqlite::result::UniquePointer(ctx, std::move(constraint),
                                        "FILTER_CONSTRAINT");
@@ -193,7 +201,7 @@ void TreeFilter::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   auto transformer = tree_ptr->Take();
 
   std::vector<core::dataframe::FilterSpec> specs;
-  std::vector<SqlValue> values;
+  std::vector<OwnedSqlValue> values;
   uint32_t idx = 0;
   for (const auto& c : constraints_ptr->constraints) {
     auto col = transformer.ResolveColumn(c.column_name);

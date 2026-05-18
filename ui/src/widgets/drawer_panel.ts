@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './drawer_panel.scss';
 import m from 'mithril';
 import {assertUnreachable} from '../base/assert';
 import {Gate, type MithrilEvent} from '../base/mithril_utils';

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './flamegraph.scss';
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/assert';
 import {Monitor} from '../base/monitor';
