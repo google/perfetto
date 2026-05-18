@@ -15,42 +15,14 @@
 import {assetSrc} from '../base/assets';
 import {assertTrue} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
-import {
-  TRACE_PROCESSOR_32_WASM_URL,
-  TRACE_PROCESSOR_64_WASM_URL,
-} from './wasm_modules';
+import {traceProcessorWasmUrl} from './wasm_modules';
 
 let idleWasmWorker: Worker | undefined = undefined;
-
-// Detected once for the whole page. Used to pick the .wasm URL and forwarded
-// to every worker via the bootstrap message.
-const USE_MEMORY64 = detectMemory64Support();
-
-function detectMemory64Support(): boolean {
-  // Compiled bytes for `(module (memory i64 0))`.
-  const program = new Uint8Array([
-    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x04,
-    0x00, 0x00, 0x08, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x02, 0x01, 0x00,
-  ]);
-  try {
-    new WebAssembly.Module(program);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
 
 // Compiled once on the main thread and shared with every worker we spawn so
 // V8 reuses the same tiered-up wasm code across workers.
 const precompiledWasmModule: Promise<WebAssembly.Module> =
-  precompileTraceProcessorWasm();
-
-function precompileTraceProcessorWasm(): Promise<WebAssembly.Module> {
-  const wasmUrl = USE_MEMORY64
-    ? assetSrc(TRACE_PROCESSOR_64_WASM_URL)
-    : assetSrc(TRACE_PROCESSOR_32_WASM_URL);
-  return WebAssembly.compileStreaming(fetch(wasmUrl));
-}
+  WebAssembly.compileStreaming(fetch(traceProcessorWasmUrl()));
 
 export function warmupWasmWorker() {
   if (idleWasmWorker === undefined) {
@@ -89,9 +61,7 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
 
     const worker = this.worker;
     precompiledWasmModule.then((wasmModule) => {
-      worker.postMessage({port: port1, useMemory64: USE_MEMORY64, wasmModule}, [
-        port1,
-      ]);
+      worker.postMessage({port: port1, wasmModule}, [port1]);
     });
     this.port.onmessage = this.onMessage.bind(this);
   }

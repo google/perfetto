@@ -25,10 +25,38 @@
 // in normal builds (see vite.config.mjs); under --only-wasm-memory64 the
 // alias is dropped and the local file is a throwing stub.
 
+import {assetSrc} from '../base/assets';
 import TraceProcessor64 from '../gen/trace_processor_memory64';
 import TraceProcessor32 from './trace_processor_32_stub';
 
 export {TraceProcessor64, TraceProcessor32};
 
-export const TRACE_PROCESSOR_64_WASM_URL = 'trace_processor_memory64.wasm';
-export const TRACE_PROCESSOR_32_WASM_URL = 'trace_processor.wasm';
+let memory64SupportCache: boolean | undefined;
+
+// Whether the current environment supports the WebAssembly memory64 proposal.
+// The main thread calls this to pick the .wasm to fetch; the worker calls it
+// to pick the matching factory — both run the same check against the same JS
+// engine, so they agree without needing to forward a flag.
+export function memory64Supported(): boolean {
+  if (memory64SupportCache !== undefined) return memory64SupportCache;
+  // Compiled bytes for `(module (memory i64 0))`.
+  const program = new Uint8Array([
+    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x04,
+    0x00, 0x00, 0x08, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x02, 0x01, 0x00,
+  ]);
+  try {
+    new WebAssembly.Module(program);
+    return (memory64SupportCache = true);
+  } catch {
+    return (memory64SupportCache = false);
+  }
+}
+
+// Resolved URL of the .wasm matching the factory we'd pick for this env.
+export function traceProcessorWasmUrl(): string {
+  return assetSrc(
+    memory64Supported()
+      ? 'trace_processor_memory64.wasm'
+      : 'trace_processor.wasm',
+  );
+}

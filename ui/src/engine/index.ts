@@ -21,18 +21,16 @@ const wasmBridge = new WasmBridge();
 // 1. The Worker (self.onmessage) handler.
 // 2. The MessagePort handler.
 // The sequence of actions is the following:
-// 1. The frontend does one postMessage({port, useMemory64, wasmModule?}) on
-//    the Worker scope. `useMemory64` is decided once on the main thread; the
-//    optional `wasmModule` lets the main thread share a precompiled Module
-//    across workers (see WasmEngineProxy).
+// 1. The frontend does one postMessage({port, wasmModule}) on the Worker
+//    scope. The wasmModule is precompiled on the main thread and shared so
+//    V8 can reuse the same tiered-up wasm code across workers.
 // 2. All the other messages (i.e. the TraceProcessor RPC binary pipe) will be
 //    received on the MessagePort.
 
 selfWorker.onmessage = (msg: MessageEvent) => {
   const data = msg.data as {
     port: MessagePort;
-    useMemory64: boolean;
     wasmModule: WebAssembly.Module;
   };
-  wasmBridge.initialize(data.useMemory64, data.port, data.wasmModule);
+  wasmBridge.initialize(data.port, data.wasmModule);
 };

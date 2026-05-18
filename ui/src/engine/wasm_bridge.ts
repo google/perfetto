@@ -16,6 +16,7 @@ import {assertExists, assertTrue} from '../base/assert';
 import {
   TraceProcessor32,
   TraceProcessor64,
+  memory64Supported,
 } from '../trace_processor/wasm_modules';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
@@ -42,21 +43,19 @@ export class WasmBridge {
   private messagePort?: MessagePort;
   private useMemory64 = false;
 
-  // |useMemory64| is decided once on the main thread and threaded through;
   // |precompiledModule| is compiled once on the main thread and shared with
-  // every worker so V8 reuses the same tiered-up wasm code.
-  // The port's onmessage is wired up only after init completes, so any RPC
-  // bytes that arrive in the meantime stay queued on the port.
+  // every worker so V8 reuses the same tiered-up wasm code. The port's
+  // onmessage is wired up only after init completes, so any RPC bytes that
+  // arrive in the meantime stay queued on the port.
   async initialize(
-    useMemory64: boolean,
     port: MessagePort,
     precompiledModule: WebAssembly.Module,
   ): Promise<void> {
     assertTrue(this.messagePort === undefined);
     this.messagePort = port;
-    this.useMemory64 = useMemory64;
+    this.useMemory64 = memory64Supported();
 
-    const initModule = useMemory64 ? TraceProcessor64 : TraceProcessor32;
+    const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
     const connection = await initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
