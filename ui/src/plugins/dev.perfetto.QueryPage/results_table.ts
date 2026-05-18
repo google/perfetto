@@ -16,6 +16,7 @@ import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {Icons} from '../../base/semantic_icons';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
+import {AddFlamegraphMenu} from '../../components/tracks/add_flamegraph_menu';
 import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import type {
@@ -198,6 +199,22 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
       }),
     );
 
+    const flamegraphButton = m(
+      Popup,
+      {
+        trigger: m(Button, {
+          label: 'Add flamegraph',
+          icon: 'local_fire_department',
+        }),
+        position: PopupPosition.Top,
+      },
+      m(AddFlamegraphMenu, {
+        trace: attrs.trace,
+        query: data.lastStatementSql,
+        availableColumns: data.columns,
+      }),
+    );
+
     const multiStatementWarning =
       data.statementWithOutputCount > 1 &&
       m(
@@ -219,7 +236,7 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
         fillHeight: true,
         emptyStateMessage: 'Query returned no rows',
         toolbarItemsLeft: toolbarLeft,
-        toolbarItemsRight: [linkingButton, debugTrackButton],
+        toolbarItemsRight: [linkingButton, debugTrackButton, flamegraphButton],
         showExportButton: true,
       }),
     ];

@@ -16,6 +16,7 @@ import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/assert';
+import {download} from '../base/download_utils';
 import {uuidv4Sql} from '../base/uuid';
 import type {Engine} from '../trace_processor/engine';
 import {
@@ -23,6 +24,7 @@ import {
   createPerfettoTable,
 } from '../trace_processor/sql_utils';
 import {
+  BLOB,
   NUM,
   NUM_NULL,
   STR,
@@ -221,6 +223,52 @@ export class QueryFlamegraph implements AsyncDisposable {
         filters: [],
       },
       onStateChange,
+      onDownloadPprof:
+        metrics === undefined
+          ? undefined
+          : (metricName) => this.downloadPprof(metrics, metricName),
+    });
+  }
+
+  // Serializes the unfiltered tree behind `metric` as a pprof Profile by
+  // delegating to the trace_processor `_pprof_from_tree!` aggregate, then
+  // triggers a browser download. Filters applied in the UI do not affect
+  // the exported profile.
+  private async downloadPprof(
+    metrics: ReadonlyArray<QueryFlamegraphMetric>,
+    metricName: string,
+  ): Promise<void> {
+    const metric = metrics.find((x) => x.name === metricName);
+    if (metric === undefined) return;
+    const engine = this.trace.engine;
+    if (metric.dependencySql !== undefined) {
+      await engine.query(metric.dependencySql);
+    }
+    await engine.query('include perfetto module pprof.from_tree;');
+
+    const uuid = uuidv4Sql();
+    await using disposable = new AsyncDisposableStack();
+    disposable.use(
+      await createPerfettoTable({
+        engine,
+        name: `_pprof_source_${uuid}`,
+        as: metric.statement,
+      }),
+    );
+    const result = await engine.query(`
+      select profile_from_tree(
+        id, parentId, name, value,
+        ${sqliteString(metric.name)}, ${sqliteString(metric.unit)}
+      ) as bytes
+      from _pprof_source_${uuid}
+    `);
+    const it = result.iter({bytes: BLOB});
+    if (!it.valid()) return;
+    const safeName = metric.name.replace(/[^A-Za-z0-9._-]+/g, '_');
+    download({
+      content: it.bytes,
+      fileName: `${safeName || 'flamegraph'}.pb`,
+      mimeType: 'application/octet-stream',
     });
   }
 

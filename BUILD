@@ -3981,6 +3981,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/pprof:pprof
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_pprof_pprof",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/pprof/from_tree.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/prelude/after_eof:after_eof
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_prelude_after_eof_after_eof",
@@ -4203,6 +4211,7 @@ perfetto_cpp_blob_header(
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",
         ":src_trace_processor_perfetto_sql_stdlib_pixel_pixel",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
+        ":src_trace_processor_perfetto_sql_stdlib_pprof_pprof",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",

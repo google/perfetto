@@ -17048,6 +17048,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/perfetto_sql/stdlib/pprof:pprof
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_stdlib_pprof_pprof",
+    srcs: [
+        "src/trace_processor/perfetto_sql/stdlib/pprof/from_tree.sql",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/stdlib/prelude:prelude
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
@@ -17169,6 +17177,7 @@ genrule {
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_linux_linux",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_pixel_pixel",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
+        ":perfetto_src_trace_processor_perfetto_sql_stdlib_pprof_pprof",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_sched_sched",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_slices_slices",
