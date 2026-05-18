@@ -23,11 +23,12 @@ import {fileURLToPath} from 'node:url';
 import {lezer} from '@lezer/generator/rollup';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT_DIR = path.dirname(__dirname);
-const SRC = path.join(ROOT_DIR, 'ui/src');
 
 export default defineConfig({
-  root: SRC,
+  // Pin root to ui/ (where package.json and node_modules live). Without this,
+  // Vitest uses cwd — which is the build's out dir when invoked from build.mjs,
+  // so test discovery fails and the cache lands in the wrong place.
+  root: __dirname,
   plugins: [
     // *.grammar imports used by codemirror plugins.
     lezer(),
@@ -36,9 +37,8 @@ export default defineConfig({
     'process.env.NODE_ENV': JSON.stringify('test'),
   },
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
     globals: true,
-    include: ['**/*_unittest.ts', '**/*_jsdomtest.ts'],
-    setupFiles: [path.join(__dirname, 'config/vitest_setup.ts')],
+    include: ['src/**/*_unittest.ts', 'src/**/*_jsdomtest.ts'],
   },
 });
