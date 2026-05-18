@@ -83,7 +83,7 @@ class OwnedSqlValue {
       case base::variant_index<Data, std::vector<uint8_t>>():
         return SqlValue::Type::kBytes;
     }
-    PERFETTO_FATAL("Unreachable");
+    PERFETTO_FATAL("For GCC");
   }
 
   int64_t AsLong() const { return base::unchecked_get<int64_t>(data_); }
