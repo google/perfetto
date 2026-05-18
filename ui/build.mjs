@@ -441,7 +441,7 @@ Env-var overrides:
     startServer();
   }
   if (args.run_unittests) {
-    runTests('jest.unittest.config.js');
+    runTests();
   }
 }
 
@@ -449,28 +449,21 @@ Env-var overrides:
 // Build rules
 // -----------
 
-function runTests(cfgFile) {
+function runTests() {
+  // Vitest reads ui/vitest.config.mjs by default. ts is transpiled on the fly
+  // by Vite, so there's no tsc-emitted .js layer involved.
   const args = [
-    // Run jest against the TS sources directly. ts is transpiled on the fly
-    // by @swc/jest (see ui/config/jest.unittest.config.js); there's no
-    // tsc-emitted .js layer any more.
-    '--rootDir',
-    pjoin(ROOT_DIR, 'ui/src'),
-    '--verbose',
-    '--runInBand',
-    '--detectOpenHandles',
-    '--forceExit',
-    '--projects',
-    pjoin(ROOT_DIR, 'ui/config', cfgFile),
+    cfg.watch ? 'watch' : 'run',
+    '--config',
+    pjoin(ROOT_DIR, 'ui/vitest.config.mjs'),
   ];
   if (cfg.testFilter.length > 0) {
     args.push('-t', cfg.testFilter);
   }
   if (cfg.watch) {
-    args.push('--watchAll');
-    addTask(execModule, ['jest', args, {async: true}]);
+    addTask(execModule, ['vitest', args, {async: true}]);
   } else {
-    addTask(execModule, ['jest', args]);
+    addTask(execModule, ['vitest', args]);
   }
 }
 
