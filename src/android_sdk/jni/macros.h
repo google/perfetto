@@ -33,6 +33,9 @@
 //
 // Expands to nothing on device (so the on-wire binary is unchanged) and
 // to JNIEnv*,jclass[,] everywhere else.
+//
+// Use __ANDROID__ directly rather than PERFETTO_BUILDFLAG so this
+// leaf JNI header doesn't pull in perfetto/base/build_config.h.
 #if defined(__ANDROID__)
 #define PERFETTO_JNI_HOST_PARAMS
 #define PERFETTO_JNI_HOST_PARAMS_COMMA
