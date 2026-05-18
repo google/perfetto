@@ -83,7 +83,7 @@ TEST_F(TrackCompressorUnittest, Smoke) {
   ASSERT_EQ(begin, end);
 
   const auto& process = storage_->track_table();
-  auto rr = *process.FindById(begin);
+  auto rr = process[begin];
   ASSERT_EQ(rr.upid(), 1u);
   ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));
 }
@@ -92,7 +92,7 @@ TEST_F(TrackCompressorUnittest, EndFirst) {
   auto end = tracker_->InternEnd(kNestable, tracks::Dimensions(1), 1);
 
   const auto& process = storage_->track_table();
-  auto rr = *process.FindById(end);
+  auto rr = process[end];
   ASSERT_EQ(rr.upid(), 1u);
   ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));
 }

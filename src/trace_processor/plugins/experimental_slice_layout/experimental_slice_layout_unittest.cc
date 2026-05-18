@@ -43,9 +43,9 @@ std::string ToVis(const tables::SliceTable& slice,
   std::vector<std::string> lines;
   for (uint32_t i = 0; i < table.row_count(); ++i) {
     auto layout_depth = table.GetCellUnchecked<CI::layout_depth>(kSpec, i);
-    auto rr = slice.FindById(SliceId(table.GetCellUnchecked<CI::id>(kSpec, i)));
-    int64_t ts = rr->ts();
-    int64_t dur = rr->dur();
+    auto rr = slice[SliceId(table.GetCellUnchecked<CI::id>(kSpec, i))];
+    int64_t ts = rr.ts();
+    int64_t dur = rr.dur();
     for (int64_t j = 0; j < dur; ++j) {
       auto y = static_cast<size_t>(layout_depth);
       auto x = static_cast<size_t>(ts + j);

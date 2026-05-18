@@ -20,7 +20,7 @@ import {toggleHelp} from './help_modal';
 import {AppImpl} from '../core/app_impl';
 import type {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
-import {BUCKET_NAME} from '../base/gcs_uploader';
+import {BUCKET_NAME, isValidGcsFileName} from '../base/gcs_uploader';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -236,6 +236,12 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     // Maybe load the app state from the URL.
     let appState: SerializedAppState | undefined;
     if (postedTrace.appStateHash) {
+      if (!isValidGcsFileName(postedTrace.appStateHash)) {
+        throw new Error(
+          `Invalid appStateHash: ${postedTrace.appStateHash}. ` +
+            `Expected a 40-char hex hash.`,
+        );
+      }
       const url = `https://storage.googleapis.com/${BUCKET_NAME}/${postedTrace.appStateHash}`;
       const response = await fetch(url);
       if (!response.ok) {

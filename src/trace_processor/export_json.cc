@@ -830,7 +830,7 @@ class JsonExporter {
 
       const auto& track_table = storage_->track_table();
 
-      auto track_row_ref = *track_table.FindById(track_id);
+      auto track_row_ref = track_table[track_id];
       auto track_args_id = track_row_ref.source_arg_set_id();
       const Dom* track_args = nullptr;
       bool legacy_chrome_track = false;
@@ -1062,20 +1062,17 @@ class JsonExporter {
                                        bool flow_begin) {
     const auto& slices = storage_->slice_table();
 
-    auto opt_slice_rr = slices.FindById(slice_id);
-    if (!opt_slice_rr)
-      return std::nullopt;
-    auto slice_rr = opt_slice_rr.value();
+    auto slice_rr = slices[slice_id];
 
     TrackId track_id = slice_rr.track_id();
-    auto rr = storage_->track_table().FindById(track_id);
+    auto rr = storage_->track_table()[track_id];
 
     // catapult only supports flow events attached to thread-track slices
-    if (!rr || !rr->utid()) {
+    if (!rr.utid()) {
       return std::nullopt;
     }
 
-    UniqueTid utid = *rr->utid();
+    UniqueTid utid = *rr.utid();
     auto pid_and_tid = UtidToPidAndTid(utid);
     Dom event(Type::kObject);
     event["id"] = static_cast<uint64_t>(flow_id);
@@ -1111,10 +1108,9 @@ class JsonExporter {
         args.RemoveMember("name");
         args.RemoveMember("cat");
       } else {
-        auto rr = slice_table.FindById(slice_out);
-        PERFETTO_DCHECK(rr.has_value());
-        cat = GetNonNullString(storage_, rr->category());
-        name = GetNonNullString(storage_, rr->name());
+        auto rr = slice_table[slice_out];
+        cat = GetNonNullString(storage_, rr.category());
+        name = GetNonNullString(storage_, rr.name());
       }
 
       uint32_t i = it.row_number().row_number();
@@ -1561,7 +1557,7 @@ class JsonExporter {
         const auto& snapshot_edges = storage_->memory_snapshot_edge_table();
         for (auto it = snapshot_edges.IterateRows(); it; ++it) {
           SnapshotNodeId source_node_id = it.source_node_id();
-          auto source_node_rr = *sn.FindById(source_node_id);
+          auto source_node_rr = sn[source_node_id];
 
           if (source_node_rr.process_snapshot_id() != process_snapshot_id) {
             continue;

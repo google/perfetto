@@ -488,7 +488,7 @@ describe('JSON serialization/deserialization', () => {
     if (filter !== undefined && 'value' in filter) {
       expect(filter.value).toBe('test');
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -536,7 +536,7 @@ describe('JSON serialization/deserialization', () => {
       expect(typeof filter.value).toBe('number');
       expect(filter.value).toBe(1000);
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -621,7 +621,7 @@ describe('JSON serialization/deserialization', () => {
       expect(typeof filter.value).toBe('number');
       expect(filter.value).toBe(Number('12345678901234567890'));
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 

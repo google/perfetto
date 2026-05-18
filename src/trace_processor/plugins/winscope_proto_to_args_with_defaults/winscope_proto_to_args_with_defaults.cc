@@ -248,7 +248,7 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
       }
     }
 
-    auto row = table_->FindById(row_id).value();
+    auto row = (*table_)[row_id];
     row.set_key(pool_->InternString(base::StringView(key.key)));
     row.set_flat_key(pool_->InternString(base::StringView(key.flat_key)));
     row.set_base64_proto_id(base64_proto_id_);

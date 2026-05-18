@@ -26,7 +26,7 @@ import type {ExtensionServer, UserInput} from './types';
 // Test Helpers
 // =============================================================================
 
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
 function mockJsonResponse(data: unknown, status = 200) {
@@ -53,13 +53,13 @@ function createMockAppImpl() {
   const protoDescriptorsAdded: Array<Promise<ReadonlyArray<string>>> = [];
 
   return {
-    addMacros: jest.fn((p: Promise<ReadonlyArray<MacroWithSource>>) => {
+    addMacros: vi.fn((p: Promise<ReadonlyArray<MacroWithSource>>) => {
       macrosAdded.push(p);
     }),
-    addSqlPackages: jest.fn((p: Promise<ReadonlyArray<SqlPackage>>) => {
+    addSqlPackages: vi.fn((p: Promise<ReadonlyArray<SqlPackage>>) => {
       sqlPackagesAdded.push(p);
     }),
-    addProtoDescriptors: jest.fn((p: Promise<ReadonlyArray<string>>) => {
+    addProtoDescriptors: vi.fn((p: Promise<ReadonlyArray<string>>) => {
       protoDescriptorsAdded.push(p);
     }),
     getMacrosAdded: () => macrosAdded,

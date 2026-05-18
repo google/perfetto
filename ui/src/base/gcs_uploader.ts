@@ -20,6 +20,12 @@ export const BUCKET_NAME = 'perfetto-ui-data';
 export const MIME_JSON = 'application/json; charset=utf-8';
 export const MIME_BINARY = 'application/octet-stream';
 
+// Matches a SHA-1 hash, the only format used as a file name in the bucket.
+// Reject anything else to prevent path traversal when concatenating into URLs.
+export function isValidGcsFileName(name: string): boolean {
+  return /^[a-fA-F0-9]{40}$/.test(name);
+}
+
 export interface GcsUploaderArgs {
   /**
    * The mime-type to use for the upload. If undefined uses

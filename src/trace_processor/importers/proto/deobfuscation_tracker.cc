@@ -99,9 +99,9 @@ void DeobfuscationTracker::BuildJavaFrameMaps(
 
     // Extract package from mapping
     const MappingId mapping_id = frame_it.mapping();
-    const auto mapping = mapping_table.FindById(mapping_id);
+    const auto mapping = mapping_table[mapping_id];
     const base::StringView mapping_name =
-        context_->storage->GetString(mapping->name());
+        context_->storage->GetString(mapping.name());
 
     std::optional<std::string> package =
         PackageFromLocation(context_->global_stats_tracker.get(), mapping_name);
@@ -242,17 +242,14 @@ void DeobfuscationTracker::DeobfuscateProfiles(
     }
 
     for (tables::StackProfileFrameTable::Id frame_id : frames) {
-      auto frame = frames_tbl->FindById(frame_id);
-      if (!frame) {
-        continue;
-      }
+      auto frame = (*frames_tbl)[frame_id];
 
       // Try to get line number from existing symbol entry. Note that the
       // symbol table is not just populated during symbolization, it's also
       // populated by simpleperf, pprof, V8 JIT inside the trace itself.
       std::optional<uint32_t> obfuscated_line;
-      if (frame->symbol_set_id().has_value()) {
-        symbol_cursor.SetFilterValueUnchecked(0, *frame->symbol_set_id());
+      if (frame.symbol_set_id().has_value()) {
+        symbol_cursor.SetFilterValueUnchecked(0, *frame.symbol_set_id());
         symbol_cursor.Execute();
         if (!symbol_cursor.Eof()) {
           obfuscated_line = symbol_cursor.line_number();
@@ -283,13 +280,13 @@ void DeobfuscationTracker::DeobfuscateProfiles(
                               (i < chain.size() - 1)});  // inlined
         }
 
-        auto rr = *frames_tbl->FindById(frame_id);
+        auto rr = (*frames_tbl)[frame_id];
         rr.set_symbol_set_id(new_symbol_set_id);
         rr.set_deobfuscated_name(chain.back()->deobfuscated_name);
       } else {
         // Fallback: check if all mappings resolve to the same name.
         // If not, mark as ambiguous following existing convention.
-        auto rr = *frames_tbl->FindById(frame_id);
+        auto rr = (*frames_tbl)[frame_id];
 
         // Collect unique deobfuscated names (sorted for deterministic output).
         std::set<std::string> unique_names;
@@ -425,12 +422,9 @@ void DeobfuscationTracker::GuessPackageForCallsite(
     std::unordered_set<FrameId>& frames_needing_package_guess) {
   const auto& process_table = context_->storage->process_table();
 
-  auto process = process_table.FindById(upid);
-  if (!process.has_value()) {
-    return;
-  }
+  auto process = process_table[upid];
 
-  if (!process->android_appid().has_value()) {
+  if (!process.android_appid().has_value()) {
     return;
   }
 
@@ -438,7 +432,7 @@ void DeobfuscationTracker::GuessPackageForCallsite(
   std::optional<StringId> package;
   for (auto it = context_->storage->package_list_table().IterateRows(); it;
        ++it) {
-    if (it.uid() == *process->android_appid()) {
+    if (it.uid() == *process.android_appid()) {
       package = it.package_name();
       break;
     }
@@ -451,27 +445,23 @@ void DeobfuscationTracker::GuessPackageForCallsite(
   // Walk callsite chain and assign package to frames that need it
   const auto& callsite_table =
       context_->storage->stack_profile_callsite_table();
-  auto callsite = callsite_table.FindById(callsite_id);
-  while (callsite.has_value()) {
-    const FrameId frame_id = callsite->frame_id();
+  std::optional<tables::StackProfileCallsiteTable::Id> current_id = callsite_id;
+  while (current_id.has_value()) {
+    auto callsite = callsite_table[*current_id];
+    const FrameId frame_id = callsite.frame_id();
 
     // Check if this frame needs package guessing
     if (frames_needing_package_guess.count(frame_id) != 0) {
       // Add frame to map with guessed package
-      auto frame =
-          context_->storage->stack_profile_frame_table().FindById(frame_id);
-      NameInPackage nip{frame->name(), *package};
+      auto frame = context_->storage->stack_profile_frame_table()[frame_id];
+      NameInPackage nip{frame.name(), *package};
       java_frames_for_name[nip].insert(frame_id);
 
       // Remove from set (package now known)
       frames_needing_package_guess.erase(frame_id);
     }
 
-    auto parent_id = callsite->parent_id();
-    callsite.reset();
-    if (parent_id.has_value()) {
-      callsite = callsite_table.FindById(*parent_id);
-    }
+    current_id = callsite.parent_id();
   }
 }
 
@@ -491,14 +481,13 @@ void DeobfuscationTracker::GuessPackages(
 
   const auto& perf_sample_table = context_->storage->perf_sample_table();
   for (auto sample = perf_sample_table.IterateRows(); sample; ++sample) {
-    auto thread = context_->storage->thread_table().FindById(
-        tables::ThreadTable::Id(sample.utid()));
-    if (!thread || !thread->upid().has_value() ||
-        !sample.callsite_id().has_value()) {
+    auto thread = context_->storage
+                      ->thread_table()[tables::ThreadTable::Id(sample.utid())];
+    if (!thread.upid().has_value() || !sample.callsite_id().has_value()) {
       continue;
     }
     GuessPackageForCallsite(
-        java_frames_for_name, tables::ProcessTable::Id(*thread->upid()),
+        java_frames_for_name, tables::ProcessTable::Id(*thread.upid()),
         *sample.callsite_id(), frames_needing_package_guess);
   }
 }

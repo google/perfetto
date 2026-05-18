@@ -135,19 +135,14 @@ struct StackFromStackProfileCallsiteFunction
             "STACK_FROM_STACK_PROFILE_CALLSITE: callsite_id must be integer");
     }
 
-    if (callsite_id_long > std::numeric_limits<uint32_t>::max() ||
-        callsite_id_long < 0 ||
-        !storage->stack_profile_callsite_table()
-             .FindById(tables::StackProfileCallsiteTable::Id(
-                 static_cast<uint32_t>(callsite_id_long)))
-             .has_value()) {
+    auto callsite_id =
+        storage->stack_profile_callsite_table().TryCastId(callsite_id_long);
+    if (!callsite_id) {
       return sqlite::utils::SetError(
           ctx, base::ErrStatus("STACK_FROM_STACK_PROFILE_CALLSITE: callsite_id "
                                "does not exist: %" PRId64,
                                callsite_id_long));
     }
-
-    uint32_t callsite_id = static_cast<uint32_t>(callsite_id_long);
 
     bool annotate = false;
     if (argc == 2) {
@@ -169,9 +164,9 @@ struct StackFromStackProfileCallsiteFunction
 
     protozero::HeapBuffered<Stack> stack;
     if (annotate) {
-      stack->add_entries()->set_annotated_callsite_id(callsite_id);
+      stack->add_entries()->set_annotated_callsite_id(callsite_id->value);
     } else {
-      stack->add_entries()->set_callsite_id(callsite_id);
+      stack->add_entries()->set_callsite_id(callsite_id->value);
     }
     return SetBytesResult(ctx, stack.SerializeAsArray());
   }
@@ -205,21 +200,17 @@ struct StackFromStackProfileFrameFunction
             ctx, "STACK_FROM_STACK_PROFILE_FRAME: frame_id must be integer");
     }
 
-    if (frame_id_long > std::numeric_limits<uint32_t>::max() ||
-        frame_id_long < 0 ||
-        !storage->stack_profile_frame_table()
-             .FindById(tables::StackProfileFrameTable::Id(
-                 static_cast<uint32_t>(frame_id_long)))
-             .has_value()) {
+    auto frame_id =
+        storage->stack_profile_frame_table().TryCastId(frame_id_long);
+    if (!frame_id) {
       return sqlite::utils::SetError(
           ctx, base::ErrStatus("STACK_FROM_STACK_PROFILE_FRAME: frame_id does "
                                "not exist: %" PRId64,
                                frame_id_long));
     }
 
-    uint32_t frame_id = static_cast<uint32_t>(frame_id_long);
     protozero::HeapBuffered<Stack> stack;
-    stack->add_entries()->set_frame_id(frame_id);
+    stack->add_entries()->set_frame_id(frame_id->value);
     return SetBytesResult(ctx, stack.SerializeAsArray());
   }
 };

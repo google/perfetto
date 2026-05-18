@@ -1336,6 +1336,7 @@ cc_library_static {
 cc_library_shared {
     name: "libperfetto_framework_jni",
     srcs: [
+        ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
@@ -1366,6 +1367,7 @@ cc_library_shared {
 cc_library_shared {
     name: "libperfetto_jni",
     srcs: [
+        ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
@@ -17057,7 +17059,6 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/cpu_scheduling.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/events.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/gpu.sql",
-        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/indexes.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/memory.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tracks.sql",

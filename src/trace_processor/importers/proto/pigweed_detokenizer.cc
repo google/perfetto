@@ -216,16 +216,21 @@ DetokenizedString::DetokenizedString(
 std::string DetokenizedString::Format() const {
   const auto args = format_string_.args();
   const auto fmt = format_string_.template_str();
-  if (args.size() == 0) {
+  if (args.empty()) {
     return fmt;
   }
 
   std::string result;
-
   result.append(fmt.substr(0, args[0].begin));
 
   for (size_t i = 0; i < args.size(); i++) {
-    result.append(args_formatted_[i]);
+    // args_formatted_ can be shorter than args if the payload was truncated
+    // before all expected arguments could be parsed.
+    if (i < args_formatted_.size()) {
+      result.append(args_formatted_[i]);
+    } else {
+      result.append("<ERROR>");
+    }
     if (i < args.size() - 1) {
       result.append(fmt.substr(args[i].end, args[i + 1].begin - args[i].end));
     } else {

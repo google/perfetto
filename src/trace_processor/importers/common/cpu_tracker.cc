@@ -47,16 +47,15 @@ tables::CpuTable::Id CpuTracker::SetCpuInfo(uint32_t cpu,
                                             std::optional<uint32_t> capacity) {
   auto cpu_id = GetOrCreateCpu(cpu);
 
-  auto cpu_row = context_->storage->mutable_cpu_table()->FindById(cpu_id);
-  PERFETTO_DCHECK(cpu_row.has_value());
+  auto cpu_row = (*context_->storage->mutable_cpu_table())[cpu_id];
 
   if (!processor.empty()) {
     auto string_id = context_->storage->InternString(processor);
-    cpu_row->set_processor(string_id);
+    cpu_row.set_processor(string_id);
   }
-  cpu_row->set_cluster_id(cluster_id);
+  cpu_row.set_cluster_id(cluster_id);
   if (capacity) {
-    cpu_row->set_capacity(*capacity);
+    cpu_row.set_capacity(*capacity);
   }
   return cpu_id;
 }
