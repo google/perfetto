@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -69,23 +70,36 @@ FieldDescriptor CreateFieldFromDecoder(
   };
 }
 
-base::Status CheckExtensionField(const ProtoDescriptor& proto_descriptor,
-                                 const FieldDescriptor& field) {
+base::Status CheckExtensionField(
+    const ProtoDescriptor& proto_descriptor,
+    const FieldDescriptor& field,
+    std::vector<ExtensionTypeCheck>* extension_type_checks) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+
   const auto* existing_field = proto_descriptor.FindFieldByTag(field.number());
-  if (existing_field) {
-    if (field.type() != existing_field->type()) {
-      return base::ErrStatus("Field %s is re-introduced with different type",
-                             field.name().c_str());
-    }
-    if ((field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
-         field.type() == FieldDescriptorProto::TYPE_ENUM) &&
-        field.raw_type_name() != existing_field->raw_type_name()) {
-      return base::ErrStatus(
-          "Field %s is re-introduced with different type %s (was %s)",
-          field.name().c_str(), field.raw_type_name().c_str(),
-          existing_field->raw_type_name().c_str());
-    }
+  if (!existing_field) {
+    return base::OkStatus();
+  }
+
+  if (field.type() != existing_field->type()) {
+    return base::ErrStatus("Field %s is re-introduced with different type",
+                           field.name().c_str());
+  }
+
+  const bool is_msg_or_enum =
+      field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
+      field.type() == FieldDescriptorProto::TYPE_ENUM;
+  if (is_msg_or_enum &&
+      field.raw_type_name() != existing_field->raw_type_name()) {
+    // Same tag, same fundamental type, but the message/enum is named
+    // differently (e.g. a package rename during an out-of-tree migration).
+    // Defer a recursive structural-equality check until after type
+    // resolution has populated resolved_type_name() for all fields.
+    extension_type_checks->push_back(
+        {/*extendee_full_name=*/proto_descriptor.full_name(),
+         /*field_name=*/field.name(),
+         /*existing_raw_type=*/existing_field->raw_type_name(),
+         /*new_raw_type=*/field.raw_type_name()});
   }
   return base::OkStatus();
 }
@@ -114,9 +128,95 @@ std::optional<uint32_t> DescriptorPool::ResolveShortType(
   return ResolveShortType(parent_substr, short_type);
 }
 
+bool DescriptorPool::DescriptorsStructurallyEqual(
+    uint32_t root_existing_idx,
+    uint32_t root_candidate_idx,
+    std::set<CanonicalDescriptorPair>& comparisons_in_progress) {
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+
+  struct DescriptorComparison {
+    uint32_t existing_idx;
+    uint32_t candidate_idx;
+  };
+  std::vector<DescriptorComparison> worklist;
+
+  worklist.push_back({root_existing_idx, root_candidate_idx});
+  while (!worklist.empty()) {
+    const auto [existing_idx, candidate_idx] = worklist.back();
+    worklist.pop_back();
+
+    // Same descriptor: trivially equal, nothing to check.
+    if (existing_idx == candidate_idx) {
+      continue;
+    }
+
+    // If we are already comparing this exact pair of descriptors (it is
+    // somewhere else in the worklist or has already been started), treat it
+    // as equal. This is what lets self-referential and mutually-recursive
+    // messages terminate instead of looping forever.
+    if (!comparisons_in_progress
+             .insert(CanonicalDescriptorPair(existing_idx, candidate_idx))
+             .second) {
+      continue;
+    }
+
+    const ProtoDescriptor& existing_desc = descriptors_[existing_idx];
+    const ProtoDescriptor& candidate_desc = descriptors_[candidate_idx];
+    if (existing_desc.type() != candidate_desc.type()) {
+      return false;
+    }
+
+    // If both sides are enums, they match only if they have the same set of
+    // values (same numbers and same value names). Enums have no sub-types to
+    // queue.
+    if (existing_desc.type() == ProtoDescriptor::Type::kEnum) {
+      if (!existing_desc.EnumValuesCompatibleWith(candidate_desc)) {
+        return false;
+      }
+      continue;
+    }
+
+    // Check every field they both define matches exactly. A field number on
+    // only one side is fine -- that just means one type has a field the
+    // other doesn't, which happens when a type gains fields over time.
+    for (const auto& entry : existing_desc.fields()) {
+      const FieldDescriptor& existing_field = entry.second;
+      const FieldDescriptor* candidate_field =
+          candidate_desc.FindFieldByTag(existing_field.number());
+
+      // Present only on the existing side.
+      if (candidate_field == nullptr) {
+        continue;
+      }
+
+      if (existing_field != *candidate_field) {
+        return false;
+      }
+
+      const bool field_is_message_or_enum =
+          existing_field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
+          existing_field.type() == FieldDescriptorProto::TYPE_ENUM;
+      if (!field_is_message_or_enum) {
+        continue;
+      }
+
+      std::optional<uint32_t> existing_sub_idx =
+          FindDescriptorIdx(existing_field.resolved_type_name());
+      std::optional<uint32_t> candidate_sub_idx =
+          FindDescriptorIdx(candidate_field->resolved_type_name());
+      if (!existing_sub_idx.has_value() || !candidate_sub_idx.has_value()) {
+        return false;
+      }
+      worklist.push_back({existing_sub_idx.value(), candidate_sub_idx.value()});
+    }
+  }
+  return true;
+}
+
 base::Status DescriptorPool::AddExtensionField(
     const std::string& package_name,
-    protozero::ConstBytes field_desc_proto) {
+    protozero::ConstBytes field_desc_proto,
+    std::vector<ExtensionTypeCheck>* extension_type_checks) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   FieldDescriptorProto::Decoder f_decoder(field_desc_proto);
   auto field = CreateFieldFromDecoder(f_decoder, true);
@@ -135,7 +235,8 @@ base::Status DescriptorPool::AddExtensionField(
     return base::ErrStatus("Extendee does not exist %s", extendee_name.c_str());
   }
   ProtoDescriptor& extendee_desc = descriptors_[extendee.value()];
-  RETURN_IF_ERROR(CheckExtensionField(extendee_desc, field));
+  RETURN_IF_ERROR(
+      CheckExtensionField(extendee_desc, field, extension_type_checks));
   extendee_desc.AddField(field);
   return base::OkStatus();
 }
@@ -146,6 +247,7 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
     std::optional<uint32_t> parent_idx,
     protozero::ConstBytes descriptor_proto,
     std::vector<ExtensionInfo>* extensions,
+    std::vector<ExtensionTypeCheck>* extension_type_checks,
     bool merge_existing_messages) {
   protos::pbzero::DescriptorProto::Decoder decoder(descriptor_proto);
 
@@ -177,7 +279,8 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
   for (auto it = decoder.field(); it; ++it) {
     FieldDescriptorProto::Decoder f_decoder(*it);
     auto field = CreateFieldFromDecoder(f_decoder, /*is_extension=*/false);
-    RETURN_IF_ERROR(CheckExtensionField(proto_descriptor, field));
+    RETURN_IF_ERROR(
+        CheckExtensionField(proto_descriptor, field, extension_type_checks));
     proto_descriptor.AddField(std::move(field));
   }
 
@@ -187,7 +290,7 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
   }
   for (auto it = decoder.nested_type(); it; ++it) {
     RETURN_IF_ERROR(AddNestedProtoDescriptors(file_name, package_name, idx, *it,
-                                              extensions,
+                                              extensions, extension_type_checks,
                                               merge_existing_messages));
   }
   for (auto ext_it = decoder.extension(); ext_it; ++ext_it) {
@@ -246,6 +349,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
   std::vector<ExtensionInfo> extensions;
+  std::vector<ExtensionTypeCheck> extension_type_checks;
   for (auto it = proto.file(); it; ++it) {
     protos::pbzero::FileDescriptorProto::Decoder file(*it);
     const std::string file_name = file.name().ToStdString();
@@ -261,7 +365,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     for (auto message_it = file.message_type(); message_it; ++message_it) {
       RETURN_IF_ERROR(AddNestedProtoDescriptors(
           file_name, package, std::nullopt, *message_it, &extensions,
-          merge_existing_messages));
+          &extension_type_checks, merge_existing_messages));
     }
     for (auto enum_it = file.enum_type(); enum_it; ++enum_it) {
       RETURN_IF_ERROR(AddEnumProtoDescriptors(
@@ -274,7 +378,8 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
 
   // Second pass: Add extension fields to the real protos.
   for (const auto& extension : extensions) {
-    RETURN_IF_ERROR(AddExtensionField(extension.first, extension.second));
+    RETURN_IF_ERROR(AddExtensionField(extension.first, extension.second,
+                                      &extension_type_checks));
   }
 
   // Third pass: resolve the types of all the fields.
@@ -300,7 +405,33 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     }
   }
 
-  // Fourth pass: resolve all "uninterpreted" options to real options.
+  // Fourth pass: verify deferred type equivalences are structurally
+  // identical now that all field types have been resolved.
+  for (const auto& check : extension_type_checks) {
+    std::optional<uint32_t> opt_existing_idx =
+        ResolveShortType(check.extendee_full_name, check.existing_raw_type);
+    std::optional<uint32_t> opt_new_idx =
+        ResolveShortType(check.extendee_full_name, check.new_raw_type);
+    if (!opt_existing_idx.has_value() || !opt_new_idx.has_value()) {
+      return base::ErrStatus(
+          "Field %s re-introduced as %s (was %s): cannot verify "
+          "compatibility because a type could not be resolved",
+          check.field_name.c_str(), check.new_raw_type.c_str(),
+          check.existing_raw_type.c_str());
+    }
+    std::set<CanonicalDescriptorPair> comparisons_in_progress;
+    if (!DescriptorsStructurallyEqual(opt_existing_idx.value(),
+                                      opt_new_idx.value(),
+                                      comparisons_in_progress)) {
+      return base::ErrStatus(
+          "Field %s re-introduced as %s (was %s) and the two messages are "
+          "not structurally identical",
+          check.field_name.c_str(), check.new_raw_type.c_str(),
+          check.existing_raw_type.c_str());
+    }
+  }
+
+  // Fifth pass: resolve all "uninterpreted" options to real options.
   for (ProtoDescriptor& descriptor : descriptors_) {
     for (auto& entry : *descriptor.mutable_fields()) {
       FieldDescriptor& field = entry.second;
