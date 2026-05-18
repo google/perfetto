@@ -6516,7 +6516,6 @@ perfetto_android_jni_library(
         "-llog",
     ],
     hdrs = [
-        ":include_perfetto_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
