@@ -808,6 +808,12 @@ function genServiceWorkerManifestJson() {
 // (wasm, fonts, css, /test/, /v1.2.3/-relative paths) is layered on as
 // middleware. The custom HTTP server (startServer) is bypassed.
 async function startViteDevServer() {
+  // vite.config.mjs reads these at import time; set before createServer().
+  if (cfg.onlyWasmMemory64) process.env.IS_MEMORY64_ONLY = 'true';
+  if (cfg.noSourceMaps) process.env.NO_SOURCE_MAPS = 'true';
+  if (cfg.noTreeshake) process.env.NO_TREESHAKE = 'true';
+  if (cfg.minifyJs) process.env.MINIFY_JS = cfg.minifyJs;
+
   const {createServer} = await import('vite');
   const port = cfg.httpServerListenPort ?? DEFAULT_PORT;
 
