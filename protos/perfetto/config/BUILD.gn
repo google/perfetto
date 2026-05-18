@@ -42,19 +42,27 @@ import("../../../gn/proto_library.gni")
 minimal_proto_sources = [
   "chrome/chrome_config.proto",  # non-lazy ChromeConfig field on
                                  # data_source_config
+
+  # The next four protos are imported by data_source_config.proto for
+  # [lazy=true] fields. cppgen elides their #includes, so the C SDK
+  # doesn't pull their .gen.h, but Bazel's strict descriptor generation
+  # requires the .proto sources to be in the same proto_library (or in
+  # one of its direct deps). Putting them in minimal breaks the
+  # circular dep that would otherwise be needed between :minimal_@TYPE@
+  # and :non_minimal_@TYPE@.
+  "chrome/histogram_samples.proto",  # ChromiumHistogramSamplesConfig (lazy)
+  "chrome/system_metrics.proto",  # ChromiumSystemMetricsConfig (lazy)
+  "chrome/v8_config.proto",  # V8Config (lazy)
   "data_source_config.proto",
+  "etw/etw_config.proto",  # EtwConfig (lazy)
   "interceptor_config.proto",
   "test_config.proto",  # non-lazy `for_testing` field
   "trace_config.proto",
 ]
 
 non_minimal_proto_sources = [
-  "chrome/histogram_samples.proto",  # ChromiumHistogramSamplesConfig (lazy)
-  "chrome/scenario_config.proto",  # no importers
-  "chrome/system_metrics.proto",  # ChromiumSystemMetricsConfig (lazy)
-  "chrome/v8_config.proto",  # V8Config (lazy)
-  "etw/etw_config.proto",  # EtwConfig (lazy)
-  "stress_test_config.proto",  # no importers
+  "chrome/scenario_config.proto",  # imports trace_config (in minimal)
+  "stress_test_config.proto",  # imports trace_config (in minimal)
 ]
 
 minimal_proto_deps = [

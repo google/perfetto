@@ -7508,7 +7508,11 @@ perfetto_proto_library(
     name = "protos_perfetto_config_minimal_protos",
     srcs = [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/histogram_samples.proto",
+        "protos/perfetto/config/chrome/system_metrics.proto",
+        "protos/perfetto/config/chrome/v8_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
@@ -7588,11 +7592,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_non_minimal_protos",
     srcs = [
-        "protos/perfetto/config/chrome/histogram_samples.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
-        "protos/perfetto/config/chrome/system_metrics.proto",
-        "protos/perfetto/config/chrome/v8_config.proto",
-        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
     ],
     visibility = [
