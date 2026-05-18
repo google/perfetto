@@ -1585,6 +1585,8 @@ class JsonExporter {
 
   std::pair<int64_t, int64_t> UtidToPidAndTid(UniqueTid utid) {
     auto pid_and_tid_it = utids_to_exported_pids_and_tids_.find(utid);
+    // Trace data can make its way into the translated utids here, thus we
+    // might observe invalid ones.
     if (pid_and_tid_it == utids_to_exported_pids_and_tids_.end()) {
       return {0, 0};
     }
