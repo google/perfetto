@@ -73,6 +73,10 @@ void PerfettoProducerSystemInit(
   perfetto::Tracing::Initialize(args);
 }
 
+void PerfettoProducerShutdown() {
+  perfetto::Tracing::Shutdown();
+}
+
 void PerfettoProducerActivateTriggers(const char* trigger_names[],
                                       uint32_t ttl_ms) {
   std::vector<std::string> triggers;

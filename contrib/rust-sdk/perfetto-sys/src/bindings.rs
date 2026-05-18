@@ -394,6 +394,9 @@ unsafe extern "C" {
     pub fn PerfettoProducerInProcessInit(args: *const PerfettoProducerBackendInitArgs);
 }
 unsafe extern "C" {
+    pub fn PerfettoProducerShutdown();
+}
+unsafe extern "C" {
     pub fn PerfettoProducerActivateTriggers(
         trigger_names: *mut *const ::std::os::raw::c_char,
         ttl_ms: u32,
