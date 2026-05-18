@@ -15,7 +15,7 @@
 import {AddExtensionServerModal} from './add_extension_server_modal';
 import type {ExtensionServer} from './types';
 
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
 function mockJsonResponse(data: unknown, status = 200) {
