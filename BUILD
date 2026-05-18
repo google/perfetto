@@ -534,6 +534,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -822,6 +823,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -5673,6 +5675,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:owned_sql_value
+perfetto_filegroup(
+    name = "src_trace_processor_util_owned_sql_value",
+    srcs = [
+        "src/trace_processor/util/owned_sql_value.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:profile_builder
 perfetto_filegroup(
     name = "src_trace_processor_util_profile_builder",
@@ -10100,6 +10110,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -10414,6 +10425,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
