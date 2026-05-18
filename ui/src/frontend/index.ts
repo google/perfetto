@@ -18,8 +18,8 @@ import '../base/static_initializers';
 import '../assets/typefaces.scss';
 import '../assets/common.scss';
 import z from 'zod';
-import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
-import CORE_PLUGINS from 'virtual:perfetto/all_core_plugins';
+import PLUGINS from '../plugins';
+import CORE_PLUGINS from '../core_plugins';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
@@ -474,7 +474,7 @@ function onCssLoaded(app: AppImpl) {
   // Initialize plugins, now that we are ready to go.
   const pluginManager = app.plugins;
   CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
+  PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);

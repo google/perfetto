@@ -21,7 +21,7 @@ import {isMetatracingEnabled} from '../../core/metatracing';
 import {raf} from '../../core/raf_scheduler';
 import type {SidebarMenuItemInternal} from '../../core/sidebar_manager';
 import type {TraceImpl} from '../../core/trace_impl';
-import {SCM_REVISION, VERSION} from '../../gen/perfetto_version';
+import {SCM_REVISION, VERSION} from '../../base/version';
 import type {App} from '../../public/app';
 import {SIDEBAR_SECTIONS, type SidebarSections} from '../../public/sidebar';
 import {Icon} from '../../widgets/icon';
