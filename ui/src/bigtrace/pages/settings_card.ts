@@ -50,8 +50,7 @@ export class BigTraceSettingsCard
       m('.pf-settings-card__title', [
         disabled !== undefined &&
           m(Switch, {
-            className: 'pf-settings-card__toggle',
-            style: {marginRight: '8px'},
+            className: 'pf-settings-card__toggle pf-bt-settings-toggle',
             checked: !disabled,
             title:
               'Turn off to skip this filter — its value will not be ' +
@@ -145,16 +144,10 @@ export function renderBigTraceSettingCard(
     ? [
         setting.description,
         m(
-          '.pf-settings-card__warning',
-          {
-            style: {
-              color: 'var(--pf-color-danger, #b00020)',
-              marginTop: '4px',
-            },
-          },
+          '.pf-settings-card__warning.pf-bt-settings-warning',
           m(Icon, {
             icon: 'warning',
-            style: {fontSize: '14px', verticalAlign: 'middle'},
+            className: 'pf-bt-settings-warning-icon',
           }),
           ' ',
           warning,
@@ -164,11 +157,7 @@ export function renderBigTraceSettingCard(
       ? [
           setting.description,
           ' ',
-          m(
-            'span.pf-settings-card__hint',
-            {style: {opacity: 0.7, fontStyle: 'italic'}},
-            hint,
-          ),
+          m('span.pf-settings-card__hint.pf-bt-settings-hint', hint),
         ]
       : setting.description;
   return m(BigTraceSettingsCard, {

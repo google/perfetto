@@ -28,12 +28,12 @@ export function renderEndpointControl(setting: Setting<unknown>): m.Children {
       orientation: 'horizontal',
       gap: '8px',
       alignItems: 'center',
-      style: {flexWrap: 'wrap', justifyContent: 'flex-end'},
+      className: 'pf-bt-endpoint-row',
     },
     m(TextInput, {
       value: currentValue,
       placeholder: 'https://your-bigtrace-backend/v1',
-      style: {width: 'min(300px, 30vw)'},
+      className: 'pf-bt-endpoint-input',
       oninput: (e: Event) => {
         const target = e.target as HTMLInputElement;
         setting.set(target.value);

@@ -33,7 +33,7 @@
 
 // BigTrace-specific styles; `.pf-bt-` prefix avoids collisions.
 
-// ---------- Settings page ----------
+// ---------- Settings & endpoint ----------
 
 .pf-bt-settings-card-wrapper--disabled {
   opacity: 0.6;
@@ -72,66 +72,105 @@
   }
 }
 
-// Scroll once tabs overflow; without this the close X collapses behind the title.
+.pf-bt-settings-toggle {
+  margin-right: 8px;
+}
+
+.pf-bt-settings-warning {
+  color: var(--pf-color-danger);
+  margin-top: 4px;
+}
+
+.pf-bt-settings-warning-icon {
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.pf-bt-settings-hint {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.pf-bt-endpoint-row {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pf-bt-endpoint-input {
+  width: min(300px, 30vw);
+}
+
+// ---------- Layout ----------
+
+// QueryPage stays mounted across routes (preserves DataGrid state); contents
+// = no extra box when active, none = hidden but mounted.
+.pf-bt-route-pane {
+  display: contents;
+}
+.pf-bt-route-pane--hidden {
+  display: none;
+}
+
+.pf-bt-sidebar-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pf-bt-sidebar-logo {
+  height: 1em;
+}
+
+// Compound (.pf-home-page__center.pf-bt-home-center) outranks the shared
+// single-class rule, so this overrides its justify-content.
+.pf-bt-home-center {
+  justify-content: flex-start;
+  padding-top: 15vh;
+  gap: 24px;
+}
+
+// ---------- Editor tabs & toolbar ----------
+
 .pf-query-page__editor-tabs > .pf-tabs__tabs {
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--pf-color-border-secondary) transparent;
 
-  // Cap tab width so long names don't push the "+" off-screen.
   > .pf-tabs__tab {
     max-width: 220px;
   }
 }
 
-// `position: relative` anchors the absolute-positioned buttons; the shared
-// float otherwise created a BFC that squeezed the meta card.
-.pf-query-history__item {
-  margin-bottom: 10px;
-  max-height: none !important;
-  overflow-y: visible !important;
-  position: relative;
+.pf-bt-tab-spacer {
+  flex: 1;
 }
 
-.pf-query-history__item-buttons {
-  position: absolute !important;
-  top: 4px;
-  right: 4px;
-  float: none !important;
-  z-index: 1;
+.pf-query-page__toolbar {
+  container-type: inline-size;
+
+  // Without nowrap, "Persistent" wraps under its toggle when squeezed.
+  .pf-checkbox {
+    white-space: nowrap;
+  }
+}
+@container (max-width: 520px) {
+  .pf-query-page__hotkeys {
+    display: none;
+  }
 }
 
-// Status-colored left bar; on the meta card only (running it down the pre
-// makes it look uncomfortably tall and clashes with the pre's own border).
-.pf-bt-history-item-meta {
-  border-left: 3px solid transparent;
+.pf-bt-toolbar-divider {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background-color: var(--pf-color-border-secondary);
 }
 
-.pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
-  border-left-color: var(--pf-color-success);
-}
+// ---------- Async status bar ----------
 
-.pf-query-history__item:has(.pf-bt-status-failed) .pf-bt-history-item-meta {
-  border-left-color: var(--pf-color-danger);
-}
-
-.pf-query-history__item:has(.pf-bt-status-cancelled) .pf-bt-history-item-meta {
-  border-left-color: var(--pf-color-warning);
-}
-
-.pf-query-history__item:has(.pf-bt-status-in-progress)
-  .pf-bt-history-item-meta {
-  border-left-color: var(--pf-color-primary);
-}
-
-.pf-query-history__item:has(.pf-bt-status-queued) .pf-bt-history-item-meta,
-.pf-query-history__item:has(.pf-bt-status-unknown) .pf-bt-history-item-meta {
-  border-left-color: var(--pf-color-text-muted);
-}
-
-// Async-query status bar (under the editor). Two groups split by
-// space-between: left = [Refresh] [Status pill] [Duration],
-// right = [Traces n/m] [Rows N].
 .pf-bt-status-bar {
   padding: 12px 16px;
   display: flex;
@@ -146,16 +185,10 @@
   gap: 16px;
 }
 
-// Give the rows stat (the rightmost element of the right group) some
-// breathing room from the bar's right edge — without this, `~1.2M` butts
-// right up against the bar's border.
 .pf-bt-status-bar-stat--rows {
   margin-right: 16px;
 }
 
-// While the query is running, the right group collapses to just the Rows
-// inline progress bar — labels, numeric values, and the Traces stat hide.
-// A perfetto Tooltip wraps the bar; hovering it shows Traces n/m and Rows n.
 .pf-bt-status-bar--running {
   .pf-bt-status-bar-stat--traces,
   .pf-bt-status-bar-stat-label,
@@ -164,7 +197,6 @@
   }
 }
 
-// Refresh button + notification-dot wrapper.
 .pf-bt-status-bar-refresh {
   position: relative;
   display: inline-block;
@@ -192,45 +224,15 @@
   opacity: 0.55;
 }
 
-// Duration stat — flat treatment matches the peer TRACES / ROWS stats.
 .pf-bt-status-bar-duration {
   display: inline-flex;
-  // Baseline so the value aligns with the SUCCESS pill and peer stats;
-  // `center` would synthesize a first-baseline ~2px above.
+  // Baseline aligns with the SUCCESS pill; center would sit ~2px high.
   align-items: baseline;
   gap: 6px;
   font-variant-numeric: tabular-nums;
 }
 
-// At <520px container width, drop the Ctrl+Enter hint first; the hotkey
-// still works and ~90px lets "Persistent" stay on one line.
-.pf-query-page__toolbar {
-  container-type: inline-size;
-
-  // Without nowrap, "Persistent" wraps below its toggle when the toolbar
-  // is squeezed. The @container rule below drops the hint first.
-  .pf-checkbox {
-    white-space: nowrap;
-  }
-}
-@container (max-width: 520px) {
-  .pf-query-page__hotkeys {
-    display: none;
-  }
-}
-
-// Vertical rule between toolbar param groups.
-.pf-bt-toolbar-divider {
-  display: inline-block;
-  width: 1px;
-  align-self: stretch;
-  margin: 4px 4px;
-  background-color: var(--pf-color-border-secondary);
-}
-
-// Inline progress bar next to N/M in status-bar stats. width = done/total.
-// Wider than a typical inline mini-bar because during a running query it is
-// the sole on-screen progress signal (labels/numbers are hover-revealed).
+// Wide: during a run it's the only progress signal (numbers are hover-only).
 .pf-bt-inline-progress {
   display: inline-block;
   width: 140px;
@@ -238,8 +240,7 @@
   margin-left: 6px;
   border-radius: 2px;
   border: 1px solid var(--pf-color-border);
-  // Theme-aware recessed surface; a hardcoded rgba(255,255,255,…) would
-  // vanish on the light theme (the default).
+  // Theme-aware track; hardcoded white rgba vanished on the light theme.
   background-color: var(--pf-color-background-secondary);
   overflow: hidden;
   vertical-align: middle;
@@ -253,19 +254,60 @@
   will-change: width;
 }
 
-// Meta + pre form one unified card via matching L/R borders. `padding-right`
-// reserves ~56px for the absolute-positioned Open/Delete buttons.
-// Visual hierarchy: meta header is the loudest (bg-tertiary, darkest of the
-// three); the details band sits in the middle (bg-secondary); the SQL pre is
-// the quietest (bg-void = page bg in light theme).
+// ---------- Query history ----------
+
+// Anchors the abs-positioned buttons; the shared float made a BFC that
+// squeezed the meta card.
+.pf-query-history__item {
+  // margin-bottom: 10px;
+  max-height: none;
+  overflow-y: visible;
+  position: relative;
+}
+
+.pf-query-history__item-buttons {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  float: none;
+  z-index: 1;
+}
+
+// Status-colored left bar, meta card only (clashes with the pre's border).
 .pf-bt-history-item-meta {
-  // Anchor for the absolute-positioned Open/Delete buttons inside the meta.
+  border-left: 3px solid transparent;
+}
+
+.pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-success);
+}
+
+.pf-query-history__item:has(.pf-bt-status-failed) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-danger);
+}
+
+.pf-query-history__item:has(.pf-bt-status-cancelled) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-warning);
+}
+
+.pf-query-history__item:has(.pf-bt-status-in-progress)
+  .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-primary);
+}
+
+.pf-query-history__item:has(.pf-bt-status-queued) .pf-bt-history-item-meta,
+.pf-query-history__item:has(.pf-bt-status-unknown) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-text-muted);
+}
+
+// padding-right reserves space for the abs-positioned Open/Delete buttons.
+.pf-bt-history-item-meta {
   position: relative;
   background: var(--pf-color-background-tertiary);
   padding: 6px 8px;
   padding-right: 56px;
-  // Top + right only; the earlier `border-left: 3px solid <status>` rule
-  // owns the left edge — `border` shorthand would shrink it to 1px.
+  // Top + right only; the border-left status rule owns the left edge
+  // (shorthand would shrink it to 1px).
   border-top: 1px solid var(--pf-color-border-secondary);
   border-right: 1px solid var(--pf-color-border-secondary);
   border-radius: 4px 4px 0 0;
@@ -274,97 +316,6 @@
   gap: 2px;
   font-size: 11px;
   color: var(--pf-color-text);
-}
-
-.pf-query-history__item pre {
-  // `void` = page bg — blends the SQL preview so only meta has weight.
-  background: var(--pf-color-void);
-  padding: 8px;
-  border: solid 1px var(--pf-color-border-secondary);
-  border-top: none;
-  border-radius: 0 0 4px 4px;
-  margin: 0;
-  font-family: var(--pf-font-monospace, monospace);
-  font-size: 11px;
-  white-space: pre-wrap;
-}
-
-.pf-query-history__item pre:hover::after {
-  content: none !important;
-}
-
-// Clamped SQL preview: ~4 lines with a fade-out mask; click to expand.
-// Uses `pre.` prefix so specificity (0,1,1) matches `.pf-query-history__item pre`.
-pre.pf-bt-history-item-query,
-pre.pf-bt-history-item-query--standalone {
-  cursor: pointer;
-  position: relative;
-  max-height: 4.5em;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-}
-
-// Cap so a 1000-line query doesn't blow out the sidebar layout.
-pre.pf-bt-history-item-query.pf-bt-history-item-query--expanded,
-pre.pf-bt-history-item-query--standalone.pf-bt-history-item-query--expanded {
-  max-height: 50vh;
-  overflow: auto;
-  mask-image: none;
-  -webkit-mask-image: none;
-}
-
-// Standalone (delete-confirm modal) has no .pf-query-history__item parent, so
-// it declares the frame the sidebar variant inherits from
-// `.pf-query-history__item pre`.
-pre.pf-bt-history-item-query--standalone {
-  font-family: var(--pf-font-monospace, monospace);
-  background: var(--pf-color-void);
-  border: solid 1px var(--pf-color-border-secondary);
-  border-radius: 4px;
-  padding: 8px;
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.pf-bt-history-item-query--empty {
-  font-style: italic;
-  opacity: 0.5;
-}
-
-.pf-bt-error-tab-title {
-  color: var(--pf-color-danger);
-}
-
-// Error tab content: scrollable pre with the full error text.
-.pf-bt-error-content {
-  overflow: auto;
-  max-height: 100%;
-  padding: 12px;
-  margin: 0;
-  font-size: 0.85em;
-  white-space: pre-wrap;
-}
-
-// Propagate height down so DataGrid `fillHeight` has a parent to fill
-// and only the table body scrolls.
-.pf-bt-results-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-.pf-bt-results-container {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.pf-bt-results-container > .pf-data-grid {
-  flex: 1;
-  min-height: 0;
 }
 
 .pf-bt-status-success {
@@ -389,8 +340,6 @@ pre.pf-bt-history-item-query--standalone {
   font-style: italic;
 }
 
-// Row 1: status pill (intrinsic) on the left, start date (ellipsis-shrinks)
-// on the right; fixed slots keep edges aligned across rows.
 .pf-bt-history-item-header {
   display: flex;
   align-items: baseline;
@@ -406,7 +355,6 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// Pill never shrinks — date absorbs all the squeeze (else "SUCCESS"→"S...").
 .pf-bt-history-item-status {
   flex-shrink: 0;
 }
@@ -415,10 +363,7 @@ pre.pf-bt-history-item-query--standalone {
   text-align: right;
 }
 
-// Materialized-only "details" band — a distinct middle section sandwiched
-// between the meta header (above) and the SQL pre (below). Its own background
-// shade + horizontal separators on top and bottom make it visibly a separate
-// section, not a row inside the header card.
+// Materialized-only band between the meta header and the SQL pre.
 .pf-bt-history-item-details {
   background: var(--pf-color-background-secondary);
   padding: 4px 8px;
@@ -453,7 +398,6 @@ pre.pf-bt-history-item-query--standalone {
 }
 
 .pf-bt-history-item-table-link--disabled {
-  // Theme-aware muted color.
   color: var(--pf-color-text-muted);
   pointer-events: none;
   text-decoration: none;
@@ -465,8 +409,107 @@ pre.pf-bt-history-item-query--standalone {
   text-decoration: underline;
 }
 
-// Truncate long column names so the type badge stays readable at
-// narrow sidebar widths.
+.pf-query-history__item pre {
+  background: var(--pf-color-void);
+  padding: 8px;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  margin: 0;
+  font-family: var(--pf-font-monospace, monospace);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.pf-query-history__item pre:hover::after {
+  content: none;
+}
+
+// Clamped ~4 lines with a fade mask; click to expand. The `pre.` prefix
+// keeps specificity == `.pf-query-history__item pre`.
+pre.pf-bt-history-item-query,
+pre.pf-bt-history-item-query--standalone {
+  cursor: pointer;
+  position: relative;
+  max-height: 4.5em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+pre.pf-bt-history-item-query.pf-bt-history-item-query--expanded,
+pre.pf-bt-history-item-query--standalone.pf-bt-history-item-query--expanded {
+  max-height: 50vh;
+  overflow: auto;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+// Standalone (delete-confirm modal) has no .pf-query-history__item parent, so
+// it declares the frame the sidebar variant inherits from
+// `.pf-query-history__item pre`.
+pre.pf-bt-history-item-query--standalone {
+  font-family: var(--pf-font-monospace, monospace);
+  background: var(--pf-color-void);
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.pf-bt-history-item-query--empty {
+  font-style: italic;
+  opacity: 0.5;
+}
+
+.pf-bt-history-empty-hint {
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+.pf-bt-history-delete-date {
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+// ---------- Results panel ----------
+
+.pf-bt-error-tab-title {
+  color: var(--pf-color-danger);
+}
+
+.pf-bt-error-content {
+  overflow: auto;
+  max-height: 100%;
+  padding: 12px;
+  margin: 0;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+// min-height:0 chain lets DataGrid fillHeight work; only the body scrolls.
+.pf-bt-results-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-results-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.pf-bt-results-container > .pf-data-grid {
+  flex: 1;
+  min-height: 0;
+}
+
+// ---------- Stdlib table list ----------
+
 .pf-simple-table-list__column-name {
   min-width: 0;
   overflow: hidden;
@@ -474,7 +517,6 @@ pre.pf-bt-history-item-query--standalone {
   white-space: nowrap;
 }
 
-// Keep the badge at intrinsic width when the row is squeezed.
 .pf-simple-table-list__column-type {
   flex-shrink: 0;
 }

@@ -141,7 +141,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           className: 'pf-tabs__new-tab-btn',
           onclick: () => this.tabsState.addNewTab(),
         }),
-        m('div', {style: {flex: '1'}}),
+        m('div.pf-bt-tab-spacer'),
         m(Button, {
           icon: this.sidebarVisible ? 'right_panel_close' : 'right_panel_open',
           title: this.sidebarVisible ? 'Hide sidebar' : 'Show sidebar',

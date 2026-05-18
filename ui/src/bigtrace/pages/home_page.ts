@@ -76,15 +76,7 @@ export class HomePage implements m.ClassComponent {
     return m(
       '.pf-home-page',
       m(
-        '.pf-home-page__center',
-        // Override shared `justify-content: space-around` (shared SCSS out of scope).
-        {
-          style: {
-            justifyContent: 'flex-start',
-            paddingTop: '15vh',
-            gap: '24px',
-          },
-        },
+        '.pf-home-page__center.pf-bt-home-center',
         m(
           '.pf-home-page__title',
           m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),

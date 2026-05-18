@@ -56,22 +56,14 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
       [
         m('header.pf-sidebar__header', [
           m(
-            'h1',
+            'h1.pf-bt-sidebar-title',
             {
               // Title clicks go home; setRoute keeps history/back working.
-              style: {
-                margin: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-              },
               title: 'Go to BigTrace home',
               onclick: () => setRoute(Routes.HOME),
             },
-            m('img', {
+            m('img.pf-bt-sidebar-logo', {
               src: assetSrc('assets/logo-128.png'),
-              style: {height: '1em'},
             }),
             'BigTrace',
           ),

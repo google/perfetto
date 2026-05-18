@@ -167,11 +167,8 @@ export function renderHistoryItem(
               m('div', [
                 startTime !== undefined &&
                   m(
-                    'div',
-                    {
-                      style: {marginBottom: '8px', opacity: '0.7'},
-                      title: `UTC: ${utcString}`,
-                    },
+                    'div.pf-bt-history-delete-date',
+                    {title: `UTC: ${utcString}`},
                     localString,
                   ),
                 m(ClampedQuery, {

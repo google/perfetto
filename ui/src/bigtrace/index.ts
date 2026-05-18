@@ -213,8 +213,8 @@ class BigTraceRoot implements m.ClassComponent {
       // QueryPage stays mounted across route changes to preserve DataGrid
       // state (filters, scroll position, sort order).
       m(
-        'div',
-        {style: {display: route === Routes.QUERY ? 'contents' : 'none'}},
+        'div.pf-bt-route-pane',
+        {className: route === Routes.QUERY ? '' : 'pf-bt-route-pane--hidden'},
         m(QueryPage, {useBigtraceBackend: true}),
       ),
       route === Routes.SETTINGS && m(SettingsPage),

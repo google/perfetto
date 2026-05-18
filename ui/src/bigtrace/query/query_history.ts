@@ -138,8 +138,7 @@ export class QueryHistoryComponent
           fillHeight: true,
         },
         m(
-          'div',
-          {style: {marginTop: '8px', opacity: 0.7}},
+          'div.pf-bt-history-empty-hint',
           isMaterialized
             ? 'Run a query with Persistent on to see it here.'
             : 'Run a query with Persistent off to see it here.',
