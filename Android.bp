@@ -3088,6 +3088,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -18908,6 +18909,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -19345,6 +19347,11 @@ filegroup {
     srcs: [
         "src/trace_processor/util/json_value.cc",
     ],
+}
+
+// GN: //src/trace_processor/util:owned_sql_value
+filegroup {
+    name: "perfetto_src_trace_processor_util_owned_sql_value",
 }
 
 // GN: //src/trace_processor/util:profile_builder
@@ -21466,6 +21473,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -22481,6 +22489,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -23116,6 +23125,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",

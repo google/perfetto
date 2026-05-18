@@ -69,9 +69,7 @@ struct TreeValueFetcher : core::ValueFetcher {
   }
   int64_t GetInt64Value(uint32_t i) const { return values[i].AsLong(); }
   double GetDoubleValue(uint32_t i) const { return values[i].AsDouble(); }
-  const char* GetStringValue(uint32_t i) const {
-    return values[i].AsString();
-  }
+  const char* GetStringValue(uint32_t i) const { return values[i].AsString(); }
   static bool IteratorInit(uint32_t) { return false; }
   static bool IteratorNext(uint32_t) { return false; }
 
