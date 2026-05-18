@@ -23,6 +23,7 @@
 #include <new>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
@@ -69,26 +70,32 @@ void LogStacktraceMessage(Stacktrace& stacktrace,
     return status_abort;                                              \
   } while (0)
 
-#define PROTOVM_RETURN(s, ...)                                          \
-  do {                                                                  \
-    if (s.IsAbort()) {                                                  \
-      LogStacktraceMessage(s.stacktrace(),                              \
-                           ::perfetto::base::LoggingBasename(__FILE__), \
-                           __LINE__, ##__VA_ARGS__);                    \
-    }                                                                   \
-    return s;                                                           \
+#define PROTOVM_RETURN(s, ...)                                               \
+  do {                                                                       \
+    static_assert(                                                           \
+        std::is_lvalue_reference_v<decltype((s))> &&                         \
+            !std::is_reference_v<decltype(s)>,                               \
+        "Accept only plain local variables to guarantee NRVO in the normal " \
+        "path. Rvalues should be assigned to a local variable first.");      \
+    if ((s).IsAbort()) {                                                     \
+      LogStacktraceMessage((s).stacktrace(),                                 \
+                           ::perfetto::base::LoggingBasename(__FILE__),      \
+                           __LINE__, ##__VA_ARGS__);                         \
+    }                                                                        \
+    return (s);                                                              \
   } while (0)
 
 #define PROTOVM_RETURN_IF_NOT_OK(s, ...)                                \
   do {                                                                  \
-    if (s.IsAbort()) {                                                  \
-      LogStacktraceMessage(s.stacktrace(),                              \
+    auto&& status_or = (s);                                             \
+    if (status_or.IsAbort()) {                                          \
+      LogStacktraceMessage(status_or.stacktrace(),                      \
                            ::perfetto::base::LoggingBasename(__FILE__), \
                            __LINE__, ##__VA_ARGS__);                    \
-      return s;                                                         \
+      return std::move(status_or);                                      \
     }                                                                   \
-    if (!s.IsOk()) {                                                    \
-      return s;                                                         \
+    if (!status_or.IsOk()) {                                            \
+      return std::move(status_or);                                      \
     }                                                                   \
   } while (0)
 
