@@ -1383,6 +1383,7 @@ cc_library_shared {
         "liblog",
         "libperfetto_c",
     ],
+    host_supported: true,
     defaults: [
         "perfetto_defaults",
     ],

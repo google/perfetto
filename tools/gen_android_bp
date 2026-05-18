@@ -122,6 +122,7 @@ target_host_supported = [
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//protos/perfetto/trace/android:perfetto_winscope_extensions_zero',
+    '//src/android_sdk/jni:libperfetto_jni',
     '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor',
@@ -187,6 +188,12 @@ needs_libfts = [
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
+
+# host_supported modules whose listed shared libs must be linked on host
+# too (e.g. libperfetto_jni pulls __android_log_* via nativehelper/JNIHelp.h).
+host_supported_shared_libs = {
+    'libperfetto_jni': {'liblog'},
+}
 
 # Shared libraries which are directly translated to Android system equivalents.
 shared_library_allowlist = [
@@ -806,7 +813,8 @@ class Module(object):
   def add_android_shared_lib(self, lib):
     if self.type == 'cc_binary_host':
       raise Exception('Adding Android shared lib for host tool is unsupported')
-    elif self.host_supported:
+    elif (self.host_supported and
+          lib not in host_supported_shared_libs.get(self.name, ())):
       self.android.shared_libs.add(lib)
     else:
       self.shared_libs.add(lib)
