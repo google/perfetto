@@ -18,6 +18,7 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
+import {Spinner} from '../../widgets/spinner';
 import type {
   TrackRenderer,
   TrackMouseEvent,
@@ -42,6 +43,7 @@ class ScreenshotsTrack implements TrackRenderer {
   >(this.queue);
   private currentScreenshots?: Array<{id: number; ts: bigint}>;
   private currentScreenshotId?: number;
+  private lastRenderedScreenshotId?: number;
   private imageDataCache = new Map<number, string>();
   private isLoadingImage = false;
 
@@ -185,17 +187,18 @@ class ScreenshotsTrack implements TrackRenderer {
   }
 
   renderTooltip(): m.Children {
-    const baseTooltip = this.sliceTrack.renderTooltip?.();
-
+    // We conciously don't render the base SliceTrack tooltip, as it can
+    // shift the screenshot around. The sliceTrack tooltip doesn't provide
+    // any additional useful information for the screenshot track.
     if (this.currentScreenshots === undefined) {
-      return [baseTooltip, m('div', 'Loading screenshot metadata...')];
+      return [m('div', 'Loading screenshot metadata...')];
     }
 
     if (this.currentScreenshotId !== undefined) {
       const imageData = this.getCachedImage(this.currentScreenshotId);
       if (imageData) {
+        this.lastRenderedScreenshotId = this.currentScreenshotId;
         return [
-          baseTooltip,
           m(
             'div',
             m('img.pf-screenshot-tooltip__img', {
@@ -204,11 +207,41 @@ class ScreenshotsTrack implements TrackRenderer {
           ),
         ];
       } else if (this.isLoadingImage) {
-        return [baseTooltip, m('div', 'Loading screenshot...')];
+        const lastImageData =
+          this.lastRenderedScreenshotId !== undefined
+            ? this.imageDataCache.get(this.lastRenderedScreenshotId)
+            : undefined;
+
+        if (lastImageData) {
+          return [
+            m(
+              'div',
+              {style: {position: 'relative'}},
+              m('img.pf-screenshot-tooltip__img', {
+                src: 'data:image/png;base64, ' + lastImageData,
+                style: {opacity: '0.5'},
+              }),
+              m(
+                'div',
+                {
+                  style: {
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                  },
+                },
+                m(Spinner),
+              ),
+            ),
+          ];
+        } else {
+          return [m('div', 'Loading screenshot...')];
+        }
       }
     }
 
-    return baseTooltip;
+    return undefined;
   }
 
   getDataset() {
