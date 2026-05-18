@@ -1,5 +1,5 @@
 ---
-name: perfetto_infra_getting_trace_processor
+name: perfetto-infra-getting-trace-processor
 description: Use when the user does not yet have `trace_processor`
   installed, or has not set up the Python `perfetto` client used to
   drive the long-running RPC mode. Covers fetching the prebuilt binary

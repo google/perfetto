@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/tree/propagate_spec.h"
 #include "src/trace_processor/core/tree/tree_columns.h"
+#include "src/trace_processor/util/owned_sql_value.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 class BytecodeBuilder;
@@ -72,8 +73,12 @@ class TreeTransformer {
   // filtered-out nodes have their children reparented to the closest
   // surviving ancestor. Can be called multiple times; bytecodes are
   // emitted immediately.
+  //
+  // |values| must hold owning copies of any string/blob data because
+  // execution is deferred to ToDataframe(), which may run long after
+  // |values| was constructed.
   base::Status FilterTree(std::vector<dataframe::FilterSpec> specs,
-                          std::vector<SqlValue> values);
+                          std::vector<OwnedSqlValue> values);
 
   // Propagates column values from root toward leaves. For each spec, a new
   // output column is created and filled by copying the source column and
@@ -113,8 +118,10 @@ class TreeTransformer {
   // Register initialization info collected during FilterTree calls.
   std::vector<RegInit> reg_inits_;
 
-  // Filter values accumulated across FilterTree calls.
-  std::vector<SqlValue> filter_values_;
+  // Filter values accumulated across FilterTree calls. Stored as
+  // OwnedSqlValue so any string/blob payloads remain valid until
+  // ToDataframe() runs the interpreter.
+  std::vector<OwnedSqlValue> filter_values_;
   uint32_t filter_value_count_ = 0;
 
   // Propagation specs accumulated across PropagateDown calls.

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './chart_svg.scss';
 import m from 'mithril';
 
 // Number of --pf-chart-color-N CSS variables defined by the theme.

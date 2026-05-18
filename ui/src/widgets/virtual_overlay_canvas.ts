@@ -29,6 +29,7 @@
  * - Calls a callback whenever the canvas needs to be redrawn.
  */
 
+import './virtual_overlay_canvas.scss';
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {findRef, toHTMLElement} from '../base/dom_utils';

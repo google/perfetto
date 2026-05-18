@@ -24,9 +24,6 @@
 @import "components/datagrid";
 @import "components/query_history";
 
-// Widgets
-@import "widgets.scss";
-
 // Plugin styles are imported by each plugin's index.ts via Vite's CSS pipeline.
 
 // BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid

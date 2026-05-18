@@ -1,5 +1,5 @@
 ---
-name: perfetto_workflow_android_heap_dump
+name: perfetto-workflow-android-heap-dump
 description: Use when the user has an Android trace containing a Java heap
   graph (heap dump) and wants to investigate memory usage, find leaks, or
   understand what is retaining memory. Walks through a guided workflow

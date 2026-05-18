@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './multiselect_input.scss';
 /**
  * MultiselectInput - A widget for selecting multiple items from a list with
  * auto-complete.

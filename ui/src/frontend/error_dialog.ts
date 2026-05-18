@@ -16,6 +16,7 @@ import m from 'mithril';
 import type {ErrorDetails} from '../base/logging';
 import {GcsUploader} from '../base/gcs_uploader';
 import {raf} from '../core/raf_scheduler';
+import {VITE_RELOAD_CANCEL_MSG} from '../core/vite_live_reload';
 import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
@@ -35,6 +36,10 @@ let timeLastReport = 0;
 
 export function maybeShowErrorDialog(err: ErrorDetails) {
   const now = performance.now();
+
+  // Sentinel thrown by live_reload.ts to cancel Vite's automatic page reload
+  // in favour of our debounced confirm prompt. Not a real error.
+  if (err.message.includes(VITE_RELOAD_CANCEL_MSG)) return;
 
   // Here we rely on the exception message from onCannotGrowMemory function
   if (
