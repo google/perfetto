@@ -282,6 +282,13 @@ proto_target_extra_bazel_deps = {
         # (pbzero forward-declares them, cppgen honors [lazy=true]),
         # but Bazel's strict descriptor generation requires them.
         ':protos_perfetto_trace_android_protos',
+        # Winscope protos live in separate sub-libraries within
+        # trace/android/ (not under :android_protos) so they need to be
+        # listed explicitly: protolog/shell_transition/surfaceflinger_*
+        # in :winscope_regular_protos, winscope_extensions in
+        # :winscope_common_protos.
+        ':protos_perfetto_trace_android_winscope_common_protos',
+        ':protos_perfetto_trace_android_winscope_regular_protos',
         ':protos_perfetto_trace_chrome_protos',
         ':protos_perfetto_trace_etw_protos',
         ':protos_perfetto_trace_filesystem_protos',

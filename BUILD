@@ -8948,6 +8948,8 @@ perfetto_proto_library(
         ":protos_perfetto_config_track_event_protos",
         ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_protos",
+        ":protos_perfetto_trace_android_winscope_common_protos",
+        ":protos_perfetto_trace_android_winscope_regular_protos",
         ":protos_perfetto_trace_chrome_protos",
         ":protos_perfetto_trace_etw_protos",
         ":protos_perfetto_trace_filesystem_protos",
