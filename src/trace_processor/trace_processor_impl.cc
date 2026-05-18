@@ -604,10 +604,26 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   CacheBoundsAndBuildTable();
 
   // Stage 3: reduce memory usage by both destroying parser context *and*
-  // finalizing dataframes.
+  // finalizing dataframes; once finalized, attach any indexes that were
+  // declared at registration time.
   TraceProcessorStorageImpl::DestroyContext();
   for (const auto& df : plugin_dataframes_) {
     df.dataframe->Finalize();
+    for (const auto& idx_col_names : df.indexes) {
+      std::vector<uint32_t> col_idxs;
+      col_idxs.reserve(idx_col_names.size());
+      const auto& col_names = df.dataframe->column_names();
+      for (const auto& name : idx_col_names) {
+        auto it = std::find(col_names.begin(), col_names.end(), name);
+        PERFETTO_CHECK(it != col_names.end());
+        col_idxs.push_back(
+            static_cast<uint32_t>(std::distance(col_names.begin(), it)));
+      }
+      auto idx_or = df.dataframe->BuildIndex(col_idxs.data(),
+                                             col_idxs.data() + col_idxs.size());
+      PERFETTO_CHECK(idx_or.ok());
+      *df.dataframe = df.dataframe->AddIndex(std::move(*idx_or));
+    }
   }
 
   // Stage 4: prepare the connection for queries.

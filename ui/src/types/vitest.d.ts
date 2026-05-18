@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Stub for *.grammar imports under jest. Vite compiles these via
-// @lezer/generator in production; tests don't exercise the parser, so a
-// no-op `parser` object is enough to satisfy the import.
-module.exports = {parser: {}};
+// Pulls in ambient declarations for `test`, `expect`, `describe`, `vi`, etc.
+// vitest.config.mjs has `globals: true` so these are available without
+// importing from 'vitest' in every *_unittest.ts file. Note: type aliases
+// like `Mock` and `Mocked` are NOT injected as globals — those must be
+// imported explicitly: `import type {Mock, Mocked} from 'vitest';`
+/// <reference types="vitest/globals" />

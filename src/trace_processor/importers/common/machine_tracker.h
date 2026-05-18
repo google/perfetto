@@ -46,7 +46,7 @@ class MachineTracker {
   MachineId machine_id() const { return machine_id_; }
 
  private:
-  std::optional<tables::MachineTable::RowReference> getRow();
+  tables::MachineTable::RowReference getRow();
 
   MachineId machine_id_;
   TraceProcessorContext* const context_;

@@ -44,22 +44,22 @@ without any flattening step.
 ```
 ai/skills/
 ├── README.md
-├── perfetto-infra-querying-traces/
+├── perfetto_infra_querying_traces/
 │   └── SKILL.md
-├── perfetto-infra-getting-trace-processor/
+├── perfetto_infra_getting_trace_processor/
 │   └── SKILL.md
-└── perfetto-workflow-android-heap-dump/
+└── perfetto_workflow_android_heap_dump/
     └── SKILL.md
 ```
 
-The slug doubles as the taxonomy: `perfetto-` is the vendor prefix
+The slug doubles as the taxonomy: `perfetto_` is the vendor prefix
 (so Perfetto skills don't collide with anything else the user has
 installed), then a category, then any sub-categories, then the
 skill name. Two categories today:
 
-- **`perfetto-infra-*`** — domain-agnostic mechanics of working with
+- **`perfetto_infra_*`** — domain-agnostic mechanics of working with
   Perfetto: how to query a trace, how to install the binary, etc.
-- **`perfetto-workflow-<domain>-*`** — domain-specific
+- **`perfetto_workflow_<domain>_*`** — domain-specific
   investigation workflows: how to investigate a heap dump on
   Android, jank on Chrome, etc.
 
@@ -69,11 +69,11 @@ need to query the trace; here's the bit specific to this problem."
 ## Authoring a skill
 
 Create a directory under `ai/skills/` whose name follows the
-`perfetto-<category>-<name>` pattern, with a `SKILL.md` inside:
+`perfetto_<category>_<name>` pattern, with a `SKILL.md` inside:
 
 ```markdown
 ---
-name: perfetto-infra-querying-traces
+name: perfetto_infra_querying_traces
 description: Use when the user wants to load a Perfetto trace, run
   a SQL query against it, or discover which tables and columns are
   available. Covers trace_processor invocation and the PerfettoSQL

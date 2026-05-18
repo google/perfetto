@@ -106,7 +106,7 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
                                  JitCache::SourceLocation{source_file, 10},
                                  TraceBlobView());
 
-  auto code = *context_.storage->jit_code_table().FindById(code_id);
+  auto code = context_.storage->jit_code_table()[code_id];
   EXPECT_THAT(code.create_ts(), Eq(create_ts));
   EXPECT_THAT(code.estimated_delete_ts(), Eq(std::nullopt));
   EXPECT_THAT(code.utid(), Eq(utid));
@@ -117,16 +117,12 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
 
   auto frame_id = mapping.InternFrame(50, "");
 
-  auto frame =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+  auto frame = context_.storage->stack_profile_frame_table()[frame_id];
   EXPECT_THAT(frame.name(), Eq(function_name));
 
-  auto row = context_.storage->jit_frame_table().FindById(
-      tables::JitFrameTable::Id(0));
-  ASSERT_THAT(row, Ne(std::nullopt));
-
-  EXPECT_THAT(row->jit_code_id(), Eq(code_id));
-  EXPECT_THAT(row->frame_id(), Eq(frame_id));
+  auto row = context_.storage->jit_frame_table()[tables::JitFrameTable::Id(0)];
+  EXPECT_THAT(row.jit_code_id(), Eq(code_id));
+  EXPECT_THAT(row.frame_id(), Eq(frame_id));
 }
 
 TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
@@ -152,8 +148,8 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
       JitCache::SourceLocation{source_file, 10}, TraceBlobView());
   EXPECT_THAT(code_id_1, Ne(code_id_2));
 
-  auto code_1 = *context_.storage->jit_code_table().FindById(code_id_1);
-  auto code_2 = *context_.storage->jit_code_table().FindById(code_id_2);
+  auto code_1 = context_.storage->jit_code_table()[code_id_1];
+  auto code_2 = context_.storage->jit_code_table()[code_id_2];
 
   // Code 1 has been deleted
   EXPECT_THAT(code_1.create_ts(), Eq(create_ts_1));
@@ -165,14 +161,12 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
 
   // No frame should mention code 1
   FrameId frame_id = mapping.InternFrame(50, "");
-  auto frame_a =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+  auto frame_a = context_.storage->stack_profile_frame_table()[frame_id];
   EXPECT_THAT(frame_a.name(), Eq(function_name_2));
   ASSERT_THAT(context_.storage->jit_frame_table().row_count(), Eq(1u));
-  auto row = context_.storage->jit_frame_table().FindById(
-      tables::JitFrameTable::Id(0));
-  EXPECT_THAT(row->jit_code_id(), Eq(code_id_2));
-  EXPECT_THAT(row->frame_id(), Eq(frame_id));
+  auto row = context_.storage->jit_frame_table()[tables::JitFrameTable::Id(0)];
+  EXPECT_THAT(row.jit_code_id(), Eq(code_id_2));
+  EXPECT_THAT(row.frame_id(), Eq(frame_id));
 
   // Frames for the old code 1 must fail to resolve to a jitted function but
   // still generate a frame.
@@ -181,8 +175,7 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
   frame_id = mapping.InternFrame(0, "custom");
   EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame),
               Eq(1));
-  auto frame_b =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+  auto frame_b = context_.storage->stack_profile_frame_table()[frame_id];
   EXPECT_THAT(frame_a.id(), Ne(frame_b.id()));
   EXPECT_THAT(context_.storage->GetString(frame_b.name()), Eq("custom"));
   EXPECT_THAT(context_.storage->jit_frame_table().row_count(), Eq(1u));

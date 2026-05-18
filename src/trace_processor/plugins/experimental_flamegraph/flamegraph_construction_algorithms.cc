@@ -66,13 +66,13 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
   const tables::StackProfileMappingTable& mapping_tbl =
       storage->stack_profile_mapping_table();
 
-  auto frame = frames_tbl.FindById(callsites_tbl[callstack_row].frame_id());
-  StringId mapping_name = mapping_tbl.FindById(frame->mapping())->name();
-  std::optional<uint32_t> symbol_set_id = frame->symbol_set_id();
+  auto frame = frames_tbl[callsites_tbl[callstack_row].frame_id()];
+  StringId mapping_name = mapping_tbl[frame.mapping()].name();
+  std::optional<uint32_t> symbol_set_id = frame.symbol_set_id();
 
   if (!symbol_set_id) {
-    StringId frame_name = frame->name();
-    std::optional<StringId> deobfuscated_name = frame->deobfuscated_name();
+    StringId frame_name = frame.name();
+    std::optional<StringId> deobfuscated_name = frame.deobfuscated_name();
     return {{deobfuscated_name ? *deobfuscated_name : frame_name, mapping_name,
              std::nullopt, std::nullopt, std::nullopt}};
   }
@@ -81,9 +81,8 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
   // id == symbol_set_id for the bottommost frame.
   // TODO(lalitm): Encode this optimization in the table and remove this
   // custom optimization.
-  uint32_t symbol_set_idx = symbols_tbl.FindById(SymbolId(*symbol_set_id))
-                                ->ToRowNumber()
-                                .row_number();
+  uint32_t symbol_set_idx =
+      symbols_tbl[SymbolId(*symbol_set_id)].ToRowNumber().row_number();
   for (uint32_t i = symbol_set_idx;
        i < symbols_tbl.row_count() &&
        symbols_tbl[i].symbol_set_id() == *symbol_set_id;
@@ -121,8 +120,7 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
 
     auto opt_parent_id = callsites_tbl[i].parent_id();
     if (opt_parent_id) {
-      parent_idx =
-          callsites_tbl.FindById(*opt_parent_id)->ToRowNumber().row_number();
+      parent_idx = callsites_tbl[*opt_parent_id].ToRowNumber().row_number();
       // Make sure what we index into has been populated already.
       PERFETTO_CHECK(*parent_idx < i);
       parent_idx = callsite_to_merged_callsite[*parent_idx];
@@ -252,7 +250,7 @@ BuildFlamegraphTableHeapSizeAndCount(
 
     auto parent = ref.parent_id();
     if (parent) {
-      auto parent_row = *tbl->FindById(*parent);
+      auto parent_row = (*tbl)[*parent];
       parent_row.set_cumulative_size(parent_row.cumulative_size() +
                                      ref.cumulative_size());
       parent_row.set_cumulative_count(parent_row.cumulative_count() +
@@ -297,7 +295,7 @@ BuildFlamegraphTableCallstackSizeAndCount(
 
     auto parent = (*tbl)[idx].parent_id();
     if (parent) {
-      auto parent_row = *tbl->FindById(*parent);
+      auto parent_row = (*tbl)[*parent];
       parent_row.set_cumulative_size(parent_row.cumulative_size() +
                                      row.cumulative_size());
       parent_row.set_cumulative_count(parent_row.cumulative_count() +

@@ -58,6 +58,12 @@ constexpr uint32_t kMethodsCode = 1;
 constexpr uint32_t kThreadsCode = 2;
 constexpr uint32_t kSummaryCode = 3;
 
+// Minimum record size for version 3 traces. Must hold 2 bytes of tid plus
+// 4 bytes of method_id/action plus a 4-byte wall ts_delta plus a 4-byte
+// thread ts_delta (the dual-clock case). Validated at header-parse time so
+// later fixed-offset reads in ParseRecord cannot read past the record.
+constexpr uint16_t kMinV3RecordSize = 14;
+
 std::string_view ToStringView(const TraceBlobView& tbv) {
   return {reinterpret_cast<const char*>(tbv.data()), tbv.size()};
 }
@@ -116,6 +122,12 @@ base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
 
 base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
   auto tokens = base::SplitString(base::TrimWhitespace(std::string(l)), "\t");
+  if (tokens.size() < 2) {
+    return base::ErrStatus(
+        "ART method trace: method line must have at least an id and class "
+        "name (got %zu tokens)",
+        tokens.size());
+  }
   auto id = base::StringToUInt32(tokens[0], 16);
   if (!id) {
     return base::ErrStatus(
@@ -139,7 +151,7 @@ base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
     pathname = context_->storage->InternString(
         base::StringView(ConstructPathname(class_name, tokens[4])));
     line_number = base::StringToUInt32(tokens[5]);
-  } else if (tokens.size() > 2) {
+  } else if (tokens.size() >= 4) {
     if (base::StartsWith(tokens[3], "(")) {
       method_name = tokens[2];
       signature = tokens[3];
@@ -150,6 +162,11 @@ base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
       pathname = context_->storage->InternString(base::StringView(tokens[2]));
       line_number = base::StringToUInt32(tokens[3]);
     }
+  } else if (tokens.size() == 3) {
+    return base::ErrStatus(
+        "ART method trace: method line with 3 tokens is malformed (id, class, "
+        "%s)",
+        tokens[2].c_str());
   }
   base::StackString<2048> slice_name("%s.%s: %s", class_name.c_str(),
                                      method_name.c_str(), signature.c_str());
@@ -280,9 +297,16 @@ base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseHeaderStart(
     case 2:
       tokenizer_->record_size_ = 10;
       break;
-    case 3:
-      tokenizer_->record_size_ = ToShort(header->slice_off(16, 2));
+    case 3: {
+      uint16_t size = ToShort(header->slice_off(16, 2));
+      if (size < kMinV3RecordSize) {
+        return base::ErrStatus(
+            "ART method trace: record size %u below minimum %u for v3", size,
+            kMinV3RecordSize);
+      }
+      tokenizer_->record_size_ = size;
       break;
+    }
     default:
       return base::ErrStatus("Illegal version %u", tokenizer_->version_);
   }
@@ -579,9 +603,16 @@ base::StatusOr<bool> ArtMethodTokenizer::NonStreaming::ParseDataHeader(
     case 2:
       tokenizer_->record_size_ = 10;
       break;
-    case 3:
-      tokenizer_->record_size_ = ToShort(header->slice_off(16, 2));
+    case 3: {
+      uint16_t size = ToShort(header->slice_off(16, 2));
+      if (size < kMinV3RecordSize) {
+        return base::ErrStatus(
+            "ART method trace: record size %u below minimum %u for v3", size,
+            kMinV3RecordSize);
+      }
+      tokenizer_->record_size_ = size;
       break;
+    }
     default:
       PERFETTO_FATAL("Illegal version %u", tokenizer_->version_);
   }
