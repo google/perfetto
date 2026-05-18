@@ -781,6 +781,7 @@ cc_library_shared {
         },
         host: {
             static_libs: [
+                "liblog",
                 "libz",
             ],
             whole_static_libs: [
@@ -1042,6 +1043,11 @@ cc_library {
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            static_libs: [
+                "liblog",
             ],
         },
         windows: {
@@ -1348,9 +1354,9 @@ cc_library_shared {
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
     ],
     shared_libs: [
-        "liblog",
         "libperfetto_c",
     ],
+    host_supported: true,
     defaults: [
         "perfetto_defaults",
     ],
@@ -1360,6 +1366,18 @@ cc_library_shared {
     header_libs: [
         "jni_headers",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "liblog",
+            ],
+        },
+        host: {
+            static_libs: [
+                "liblog",
+            ],
+        },
+    },
 }
 
 // GN: //src/android_sdk/jni:libperfetto_jni
@@ -1381,7 +1399,6 @@ cc_library_shared {
         "liblog",
         "libperfetto_c",
     ],
-    host_supported: true,
     defaults: [
         "perfetto_defaults",
     ],
@@ -20862,6 +20879,7 @@ java_defaults {
     libs: [
         "error_prone_annotations",
     ],
+    host_supported: true,
     sdk_version: "module_current",
 }
 
@@ -22766,6 +22784,7 @@ cc_binary {
         },
         host: {
             static_libs: [
+                "liblog",
                 "libprotobuf-cpp-full",
                 "libsqlite_static_noicu",
                 "libz",
@@ -23299,6 +23318,11 @@ cc_binary {
                 "liblog",
             ],
         },
+        host: {
+            static_libs: [
+                "liblog",
+            ],
+        },
     },
 }
 
@@ -23531,6 +23555,11 @@ cc_binary {
     target: {
         android: {
             shared_libs: [
+                "liblog",
+            ],
+        },
+        host: {
+            static_libs: [
                 "liblog",
             ],
         },
