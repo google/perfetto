@@ -143,6 +143,16 @@ perfetto_proto_library("non_minimal_core_@TYPE@") {
 
 perfetto_proto_library("non_minimal_extras_@TYPE@") {
   sources = non_minimal_extras_proto_sources
+
+  # Per-domain trace deps so the cpp SDK amalgamation
+  # (gen_amalgamated --sdk cpp, which walks from trace:zero) gets the
+  # full set of per-domain pbzero classes — consumers like
+  # test/client_api_example.cc need the concrete definitions of types
+  # like GpuCounterEvent to call set_gpu_counter_event(). These deps
+  # don't leak into the C SDK closure because that goes through
+  # trace:zero_minimal -> non_minimal_core_@TYPE@ (which does not
+  # depend on extras).
+  deps = non_minimal_per_domain_proto_deps
   public_deps = [ "track_event:@TYPE@" ]
   proto_generators = [ "zero" ]
 }
