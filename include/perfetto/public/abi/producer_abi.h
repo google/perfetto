@@ -66,6 +66,20 @@ PERFETTO_SDK_EXPORT void PerfettoProducerSystemInit(
 PERFETTO_SDK_EXPORT void PerfettoProducerInProcessInit(
     const struct PerfettoProducerBackendInitArgs* args);
 
+// Shutdown the global in-process perfetto producer releasing any allocated
+// OS resources (threads, files, sockets, etc.)
+//
+// Note that Perfetto cannot be reinitialized again in the same process [1].
+// Instead, this function is meant for shutting down all Perfetto-related
+// code so that it can be safely unloaded, e.g., with dlclose().
+//
+// It is only safe to call this function when all threads recording trace
+// events have been terminated or otherwise guaranteed to not make any further
+// calls into Perfetto.
+//
+// [1] Unless static data is also cleared through other means.
+PERFETTO_SDK_EXPORT void PerfettoProducerShutdown(void);
+
 // Informs the tracing services to activate any of these triggers if any tracing
 // session was waiting for them.
 //
