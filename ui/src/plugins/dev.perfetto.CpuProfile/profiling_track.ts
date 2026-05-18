@@ -19,6 +19,7 @@ import {
   type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, type time} from '../../base/time';
@@ -193,7 +194,7 @@ function renderProfilingDetailsPanel(
   metrics: ReadonlyArray<QueryFlamegraphMetric>,
 ): m.Children {
   return m(
-    '.pf-flamegraph-profile',
+    FlamegraphProfile,
     m(
       DetailsShell,
       {

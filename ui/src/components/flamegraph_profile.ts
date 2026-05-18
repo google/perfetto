@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
+import './flamegraph_profile.scss';
+import m from 'mithril';
 
-.pf-json-settings-editor {
-  width: 500px;
-
-  &__editor-section {
-    margin-bottom: 10px;
-  }
-
-  &__editor {
-    height: 200px;
-    width: 100%;
-  }
-
-  &__error {
-    margin-top: 10px;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-  }
-
-  &__actions {
-    margin-top: 10px;
+export class FlamegraphProfile implements m.ClassComponent {
+  view({children}: m.CVnode) {
+    return m('.pf-flamegraph-profile', children);
   }
 }

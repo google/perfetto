@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './sidebar.scss';
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {AppImpl} from '../../core/app_impl';

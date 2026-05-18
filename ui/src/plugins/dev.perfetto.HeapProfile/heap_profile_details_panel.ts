@@ -21,6 +21,7 @@ import {
   metricsFromTableOrSubquery,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {
@@ -118,7 +119,7 @@ export class HeapProfileFlamegraphDetailsPanel
   render() {
     const {type, ts} = this.props;
     return m(
-      '.pf-flamegraph-profile',
+      FlamegraphProfile,
       this.maybeShowModal(this.trace, type, this.heapGraphIncomplete),
       m(
         DetailsShell,

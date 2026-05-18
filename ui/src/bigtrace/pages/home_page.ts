@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../../frontend/home_page.scss';
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {Icon} from '../../widgets/icon';
