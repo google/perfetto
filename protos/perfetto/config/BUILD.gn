@@ -92,6 +92,10 @@ perfetto_proto_library("minimal_@TYPE@") {
 perfetto_proto_library("non_minimal_@TYPE@") {
   sources = non_minimal_proto_sources
   deps = non_minimal_proto_deps + [
+           # scenario_config.proto and stress_test_config.proto import
+           # trace_config.proto which lives in :minimal_@TYPE@.
+           ":minimal_@TYPE@",
+
            # Restore the full common closure for non-C-SDK consumers
            # that depend on the full :@TYPE@ group; :minimal_@TYPE@
            # itself only deps on common:minimal_@TYPE@.
