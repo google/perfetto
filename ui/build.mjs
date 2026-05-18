@@ -392,7 +392,6 @@ Env-var overrides:
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     compileProtos();
-    genVersion();
     generateStdlibDocs();
 
     const tsProjects = ['ui', 'ui/src/service_worker'];
@@ -602,17 +601,6 @@ function compileProtos() {
   const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execModule, ['pbts', pbtsArgs]);
   addTask(postProcessProtosDts, []);
-}
-
-// Generates a .ts source that defines the VERSION and SCM_REVISION constants.
-function genVersion() {
-  const cmd = 'python3';
-  const args = [
-    VERSION_SCRIPT,
-    '--ts_out',
-    pjoin(cfg.outGenDir, 'perfetto_version.ts'),
-  ];
-  addTask(exec, [cmd, args]);
 }
 
 function generateStdlibDocs() {
