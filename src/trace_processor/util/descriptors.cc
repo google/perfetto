@@ -109,8 +109,8 @@ base::Status CheckExtensionField(
 // trace_processor decodes and queries a *scalar* field. Number, name,
 // repeated/packed and default must be identical. The scalar type may differ
 // as long as the protozero wire type is the same (e.g. int32 -> int64).
-bool IsFieldDescriptorCompatible(const FieldDescriptor& existing,
-                                 const FieldDescriptor& candidate) {
+bool AreFieldDescriptorsCompatible(const FieldDescriptor& existing,
+                                   const FieldDescriptor& candidate) {
   if (existing.number() != candidate.number() ||
       existing.name() != candidate.name() ||
       existing.is_repeated() != candidate.is_repeated() ||
@@ -125,6 +125,21 @@ bool IsFieldDescriptorCompatible(const FieldDescriptor& existing,
   using protozero::proto_utils::ProtoSchemaType;
   return ProtoSchemaToWireType(static_cast<ProtoSchemaType>(existing.type())) ==
          ProtoSchemaToWireType(static_cast<ProtoSchemaType>(candidate.type()));
+}
+
+// True if `existing` and `candidate` enums don't contradict each other:
+// every number they both define must map to the same name. Numbers defined
+// on only one side are fine -- that just means one enum has values the other
+// doesn't, which happens when an enum gains values over time.
+bool AreEnumValuesCompatible(const ProtoDescriptor& existing,
+                             const ProtoDescriptor& candidate) {
+  for (const auto& [number, name] : existing.enum_values_by_number()) {
+    auto it = candidate.enum_values_by_number().find(number);
+    if (it != candidate.enum_values_by_number().end() && it->second != name) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace
@@ -194,7 +209,7 @@ bool DescriptorPool::DescriptorsStructurallyEqual(
     // (one enum gained values the other doesn't have). Enums have no
     // sub-types to queue.
     if (existing_desc.type() == ProtoDescriptor::Type::kEnum) {
-      if (!existing_desc.EnumValuesCompatibleWith(candidate_desc)) {
+      if (!AreEnumValuesCompatible(existing_desc, candidate_desc)) {
         return false;
       }
       continue;
@@ -212,7 +227,7 @@ bool DescriptorPool::DescriptorsStructurallyEqual(
         continue;
       }
 
-      if (!IsFieldDescriptorCompatible(existing_field, *candidate_field)) {
+      if (!AreFieldDescriptorsCompatible(existing_field, *candidate_field)) {
         return false;
       }
 

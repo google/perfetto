@@ -23,7 +23,6 @@
 #include <optional>
 #include <set>
 #include <string>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -140,19 +139,10 @@ class ProtoDescriptor {
                                             : std::make_optional(it->second);
   }
 
-  // Returns true if the two enums don't contradict each other: every number
-  // they both define must map to the same name. Numbers defined on only one
-  // side are fine -- that just means one enum has values the other doesn't,
-  // which happens when an enum gains values over time.
-  bool EnumValuesCompatibleWith(const ProtoDescriptor& other) const {
-    PERFETTO_DCHECK(type_ == Type::kEnum && other.type_ == Type::kEnum);
-    for (const auto& [number, name] : enum_names_by_value_) {
-      auto it = other.enum_names_by_value_.find(number);
-      if (it != other.enum_names_by_value_.end() && it->second != name) {
-        return false;
-      }
-    }
-    return true;
+  const std::unordered_map<int32_t, std::string>& enum_values_by_number()
+      const {
+    PERFETTO_DCHECK(type_ == Type::kEnum);
+    return enum_names_by_value_;
   }
 
   const std::string& file_name() const { return file_name_; }
