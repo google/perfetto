@@ -33,5 +33,6 @@ source_set("tree") {
     "../dataframe",
     "../interpreter",
     "../util",
+    "../../util:owned_sql_value",
   ]
 }

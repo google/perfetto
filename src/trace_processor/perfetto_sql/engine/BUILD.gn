@@ -41,6 +41,7 @@ source_set("engine") {
     "../../core/dataframe",
     "../../core/plugin",
     "../../types",
+    "../../util:owned_sql_value",
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
