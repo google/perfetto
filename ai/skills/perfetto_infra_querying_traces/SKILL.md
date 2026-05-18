@@ -1,5 +1,5 @@
 ---
-name: perfetto_infra_querying_traces
+name: perfetto-infra-querying-traces
 description: Use when the user wants to load a Perfetto trace, run a
   PerfettoSQL query against it, or discover which tables, views, columns,
   or stdlib modules are available. Covers trace_processor invocation, the
