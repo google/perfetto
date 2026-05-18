@@ -175,6 +175,8 @@ namespace perfetto::trace_processor::stats {
   F(stackprofile_invalid_frame_id,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_invalid_callstack_id,    kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_parser_error,            kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(systemd_journal_num_failed,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(systemd_journal_num_total,            kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(systrace_parse_failure,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(task_state_invalid,                   kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(traced_buf_abi_violations,            kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,    ""), \
