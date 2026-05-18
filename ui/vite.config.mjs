@@ -338,6 +338,7 @@ export default defineConfig(({command}) => {
           if (name.endsWith('.css')) return `${BUNDLE}.css`;
           return '[name][extname]';
         },
+        inlineDynamicImports: true,
       },
       onwarn(warning, warn) {
         if (warning.code === 'CIRCULAR_DEPENDENCY') {
