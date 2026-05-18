@@ -16,6 +16,7 @@ import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
 import type {
   TrackRenderer,
@@ -35,7 +36,11 @@ class ScreenshotsTrack implements TrackRenderer {
     dur: bigint;
     name: string;
   }>;
-  private screenshots: Array<{id: number; ts: bigint}> = [];
+  private readonly queue = new SerialTaskQueue();
+  private readonly metadataSlot = new QuerySlot<
+    Array<{id: number; ts: bigint}>
+  >(this.queue);
+  private currentScreenshots?: Array<{id: number; ts: bigint}>;
   private currentScreenshotId?: number;
   private imageDataCache = new Map<number, string>();
   private isLoadingImage = false;
@@ -60,27 +65,50 @@ class ScreenshotsTrack implements TrackRenderer {
         return new ScreenshotDetailsPanel(trace.engine);
       },
     });
-
-    this.loadScreenshotMetadata();
   }
 
-  private async loadScreenshotMetadata() {
+  render(trackCtx: TrackRenderContext): void {
+    this.sliceTrack.render(trackCtx);
+    this.useData(trackCtx);
+  }
+
+  private useData(trackCtx: TrackRenderContext) {
+    const visibleSpan = trackCtx.visibleWindow.toTimeSpan();
+    const start = visibleSpan.start;
+    const end = visibleSpan.end;
+
     const dataset = this.sliceTrack.getDataset();
     if (dataset === undefined) return;
 
-    const result = await this.trace.engine.query(`
-      select id, ts
-      from (${dataset.query()})
-      order by ts
-    `);
-    const it = result.iter({id: NUM, ts: LONG});
-    for (; it.valid(); it.next()) {
-      this.screenshots.push({id: it.id, ts: it.ts});
-    }
-  }
+    const {data} = this.metadataSlot.use({
+      key: {start, end},
+      queryFn: async () => {
+        const result = await this.trace.engine.query(`
+          with all_screenshots as (
+            select id, ts
+            from (${dataset.query()})
+          )
+          select id, ts from (
+            select id, ts from all_screenshots
+            where ts < ${start}
+            order by ts desc
+            limit 1
+          )
+          union all
+          select id, ts from all_screenshots
+          where ts >= ${start} and ts <= ${end}
+          order by ts
+        `);
+        const screenshots: Array<{id: number; ts: bigint}> = [];
+        const it = result.iter({id: NUM, ts: LONG});
+        for (; it.valid(); it.next()) {
+          screenshots.push({id: it.id, ts: it.ts});
+        }
+        return screenshots;
+      },
+    });
 
-  render(ctx: TrackRenderContext): void {
-    this.sliceTrack.render(ctx);
+    this.currentScreenshots = data;
   }
 
   getHeight(): number {
@@ -108,7 +136,9 @@ class ScreenshotsTrack implements TrackRenderer {
     this.sliceTrack.onMouseMove?.(event);
 
     const time = event.timescale.pxToHpTime(event.x).toTime();
-    const screenshot = findMostRecentScreenshot(this.screenshots, time);
+    const screenshot = this.currentScreenshots
+      ? findMostRecentScreenshot(this.currentScreenshots, time)
+      : undefined;
     if (screenshot) {
       this.currentScreenshotId = screenshot.id;
       if (!this.imageDataCache.has(screenshot.id) && !this.isLoadingImage) {
@@ -130,17 +160,39 @@ class ScreenshotsTrack implements TrackRenderer {
       const row = result.firstRow({image_data: STR});
       const base64Image = row.image_data;
       this.imageDataCache.set(id, base64Image);
+
+      // Limit cache size to 10
+      if (this.imageDataCache.size > 10) {
+        const firstKey = this.imageDataCache.keys().next().value;
+        if (firstKey !== undefined) {
+          this.imageDataCache.delete(firstKey);
+        }
+      }
+
       this.trace.raf.scheduleFullRedraw();
     } finally {
       this.isLoadingImage = false;
     }
   }
 
+  private getCachedImage(id: number): string | undefined {
+    const value = this.imageDataCache.get(id);
+    if (value !== undefined) {
+      this.imageDataCache.delete(id);
+      this.imageDataCache.set(id, value); // Move to end
+    }
+    return value;
+  }
+
   renderTooltip(): m.Children {
     const baseTooltip = this.sliceTrack.renderTooltip?.();
 
+    if (this.currentScreenshots === undefined) {
+      return [baseTooltip, m('div', 'Loading screenshot metadata...')];
+    }
+
     if (this.currentScreenshotId !== undefined) {
-      const imageData = this.imageDataCache.get(this.currentScreenshotId);
+      const imageData = this.getCachedImage(this.currentScreenshotId);
       if (imageData) {
         return [
           baseTooltip,

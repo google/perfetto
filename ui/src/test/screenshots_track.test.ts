@@ -30,21 +30,26 @@ test.beforeAll(async ({browser}, _testInfo) => {
 
 test('screenshot track hover preview', async () => {
   const track = pth.locateTrack('Screenshots');
-  
+
   if (await track.isVisible()) {
     const bounds = await track.boundingBox();
     if (bounds) {
       // Hover over the middle of the track
-      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-      
+      await page.mouse.move(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2,
+      );
+
       // Wait for the tooltip to appear and contain an image.
       await page.waitForSelector('.pf-cursor-tooltip img', {state: 'visible'});
-      
+
       // Wait for idle without moving the mouse to keep the tooltip visible
       await pth.waitForPerfettoIdle();
-      
+
       // Take a screenshot of the tooltip
-      await expect(page.locator('.pf-cursor-tooltip')).toHaveScreenshot('screenshots_track_hover.png');
+      await expect(page.locator('.pf-cursor-tooltip')).toHaveScreenshot(
+        'screenshots_track_hover.png',
+      );
     }
   } else {
     console.log('Screenshot track not found, skipping test.');
