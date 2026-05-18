@@ -45,10 +45,18 @@ perfetto_go_proto_library(
 )
 
 perfetto_go_proto_library(
-    name = "protos_perfetto_trace_non_minimal_protos_go_proto",
+    name = "protos_perfetto_trace_non_minimal_core_protos_go_proto",
     visibility = PERFETTO_CONFIG.go_proto_library_visibility,
     deps = [
-        ":protos_perfetto_trace_non_minimal_protos",
+        ":protos_perfetto_trace_non_minimal_core_protos",
+    ],
+)
+
+perfetto_go_proto_library(
+    name = "protos_perfetto_trace_non_minimal_extras_protos_go_proto",
+    visibility = PERFETTO_CONFIG.go_proto_library_visibility,
+    deps = [
+        ":protos_perfetto_trace_non_minimal_extras_protos",
     ],
 )
 

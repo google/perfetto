@@ -15,34 +15,55 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
 
-# Core tracing library, platform independent, no IPC layer, no service.
-source_set("core") {
+_core_sources = [
+  "id_allocator.cc",
+  "id_allocator.h",
+  "in_process_shared_memory.cc",
+  "in_process_shared_memory.h",
+  "null_trace_writer.cc",
+  "null_trace_writer.h",
+  "patch_list.h",
+  "shared_memory_abi.cc",
+  "shared_memory_arbiter_impl.cc",
+  "shared_memory_arbiter_impl.h",
+  "trace_packet.cc",
+  "trace_writer_impl.cc",
+  "trace_writer_impl.h",
+  "virtual_destructors.cc",
+]
+
+# C-SDK-closure variant of :core. Same sources, but routes the include/
+# and proto deps through the minimal aggregators.
+source_set("core_minimal") {
   public_deps = [
-    "../../../include/perfetto/ext/tracing/core",
+    "../../../include/perfetto/ext/tracing/core:core_minimal",
     "../../protozero",
   ]
   deps = [
     "..:common",
     "../../../gn:default_deps",
+    "../../../include/perfetto/tracing:tracing_minimal",
+    "../../../protos/perfetto/trace:zero_minimal",
+    "../../base:base_minimal",
+  ]
+  sources = _core_sources
+}
+
+# Core tracing library, platform independent, no IPC layer, no service.
+# The .cc sources live in :core_minimal so they're only compiled once;
+# this target is a thin group that wraps :core_minimal and adds the
+# full-closure proto / include deps on top, so consumers that need the
+# full surface (trace_processor, perfetto_cmd, etc.) still see them
+# transitively. Using `group` rather than `source_set` so gen_bazel
+# doesn't translate it into an empty filegroup (which trips Bazel's
+# cc_library srcs check).
+group("core") {
+  public_deps = [
+    ":core_minimal",
+    "../../../include/perfetto/ext/tracing/core",
     "../../../include/perfetto/tracing",
     "../../../protos/perfetto/trace:zero",
     "../../base",
-  ]
-  sources = [
-    "id_allocator.cc",
-    "id_allocator.h",
-    "in_process_shared_memory.cc",
-    "in_process_shared_memory.h",
-    "null_trace_writer.cc",
-    "null_trace_writer.h",
-    "patch_list.h",
-    "shared_memory_abi.cc",
-    "shared_memory_arbiter_impl.cc",
-    "shared_memory_arbiter_impl.h",
-    "trace_packet.cc",
-    "trace_writer_impl.cc",
-    "trace_writer_impl.h",
-    "virtual_destructors.cc",
   ]
 }
 

@@ -21,7 +21,7 @@ assert(enable_perfetto_ipc)
 # Provides an IPC transport over a UNIX socket for the service interface.
 source_set("service") {
   public_deps = [
-    "../../../../include/perfetto/ext/tracing/core",
+    "../../../../include/perfetto/ext/tracing/core:core_minimal",
     "../../../../include/perfetto/ext/tracing/ipc",
   ]
   sources = [
@@ -37,11 +37,11 @@ source_set("service") {
   deps = [
     "..:common",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/tracing",
+    "../../../../include/perfetto/tracing:tracing_minimal",
     "../../../../protos/perfetto/ipc",
-    "../../../base",
-    "../../core:core",
-    "../../service",
+    "../../../base:base_minimal",
+    "../../core:core_minimal",
+    "../../service:service_minimal",
   ]
   if (perfetto_component_type == "static_library") {
     deps += [ "../../../ipc:perfetto_ipc" ]

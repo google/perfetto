@@ -42,7 +42,13 @@ source_set("message_filter_config") {
     ":message_filter",
     ":string_filter",
     "../../../gn:default_deps",
-    "../../../protos/perfetto/config:cpp",
+
+    # Only TraceConfig / TracePerfettoConfig types are used; the
+    # per-data-source config sub-deps that come with the full :cpp
+    # group aren't needed here, and depending on :minimal_cpp keeps
+    # them out of the //src/shared_lib C SDK closure that reaches this
+    # target via tracing service:service_minimal.
+    "../../../protos/perfetto/config:minimal_cpp",
     "../../base",
   ]
 }

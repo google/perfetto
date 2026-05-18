@@ -12,47 +12,166 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
-# The core config protos, without the [lazy = true] imports pulled by
-# data_source_config.proto.
+# Config protos are split across three libraries (see
+# protos/perfetto/common/BUILD.gn for a full explanation of the same
+# pattern):
+#
+#   :minimal_@TYPE@     — sources reachable from the C SDK closure under
+#                         src/{shared_lib,tracing}/, plus the always-needed
+#                         deps. data_source_config.proto is in this set;
+#                         its [lazy=true] fields for per-data-source
+#                         configs (FtraceConfig, AndroidLogConfig,
+#                         GpuCounterConfig, ...) are honored by cppgen, so
+#                         the C SDK's .gen.h doesn't pull those in.
+#                         Generates zero + cpp only.
+#
+#   :non_minimal_@TYPE@ — chrome-only configs reachable only via
+#                         [lazy=true] fields and the per-data-source
+#                         config sub-deps. Generates zero + cpp only.
+#
+#   :lite_only_@TYPE@   — full source set + all sub-deps; generates lite
+#                         only. Lite is upstream protobuf's standard cpp
+#                         generator and emits unconditional #includes for
+#                         every typed import, including [lazy=true]
+#                         referents. Keeping all sources + deps in a
+#                         single library avoids cross-library .pb.h
+#                         cycles.
 
-perfetto_proto_library("@TYPE@") {
+minimal_proto_sources = [
+  "chrome/chrome_config.proto",  # non-lazy ChromeConfig field on
+                                 # data_source_config
+
+  # The next four protos are imported by data_source_config.proto for
+  # [lazy=true] fields. cppgen elides their #includes, so the C SDK
+  # doesn't pull their .gen.h, but Bazel's strict descriptor generation
+  # requires the .proto sources to be in the same proto_library (or in
+  # one of its direct deps). Putting them in minimal breaks the
+  # circular dep that would otherwise be needed between :minimal_@TYPE@
+  # and :non_minimal_@TYPE@.
+  "chrome/histogram_samples.proto",  # ChromiumHistogramSamplesConfig (lazy)
+  "chrome/system_metrics.proto",  # ChromiumSystemMetricsConfig (lazy)
+  "chrome/v8_config.proto",  # V8Config (lazy)
+  "data_source_config.proto",
+  "etw/etw_config.proto",  # EtwConfig (lazy)
+  "interceptor_config.proto",
+  "test_config.proto",  # non-lazy `for_testing` field
+  "trace_config.proto",
+]
+
+non_minimal_proto_sources = [
+  "chrome/scenario_config.proto",  # imports trace_config (in minimal)
+  "stress_test_config.proto",  # imports trace_config (in minimal)
+]
+
+minimal_proto_deps = [
+  "../common:minimal_@TYPE@",
+  "../common:semantic_type_@TYPE@",
+  "interceptors:@TYPE@",
+  "priority_boost:@TYPE@",
+  "protovm:@TYPE@",
+  "system_info:@TYPE@",
+  "track_event:@TYPE@",
+]
+
+non_minimal_proto_deps = [
+  "android:@TYPE@",
+  "ftrace:@TYPE@",
+  "gpu:@TYPE@",
+  "inode_file:@TYPE@",
+  "power:@TYPE@",
+  "process_stats:@TYPE@",
+  "profiling:@TYPE@",
+  "qnx:@TYPE@",
+  "statsd:@TYPE@",
+  "sys_stats:@TYPE@",
+]
+
+perfetto_proto_library("minimal_@TYPE@") {
+  sources = minimal_proto_sources
+  deps = minimal_proto_deps
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+}
+
+perfetto_proto_library("non_minimal_@TYPE@") {
+  sources = non_minimal_proto_sources
+  deps = non_minimal_proto_deps + [
+           # scenario_config.proto and stress_test_config.proto import
+           # trace_config.proto which lives in :minimal_@TYPE@.
+           ":minimal_@TYPE@",
+
+           # Restore the full common closure for non-C-SDK consumers
+           # that depend on the full :@TYPE@ group; :minimal_@TYPE@
+           # itself only deps on common:minimal_@TYPE@.
+           "../common:non_minimal_@TYPE@",
+         ]
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+}
+
+perfetto_proto_library("lite_only_@TYPE@") {
+  sources = minimal_proto_sources + non_minimal_proto_sources
   deps = [
-    "../common:@TYPE@",
-    "../common:semantic_type_@TYPE@",
-    "android:@TYPE@",
-    "ftrace:@TYPE@",
-    "gpu:@TYPE@",
-    "inode_file:@TYPE@",
-    "interceptors:@TYPE@",
-    "power:@TYPE@",
-    "priority_boost:@TYPE@",
-    "process_stats:@TYPE@",
-    "profiling:@TYPE@",
-    "protovm:@TYPE@",
-    "qnx:@TYPE@",
-    "statsd:@TYPE@",
-    "sys_stats:@TYPE@",
-    "system_info:@TYPE@",
-    "track_event:@TYPE@",
-  ]
+           # Substitute common:@TYPE@ (the full :lite group) for the
+           # minimal_@TYPE@ used by :minimal_@TYPE@ above — common
+           # doesn't have a :minimal_lite (its minimal sibling only
+           # generates zero + cpp; lite lives in common:lite_only_@TYPE@,
+           # reachable via the :lite group).
+           "../common:@TYPE@",
+           "../common:semantic_type_@TYPE@",
+           "interceptors:@TYPE@",
+           "priority_boost:@TYPE@",
+           "protovm:@TYPE@",
+           "system_info:@TYPE@",
+           "track_event:@TYPE@",
+         ] + non_minimal_proto_deps
+  proto_generators = [ "lite" ]
+}
 
-  sources = [
-    "chrome/chrome_config.proto",
-    "chrome/histogram_samples.proto",
-    "chrome/scenario_config.proto",
-    "chrome/system_metrics.proto",
-    "chrome/v8_config.proto",
-    "data_source_config.proto",
-    "etw/etw_config.proto",
-    "interceptor_config.proto",
-    "stress_test_config.proto",
-    "test_config.proto",
-    "trace_config.proto",
+group("zero") {
+  public_deps = [
+    ":minimal_zero",
+    ":non_minimal_zero",
   ]
+}
 
+# :minimal_@TYPE@ generates zero + cpp only, but lite consumers (e.g.,
+# trace:minimal_lite via per-gen-type @TYPE@ expansion) need a target
+# named `minimal_lite` to exist. Alias it to :lite_only_lite — lite
+# isn't in the C SDK closure, so the resulting fan-in on the full lite
+# library is harmless.
+group("minimal_lite") {
+  public_deps = [ ":lite_only_lite" ]
+}
+
+group("cpp") {
+  public_deps = [
+    ":minimal_cpp",
+    ":non_minimal_cpp",
+  ]
+}
+
+group("lite") {
+  public_deps = [ ":lite_only_lite" ]
+}
+
+# Aggregator that produces the :source_set sub-target (union of .proto
+# files) and the :descriptor target. Routed through :non_minimal_@TYPE@
+# (which transitively reaches :minimal_@TYPE@'s sources via its own
+# deps) so :source_set picks up every .proto on disk for the descriptor
+# without exposing :lite_only_@TYPE@'s overlapping-source library to
+# the Bazel translator (Bazel proto_library rejects two libraries
+# claiming the same .proto).
+perfetto_proto_library("@TYPE@") {
+  proto_generators = []
+  deps = [ ":non_minimal_@TYPE@" ]
+  sources = []
   generate_descriptor = "config.descriptor"
   generator_visibility = [ "../../../src/proto_utils:gen_cc_config_descriptor" ]
   descriptor_root_source = "trace_config.proto"
