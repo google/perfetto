@@ -32,8 +32,7 @@ selfWorker.onmessage = (msg: MessageEvent) => {
   const data = msg.data as {
     port: MessagePort;
     useMemory64: boolean;
-    wasmModule?: WebAssembly.Module;
+    wasmModule: WebAssembly.Module;
   };
-  wasmBridge.startInit(data.useMemory64, data.wasmModule);
-  wasmBridge.initialize(data.port);
+  wasmBridge.initialize(data.useMemory64, data.port, data.wasmModule);
 };

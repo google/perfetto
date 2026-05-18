@@ -38,22 +38,14 @@ function detectMemory64Support(): boolean {
 
 // Compiled once on the main thread and shared with every worker we spawn so
 // V8 reuses the same tiered-up wasm code across workers.
-const precompiledWasmModule: Promise<WebAssembly.Module | undefined> =
+const precompiledWasmModule: Promise<WebAssembly.Module> =
   precompileTraceProcessorWasm();
 
-function precompileTraceProcessorWasm(): Promise<
-  WebAssembly.Module | undefined
-> {
-  if (
-    typeof WebAssembly === 'undefined' ||
-    typeof WebAssembly.compileStreaming !== 'function'
-  ) {
-    return Promise.resolve(undefined);
-  }
+function precompileTraceProcessorWasm(): Promise<WebAssembly.Module> {
   const wasmUrl = USE_MEMORY64
     ? assetSrc('trace_processor_memory64.wasm')
     : assetSrc('trace_processor.wasm');
-  return WebAssembly.compileStreaming(fetch(wasmUrl)).catch(() => undefined);
+  return WebAssembly.compileStreaming(fetch(wasmUrl));
 }
 
 export function warmupWasmWorker() {

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/assert';
 
 // The 64-bit variant of TraceProcessor wasm is always built in all build
@@ -42,86 +41,60 @@ const REQ_BUF_SIZE = 32 * 1024 * 1024;
 //             - [JS] onReply() (this file)
 //               - [JS] postMessage() (this file)
 export class WasmBridge {
-  private aborted: boolean;
-  private connection!: TraceProcessor64.Module;
+  private aborted = false;
+  private connection?: TraceProcessor64.Module;
   private reqBufferAddr = 0;
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
   private useMemory64 = false;
-  private deferredInitialized = defer<void>();
-  private initStarted = false;
-
-  constructor() {
-    this.aborted = false;
-  }
 
   // |useMemory64| is decided once on the main thread and threaded through;
-  // |precompiledModule|, if supplied, skips Emscripten's fetch + compile and
-  // instantiates the caller's Module directly. Sharing one Module across
-  // workers also lets V8 reuse the same tiered-up wasm code.
-  startInit(
+  // |precompiledModule| is compiled once on the main thread and shared with
+  // every worker so V8 reuses the same tiered-up wasm code.
+  // The port's onmessage is wired up only after init completes, so any RPC
+  // bytes that arrive in the meantime stay queued on the port.
+  async initialize(
     useMemory64: boolean,
-    precompiledModule?: WebAssembly.Module,
-  ): void {
-    assertTrue(!this.initStarted);
-    this.initStarted = true;
+    port: MessagePort,
+    precompiledModule: WebAssembly.Module,
+  ): Promise<void> {
+    assertTrue(this.messagePort === undefined);
+    this.messagePort = port;
     this.useMemory64 = useMemory64;
-    const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
-    const moduleArgs: TraceProcessor64.ModuleArgs = {
+
+    const initModule = useMemory64 ? TraceProcessor64 : TraceProcessor32;
+    const connection = await initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
       onRuntimeInitialized: () => {},
-    };
-    if (precompiledModule !== undefined) {
-      moduleArgs.instantiateWasm = (imports, successCallback) => {
+      instantiateWasm: (imports, successCallback) => {
         const instance = new WebAssembly.Instance(precompiledModule, imports);
         successCallback(instance, precompiledModule);
         return instance.exports;
-      };
-    }
-    initModule(moduleArgs).then(
-      (mod) => {
-        try {
-          this.connection = mod;
-          const fn = this.connection.addFunction(
-            this.onReply.bind(this),
-            'vpi',
-          );
-          this.reqBufferAddr = this.wasmPtrCast(
-            this.connection.ccall(
-              'trace_processor_rpc_init',
-              /* return=*/ 'pointer',
-              /* args=*/ ['pointer', 'number'],
-              [fn, REQ_BUF_SIZE],
-            ),
-          );
-          this.deferredInitialized.resolve();
-        } catch (err) {
-          this.deferredInitialized.reject(err);
-        }
       },
-      (err) => this.deferredInitialized.reject(err),
+    });
+    const fn = connection.addFunction(this.onReply.bind(this), 'vpi');
+    this.reqBufferAddr = this.wasmPtrCast(
+      connection.ccall(
+        'trace_processor_rpc_init',
+        /* return=*/ 'pointer',
+        /* args=*/ ['pointer', 'number'],
+        [fn, REQ_BUF_SIZE],
+      ),
     );
-  }
+    this.connection = connection;
 
-  whenInitialized(): Promise<void> {
-    return this.deferredInitialized;
-  }
-
-  initialize(port: MessagePort) {
-    // Ensure that initialize() is called only once.
-    assertTrue(this.messagePort === undefined);
-    this.messagePort = port;
-    // Note: setting .onmessage implicitly calls port.start() and dispatches the
-    // queued messages. addEventListener('message') doesn't.
-    this.messagePort.onmessage = this.onMessage.bind(this);
+    // Setting .onmessage implicitly calls port.start() and flushes queued
+    // messages. addEventListener('message') doesn't.
+    port.onmessage = this.onMessage.bind(this);
   }
 
   onMessage(msg: MessageEvent) {
     if (this.aborted) {
       throw new Error('Wasm module crashed');
     }
+    const connection = assertExists(this.connection);
     assertTrue(msg.data instanceof Uint8Array);
     const data = msg.data as Uint8Array;
     let wrSize = 0;
@@ -131,10 +104,10 @@ export class WasmBridge {
     while (wrSize < data.length) {
       const sliceLen = Math.min(data.length - wrSize, REQ_BUF_SIZE);
       const dataSlice = data.subarray(wrSize, wrSize + sliceLen);
-      this.connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
+      connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
       wrSize += sliceLen;
       try {
-        this.connection.ccall(
+        connection.ccall(
           'trace_processor_on_rpc_request', // C function name.
           'void', // Return type.
           ['number'], // Arg types.
@@ -156,7 +129,10 @@ export class WasmBridge {
   // code while in the ccall(trace_processor_on_rpc_request).
   private onReply(heapPtrArg: bigint | number, size: number) {
     const heapPtr = this.wasmPtrCast(heapPtrArg);
-    const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
+    const data = assertExists(this.connection).HEAPU8.slice(
+      heapPtr,
+      heapPtr + size,
+    );
     assertExists(this.messagePort).postMessage(data, [data.buffer]);
   }
 
