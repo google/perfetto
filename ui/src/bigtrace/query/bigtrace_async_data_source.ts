@@ -148,17 +148,6 @@ export class BigtraceAsyncDataSource implements DataSource {
     if (this.signal?.aborted) return;
     this.error = null;
     this.isFetching = true;
-    // `[bigtrace]` prefix is grep-friendly; filter truncated for long IN-lists.
-    const filterLog =
-      this.currentFilterKey.length > 80
-        ? this.currentFilterKey.slice(0, 77) + '...'
-        : this.currentFilterKey;
-    console.log(
-      `[bigtrace] fetch_results uuid=${this.queryUuid.slice(0, 8)} ` +
-        `offset=${offset} limit=${limit} ` +
-        `order_by=${JSON.stringify(this.currentOrderBy)} ` +
-        `filter=${filterLog}`,
-    );
     m.redraw();
     try {
       const result = await this.queryClient.fetchResults(

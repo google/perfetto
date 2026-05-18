@@ -35,8 +35,8 @@ export interface SettingDescriptor<T> {
   // A detailed description of what the setting does.
   readonly description: string;
 
-  // The type of the setting.
-  readonly type:
+  // The type of the setting. Defaults to 'string' if omitted.
+  readonly type?:
     | 'string'
     | 'number'
     | 'boolean'

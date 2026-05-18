@@ -267,7 +267,11 @@ export class QueryTabsState {
       })),
       activeTabId: this.activeTabId,
     };
-    localStorage.setItem(QUERY_TABS_STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(QUERY_TABS_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // QuotaExceededError — non-fatal; tabs persist on next successful save.
+    }
   }
 
   private loadFromStorage(): boolean {
@@ -282,10 +286,12 @@ export class QueryTabsState {
     if (!Array.isArray(parsed.tabs) || parsed.tabs.length === 0) return false;
 
     for (const t of parsed.tabs) {
+      // Skip corrupted entries — missing fields would create broken tabs.
+      if (typeof t.editorText !== 'string') continue;
       const tab = this.addNewTab(
         t.title,
         t.editorText,
-        t.limit,
+        typeof t.limit === 'number' && t.limit > 0 ? t.limit : undefined,
         t.queryUuid,
         t.materialize,
       );
