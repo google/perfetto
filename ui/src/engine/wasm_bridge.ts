@@ -13,16 +13,7 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/assert';
-
-// The 64-bit variant of TraceProcessor wasm is always built in all build
-// configurations and we can depend on it from typescript.
-import TraceProcessor64 from '../gen/trace_processor_memory64';
-
-// The 32-bit variant may or may not be part of the build, depending on whether
-// the user passes --only-wasm-memory64 to ui/build.mjs. When we are building
-// also the 32-bit (e.g., in production builds) the import below will be
-// redirected by rollup to '../gen/trace_processor' (The 32-bit module).
-import TraceProcessor32 from './trace_processor_32_stub';
+import {TraceProcessor32, TraceProcessor64} from '../trace_processor/wasm_modules';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the

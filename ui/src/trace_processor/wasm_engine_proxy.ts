@@ -15,6 +15,10 @@
 import {assetSrc} from '../base/assets';
 import {assertTrue} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
+import {
+  TRACE_PROCESSOR_32_WASM_URL,
+  TRACE_PROCESSOR_64_WASM_URL,
+} from './wasm_modules';
 
 let idleWasmWorker: Worker | undefined = undefined;
 
@@ -43,8 +47,8 @@ const precompiledWasmModule: Promise<WebAssembly.Module> =
 
 function precompileTraceProcessorWasm(): Promise<WebAssembly.Module> {
   const wasmUrl = USE_MEMORY64
-    ? assetSrc('trace_processor_memory64.wasm')
-    : assetSrc('trace_processor.wasm');
+    ? assetSrc(TRACE_PROCESSOR_64_WASM_URL)
+    : assetSrc(TRACE_PROCESSOR_32_WASM_URL);
   return WebAssembly.compileStreaming(fetch(wasmUrl));
 }
 
