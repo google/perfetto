@@ -64,22 +64,6 @@ class FieldDescriptor {
     return default_value_;
   }
 
-  // True if these two fields are the same as far as decoding and querying
-  // are concerned. We check the number, kind, repeated/packed flags, and
-  // also the name and default value: a different name would change the
-  // column you query by, and a different default would change what you
-  // read back when the field is missing. The type name is deliberately
-  // left out -- message and enum subtypes are compared by following them,
-  // not by their name, so a pure rename still counts as equal here.
-  bool operator==(const FieldDescriptor& o) const {
-    return std::tie(number_, type_, is_repeated_, is_packed_, name_,
-                    default_value_) == std::tie(o.number_, o.type_,
-                                                o.is_repeated_, o.is_packed_,
-                                                o.name_, o.default_value_);
-  }
-
-  bool operator!=(const FieldDescriptor& o) const { return !(*this == o); }
-
   void set_resolved_type_name(const std::string& resolved_type_name) {
     resolved_type_name_ = resolved_type_name;
   }

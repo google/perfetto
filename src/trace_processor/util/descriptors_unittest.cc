@@ -389,6 +389,52 @@ std::vector<uint8_t> BuildSupersetExtDescriptorSet(bool extra_on_existing) {
   return fds.SerializeAsArray();
 }
 
+std::vector<uint8_t> BuildScalarTypeDescriptorSet(
+    protos::pbzero::FieldDescriptorProto::Type type_a,
+    protos::pbzero::FieldDescriptorProto::Type type_b) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* ext_msg_a = file->add_message_type();
+  ext_msg_a->set_name("ExtMsgA");
+  auto* field_a = ext_msg_a->add_field();
+  field_a->set_name("val");
+  field_a->set_number(1);
+  field_a->set_type(type_a);
+  field_a->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+
+  auto* ext_msg_b = file->add_message_type();
+  ext_msg_b->set_name("ExtMsgB");
+  auto* field_b = ext_msg_b->add_field();
+  field_b->set_name("val");
+  field_b->set_number(1);
+  field_b->set_type(type_b);
+  field_b->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+
+  auto* ext1 = file->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  ext1->set_type_name(".test.ExtMsgA");
+  ext1->set_extendee(".test.BaseMessage");
+
+  auto* ext2 = file->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  ext2->set_type_name(".test.ExtMsgB");
+  ext2->set_extendee(".test.BaseMessage");
+
+  return fds.SerializeAsArray();
+}
+
 // Two differently-named extension messages that are recursively identical
 // (including through a nested message) are accepted, and the field resolves.
 TEST(DescriptorsTest, IdenticalExtensionReDeclarationAllowed) {
@@ -584,6 +630,51 @@ TEST(DescriptorsTest, EnumConflictingSharedValueRejected) {
   DescriptorPool pool;
   std::vector<uint8_t> fds_bytes = BuildEnumSupersetExtDescriptorSet(
       /*extra_on_first=*/false, /*conflict_shared=*/true);
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.c_message(),
+              testing::HasSubstr("not structurally identical"));
+}
+
+// Same wire type (int32 -> int64, both kVarInt): accepted.
+TEST(DescriptorsTest, SameWireTypeScalarChangeAllowed) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildScalarTypeDescriptorSet(
+      FieldDescriptorProto::TYPE_INT32, FieldDescriptorProto::TYPE_INT64);
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+}
+
+// int32 -> sint32: same wire type (kVarInt), accepted by the agreed
+// wire-type-match contract.
+TEST(DescriptorsTest, SameWireTypeIntToSintAllowed) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildScalarTypeDescriptorSet(
+      FieldDescriptorProto::TYPE_INT32, FieldDescriptorProto::TYPE_SINT32);
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+}
+
+// Different wire type (int32 kVarInt -> fixed32 kFixed32): rejected.
+TEST(DescriptorsTest, DifferentWireTypeScalarChangeRejected) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildScalarTypeDescriptorSet(
+      FieldDescriptorProto::TYPE_INT32, FieldDescriptorProto::TYPE_FIXED32);
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.c_message(),
+              testing::HasSubstr("not structurally identical"));
+}
+
+// Different wire type (fixed32 -> fixed64): rejected.
+TEST(DescriptorsTest, DifferentFixedWidthScalarChangeRejected) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildScalarTypeDescriptorSet(
+      FieldDescriptorProto::TYPE_FIXED32, FieldDescriptorProto::TYPE_FIXED64);
   auto status =
       pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
   EXPECT_FALSE(status.ok());

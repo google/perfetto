@@ -32,6 +32,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -102,6 +103,28 @@ base::Status CheckExtensionField(
          /*new_raw_type=*/field.raw_type_name()});
   }
   return base::OkStatus();
+}
+
+// True if `existing` and `candidate` are interchangeable as far as how
+// trace_processor decodes and queries a *scalar* field. Number, name,
+// repeated/packed and default must be identical. The scalar type may differ
+// as long as the protozero wire type is the same (e.g. int32 -> int64).
+bool IsFieldDescriptorCompatible(const FieldDescriptor& existing,
+                                 const FieldDescriptor& candidate) {
+  if (existing.number() != candidate.number() ||
+      existing.name() != candidate.name() ||
+      existing.is_repeated() != candidate.is_repeated() ||
+      existing.is_packed() != candidate.is_packed() ||
+      existing.default_value() != candidate.default_value()) {
+    return false;
+  }
+  // FieldDescriptor::type() stores the protobuf FieldDescriptorProto::Type
+  // numeric value. protozero's ProtoSchemaType deliberately mirrors that
+  // numbering, so this static_cast is well-defined.
+  using protozero::proto_utils::ProtoSchemaToWireType;
+  using protozero::proto_utils::ProtoSchemaType;
+  return ProtoSchemaToWireType(static_cast<ProtoSchemaType>(existing.type())) ==
+         ProtoSchemaToWireType(static_cast<ProtoSchemaType>(candidate.type()));
 }
 
 }  // namespace
@@ -189,7 +212,7 @@ bool DescriptorPool::DescriptorsStructurallyEqual(
         continue;
       }
 
-      if (existing_field != *candidate_field) {
+      if (!IsFieldDescriptorCompatible(existing_field, *candidate_field)) {
         return false;
       }
 
