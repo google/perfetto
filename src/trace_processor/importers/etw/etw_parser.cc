@@ -68,7 +68,8 @@ bool IsIoWait(uint8_t reason) {
 EtwParser::EtwParser(TraceProcessorContext* context)
     : context_(context),
       anonymized_process_string_id_(
-          context->storage->InternString("Anonymized Process")) {}
+          context->storage->InternString("Anonymized Process")),
+      disk_io_tracker_(context) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
@@ -116,7 +117,7 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
   }
 
   if (decoder.has_disk_io()) {
-    context_->disk_io_tracker->ParseDiskIo(ts, utid, decoder.disk_io());
+    disk_io_tracker_.ParseDiskIo(ts, utid, decoder.disk_io());
   }
 
   return base::OkStatus();
