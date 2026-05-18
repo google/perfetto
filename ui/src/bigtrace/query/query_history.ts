@@ -21,7 +21,7 @@ import type {QueryExecution} from './query_store';
 import {historyStore} from './history_store';
 import {renderHistoryItem, type OpenQueryFn} from './query_history_item';
 
-export {OpenQueryFn} from './query_history_item';
+export type {OpenQueryFn} from './query_history_item';
 
 interface QueryHistoryComponentAttrs {
   readonly className?: string;
