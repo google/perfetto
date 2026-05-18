@@ -18,8 +18,7 @@ import {SettingFilter} from '../settings/settings_types';
 import {encodeFilters} from './filter_encoding';
 import {RawQueryExecution} from './query_history_storage';
 
-// Tabular wire shape. Values are always strings (see CLAUDE.md
-// "Response value contract"); `null` denotes SQL NULL.
+// Tabular wire shape. Values are always strings, 'null' denotes SQL NULL.
 interface QueryResponsePayload {
   queryUuid?: string;
   columnNames?: string[];
@@ -53,7 +52,7 @@ export class QueryNotFoundError extends Error {
   }
 }
 
-// Single funnel for the BigTrace HTTP API (see CLAUDE.md for endpoints).
+// Single funnel for the BigTrace HTTP API.
 export class BigtraceQueryClient {
   constructor(private readonly endpoint: string) {}
 
@@ -240,7 +239,7 @@ export class BigtraceQueryClient {
 }
 
 // Preserves wire strings as-is (no numeric coercion — would corrupt 64-bit
-// ids/timestamps). Only translates 'NULL' to JS null. Exported for unit tests.
+// ids/timestamps). Only translates 'NULL' to JS null.
 export function parseQueryResponse(
   result: QueryResponsePayload,
 ): QueryResultPage {

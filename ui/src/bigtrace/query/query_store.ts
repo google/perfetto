@@ -123,7 +123,6 @@ export class QueryStore {
     return Array.from(this.queries.values());
   }
 
-  // Test seam.
   clear(): void {
     this.queries.clear();
   }
