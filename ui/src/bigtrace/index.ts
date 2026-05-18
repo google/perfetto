@@ -39,10 +39,18 @@ import {toggleHelp} from './help_modal';
 import {Routes} from './routes';
 
 function getRoot() {
-  // import.meta.url is this module's URL post-bundling, in /v1.2.3/bigtrace/.
-  const url = import.meta.url;
-  if (!url || url.startsWith('file://')) return '';
-  return url.substring(0, url.lastIndexOf('/') + 1);
+  // Works out the root directory where the content should be served from
+  // e.g. `http://origin/v1.2.3/`.
+  const script = document.currentScript as HTMLScriptElement;
+
+  // Needed for DOM tests, that do not have script element.
+  if (script === null) {
+    return '';
+  }
+
+  let root = script.src;
+  root = root.substr(0, root.lastIndexOf('/') + 1);
+  return root;
 }
 
 function setupContentSecurityPolicy() {
