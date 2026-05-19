@@ -39,6 +39,14 @@ public final class PerfettoTrackEventBuilder {
   private static final int DEFAULT_EXTRA_CACHE_SIZE = 5;
   private static final int DEFAULT_PENDING_POINTERS_LIST_SIZE = 16;
 
+  // When true, events with no extras are emitted via the Java-side Low Level
+  // path ({@link PerfettoEvent}) instead of the High Level ABI. Events that
+  // carry extras (args, tracks, flows, proto fields) always use the HL path
+  // until the migration of those operations completes. Defaults to the
+  // "perfetto.use_java_emit" system property (off unless set).
+  private static volatile boolean sUseJavaEmit =
+      Boolean.getBoolean("perfetto.use_java_emit");
+
   private PerfettoTrackEventExtra mExtra;
 
   private int mTraceType = -1;
@@ -174,8 +182,29 @@ public final class PerfettoTrackEventBuilder {
     }
 
     mIsBuilt = true;
+    if (sUseJavaEmit && mPendingPointers.isEmpty()) {
+      // Java-side LL path. Only the bare {type, category, name} event is
+      // supported so far; events that accumulated any extra fall through to the
+      // High Level path below.
+      PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName);
+      return;
+    }
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
+  }
+
+  /**
+   * Enables or disables routing extra-free events through the Java-side Low
+   * Level emit path. Visible for tests and benchmarks; production code controls
+   * this via the {@code perfetto.use_java_emit} system property.
+   */
+  public static void setUseJavaEmit(boolean enabled) {
+    sUseJavaEmit = enabled;
+  }
+
+  /** Whether extra-free events are routed through the Java-side emit path. */
+  public static boolean getUseJavaEmit() {
+    return sUseJavaEmit;
   }
 
   /** Initialize the builder for a new trace event. */

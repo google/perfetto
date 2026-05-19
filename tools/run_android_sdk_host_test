@@ -43,6 +43,9 @@ JAVA_PROTOS_DIR = 'gen/src/android_sdk/java/test'
 
 TEST_SRC_DIR = os.path.join(SDK_DIR, 'test')
 
+# Benchmark entry point, run with --bench instead of the JUnit suite.
+BENCH_CLASS = 'dev.perfetto.sdk.test.PerfettoEmitBenchmark'
+
 
 def Die(msg):
   logging.error(msg)
@@ -162,8 +165,19 @@ def RunTests(jdk_home, jars, sdk_jar, test_jar):
       env=env)
 
 
+def RunBenchmark(jdk_home, jars, sdk_jar, test_jar):
+  env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
+  Run([
+      os.path.join(jdk_home, 'bin/java'), '-Djava.library.path=' + OUT_DIR,
+      '-cp',
+      Classpath(sdk_jar, test_jar, *jars), BENCH_CLASS
+  ],
+      env=env)
+
+
 def main():
   logging.basicConfig(level=logging.INFO, format='%(message)s')
+  run_bench = '--bench' in sys.argv[1:]
   jdk_home = JdkHome()
   jars = MavenJars()
   Gn(jdk_home)
@@ -171,7 +185,10 @@ def main():
   java_protos = os.path.join(OUT_DIR, JAVA_PROTOS_DIR)
   sdk_jar = CompileSdk(jdk_home, jars, java_protos)
   test_jar = CompileTest(jdk_home, jars, sdk_jar)
-  RunTests(jdk_home, jars, sdk_jar, test_jar)
+  if run_bench:
+    RunBenchmark(jdk_home, jars, sdk_jar, test_jar)
+  else:
+    RunTests(jdk_home, jars, sdk_jar, test_jar)
 
 
 if __name__ == '__main__':

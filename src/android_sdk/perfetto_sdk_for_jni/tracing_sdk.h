@@ -81,6 +81,33 @@ void trace_event(int type,
                  Extra* extra);
 
 /**
+ * @brief Emits a track event through the Low Level track event ABI.
+ *
+ * Unlike trace_event(), which marshals a list of PerfettoTeHlExtra structs built
+ * up on the Java side, this drives the public LL ABI (PerfettoTeLl*): it walks
+ * the active data source instances and serializes the TrackEvent with protozero.
+ * The LL ABI keeps ownership of the parts that must stay native -- category and
+ * event-name interning, incremental-state resets (sequence defaults, clock
+ * snapshot, thread/process descriptors) and per-instance fan-out.
+ *
+ * `body`/`body_size`, when non-empty, is an opaque, already-encoded sequence of
+ * TrackEvent proto fields (debug annotations, track_uuid, proto fields, ...)
+ * produced on the Java side with ProtoWriter; it is appended verbatim into the
+ * `track_event` submessage. Bare events pass an empty body.
+ *
+ * @param cat The (registered) category of the event.
+ * @param type The PerfettoTeType of the event (slice begin/end, instant, ...).
+ * @param name The event name. Ignored for SLICE_END and COUNTER events.
+ * @param body Encoded TrackEvent field bytes to append, or nullptr.
+ * @param body_size Size of `body` in bytes, or 0.
+ */
+void emit_track_event(const PerfettoTeCategory* cat,
+                      int32_t type,
+                      const char* name,
+                      const void* body,
+                      size_t body_size);
+
+/**
  * @brief Gets the process track UUID.
  */
 uint64_t get_process_track_uuid();

@@ -22,7 +22,11 @@
 #include <mutex>
 
 #include "perfetto/public/abi/producer_abi.h"
+#include "perfetto/public/data_source.h"
+#include "perfetto/public/pb_msg.h"
 #include "perfetto/public/producer.h"
+#include "perfetto/public/protos/trace/trace_packet.pzc.h"
+#include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 #include "perfetto/public/te_macros.h"
 #include "perfetto/public/track_event.h"
 
@@ -52,6 +56,72 @@ void trace_event(int type,
                          type == PERFETTO_TE_TYPE_COUNTER ? nullptr : name,
                          extra->get());
     extra->clear_extras();
+  }
+}
+
+void emit_track_event(const PerfettoTeCategory* cat,
+                      int32_t type,
+                      const char* name,
+                      const void* body,
+                      size_t body_size) {
+  bool enabled = PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
+      cat->enabled, PERFETTO_MEMORY_ORDER_RELAXED));
+  if (!enabled) {
+    return;
+  }
+
+  // SLICE_END and COUNTER events carry no name, matching the HL path.
+  const char* event_name =
+      (type == PERFETTO_TE_TYPE_SLICE_END || type == PERFETTO_TE_TYPE_COUNTER)
+          ? nullptr
+          : name;
+
+  // The LL ABI takes a non-const category; it only reads `impl`/`enabled`.
+  PerfettoTeCategory* mut_cat = const_cast<PerfettoTeCategory*>(cat);
+  struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+
+  for (struct PerfettoTeLlIterator ctx =
+           PerfettoTeLlBeginSlowPath(mut_cat, timestamp);
+       ctx.impl.ds.tracer != nullptr;
+       PerfettoTeLlNext(mut_cat, timestamp, &ctx)) {
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+    PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+    perfetto_protos_TracePacket_set_sequence_flags(
+        &trace_packet.msg,
+        perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
+
+    uint64_t name_iid = 0;
+    {
+      struct PerfettoTeLlInternContext intern_ctx;
+      PerfettoTeLlInternContextInit(&intern_ctx, ctx.impl.incr,
+                                    &trace_packet.msg);
+      PerfettoTeLlInternRegisteredCat(&intern_ctx, mut_cat);
+      if (event_name) {
+        name_iid = PerfettoTeLlInternEventName(&intern_ctx, event_name);
+      }
+      PerfettoTeLlInternContextDestroy(&intern_ctx);
+    }
+
+    {
+      struct perfetto_protos_TrackEvent te_msg;
+      perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg, &te_msg);
+      perfetto_protos_TrackEvent_set_type(
+          &te_msg, static_cast<enum perfetto_protos_TrackEvent_Type>(type));
+      PerfettoTeLlWriteRegisteredCat(&te_msg, mut_cat);
+      if (event_name) {
+        PerfettoTeLlWriteInternedEventName(&te_msg, name_iid);
+      }
+      // Append the Java-encoded TrackEvent body (debug args, track_uuid, proto
+      // fields, ...) verbatim into the track_event submessage.
+      if (body_size) {
+        PerfettoPbMsgAppendBytes(&te_msg.msg,
+                                 static_cast<const uint8_t*>(body), body_size);
+      }
+      perfetto_protos_TracePacket_end_track_event(&trace_packet.msg, &te_msg);
+    }
+
+    PerfettoTeLlPacketEnd(&ctx, &trace_packet);
   }
 }
 
