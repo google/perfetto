@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ChartType} from './visualisation_node';
+import type {ChartType} from './visualisation_node';
 
 /**
  * Definition of a chart type, including metadata and capabilities.

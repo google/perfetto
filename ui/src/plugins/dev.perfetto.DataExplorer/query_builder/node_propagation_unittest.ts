@@ -415,10 +415,7 @@ describe('Node Propagation', () => {
       connectNodes(modifyNode, aggNode);
 
       // Spy on onPrevNodesUpdated
-      const aggOnPrevNodesUpdatedSpy = jest.spyOn(
-        aggNode,
-        'onPrevNodesUpdated',
-      );
+      const aggOnPrevNodesUpdatedSpy = vi.spyOn(aggNode, 'onPrevNodesUpdated');
 
       // Initialize
       initializeNodeChain([modifyNode, aggNode]);

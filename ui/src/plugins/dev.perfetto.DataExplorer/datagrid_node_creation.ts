@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {NodeActionHandlers} from './node_actions';
 import {createNodeActions} from './node_actions';
-import {QueryNode, NodeType} from './query_node';
-import {UIFilter} from './query_builder/operations/filter';
+import {type QueryNode, NodeType} from './query_node';
+import type {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
 import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
-import {Column} from '../../components/widgets/datagrid/model';
+import type {Column} from '../../components/widgets/datagrid/model';
 import {nodeRegistry} from './query_builder/node_registry';
 import {
   insertNodeBetween,
   addConnection,
   removeConnection,
 } from './query_builder/graph_utils';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 
 // Dependencies needed by datagrid-triggered node creation operations.
 export interface DatagridNodeCreationDeps {

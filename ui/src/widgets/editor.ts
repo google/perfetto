@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './editor.scss';
 import {indentWithTab} from '@codemirror/commands';
-import {EditorState, Transaction} from '@codemirror/state';
+import {EditorState, type Transaction} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {keymap} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
@@ -22,7 +23,7 @@ import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
 import {assertUnreachable} from '../base/assert';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
 
 type EditorLanguage = 'perfetto-sql' | 'javascript';

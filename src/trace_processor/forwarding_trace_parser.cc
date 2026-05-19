@@ -29,7 +29,6 @@
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
-#include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"

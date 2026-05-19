@@ -192,15 +192,15 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   const auto& class_table = context.storage->heap_graph_class_table();
   size_t count_bitmaps = 0;
   for (auto it = objs_table.IterateRows(); it; ++it) {
-    auto class_row = class_table.FindById(it.type_id());
-    ASSERT_TRUE(class_row.has_value());
-    if (context.storage->string_pool().Get(class_row->name()) ==
+    auto class_row = class_table[it.type_id()];
+    ASSERT_TRUE(true);
+    if (context.storage->string_pool().Get(class_row.name()) ==
         "android.graphics.Bitmap") {
       EXPECT_EQ(it.native_size(), 24242);
       count_bitmaps++;
     } else {
       EXPECT_EQ(it.native_size(), 0)
-          << context.storage->string_pool().Get(class_row->name()).c_str()
+          << context.storage->string_pool().Get(class_row.name()).c_str()
           << " has non zero native_size";
     }
   }

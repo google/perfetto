@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {duration, time} from './time';
-import {HighPrecisionTime} from './high_precision_time';
+import type {duration, time} from './time';
+import type {HighPrecisionTime} from './high_precision_time';
 import {HighPrecisionTimeSpan} from './high_precision_time_span';
-import {HorizontalBounds} from './geom';
+import type {HorizontalBounds} from './geom';
 
 export class TimeScale {
   readonly timeSpan: HighPrecisionTimeSpan;

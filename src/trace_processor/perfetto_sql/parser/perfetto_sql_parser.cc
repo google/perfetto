@@ -35,7 +35,6 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/intrinsic_macro_expansion.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -43,17 +42,6 @@
 namespace perfetto::trace_processor {
 
 namespace {
-
-// When `false`, macro expansion + statement splitting go through the
-// handwritten `PerfettoSqlPreprocessor` (the legacy path that has shipped for
-// years). When `true`, both responsibilities are delegated to the vendored
-// syntaqlite library via the macro-lookup callback.
-//
-// Both implementations are compiled in for the duration of the cutover so
-// flipping is a one-line change and reverting is symmetric. The same value
-// is re-exported as `PerfettoSqlParser::kUsesSyntaqliteMacros` for tests
-// that need to gate path-specific assertions.
-constexpr bool kUseSyntaqliteMacros = PerfettoSqlParser::kUsesSyntaqliteMacros;
 
 using Macro = PerfettoSqlParser::Macro;
 using Statement = PerfettoSqlParser::Statement;
@@ -63,14 +51,6 @@ std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
   const char* text = syntaqlite_parser_span_expanded_text(p, &span, &len);
   PERFETTO_CHECK(text != nullptr);
   return {text, len};
-}
-
-// Slices |stmt| using a source-layer span whose offset/length are direct byte
-// offsets into the input string (layer_id == 0, injected by our grammar marker
-// rules).
-SqlSource SpanSource(const SqlSource& stmt, SyntaqliteTextSpan span) {
-  PERFETTO_DCHECK(span._layer_id == 0);
-  return stmt.Substr(span.offset, span.length);
 }
 
 base::StatusOr<std::vector<sql_argument::ArgumentDefinition>> BuildArgDefs(
@@ -131,291 +111,7 @@ base::StatusOr<PerfettoSqlParser::CreateFunction::Returns> BuildReturnType(
 }
 
 // ---------------------------------------------------------------------------
-// LegacyImpl
-// ---------------------------------------------------------------------------
-//
-// Macro expansion + statement splitting via the handwritten
-// PerfettoSqlPreprocessor; per-statement parsing via syntaqlite. Reserved as
-// a self-contained struct in the anonymous namespace so a second
-// implementation (syntaqlite-driven macro expansion) can be added next to it
-// without disturbing the public PerfettoSqlParser surface.
-
-struct LegacyImpl {
-  // [[maybe_unused]]: only one of LegacyImpl / SyntaqliteMacroImpl is reached
-  // through the `if constexpr (kUseSyntaqliteMacros)` switch in Impl, so the
-  // unreached side has no in-TU callers for its constructor or `Next`.
-  [[maybe_unused]] LegacyImpl(
-      SqlSource source,
-      const base::FlatHashMap<std::string, Macro>& macros)
-      : preprocessor(std::move(source), macros) {
-    synq = syntaqlite_parser_create_with_dialect(nullptr,
-                                                 syntaqlite_perfetto_dialect());
-    PERFETTO_CHECK(synq != nullptr);
-  }
-
-  ~LegacyImpl() { syntaqlite_parser_destroy(synq); }
-
-  LegacyImpl(const LegacyImpl&) = delete;
-  LegacyImpl& operator=(const LegacyImpl&) = delete;
-  LegacyImpl(LegacyImpl&&) = delete;
-  LegacyImpl& operator=(LegacyImpl&&) = delete;
-
-  [[maybe_unused]] bool Next(std::optional<SqlSource>& out_statement_sql);
-
-  SyntaqliteParser* synq;
-  PerfettoSqlPreprocessor preprocessor;
-  base::Status status;
-  std::optional<Statement> current_statement;
-};
-
-bool LegacyImpl::Next(std::optional<SqlSource>& out_statement_sql) {
-  PERFETTO_DCHECK(status.ok());
-
-  current_statement = std::nullopt;
-  out_statement_sql = std::nullopt;
-
-  if (!preprocessor.NextStatement()) {
-    status = preprocessor.status();
-    return false;
-  }
-
-  const SqlSource& stmt = preprocessor.statement();
-  out_statement_sql = stmt;
-
-  syntaqlite_parser_reset(synq, stmt.sql().data(),
-                          static_cast<uint32_t>(stmt.sql().size()));
-
-  int32_t rc = syntaqlite_parser_next(synq);
-  if (rc == SYNTAQLITE_PARSE_DONE) {
-    current_statement = PerfettoSqlParser::SqliteSql{};
-    return true;
-  }
-  if (rc == SYNTAQLITE_PARSE_ERROR) {
-    uint32_t off = syntaqlite_result_error_offset(synq);
-    status = base::ErrStatus("%s%s", stmt.AsTraceback(off).c_str(),
-                             syntaqlite_result_error_msg(synq));
-    return false;
-  }
-
-  uint32_t root = syntaqlite_result_root(synq);
-  const auto* node =
-      static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(synq, root));
-
-  // Cast to int to suppress -Wswitch-enum: we intentionally handle only
-  // Perfetto-dialect node types; all SQLite statement types fall through to the
-  // default case and are returned as SqliteSql{}.
-  switch (static_cast<int>(node->tag)) {
-    case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT: {
-      const auto& n = node->create_perfetto_table_stmt;
-      std::string name = SpanText(synq, n.table_name);
-
-      if (syntaqlite_node_is_present(n.table_impl)) {
-        const auto* impl_node = static_cast<const SyntaqlitePerfettoTableImpl*>(
-            syntaqlite_parser_node(synq, n.table_impl));
-        std::string impl_name = SpanText(synq, impl_node->name);
-        if (!base::CaseInsensitiveEqual(impl_name, "dataframe")) {
-          status = base::ErrStatus("Invalid table implementation '%s'",
-                                   impl_name.c_str());
-          return false;
-        }
-      }
-
-      auto schema = BuildArgDefs(synq, n.schema);
-      if (!schema.ok()) {
-        status = schema.status();
-        return false;
-      }
-      current_statement = PerfettoSqlParser::CreateTable{
-          n.or_replace == SYNTAQLITE_BOOL_TRUE,
-          std::move(name),
-          std::move(*schema),
-          SpanSource(stmt, n.select_span),
-      };
-      return true;
-    }
-
-    case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT: {
-      const auto& n = node->create_perfetto_view_stmt;
-      std::string name = SpanText(synq, n.view_name);
-
-      auto schema = BuildArgDefs(synq, n.schema);
-      if (!schema.ok()) {
-        status = schema.status();
-        return false;
-      }
-      SqlSource select_sql = SpanSource(stmt, n.select_span);
-
-      SqlSource header = SqlSource::FromTraceProcessorImplementation(
-          "CREATE VIEW " + name + " AS ");
-      SqlSource::Rewriter rewriter(stmt);
-      rewriter.Rewrite(0, n.select_span.offset, std::move(header));
-      SqlSource create_view_sql = std::move(rewriter).Build();
-
-      current_statement = PerfettoSqlParser::CreateView{
-          n.or_replace == SYNTAQLITE_BOOL_TRUE,
-          std::move(name),
-          std::move(*schema),
-          std::move(select_sql),
-          std::move(create_view_sql),
-      };
-      return true;
-    }
-
-    case SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT: {
-      const auto& n = node->create_perfetto_function_stmt;
-      std::string name = SpanText(synq, n.function_name);
-
-      auto args = BuildArgDefs(synq, n.args);
-      if (!args.ok()) {
-        status = args.status();
-        return false;
-      }
-      // Variadic arguments are not allowed in SQL functions.
-      for (const auto& arg : *args) {
-        if (arg.is_variadic()) {
-          status = base::ErrStatus(
-              "Variadic arguments are only allowed in delegate functions (use "
-              "DELEGATES TO instead of AS)");
-          return false;
-        }
-      }
-
-      auto returns = BuildReturnType(synq, n.return_type);
-      if (!returns.ok()) {
-        status = returns.status();
-        return false;
-      }
-      current_statement = PerfettoSqlParser::CreateFunction{
-          n.or_replace == SYNTAQLITE_BOOL_TRUE,
-          FunctionPrototype{std::move(name), std::move(*args)},
-          std::move(*returns),
-          SpanSource(stmt, n.select_span),
-          "",
-          std::nullopt,
-      };
-      return true;
-    }
-
-    case SYNTAQLITE_NODE_CREATE_PERFETTO_DELEGATING_FUNCTION_STMT: {
-      const auto& n = node->create_perfetto_delegating_function_stmt;
-      std::string name = SpanText(synq, n.function_name);
-
-      auto args = BuildArgDefs(synq, n.args);
-      if (!args.ok()) {
-        status = args.status();
-        return false;
-      }
-      // Variadic argument, if present, must be the last in the list.
-      for (uint32_t i = 0; i + 1 < args->size(); ++i) {
-        if ((*args)[i].is_variadic()) {
-          status =
-              base::ErrStatus("Variadic argument must be the last argument");
-          return false;
-        }
-      }
-      auto returns = BuildReturnType(synq, n.return_type);
-      if (!returns.ok()) {
-        status = returns.status();
-        return false;
-      }
-      std::string delegate_to = SpanText(synq, n.delegate_to);
-      current_statement = PerfettoSqlParser::CreateFunction{
-          n.or_replace == SYNTAQLITE_BOOL_TRUE,
-          FunctionPrototype{std::move(name), std::move(*args)},
-          std::move(*returns),
-          SqlSource::FromTraceProcessorImplementation(""),
-          "",
-          std::move(delegate_to),
-      };
-      return true;
-    }
-
-    case SYNTAQLITE_NODE_CREATE_PERFETTO_INDEX_STMT: {
-      const auto& n = node->create_perfetto_index_stmt;
-      std::string index_name = SpanText(synq, n.index_name);
-      std::string table_name = SpanText(synq, n.table_name);
-
-      std::vector<std::string> col_names;
-      if (syntaqlite_node_is_present(n.columns)) {
-        const auto* list =
-            static_cast<const SyntaqlitePerfettoIndexedColumnList*>(
-                syntaqlite_parser_node(synq, n.columns));
-        uint32_t count = syntaqlite_list_count(list);
-        for (uint32_t i = 0; i < count; i++) {
-          const auto* col = static_cast<const SyntaqlitePerfettoIndexedColumn*>(
-              syntaqlite_list_child(synq, list, i));
-          col_names.push_back(SpanText(synq, col->column_name));
-        }
-      }
-      current_statement = PerfettoSqlParser::CreateIndex{
-          n.or_replace == SYNTAQLITE_BOOL_TRUE,
-          std::move(index_name),
-          std::move(table_name),
-          std::move(col_names),
-      };
-      return true;
-    }
-
-    case SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT: {
-      const auto& n = node->create_perfetto_macro_stmt;
-
-      // Build macro argument list as (name SqlSource, type SqlSource) pairs.
-      std::vector<std::pair<SqlSource, SqlSource>> macro_args;
-      if (syntaqlite_node_is_present(n.args)) {
-        const auto* list = static_cast<const SyntaqlitePerfettoMacroArgList*>(
-            syntaqlite_parser_node(synq, n.args));
-        uint32_t count = syntaqlite_list_count(list);
-        for (uint32_t i = 0; i < count; i++) {
-          const auto* arg = static_cast<const SyntaqlitePerfettoMacroArg*>(
-              syntaqlite_list_child(synq, list, i));
-          std::string arg_name_str = SpanText(synq, arg->arg_name);
-          std::string arg_type_str = SpanText(synq, arg->arg_type);
-          macro_args.emplace_back(SqlSource::FromTraceProcessorImplementation(
-                                      std::move(arg_name_str)),
-                                  SqlSource::FromTraceProcessorImplementation(
-                                      std::move(arg_type_str)));
-        }
-      }
-
-      std::string macro_name_str = SpanText(synq, n.macro_name);
-      std::string returns_str = SpanText(synq, n.return_type);
-      std::string body_str = SpanText(synq, n.body);
-      current_statement = PerfettoSqlParser::CreateMacro{
-          n.or_replace == SYNTAQLITE_BOOL_TRUE,
-          SqlSource::FromTraceProcessorImplementation(
-              std::move(macro_name_str)),
-          std::move(macro_args),
-          SqlSource::FromTraceProcessorImplementation(std::move(returns_str)),
-          SqlSource::FromTraceProcessorImplementation(std::move(body_str)),
-      };
-      return true;
-    }
-
-    case SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT: {
-      const auto& n = node->include_perfetto_module_stmt;
-      current_statement =
-          PerfettoSqlParser::Include{SpanText(synq, n.module_name)};
-      return true;
-    }
-
-    case SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT: {
-      const auto& n = node->drop_perfetto_index_stmt;
-      current_statement = PerfettoSqlParser::DropIndex{
-          SpanText(synq, n.index_name),
-          SpanText(synq, n.table_name),
-      };
-      return true;
-    }
-
-    default:
-      // Any other SQLite statement passes through as SqliteSql.
-      current_statement = PerfettoSqlParser::SqliteSql{};
-      return true;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Macro rewrite tree -> SqlSource (syntaqlite path only)
+// Macro rewrite tree -> SqlSource
 // ---------------------------------------------------------------------------
 
 // Walks the flat list of macro rewrites produced by syntaqlite and, for a
@@ -828,39 +524,34 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
   }
 }
 
+}  // namespace
+
 // ---------------------------------------------------------------------------
-// SyntaqliteMacroImpl
+// PerfettoSqlParser::Impl
 // ---------------------------------------------------------------------------
 //
 // Macro expansion + statement splitting both delegated to syntaqlite.
 // Bridges syntaqlite's macro-lookup callback to a small intrinsic expander
 // (preprocessor-compat shims) and the engine-owned user macro registry.
 
-struct SyntaqliteMacroImpl {
-  // [[maybe_unused]]: when `kUseSyntaqliteMacros` is false, the
-  // `if constexpr` branches that call this constructor and `Next` below are
-  // discarded, leaving them with no in-TU callers. The class still needs to
-  // be defined because `std::optional<SyntaqliteMacroImpl>` is held by Impl.
-  [[maybe_unused]] SyntaqliteMacroImpl(
-      SqlSource src,
-      const base::FlatHashMap<std::string, Macro>& m)
+struct PerfettoSqlParser::Impl {
+  Impl(SqlSource src, const base::FlatHashMap<std::string, Macro>& m)
       : source(std::move(src)), macros(m) {
     synq = syntaqlite_parser_create_with_dialect(nullptr,
                                                  syntaqlite_perfetto_dialect());
     PERFETTO_CHECK(synq != nullptr);
     PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
-    syntaqlite_parser_set_macro_lookup(synq, &SyntaqliteMacroImpl::LookupMacro,
-                                       this);
+    syntaqlite_parser_set_macro_lookup(synq, &Impl::LookupMacro, this);
     syntaqlite_parser_reset(synq, source.sql().data(),
                             static_cast<uint32_t>(source.sql().size()));
   }
 
-  ~SyntaqliteMacroImpl() { syntaqlite_parser_destroy(synq); }
+  ~Impl() { syntaqlite_parser_destroy(synq); }
 
-  SyntaqliteMacroImpl(const SyntaqliteMacroImpl&) = delete;
-  SyntaqliteMacroImpl& operator=(const SyntaqliteMacroImpl&) = delete;
-  SyntaqliteMacroImpl(SyntaqliteMacroImpl&&) = delete;
-  SyntaqliteMacroImpl& operator=(SyntaqliteMacroImpl&&) = delete;
+  Impl(const Impl&) = delete;
+  Impl& operator=(const Impl&) = delete;
+  Impl(Impl&&) = delete;
+  Impl& operator=(Impl&&) = delete;
 
   [[maybe_unused]] bool Next(std::optional<SqlSource>& out_statement_sql);
 
@@ -875,7 +566,7 @@ struct SyntaqliteMacroImpl {
                          uint32_t name_len,
                          const SyntaqliteToken* args,
                          uint32_t arg_count) {
-    auto* self = static_cast<SyntaqliteMacroImpl*>(user_data);
+    auto* self = static_cast<Impl*>(user_data);
     std::string_view name_sv(name, name_len);
 
     auto status = self->intrinsic_expander.TryExpand(name_sv, args, arg_count);
@@ -925,7 +616,8 @@ struct SyntaqliteMacroImpl {
   std::vector<uint32_t> param_name_lens;
 };
 
-bool SyntaqliteMacroImpl::Next(std::optional<SqlSource>& out_statement_sql) {
+bool PerfettoSqlParser::Impl::Next(
+    std::optional<SqlSource>& out_statement_sql) {
   PERFETTO_DCHECK(status.ok());
 
   current_statement = std::nullopt;
@@ -975,29 +667,6 @@ bool SyntaqliteMacroImpl::Next(std::optional<SqlSource>& out_statement_sql) {
   return true;
 }
 
-}  // namespace
-
-// ---------------------------------------------------------------------------
-// PerfettoSqlParser::Impl
-// ---------------------------------------------------------------------------
-//
-// Thin wrapper that holds at most one backend implementation, chosen at
-// compile time by `kUseSyntaqliteMacros`. Both halves are compiled in for
-// the duration of the cutover; flipping the constant is a one-line change.
-
-struct PerfettoSqlParser::Impl {
-  Impl(SqlSource source, const base::FlatHashMap<std::string, Macro>& macros) {
-    if constexpr (kUseSyntaqliteMacros) {
-      syntaqlite_macros.emplace(std::move(source), macros);
-    } else {
-      legacy.emplace(std::move(source), macros);
-    }
-  }
-
-  std::optional<LegacyImpl> legacy;
-  std::optional<SyntaqliteMacroImpl> syntaqlite_macros;
-};
-
 PerfettoSqlParser::PerfettoSqlParser(
     SqlSource source,
     const base::FlatHashMap<std::string, Macro>& macros)
@@ -1006,29 +675,16 @@ PerfettoSqlParser::PerfettoSqlParser(
 PerfettoSqlParser::~PerfettoSqlParser() = default;
 
 bool PerfettoSqlParser::Next() {
-  if constexpr (kUseSyntaqliteMacros) {
-    return impl_->syntaqlite_macros->Next(statement_sql_);
-  } else {
-    return impl_->legacy->Next(statement_sql_);
-  }
+  return impl_->Next(statement_sql_);
 }
 
 const PerfettoSqlParser::Statement& PerfettoSqlParser::statement() const {
-  if constexpr (kUseSyntaqliteMacros) {
-    PERFETTO_DCHECK(impl_->syntaqlite_macros->current_statement.has_value());
-    return *impl_->syntaqlite_macros->current_statement;
-  } else {
-    PERFETTO_DCHECK(impl_->legacy->current_statement.has_value());
-    return *impl_->legacy->current_statement;
-  }
+  PERFETTO_DCHECK(impl_->current_statement.has_value());
+  return *impl_->current_statement;
 }
 
 const base::Status& PerfettoSqlParser::status() const {
-  if constexpr (kUseSyntaqliteMacros) {
-    return impl_->syntaqlite_macros->status;
-  } else {
-    return impl_->legacy->status;
-  }
+  return impl_->status;
 }
 
 }  // namespace perfetto::trace_processor

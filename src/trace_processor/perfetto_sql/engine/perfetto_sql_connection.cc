@@ -44,11 +44,11 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
@@ -67,11 +67,7 @@
 // ----------------------
 //
 // The execution of PerfettoSQL statements is the joint responsibility of
-// several classes which all are linked together in the following way:
-//
-//  PerfettoSqlConnection -> PerfettoSqlParser -> PerfettoSqlPreprocessor
-//
-// The responsibility of each of these classes is as follows:
+// the PerfettoSqlConnection and PerfettoSqlParser classes:
 //
 // * PerfettoSqlConnection: this class is responsible for the end-to-end
 // processing
@@ -81,14 +77,9 @@
 //   Otherwise, if the statement is a valid SQLite statement, SQLite is called
 //   into to perform the execution.
 // * PerfettoSqlParser: this class is responsible for taking a chunk of SQL and
-//   incrementally converting them into parsed SQL statement. The parser calls
-//   into the PerfettoSqlPreprocessor to split the SQL chunk into a statement
-//   and perform any macro expansion. It then tries to parse any
-//   PerfettoSQL-only statements into their component parts and leaves SQLite
-//   statements as-is for execution by SQLite.
-// * PerfettoSqlPreprocessor: this class is responsible for taking a chunk of
-//   SQL and breaking them into statements, while also expanding any macros
-//   which might be present inside.
+//   incrementally converting them into parsed SQL statements. The underlying
+//   tokenization, statement splitting and macro expansion are performed by
+//   the vendored syntaqlite parser.
 namespace perfetto::trace_processor {
 namespace {
 
@@ -409,7 +400,21 @@ std::unique_ptr<PerfettoSqlConnection> PerfettoSqlConnection::Fork() {
       new PerfettoSqlConnection(database_, enable_extra_checks_));
 }
 
-PerfettoSqlConnection::~PerfettoSqlConnection() = default;
+PerfettoSqlConnection::~PerfettoSqlConnection() {
+  // Scalar function contexts can hold prepared statements (e.g.
+  // CreatedFunction::State::stmts_) that must be finalized before the
+  // underlying sqlite3* is closed. Explicitly unregister every entry now so
+  // SQLite invokes each function's FnCtxDestructor while the database is
+  // still alive; |connection_| is destroyed below.
+  for (auto it = fn_registry_.GetIterator(); it; ++it) {
+    base::Status s = connection_->UnregisterFunction(it.key().first.c_str(),
+                                                     it.key().second);
+    if (PERFETTO_UNLIKELY(!s.ok())) {
+      PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
+    }
+  }
+  fn_registry_.Clear();
+}
 
 PerfettoSqlConnection::PerfettoSqlConnection(
     std::shared_ptr<PerfettoSqlDatabase> database,
@@ -481,16 +486,51 @@ PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
   return std::move(stmt);
 }
 
-base::Status PerfettoSqlConnection::InitializeStaticTablesAndFunctions(
-    const std::vector<StaticTable>& tables,
-    std::vector<std::unique_ptr<StaticTableFunction>> functions) {
-  for (const auto& info : tables) {
+void PerfettoSqlConnection::Initialize(Initializer init) {
+  for (const auto& info : init.static_tables) {
     RegisterStaticTable(info.dataframe, info.name);
   }
-  for (auto& info : functions) {
+  for (auto& info : init.static_table_functions) {
     RegisterStaticTableFunction(std::move(info));
   }
-  return base::OkStatus();
+  for (const auto& mod : init.sqlite_modules) {
+    if (mod.is_state_manager) {
+      virtual_module_state_managers_.push_back(
+          static_cast<sqlite::ModuleStateManagerBase*>(mod.context));
+    }
+    connection_->RegisterVirtualTableModule(mod.name, mod.module, mod.context,
+                                            mod.destructor);
+  }
+  for (auto& fn : init.functions) {
+    function_count_++;
+    base::Status s = RegisterFunctionAndAddToRegistry(
+        fn.name.c_str(), fn.argc, fn.step, fn.ctx, fn.ctx_destructor,
+        fn.deterministic);
+    if (!s.ok()) {
+      PERFETTO_FATAL("Failed to register %s: %s", fn.name.c_str(),
+                     s.c_message());
+    }
+  }
+  for (auto& fn : init.aggregate_functions) {
+    aggregate_function_count_++;
+    base::Status s = connection_->RegisterAggregateFunction(
+        fn.name.c_str(), fn.argc, fn.step, fn.final_fn, fn.ctx,
+        fn.ctx_destructor, fn.deterministic);
+    if (!s.ok()) {
+      PERFETTO_FATAL("Failed to register aggregate %s: %s", fn.name.c_str(),
+                     s.c_message());
+    }
+  }
+  for (auto& fn : init.window_functions) {
+    window_function_count_++;
+    base::Status s = connection_->RegisterWindowFunction(
+        fn.name.c_str(), fn.argc, fn.step, fn.inverse, fn.value, fn.final_fn,
+        fn.ctx, fn.ctx_destructor, fn.deterministic);
+    if (!s.ok()) {
+      PERFETTO_FATAL("Failed to register window %s: %s", fn.name.c_str(),
+                     s.c_message());
+    }
+  }
 }
 
 void PerfettoSqlConnection::RegisterStaticTable(dataframe::Dataframe* df,
@@ -557,11 +597,21 @@ PerfettoSqlConnection::ExecuteUntilLastStatement(SqlSource sql_source) {
 
   auto result = ExecuteUntilLastStatementImpl(std::move(sql_source));
 
-  // Unwind the stack back to our entry point. For include frames,
-  // add their traceback info to any error that occurred.
+  // Unwind the stack back to our entry point. For include frames on the
+  // error path, decorate the result with traceback info AND mark the
+  // module poisoned so future INCLUDEs of the same key short-circuit
+  // with the same error rather than re-running the broken body. Poison
+  // walks up the stack naturally because every ancestor INCLUDE frame
+  // also hits this branch on its way out.
+  //
+  // Poison the module with the error context as it stands BEFORE we
+  // prepend this frame's own traceback. The stored reason therefore
+  // shows what failed inside this module (descendant tracebacks) but
+  // not where this module was called from (ancestor tracebacks).
   while (execution_stack_.size() > stack_base) {
     auto& frame = execution_stack_.back();
-    if (!result.ok() && frame.type == FrameType::kInclude) {
+    if (frame.type == FrameType::kInclude && !result.ok()) {
+      frame.include_claim.ReleasePoisoned(result.status().message());
       std::string traceback = frame.traceback_sql.AsTraceback(0);
       result = base::ErrStatus("%s%s", traceback.c_str(),
                                result.status().c_message());
@@ -576,34 +626,46 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   // Handle wildcard frames specially - they just push include frames
   if (execution_stack_[frame_idx].type == FrameType::kWildcard) {
     auto& frame = execution_stack_[frame_idx];
-    // Find next module to include (skip already included ones)
     while (frame.wildcard_index < frame.wildcard_modules.size()) {
-      auto& module_pair = frame.wildcard_modules[frame.wildcard_index];
-      const std::string& key = module_pair.first;
-      auto* file_ptr = module_pair.second;
-      frame.wildcard_index++;
+      auto& slot = frame.wildcard_modules[frame.wildcard_index++];
+      std::string key = std::move(slot.first);
+      std::string sql = std::move(slot.second);
 
-      if (!file_ptr->included) {
-        PERFETTO_TP_TRACE(
-            metatrace::Category::QUERY_TIMELINE,
-            "Include (expanded from wildcard)",
-            [&key](metatrace::Record* r) { r->AddArg("Module", key); });
+      PERFETTO_TP_TRACE(
+          metatrace::Category::QUERY_TIMELINE,
+          "Include (expanded from wildcard)",
+          [&key](metatrace::Record* r) { r->AddArg("Module", key); });
 
-        // Copy traceback before push_back which may invalidate frame ref
-        SqlSource traceback = frame.wildcard_traceback_sql;
-
-        // Push include frame for this module
-        execution_stack_.push_back(
-            {FrameType::kInclude,
-             SqlSource::FromModuleInclude(file_ptr->sql, key),
-             /*parser=*/nullptr, /*accumulated_stats=*/{},
-             /*current_stmt=*/std::nullopt, key, file_ptr, std::move(traceback),
-             /*wildcard_modules=*/{},
-             /*wildcard_index=*/0,
-             /*wildcard_traceback_sql=*/
-             SqlSource::FromTraceProcessorImplementation("")});
-        return FrameResult::kContinue;
+      if (IsKeyOnIncludeStack(key)) {
+        std::string traceback = frame.wildcard_traceback_sql.AsTraceback(0);
+        return base::ErrStatus(
+            "%sINCLUDE: cycle detected — module '%s' is already mid-import "
+            "in this execution.",
+            traceback.c_str(), key.c_str());
       }
+      auto res = database_->TryClaimInclude(key);
+      if (res.already_included) {
+        continue;
+      }
+      if (res.poisoned) {
+        std::string traceback = frame.wildcard_traceback_sql.AsTraceback(0);
+        return base::ErrStatus(
+            "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
+            traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+      }
+
+      // Copy traceback before push_back which may invalidate frame ref.
+      SqlSource traceback = frame.wildcard_traceback_sql;
+      execution_stack_.push_back(
+          {FrameType::kInclude, SqlSource::FromModuleInclude(sql, key),
+           /*parser=*/nullptr, /*accumulated_stats=*/{},
+           /*current_stmt=*/std::nullopt, key, std::move(traceback),
+           /*include_claim=*/std::move(res.claim),
+           /*wildcard_modules=*/{},
+           /*wildcard_index=*/0,
+           /*wildcard_traceback_sql=*/
+           SqlSource::FromTraceProcessorImplementation("")});
+      return FrameResult::kContinue;
     }
     // No more modules to process
     return FrameResult::kFrameDone;
@@ -735,7 +797,7 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   if (frame.accumulated_stats.statement_count_with_output > 0) {
     return base::ErrStatus("INCLUDE: Included module returning values.");
   }
-  frame.file_ptr->included = true;
+  frame.include_claim.ReleaseSuccess();
   return FrameResult::kFrameDone;
 }
 
@@ -768,8 +830,9 @@ PerfettoSqlConnection::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
   execution_stack_.push_back(
       {FrameType::kRoot, std::move(sql_source), /*parser=*/nullptr,
        /*accumulated_stats=*/{}, /*current_stmt=*/std::nullopt,
-       /*include_key=*/{}, /*file_ptr=*/nullptr,
+       /*include_key=*/{},
        /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
+       /*include_claim=*/{},
        /*wildcard_modules=*/{}, /*wildcard_index=*/0,
        /*wildcard_traceback_sql=*/
        SqlSource::FromTraceProcessorImplementation("")});
@@ -812,9 +875,22 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     sql_argument::Type return_type,
     SqlSource sql) {
   int created_argc = static_cast<int>(prototype.arguments.size());
+  // Refuse to clobber a C++ intrinsic. The reused-ctx fast path below ends in
+  // CreatedFunction::Reset(), which destroys and placement-news a
+  // CreatedFunction::State over the existing object; if the existing function
+  // were an intrinsic (e.g. import, which registers a raw
+  // PerfettoSqlConnection*), the destructor call would dereference a
+  // non-existent vtable and the placement-new would corrupt the intrinsic's
+  // state -- type-confusion bug previously exploitable via
+  // CREATE OR REPLACE PERFETTO FUNCTION import(...).
+  if (IsIntrinsicFunction(prototype.function_name, created_argc)) {
+    return base::ErrStatus(
+        "CREATE PERFETTO FUNCTION[prototype=%s]: cannot redefine built-in "
+        "function with the same name and argument count",
+        prototype.ToString().c_str());
+  }
   auto* ctx = static_cast<CreatedFunction::UserData*>(
-      sqlite_connection()->GetFunctionContext(prototype.function_name,
-                                              created_argc));
+      GetFunctionContextOrNull(prototype.function_name, created_argc));
   if (ctx) {
     if (CreatedFunction::IsValid(ctx) && !replace) {
       return base::ErrStatus(
@@ -829,10 +905,11 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     std::unique_ptr<CreatedFunction::UserData> created_fn_ctx =
         CreatedFunction::MakeContext(this);
     ctx = created_fn_ctx.get();
-    RETURN_IF_ERROR(RegisterFunction<CreatedFunction>(
-        std::move(created_fn_ctx),
-        RegisterFunctionArgs(prototype.function_name.c_str(), true,
-                             static_cast<int>(prototype.arguments.size()))));
+    RegisterFunctionArgs args(prototype.function_name.c_str(), true,
+                              static_cast<int>(prototype.arguments.size()));
+    args.is_intrinsic = false;
+    RETURN_IF_ERROR(
+        RegisterFunction<CreatedFunction>(std::move(created_fn_ctx), args));
   }
   return CreatedFunction::Prepare(ctx, prototype, return_type, std::move(sql));
 }
@@ -958,9 +1035,18 @@ base::Status PerfettoSqlConnection::ExecuteCreateView(
 
 base::Status PerfettoSqlConnection::EnableSqlFunctionMemoization(
     const std::string& name) {
-  constexpr size_t kSupportedArgCount = 1;
+  constexpr int kSupportedArgCount = 1;
+  // Refuse EXPERIMENTAL_MEMOIZE on intrinsics: their ctx is opaque and casting
+  // it to CreatedFunction::UserData* would walk a non-existent vtable inside
+  // EnableMemoization.
+  if (IsIntrinsicFunction(name, kSupportedArgCount)) {
+    return base::ErrStatus(
+        "EXPERIMENTAL_MEMOIZE: '%s' is a built-in function and cannot be "
+        "memoized",
+        name.c_str());
+  }
   auto* ctx = static_cast<CreatedFunction::UserData*>(
-      sqlite_connection()->GetFunctionContext(name, kSupportedArgCount));
+      GetFunctionContextOrNull(name, kSupportedArgCount));
   if (!ctx) {
     return base::ErrStatus(
         "EXPERIMENTAL_MEMOIZE: Function '%s'(INT) does not exist",
@@ -1020,6 +1106,12 @@ base::Status PerfettoSqlConnection::ExecuteCreateIndex(
     return base::ErrStatus("CREATE PERFETTO INDEX: table '%s' does not exist",
                            create_index.table_name.c_str());
   }
+  if (!state->owned_dataframe) {
+    return base::ErrStatus(
+        "CREATE PERFETTO INDEX: indexes on intrinsic table '%s' must be "
+        "declared at compile time, not via SQL",
+        create_index.table_name.c_str());
+  }
   RETURN_IF_ERROR(DropIndexBeforeCreate(create_index));
 
   const auto& df = *state->dataframe;
@@ -1038,7 +1130,9 @@ base::Status PerfettoSqlConnection::ExecuteCreateIndex(
   ASSIGN_OR_RETURN(auto index,
                    state->dataframe->BuildIndex(
                        col_idxs.data(), col_idxs.data() + col_idxs.size()));
-  state->dataframe->AddIndex(std::move(index));
+  state->owned_dataframe = std::make_unique<dataframe::Dataframe>(
+      state->dataframe->AddIndex(std::move(index)));
+  state->dataframe = state->owned_dataframe.get();
   state->named_indexes.push_back(create_index.name);
   return base::OkStatus();
 }
@@ -1053,7 +1147,9 @@ base::Status PerfettoSqlConnection::DropIndexBeforeCreate(
               "CREATE PERFETTO INDEX: Index '%s' already exists",
               create_index.name.c_str());
         }
-        state->dataframe->RemoveIndexAt(i);
+        state->owned_dataframe = std::make_unique<dataframe::Dataframe>(
+            state->dataframe->RemoveIndexAt(i));
+        state->dataframe = state->owned_dataframe.get();
         state->named_indexes.erase(state->named_indexes.begin() +
                                    static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();
@@ -1075,7 +1171,9 @@ base::Status PerfettoSqlConnection::ExecuteDropIndex(
                    state->dataframe->finalized());
     for (uint32_t i = 0; i < state->named_indexes.size(); ++i) {
       if (state->named_indexes[i] == index.name) {
-        state->dataframe->RemoveIndexAt(i);
+        state->owned_dataframe = std::make_unique<dataframe::Dataframe>(
+            state->dataframe->RemoveIndexAt(i));
+        state->dataframe = state->owned_dataframe.get();
         state->named_indexes.erase(state->named_indexes.begin() +
                                    static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();
@@ -1091,62 +1189,81 @@ base::Status PerfettoSqlConnection::IncludePackageImpl(
     const std::string& include_key,
     const PerfettoSqlParser& parser) {
   if (!include_key.empty() && include_key.back() == '*') {
-    // If the key ends with a wildcard, collect all matching modules and
-    // push a wildcard frame that will process them one at a time.
+    // If the key ends with a wildcard, collect all matching (key, sql) pairs
+    // and push a wildcard frame that will process them one at a time. The
+    // expander goes through |TryClaimInclude| per module; already-included
+    // modules are skipped silently and poisoned modules surface their
+    // recorded reason.
     std::string prefix = include_key.substr(0, include_key.size() - 1);
-    std::vector<
-        std::pair<std::string, sql_modules::RegisteredPackage::ModuleFile*>>
-        matching_modules;
+    std::vector<std::pair<std::string, std::string>> matching_modules;
     for (auto module = package.modules.GetIterator(); module; ++module) {
       if (!base::StartsWith(module.key(), prefix))
         continue;
-      // Include both already-included and not-yet-included modules in the list
-      // The wildcard frame will skip already-included ones during iteration
-      matching_modules.emplace_back(module.key(), &module.value());
+      matching_modules.emplace_back(module.key(), module.value());
     }
 
     if (matching_modules.empty()) {
       return base::OkStatus();
     }
 
-    // Push a wildcard frame that will iterate through these modules
     execution_stack_.push_back(
         {FrameType::kWildcard,
          /*sql_source=*/SqlSource::FromTraceProcessorImplementation(""),
          /*parser=*/nullptr, /*accumulated_stats=*/{},
          /*current_stmt=*/std::nullopt,
-         /*include_key=*/{}, /*file_ptr=*/nullptr,
+         /*include_key=*/{},
          /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
-         std::move(matching_modules), /*wildcard_index=*/0,
+         /*include_claim=*/{}, std::move(matching_modules),
+         /*wildcard_index=*/0,
          /*wildcard_traceback_sql=*/parser.statement_sql()});
     return base::OkStatus();
   }
-  auto* module_file = package.modules.Find(include_key);
-  if (!module_file) {
+  auto* module_sql = package.modules.Find(include_key);
+  if (!module_sql) {
     return base::ErrStatus("INCLUDE: unknown module '%s'", include_key.c_str());
   }
-  return IncludeModuleImpl(*module_file, include_key, parser);
+  return IncludeModuleImpl(include_key, *module_sql, parser);
+}
+
+bool PerfettoSqlConnection::IsKeyOnIncludeStack(const std::string& key) const {
+  for (const auto& f : execution_stack_) {
+    if (f.type == FrameType::kInclude && f.include_key == key) {
+      return true;
+    }
+  }
+  return false;
 }
 
 base::Status PerfettoSqlConnection::IncludeModuleImpl(
-    sql_modules::RegisteredPackage::ModuleFile& file,
     const std::string& key,
+    std::string_view sql,
     const PerfettoSqlParser& parser) {
-  // INCLUDE is noop for already included files.
-  if (file.included) {
+  if (IsKeyOnIncludeStack(key)) {
+    std::string traceback = parser.statement_sql().AsTraceback(0);
+    return base::ErrStatus(
+        "%sINCLUDE: cycle detected — module '%s' is already mid-import in "
+        "this execution.",
+        traceback.c_str(), key.c_str());
+  }
+  auto res = database_->TryClaimInclude(key);
+  if (res.already_included) {
     return base::OkStatus();
   }
-
-  // Push include frame onto execution stack. The main loop will process it.
-  execution_stack_.push_back({FrameType::kInclude,
-                              SqlSource::FromModuleInclude(file.sql, key),
-                              /*parser=*/nullptr, /*accumulated_stats=*/{},
-                              /*current_stmt=*/std::nullopt, key, &file,
-                              /*traceback_sql=*/parser.statement_sql(),
-                              /*wildcard_modules=*/{}, /*wildcard_index=*/0,
-                              /*wildcard_traceback_sql=*/
-                              SqlSource::FromTraceProcessorImplementation("")});
-
+  if (res.poisoned) {
+    std::string traceback = parser.statement_sql().AsTraceback(0);
+    return base::ErrStatus(
+        "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
+        traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+  }
+  execution_stack_.push_back(
+      {FrameType::kInclude, SqlSource::FromModuleInclude(std::string(sql), key),
+       /*parser=*/nullptr, /*accumulated_stats=*/{},
+       /*current_stmt=*/std::nullopt, key,
+       /*traceback_sql=*/parser.statement_sql(),
+       /*include_claim=*/std::move(res.claim),
+       /*wildcard_modules=*/{}, /*wildcard_index=*/0,
+       /*wildcard_traceback_sql=*/
+       SqlSource::FromTraceProcessorImplementation("")});
   return base::OkStatus();
 }
 
@@ -1291,7 +1408,7 @@ base::Status PerfettoSqlConnection::RegisterDelegatingFunction(
 
   // Look up the target function in our registry
   IntrinsicFunctionInfo* info_ptr =
-      intrinsic_function_registry_.Find(target_function_name);
+      intrinsic_function_registry_.Find(base::ToLower(target_function_name));
   if (info_ptr == nullptr) {
     return base::ErrStatus(
         "Target function '%s' not found in registry. "
@@ -1314,7 +1431,7 @@ base::Status PerfettoSqlConnection::RegisterDelegatingFunction(
   PERFETTO_CHECK(argc == info.argc);
 
   // Check if function already exists and handle replace logic
-  auto* existing_ctx = sqlite_connection()->GetFunctionContext(new_name, argc);
+  auto* existing_ctx = GetFunctionContextOrNull(new_name, argc);
   if (existing_ctx) {
     if (!cf.replace) {
       return base::ErrStatus(
@@ -1341,10 +1458,22 @@ base::Status PerfettoSqlConnection::RegisterFunctionAndAddToRegistry(
     SqliteConnection::Fn* func,
     void* ctx,
     SqliteConnection::FnCtxDestructor* ctx_destructor,
-    bool deterministic) {
+    bool deterministic,
+    bool is_intrinsic) {
   // Register with SQLite
   RETURN_IF_ERROR(connection_->RegisterFunction(name, argc, func, ctx,
                                                 ctx_destructor, deterministic));
+
+  // Track ownership / kind. This is the only place that records whether a
+  // function's context is opaque (intrinsic) or a typed Destructible-derived
+  // state; the security-sensitive paths in |RegisterLegacyRuntimeFunction| and
+  // |EnableSqlFunctionMemoization| consult |IsIntrinsicFunction| before
+  // downcasting. Keys are lowercased to match SQLite's case-insensitive
+  // function namespace; otherwise CREATE OR REPLACE PERFETTO FUNCTION
+  // IMPORT(...) (mixed-case) could bypass the intrinsic check.
+  FunctionEntry entry{ctx, is_intrinsic};
+  *fn_registry_.Insert(std::make_pair(base::ToLower(name), argc), entry).first =
+      entry;
 
   // Also add to intrinsic registry for potential aliasing
   IntrinsicFunctionInfo info;
@@ -1352,9 +1481,23 @@ base::Status PerfettoSqlConnection::RegisterFunctionAndAddToRegistry(
   info.argc = argc;
   info.ctx = ctx;
   info.deterministic = deterministic;
-  intrinsic_function_registry_[name] = info;
+  intrinsic_function_registry_[base::ToLower(name)] = info;
 
   return base::OkStatus();
+}
+
+void* PerfettoSqlConnection::GetFunctionContextOrNull(const std::string& name,
+                                                      int argc) const {
+  const auto* entry =
+      fn_registry_.Find(std::make_pair(base::ToLower(name), argc));
+  return entry ? entry->ctx : nullptr;
+}
+
+bool PerfettoSqlConnection::IsIntrinsicFunction(const std::string& name,
+                                                int argc) const {
+  const auto* entry =
+      fn_registry_.Find(std::make_pair(base::ToLower(name), argc));
+  return entry && entry->is_intrinsic;
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateMacro(

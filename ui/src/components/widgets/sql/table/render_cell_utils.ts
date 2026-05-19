@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SqlColumn} from './sql_column';
+import type {SqlColumn} from './sql_column';
 import {MenuItem} from '../../../../widgets/menu';
-import {SqlValue} from '../../../../trace_processor/query_result';
+import type {SqlValue} from '../../../../trace_processor/query_result';
 import {isString} from '../../../../base/object_utils';
 import {sqliteString} from '../../../../base/string_utils';
 import {Icons} from '../../../../base/semantic_icons';
 import {copyToClipboard} from '../../../../base/clipboard';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
-import {RenderedCell, TableManager} from './table_column';
+import type {RenderedCell, TableManager} from './table_column';
 
 export interface LegacySqlTableFilterOp {
   op: string; // string representation of the operation (to be injected to SQL)

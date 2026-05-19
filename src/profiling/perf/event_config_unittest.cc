@@ -374,6 +374,53 @@ TEST(EventConfigTest, CallstackSamplingModeDetection) {
 
     EXPECT_NE(event_config->perf_attr()->exclude_callchain_user, 0u);
   }
+  {  // kernel-driven user frame pointer unwinding (no kernel frames)
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_callstack_sampling()->set_user_frames(
+        protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER);
+
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->sample_callstacks());
+    EXPECT_TRUE(event_config->user_frames());
+    EXPECT_FALSE(event_config->kernel_frames());
+    EXPECT_TRUE(event_config->kernel_unwinds_user_frames());
+    // No userspace stack/regs should be sampled - the kernel walks the chain.
+    EXPECT_EQ(event_config->perf_attr()->sample_type &
+                  (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
+              0u);
+    EXPECT_EQ(event_config->perf_attr()->sample_regs_user, 0u);
+    EXPECT_EQ(event_config->perf_attr()->sample_stack_user, 0u);
+    // PERF_SAMPLE_CALLCHAIN must be requested with user frames included and
+    // kernel frames excluded.
+    EXPECT_EQ(event_config->perf_attr()->sample_type & (PERF_SAMPLE_CALLCHAIN),
+              static_cast<uint64_t>(PERF_SAMPLE_CALLCHAIN));
+    EXPECT_EQ(event_config->perf_attr()->exclude_callchain_user, 0u);
+    EXPECT_NE(event_config->perf_attr()->exclude_callchain_kernel, 0u);
+  }
+  {  // kernel-driven user frame pointer unwinding plus kernel frames
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_callstack_sampling()->set_kernel_frames(true);
+    cfg.mutable_callstack_sampling()->set_user_frames(
+        protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER);
+
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->sample_callstacks());
+    EXPECT_TRUE(event_config->user_frames());
+    EXPECT_TRUE(event_config->kernel_frames());
+    EXPECT_TRUE(event_config->kernel_unwinds_user_frames());
+    EXPECT_EQ(event_config->perf_attr()->sample_type &
+                  (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
+              0u);
+    EXPECT_EQ(event_config->perf_attr()->sample_type & (PERF_SAMPLE_CALLCHAIN),
+              static_cast<uint64_t>(PERF_SAMPLE_CALLCHAIN));
+    // Both kernel and user portions of the callchain must be requested.
+    EXPECT_EQ(event_config->perf_attr()->exclude_callchain_user, 0u);
+    EXPECT_EQ(event_config->perf_attr()->exclude_callchain_kernel, 0u);
+  }
 }
 
 TEST(EventConfigTest, EnableKernelFrames) {

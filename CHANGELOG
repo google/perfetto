@@ -11,6 +11,27 @@ Unreleased:
   SDK:
    *
 
+v55.3 - 2026-05-19:
+  Trace Processor:
+    * Relaxed embedded proto descriptor loading to allow extensions re-declared
+      under a renamed package or type when wire-compatible.
+  UI:
+    * Default to the Heap Dump Explorer view when opening traces containing
+      heap graph data (configurable via `openHeapDumpExplorerByDefault` flag).
+
+v55.2 - 2026-05-14:
+  Trace Processor:
+    * Fix classic HTTP server command line parsing on Windows. This fixes
+      breakage of the Python API on Windows.
+
+
+v55.1 - 2026-05-13:
+  Infra:
+    * Fix build of prebuilts on Windows.
+  Trace Processor:
+    * Fix parsing of timestamps of Adreno ftrace events.
+
+
 v55.0 - 2026-04-29:
   Tracing service and probes:
     * Breaking change: Renamed the `TraceMetadata` proto to `TraceAttributes`.

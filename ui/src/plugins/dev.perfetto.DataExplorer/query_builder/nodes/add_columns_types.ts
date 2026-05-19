@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
+import type {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 
 /**
  * Represents an IF clause for conditional column expressions.

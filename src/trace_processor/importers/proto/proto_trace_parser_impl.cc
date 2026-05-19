@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -121,7 +120,7 @@ void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
 
 void ProtoTraceParserImpl::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
-                                            TracePacketData data) {
+                                            FtraceData data) {
   PERFETTO_DCHECK(module_context_->ftrace_module);
   module_context_->ftrace_module->ParseFtraceEventData(cpu, ts, data);
 }

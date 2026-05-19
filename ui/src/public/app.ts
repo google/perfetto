@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RouteArgs} from './route_schema';
-import {CommandManager} from './commands';
-import {OmniboxManager} from './omnibox';
-import {SidebarManager} from './sidebar';
-import {Analytics} from './analytics';
-import {PluginManager} from './plugin';
-import {Trace} from './trace';
-import {PageManager} from './page';
-import {FeatureFlagManager} from './feature_flag';
-import {Raf} from './raf';
-import {SettingsManager} from './settings';
-import {TraceStream} from './stream';
-import {TaskTracker} from './task_tracker';
+import type {RouteArgs} from './route_schema';
+import type {CommandManager} from './commands';
+import type {OmniboxManager} from './omnibox';
+import type {SidebarManager} from './sidebar';
+import type {Analytics} from './analytics';
+import type {PluginManager} from './plugin';
+import type {Trace} from './trace';
+import type {PageManager} from './page';
+import type {FeatureFlagManager} from './feature_flag';
+import type {Raf} from './raf';
+import type {SettingsManager} from './settings';
+import type {TraceStream} from './stream';
+import type {TaskTracker} from './task_tracker';
 
 /**
  * The API endpoint to interact programmatically with the UI before a trace has

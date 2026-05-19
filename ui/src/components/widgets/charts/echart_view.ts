@@ -29,7 +29,7 @@
 import m from 'mithril';
 import {
   AXIS_LABEL_FONT_SIZE,
-  LabelFormatter,
+  type LabelFormatter,
   collectYAxisLabels,
   formatLabel,
 } from './chart_option_builder';
@@ -102,6 +102,7 @@ function buildEChartsTheme(colors: ChartThemeColors): Record<string, unknown> {
     backgroundColor: 'transparent',
     textStyle: {
       color: colors.textColor,
+      fontFamily: colors.fontFamily,
     },
     title: {
       textStyle: {color: colors.textColor},

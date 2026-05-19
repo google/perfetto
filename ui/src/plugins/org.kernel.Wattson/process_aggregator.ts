@@ -14,16 +14,13 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import {ColumnDef} from '../../components/aggregation';
-import {Aggregator} from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
+import type {ColumnDef} from '../../components/aggregation';
+import type {Aggregator} from '../../components/aggregation_adapter';
+import type {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
-import {SqlValue} from '../../trace_processor/query_result';
-import {
-  SegmentedButton,
-  SegmentedButtons,
-} from '../../widgets/segmented_buttons';
+import type {Engine} from '../../trace_processor/engine';
+import type {SqlValue} from '../../trace_processor/query_result';
+import {RadioGroup} from '../../widgets/radio_group';
 
 export class WattsonProcessSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_process_aggregation';
@@ -73,17 +70,17 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
 
   renderTopbarControls(): m.Children {
     return m(
-      SegmentedButtons,
+      RadioGroup,
       {
         selectedValue: this.scaleNumericData ? 'uw' : 'mw',
-        onOptionSelected: (value) => {
+        onValueChange: (value) => {
           this.scaleNumericData = value === 'uw';
         },
         title: 'Select power units',
       },
       [
-        m(SegmentedButton, {value: 'uw'}, 'µW'),
-        m(SegmentedButton, {value: 'mw'}, 'mW'),
+        m(RadioGroup.Button, {value: 'uw'}, 'µW'),
+        m(RadioGroup.Button, {value: 'mw'}, 'mW'),
       ],
     );
   }

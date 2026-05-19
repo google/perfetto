@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {AppImpl} from '../../core/app_impl';
-import {PerfettoPlugin} from '../../public/plugin';
-import {RouteArgs} from '../../public/route_schema';
+import type {AppImpl} from '../../core/app_impl';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {RouteArgs} from '../../public/route_schema';
 import {
   initializeServers,
   initializeServerFromManifest,
@@ -23,13 +24,13 @@ import {
   showErrorsOnCompletion,
 } from './extension_server';
 import {
-  ExtensionServer,
-  Manifest,
-  UserInput,
+  type ExtensionServer,
+  type Manifest,
+  type UserInput,
   extensionServerSchema,
   extensionServersSchema,
 } from './types';
-import {Setting} from '../../public/settings';
+import type {Setting} from '../../public/settings';
 import {Button} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {showAddExtensionServerModal} from './add_extension_server_modal';
@@ -46,7 +47,7 @@ import {
   utf8Decode,
   utf8Encode,
 } from '../../base/string_utils';
-import {Result} from '../../base/result';
+import type {Result} from '../../base/result';
 import {
   loadLegacyUserscript,
   registerLegacyMacroStubs,

@@ -247,7 +247,9 @@ class WattsonStdlib(TestSuite):
           cpu6_mw,
           cpu7_mw,
           dsu_scu_mw
-        FROM _windowed_system_state_mw(362426061658, 5067704349)
+        FROM _wattson_base_components_avg_mw!(
+          (SELECT 362426061658 AS ts, 5067704349 AS dur, 0 AS period_id)
+        )
         """,
         out=Csv("""
             "cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"

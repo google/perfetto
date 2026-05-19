@@ -16,9 +16,9 @@ import m from 'mithril';
 import {singleNodeOperation} from '../../../query_node';
 import {
   NodeGraph,
-  Node as GraphNode,
-  Connection,
-  NodeGraphApi,
+  type Node as GraphNode,
+  type Connection,
+  type NodeGraphApi,
 } from '../../../../../widgets/nodegraph';
 import {buildReadOnlyNodeConfig} from '../../graph/node_config';
 import type {GroupNode} from '.';

@@ -14,13 +14,13 @@
 
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
-import {time} from '../../../base/time';
-import {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
+import type {time} from '../../../base/time';
+import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../../components/flamegraph_panel';
 import {
   Flamegraph,
-  FlamegraphState,
-  FlamegraphOptionalAction,
+  type FlamegraphState,
+  type FlamegraphOptionalAction,
 } from '../../../widgets/flamegraph';
 
 // Referenced by session.openFlamegraphPivotedAt.
@@ -190,7 +190,7 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
 
       return m(
         'div',
-        {class: 'ah-view-content ah-flamegraph-view'},
+        {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
         m(FlamegraphPanel, {
           trace: attrs.trace,
           metrics,

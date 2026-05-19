@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -298,8 +298,7 @@ StringId GpuEventParser::FormatCounterUnit(
   if (!spec.has_numerator_units() && !spec.has_denominator_units()) {
     return kNullStringId;
   }
-  char buffer[1024];
-  base::FixedStringWriter unit(buffer, sizeof(buffer));
+  base::DynamicStringWriter unit;
   for (auto number = spec.numerator_units(); number; ++number) {
     if (unit.pos()) {
       unit.AppendChar(':');
@@ -427,8 +426,8 @@ void GpuEventParser::PushGpuCounterValue(
   // previous counter event's value to the reported value.
   auto id = context_->event_tracker->PushCounter(ts, 0, track_id);
   if (*last_id) {
-    auto row = context_->storage->mutable_counter_table()->FindById(**last_id);
-    row->set_value(value);
+    auto row = (*context_->storage->mutable_counter_table())[**last_id];
+    row.set_value(value);
   }
   *last_id = id;
 }
@@ -641,7 +640,7 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
         inserter.AddArg(description_id_, Variadic::String(description));
       });
   TrackId track_id = context_->track_compressor->DefaultTrack(factory);
-  auto rr = *context_->storage->mutable_track_table()->FindById(track_id);
+  auto rr = (*context_->storage->mutable_track_table())[track_id];
   rr.set_name(name);
 
   PERFETTO_DCHECK(!rr.source_arg_set_id());
@@ -670,8 +669,7 @@ StringId GpuEventParser::ParseRenderSubpasses(
   if (!event.has_render_subpass_index_mask()) {
     return kNullStringId;
   }
-  char buf[256];
-  base::FixedStringWriter writer(buf, sizeof(buf));
+  base::DynamicStringWriter writer;
   uint32_t bit_index = 0;
   bool first = true;
   for (auto it = event.render_subpass_index_mask(); it; ++it) {

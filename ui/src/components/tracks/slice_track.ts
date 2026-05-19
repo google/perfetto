@@ -15,33 +15,41 @@
 import m from 'mithril';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {ColorScheme} from '../../base/color_scheme';
-import {Point2D, Size2D, Transform1D, VerticalBounds} from '../../base/geom';
+import type {ColorScheme} from '../../base/color_scheme';
+import type {
+  Point2D,
+  Size2D,
+  Transform1D,
+  VerticalBounds,
+} from '../../base/geom';
 import {assertExists} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
-  CancellationSignal,
+  type CancellationSignal,
   QuerySlot,
   QUERY_CANCELLED,
   SerialTaskQueue,
 } from '../../base/query_slot';
-import {duration, Time, time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
+import {type duration, Time, type time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
 import {clamp, floatEqual} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {deferChunkedTask} from '../../base/chunked_task';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {
+  TrackEventDetails,
+  TrackEventSelection,
+} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {
   SnapPoint,
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,
 } from '../../public/track';
-import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
+import {type DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
 import {
-  SqlValue,
+  type SqlValue,
   LONG,
   NUM,
   LONG_NULL,
@@ -50,7 +58,7 @@ import {
 import {
   createPerfettoTable,
   createVirtualTable,
-  DisposableSqlEntity,
+  type DisposableSqlEntity,
 } from '../../trace_processor/sql_utils';
 import {checkerboardExcept} from '../checkerboard';
 import {getColorForSlice} from '../colorizer';
@@ -60,7 +68,7 @@ import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {SliceTrackDetailsPanel} from './slice_track_details_panel';
 import {
   RECT_PATTERN_FADE_RIGHT,
-  RowLayout,
+  type RowLayout,
   rowHeightFromLayout,
   rowTopFromLayout,
 } from '../../base/renderer';

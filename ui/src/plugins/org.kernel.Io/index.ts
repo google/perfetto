@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {TrackNode} from '../../public/workspace';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {CounterTrack} from '../../components/tracks/counter_track';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {

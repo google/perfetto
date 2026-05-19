@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import {addWattsonThreadTrack} from './wattson_thread_utils';
-import {App} from '../../public/app';
+import type {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
-import {RouteArgs} from '../../public/route_schema';
+import type {RouteArgs} from '../../public/route_schema';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {
   WattsonCpuPackageSelectionAggregator,
@@ -215,12 +216,14 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
   const result = await engine.query(`
     INCLUDE PERFETTO MODULE android.gpu.frequency;
     INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
+    INCLUDE PERFETTO MODULE wattson.curves.utils;
     SELECT
       EXISTS (SELECT 1 FROM android_gpu_frequency) as freq,
-      EXISTS (SELECT 1 FROM _gpu_power_state) as idle
+      EXISTS (SELECT 1 FROM _gpu_power_state) as idle,
+      EXISTS (SELECT 1 FROM _gpu_filtered_curves) as has_curves
   `);
-  const row = result.firstRow({freq: NUM, idle: NUM});
-  return !!row.freq && !!row.idle;
+  const row = result.firstRow({freq: NUM, idle: NUM, has_curves: NUM});
+  return !!row.freq && !!row.idle && !!row.has_curves;
 }
 
 async function hasWattsonTpuSupport(engine: Engine): Promise<boolean> {

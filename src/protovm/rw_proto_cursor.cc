@@ -17,6 +17,7 @@
 #include "src/protovm/rw_proto_cursor.h"
 
 #include "perfetto/protozero/proto_decoder.h"
+#include "src/protovm/error_handling.h"
 
 namespace perfetto {
 namespace protovm {
@@ -48,8 +49,20 @@ RwProtoCursor::RwProtoCursor() = default;
 RwProtoCursor::RwProtoCursor(Node* node, Allocator* allocator)
     : node_{node}, allocator_{allocator} {}
 
+bool RwProtoCursor::operator==(const RwProtoCursor& other) const {
+  return node_ == other.node_;
+}
+bool RwProtoCursor::operator!=(const RwProtoCursor& other) const {
+  return !(*this == other);
+}
+
+StatusOr<bool> RwProtoCursor::IsRoot() const {
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
+  return parent_link_.node == nullptr;
+}
+
 StatusOr<bool> RwProtoCursor::HasField(uint32_t field_id) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   // Eagerly decompose bytes because the field being tested will be entered
   // later anyways. See Executor::EnterField().
@@ -61,7 +74,7 @@ StatusOr<bool> RwProtoCursor::HasField(uint32_t field_id) {
 }
 
 StatusOr<void> RwProtoCursor::EnterField(uint32_t field_id) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   auto status_or_it = FindOrCreateMessageField(node_, field_id);
   PROTOVM_RETURN_IF_NOT_OK(status_or_it);
@@ -89,7 +102,7 @@ StatusOr<void> RwProtoCursor::EnterField(uint32_t field_id) {
 
 StatusOr<void> RwProtoCursor::EnterRepeatedFieldAt(uint32_t field_id,
                                                    uint32_t index) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   auto status_or_message_field = FindOrCreateMessageField(node_, field_id);
   PROTOVM_RETURN_IF_NOT_OK(status_or_message_field);
@@ -114,7 +127,7 @@ StatusOr<void> RwProtoCursor::EnterRepeatedFieldAt(uint32_t field_id,
 
 StatusOr<RwProtoCursor::RepeatedFieldIterator>
 RwProtoCursor::IterateRepeatedField(uint32_t field_id) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   auto status_convertion_to_message = ConvertToMessageIfNeeded(node_);
   PROTOVM_RETURN_IF_NOT_OK(status_convertion_to_message);
@@ -139,7 +152,7 @@ RwProtoCursor::IterateRepeatedField(uint32_t field_id) {
 StatusOr<void> RwProtoCursor::EnterRepeatedFieldByKey(uint32_t field_id,
                                                       uint32_t map_key_field_id,
                                                       uint64_t key) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   auto status_or_message_field = FindOrCreateMessageField(node_, field_id);
   PROTOVM_RETURN_IF_NOT_OK(status_or_message_field);
@@ -163,7 +176,7 @@ StatusOr<void> RwProtoCursor::EnterRepeatedFieldByKey(uint32_t field_id,
 }
 
 StatusOr<Scalar> RwProtoCursor::GetScalar() const {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   auto* scalar = node_->GetIf<Scalar>();
   if (!scalar) {
@@ -174,7 +187,7 @@ StatusOr<Scalar> RwProtoCursor::GetScalar() const {
 }
 
 StatusOr<void> RwProtoCursor::SetBytes(protozero::ConstBytes data) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   if (bool is_compatible = node_->GetIf<Node::Empty>() ||
                            node_->GetIf<Node::Bytes>() ||
@@ -194,7 +207,7 @@ StatusOr<void> RwProtoCursor::SetBytes(protozero::ConstBytes data) {
 }
 
 StatusOr<void> RwProtoCursor::SetScalar(Scalar scalar) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   if (bool is_compatible =
           node_->GetIf<Node::Empty>() || node_->GetIf<Scalar>();
@@ -209,7 +222,7 @@ StatusOr<void> RwProtoCursor::SetScalar(Scalar scalar) {
 
 StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
                                     uint32_t flags) {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
   if (bool is_compatible = node_->GetIf<Node::Empty>() ||
                            node_->GetIf<Node::Message>() ||
@@ -223,8 +236,8 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     return StatusOr<void>::Ok();
   }
 
-  auto status_convertion = ConvertToMessageIfNeeded(node_);
-  PROTOVM_RETURN_IF_NOT_OK(status_convertion);
+  auto status_convert_to_message = ConvertToMessageIfNeeded(node_);
+  PROTOVM_RETURN_IF_NOT_OK(status_convert_to_message);
   auto* message = node_->GetIf<Node::Message>();
 
   protozero::ProtoDecoder decoder(data);
@@ -248,7 +261,7 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
       // Implements remove submessage semantics: empty src field means delete
       // the dst field
       message->field_id_to_node.Remove(*it);
-      allocator_->Delete(&GetOuterNode(*it));
+      allocator_->Delete(&*it);
       continue;
     }
 
@@ -259,6 +272,7 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
       auto status_or_it = MapInsert(&message->field_id_to_node, field.id(),
                                     std::move(*status_or_map_value));
       PROTOVM_RETURN_IF_NOT_OK(status_or_it);
+      (*status_or_it)->value->has_been_merged = true;
       continue;
     }
 
@@ -269,15 +283,25 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
           field.id());
     }
 
+    // Promote field as repeated if needed:
+    // If this is the second time that the same field ID is being merged, then
+    // they are a repeated fields and they should live within an
+    // IndexedRepeatedField node.
+    if (it->value->has_been_merged) {
+      auto status_convert_to_indexed =
+          ConvertToIndexedRepeatedFieldIfNeeded(it->value.get());
+      PROTOVM_RETURN_IF_NOT_OK(status_convert_to_indexed);
+    }
+
     if (auto* indexed_fields = it->value->GetIf<Node::IndexedRepeatedField>()) {
       // Implements merge semantics for repeated fields: all existing fields are
       // removed and replaced with the newly received fields.
-      if (!indexed_fields->has_been_merged) {
+      if (!it->value->has_been_merged) {
         // Optimization opportunity: reuse the existing nodes to avoid N
         // allocation-deallocation pairs, where N is the number of newly
         // received repeated fields.
         allocator_->DeleteReferencedData(it->value.get());
-        indexed_fields->has_been_merged = true;
+        it->value->has_been_merged = true;
       }
       MapInsert(&indexed_fields->index_to_node,
                 indexed_fields->index_to_node.Size(),
@@ -289,36 +313,35 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     // allocation-deallocation pair
     allocator_->Delete(it->value.release());
     it->value = std::move(*status_or_map_value);
+    it->value->has_been_merged = true;
   }
 
-  // Reset the merge state of repeated fields
+  // Reset the merge flags
   for (auto& field : message->field_id_to_node) {
-    if (auto* indexed_fields =
-            field.value->GetIf<Node::IndexedRepeatedField>()) {
-      indexed_fields->has_been_merged = false;
-    }
+    field.value->has_been_merged = false;
   }
 
   return StatusOr<void>::Ok();
 }
 
 StatusOr<void> RwProtoCursor::Delete() {
-  PERFETTO_DCHECK(node_);
+  PROTOVM_RETURN_IF_NOT_OK(CheckIsValid());
 
-  bool is_root_node = !parent_link_.node;
-  if (is_root_node) {
+  PROTOVM_ASSIGN_OR_RETURN(bool is_root, IsRoot());
+  if (is_root) {
     node_->value = Node::Empty{};
     return StatusOr<void>::Ok();
   }
 
-  PERFETTO_DCHECK(parent_link_.node);
   PERFETTO_DCHECK(parent_link_.map);
   PERFETTO_DCHECK(parent_link_.map_node);
 
   parent_link_.map->Remove(*parent_link_.map_node);
-  allocator_->Delete(&GetOuterNode(*parent_link_.map_node));
+  allocator_->Delete(parent_link_.map_node);
 
-  node_ = nullptr;  // Delete operation invalidates cursor
+  // Delete operation invalidates cursor
+  node_ = nullptr;
+  parent_link_ = {};
 
   return StatusOr<void>::Ok();
 }
@@ -603,22 +626,18 @@ StatusOr<IntrusiveMap::Iterator> RwProtoCursor::MapInsert(
     uint64_t key,
     OwnedPtr<Node> map_value) {
   auto status_or_map_node =
-      allocator_->CreateNode<Node::MapNode>(key, std::move(map_value));
-  if (!status_or_map_node.IsOk()) {
-    allocator_->Delete(map_value.release());
-    PROTOVM_RETURN(status_or_map_node, "Failed to allocate node");
-  }
+      allocator_->CreateMapNode(key, std::move(map_value));
+  PROTOVM_RETURN_IF_NOT_OK(status_or_map_node, "Failed to allocate node");
 
-  auto [it, inserted] =
-      map->Insert(*status_or_map_node->release()->GetIf<Node::MapNode>());
+  auto [it, inserted] = map->Insert(*status_or_map_node->get());
   if (!inserted) {
-    allocator_->Delete(map_value.release());
     allocator_->Delete(status_or_map_node->release());
     PROTOVM_ABORT(
         "Failed to insert intrusive map entry (key = %d). Duplicated key?",
         static_cast<int>(key));
   }
 
+  status_or_map_node->release();
   return it;
 }
 
@@ -669,6 +688,13 @@ StatusOr<uint64_t> RwProtoCursor::ReadScalarField(const Node& node,
   PROTOVM_ABORT(
       "Attempted to read scalar field (id=%u) but parent node has type %s",
       field_id, node.GetTypeName());
+}
+
+StatusOr<void> RwProtoCursor::CheckIsValid() const {
+  if (!node_) {
+    PROTOVM_ABORT("Attempted to access invalid cursor");
+  }
+  return StatusOr<void>::Ok();
 }
 
 }  // namespace protovm

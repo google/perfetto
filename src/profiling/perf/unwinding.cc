@@ -278,7 +278,8 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
     // descriptors.
     if (PERFETTO_UNLIKELY(!entry.sample.regs &&
                           proc_state.status ==
-                              ProcessState::Status::kFdsResolved)) {
+                              ProcessState::Status::kFdsResolved &&
+                          ds.unwind_mode != UnwindMode::kKernelFramePointer)) {
       PERFETTO_DLOG(
           "Unwinder discarding sample for pid [%d]: uspace->kthread pid reuse",
           static_cast<int>(pid));
@@ -351,15 +352,29 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   CompletedSample ret;
   ret.common = sample.common;
 
-  // Symbolize kernel-unwound kernel frames, if appropriate.
-  std::vector<unwindstack::FrameData> kernel_frames =
-      SymbolizeKernelCallchain(sample);
+  // Kernel callchain symbolization is shared by all modes (the kernel
+  // section has no build_id, hence the empty-string fill).
+  ret.frames = SymbolizeKernelCallchain(sample);
+  ret.build_ids.resize(ret.frames.size(), "");
 
-  size_t kernel_frames_size = kernel_frames.size();
-  ret.frames = std::move(kernel_frames);
-  ret.build_ids.resize(kernel_frames_size, "");
+  // |kKernelFramePointer|: the kernel also walked the userspace frame
+  // pointer chain on our behalf, so the user IPs sit in the same callchain.
+  // Annotate them with mapping/build-id from the cached procfs state and
+  // we're done.
+  if (unwind_mode == UnwindMode::kKernelFramePointer) {
+    std::vector<unwindstack::FrameData> user_frames =
+        SymbolizeKernelSuppliedUserFrames(sample, opt_user_state);
+    ret.frames.reserve(ret.frames.size() + user_frames.size());
+    ret.build_ids.reserve(ret.build_ids.size() + user_frames.size());
+    for (unwindstack::FrameData& frame : user_frames) {
+      ret.build_ids.emplace_back(opt_user_state->GetBuildId(frame));
+      ret.frames.emplace_back(std::move(frame));
+    }
+    return ret;
+  }
 
-  // Perform userspace unwinding using libunwindstack, if appropriate.
+  // Other modes: perform userspace unwinding using libunwindstack/FP, if we
+  // have the proc-fd state for the process.
   if (!opt_user_state)
     return ret;
 
@@ -417,7 +432,11 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
         return {unwinder.LastErrorCode(), unwinder.warnings(),
                 unwinder.ConsumeFrames()};
       }
+      case UnwindMode::kKernelFramePointer:
+        // Handled above by short-circuiting prior to userspace unwinding.
+        PERFETTO_FATAL("unreachable");
     }
+    PERFETTO_FATAL("unreachable");
   };
 
   // first unwind attempt
@@ -449,8 +468,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     unwind = attempt_unwind();
   }
 
-  ret.build_ids.reserve(kernel_frames_size + unwind.frames.size());
-  ret.frames.reserve(kernel_frames_size + unwind.frames.size());
+  ret.build_ids.reserve(ret.frames.size() + unwind.frames.size());
+  ret.frames.reserve(ret.frames.size() + unwind.frames.size());
   for (unwindstack::FrameData& frame : unwind.frames) {
     ret.build_ids.emplace_back(unwind_state->GetBuildId(frame));
     ret.frames.emplace_back(std::move(frame));
@@ -481,10 +500,11 @@ std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
   if (sample.kernel_ips.empty())
     return ret;
 
-  // The list of addresses contains special context marker values (inserted by
-  // the kernel's unwinding) to indicate which section of the callchain belongs
-  // to the kernel/user mode (if the kernel can successfully unwind user
-  // stacks). In our case, we request only the kernel frames.
+  // The callchain is a flat list of instruction addresses, with special
+  // PERF_CONTEXT_{KERNEL,USER} marker values inserted by the kernel to
+  // delimit kernel vs user sections. We only consume the kernel section
+  // here; the user section (if present, in UNWIND_KERNEL_FRAME_POINTER mode)
+  // is handled by |SymbolizeKernelSuppliedUserFrames|.
   if (sample.kernel_ips[0] != PERF_CONTEXT_KERNEL) {
     PERFETTO_DFATAL_OR_ELOG(
         "Unexpected: 0th frame of callchain is not PERF_CONTEXT_KERNEL.");
@@ -493,17 +513,49 @@ std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
 
   auto* kernel_map = kernel_symbolizer_.GetOrCreateKernelSymbolMap();
   PERFETTO_DCHECK(kernel_map);
-  ret.reserve(sample.kernel_ips.size());
+  ret.reserve(sample.kernel_ips.size() - 1);
   for (size_t i = 1; i < sample.kernel_ips.size(); i++) {
-    std::string function_name = kernel_map->Lookup(sample.kernel_ips[i]);
+    uint64_t ip = sample.kernel_ips[i];
+    // Stop at the user-section marker - those frames are handled separately.
+    if (ip == PERF_CONTEXT_USER)
+      break;
 
     // Synthesise a partially-valid libunwindstack frame struct for the kernel
-    // frame. We reuse the type for convenience. The kernel frames are marked by
-    // a magical "kernel" MapInfo object as their containing mapping.
-    unwindstack::FrameData frame{};
-    frame.function_name = std::move(function_name);
+    // frame. We reuse the type for convenience. The kernel frames are marked
+    // by a magical "kernel" MapInfo object as their containing mapping.
+    unwindstack::FrameData& frame = ret.emplace_back();
+    frame.function_name = kernel_map->Lookup(ip);
     frame.map_info = kernel_map_info.ref();
-    ret.emplace_back(std::move(frame));
+  }
+  return ret;
+}
+
+std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelSuppliedUserFrames(
+    const ParsedSample& sample,
+    UnwindingMetadata* user_state) {
+  std::vector<unwindstack::FrameData> ret;
+  if (user_state == nullptr)
+    return ret;
+
+  auto it = std::find(sample.kernel_ips.begin(), sample.kernel_ips.end(),
+                      PERF_CONTEXT_USER);
+  if (it == sample.kernel_ips.end())
+    return ret;
+  ++it;
+
+  ret.reserve(static_cast<size_t>(sample.kernel_ips.end() - it));
+
+  // Use libunwindstack's canonical helper to compute |rel_pc| (handling
+  // |load_bias|, |elf_offset|, and architecture-specific PC adjustment for
+  // return addresses), and to populate |map_info|. This is the same path the
+  // libunwindstack/FP unwinders rely on for emission, just driven directly
+  // by the IPs the kernel returned.
+  // TODO(rsavitski): add vdso redirect and remove fd_mem.
+  for (; it != sample.kernel_ips.end(); ++it) {
+    ret.emplace_back(unwindstack::Unwinder::BuildFrameFromPcOnly(
+        *it, unwindstack::Regs::CurrentArch(), &user_state->fd_maps,
+        /*jit_debug=*/nullptr, user_state->fd_mem,
+        /*resolve_names=*/false));
   }
   return ret;
 }

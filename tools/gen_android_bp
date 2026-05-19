@@ -92,6 +92,10 @@ default_targets = [
 ipc_plugin = '//src/ipc/protoc_plugin:ipc_plugin(%s)' % gn_utils.HOST_TOOLCHAIN
 protozero_plugin = '//src/protozero/protoc_plugin:protozero_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
+# Exposed as a cc_binary_host in Android.bp so Android-tree genrules can
+# invoke it (via tools:) to generate .pzc.h headers at build time.
+protozero_c_plugin = '//src/protozero/protoc_plugin:protozero_c_plugin(%s)' % (
+    gn_utils.HOST_TOOLCHAIN)
 cppgen_plugin = '//src/protozero/protoc_plugin:cppgen_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
 protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_descriptor_diff(%s)' % (
@@ -101,6 +105,7 @@ default_targets += [
     '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
+    protozero_c_plugin,
     ipc_plugin,
 ]
 
@@ -117,6 +122,7 @@ target_host_supported = [
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//protos/perfetto/trace/android:perfetto_winscope_extensions_zero',
+    '//src/android_sdk/jni:libperfetto_framework_jni',
     '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor',
@@ -158,7 +164,6 @@ proto_groups = {
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',
             '//protos/perfetto/trace/android:winscope_extensions_source_set',
-            '//protos/perfetto/trace/android:android_track_event_source_set',
         ]
     },
     'config': {
@@ -173,12 +178,6 @@ proto_groups = {
         'types': ['filegroup'],
         'targets': ['//protos/perfetto/trace_summary:source_set',]
     },
-    'trace_android_track_event_extension': {
-        'types': ['lite'],
-        'targets': [
-            '//protos/perfetto/trace/android:android_track_event_source_set',
-        ]
-    }
 }
 
 needs_libfts = [
@@ -189,6 +188,14 @@ needs_libfts = [
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
+
+# Shared libraries with a static variant suitable for host linking. For
+# host_supported modules, these get linked dynamically on Android and
+# statically on host -- matching what enable_zlib / enable_expat /
+# enable_sqlite do for those libs. Needed when a host_supported module
+# references symbols the lib provides on host (e.g. libperfetto_framework_jni
+# references __android_log_* via nativehelper/JNIHelp.h).
+shared_libs_with_host_static = {'liblog'}
 
 # Shared libraries which are directly translated to Android system equivalents.
 shared_library_allowlist = [
@@ -378,6 +385,14 @@ additional_args = {
     ],
     'perfetto_trace_lib_java': [
         ('sdk_version', 'module_current'),
+        # Propagates to perfetto_trace_lib_framework_java via shared defaults.
+        ('host_supported', True),
+        # On host the module_current classpath doesn't expose
+        # dalvik.annotation.optimization or android.system.SystemCleaner;
+        # the stubs library defined in Android.bp.extras provides them.
+        ('host', {
+            'libs': {'perfetto_trace_lib_host_stubs'}
+        }),
         # Framework should use 'perfetto_trace_lib_framework_java' instead.
         ('visibility', {':__subpackages__'}),
     ],
@@ -618,6 +633,7 @@ class Target(object):
 
   def __init__(self, name):
     self.name = name
+    self.libs = set()
     self.shared_libs = set()
     self.static_libs = set()
     self.whole_static_libs = set()
@@ -631,6 +647,7 @@ class Target(object):
   def to_string(self, output):
     nested_out = []
     self._output_field(nested_out, 'enabled')
+    self._output_field(nested_out, 'libs')
     self._output_field(nested_out, 'shared_libs')
     self._output_field(nested_out, 'static_libs')
     self._output_field(nested_out, 'whole_static_libs')
@@ -810,6 +827,8 @@ class Module(object):
       raise Exception('Adding Android shared lib for host tool is unsupported')
     elif self.host_supported:
       self.android.shared_libs.add(lib)
+      if lib in shared_libs_with_host_static:
+        self.host.static_libs.add(lib)
     else:
       self.shared_libs.add(lib)
 
@@ -1217,6 +1236,7 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       module.proto = {'type': 'lite', 'canonical_path_from_root': False}
       module.srcs = module_sources
       module.host_supported = True
+      module.sdk_version = 'current'
       blueprint.add_module(module)
     elif type == 'python':
       name = label_to_module_name(module_name) + '_python_protos'

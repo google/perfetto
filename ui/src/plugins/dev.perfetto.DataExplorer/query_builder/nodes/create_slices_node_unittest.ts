@@ -14,7 +14,7 @@
 
 import {CreateSlicesNode} from './create_slices_node';
 import protos from '../../../../protos';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {
   createMockNode,
   createColumnInfo,

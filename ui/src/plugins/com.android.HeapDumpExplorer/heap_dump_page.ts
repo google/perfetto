@@ -22,8 +22,8 @@ import type {TabsTab} from '../../widgets/tabs';
 import {formatDuration} from '../../components/time_utils';
 import type {NavState, NavView} from './nav_state';
 import type {OverviewData} from './types';
-import * as queries from './queries';
-import OverviewView, {HIDE_DEFAULT_CHANGED_KEY} from './views/overview_view';
+import type * as queries from './queries';
+import OverviewView from './views/overview_view';
 import DominatorsView from './views/dominators_view';
 import ObjectView from './views/object_view';
 import AllObjectsView from './views/all_objects_view';
@@ -111,10 +111,8 @@ function buildTabs(
   overview: OverviewData,
 ): TabsTab[] {
   const {engine, trace, navigateWithTabs, clearNavParam} = session;
-  const hideExplanationSetting = trace.settings.get<boolean>(
-    HIDE_DEFAULT_CHANGED_KEY,
-  );
-  const hideHint = hideExplanationSetting?.get() ?? false;
+  const hideExplanationSetting = session.hideDefaultChangedHint;
+  const hideHint = hideExplanationSetting.get();
   const tabs: TabsTab[] = [
     {
       key: 'overview',
@@ -125,7 +123,7 @@ function buildTabs(
         navigate: navigateWithTabs,
         showDefaultChangedHint: session.autoNavigated && !hideHint,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
-        onDismissDefaultChangedHint: () => hideExplanationSetting?.set(true),
+        onDismissDefaultChangedHint: () => hideExplanationSetting.set(true),
       }),
     },
     {
@@ -268,8 +266,8 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
 
   return m(
     'div',
-    {class: 'ah-dump-selector'},
-    m('span', {class: 'ah-dump-selector__label'}, 'Heap dump:'),
+    {class: 'pf-hde-dump-selector'},
+    m('span', {class: 'pf-hde-dump-selector__label'}, 'Heap dump:'),
     m(
       PopupMenu,
       {
@@ -318,9 +316,9 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     if (active === null || overview === null) {
       return m(
         'div',
-        {class: 'ah-page'},
+        {class: 'pf-hde-page'},
         renderDumpSelector(session),
-        m('div', {class: 'ah-loading'}, m(Spinner, {easing: true})),
+        m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
       );
     }
 
@@ -330,11 +328,11 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
 
     return m(
       'div',
-      {class: 'ah-page'},
+      {class: 'pf-hde-page'},
       renderDumpSelector(session),
       m(
         'main',
-        {class: 'ah-main'},
+        {class: 'pf-hde-main'},
         m(Tabs, {
           key: tabsKey,
           tabs: buildTabs(session, active, session.nav, overview),

@@ -15,7 +15,7 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
-import {EChartView, EChartEventHandler} from './echart_view';
+import {EChartView, type EChartEventHandler} from './echart_view';
 import type {LegendPosition} from './common';
 import {
   buildChartOption,
@@ -87,6 +87,18 @@ export interface LineChartAttrs {
    * state — typically by feeding the `onBrush` output back in.
    */
   readonly selection?: {readonly start: number; readonly end: number};
+
+  /**
+   * Vertical markers drawn at specific X values. Each marker renders as a
+   * thin vertical line spanning the plot area with a small dot at the top.
+   * Useful for annotating point-in-time events (e.g. LMK kills) on top of
+   * a time series.
+   */
+  readonly markers?: ReadonlyArray<{
+    readonly x: number;
+    readonly color?: string;
+    readonly label?: string;
+  }>;
 
   /**
    * Fill parent container. Defaults to false.

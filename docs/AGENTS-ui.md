@@ -42,7 +42,7 @@ To build and serve the UI for development:
 ```sh
 # From the repository root
 ui/build    # Builds the UI.
-ui/build --typecheck # Run tsc --noEmit, does't bundle (faster).
+ui/build --typecheck # Run tsc --noEmit, doesn't bundle (faster).
 ui/run-dev-server    # Starts the development server with live reload.
 ```
 
@@ -228,7 +228,7 @@ async onTraceLoad(trace: Trace): Promise<void> {
 
 ## Track creation
 
-Rarely you need to create a new Track from scrach.
+Rarely you need to create a new Track from scratch.
 In most cases you can use higher level components in ui/src/components/tracks/, especially DatasetSliceTrack (examples in /docs/contributing/ui-plugins.md).
 Look at those examples first and keep creating a track via trace.tracks.registerTrack as a last-resort.
 

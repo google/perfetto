@@ -13,25 +13,25 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PivotTableState} from './pivot_table_state';
+import type {PivotTableState} from './pivot_table_state';
 import {Spinner} from '../../../../widgets/spinner';
-import {PivotTreeNode} from './pivot_tree_node';
+import type {PivotTreeNode} from './pivot_tree_node';
 import {Button} from '../../../../widgets/button';
 import {Icons} from '../../../../base/semantic_icons';
-import {TableColumn, tableColumnId} from '../table/table_column';
+import {type TableColumn, tableColumnId} from '../table/table_column';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {SelectColumnMenu} from '../table/menus/select_column_menu';
-import {SqlColumn} from '../table/sql_column';
+import type {SqlColumn} from '../table/sql_column';
 import {buildSqlQuery} from '../table/query_builder';
-import {Aggregation, AGGREGATIONS} from './aggregations';
+import {type Aggregation, AGGREGATIONS} from './aggregations';
 import {aggregationId, aggregationLabel, pivotId} from './ids';
 import {
   Grid,
   GridCell,
-  GridColumn,
+  type GridColumn,
   GridHeaderCell,
   renderSortMenuItems,
-  SortDirection,
+  type SortDirection,
 } from '../../../../widgets/grid';
 
 export interface PivotTableAttrs {

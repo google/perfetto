@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import protos from '../../../../../protos';
+import type protos from '../../../../../protos';
 import {
-  QueryNode,
-  NodeContext,
+  type QueryNode,
+  type NodeContext,
   NodeType,
   nextNodeId,
-  SecondaryInputSpec,
+  type SecondaryInputSpec,
 } from '../../../query_node';
-import {ColumnInfo} from '../../column_info';
-import {NodeDetailsAttrs, NodeModifyAttrs} from '../../../node_types';
+import type {ColumnInfo} from '../../column_info';
+import type {NodeDetailsAttrs, NodeModifyAttrs} from '../../../node_types';
 import {TextInput} from '../../../../../widgets/text_input';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {InnerGraphPreview} from './inner_graph_preview';

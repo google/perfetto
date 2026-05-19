@@ -14,9 +14,9 @@
 
 import {z} from 'zod';
 import {Registry} from '../base/registry';
-import {Command, CommandManager} from '../public/commands';
+import type {Command, CommandManager} from '../public/commands';
 import {raf} from './raf_scheduler';
-import {OmniboxManagerImpl} from './omnibox_manager';
+import type {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
 import {DisposableStack} from '../base/disposable_stack';
 

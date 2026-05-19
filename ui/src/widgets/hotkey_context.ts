@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './hotkey_context.scss';
 import m from 'mithril';
-import {checkHotkey, Hotkey} from '../base/hotkeys';
+import {checkHotkey, type Hotkey} from '../base/hotkeys';
 import {toHTMLElement} from '../base/dom_utils';
 import {classNames} from '../base/classnames';
 

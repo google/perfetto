@@ -15,13 +15,13 @@
 import m from 'mithril';
 import {QuerySlot} from '../base/query_slot';
 import {Icons} from '../base/semantic_icons';
-import {Trace} from '../public/trace';
-import {Dataset, DatasetSchema} from '../trace_processor/dataset';
-import {NUM, Row, SqlValue} from '../trace_processor/query_result';
+import type {Trace} from '../public/trace';
+import type {Dataset, DatasetSchema} from '../trace_processor/dataset';
+import {NUM, type Row, type SqlValue} from '../trace_processor/query_result';
 import {sqlValueToSqliteString} from '../trace_processor/sql_utils';
 import {
   createPerfettoTable,
-  DisposableSqlEntity,
+  type DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
@@ -33,16 +33,22 @@ import {Tooltip} from '../widgets/tooltip';
 import {Tree, TreeNode} from '../widgets/tree';
 import {extensions} from './extensions';
 import {DurationWidget} from './widgets/duration';
-import {Histogram} from './widgets/charts/histogram';
+import {HistogramSvg} from './widgets/charts_svg/histogram_svg';
 import {
-  HistogramData,
+  type HistogramData,
   SQLHistogramLoader,
 } from './widgets/charts/histogram_loader';
 import {DataGrid, renderCell} from './widgets/datagrid/datagrid';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
-import {ColumnSchema, SchemaRegistry} from './widgets/datagrid/datagrid_schema';
-import {Column, Filter} from './widgets/datagrid/model';
-import {SQLSchemaRegistry, SQLTableSchema} from './widgets/datagrid/sql_schema';
+import type {
+  ColumnSchema,
+  SchemaRegistry,
+} from './widgets/datagrid/datagrid_schema';
+import type {Column, Filter} from './widgets/datagrid/model';
+import type {
+  SQLSchemaRegistry,
+  SQLTableSchema,
+} from './widgets/datagrid/sql_schema';
 import {formatDuration} from './time_utils';
 
 export function helpIcon(help: m.Children): m.Children {
@@ -180,6 +186,11 @@ export interface DistributionSummaryAttrs extends DistributionInputs {
   readonly onBrushChange?: (
     brush: {readonly start: number; readonly end: number} | undefined,
   ) => void;
+
+  // When set, the histogram bucket containing this value is drawn in a
+  // distinct color — used to show "where does this slice's duration fall
+  // in the distribution?".
+  readonly highlightValue?: number;
 }
 
 // Reusable left-half: histogram (with brush) + percentile stats. Materializes
@@ -285,7 +296,7 @@ export class DistributionSummary
     data: HistogramData | undefined,
   ): m.Children {
     const onBrushChange = attrs.onBrushChange;
-    return m(Histogram, {
+    return m(HistogramSvg, {
       data,
       height: 220,
       xAxisLabel: attrs.valueColumn,
@@ -293,7 +304,11 @@ export class DistributionSummary
       formatXValue: (v) => formatDuration(attrs.trace, BigInt(Math.round(v))),
       onBrush:
         onBrushChange === undefined ? undefined : (r) => onBrushChange(r),
-      selection: attrs.brush,
+      selection:
+        attrs.brush ??
+        (attrs.highlightValue !== undefined
+          ? {start: attrs.highlightValue, end: attrs.highlightValue}
+          : undefined),
     });
   }
 

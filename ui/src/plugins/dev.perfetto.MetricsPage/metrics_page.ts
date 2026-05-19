@@ -13,17 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {errResult, Result, okResult} from '../../base/result';
-import {Engine} from '../../trace_processor/engine';
+import {errResult, type Result, okResult} from '../../base/result';
+import type {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {assertExists, assertUnreachable} from '../../base/assert';
-import {Trace} from '../../public/trace';
-import {
-  SegmentedButton,
-  SegmentedButtons,
-} from '../../widgets/segmented_buttons';
+import type {Trace} from '../../public/trace';
+import {RadioGroup} from '../../widgets/radio_group';
 import {Editor} from '../../widgets/editor';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
@@ -32,8 +29,8 @@ import {Callout} from '../../widgets/callout';
 import {TextInput} from '../../widgets/text_input';
 import {Tabs} from '../../widgets/tabs';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import {Row} from '../../trace_processor/query_result';
+import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {Row} from '../../trace_processor/query_result';
 import protos from '../../protos';
 
 type Format = 'json' | 'prototext' | 'proto';
@@ -484,16 +481,16 @@ function renderV2Result(
     m(
       '.pf-metricsv2-result__header',
       m(
-        SegmentedButtons,
+        RadioGroup,
         {
           selectedValue: viewMode,
-          onOptionSelected: (value) => {
+          onValueChange: (value) => {
             onViewModeChange(value === 'table' ? 'table' : 'json');
           },
         },
         [
-          m(SegmentedButton, {value: 'table'}, 'Table'),
-          m(SegmentedButton, {value: 'json'}, 'JSON'),
+          m(RadioGroup.Button, {value: 'table'}, 'Table'),
+          m(RadioGroup.Button, {value: 'json'}, 'JSON'),
         ],
       ),
     ),
@@ -684,16 +681,16 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
       m(
         '',
         m(
-          SegmentedButtons,
+          RadioGroup,
           {
             selectedValue: this.mode === 'V1' ? 'v1' : 'v2',
-            onOptionSelected: (value) => {
+            onValueChange: (value) => {
               this.mode = value === 'v1' ? 'V1' : 'V2';
             },
           },
           [
-            m(SegmentedButton, {value: 'v1'}, 'Metric v1'),
-            m(SegmentedButton, {value: 'v2'}, 'Metric v2'),
+            m(RadioGroup.Button, {value: 'v1'}, 'Metric v1'),
+            m(RadioGroup.Button, {value: 'v2'}, 'Metric v2'),
           ],
         ),
       ),
@@ -701,10 +698,10 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
         m(
           '',
           m(
-            SegmentedButtons,
+            RadioGroup,
             {
               selectedValue: this.v2Mode,
-              onOptionSelected: (value) => {
+              onValueChange: (value) => {
                 this.v2Mode =
                   value === 'metric-spec'
                     ? 'metric-spec'
@@ -714,8 +711,12 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
               },
             },
             [
-              m(SegmentedButton, {value: 'metric-spec'}, 'Metric Spec'),
-              m(SegmentedButton, {value: 'full-trace-summary'}, 'Full Summary'),
+              m(RadioGroup.Button, {value: 'metric-spec'}, 'Metric Spec'),
+              m(
+                RadioGroup.Button,
+                {value: 'full-trace-summary'},
+                'Full Summary',
+              ),
             ],
           ),
         ),

@@ -273,46 +273,58 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     }
   }
 
+  // Convert the bundle's event timestamp once. Custom tokenizers receive this
+  // as `raw_ts` and use it as FtraceData::raw_ts so the parser's drop-window
+  // checks compare against the original event time (not any synthetic placement
+  // time). The generic path also reuses it as the queue ts.
+  std::optional<int64_t> raw_ts_opt = context_->clock_tracker->ToTraceTime(
+      clock_id, static_cast<int64_t>(raw_timestamp));
+  // ClockTracker will increment some error stats if it failed to convert the
+  // timestamp so just return.
+  if (!raw_ts_opt.has_value()) {
+    return;
+  }
+  int64_t raw_ts = *raw_ts_opt;
+
   if (PERFETTO_UNLIKELY(
           event_id == protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber)) {
-    TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), std::move(state));
+    TokenizeFtraceGpuWorkPeriod(cpu, raw_ts, std::move(event),
+                                std::move(state));
     return;
   }
   if (PERFETTO_UNLIKELY(
           event_id ==
           protos::pbzero::FtraceEvent::kThermalExynosAcpmBulkFieldNumber)) {
-    TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event),
+    TokenizeFtraceThermalExynosAcpmBulk(cpu, raw_ts, std::move(event),
                                         std::move(state));
     return;
   }
   if (PERFETTO_UNLIKELY(
           event_id ==
           protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber)) {
-    TokenizeFtraceParamSetValueCpm(cpu, std::move(event), std::move(state));
+    TokenizeFtraceParamSetValueCpm(cpu, raw_ts, std::move(event),
+                                   std::move(state));
     return;
   }
   if (PERFETTO_UNLIKELY(
           event_id ==
           protos::pbzero::FtraceEvent::kFwtpPerfettoCounterFieldNumber)) {
-    TokenizeFtraceFwtpPerfettoCounter(cpu, std::move(event), std::move(state));
+    TokenizeFtraceFwtpPerfettoCounter(cpu, raw_ts, std::move(event),
+                                      std::move(state));
     return;
   }
   if (PERFETTO_UNLIKELY(
           event_id ==
           protos::pbzero::FtraceEvent::kFwtpPerfettoSliceFieldNumber)) {
-    TokenizeFtraceFwtpPerfettoSlice(cpu, std::move(event), std::move(state));
+    TokenizeFtraceFwtpPerfettoSlice(cpu, raw_ts, std::move(event),
+                                    std::move(state));
     return;
   }
 
-  std::optional<int64_t> timestamp = context_->clock_tracker->ToTraceTime(
-      clock_id, static_cast<int64_t>(raw_timestamp));
-  // ClockTracker will increment some error stats if it failed to convert the
-  // timestamp so just return.
-  if (!timestamp.has_value()) {
-    return;
-  }
+  // Generic path: queue ts equals raw_ts, so leave FtraceData::raw_ts as the
+  // kRawTsUnset sentinel (compressed away in the token buffer).
   module_context_->PushFtraceEvent(
-      cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
+      cpu, raw_ts, FtraceData{std::move(event), std::move(state)});
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -500,6 +512,7 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
 
 void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
     uint32_t cpu,
+    int64_t raw_ts,
     TraceBlobView event,
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid gpu_work_period tracepoint events which contain
@@ -530,11 +543,12 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
     return;
   }
   module_context_->PushFtraceEvent(
-      cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
+      cpu, *timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
 }
 
 void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
     uint32_t cpu,
+    int64_t raw_ts,
     TraceBlobView event,
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid thermal_exynos_acpm_bulk tracepoint events which
@@ -555,11 +569,12 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
   auto timestamp =
       static_cast<int64_t>(thermal_exynos_acpm_bulk_event.timestamp());
   module_context_->PushFtraceEvent(
-      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
+      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
 }
 
 void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
     uint32_t cpu,
+    int64_t raw_ts,
     TraceBlobView event,
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid param_set_value_cpm tracepoint events which
@@ -579,11 +594,12 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
   }
   int64_t timestamp = param_set_value_cpm_event.timestamp();
   module_context_->PushFtraceEvent(
-      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
+      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
 }
 
 void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
     uint32_t cpu,
+    int64_t raw_ts,
     TraceBlobView event,
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid fwtp_perfetto_counter tracepoint events which
@@ -604,11 +620,12 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
   int64_t timestamp =
       static_cast<int64_t>(fwtp_perfetto_counter_event.timestamp());
   module_context_->PushFtraceEvent(
-      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
+      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
 }
 
 void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
     uint32_t cpu,
+    int64_t raw_ts,
     TraceBlobView event,
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid fwtp_perfetto_slice tracepoint events which
@@ -629,7 +646,7 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
   int64_t timestamp =
       static_cast<int64_t>(fwtp_perfetto_slice_event.timestamp());
   module_context_->PushFtraceEvent(
-      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
+      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
 }
 
 std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(

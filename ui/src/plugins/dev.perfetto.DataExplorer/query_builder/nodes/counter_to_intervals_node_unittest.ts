@@ -402,7 +402,7 @@ describe('CounterToIntervalsNode', () => {
     });
 
     it('should preserve onchange callback', () => {
-      const onchange = jest.fn();
+      const onchange = vi.fn();
       const node = new CounterToIntervalsNode({}, {onchange});
 
       const cloned = node.clone() as CounterToIntervalsNode;
@@ -421,7 +421,7 @@ describe('CounterToIntervalsNode', () => {
 
   describe('onPrevNodesUpdated', () => {
     it('should trigger onchange callback when called', () => {
-      const onchange = jest.fn();
+      const onchange = vi.fn();
       const node = new CounterToIntervalsNode({}, {onchange});
 
       node.onPrevNodesUpdated();

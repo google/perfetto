@@ -24,7 +24,8 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
-  F(android_aflags_errors,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,          \
+  /* TODO(b/512786856): Restore severity to kError after flag rollout. */    \
+  F(android_aflags_errors,               kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,          \
        "Errors occurred during the collection of Android aconfig flags by the "\
        "android.aflags data source. This typically happens if the aflags tool "\
        "fails or its output is malformed."),                                   \
@@ -137,6 +138,9 @@ namespace perfetto::trace_processor::stats {
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "ETW Disk IO tracker encountered an event with an opcode for which it " \
+        "didn't have a name."),                                                \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \

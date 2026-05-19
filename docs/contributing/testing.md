@@ -35,7 +35,7 @@ sudo chown  -R $USER /sys/kernel/debug/tracing
 ### On Android
 
 1.  Connect a device through `adb`
-2.  Start the build-in emulator (supported on Linux and MacOS):
+2.  Start the built-in emulator (supported on Linux and MacOS):
 
 ```bash
 tools/install-build-deps --android
@@ -206,7 +206,7 @@ googlers have access to, googlers can install gcloud
 [here](https://g3doc.corp.google.com/cloud/sdk/g3doc/index.md#installing-and-using-the-cloud-sdk)).
 
 The tests are run in a docker container by default, unless -`-no-docker` is
-passed. It's recommended to use the container for a stable and reproducable
+passed. It's recommended to use the container for a stable and reproducible
 testing environment, especially for rebaselining, otherwise it's very likely the
 screenshots will not match when run on the CI.
 

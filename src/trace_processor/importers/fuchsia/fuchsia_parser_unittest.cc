@@ -463,17 +463,15 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 1005000);
-  EXPECT_EQ(rr_0->track_id(), track);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 1005000);
+  EXPECT_EQ(rr_0.track_id(), track);
 
-  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
-  EXPECT_TRUE(rr_1);
-  EXPECT_EQ(rr_1->ts(), 1010000);
-  EXPECT_EQ(rr_1->track_id(), track);
-  EXPECT_EQ(rr_1->dur(), 10000);
-  EXPECT_EQ(rr_1->category(), unknown_cat);
+  auto rr_1 = storage_->slice_table()[SliceId(1u)];
+  EXPECT_EQ(rr_1.ts(), 1010000);
+  EXPECT_EQ(rr_1.track_id(), track);
+  EXPECT_EQ(rr_1.dur(), 10000);
+  EXPECT_EQ(rr_1.category(), unknown_cat);
 }
 
 TEST_F(FuchsiaTraceParserTest, SchedulerEvents) {

@@ -15,7 +15,7 @@
 import protobuf from 'protobufjs/minimal';
 import protos from '../../../protos';
 
-import {ByteStream} from '../interfaces/byte_stream';
+import type {ByteStream} from '../interfaces/byte_stream';
 import {ProtoRingBuffer} from '../../../trace_processor/proto_ring_buffer';
 import {defer} from '../../../base/deferred';
 import {exists} from '../../../base/utils';

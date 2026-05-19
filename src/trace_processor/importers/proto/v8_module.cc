@@ -106,12 +106,11 @@ std::optional<UniqueTid> V8Module::GetUtid(
   auto* pid = isolate_to_pid_.Find(isolate_id);
   if (!pid) {
     tables::ProcessTable::Id upid(
-        context_->storage->v8_isolate_table().FindById(isolate_id)->upid());
+        context_->storage->v8_isolate_table()[isolate_id].upid());
     pid = isolate_to_pid_
-              .Insert(
-                  isolate_id,
-                  static_cast<uint32_t>(
-                      context_->storage->process_table().FindById(upid)->pid()))
+              .Insert(isolate_id,
+                      static_cast<uint32_t>(
+                          context_->storage->process_table()[upid].pid()))
               .first;
   }
 

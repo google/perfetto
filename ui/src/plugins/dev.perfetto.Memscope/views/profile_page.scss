@@ -1,0 +1,173 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memscope-profile-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: stretch;
+  border-radius: 8px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-danger);
+  overflow: hidden;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--pf-color-danger) 25%, transparent);
+}
+
+.pf-memscope-profile-bar--stopping {
+  border-color: var(--pf-color-warning);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--pf-color-warning) 25%, transparent);
+
+  .pf-memscope-profile-bar__stopping {
+    color: var(--pf-color-warning);
+    font-style: normal;
+  }
+}
+
+.pf-memscope-profile-bar__zone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 20px;
+  min-width: 0;
+
+  & + & {
+    border-left: 1px solid var(--pf-color-border-secondary);
+  }
+}
+
+.pf-memscope-profile-bar__zone--actions {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-memscope-profile-bar__zone--sources .pf-memscope-profile-bar__field {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.pf-memscope-profile-bar__label {
+  font-size: var(--pf-font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--pf-color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-memscope-profile-bar__field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pf-memscope-profile-bar__rec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--pf-font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--pf-color-danger);
+
+  &::before {
+    content: "";
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pf-color-danger);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--pf-color-danger) 25%, transparent);
+    animation: pf-memscope-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+.pf-memscope-profile-bar__stopping {
+  font-size: var(--pf-font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--pf-color-text-muted);
+  font-style: italic;
+}
+
+.pf-memscope-profile-bar__process {
+  font-size: var(--pf-font-size-l);
+  font-weight: 700;
+  color: var(--pf-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.pf-memscope-profile-bar__pid-chip {
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  color: var(--pf-color-text);
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.pf-memscope-profile-bar__duration {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--pf-font-size-m);
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memscope-source-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pf-memscope-source-chip__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--pf-font-size-m);
+  font-weight: 700;
+  color: var(--pf-color-text);
+
+  .pf-icon {
+    font-size: var(--pf-font-size-m);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memscope-source-chip__meta {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  font-weight: 400;
+}
+
+@keyframes pf-memscope-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef} from '../../components/aggregation';
-import {Aggregator} from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
+import type {ColumnDef} from '../../components/aggregation';
+import type {Aggregator} from '../../components/aggregation_adapter';
+import type {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 
 export class EntityStateResidencySelectionAggregator implements Aggregator {
   readonly id = 'entity_state_residency_aggregation';

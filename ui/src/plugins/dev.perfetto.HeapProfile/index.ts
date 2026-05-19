@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
-import {time} from '../../base/time';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {time} from '../../base/time';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
@@ -23,24 +23,26 @@ import {
   createPerfettoView,
 } from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {Track} from '../../public/track';
+import type {Track} from '../../public/track';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {assertExists} from '../../base/assert';
 import {
   isProfileDescriptor,
-  ProfileDescriptor,
+  type ProfileDescriptor,
   profileDescriptor,
   ProfileType,
 } from './common';
 import {
-  AreaSelection,
+  type AreaSelection,
   areaSelectionsEqual,
-  AreaSelectionTab,
+  type AreaSelectionTab,
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 import {EvtSource} from '../../base/events';
+import type {App} from '../../public/app';
+import type {Flag} from '../../public/feature_flag';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
@@ -61,6 +63,24 @@ function trackUri(upid: number, type: string): string {
 export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
+
+  // Defined here (the Heap Dump Explorer's dependency) so both the Heap
+  // Dump Explorer and HeapProfile can read the flag without a circular
+  // import.
+  static openHeapDumpExplorerByDefaultFlag: Flag;
+
+  static onActivate(app: App) {
+    HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag =
+      app.featureFlags.register({
+        id: 'openHeapDumpExplorerByDefault',
+        name: 'Open Heap Dump Explorer by default',
+        description:
+          'When enabled, traces that contain Java heap-graph data and no ' +
+          'common timeline data (slice / sched) open directly in the Heap ' +
+          'Dump Explorer instead of the timeline.',
+        defaultValue: true,
+      });
+  }
 
   private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
@@ -264,12 +284,19 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async selectHeapProfile(ctx: Trace) {
+    const hdeWillTakeOver =
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(ctx));
+    const javaHeapGraphFilter = hdeWillTakeOver
+      ? `WHERE type != 'java_heap_graph'`
+      : '';
     const result = await ctx.engine.query(`
         SELECT
           id,
           upid,
           type
         FROM ${EVENT_TABLE_NAME}
+        ${javaHeapGraphFilter}
         ORDER BY type, ts
         LIMIT 1
       `);
@@ -355,4 +382,16 @@ function matchingTracks(
     }
     return false;
   });
+}
+
+export async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
+  const res = await ctx.engine.query(`
+    SELECT
+      EXISTS(SELECT 1 FROM slice) OR
+      EXISTS(SELECT 1 FROM sched) OR
+      EXISTS(SELECT 1 FROM heap_profile_allocation) OR
+      EXISTS(SELECT 1 FROM perf_sample)
+      AS res
+  `);
+  return res.firstRow({res: NUM}).res > 0;
 }

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue, assertUnreachable} from '../base/assert';
-import {
+import type {
   Selection,
   Area,
   SelectionOpts,
@@ -24,18 +24,18 @@ import {
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
 import {exists, getOrCreate} from '../base/utils';
-import {TrackManagerImpl} from './track_manager';
-import {Engine} from '../trace_processor/engine';
-import {ScrollHelper} from './scroll_helper';
-import {NoteManagerImpl} from './note_manager';
-import {SearchResult} from '../public/search';
+import type {TrackManagerImpl} from './track_manager';
+import type {Engine} from '../trace_processor/engine';
+import type {ScrollHelper} from './scroll_helper';
+import type {NoteManagerImpl} from './note_manager';
+import type {SearchResult} from '../public/search';
 import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
-import {SerializedSelection} from './state_serialization_schema';
+import type {SerializedSelection} from './state_serialization_schema';
 import {showModal} from '../widgets/modal';
-import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
-import {UnionDataset, SourceDataset} from '../trace_processor/dataset';
-import {Track} from '../public/track';
+import {NUM, type SqlValue, UNKNOWN} from '../trace_processor/query_result';
+import {UnionDataset, type SourceDataset} from '../trace_processor/dataset';
+import type {Track} from '../public/track';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;

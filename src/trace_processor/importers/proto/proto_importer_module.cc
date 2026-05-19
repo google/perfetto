@@ -81,7 +81,7 @@ void ProtoImporterModule::RegisterForField(uint32_t field_id) {
 
 void ProtoImporterModuleContext::PushFtraceEvent(uint32_t cpu,
                                                  int64_t ts,
-                                                 TracePacketData data) {
+                                                 FtraceData data) {
   PushToStream(cpu, ts, data, ftrace_event_streams, ftrace_stream_factory);
 }
 
