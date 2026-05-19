@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './progress_bar.scss';
 import m from 'mithril';
 import {clamp} from '../../../base/math_utils';
 
