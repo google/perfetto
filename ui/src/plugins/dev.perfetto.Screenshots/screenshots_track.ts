@@ -12,279 +12,86 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {QuerySlot} from '../../base/query_slot';
+import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
-import {Spinner} from '../../widgets/spinner';
-import type {
-  TrackRenderer,
-  TrackMouseEvent,
-  TrackRenderContext,
-  SnapPoint,
-} from '../../public/track';
-import type {TrackEventSelection} from '../../public/selection';
-import type {TimeScale} from '../../base/time_scale';
-import type {time} from '../../base/time';
-import m from 'mithril';
-
-class ScreenshotsTrack implements TrackRenderer {
-  private sliceTrack: SliceTrack<{
-    id: number;
-    ts: bigint;
-    dur: bigint;
-    name: string;
-  }>;
-  private readonly queue = new SerialTaskQueue();
-  private readonly metadataSlot = new QuerySlot<
-    Array<{id: number; ts: bigint}>
-  >(this.queue);
-  private currentScreenshots?: Array<{id: number; ts: bigint}>;
-  private currentScreenshotId?: number;
-  private lastRenderedScreenshotId?: number;
-  private imageDataCache = new Map<number, string>();
-  private isLoadingImage = false;
-
-  constructor(
-    private readonly trace: Trace,
-    uri: string,
-  ) {
-    this.sliceTrack = SliceTrack.create({
-      trace,
-      uri,
-      dataset: new SourceDataset({
-        schema: {
-          id: NUM,
-          ts: LONG,
-          dur: LONG,
-          name: STR,
-        },
-        src: 'android_screenshots',
-      }),
-      detailsPanel: () => {
-        return new ScreenshotDetailsPanel(trace.engine);
-      },
-    });
-  }
-
-  render(trackCtx: TrackRenderContext): void {
-    this.sliceTrack.render(trackCtx);
-    this.useData(trackCtx);
-  }
-
-  private useData(trackCtx: TrackRenderContext) {
-    const visibleSpan = trackCtx.visibleWindow.toTimeSpan();
-    const start = visibleSpan.start;
-    const end = visibleSpan.end;
-
-    const dataset = this.sliceTrack.getDataset();
-    if (dataset === undefined) return;
-
-    const {data} = this.metadataSlot.use({
-      key: {start, end},
-      queryFn: async () => {
-        const result = await this.trace.engine.query(`
-          with all_screenshots as (
-            select id, ts
-            from (${dataset.query()})
-          )
-          select id, ts from (
-            select id, ts from all_screenshots
-            where ts < ${start}
-            order by ts desc
-            limit 1
-          )
-          union all
-          select id, ts from all_screenshots
-          where ts >= ${start} and ts <= ${end}
-          order by ts
-        `);
-        const screenshots: Array<{id: number; ts: bigint}> = [];
-        const it = result.iter({id: NUM, ts: LONG});
-        for (; it.valid(); it.next()) {
-          screenshots.push({id: it.id, ts: it.ts});
-        }
-        return screenshots;
-      },
-    });
-
-    this.currentScreenshots = data;
-  }
-
-  getHeight(): number {
-    return this.sliceTrack.getHeight();
-  }
-
-  getSliceVerticalBounds(depth: number) {
-    return this.sliceTrack.getSliceVerticalBounds?.(depth);
-  }
-
-  getTrackShellButtons() {
-    return this.sliceTrack.getTrackShellButtons?.();
-  }
-
-  onMouseClick(event: TrackMouseEvent): boolean {
-    return this.sliceTrack.onMouseClick?.(event) ?? false;
-  }
-
-  onMouseOut(): void {
-    this.sliceTrack.onMouseOut?.();
-    this.currentScreenshotId = undefined;
-  }
-
-  onMouseMove(event: TrackMouseEvent): void {
-    this.sliceTrack.onMouseMove?.(event);
-
-    const time = event.timescale.pxToHpTime(event.x).toTime();
-    const screenshot = this.currentScreenshots
-      ? findMostRecentScreenshot(this.currentScreenshots, time)
-      : undefined;
-    if (screenshot) {
-      this.currentScreenshotId = screenshot.id;
-      if (!this.imageDataCache.has(screenshot.id) && !this.isLoadingImage) {
-        this.loadScreenshotImage(screenshot.id);
-      }
-    } else {
-      this.currentScreenshotId = undefined;
-    }
-  }
-
-  private async loadScreenshotImage(id: number) {
-    this.isLoadingImage = true;
-    try {
-      const result = await this.trace.engine.query(`
-        select extract_arg(arg_set_id, 'screenshot.jpg_image') as image_data
-        from slice
-        where id = ${id}
-      `);
-      const row = result.firstRow({image_data: STR});
-      const base64Image = row.image_data;
-      this.imageDataCache.set(id, base64Image);
-
-      // Limit cache size to 10
-      if (this.imageDataCache.size > 10) {
-        const firstKey = this.imageDataCache.keys().next().value;
-        if (firstKey !== undefined) {
-          this.imageDataCache.delete(firstKey);
-        }
-      }
-
-      this.trace.raf.scheduleFullRedraw();
-    } finally {
-      this.isLoadingImage = false;
-    }
-  }
-
-  private getCachedImage(id: number): string | undefined {
-    const value = this.imageDataCache.get(id);
-    if (value !== undefined) {
-      this.imageDataCache.delete(id);
-      this.imageDataCache.set(id, value); // Move to end
-    }
-    return value;
-  }
-
-  renderTooltip(): m.Children {
-    // We conciously don't render the base SliceTrack tooltip, as it can
-    // shift the screenshot around. The sliceTrack tooltip doesn't provide
-    // any additional useful information for the screenshot track.
-    if (this.currentScreenshots === undefined) {
-      return [m('div', 'Loading screenshot metadata...')];
-    }
-
-    if (this.currentScreenshotId !== undefined) {
-      const imageData = this.getCachedImage(this.currentScreenshotId);
-      if (imageData) {
-        this.lastRenderedScreenshotId = this.currentScreenshotId;
-        return [
-          m(
-            'div',
-            m('img.pf-screenshot-tooltip__img', {
-              src: 'data:image/png;base64, ' + imageData,
-            }),
-          ),
-        ];
-      } else if (this.isLoadingImage) {
-        const lastImageData =
-          this.lastRenderedScreenshotId !== undefined
-            ? this.imageDataCache.get(this.lastRenderedScreenshotId)
-            : undefined;
-
-        if (lastImageData) {
-          return [
-            m(
-              'div',
-              {style: {position: 'relative'}},
-              m('img.pf-screenshot-tooltip__img', {
-                src: 'data:image/png;base64, ' + lastImageData,
-                style: {opacity: '0.5'},
-              }),
-              m(
-                'div',
-                {
-                  style: {
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                  },
-                },
-                m(Spinner),
-              ),
-            ),
-          ];
-        } else {
-          return [m('div', 'Loading screenshot...')];
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  getDataset() {
-    return this.sliceTrack.getDataset?.();
-  }
-
-  getSelectionDetails(eventId: number) {
-    return this.sliceTrack.getSelectionDetails?.(eventId);
-  }
-
-  detailsPanel(sel: TrackEventSelection) {
-    return this.sliceTrack.detailsPanel?.(sel);
-  }
-
-  getSnapPoint(
-    targetTime: time,
-    thresholdPx: number,
-    timescale: TimeScale,
-  ): SnapPoint | undefined {
-    return this.sliceTrack.getSnapPoint?.(targetTime, thresholdPx, timescale);
-  }
-}
-
-export function findMostRecentScreenshot(
-  screenshots: Array<{id: number; ts: bigint}>,
-  ts: bigint,
-): {id: number; ts: bigint} | undefined {
-  // Binary search
-  let l = 0;
-  let r = screenshots.length - 1;
-  let ans = -1;
-  while (l <= r) {
-    const mid = Math.floor((l + r) / 2);
-    if (screenshots[mid].ts <= ts) {
-      ans = mid;
-      l = mid + 1;
-    } else {
-      r = mid - 1;
-    }
-  }
-  return ans !== -1 ? screenshots[ans] : undefined;
-}
 
 export function createScreenshotsTrack(trace: Trace, uri: string) {
-  return new ScreenshotsTrack(trace, uri);
+  const imageSlot = new QuerySlot<string>();
+
+  // Screenshot slices are instants (0 dur), but we want the tooltip to show up
+  // not only when hovering over the instant event exactly, but also when
+  // hovering the area to the right of it, up until the next screenshot.
+  //
+  // To achieve this, we set dur to -1 and force depth to 0, which renders the
+  // slices as incomplete slices: a rect from the screenshot timestamp up until
+  // the timestamp of the following screenshot, fading out to the right. The
+  // fade indicates that the screenshot is correct at the start of the slice and
+  // is simply extrapolated towards the end, as opposed to a fully opaque slice
+  // which would imply homogeneity across the entire span.
+  //
+  // ROW_NUMBER() gives each slice a monotonically increasing name, which is
+  // also used for colorization so adjacent slices get contrasting colors.
+  //
+  // Note: we could use `COALESCE(LEAD(ts) OVER (ORDER BY ts) - ts, -1) AS dur`
+  // for solid rectangles instead of fading ones.
+  const query = `
+    SELECT
+      id,
+      ts,
+      CAST(ROW_NUMBER() OVER (ORDER BY ts) AS TEXT) AS name,
+      -1 AS dur,
+      0 AS depth
+    FROM android_screenshots
+  `;
+  return SliceTrack.create({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+        depth: NUM,
+      },
+      src: query,
+    }),
+    detailsPanel: () => {
+      return new ScreenshotDetailsPanel(trace.engine);
+    },
+    colorizer: (row) => {
+      return materialColorScheme(row.name);
+    },
+    tooltip: (data) => {
+      const screenshot = imageSlot.use({
+        key: {id: data.id},
+        retainOn: ['id'],
+        queryFn: async () => {
+          const result = await trace.engine.query(`
+            select extract_arg(arg_set_id, 'screenshot.jpg_image') as image_data
+            from slice
+            where id = ${data.id}
+          `);
+          const row = result.firstRow({image_data: STR});
+          return row.image_data;
+        },
+      });
+
+      if (screenshot.data) {
+        return [
+          m('img.pf-screenshot-tooltip__img', {
+            src: 'data:image/png;base64, ' + screenshot.data,
+          }),
+        ];
+      } else {
+        return 'Loading...';
+      }
+    },
+  });
 }
