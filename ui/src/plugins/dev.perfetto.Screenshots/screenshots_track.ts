@@ -44,7 +44,7 @@ export function createScreenshotsTrack(trace: Trace, uri: string) {
     SELECT
       id,
       ts,
-      CAST(ROW_NUMBER() OVER (ORDER BY ts) AS TEXT) AS name,
+      '📷 ' || CAST(ROW_NUMBER() OVER (ORDER BY ts) AS TEXT) AS name,
       -1 AS dur,
       0 AS depth
     FROM android_screenshots
