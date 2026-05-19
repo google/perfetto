@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './panel.scss';
 import m from 'mithril';
 
 export interface PanelAttrs {
