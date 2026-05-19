@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -437,7 +438,7 @@ class PerfettoSqlConnection {
   // database; returns OkStatus on already-included, an error on poisoned,
   // or pushes an include frame on the execution stack on a fresh claim.
   base::Status IncludeModuleImpl(const std::string& key,
-                                 const std::string& sql,
+                                 std::string_view sql,
                                  const PerfettoSqlParser&);
 
   // Returns true iff |key| is the |include_key| of an active |kInclude|
