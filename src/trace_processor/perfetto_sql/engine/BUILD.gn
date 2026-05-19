@@ -69,3 +69,18 @@ perfetto_unittest_source_set("unittests") {
     "../../util:stdlib",
   ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":engine",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../base",
+      "../../containers",
+      "../../sqlite",
+    ]
+    sources = [ "perfetto_sql_connection_benchmark.cc" ]
+  }
+}

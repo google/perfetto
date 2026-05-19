@@ -134,7 +134,7 @@ class IteratorImpl {
     return result_.ok() ? result_->stats.statement_count_with_output : 0;
   }
 
-  std::string LastStatementSql() const {
+  std::string LastStatementSql() {
     return result_.ok() ? result_->stmt.sql() : "";
   }
 
