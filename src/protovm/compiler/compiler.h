@@ -49,19 +49,21 @@ class Compiler {
       const InstructionEmitter::Scope& scope,
       protozero::RepeatedFieldIterator<protozero::ConstBytes> commands) const;
 
-  base::Status ParseSet(const InstructionEmitter::Scope& scope,
-                        const protos::pbzero::Command::Decoder& command) const;
+  base::Status ParseSet(
+      const InstructionEmitter::Scope& scope,
+      const protos::pbzero::CompileCommand::Decoder& command) const;
 
-  base::Status ParseDel(const InstructionEmitter::Scope& scope,
-                        const protos::pbzero::Command::Decoder& command) const;
+  base::Status ParseDel(
+      const InstructionEmitter::Scope& scope,
+      const protos::pbzero::CompileCommand::Decoder& command) const;
 
   base::Status ParseMerge(
       const InstructionEmitter::Scope& scope,
-      const protos::pbzero::Command::Decoder& command) const;
+      const protos::pbzero::CompileCommand::Decoder& command) const;
 
   base::Status ParseEnterScope(
       const InstructionEmitter::Scope& scope,
-      const protos::pbzero::Command::Decoder& command) const;
+      const protos::pbzero::CompileCommand::Decoder& command) const;
 
   template <typename Iterator>
   std::vector<std::string_view> ParsePath(Iterator it) const {
@@ -74,7 +76,7 @@ class Compiler {
   }
 
   AbortLevel GetAbortLevel(
-      const protos::pbzero::Command::Decoder& command) const;
+      const protos::pbzero::CompileCommand::Decoder& command) const;
 
   perfetto::trace_processor::DescriptorPool pool_;
   InstructionEmitter emitter_;

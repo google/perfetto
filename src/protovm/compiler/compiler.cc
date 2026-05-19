@@ -66,7 +66,7 @@ base::Status Compiler::ParseCommands(
     const InstructionEmitter::Scope& scope,
     protozero::RepeatedFieldIterator<protozero::ConstBytes> commands) const {
   for (auto it = commands; it; ++it) {
-    protos::pbzero::Command::Decoder command(*it);
+    protos::pbzero::CompileCommand::Decoder command(*it);
     if (command.has_set()) {
       RETURN_IF_ERROR(ParseSet(scope, command));
     } else if (command.has_del()) {
@@ -84,8 +84,8 @@ base::Status Compiler::ParseCommands(
 
 base::Status Compiler::ParseSet(
     const InstructionEmitter::Scope& scope,
-    const protos::pbzero::Command::Decoder& command) const {
-  protos::pbzero::SetCommand::Decoder set(command.set());
+    const protos::pbzero::CompileCommand::Decoder& command) const {
+  protos::pbzero::CompileCommandSet::Decoder set(command.set());
   auto src_path = ParsePath(set.src());
   auto dst_path = ParsePath(set.dst());
   return emitter_.Set(scope, src_path, dst_path, GetAbortLevel(command));
@@ -93,8 +93,8 @@ base::Status Compiler::ParseSet(
 
 base::Status Compiler::ParseDel(
     const InstructionEmitter::Scope& scope,
-    const protos::pbzero::Command::Decoder& command) const {
-  protos::pbzero::DelCommand::Decoder del(command.del());
+    const protos::pbzero::CompileCommand::Decoder& command) const {
+  protos::pbzero::CompileCommandDel::Decoder del(command.del());
   auto src_path = ParsePath(del.src());
   auto dst_path = ParsePath(del.dst());
   if (!(del.if_src_present() ^ del.has_dst_key_field())) {
@@ -116,8 +116,8 @@ base::Status Compiler::ParseDel(
 
 base::Status Compiler::ParseMerge(
     const InstructionEmitter::Scope& scope,
-    const protos::pbzero::Command::Decoder& command) const {
-  protos::pbzero::MergeCommand::Decoder merge(command.merge());
+    const protos::pbzero::CompileCommand::Decoder& command) const {
+  protos::pbzero::CompileCommandMerge::Decoder merge(command.merge());
   auto src_path = ParsePath(merge.src());
   auto dst_path = ParsePath(merge.dst());
   auto abort_level = GetAbortLevel(command);
@@ -132,8 +132,9 @@ base::Status Compiler::ParseMerge(
 
 base::Status Compiler::ParseEnterScope(
     const InstructionEmitter::Scope& scope,
-    const protos::pbzero::Command::Decoder& command) const {
-  protos::pbzero::EnterScopeCommand::Decoder enter_scope(command.enter_scope());
+    const protos::pbzero::CompileCommand::Decoder& command) const {
+  protos::pbzero::CompileCommandEnterScope::Decoder enter_scope(
+      command.enter_scope());
   auto src_path = ParsePath(enter_scope.src());
   auto dst_path = ParsePath(enter_scope.dst());
   auto abort_level = GetAbortLevel(command);
@@ -148,7 +149,7 @@ base::Status Compiler::ParseEnterScope(
 }
 
 Compiler::AbortLevel Compiler::GetAbortLevel(
-    const protos::pbzero::Command::Decoder& command) const {
+    const protos::pbzero::CompileCommand::Decoder& command) const {
   if (!command.has_abort_level()) {
     return AbortLevel::SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER;
   }

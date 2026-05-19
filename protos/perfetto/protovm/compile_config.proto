@@ -23,15 +23,15 @@ message CompileConfig {
   // "perfetto.protos.TracePacket". All the paths in the compiler commands are
   // relative to this message.
   optional string root_message = 1;
-  repeated Command commands = 2;
+  repeated CompileCommand commands = 2;
 }
 
-message Command {
+message CompileCommand {
   oneof command {
-    DelCommand del = 1;
-    EnterScopeCommand enter_scope = 2;
-    MergeCommand merge = 3;
-    SetCommand set = 4;
+    CompileCommandDel del = 1;
+    CompileCommandEnterScope enter_scope = 2;
+    CompileCommandMerge merge = 3;
+    CompileCommandSet set = 4;
   }
 
   enum AbortLevel {
@@ -45,27 +45,27 @@ message Command {
   optional AbortLevel abort_level = 5;
 }
 
-message DelCommand {
+message CompileCommandDel {
   repeated string src = 1;
   repeated string dst = 2;
   optional bool if_src_present = 3;
   optional string dst_key_field = 4;
 }
 
-message EnterScopeCommand {
+message CompileCommandEnterScope {
   repeated string src = 1;
   repeated string dst = 2;
-  repeated Command commands = 3;
+  repeated CompileCommand commands = 3;
 }
 
-message MergeCommand {
+message CompileCommandMerge {
   repeated string src = 1;
   repeated string dst = 2;
   optional bool recursive = 3;
   optional string key_field = 4;
 }
 
-message SetCommand {
+message CompileCommandSet {
   repeated string src = 1;
   repeated string dst = 2;
 }
