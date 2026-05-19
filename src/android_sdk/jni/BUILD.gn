@@ -3,16 +3,6 @@ import("../../../gn/perfetto_android_sdk.gni")
 
 assert(enable_perfetto_android_java_sdk)
 
-declare_args() {
-  # Path to the host JDK include directory that contains jni.h. When set,
-  # libperfetto_jni's source set adds this and its platform-specific
-  # subdirectory to its include path so the .so can be built against a
-  # host JVM. tools/run_android_sdk_host_test sets it from $JAVA_HOME.
-  # Empty (default) on Android / AOSP builds, where jni.h comes from the
-  # NDK / jni_headers.
-  jdk_include_path = ""
-}
-
 SOURCE_SET_SOURCES = [
   "dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
   "dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h",

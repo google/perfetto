@@ -30,7 +30,6 @@ Prerequisites
 
 import logging
 import os
-import re
 import subprocess
 import sys
 
@@ -39,25 +38,8 @@ JAVA_DEPS_DIR = os.path.join(ROOT_DIR, 'buildtools/java_sdk')
 SDK_DIR = os.path.join(ROOT_DIR, 'src/android_sdk/java')
 OUT_DIR = os.path.join(ROOT_DIR, 'out/android_sdk_host_test')
 
-# Proto files referenced by PerfettoTraceTest. protoc generates one Java
-# class per .proto file passed; we walk imports from this set so the
-# codegen surface matches what the test actually uses. (The amalgamated
-# protos/perfetto/trace/perfetto_trace.proto would collapse 900+ messages
-# into a single nested Java class, which doesn't match the per-file
-# `perfetto.protos.<File>OuterClass` layout the test imports from and the
-# Soong/Bazel proto target produces on device.)
-TEST_PROTOS = [
-    'protos/perfetto/config/trace_config.proto',
-    'protos/perfetto/config/track_event/track_event_config.proto',
-    'protos/perfetto/trace/trace.proto',
-    'protos/perfetto/trace/trace_packet.proto',
-    'protos/perfetto/trace/interned_data/interned_data.proto',
-    'protos/perfetto/trace/track_event/chrome_latency_info.proto',
-    'protos/perfetto/trace/track_event/debug_annotation.proto',
-    'protos/perfetto/trace/track_event/source_location.proto',
-    'protos/perfetto/trace/track_event/track_descriptor.proto',
-    'protos/perfetto/trace/track_event/track_event.proto',
-]
+JAVA_PROTOS_TARGET = 'src/android_sdk/java/test:perfetto_test_java_protos'
+JAVA_PROTOS_DIR = 'gen/src/android_sdk/java/test'
 
 TEST_CLASS = 'dev.perfetto.sdk.test.PerfettoTraceTest'
 
@@ -114,39 +96,12 @@ def Gn(jdk_home):
 
 def Ninja():
   Run([
-      os.path.join(ROOT_DIR, 'tools/ninja'), '-C', OUT_DIR, 'libperfetto_jni',
-      'protoc'
+      os.path.join(ROOT_DIR, 'tools/ninja'),
+      '-C',
+      OUT_DIR,
+      'libperfetto_jni',
+      JAVA_PROTOS_TARGET,
   ])
-
-
-_IMPORT_RE = re.compile(r'^\s*import\s+"([^"]+)"\s*;')
-
-
-def TransitiveImports(roots):
-  """Returns the closure of `roots` plus their transitive `import "…";`."""
-  visited = set()
-  stack = list(roots)
-  while stack:
-    rel = stack.pop()
-    if rel in visited:
-      continue
-    visited.add(rel)
-    with open(os.path.join(ROOT_DIR, rel)) as f:
-      for line in f:
-        m = _IMPORT_RE.match(line)
-        if m and m.group(1).startswith('protos/perfetto/'):
-          stack.append(m.group(1))
-  return sorted(visited)
-
-
-def GenJavaProtos():
-  out = os.path.join(OUT_DIR, 'java_protos')
-  os.makedirs(out, exist_ok=True)
-  Run([
-      os.path.join(OUT_DIR, 'protoc'), '--proto_path=' +
-      ROOT_DIR, '--java_out=' + out
-  ] + TransitiveImports(TEST_PROTOS))
-  return out
 
 
 def Javac(jdk_home, classes_dir, classpath, srcs):
@@ -202,8 +157,8 @@ def main():
   jars = MavenJars()
   Gn(jdk_home)
   Ninja()
-  java_proto_dir = GenJavaProtos()
-  sdk_jar = CompileSdk(jdk_home, jars, java_proto_dir)
+  java_protos = os.path.join(OUT_DIR, JAVA_PROTOS_DIR)
+  sdk_jar = CompileSdk(jdk_home, jars, java_protos)
   test_jar = CompileTest(jdk_home, jars, sdk_jar)
   RunTests(jdk_home, jars, sdk_jar, test_jar)
 
