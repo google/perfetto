@@ -1236,7 +1236,7 @@ bool PerfettoSqlConnection::IsKeyOnIncludeStack(const std::string& key) const {
 
 base::Status PerfettoSqlConnection::IncludeModuleImpl(
     const std::string& key,
-    const std::string& sql,
+    std::string_view sql,
     const PerfettoSqlParser& parser) {
   if (IsKeyOnIncludeStack(key)) {
     std::string traceback = parser.statement_sql().AsTraceback(0);
@@ -1255,15 +1255,15 @@ base::Status PerfettoSqlConnection::IncludeModuleImpl(
         "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
         traceback.c_str(), key.c_str(), res.poison_reason.c_str());
   }
-  execution_stack_.push_back({FrameType::kInclude,
-                              SqlSource::FromModuleInclude(sql, key),
-                              /*parser=*/nullptr, /*accumulated_stats=*/{},
-                              /*current_stmt=*/std::nullopt, key,
-                              /*traceback_sql=*/parser.statement_sql(),
-                              /*include_claim=*/std::move(res.claim),
-                              /*wildcard_modules=*/{}, /*wildcard_index=*/0,
-                              /*wildcard_traceback_sql=*/
-                              SqlSource::FromTraceProcessorImplementation("")});
+  execution_stack_.push_back(
+      {FrameType::kInclude, SqlSource::FromModuleInclude(std::string(sql), key),
+       /*parser=*/nullptr, /*accumulated_stats=*/{},
+       /*current_stmt=*/std::nullopt, key,
+       /*traceback_sql=*/parser.statement_sql(),
+       /*include_claim=*/std::move(res.claim),
+       /*wildcard_modules=*/{}, /*wildcard_index=*/0,
+       /*wildcard_traceback_sql=*/
+       SqlSource::FromTraceProcessorImplementation("")});
   return base::OkStatus();
 }
 

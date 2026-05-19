@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -38,8 +39,10 @@ using NameToPackage =
 // previously poisoned an attempt) is tracked centrally on
 // |PerfettoSqlDatabase| so connections attached to the same database share a
 // consistent view.
+//
+// The string_view bodies must outlive every connection holding this package.
 struct RegisteredPackage {
-  base::FlatHashMap<std::string, std::string> modules;
+  base::FlatHashMap<std::string, std::string_view> modules;
 };
 
 inline std::string ReplaceSlashWithDot(std::string str) {
