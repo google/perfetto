@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../protos';
-import {uuidv4} from '../../../base/uuid';
 import {deferChunkedTask} from '../../../base/chunked_task';
+import {uuidv4} from '../../../base/uuid';
+import protos from '../../../protos';
+import type {App} from '../../../public/app';
 import {NUM, NUM_NULL, STR} from '../../../trace_processor/query_result';
 import {WasmEngineProxy} from '../../../trace_processor/wasm_engine_proxy';
 import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
@@ -22,6 +23,16 @@ import {createAdbTracingSession} from '../../dev.perfetto.RecordTraceV2/adb/adb_
 import type {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
 import type {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 import type {ConnectionResult} from '../views/connection';
+import {ProfileSession, type ProfileState} from './profile_session';
+
+export interface ProfileView {
+  readonly pid: number;
+  readonly processName: string;
+  readonly state: ProfileState;
+  readonly bufferUsagePct?: number;
+  /** Wall-clock timestamp (ms) at which profiling started. */
+  readonly startMs: number;
+}
 
 const SNAPSHOT_INTERVAL_MS = 3_000; // How over to take a snapshot of the runnign trace and extract data.
 const INITIAL_SNAPSHOT_INTERVAL_MS = 1_000; // Use a shorter interval for the first snapshot to get data on screen faster.
@@ -83,6 +94,7 @@ export type OnSnapshotCallback = (data: SnapshotData) => void;
  * notifies registered callbacks.
  */
 export class LiveSession {
+  private readonly app: App;
   private session?: TracingSession;
   private engine?: WasmEngineProxy;
   private readonly sessionName: string;
@@ -113,7 +125,23 @@ export class LiveSession {
   // True when the last snapshot took longer than the configured interval.
   snapshotOverrun = false;
 
-  constructor(conn: ConnectionResult) {
+  // Active process profile (if any). Undefined when no profile is running.
+  private profileImpl?: {session: ProfileSession; startMs: number};
+
+  get profile(): ProfileView | undefined {
+    const p = this.profileImpl;
+    if (p === undefined) return undefined;
+    return {
+      pid: p.session.pid,
+      processName: p.session.processName,
+      state: p.session.state,
+      bufferUsagePct: p.session.bufferUsagePct,
+      startMs: p.startMs,
+    };
+  }
+
+  constructor(app: App, conn: ConnectionResult) {
+    this.app = app;
     this.device = conn.device;
     this.linuxTarget = conn.linuxTarget;
     this.deviceName = conn.deviceName;
@@ -149,6 +177,43 @@ export class LiveSession {
     } else {
       this.pause();
     }
+  }
+
+  /** Starts a heap profiling session for a single process. */
+  async startProfile(pid: number, processName: string): Promise<void> {
+    if (this.profileImpl) {
+      await this.profileImpl.session.cancel();
+    }
+    const session = await ProfileSession.start(
+      this.linuxTarget ?? this.device!,
+      pid,
+      processName,
+      this.data?.xMax ?? 0,
+    );
+    this.profileImpl = {session, startMs: Date.now()};
+  }
+
+  /** Stops the active profile and opens the trace in the main UI. */
+  async stopAndOpenProfile(): Promise<void> {
+    const profile = this.profileImpl?.session;
+    if (!profile) return;
+    const processName = profile.processName;
+    const pid = profile.pid;
+    await profile.stop();
+    const traceData = profile.getTraceData();
+    this.profileImpl = undefined;
+    if (traceData) {
+      const fileName = `heap-${processName}-${pid}.perfetto-trace`;
+      const buffer = traceData.buffer as ArrayBuffer;
+      this.app.openTraceFromBuffer({buffer, title: fileName, fileName});
+    }
+  }
+
+  /** Cancels the active profile and discards data. */
+  async cancelProfile(): Promise<void> {
+    if (!this.profileImpl) return;
+    await this.profileImpl.session.cancel();
+    this.profileImpl = undefined;
   }
 
   /** Stops the tracing session, polling, and disposes of the engine. */

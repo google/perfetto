@@ -25,7 +25,7 @@ export const PROCESS_METRIC_OPTIONS: ReadonlyArray<{
 }> = [
   {
     key: 'anon_swap',
-    label: 'Anon + Swap',
+    label: 'RSS Anon + Swap',
     counters: ['mem.rss.anon', 'mem.swap'],
   },
   {key: 'file', label: 'File', counters: ['mem.rss.file']},

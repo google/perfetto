@@ -280,6 +280,21 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
+# GN target: //src/shared_lib:libperfetto_c_headers
+perfetto_cc_library(
+    name = "libperfetto_c_headers",
+    hdrs = [
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_abi_public",
+        ":include_perfetto_public_base",
+        ":include_perfetto_public_protos_protos",
+        ":include_perfetto_public_protozero",
+        ":include_perfetto_public_public",
+    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
+    linkstatic = True,
+)
+
 # GN target: //src/tools/proto_filter:proto_filter
 perfetto_cc_binary(
     name = "proto_filter",
@@ -534,6 +549,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -822,6 +838,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -5675,6 +5692,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:owned_sql_value
+perfetto_filegroup(
+    name = "src_trace_processor_util_owned_sql_value",
+    srcs = [
+        "src/trace_processor/util/owned_sql_value.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:profile_builder
 perfetto_filegroup(
     name = "src_trace_processor_util_profile_builder",
@@ -6518,7 +6543,6 @@ perfetto_android_jni_library(
         "-llog",
     ],
     hdrs = [
-        ":include_perfetto_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
@@ -10103,6 +10127,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -10417,6 +10442,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_owned_sql_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",

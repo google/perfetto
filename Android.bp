@@ -781,6 +781,7 @@ cc_library_shared {
         },
         host: {
             static_libs: [
+                "liblog",
                 "libz",
             ],
             whole_static_libs: [
@@ -1042,6 +1043,11 @@ cc_library {
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            static_libs: [
+                "liblog",
             ],
         },
         windows: {
@@ -1336,7 +1342,6 @@ cc_library_static {
 cc_library_shared {
     name: "libperfetto_framework_jni",
     srcs: [
-        ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
@@ -1349,9 +1354,9 @@ cc_library_shared {
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
     ],
     shared_libs: [
-        "liblog",
         "libperfetto_c",
     ],
+    host_supported: true,
     defaults: [
         "perfetto_defaults",
     ],
@@ -1361,13 +1366,24 @@ cc_library_shared {
     header_libs: [
         "jni_headers",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "liblog",
+            ],
+        },
+        host: {
+            static_libs: [
+                "liblog",
+            ],
+        },
+    },
 }
 
 // GN: //src/android_sdk/jni:libperfetto_jni
 cc_library_shared {
     name: "libperfetto_jni",
     srcs: [
-        ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
@@ -3090,6 +3106,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -18911,6 +18928,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -19350,6 +19368,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:owned_sql_value
+filegroup {
+    name: "perfetto_src_trace_processor_util_owned_sql_value",
+}
+
 // GN: //src/trace_processor/util:profile_builder
 filegroup {
     name: "perfetto_src_trace_processor_util_profile_builder",
@@ -19511,6 +19534,7 @@ filegroup {
     name: "perfetto_src_trace_processor_util_unittests",
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
+        "src/trace_processor/util/descriptors_unittest.cc",
         "src/trace_processor/util/galloping_search_unittest.cc",
         "src/trace_processor/util/glob_unittest.cc",
         "src/trace_processor/util/gzip_utils_unittest.cc",
@@ -20857,7 +20881,15 @@ java_defaults {
     libs: [
         "error_prone_annotations",
     ],
+    host_supported: true,
     sdk_version: "module_current",
+    target: {
+        host: {
+            libs: [
+                "perfetto_trace_lib_host_stubs",
+            ],
+        },
+    },
 }
 
 // GN: //protos/perfetto/trace:perfetto_trace_protos
@@ -21469,6 +21501,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -22484,6 +22517,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -22759,6 +22793,7 @@ cc_binary {
         },
         host: {
             static_libs: [
+                "liblog",
                 "libprotobuf-cpp-full",
                 "libsqlite_static_noicu",
                 "libz",
@@ -23119,6 +23154,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_json_parser",
         ":perfetto_src_trace_processor_util_json_serializer",
         ":perfetto_src_trace_processor_util_json_value",
+        ":perfetto_src_trace_processor_util_owned_sql_value",
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
@@ -23288,6 +23324,11 @@ cc_binary {
     target: {
         android: {
             shared_libs: [
+                "liblog",
+            ],
+        },
+        host: {
+            static_libs: [
                 "liblog",
             ],
         },
@@ -23523,6 +23564,11 @@ cc_binary {
     target: {
         android: {
             shared_libs: [
+                "liblog",
+            ],
+        },
+        host: {
+            static_libs: [
                 "liblog",
             ],
         },
@@ -24266,5 +24312,20 @@ filegroup {
     name: "ravenwood-perfetto-policies",
     srcs: [
         "src/android_sdk/jni/ravenwood-perfetto-policies.txt",
+    ],
+}
+
+// Host-only stubs for the small set of Android classes the perfetto Java
+// SDK references that are missing from Soong's host module_current
+// classpath (dalvik.annotation.optimization.{Critical,Fast}Native and
+// android.system.SystemCleaner; plus android.util.{ArraySet,Log} and
+// android.os.Process). Linked into the host variant of
+// perfetto_trace_lib_java_defaults as a libs: dep so the stubs are visible
+// to javac but not bundled into the jar; the Android variant continues
+// to use the real platform classes from module_current.
+java_library_host {
+    name: "perfetto_trace_lib_host_stubs",
+    srcs: [
+        "src/android_sdk/java/host_stubs/**/*.java",
     ],
 }

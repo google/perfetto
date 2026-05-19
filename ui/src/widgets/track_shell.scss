@@ -1,0 +1,220 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use "sass:math";
+@import "../assets/theme";
+
+.pf-track {
+  --indent-size: 8px;
+  --sticky-top: 0;
+  --depth: 0;
+
+  font-family: var(--pf-font-compact);
+  font-weight: 300;
+  font-size: var(--pf-font-size-m);
+  user-select: none;
+  scroll-margin-top: calc(var(--sticky-top) * 1px);
+
+  &__header {
+    height: calc(var(--height) * 1px);
+    display: grid;
+    grid-template-columns:
+      calc(var(--depth) * var(--indent-size)) calc(
+        var(--track-shell-width) - (var(--depth) * var(--indent-size))
+      )
+      1fr;
+    grid-template-areas: "indent shell canvas";
+
+    &::before {
+      content: "";
+      grid-area: indent;
+      background: var(--pf-color-track-summary-expanded);
+    }
+
+    &--summary {
+      background-color: var(--pf-color-track-summary-collapsed);
+    }
+
+    &--expanded--summary {
+      position: sticky;
+      top: calc(var(--sticky-top) * 1px);
+      z-index: calc(16 - var(--depth));
+      background-color: var(--pf-color-track-summary-expanded);
+      color: var(--pf-color-track-summary-expanded-text);
+      border-color: var(--pf-color-track-summary-expanded);
+
+      .pf-track__shell {
+        border-color: var(--pf-color-track-summary-expanded);
+
+        &--highlight {
+          border-color: var(--pf-color-highlight);
+        }
+      }
+
+      .pf-track__canvas {
+        border-color: var(--pf-color-track-summary-expanded);
+      }
+    }
+  }
+
+  &__shell--lite {
+    // Just hide the title entirely when in lite mode. This title is never meant
+    // to be seen - it needs to exist in the DOM for native browser searching to
+    // work. However it can be momentarily visible when scrolling quickly or
+    // when DOM updates are slow, which can be jarring.
+    color: transparent;
+  }
+
+  &__shell {
+    grid-area: shell;
+    border-width: 0 0 1px 0; // Borders on bottom and right
+    border-style: solid;
+    border-color: var(--pf-color-border-secondary);
+
+    &--highlight {
+      background-color: var(--pf-color-highlight);
+      color: var(--pf-color-text);
+    }
+
+    &--drag-after {
+      box-shadow: inset 0 -6px 3px -3px var(--pf-color-primary);
+    }
+
+    &--drag-inside {
+      box-shadow: inset -6px 0 3px -3px var(--pf-color-primary);
+    }
+
+    &--drag-before {
+      box-shadow: inset 0 6px 3px -3px var(--pf-color-primary);
+    }
+
+    &--clickable {
+      cursor: pointer;
+    }
+
+    .pf-visible-on-hover {
+      display: none;
+
+      &.pf-active {
+        display: unset;
+      }
+    }
+
+    &:hover,
+    &:has(.pf-active) {
+      .pf-visible-on-hover {
+        display: unset;
+      }
+    }
+  }
+
+  &__buttons {
+    // Make the track buttons a little larger so they're easier to see & click
+    font-size: var(--pf-font-size-l);
+    margin-left: 2px;
+  }
+
+  &__canvas {
+    grid-area: canvas;
+    overflow: hidden; // Keeps subtitle width contained
+    border-bottom: solid 1px var(--pf-color-border-secondary);
+
+    &--error {
+      // Necessary trig because we have 45deg stripes
+      $pattern-density: 1px * math.sqrt(2);
+      $pattern-col: var(--pf-color-border);
+      $background-col: var(--pf-color-background);
+
+      background: repeating-linear-gradient(
+        -45deg,
+        $pattern-col,
+        $pattern-col $pattern-density,
+        $background-col $pattern-density,
+        $background-col $pattern-density * 4
+      );
+    }
+  }
+
+  &__menubar {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "icon title chips buttons"
+      "none subtitle subtitle subtitle";
+    padding-inline: 1px;
+    padding-top: 1px;
+    position: sticky;
+    top: calc(var(--sticky-top) * 1px);
+  }
+
+  &__title-spacer {
+    grid-area: icon;
+    width: 2px;
+  }
+
+  &__collapse-button {
+    grid-area: icon;
+  }
+
+  &__title {
+    grid-area: title;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    &-popup {
+      position: absolute;
+      border-radius: 2px;
+      background: transparent;
+      color: transparent;
+      text-overflow: unset;
+      pointer-events: none;
+      white-space: nowrap;
+      user-select: none;
+      width: max-content;
+      z-index: 10; /* Ensures it appears above other elements */
+    }
+
+    &:hover &-popup--visible {
+      box-shadow: 1px 1px 2px 2px var(--pf-color-box-shadow);
+      background: var(--pf-color-background);
+      color: var(--pf-color-text);
+    }
+  }
+
+  &__chips {
+    grid-area: chips;
+    margin-left: 2px;
+  }
+
+  &__subtitle {
+    grid-area: subtitle;
+    font-size: 11px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  &__buttons {
+    grid-area: buttons;
+  }
+
+  &__crash-popup {
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    row-gap: 6px;
+  }
+}

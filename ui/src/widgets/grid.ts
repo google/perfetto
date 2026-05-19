@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './grid.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {isEmptyVnodes, type MithrilEvent} from '../base/mithril_utils';

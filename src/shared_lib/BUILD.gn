@@ -61,3 +61,7 @@ shared_library("libperfetto_c") {
   ]
   public_deps = [ "../../include/perfetto/public" ]
 }
+
+static_library("libperfetto_c_headers") {
+  public_deps = [ "../../include/perfetto/public" ]
+}
