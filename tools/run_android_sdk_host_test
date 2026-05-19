@@ -41,7 +41,7 @@ OUT_DIR = os.path.join(ROOT_DIR, 'out/android_sdk_host_test')
 JAVA_PROTOS_TARGET = 'src/android_sdk/java/test:perfetto_test_java_protos'
 JAVA_PROTOS_DIR = 'gen/src/android_sdk/java/test'
 
-TEST_CLASS = 'dev.perfetto.sdk.test.PerfettoTraceTest'
+TEST_SRC_DIR = os.path.join(SDK_DIR, 'test')
 
 
 def Die(msg):
@@ -133,21 +133,32 @@ def CompileSdk(jdk_home, jars, java_proto_dir):
 def CompileTest(jdk_home, jars, sdk_jar):
   classes = os.path.join(OUT_DIR, 'test_classes')
   os.makedirs(classes, exist_ok=True)
-  srcs = list(Glob(os.path.join(SDK_DIR, 'test'), '.java'))
+  srcs = list(Glob(TEST_SRC_DIR, '.java'))
   Javac(jdk_home, classes, Classpath(sdk_jar, *jars), srcs)
   jar = os.path.join(OUT_DIR, 'perfetto_sdk_host_test.jar')
   Jar(jdk_home, jar, classes)
   return jar
 
 
+def DiscoverTestClasses():
+  """Returns the FQCN of every *Test.java under the test source tree."""
+  classes = []
+  for path in Glob(TEST_SRC_DIR, 'Test.java'):
+    rel = os.path.relpath(path, TEST_SRC_DIR)
+    classes.append(rel[:-len('.java')].replace(os.sep, '.'))
+  return sorted(classes)
+
+
 def RunTests(jdk_home, jars, sdk_jar, test_jar):
   env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
+  test_classes = DiscoverTestClasses()
+  if not test_classes:
+    Die('No *Test classes found under %s.' % TEST_SRC_DIR)
   Run([
-      os.path.join(jdk_home,
-                   'bin/java'), '-Djava.library.path=' + OUT_DIR, '-cp',
-      Classpath(sdk_jar, test_jar, *jars), 'org.junit.runner.JUnitCore',
-      TEST_CLASS
-  ],
+      os.path.join(jdk_home, 'bin/java'), '-Djava.library.path=' + OUT_DIR,
+      '-cp',
+      Classpath(sdk_jar, test_jar, *jars), 'org.junit.runner.JUnitCore'
+  ] + test_classes,
       env=env)
 
 
