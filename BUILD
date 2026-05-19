@@ -4249,6 +4249,7 @@ perfetto_cpp_blob_header(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
     srcs = [
+        "src/trace_processor/perfetto_sql/syntaqlite/inline_dispatch.h",
         "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
         "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
         "src/trace_processor/perfetto_sql/syntaqlite/utils.h",
