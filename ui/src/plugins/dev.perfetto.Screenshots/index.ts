@@ -18,6 +18,10 @@ import {NUM} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {createScreenshotsTrack} from './screenshots_track';
+import {
+  ScreenshotScrubberTrack,
+  ScreenshotSpanTrack,
+} from './screenshot_span_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Screenshots';
@@ -42,6 +46,30 @@ export default class implements PerfettoPlugin {
         sortOrder: -60,
       });
       ctx.defaultWorkspace.addChildInOrder(trackNode);
+
+      const spanUri = '/screenshots_span';
+      ctx.tracks.registerTrack({
+        uri: spanUri,
+        renderer: new ScreenshotSpanTrack(ctx),
+      });
+      const spanNode = new TrackNode({
+        uri: spanUri,
+        name: 'Screenshots (Filmstrip)',
+        sortOrder: -58,
+      });
+      ctx.defaultWorkspace.addChildInOrder(spanNode);
+
+      const scrubberUri = '/screenshots_scrubber';
+      ctx.tracks.registerTrack({
+        uri: scrubberUri,
+        renderer: new ScreenshotScrubberTrack(ctx),
+      });
+      const scrubberNode = new TrackNode({
+        uri: scrubberUri,
+        name: 'Screenshots (Scrubber)',
+        sortOrder: -57,
+      });
+      ctx.defaultWorkspace.addChildInOrder(scrubberNode);
     }
   }
 }
