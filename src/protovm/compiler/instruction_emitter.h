@@ -30,8 +30,8 @@ namespace perfetto::protovm {
 
 // Implements the compiler back-end.
 //
-// Translates high-level commands into corresponding sequences of low-level
-// instructions.
+// Translates high-level commands (CompileConfig) into corresponding sequences
+// of low-level instructions (VmProgram/VmInstruction).
 class InstructionEmitter {
  public:
   using AbortLevel = protos::pbzero::VmInstruction::AbortLevel;

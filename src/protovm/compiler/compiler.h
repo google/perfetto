@@ -32,12 +32,15 @@ namespace perfetto::protovm {
 
 // Implements the compiler front-end.
 //
-// Parses high-level configuration commands (from CompileConfig) and delegates
+// Parses high-level configuration commands (CompileConfig) and delegates
 // the conversion and emission of low-level bytecode instructions (VmProgram)
 // to the InstructionEmitter.
 class Compiler {
  public:
   Compiler();
+
+  // input:  CompileConfig textproto (config_textproto)
+  // output: VmProgram binary proto
   base::StatusOr<std::string> Compile(std::string_view config_textproto,
                                       std::string_view descriptor_bytes);
 

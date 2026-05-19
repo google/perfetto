@@ -18,10 +18,13 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// The configuration for the ProtoVM compiler.
+// It defines a sequence of high-level compilation commands that the compiler
+// translates into low-level instructions (VmProgram/VmInstruction).
 message CompileConfig {
-  // The fully qualified name of the root message. E.g.
-  // "perfetto.protos.TracePacket". All the paths in the compiler commands are
-  // relative to this message.
+  // The fully qualified name of the root message. The paths in the compiler
+  // commands are relative to this message. This is tipically set to
+  // "perfetto.protos.TracePacket".
   optional string root_message = 1;
   repeated CompileCommand commands = 2;
 }
