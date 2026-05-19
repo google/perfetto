@@ -826,6 +826,7 @@ async function startViteDevServer() {
     configFile: pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
     server: {
       host: cfg.httpServerListenHost,
+      allowedHosts: cfg.httpServerListenHost ? true : undefined,
       port,
       strictPort: false,
       headers,
