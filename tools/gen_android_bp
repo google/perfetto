@@ -385,6 +385,14 @@ additional_args = {
     ],
     'perfetto_trace_lib_java': [
         ('sdk_version', 'module_current'),
+        # Propagates to perfetto_trace_lib_framework_java via shared defaults.
+        ('host_supported', True),
+        # On host the module_current classpath doesn't expose
+        # dalvik.annotation.optimization or android.system.SystemCleaner;
+        # the stubs library defined in Android.bp.extras provides them.
+        ('host', {
+            'libs': {'perfetto_trace_lib_host_stubs'}
+        }),
         # Framework should use 'perfetto_trace_lib_framework_java' instead.
         ('visibility', {':__subpackages__'}),
     ],
@@ -625,6 +633,7 @@ class Target(object):
 
   def __init__(self, name):
     self.name = name
+    self.libs = set()
     self.shared_libs = set()
     self.static_libs = set()
     self.whole_static_libs = set()
@@ -638,6 +647,7 @@ class Target(object):
   def to_string(self, output):
     nested_out = []
     self._output_field(nested_out, 'enabled')
+    self._output_field(nested_out, 'libs')
     self._output_field(nested_out, 'shared_libs')
     self._output_field(nested_out, 'static_libs')
     self._output_field(nested_out, 'whole_static_libs')
