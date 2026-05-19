@@ -38,7 +38,7 @@ function includeStatement(includeKey: string): string {
 
 function renderHighlightedName(segments: FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
-    matching ? m('span.pf-simple-table-list__highlight', value) : value,
+    matching ? m('span.pf-bt-simple-table-list__highlight', value) : value,
   );
 }
 
@@ -71,9 +71,9 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     }
 
     return m(
-      '.pf-simple-table-list',
+      '.pf-bt-simple-table-list',
       m(TextInput, {
-        className: 'pf-simple-table-list__search',
+        className: 'pf-bt-simple-table-list__search',
         placeholder: 'Search tables...',
         value: this.searchQuery,
         leftIcon: 'search',
@@ -83,7 +83,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       }),
       filteredTables.length > 0
         ? m(
-            '.pf-simple-table-list__items',
+            '.pf-bt-simple-table-list__items',
             m(
               Accordion,
               // multi:true so users can expand several tables for schema compare.
@@ -94,7 +94,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                   {
                     key: table.name,
                     summary: m(
-                      'code.pf-simple-table-list__item-name',
+                      'code.pf-bt-simple-table-list__item-name',
                       // Ellipsis-truncated; tooltip reveals the full name.
                       {title: table.name},
                       renderHighlightedName(segments),
@@ -114,9 +114,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
   private renderIncludeRow(includeKey: string): m.Children {
     const include = includeStatement(includeKey);
     return m(
-      '.pf-simple-table-list__detail-row',
-      m('span.pf-simple-table-list__detail-label', 'Include'),
-      m('code.pf-simple-table-list__detail-value', {title: include}, include),
+      '.pf-bt-simple-table-list__detail-row',
+      m('span.pf-bt-simple-table-list__detail-label', 'Include'),
+      m(
+        'code.pf-bt-simple-table-list__detail-value',
+        {title: include},
+        include,
+      ),
       m(CopyToClipboardButton, {
         className: 'pf-show-on-hover',
         textToCopy: include,
@@ -155,14 +159,14 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     return [
       // Description
       table.description &&
-        m('.pf-simple-table-list__description', table.description),
+        m('.pf-bt-simple-table-list__description', table.description),
 
       m(
-        '.pf-simple-table-list__detail-row',
-        m('span.pf-simple-table-list__detail-label', 'Table name'),
+        '.pf-bt-simple-table-list__detail-row',
+        m('span.pf-bt-simple-table-list__detail-label', 'Table name'),
         // Ellipsis-truncated; tooltip reveals the full name without copying.
         m(
-          'code.pf-simple-table-list__detail-value',
+          'code.pf-bt-simple-table-list__detail-value',
           {title: table.name},
           table.name,
         ),
@@ -186,24 +190,24 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       // Columns
       table.columns.length > 0 &&
         m(
-          '.pf-simple-table-list__columns',
-          m('span.pf-simple-table-list__detail-label', 'Columns'),
+          '.pf-bt-simple-table-list__columns',
+          m('span.pf-bt-simple-table-list__detail-label', 'Columns'),
           m(
-            '.pf-simple-table-list__column-list',
+            '.pf-bt-simple-table-list__column-list',
             table.columns.map((col) =>
               m(
-                '.pf-simple-table-list__column',
+                '.pf-bt-simple-table-list__column',
                 m(Icon, {
                   icon: perfettoSqlTypeIcon(col.type),
-                  className: 'pf-simple-table-list__column-icon',
+                  className: 'pf-bt-simple-table-list__column-icon',
                 }),
                 m(
-                  '.pf-simple-table-list__column-info',
+                  '.pf-bt-simple-table-list__column-info',
                   m(
-                    '.pf-simple-table-list__column-header',
-                    m('code.pf-simple-table-list__column-name', col.name),
+                    '.pf-bt-simple-table-list__column-header',
+                    m('code.pf-bt-simple-table-list__column-name', col.name),
                     m(
-                      '.pf-simple-table-list__column-copy',
+                      '.pf-bt-simple-table-list__column-copy',
                       m(CopyToClipboardButton, {
                         textToCopy: col.name,
                         compact: true,
@@ -211,12 +215,12 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                       }),
                     ),
                     m(
-                      'span.pf-simple-table-list__column-type',
+                      'span.pf-bt-simple-table-list__column-type',
                       perfettoSqlTypeToString(col.type),
                     ),
                   ),
                   col.description &&
-                    m('.pf-simple-table-list__column-desc', col.description),
+                    m('.pf-bt-simple-table-list__column-desc', col.description),
                 ),
               ),
             ),

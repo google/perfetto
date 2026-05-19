@@ -181,7 +181,7 @@ function renderResultsTabs(
     },
   ];
 
-  return m('.pf-query-page__results', [
+  return m('.pf-bt-query-page__results', [
     m(Tabs, {
       tabs,
       activeTabKey: activeTab,

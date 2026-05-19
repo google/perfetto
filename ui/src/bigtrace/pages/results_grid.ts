@@ -148,7 +148,7 @@ function renderDataGrid(
         );
       })
       .map((col) => ({id: col, field: col})),
-    className: 'pf-query-page__results',
+    className: 'pf-bt-query-page__results',
     data: dataSource,
     fillHeight: true,
     showExportButton: true,

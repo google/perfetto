@@ -78,8 +78,8 @@ function renderEditorPanel(
   runner: QueryRunner,
   useBigtraceBackend: boolean,
 ): m.Children {
-  return m('.pf-query-page__editor-panel', [
-    m(Box, {className: 'pf-query-page__toolbar'}, [
+  return m('.pf-bt-query-page__editor-panel', [
+    m(Box, {className: 'pf-bt-query-page__toolbar'}, [
       m(Stack, {orientation: 'horizontal'}, [
         tab.isLoading
           ? m(Button, {
@@ -103,7 +103,7 @@ function renderEditorPanel(
             }),
         m(
           Stack,
-          {orientation: 'horizontal', className: 'pf-query-page__hotkeys'},
+          {orientation: 'horizontal', className: 'pf-bt-query-page__hotkeys'},
           'or press',
           m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
         ),

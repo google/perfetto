@@ -117,7 +117,7 @@ export class SettingsPage implements m.ClassComponent {
           }),
         ),
       },
-      m('.pf-settings-page', [
+      m('.pf-bt-settings-page', [
         bigTraceSettingsStorage.isExecConfigLoading &&
           m(EmptyState, {
             title: 'Loading settings...',
@@ -126,12 +126,12 @@ export class SettingsPage implements m.ClassComponent {
           }),
         Array.from(categories.entries()).map(([category, catSettings]) => {
           let categoryHeader: m.Children = m(
-            'h2.pf-settings-page__plugin-title',
+            'h2.pf-bt-settings-page__plugin-title',
             category,
           );
           if (category === 'Trace Metadata') {
             categoryHeader = m(
-              'h2.pf-settings-page__plugin-title.pf-bt-settings-category-header',
+              'h2.pf-bt-settings-page__plugin-title.pf-bt-settings-category-header',
               [
                 m('span', category),
                 bigTraceSettingsStorage.isReloadRequired() &&
@@ -192,7 +192,7 @@ export class SettingsPage implements m.ClassComponent {
           }
 
           return m(
-            '.pf-settings-page__plugin-section',
+            '.pf-bt-settings-page__plugin-section',
             categoryHeader,
             categoryContent,
           );

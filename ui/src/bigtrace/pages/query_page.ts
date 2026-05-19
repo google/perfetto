@@ -93,7 +93,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     }));
 
     const leftPanel = m(Tabs, {
-      className: 'pf-query-page__editor-tabs',
+      className: 'pf-bt-query-page__editor-tabs',
       tabs: editorTabs,
       activeTabKey: this.tabsState.activeTabId,
       reorderable: true,
@@ -154,7 +154,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     });
 
     const sidebarPanel = m(Tabs, {
-      className: 'pf-query-page__sidebar',
+      className: 'pf-bt-query-page__sidebar',
       tabs: [
         {
           key: 'history',
@@ -162,7 +162,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           // narrow viewports.
           title: 'History',
           content: m(QueryHistoryComponent, {
-            className: 'pf-query-page__history',
+            className: 'pf-bt-query-page__history',
             refreshSignal: this.historyRefreshSignal,
             openQuery: async (
               query: string,
@@ -203,11 +203,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     });
 
     if (!this.sidebarVisible) {
-      return m('.pf-query-page', leftPanel);
+      return m('.pf-bt-query-page', leftPanel);
     }
 
     return m(
-      '.pf-query-page',
+      '.pf-bt-query-page',
       m(SplitPanel, {
         direction: 'horizontal',
         initialSplit: {percent: 25},
