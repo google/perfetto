@@ -95,6 +95,9 @@ class FtraceParser {
   void ParseCpuFreqThrottle(int64_t timestamp, protozero::ConstBytes);
   void ParseGpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseKgslGpuFreq(int64_t timestamp, protozero::ConstBytes);
+  void ParseKgslAdrenoCmdbatchQueued(uint32_t pid, protozero::ConstBytes);
+  void ParseKgslAdrenoCmdbatchSync(int64_t timestamp, protozero::ConstBytes);
+  void ParseKgslAdrenoCmdbatchRetired(int64_t, protozero::ConstBytes);
   void ParseCpuIdle(int64_t timestamp, protozero::ConstBytes);
   void ParsePrint(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseZero(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
@@ -463,6 +466,16 @@ class FtraceParser {
   const StringId gpu_power_state_off_id_;
   const StringId gpu_power_state_pg_id_;
   const StringId gpu_power_state_on_id_;
+
+  struct AdrenoCmdbatchSyncPoint {
+    int64_t trace_ts;
+    uint64_t gpu_ticks;
+  };
+  base::FlatHashMap<uint32_t, AdrenoCmdbatchSyncPoint>
+      adreno_cmdbatch_sync_points_;
+  base::FlatHashMap<uint32_t, uint32_t> adreno_cmdbatch_ctx_tids_;
+  const StringId gpu_cmdbatch_slice_name_id_;
+
   const StringId ddic_underrun_id_;
   std::array<StringId, 8> f2fs_checkpoint_reason_ids_;
 
