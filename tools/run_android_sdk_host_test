@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" Runs the perfetto Java SDK test suite on a host JVM.
+
+Companion to tools/run_android_test (which runs the same test under ART on a
+device or emulator). Uses the JDK pointed to by $JAVA_HOME, the Maven jars
+landed by `tools/install-build-deps --java-sdk`, and the host stubs in
+src/android_sdk/java/host_stubs/ to compile the perfetto Java SDK and the
+PerfettoTraceTest suite for host. Links against the libperfetto_jni.so the
+gn+ninja pipeline produces and runs the JUnit suite.
+
+Prerequisites
+-------------
+  $JAVA_HOME points at a JDK >= 11 install root.
+  tools/install-build-deps              # standard C++ toolchain
+  tools/install-build-deps --java-sdk   # Maven jars (opt-in)
+"""
+
+import logging
+import os
+import re
+import subprocess
+import sys
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JAVA_DEPS_DIR = os.path.join(ROOT_DIR, 'buildtools/java_sdk')
+SDK_DIR = os.path.join(ROOT_DIR, 'src/android_sdk/java')
+OUT_DIR = os.path.join(ROOT_DIR, 'out/android_sdk_host_test')
+
+# Proto files referenced by PerfettoTraceTest. protoc generates one Java
+# class per .proto file passed; we walk imports from this set so the
+# codegen surface matches what the test actually uses. (The amalgamated
+# protos/perfetto/trace/perfetto_trace.proto would collapse 900+ messages
+# into a single nested Java class, which doesn't match the per-file
+# `perfetto.protos.<File>OuterClass` layout the test imports from and the
+# Soong/Bazel proto target produces on device.)
+TEST_PROTOS = [
+    'protos/perfetto/config/trace_config.proto',
+    'protos/perfetto/config/track_event/track_event_config.proto',
+    'protos/perfetto/trace/trace.proto',
+    'protos/perfetto/trace/trace_packet.proto',
+    'protos/perfetto/trace/interned_data/interned_data.proto',
+    'protos/perfetto/trace/track_event/chrome_latency_info.proto',
+    'protos/perfetto/trace/track_event/debug_annotation.proto',
+    'protos/perfetto/trace/track_event/source_location.proto',
+    'protos/perfetto/trace/track_event/track_descriptor.proto',
+    'protos/perfetto/trace/track_event/track_event.proto',
+]
+
+TEST_CLASS = 'dev.perfetto.sdk.test.PerfettoTraceTest'
+
+
+def Die(msg):
+  logging.error(msg)
+  sys.exit(1)
+
+
+def Run(cmd, **kwargs):
+  logging.debug('+ %s', ' '.join(cmd))
+  return subprocess.run(cmd, check=True, **kwargs)
+
+
+def JdkHome():
+  jh = os.environ.get('JAVA_HOME')
+  if not jh:
+    Die('JAVA_HOME not set. Install a JDK >= 11 and set JAVA_HOME.')
+  if not os.path.exists(os.path.join(jh, 'include/jni.h')):
+    Die('JAVA_HOME=%s does not look like a JDK install (no include/jni.h).' %
+        jh)
+  return jh
+
+
+def Glob(root, suffix):
+  for dirpath, _, files in os.walk(root):
+    for f in files:
+      if f.endswith(suffix):
+        yield os.path.join(dirpath, f)
+
+
+def MavenJars():
+  jars = sorted(Glob(JAVA_DEPS_DIR, '.jar'))
+  if not jars:
+    Die('No jars in %s. Run `tools/install-build-deps --java-sdk`.' %
+        JAVA_DEPS_DIR)
+  return jars
+
+
+def Classpath(*entries):
+  return os.pathsep.join(entries)
+
+
+def Gn(jdk_home):
+  os.makedirs(OUT_DIR, exist_ok=True)
+  Run([
+      os.path.join(ROOT_DIR, 'tools/gn'), 'gen', OUT_DIR, '--args=' + ' '.join([
+          'is_debug=false',
+          'enable_perfetto_android_java_sdk=true',
+          'jdk_include_path="%s"' % os.path.join(jdk_home, 'include'),
+      ])
+  ])
+
+
+def Ninja():
+  Run([
+      os.path.join(ROOT_DIR, 'tools/ninja'), '-C', OUT_DIR, 'libperfetto_jni',
+      'protoc'
+  ])
+
+
+_IMPORT_RE = re.compile(r'^\s*import\s+"([^"]+)"\s*;')
+
+
+def TransitiveImports(roots):
+  """Returns the closure of `roots` plus their transitive `import "…";`."""
+  visited = set()
+  stack = list(roots)
+  while stack:
+    rel = stack.pop()
+    if rel in visited:
+      continue
+    visited.add(rel)
+    with open(os.path.join(ROOT_DIR, rel)) as f:
+      for line in f:
+        m = _IMPORT_RE.match(line)
+        if m and m.group(1).startswith('protos/perfetto/'):
+          stack.append(m.group(1))
+  return sorted(visited)
+
+
+def GenJavaProtos():
+  out = os.path.join(OUT_DIR, 'java_protos')
+  os.makedirs(out, exist_ok=True)
+  Run([
+      os.path.join(OUT_DIR, 'protoc'), '--proto_path=' +
+      ROOT_DIR, '--java_out=' + out
+  ] + TransitiveImports(TEST_PROTOS))
+  return out
+
+
+def Javac(jdk_home, classes_dir, classpath, srcs):
+  Run([
+      os.path.join(jdk_home, 'bin/javac'), '-d', classes_dir, '-cp', classpath,
+      '-source', '11', '-target', '11'
+  ] + srcs)
+
+
+def Jar(jdk_home, jar_path, classes_dir):
+  Run([
+      os.path.join(jdk_home, 'bin/jar'), 'cf', jar_path, '-C', classes_dir, '.'
+  ])
+
+
+def CompileSdk(jdk_home, jars, java_proto_dir):
+  classes = os.path.join(OUT_DIR, 'sdk_classes')
+  os.makedirs(classes, exist_ok=True)
+  srcs = (
+      list(Glob(os.path.join(SDK_DIR, 'main'), '.java')) +
+      list(Glob(os.path.join(SDK_DIR, 'host_stubs'), '.java')) +
+      list(Glob(java_proto_dir, '.java')))
+  Javac(jdk_home, classes, Classpath(*jars), srcs)
+  jar = os.path.join(OUT_DIR, 'perfetto_sdk_host.jar')
+  Jar(jdk_home, jar, classes)
+  return jar
+
+
+def CompileTest(jdk_home, jars, sdk_jar):
+  classes = os.path.join(OUT_DIR, 'test_classes')
+  os.makedirs(classes, exist_ok=True)
+  srcs = list(Glob(os.path.join(SDK_DIR, 'test'), '.java'))
+  Javac(jdk_home, classes, Classpath(sdk_jar, *jars), srcs)
+  jar = os.path.join(OUT_DIR, 'perfetto_sdk_host_test.jar')
+  Jar(jdk_home, jar, classes)
+  return jar
+
+
+def RunTests(jdk_home, jars, sdk_jar, test_jar):
+  env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
+  Run([
+      os.path.join(jdk_home,
+                   'bin/java'), '-Djava.library.path=' + OUT_DIR, '-cp',
+      Classpath(sdk_jar, test_jar, *jars), 'org.junit.runner.JUnitCore',
+      TEST_CLASS
+  ],
+      env=env)
+
+
+def main():
+  logging.basicConfig(level=logging.INFO, format='%(message)s')
+  jdk_home = JdkHome()
+  jars = MavenJars()
+  Gn(jdk_home)
+  Ninja()
+  java_proto_dir = GenJavaProtos()
+  sdk_jar = CompileSdk(jdk_home, jars, java_proto_dir)
+  test_jar = CompileTest(jdk_home, jars, sdk_jar)
+  RunTests(jdk_home, jars, sdk_jar, test_jar)
+
+
+if __name__ == '__main__':
+  main()
