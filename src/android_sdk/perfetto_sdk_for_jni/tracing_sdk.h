@@ -95,17 +95,40 @@ void trace_event(int type,
  * produced on the Java side with ProtoWriter; it is appended verbatim into the
  * `track_event` submessage. Bare events pass an empty body.
  *
+ * The event can be placed on a nested track. The track chain is passed
+ * pre-resolved (uuids computed on the Java side): `track_uuids[i]` /
+ * `track_parent_uuids[i]` / `track_names[i]` describe each named level from the
+ * root down, `leaf_track_uuid` is the uuid the event is attached to. For each
+ * level not yet seen on a sequence (PerfettoTeLlTrackSeen), its TrackDescriptor
+ * is emitted once. `track_count == 0` means the event uses the default track.
+ *
  * @param cat The (registered) category of the event.
  * @param type The PerfettoTeType of the event (slice begin/end, instant, ...).
  * @param name The event name. Ignored for SLICE_END and COUNTER events.
  * @param body Encoded TrackEvent field bytes to append, or nullptr.
  * @param body_size Size of `body` in bytes, or 0.
+ * @param set_track_uuid Whether to attach the event to `leaf_track_uuid`
+ *     (false leaves it on the sequence default track). True for any usingTrack.
+ * @param leaf_track_uuid The uuid the event is attached to.
+ * @param track_count Number of named track levels whose descriptors may need
+ *     emitting (0 for a root track that already has a descriptor, e.g. process).
+ * @param track_uuids Per-level track uuids (length track_count).
+ * @param track_parent_uuids Per-level parent uuids (length track_count).
+ * @param track_names Per-level names (length track_count).
+ * @param track_name_static Whether track names are compile-time constants.
  */
 void emit_track_event(const PerfettoTeCategory* cat,
                       int32_t type,
                       const char* name,
                       const void* body,
-                      size_t body_size);
+                      size_t body_size,
+                      bool set_track_uuid,
+                      uint64_t leaf_track_uuid,
+                      int32_t track_count,
+                      const uint64_t* track_uuids,
+                      const uint64_t* track_parent_uuids,
+                      const char* const* track_names,
+                      bool track_name_static);
 
 /**
  * @brief Gets the process track UUID.

@@ -28,18 +28,94 @@
 namespace perfetto {
 namespace jni {
 
+// Deepest track hierarchy passed in one emit. Deeper chains are clamped (a
+// pathological case; real hierarchies are a handful of levels).
+static constexpr jint kMaxTrackLevels = 16;
+
 template <typename T>
 inline static T* toPointer(jlong ptr) {
   return reinterpret_cast<T*>(static_cast<uintptr_t>(ptr));
 }
 
-// Emits a track event through the Low Level ABI path. `cat_ptr` is a pointer to
-// the native sdk_for_jni::Category created by PerfettoTrace.Category.
-//
-// The name is converted via the thread-local StringBuffer (GetStringRegion fast
-// path -- no Java-heap object and no native malloc, unlike GetStringUTFChars).
-// `body`/`body_len`, when non-empty, is the Java-encoded TrackEvent body copied
-// onto the stack. Both conversions are allocation-free.
+// Copies the first `len` bytes of `body` into `stack_buf` (fast path), or via
+// GetByteArrayElements for oversized bodies (returns the pointer to release in
+// `*heap_out`). Returns the data pointer.
+static const uint8_t* CopyBody(JNIEnv* env,
+                               jbyteArray body,
+                               jint len,
+                               uint8_t* stack_buf,
+                               jint stack_size,
+                               jbyte** heap_out) {
+  *heap_out = nullptr;
+  if (len <= 0) {
+    return nullptr;
+  }
+  if (len <= stack_size) {
+    env->GetByteArrayRegion(body, 0, len, reinterpret_cast<jbyte*>(stack_buf));
+    return stack_buf;
+  }
+  *heap_out = env->GetByteArrayElements(body, nullptr);
+  return reinterpret_cast<const uint8_t*>(*heap_out);
+}
+
+// Shared emit. `name` and any track names are converted via the thread-local
+// StringBuffer (GetStringRegion fast path: no Java-heap object, no native
+// malloc); the body and the track chain are copied onto the stack. All
+// conversions are allocation-free. Track arrays are only read when track_count
+// or set_track_uuid require them.
+static void emit(JNIEnv* env,
+                 jint type,
+                 jlong cat_ptr,
+                 jstring name,
+                 jbyteArray body,
+                 jint body_len,
+                 bool set_track_uuid,
+                 jlong leaf_track_uuid,
+                 jint track_count,
+                 jlongArray track_uuids,
+                 jlongArray track_parent_uuids,
+                 jobjectArray track_names,
+                 bool track_name_static) {
+  auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
+  std::string_view name_view = StringBuffer::utf16_to_ascii(env, name);
+
+  uint64_t uuids[kMaxTrackLevels];
+  uint64_t parent_uuids[kMaxTrackLevels];
+  const char* names[kMaxTrackLevels];
+  jint count = 0;
+  if (track_count > 0) {
+    count = track_count < kMaxTrackLevels ? track_count : kMaxTrackLevels;
+    env->GetLongArrayRegion(track_uuids, 0, count,
+                            reinterpret_cast<jlong*>(uuids));
+    env->GetLongArrayRegion(track_parent_uuids, 0, count,
+                            reinterpret_cast<jlong*>(parent_uuids));
+    for (jint i = 0; i < count; i++) {
+      jstring tn =
+          static_cast<jstring>(env->GetObjectArrayElement(track_names, i));
+      names[i] = StringBuffer::utf16_to_ascii(env, tn).data();
+      env->DeleteLocalRef(tn);
+    }
+  }
+
+  constexpr jint kStackBufSize = 4096;
+  uint8_t stack_buf[kStackBufSize];
+  jbyte* heap = nullptr;
+  const uint8_t* data =
+      CopyBody(env, body, body_len, stack_buf, kStackBufSize, &heap);
+
+  sdk_for_jni::emit_track_event(
+      category->get(), type, name_view.data(), data,
+      body_len > 0 ? static_cast<size_t>(body_len) : 0, set_track_uuid,
+      static_cast<uint64_t>(leaf_track_uuid), count, uuids, parent_uuids, names,
+      track_name_static);
+
+  if (heap) {
+    env->ReleaseByteArrayElements(body, heap, JNI_ABORT);
+  }
+  StringBuffer::reset();
+}
+
+// Common path: event on the sequence default track. No track arrays.
 static void dev_perfetto_sdk_PerfettoEvent_native_emit(JNIEnv* env,
                                                        jclass,
                                                        jint type,
@@ -47,37 +123,37 @@ static void dev_perfetto_sdk_PerfettoEvent_native_emit(JNIEnv* env,
                                                        jstring name,
                                                        jbyteArray body,
                                                        jint body_len) {
-  auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
-  std::string_view name_view = StringBuffer::utf16_to_ascii(env, name);
+  emit(env, type, cat_ptr, name, body, body_len, /*set_track_uuid=*/false,
+       /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
+       /*track_name_static=*/false);
+}
 
-  if (body_len <= 0) {
-    sdk_for_jni::emit_track_event(category->get(), type, name_view.data(),
-                                  nullptr, 0);
-  } else {
-    // The body is one trace event's worth of fields; it comfortably fits the
-    // stack fast path. Copy out of the Java heap before touching the stream
-    // writer (which may transition shared-memory chunks).
-    constexpr jint kStackBufSize = 4096;
-    uint8_t stack_buf[kStackBufSize];
-    if (body_len <= kStackBufSize) {
-      env->GetByteArrayRegion(body, 0, body_len,
-                              reinterpret_cast<jbyte*>(stack_buf));
-      sdk_for_jni::emit_track_event(category->get(), type, name_view.data(),
-                                    stack_buf, static_cast<size_t>(body_len));
-    } else {
-      jbyte* heap = env->GetByteArrayElements(body, nullptr);
-      sdk_for_jni::emit_track_event(category->get(), type, name_view.data(),
-                                    heap, static_cast<size_t>(body_len));
-      env->ReleaseByteArrayElements(body, heap, JNI_ABORT);
-    }
-  }
-
-  StringBuffer::reset();
+// Track path: event attached to a (possibly nested) track.
+static void dev_perfetto_sdk_PerfettoEvent_native_emit_on_track(
+    JNIEnv* env,
+    jclass,
+    jint type,
+    jlong cat_ptr,
+    jstring name,
+    jbyteArray body,
+    jint body_len,
+    jlong leaf_track_uuid,
+    jint track_count,
+    jlongArray track_uuids,
+    jlongArray track_parent_uuids,
+    jobjectArray track_names,
+    jboolean track_name_static) {
+  emit(env, type, cat_ptr, name, body, body_len, /*set_track_uuid=*/true,
+       leaf_track_uuid, track_count, track_uuids, track_parent_uuids,
+       track_names, track_name_static == JNI_TRUE);
 }
 
 static const JNINativeMethod gEventMethods[] = {
     {"native_emit", "(IJLjava/lang/String;[BI)V",
      (void*)dev_perfetto_sdk_PerfettoEvent_native_emit},
+    {"native_emit_on_track",
+     "(IJLjava/lang/String;[BIJI[J[J[Ljava/lang/String;Z)V",
+     (void*)dev_perfetto_sdk_PerfettoEvent_native_emit_on_track},
 };
 
 int register_dev_perfetto_sdk_PerfettoEvent(JNIEnv* env) {

@@ -104,13 +104,33 @@ public final class PerfettoEvent {
   }
 
   /**
-   * Emits a track event of {@code type} on {@code category} with {@code name},
-   * appending whatever was encoded into the per-thread body since {@link
-   * #beginBody}.
+   * Emits a track event on the sequence default track, appending whatever was
+   * encoded into the per-thread body since {@link #beginBody}.
    */
   static void emit(int type, long categoryPtr, String name) {
     ProtoWriter b = sBody.get();
     native_emit(type, categoryPtr, name, b.buffer(), b.position());
+  }
+
+  /**
+   * Emits a track event attached to {@code leafTrackUuid}. {@code trackUuids} /
+   * {@code trackParentUuids} / {@code trackNames} describe the {@code
+   * trackCount} named levels whose descriptors are emitted once per sequence.
+   */
+  static void emitOnTrack(
+      int type,
+      long categoryPtr,
+      String name,
+      long leafTrackUuid,
+      int trackCount,
+      long[] trackUuids,
+      long[] trackParentUuids,
+      String[] trackNames,
+      boolean trackNameStatic) {
+    ProtoWriter b = sBody.get();
+    native_emit_on_track(
+        type, categoryPtr, name, b.buffer(), b.position(), leafTrackUuid,
+        trackCount, trackUuids, trackParentUuids, trackNames, trackNameStatic);
   }
 
   /**
@@ -128,4 +148,18 @@ public final class PerfettoEvent {
   @FastNative
   private static native void native_emit(
       int type, long categoryPtr, String name, byte[] body, int bodyLen);
+
+  @FastNative
+  private static native void native_emit_on_track(
+      int type,
+      long categoryPtr,
+      String name,
+      byte[] body,
+      int bodyLen,
+      long leafTrackUuid,
+      int trackCount,
+      long[] trackUuids,
+      long[] trackParentUuids,
+      String[] trackNames,
+      boolean trackNameStatic);
 }

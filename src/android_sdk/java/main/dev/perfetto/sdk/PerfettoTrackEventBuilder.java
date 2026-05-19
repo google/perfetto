@@ -145,6 +145,21 @@ public final class PerfettoTrackEventBuilder {
   // as HL args; further args on this event go straight to HL.
   private boolean mArgsSpilled;
 
+  // The nested track set by usingTrack(), flattened root->leaf into reused
+  // arrays (uuids precomputed in PerfettoTrack). The leaf is the track the event
+  // attaches to; each level's descriptor is emitted once per sequence. ids are
+  // kept only for the HL fallback (when the event also uses a not-yet-migrated
+  // extra). Only used by the root builder.
+  private static final int MAX_TRACK_LEVELS = 16; // keep in sync with C++ JNI
+  private long[] mTrackUuids;
+  private long[] mTrackParentUuids;
+  private long[] mTrackIds;
+  private String[] mTrackNames;
+  private int mTrackCount;
+  private boolean mHasTrack;
+  private boolean mTrackNameStatic;
+  private long mTrackLeafUuid;
+
   private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
       () -> new PerfettoTrackEventBuilder(true, this);
   private final Supplier<FieldNested> fieldNestedSupplier =
@@ -188,6 +203,10 @@ public final class PerfettoTrackEventBuilder {
       mArgLongs = new long[MAX_BUFFERED_ARGS];
       mArgDoubles = new double[MAX_BUFFERED_ARGS];
       mArgStrings = new String[MAX_BUFFERED_ARGS];
+      mTrackUuids = new long[MAX_TRACK_LEVELS];
+      mTrackParentUuids = new long[MAX_TRACK_LEVELS];
+      mTrackIds = new long[MAX_TRACK_LEVELS];
+      mTrackNames = new String[MAX_TRACK_LEVELS];
     } else {
       // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
@@ -208,19 +227,29 @@ public final class PerfettoTrackEventBuilder {
     }
 
     mIsBuilt = true;
-    // Java-side LL path: taken when the flag is on and the event carries only
-    // migrated extras (debug args, which are buffered, not in mPendingPointers).
-    // Any not-yet-migrated extra (track, flow, counter, proto) lands in
-    // mPendingPointers and forces the High Level path; buffered args are then
-    // replayed as HL args so nothing is lost.
+    // Java-side path: taken when the flag is on and the event carries only
+    // migrated extras (debug args and tracks, both held off mPendingPointers).
+    // Any not-yet-migrated extra (flow, counter, proto) lands in mPendingPointers
+    // and forces the High Level path; buffered args and the track are then
+    // replayed as HL extras so nothing is lost.
     if (sUseJavaEmit && !mArgsSpilled && mPendingPointers.isEmpty()) {
       PerfettoEvent.beginBody();
       writeArgs();
-      PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName);
+      if (mHasTrack) {
+        PerfettoEvent.emitOnTrack(
+            mTraceType, mCategory.getPtr(), mEventName, mTrackLeafUuid,
+            mTrackCount, mTrackUuids, mTrackParentUuids, mTrackNames,
+            mTrackNameStatic);
+      } else {
+        PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName);
+      }
       return;
     }
     if (mArgCount > 0) {
       flushArgsToHl();
+    }
+    if (mHasTrack) {
+      flushTrackToHl();
     }
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
@@ -261,6 +290,8 @@ public final class PerfettoTrackEventBuilder {
     mCurrentContainer = null;
     mArgCount = 0;
     mArgsSpilled = false;
+    mHasTrack = false;
+    mTrackCount = 0;
 
     return this;
   }
@@ -495,6 +526,16 @@ public final class PerfettoTrackEventBuilder {
     return this;
   }
 
+  // Replays the pending track as an HL named-track extra (used when the event
+  // also carries a not-yet-migrated extra, forcing the HL path). Same
+  // name/id/parent, so HL recomputes the identical uuid.
+  private void flushTrackToHl() {
+    for (int i = 0; i < mTrackCount; i++) {
+      usingNamedTrackHl(mTrackIds[i], mTrackNames[i], mTrackParentUuids[i],
+          mTrackNameStatic);
+    }
+  }
+
   /** Adds the events to a named track instead of the thread track where the event occurred. */
   public PerfettoTrackEventBuilder usingNamedTrack(
           long id, @CompileTimeConstant String name, long parentUuid) {
@@ -510,10 +551,8 @@ public final class PerfettoTrackEventBuilder {
     return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ false);
   }
 
-  /**
-   * Adds the events to a named track with a static name (populated in field 10 of
-   * TrackDescriptor).
-   */
+  // Routes a named track to the Java emit path (records it for emit), or to the
+  // High Level path when the flag is off.
   private PerfettoTrackEventBuilder usingNamedTrack(
           long id, String name, long parentUuid, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
@@ -522,14 +561,50 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
+    if (sUseJavaEmit) {
+      setTrack(id, name, parentUuid, isNameStatic);
+    } else {
+      usingNamedTrackHl(id, name, parentUuid, isNameStatic);
+    }
+    return this;
+  }
 
+  // Records a single named track for the Java emit path. The uuid is derived the
+  // same way as native (parentUuid ^ fnv1a(name) ^ id), so a track is identical
+  // whether emitted from here, the HL path, or C++.
+  private void setTrack(long id, String name, long parentUuid, boolean isNameStatic) {
+    long uuid = parentUuid ^ fnv1a(name) ^ id;
+    mHasTrack = true;
+    mTrackLeafUuid = uuid;
+    mTrackNameStatic = isNameStatic;
+    mTrackCount = 1;
+    mTrackUuids[0] = uuid;
+    mTrackParentUuids[0] = parentUuid;
+    mTrackIds[0] = id;
+    mTrackNames[0] = name;
+  }
+
+  // High Level named track: builds a NamedTrack extra (flag off, or HL fallback).
+  private void usingNamedTrackHl(long id, String name, long parentUuid, boolean isNameStatic) {
     NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
     if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
       track = new NamedTrack(id, name, parentUuid, isNameStatic, mNativeMemoryCleaner);
       mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
-    return this;
+  }
+
+  // FNV-1a over the name bytes, matching PerfettoFnv1a / PerfettoTeNamedTrackUuid
+  // in the C SDK (chars above 0x7F fold to '?', the JNI's ASCII conversion) so
+  // Java-derived track uuids match native ones.
+  private static long fnv1a(String s) {
+    long h = 0xcbf29ce484222325L;
+    for (int i = 0; i < s.length(); i++) {
+      char c = s.charAt(i);
+      h ^= (c <= 0x7F) ? c : '?';
+      h *= 0x100000001b3L;
+    }
+    return h;
   }
 
   /**

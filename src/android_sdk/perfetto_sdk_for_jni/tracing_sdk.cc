@@ -26,6 +26,7 @@
 #include "perfetto/public/pb_msg.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/protos/trace/trace_packet.pzc.h"
+#include "perfetto/public/protos/trace/track_event/track_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 #include "perfetto/public/te_macros.h"
 #include "perfetto/public/track_event.h"
@@ -59,11 +60,46 @@ void trace_event(int type,
   }
 }
 
+// Emits TrackDescriptor packets for any track levels not yet seen on this
+// instance's sequence. Each level's parent is the level above it (the first
+// level's parent is the root uuid the Java side derived the chain from).
+static void emit_unseen_track_descriptors(struct PerfettoTeLlIterator* ctx,
+                                          int32_t track_count,
+                                          const uint64_t* track_uuids,
+                                          const uint64_t* track_parent_uuids,
+                                          const char* const* track_names,
+                                          bool track_name_static) {
+  for (int32_t i = 0; i < track_count; i++) {
+    if (PerfettoTeLlTrackSeen(ctx->impl.incr, track_uuids[i])) {
+      continue;
+    }
+    struct PerfettoDsRootTracePacket desc_packet;
+    PerfettoTeLlPacketBegin(ctx, &desc_packet);
+    perfetto_protos_TracePacket_set_sequence_flags(
+        &desc_packet.msg,
+        perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
+    struct perfetto_protos_TrackDescriptor desc;
+    perfetto_protos_TracePacket_begin_track_descriptor(&desc_packet.msg, &desc);
+    PerfettoTeNamedTrackFillDesc(&desc, track_names[i], /*id=*/0,
+                                 track_parent_uuids[i], track_uuids[i],
+                                 track_name_static);
+    perfetto_protos_TracePacket_end_track_descriptor(&desc_packet.msg, &desc);
+    PerfettoTeLlPacketEnd(ctx, &desc_packet);
+  }
+}
+
 void emit_track_event(const PerfettoTeCategory* cat,
                       int32_t type,
                       const char* name,
                       const void* body,
-                      size_t body_size) {
+                      size_t body_size,
+                      bool set_track_uuid,
+                      uint64_t leaf_track_uuid,
+                      int32_t track_count,
+                      const uint64_t* track_uuids,
+                      const uint64_t* track_parent_uuids,
+                      const char* const* track_names,
+                      bool track_name_static) {
   bool enabled = PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
       cat->enabled, PERFETTO_MEMORY_ORDER_RELAXED));
   if (!enabled) {
@@ -84,6 +120,12 @@ void emit_track_event(const PerfettoTeCategory* cat,
            PerfettoTeLlBeginSlowPath(mut_cat, timestamp);
        ctx.impl.ds.tracer != nullptr;
        PerfettoTeLlNext(mut_cat, timestamp, &ctx)) {
+    if (track_count > 0) {
+      emit_unseen_track_descriptors(&ctx, track_count, track_uuids,
+                                    track_parent_uuids, track_names,
+                                    track_name_static);
+    }
+
     struct PerfettoDsRootTracePacket trace_packet;
     PerfettoTeLlPacketBegin(&ctx, &trace_packet);
     PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
@@ -112,8 +154,11 @@ void emit_track_event(const PerfettoTeCategory* cat,
       if (event_name) {
         PerfettoTeLlWriteInternedEventName(&te_msg, name_iid);
       }
-      // Append the Java-encoded TrackEvent body (debug args, track_uuid, proto
-      // fields, ...) verbatim into the track_event submessage.
+      if (set_track_uuid) {
+        perfetto_protos_TrackEvent_set_track_uuid(&te_msg, leaf_track_uuid);
+      }
+      // Append the Java-encoded TrackEvent body (debug args, proto fields, ...)
+      // verbatim into the track_event submessage.
       if (body_size) {
         PerfettoPbMsgAppendBytes(&te_msg.msg,
                                  static_cast<const uint8_t*>(body), body_size);

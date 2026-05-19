@@ -35,6 +35,7 @@ import perfetto.protos.TraceConfigOuterClass.TraceConfig.BufferConfig;
 import perfetto.protos.TraceConfigOuterClass.TraceConfig.DataSource;
 import perfetto.protos.TraceOuterClass.Trace;
 import perfetto.protos.TracePacketOuterClass.TracePacket;
+import perfetto.protos.TrackDescriptorOuterClass.TrackDescriptor;
 import perfetto.protos.TrackEventConfigOuterClass.TrackEventConfig;
 import perfetto.protos.TrackEventOuterClass.EventCategory;
 import perfetto.protos.TrackEventOuterClass.EventName;
@@ -193,6 +194,50 @@ public class PerfettoEventEmitTest {
         }
       }
       assertThat(hasArgs).isTrue();
+    } finally {
+      PerfettoTrackEventBuilder.setUseJavaEmit(previous);
+    }
+  }
+
+  @Test
+  public void builderRoutesNamedTrackThroughJavaEmit() throws Exception {
+    boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
+    PerfettoTrackEventBuilder.setUseJavaEmit(true);
+    try {
+      PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+      PerfettoTrace.begin(FOO_CATEGORY, "event").usingProcessNamedTrack(7, "mytrack").emit();
+      PerfettoTrace.end(FOO_CATEGORY).usingProcessNamedTrack(7, "mytrack").emit();
+
+      Trace trace = Trace.parseFrom(session.close());
+
+      int descriptorCount = 0;
+      long descriptorUuid = 0;
+      long beginTrackUuid = 0;
+      long endTrackUuid = 0;
+      for (TracePacket packet : trace.getPacketList()) {
+        if (packet.hasTrackDescriptor()) {
+          TrackDescriptor td = packet.getTrackDescriptor();
+          if ("mytrack".equals(td.getStaticName())) {
+            descriptorCount++;
+            descriptorUuid = td.getUuid();
+          }
+        }
+        if (packet.hasTrackEvent() && packet.getTrackEvent().hasTrackUuid()) {
+          TrackEvent event = packet.getTrackEvent();
+          if (TrackEvent.Type.TYPE_SLICE_BEGIN.equals(event.getType())) {
+            beginTrackUuid = event.getTrackUuid();
+          } else if (TrackEvent.Type.TYPE_SLICE_END.equals(event.getType())) {
+            endTrackUuid = event.getTrackUuid();
+          }
+        }
+      }
+
+      // Descriptor emitted exactly once (deduped via PerfettoTeLlTrackSeen);
+      // both events reference it.
+      assertThat(descriptorCount).isEqualTo(1);
+      assertThat(beginTrackUuid).isEqualTo(descriptorUuid);
+      assertThat(endTrackUuid).isEqualTo(descriptorUuid);
     } finally {
       PerfettoTrackEventBuilder.setUseJavaEmit(previous);
     }
