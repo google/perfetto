@@ -19,8 +19,6 @@
 #include <jni.h>
 #include <string_view>
 
-#include "perfetto/base/build_config.h"
-
 // JNI parameter shim for natives declared @CriticalNative on the Java
 // side. On Android device, ART recognises the annotation and calls the
 // function with no JNIEnv*/jclass prefix. On host VMs (notably Ravenwood,
@@ -35,7 +33,10 @@
 //
 // Expands to nothing on device (so the on-wire binary is unchanged) and
 // to JNIEnv*,jclass[,] everywhere else.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+//
+// Use __ANDROID__ directly rather than PERFETTO_BUILDFLAG so this
+// leaf JNI header doesn't pull in perfetto/base/build_config.h.
+#if defined(__ANDROID__)
 #define PERFETTO_JNI_HOST_PARAMS
 #define PERFETTO_JNI_HOST_PARAMS_COMMA
 #else

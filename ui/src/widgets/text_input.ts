@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './text_input.scss';
 import m from 'mithril';
 import type {HTMLInputAttrs} from './common';
 import {Icon} from './icon'; // Import Icon component

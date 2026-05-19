@@ -470,8 +470,9 @@ class PerfettoSqlConnection {
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
 
-  // Registry of intrinsic functions that can be aliased
-  // Maps intrinsic_name -> (function_ptr, argc, ctx, deterministic)
+  // Registry of intrinsic functions that can be aliased.
+  // Maps lowercased name -> (function_ptr, argc, ctx, deterministic). Keys are
+  // lowercased to match SQLite's case-insensitive function namespace.
   struct IntrinsicFunctionInfo {
     SqliteConnection::Fn* func;
     int argc;

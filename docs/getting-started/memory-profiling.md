@@ -234,11 +234,11 @@ for more details.
 ### Visualizing your first heap profile
 
 Open the `/tmp/heap_profile-latest` file in the
-[Perfetto UI](https://ui.perfetto.dev) and click on the chevron marker in the UI
-track labeled _"Heap profile"_.
+[Perfetto UI](https://ui.perfetto.dev) and click on the slice in the UI
+track labeled _"Native heap profile"_.
 
-![Profile Diamond](/docs/images/profile-diamond.png)
-![Native Flamegraph](/docs/images/native-heap-prof.png)
+![heapprofd snapshots in the UI tracks](/docs/images/profile-slice-malloc.png)
+![heapprofd flamegraph](/docs/images/native-heap-prof.png)
 
 The aggregated flamegraph by default shows unreleased memory (i.e. memory that
 has not been free()d) aggregated by call stack. The frames at the top represent
