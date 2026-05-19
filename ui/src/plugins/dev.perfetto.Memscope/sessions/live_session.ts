@@ -15,7 +15,7 @@
 import {deferChunkedTask} from '../../../base/chunked_task';
 import {uuidv4} from '../../../base/uuid';
 import protos from '../../../protos';
-import {App} from '../../../public/app';
+import type {App} from '../../../public/app';
 import {NUM, NUM_NULL, STR} from '../../../trace_processor/query_result';
 import {WasmEngineProxy} from '../../../trace_processor/wasm_engine_proxy';
 import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';

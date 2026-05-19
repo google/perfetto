@@ -18,15 +18,15 @@ import type {App} from '../../../public/app';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {RadioGroup} from '../../../widgets/radio_group';
-import {
-  type LineChartData,
-  type LineChartSeries,
+import type {
+  LineChartData,
+  LineChartSeries,
 } from '../../../components/widgets/charts/line_chart';
 import {GateDetector} from '../../../base/mithril_utils';
-import {
+import type {
   LiveSession,
-  type ProfileView,
-  type SnapshotData,
+  ProfileView,
+  SnapshotData,
 } from '../sessions/live_session';
 import {ProfilePage} from './profile_page';
 import {ProcessesTab} from './tabs/processes';

@@ -16,7 +16,7 @@ import './profile_page.scss';
 import m from 'mithril';
 import {
   LineChartSvg,
-  LineChartData,
+  type LineChartData,
 } from '../../../components/widgets/charts_svg/line_chart_svg';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
