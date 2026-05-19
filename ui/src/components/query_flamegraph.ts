@@ -157,7 +157,7 @@ export function metricsFromTableOrSubquery(
       `,
       unaggregatableProperties: opts.unaggregatableProperties,
       aggregatableProperties: opts.aggregatableProperties,
-      optionalActions: opts.optionalActions,
+      optionalNodeActions: opts.optionalActions,
     });
   }
   return metrics;
@@ -174,11 +174,6 @@ interface QueryFlamegraphAttrs {
   // Callback invoked when the flamegraph state changes (e.g., user changes
   // filters, selects a different metric, etc).
   readonly onStateChange: (state: FlamegraphState) => void;
-}
-
-export interface QueryFlamegraphWithMetrics {
-  flamegraph: QueryFlamegraph;
-  metrics: ReadonlyArray<QueryFlamegraphMetric>;
 }
 
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the

@@ -30,12 +30,13 @@ import {
   countRenderer,
   SQL_PREAMBLE,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
-import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
-import {dumpFilterSql} from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
-function buildQuery(): string {
+function buildQuery(activeDump: HeapDump): string {
   return `
     SELECT base.*,
       a.cumulative_size AS reachable_size,
@@ -55,7 +56,7 @@ function buildQuery(): string {
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       WHERE o.reachable != 0
-        AND ${dumpFilterSql('o')}
+        AND ${dumpFilterSql(activeDump, 'o')}
         AND od.value_string IS NOT NULL
         AND (c.name = 'java.lang.String'
           OR c.deobfuscated_name = 'java.lang.String')
@@ -77,7 +78,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
           return m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id,
@@ -89,7 +90,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             m(
               'span',
               {
-                class: 'ah-mono ah-break-all ah-str-color',
+                class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
               },
               str
                 ? '"' +
@@ -101,7 +102,8 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
@@ -119,22 +121,26 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         columnType: 'text',
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable native',
+        title: colHeader('Reachable native', COL_INFO.reachableNative),
+        titleString: 'Reachable native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable count',
+        title: colHeader('Reachable count', COL_INFO.reachableCount),
+        titleString: 'Reachable count',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -153,7 +159,9 @@ const SUMMARY_SCHEMA: SchemaRegistry = {
 
 interface StringsViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly initialQuery?: string;
   readonly hasFieldValues?: boolean;
 }
@@ -165,7 +173,10 @@ function StringsView(): m.Component<StringsViewAttrs> {
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
-  function applyNavFilter(q: string | undefined) {
+  function applyNavFilter(
+    q: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!q) return;
     filters = [{field: 'value', op: '=' as const, value: q}];
     counter.onFiltersChanged(filters);
@@ -174,8 +185,8 @@ function StringsView(): m.Component<StringsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
-      const query = buildQuery();
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
         sqlSchema: createSimpleSchema(query),
@@ -183,9 +194,9 @@ function StringsView(): m.Component<StringsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
-      applyNavFilter(vnode.attrs.initialQuery);
+      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
       queries
-        .getStringList(vnode.attrs.engine)
+        .getStringList(engine, activeDump)
         .then((r) => {
           if (!alive) return;
           allRows = r;
@@ -194,7 +205,7 @@ function StringsView(): m.Component<StringsViewAttrs> {
         .catch(console.error);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialQuery);
+      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
       alive = false;
@@ -203,7 +214,7 @@ function StringsView(): m.Component<StringsViewAttrs> {
       const {navigate} = vnode.attrs;
 
       if (!allRows) {
-        return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
+        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
       }
 
       if (allRows.length === 0) {
@@ -230,10 +241,10 @@ function StringsView(): m.Component<StringsViewAttrs> {
         {property: 'Total retained', value: fmtSize(totalRetained)},
       ];
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Strings')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Strings')),
 
-        m('div', {class: 'ah-card ah-mb-4 ah-flex-none'}, [
+        m('div', {class: 'pf-hde-card pf-hde-mb-4 pf-hde-flex-none'}, [
           m(DataGrid, {
             schema: SUMMARY_SCHEMA,
             rootSchema: 'query',

@@ -27,6 +27,8 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
 
 interface FlamegraphObjectsViewAttrs {
@@ -89,7 +91,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             m(
               'button',
               {
-                class: 'ah-link',
+                class: 'pf-hde-link',
                 onclick: () =>
                   navigate('object', {id, label: str ? `"${str}"` : display}),
               },
@@ -98,7 +100,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             str
               ? m(
                   'span',
-                  {class: 'ah-str-badge'},
+                  {class: 'pf-hde-str-badge'},
                   ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
                 )
               : null,
@@ -106,42 +108,50 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Native',
+        title: colHeader('Native', COL_INFO.shallowNative),
+        titleString: 'Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained #',
+        title: colHeader('Retained #', COL_INFO.retainedCount),
+        titleString: 'Retained #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -208,14 +218,14 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
           nodeName
             ? m(
                 'h2',
-                {class: 'ah-view-heading'},
+                {class: 'pf-hde-view-heading'},
                 'Flamegraph: ',
-                m('span', {class: 'ah-mono'}, nodeName),
+                m('span', {class: 'pf-hde-mono'}, nodeName),
               )
             : null,
           m(
             'div',
-            {class: 'ah-card ah-mb-3'},
+            {class: 'pf-hde-card pf-hde-mb-3'},
             m(
               'p',
               'No flamegraph selection found. Select a node in the ',
@@ -225,11 +235,11 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
         ]);
       }
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('div', {class: 'ah-heading-row'}, [
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('div', {class: 'pf-hde-heading-row'}, [
           m(
             'h2',
-            {class: 'ah-view-heading'},
+            {class: 'pf-hde-view-heading'},
             counter.heading(
               nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
             ),
@@ -237,7 +247,7 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
           onBackToTimeline
             ? m(
                 'button',
-                {class: 'ah-download-link', onclick: onBackToTimeline},
+                {class: 'pf-hde-download-link', onclick: onBackToTimeline},
                 'Back to Timeline',
               )
             : null,

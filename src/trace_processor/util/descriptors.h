@@ -139,6 +139,12 @@ class ProtoDescriptor {
                                             : std::make_optional(it->second);
   }
 
+  const std::unordered_map<int32_t, std::string>& enum_values_by_number()
+      const {
+    PERFETTO_DCHECK(type_ == Type::kEnum);
+    return enum_names_by_value_;
+  }
+
   const std::string& file_name() const { return file_name_; }
 
   const std::string& package_name() const { return package_name_; }
@@ -167,6 +173,39 @@ class ProtoDescriptor {
 
 using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
 
+// Sometimes the same extension field number shows up twice with two
+// different type names (this happens during a package rename). We can't
+// tell right away whether that's fine, because the types they point at
+// aren't resolved yet at that stage of loading. So instead of deciding
+// on the spot, we jot down what we'd need to compare and come back to it
+// once everything is resolved. Each entry here is one "compare these two
+// later" note.
+struct ExtensionTypeCheck {
+  std::string extendee_full_name;
+  std::string field_name;
+  std::string existing_raw_type;
+  std::string new_raw_type;
+};
+
+// Holds two descriptor indices that are being compared against each other.
+// The pair is unordered: it stores the smaller index first so that (a, b)
+// and (b, a) are treated as the same pair. We only care that "these two
+// descriptors are being compared", not which one is on the left or right.
+struct CanonicalDescriptorPair {
+  CanonicalDescriptorPair(uint32_t a, uint32_t b)
+      : min_idx(a < b ? a : b), max_idx(a < b ? b : a) {}
+
+  bool operator<(const CanonicalDescriptorPair& other) const {
+    if (min_idx != other.min_idx) {
+      return min_idx < other.min_idx;
+    }
+    return max_idx < other.max_idx;
+  }
+
+  uint32_t min_idx;
+  uint32_t max_idx;
+};
+
 class DescriptorPool {
  public:
   // Adds Descriptors from file_descriptor_set_proto. Ignores any FileDescriptor
@@ -190,20 +229,24 @@ class DescriptorPool {
   }
 
  private:
-  base::Status AddNestedProtoDescriptors(const std::string& file_name,
-                                         const std::string& package_name,
-                                         std::optional<uint32_t> parent_idx,
-                                         protozero::ConstBytes descriptor_proto,
-                                         std::vector<ExtensionInfo>* extensions,
-                                         bool merge_existing_messages);
+  base::Status AddNestedProtoDescriptors(
+      const std::string& file_name,
+      const std::string& package_name,
+      std::optional<uint32_t> parent_idx,
+      protozero::ConstBytes descriptor_proto,
+      std::vector<ExtensionInfo>* extensions,
+      std::vector<ExtensionTypeCheck>* extension_type_checks,
+      bool merge_existing_messages);
   base::Status AddEnumProtoDescriptors(const std::string& file_name,
                                        const std::string& package_name,
                                        std::optional<uint32_t> parent_idx,
                                        protozero::ConstBytes descriptor_proto,
                                        bool merge_existing_messages);
 
-  base::Status AddExtensionField(const std::string& package_name,
-                                 protozero::ConstBytes field_desc_proto);
+  base::Status AddExtensionField(
+      const std::string& package_name,
+      protozero::ConstBytes field_desc_proto,
+      std::vector<ExtensionTypeCheck>* extension_type_checks);
 
   // Recursively searches for the given short type in all parent messages
   // and packages.
@@ -218,6 +261,10 @@ class DescriptorPool {
   // already a descriptor with the same full_name in the pool.
   uint32_t AddProtoDescriptor(ProtoDescriptor descriptor);
 
+  bool DescriptorsStructurallyEqual(
+      uint32_t root_existing_idx,
+      uint32_t root_candidate_idx,
+      std::set<CanonicalDescriptorPair>& comparisons_in_progress);
   std::vector<ProtoDescriptor> descriptors_;
   // full_name -> index in the descriptors_ vector.
   std::unordered_map<std::string, uint32_t> full_name_to_descriptor_index_;

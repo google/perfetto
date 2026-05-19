@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {Engine} from '../../trace_processor/engine';
 import {
   BLOB_NULL,
@@ -48,35 +47,7 @@ export interface HeapDump {
   readonly pid: number;
 }
 
-let dumps: ReadonlyArray<HeapDump> = [];
-let activeDump: HeapDump | null = null;
-
-export function getDumps(): ReadonlyArray<HeapDump> {
-  return dumps;
-}
-
-export function getActiveDump(): HeapDump | null {
-  return activeDump;
-}
-
-export function setDumps(newDumps: ReadonlyArray<HeapDump>): void {
-  dumps = newDumps;
-  activeDump = newDumps.length > 0 ? newDumps[0] : null;
-  m.redraw();
-}
-
-export function setActiveDump(d: HeapDump): void {
-  if (activeDump === d) return;
-  activeDump = d;
-  m.redraw();
-}
-
-export function resetDumps(): void {
-  dumps = [];
-  activeDump = null;
-}
-
-export async function loadDumps(engine: Engine): Promise<void> {
+export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
   const res = await engine.query(`
     SELECT
       o.upid AS upid,
@@ -106,14 +77,13 @@ export async function loadDumps(engine: Engine): Promise<void> {
       pid: it.pid ?? 0,
     });
   }
-  setDumps(result);
+  return result;
 }
 
-export function dumpFilterSql(alias: string = 'o'): string {
-  if (!activeDump) return '1=1';
+export function dumpFilterSql(dump: HeapDump, alias: string = 'o'): string {
   return (
-    `${alias}.upid = ${activeDump.upid} ` +
-    `AND ${alias}.graph_sample_ts = ${activeDump.ts}`
+    `${alias}.upid = ${dump.upid} ` +
+    `AND ${alias}.graph_sample_ts = ${dump.ts}`
   );
 }
 
@@ -223,10 +193,11 @@ function collectRows(res: QueryResult): InstanceRow[] {
  */
 async function batchBitmapBufferHashes(
   engine: Engine,
+  activeDump: HeapDump,
   bitmaps: Array<{objectId: number; nativePtr: bigint}>,
 ): Promise<Map<number, string>> {
   const result = new Map<number, string>();
-  const dumpData = await loadBitmapDumpData(engine);
+  const dumpData = await loadBitmapDumpData(engine, activeDump);
   if (!dumpData) return result;
 
   // Build bufferObjId → [bitmapObjectId, ...] mapping.
@@ -268,13 +239,27 @@ async function batchBitmapBufferHashes(
   return result;
 }
 
-export async function getOverview(engine: Engine): Promise<OverviewData> {
-  const dumpFilter = dumpFilterSql('o');
-  const countRes = await engine.query(
-    `SELECT count(*) as cnt FROM heap_graph_object o
-     WHERE o.reachable != 0 AND ${dumpFilter}`,
-  );
-  const instanceCount = countRes.iter({cnt: NUM}).cnt;
+export async function getOverview(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<OverviewData> {
+  const dumpFilter = dumpFilterSql(activeDump, 'o');
+  const countRes = await engine.query(`
+    SELECT
+      sum(iif(o.reachable, 1, 0)) AS reachable,
+      sum(iif(NOT o.reachable, 1, 0)) AS unreachable,
+      count(DISTINCT o.type_id) AS classes
+    FROM heap_graph_object o
+    WHERE ${dumpFilter}
+  `);
+  const countIt = countRes.iter({
+    reachable: NUM,
+    unreachable: NUM,
+    classes: NUM,
+  });
+  const reachableInstanceCount = countIt.reachable;
+  const unreachableInstanceCount = countIt.unreachable;
+  const classCount = countIt.classes;
 
   const heapRes = await engine.query(`
     SELECT
@@ -359,7 +344,7 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
     .map((b) => ({objectId: b.id, nativePtr: b.nativePtr!}));
   const hashes =
     hashInputs.length > 0
-      ? await batchBitmapBufferHashes(engine, hashInputs)
+      ? await batchBitmapBufferHashes(engine, activeDump, hashInputs)
       : new Map<number, string>();
 
   const hashGroups = new Map<
@@ -478,7 +463,9 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
   }
 
   return {
-    instanceCount,
+    reachableInstanceCount,
+    unreachableInstanceCount,
+    classCount,
     heaps,
     duplicateBitmaps:
       duplicateBitmaps.length > 0 ? duplicateBitmaps : undefined,
@@ -491,6 +478,7 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
 
 export async function getAllocations(
   engine: Engine,
+  activeDump: HeapDump,
   heap: string | null,
 ): Promise<ClassRow[]> {
   await requireDominatorTree(engine);
@@ -510,7 +498,7 @@ export async function getAllocations(
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
       ${hf}
     GROUP BY cls, heap
     ORDER BY retained DESC
@@ -547,7 +535,10 @@ export async function getAllocations(
   return rows;
 }
 
-export async function getRooted(engine: Engine): Promise<InstanceRow[]> {
+export async function getRooted(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<InstanceRow[]> {
   await requireDominatorTree(engine);
   const res = await engine.query(`
     SELECT ${INSTANCE_COLS}
@@ -556,7 +547,7 @@ export async function getRooted(engine: Engine): Promise<InstanceRow[]> {
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE d.idom_id IS NULL
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
     ORDER BY d.dominated_size_bytes + d.dominated_native_size_bytes DESC
   `);
   return collectRows(res);
@@ -567,6 +558,7 @@ type FieldEntry = {name: string; typeName: string; value: PrimOrRef};
 /** Fetch primitive and reference field values for an object. */
 async function fetchFieldValues(
   engine: Engine,
+  activeDump: HeapDump,
   refSetId: number | null,
   fieldSetId: number | null,
 ): Promise<FieldEntry[]> {
@@ -613,7 +605,7 @@ async function fetchFieldValues(
         SELECT c.name, MIN(c.deobfuscated_name) AS deobfuscated_name
         FROM heap_graph_class c
         JOIN heap_graph_object o ON o.type_id = c.id
-        WHERE ${dumpFilterSql('o')}
+        WHERE ${dumpFilterSql(activeDump, 'o')}
         GROUP BY c.name
       )
       SELECT
@@ -985,6 +977,7 @@ export async function fetchDominatorPaths(
 
 export async function getInstance(
   engine: Engine,
+  activeDump: HeapDump,
   id: number,
 ): Promise<InstanceDetail | null> {
   await requireDominatorTree(engine);
@@ -1108,7 +1101,7 @@ export async function getInstance(
       JOIN heap_graph_class c ON o.type_id = c.id
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-      WHERE ${dumpFilterSql('o')}
+      WHERE ${dumpFilterSql(activeDump, 'o')}
         AND (c.name = '${classObjName}'
           OR c.deobfuscated_name = '${classObjName}')
     `);
@@ -1118,7 +1111,7 @@ export async function getInstance(
 
   const instanceFields =
     !isArrayInstance && !isClassObj
-      ? await fetchFieldValues(engine, refSetId, fieldSetId)
+      ? await fetchFieldValues(engine, activeDump, refSetId, fieldSetId)
       : [];
 
   let arrayLength = 0;
@@ -1245,17 +1238,17 @@ export async function getInstance(
   const shortestPath = await fetchShortestPathFromRoot(engine, id);
 
   const staticFields = isClassObj
-    ? await fetchFieldValues(engine, refSetId, fieldSetId)
+    ? await fetchFieldValues(engine, activeDump, refSetId, fieldSetId)
     : [];
 
   let bitmap: InstanceDetail['bitmap'] = null;
   if (fullClassName === 'android.graphics.Bitmap') {
-    bitmap = await extractBitmapPixels(engine, fieldSetId);
+    bitmap = await extractBitmapPixels(engine, activeDump, fieldSetId);
   }
   if (bitmap === null) {
     const deobName = className(oit.cls, oit.deob);
     if (deobName === 'android.graphics.Bitmap') {
-      bitmap = await extractBitmapPixels(engine, fieldSetId);
+      bitmap = await extractBitmapPixels(engine, activeDump, fieldSetId);
     }
   }
 
@@ -1342,9 +1335,9 @@ export async function getClassHierarchy(
 /** Transitive subclass names of `rootName` (including the root itself). */
 export async function getSubclassNames(
   engine: Engine,
+  activeDump: HeapDump,
   rootName: string,
 ): Promise<string[]> {
-  // Scope to the active dump so we don't walk another dump's class hierarchy.
   const res = await engine.query(`
     INCLUDE PERFETTO MODULE graphs.search;
 
@@ -1352,7 +1345,7 @@ export async function getSubclassNames(
       SELECT DISTINCT c.id, c.name, c.deobfuscated_name, c.superclass_id
       FROM heap_graph_class c
       JOIN heap_graph_object o ON o.type_id = c.id
-      WHERE ${dumpFilterSql('o')}
+      WHERE ${dumpFilterSql(activeDump, 'o')}
     )
     SELECT coalesce(c.deobfuscated_name, c.name) AS name
     FROM graph_reachable_dfs!(
@@ -1388,9 +1381,9 @@ export async function getRawArrayBlob(
 
 export async function getRawBitmapBlob(
   engine: Engine,
+  activeDump: HeapDump,
   objectId: number,
 ): Promise<{data: Uint8Array; format: string} | null> {
-  // Read mNativePtr from the Bitmap instance fields.
   const fieldRes = await engine.query(`
     SELECT f.long_value
     FROM heap_graph_object o
@@ -1403,7 +1396,7 @@ export async function getRawBitmapBlob(
   if (!fit.valid() || fit.long_value === null) return null;
   const nativePtr = fit.long_value;
 
-  const dumpData = await loadBitmapDumpData(engine);
+  const dumpData = await loadBitmapDumpData(engine, activeDump);
   if (!dumpData) return null;
   const bufferObjId = dumpData.bufferMap.get(nativePtr);
   if (bufferObjId === undefined) return null;
@@ -1445,30 +1438,36 @@ interface BitmapDumpData {
   bufferMap: Map<bigint, number>;
 }
 
-let cachedDumpData: BitmapDumpData | null | undefined;
+const bitmapDumpDataByDump = new WeakMap<
+  HeapDump,
+  Promise<BitmapDumpData | null>
+>();
 
-export function resetBitmapDumpDataCache(): void {
-  cachedDumpData = undefined;
+function loadBitmapDumpData(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<BitmapDumpData | null> {
+  const cached = bitmapDumpDataByDump.get(activeDump);
+  if (cached !== undefined) return cached;
+  const promise = computeBitmapDumpData(engine, activeDump);
+  bitmapDumpDataByDump.set(activeDump, promise);
+  return promise;
 }
 
-async function loadBitmapDumpData(
+async function computeBitmapDumpData(
   engine: Engine,
+  activeDump: HeapDump,
 ): Promise<BitmapDumpData | null> {
-  if (cachedDumpData !== undefined) return cachedDumpData;
-
   const classObjRes = await engine.query(`
     SELECT o.reference_set_id
     FROM heap_graph_object o
     JOIN heap_graph_class c ON o.type_id = c.id
-    WHERE ${dumpFilterSql('o')}
+    WHERE ${dumpFilterSql(activeDump, 'o')}
       AND (c.name LIKE '%Class<android.graphics.Bitmap>'
         OR c.deobfuscated_name LIKE '%Class<android.graphics.Bitmap>')
   `);
   const classIt = classObjRes.iter({reference_set_id: NUM_NULL});
-  if (!classIt.valid() || classIt.reference_set_id === null) {
-    cachedDumpData = null;
-    return null;
-  }
+  if (!classIt.valid() || classIt.reference_set_id === null) return null;
 
   // Step 2: Follow dumpData reference from the class object.
   const ddRes = await engine.query(`
@@ -1479,10 +1478,7 @@ async function loadBitmapDumpData(
 
   `);
   const ddIt = ddRes.iter({dump_data_id: NUM_NULL});
-  if (!ddIt.valid() || ddIt.dump_data_id === null) {
-    cachedDumpData = null;
-    return null;
-  }
+  if (!ddIt.valid() || ddIt.dump_data_id === null) return null;
   const dumpDataId = ddIt.dump_data_id;
 
   // Step 3: Read format from DumpData's fields.
@@ -1516,10 +1512,7 @@ async function loadBitmapDumpData(
     if (it.field_name.endsWith('natives')) nativesObjId = it.owned_id;
     if (it.field_name.endsWith('buffers')) buffersObjId = it.owned_id;
   }
-  if (nativesObjId === null || buffersObjId === null) {
-    cachedDumpData = null;
-    return null;
-  }
+  if (nativesObjId === null || buffersObjId === null) return null;
 
   // Step 5: Decode natives long[] via JSON.
   const nativesRes = await engine.query(`
@@ -1529,10 +1522,7 @@ async function loadBitmapDumpData(
     WHERE o.id = ${nativesObjId}
   `);
   const nativesIt = nativesRes.iter({data: STR_NULL});
-  if (!nativesIt.valid() || nativesIt.data === null) {
-    cachedDumpData = null;
-    return null;
-  }
+  if (!nativesIt.valid() || nativesIt.data === null) return null;
   // Native pointers need BigInt for 64-bit precision in Map lookups.
   const nativesPtrs = (JSON.parse(nativesIt.data) as string[]).map(BigInt);
 
@@ -1563,8 +1553,7 @@ async function loadBitmapDumpData(
     }
   }
 
-  cachedDumpData = {format, bufferMap};
-  return cachedDumpData;
+  return {format, bufferMap};
 }
 
 const DUMP_DATA_FORMAT_NAMES: Record<number, string> = {
@@ -1577,6 +1566,7 @@ const DUMP_DATA_FORMAT_NAMES: Record<number, string> = {
 
 async function extractBitmapPixels(
   engine: Engine,
+  activeDump: HeapDump,
   fieldSetId: number | null,
 ): Promise<InstanceDetail['bitmap']> {
   if (fieldSetId === null) return null;
@@ -1608,7 +1598,7 @@ async function extractBitmapPixels(
   }
   if (width <= 0 || height <= 0 || nativePtr === 0n) return null;
 
-  const dumpData = await loadBitmapDumpData(engine);
+  const dumpData = await loadBitmapDumpData(engine, activeDump);
   if (dumpData === null) return null;
 
   const bufferObjId = dumpData.bufferMap.get(nativePtr);
@@ -1629,6 +1619,7 @@ async function extractBitmapPixels(
 
 export async function getBitmapPixels(
   engine: Engine,
+  activeDump: HeapDump,
   objectId: number,
 ): Promise<InstanceDetail['bitmap']> {
   const res = await engine.query(`
@@ -1638,11 +1629,12 @@ export async function getBitmapPixels(
     WHERE o.id = ${objectId}
 `);
   const row = res.maybeFirstRow({field_set_id: NUM_NULL});
-  return extractBitmapPixels(engine, row?.field_set_id ?? null);
+  return extractBitmapPixels(engine, activeDump, row?.field_set_id ?? null);
 }
 
 export async function search(
   engine: Engine,
+  activeDump: HeapDump,
   query: string,
 ): Promise<InstanceRow[]> {
   await requireDominatorTree(engine);
@@ -1669,7 +1661,7 @@ export async function search(
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
       AND (c.name LIKE '%${escaped}%' ESCAPE '\\'
         OR c.deobfuscated_name LIKE '%${escaped}%' ESCAPE '\\')
     ORDER BY (ifnull(d.dominated_size_bytes, 0)
@@ -1680,6 +1672,7 @@ export async function search(
 
 export async function getObjects(
   engine: Engine,
+  activeDump: HeapDump,
   cls: string,
   heap: string | null,
 ): Promise<InstanceRow[]> {
@@ -1693,7 +1686,7 @@ export async function getObjects(
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
       AND (c.name = '${escaped}' OR c.deobfuscated_name = '${escaped}')
       ${hf}
     ORDER BY o.self_size + o.native_size DESC
@@ -1730,7 +1723,10 @@ export async function getObjectsByFlamegraphSelection(
   return collectRows(res);
 }
 
-export async function getStringList(engine: Engine): Promise<StringListRow[]> {
+export async function getStringList(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<StringListRow[]> {
   await requireDominatorTree(engine);
   const res = await engine.query(`
     SELECT
@@ -1748,7 +1744,7 @@ export async function getStringList(engine: Engine): Promise<StringListRow[]> {
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
       AND od.value_string IS NOT NULL
       AND (c.name = 'java.lang.String'
         OR c.deobfuscated_name = 'java.lang.String')
@@ -1791,9 +1787,16 @@ export async function getStringList(engine: Engine): Promise<StringListRow[]> {
   return rows;
 }
 
-export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
+export async function getBitmapList(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<BitmapListRow[]> {
   await requireDominatorTree(engine);
-  const dumpData = await loadBitmapDumpData(engine);
+  const dumpData = await loadBitmapDumpData(engine, activeDump);
+
+  await engine.query(
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.bitmap;`,
+  );
   const res = await engine.query(`
     SELECT
       o.id,
@@ -1808,17 +1811,24 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
       d.dominated_obj_count,
       od.value_string,
       c.kind AS class_kind,
-      MAX(CASE WHEN f.field_name GLOB '*mWidth' THEN f.int_value END) AS width,
-      MAX(CASE WHEN f.field_name GLOB '*mHeight' THEN f.int_value END) AS height,
-      MAX(CASE WHEN f.field_name GLOB '*mDensity' THEN f.int_value END) AS density,
-      MAX(CASE WHEN f.field_name GLOB '*mNativePtr' THEN f.long_value END) AS native_ptr
+      cast_int!(b.width) AS width,
+      cast_int!(b.height) AS height,
+      cast_int!(b.density) AS density,
+      MAX(CASE WHEN f.field_name GLOB '*mNativePtr' THEN f.long_value END) AS native_ptr,
+      b.bitmap_id,
+      b.bitmap_storage_type,
+      b.source_id,
+      cast_int!(b.source_pid) AS source_pid,
+      b.source_storage_type,
+      b.source_process_name
     FROM heap_graph_object o
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
+    LEFT JOIN heap_graph_bitmaps b ON b.object_id = o.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
       AND (c.name = 'android.graphics.Bitmap'
         OR c.deobfuscated_name = 'android.graphics.Bitmap')
     GROUP BY o.id
@@ -1834,6 +1844,12 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
     hasPixelData: boolean;
     density: number;
     nativePtr: bigint | null;
+    bitmapId: bigint | null;
+    storageType: string | null;
+    sourceId: bigint | null;
+    sourcePid: number | null;
+    sourceStorageType: string | null;
+    sourceProcessName: string | null;
   }> = [];
   const hashInputs: Array<{objectId: number; nativePtr: bigint}> = [];
   for (
@@ -1854,6 +1870,12 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
       height: NUM_NULL,
       density: NUM_NULL,
       native_ptr: LONG_NULL,
+      bitmap_id: LONG_NULL,
+      bitmap_storage_type: STR_NULL,
+      source_id: LONG_NULL,
+      source_pid: NUM_NULL,
+      source_storage_type: STR_NULL,
+      source_process_name: STR_NULL,
     });
     it.valid();
     it.next()
@@ -1874,13 +1896,19 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
       hasPixelData,
       density: it.density ?? 0,
       nativePtr: it.native_ptr,
+      bitmapId: it.bitmap_id,
+      storageType: it.bitmap_storage_type,
+      sourceId: it.source_id,
+      sourcePid: it.source_pid,
+      sourceStorageType: it.source_storage_type,
+      sourceProcessName: it.source_process_name,
     });
   }
 
   // Look up pre-computed content hashes for bitmaps with pixel data.
   const hashes =
     hashInputs.length > 0
-      ? await batchBitmapBufferHashes(engine, hashInputs)
+      ? await batchBitmapBufferHashes(engine, activeDump, hashInputs)
       : new Map<number, string>();
 
   const rows: BitmapListRow[] = rawRows.map((r) => ({
@@ -1891,6 +1919,12 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
     hasPixelData: r.hasPixelData,
     density: r.density,
     bufferHash: hashes.get(r.row.id) ?? null,
+    storageType: r.storageType,
+    bitmapId: r.bitmapId,
+    sourceId: r.sourceId,
+    sourcePid: r.sourcePid,
+    sourceStorageType: r.sourceStorageType,
+    sourceProcessName: r.sourceProcessName,
   }));
   return rows;
 }

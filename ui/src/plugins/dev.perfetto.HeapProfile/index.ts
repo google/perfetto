@@ -41,6 +41,8 @@ import {
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 import {EvtSource} from '../../base/events';
+import {App} from '../../public/app';
+import {Flag} from '../../public/feature_flag';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
@@ -61,6 +63,24 @@ function trackUri(upid: number, type: string): string {
 export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
+
+  // Defined here (the Heap Dump Explorer's dependency) so both the Heap
+  // Dump Explorer and HeapProfile can read the flag without a circular
+  // import.
+  static openHeapDumpExplorerByDefaultFlag: Flag;
+
+  static onActivate(app: App) {
+    HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag =
+      app.featureFlags.register({
+        id: 'openHeapDumpExplorerByDefault',
+        name: 'Open Heap Dump Explorer by default',
+        description:
+          'When enabled, traces that contain Java heap-graph data and no ' +
+          'common timeline data (slice / sched) open directly in the Heap ' +
+          'Dump Explorer instead of the timeline.',
+        defaultValue: true,
+      });
+  }
 
   private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
@@ -264,12 +284,19 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async selectHeapProfile(ctx: Trace) {
+    const hdeWillTakeOver =
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(ctx));
+    const javaHeapGraphFilter = hdeWillTakeOver
+      ? `WHERE type != 'java_heap_graph'`
+      : '';
     const result = await ctx.engine.query(`
         SELECT
           id,
           upid,
           type
         FROM ${EVENT_TABLE_NAME}
+        ${javaHeapGraphFilter}
         ORDER BY type, ts
         LIMIT 1
       `);
@@ -355,4 +382,16 @@ function matchingTracks(
     }
     return false;
   });
+}
+
+export async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
+  const res = await ctx.engine.query(`
+    SELECT
+      EXISTS(SELECT 1 FROM slice) OR
+      EXISTS(SELECT 1 FROM sched) OR
+      EXISTS(SELECT 1 FROM heap_profile_allocation) OR
+      EXISTS(SELECT 1 FROM perf_sample)
+      AS res
+  `);
+  return res.firstRow({res: NUM}).res > 0;
 }

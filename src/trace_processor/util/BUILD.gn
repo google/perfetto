@@ -424,6 +424,7 @@ source_set("winscope_proto_mapping") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
+    "descriptors_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",

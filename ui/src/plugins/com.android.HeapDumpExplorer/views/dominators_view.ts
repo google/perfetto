@@ -27,15 +27,18 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
-import {dumpFilterSql} from '../queries';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
 }
 
-function buildQuery(): string {
+function buildQuery(activeDump: HeapDump): string {
   return `
     SELECT
       o.id,
@@ -55,7 +58,7 @@ function buildQuery(): string {
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
     WHERE d.idom_id IS NULL
-      AND ${dumpFilterSql('o')}
+      AND ${dumpFilterSql(activeDump, 'o')}
   `;
 }
 
@@ -72,7 +75,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
           return m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('object', {id, label: display}),
             },
             display,
@@ -80,42 +83,50 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained Count',
+        title: colHeader('Retained Count', COL_INFO.retainedCount),
+        titleString: 'Retained Count',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable Count',
+        title: colHeader('Reachable Count', COL_INFO.reachableCount),
+        titleString: 'Reachable Count',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -141,8 +152,8 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
-      const query = buildQuery();
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
         sqlSchema: createSimpleSchema(query),
@@ -156,8 +167,8 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Dominators')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Dominators')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           rootSchema: 'query',
