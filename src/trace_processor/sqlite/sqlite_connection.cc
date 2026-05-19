@@ -25,7 +25,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -134,20 +133,7 @@ std::unique_ptr<SqliteConnection> SqliteConnection::Fork() {
   return std::make_unique<SqliteConnection>(database_);
 }
 
-SqliteConnection::~SqliteConnection() {
-  // It is important to unregister any functions that have been registered with
-  // the database before destroying it. This is because functions can hold onto
-  // prepared statements, which must be finalized before database destruction.
-  for (auto it = fn_ctx_.GetIterator(); it; ++it) {
-    int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
-                                         it.key().second, SQLITE_UTF8, nullptr,
-                                         nullptr, nullptr, nullptr, nullptr);
-    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
-      PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
-    }
-  }
-  fn_ctx_.Clear();
-}
+SqliteConnection::~SqliteConnection() = default;
 
 SqliteConnection::PreparedStatement SqliteConnection::PrepareStatement(
     SqlSource sql) {
@@ -187,7 +173,6 @@ base::Status SqliteConnection::RegisterFunction(const char* name,
         "Unable to register function with name %s: %s (SQLite error code: %d)",
         name, sqlite3_errmsg(db_.get()), ret);
   }
-  *fn_ctx_.Insert(std::make_pair(base::ToLower(name), argc), ctx).first = ctx;
   return base::OkStatus();
 }
 
@@ -245,7 +230,6 @@ base::Status SqliteConnection::UnregisterFunction(const char* name, int argc) {
         "%d)",
         name, sqlite3_errmsg(db_.get()), ret);
   }
-  fn_ctx_.Erase({base::ToLower(name), argc});
   return base::OkStatus();
 }
 
@@ -257,11 +241,6 @@ void SqliteConnection::RegisterVirtualTableModule(
   int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(), module,
                                      ctx, destructor);
   PERFETTO_CHECK(res == SQLITE_OK);
-}
-
-void* SqliteConnection::GetFunctionContext(const std::string& name, int argc) {
-  auto* res = fn_ctx_.Find(std::make_pair(base::ToLower(name), argc));
-  return res ? *res : nullptr;
 }
 
 std::optional<uint32_t> SqliteConnection::GetErrorOffset() const {
