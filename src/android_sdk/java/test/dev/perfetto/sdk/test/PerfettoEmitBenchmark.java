@@ -66,14 +66,27 @@ public final class PerfettoEmitBenchmark {
       // probes the HL path, so an external malloc counter can confirm the two
       // paths allocate identically (i.e. the per-emit mallocs are SDK-internal).
       boolean java = Boolean.parseBoolean(System.getProperty("perfetto.bench.java", "true"));
+      // -Dperfetto.bench.args=true probes instant+3 debug args with *distinct*
+      // arg names each iteration (defeats HL's name cache, exposing its per-name
+      // Arg allocation); the Java path encodes them inline (zero alloc).
+      boolean withArgs = Boolean.getBoolean("perfetto.bench.args");
+      String[] names = buildArgNames();
       PerfettoTrackEventBuilder.setUseJavaEmit(java);
       for (int i = 0; i < WARMUP_ITERS; i++) {
-        emitInstant();
+        if (withArgs) {
+          emitWithDistinctArgs(names, i);
+        } else {
+          emitInstant();
+        }
       }
       long tid = Thread.currentThread().threadId();
       long jBefore = TMX.getThreadAllocatedBytes(tid);
       for (int i = 0; i < MEASURE_ITERS; i++) {
-        emitInstant();
+        if (withArgs) {
+          emitWithDistinctArgs(names, WARMUP_ITERS + i);
+        } else {
+          emitInstant();
+        }
       }
       long jBytes = TMX.getThreadAllocatedBytes(tid) - jBefore;
       System.err.printf(
@@ -91,10 +104,8 @@ public final class PerfettoEmitBenchmark {
     benchScenario("instant (name+category)", PerfettoEmitBenchmark::emitInstant);
     benchScenario("slice begin+end", PerfettoEmitBenchmark::emitSlicePair);
 
-    // HL-only: marginal cost of debug args. The new path falls back to HL for
-    // events with extras, so both columns are HL today; the gap between this and
-    // the extra-free instant above is the per-event JNI/native work that a
-    // Java-side encoded body could eliminate.
+    // Debug args: HL builds per-name Arg objects + per-arg native structs; the
+    // Java path encodes them inline into the reused body buffer (zero alloc).
     benchScenario("instant + 3 debug args", PerfettoEmitBenchmark::emitInstantWithArgs);
 
     session.close();
@@ -118,6 +129,26 @@ public final class PerfettoEmitBenchmark {
         .addArg("int_arg", 42L)
         .addArg("bool_arg", true)
         .addArg("str_arg", "value")
+        .emit();
+  }
+
+  // A fixed pool of distinct arg names, larger than the HL Arg name cache, so
+  // cycling through them defeats the cache and forces HL to allocate an Arg per
+  // call. Pre-built so the measured loop generates no strings itself.
+  private static String[] buildArgNames() {
+    String[] names = new String[64];
+    for (int i = 0; i < names.length; i++) {
+      names[i] = "arg_" + i;
+    }
+    return names;
+  }
+
+  private static void emitWithDistinctArgs(String[] names, int i) {
+    int n = names.length;
+    PerfettoTrace.instant(FOO_CATEGORY, "event")
+        .addArg(names[(i * 3) % n], 42L)
+        .addArg(names[(i * 3 + 1) % n], true)
+        .addArg(names[(i * 3 + 2) % n], "value")
         .emit();
   }
 

@@ -20,21 +20,21 @@ import dalvik.annotation.optimization.FastNative;
 import dev.perfetto.sdk.PerfettoTrace.Category;
 
 /**
- * Java-side track event emit path, built on the Low Level track event ABI.
+ * Java-side track event emit path, built on the public Low Level track event
+ * ABI.
  *
  * <p>Where {@link PerfettoTrackEventExtra} builds an event out of native "extra"
- * structs through the High Level ABI, this drives the public LL ABI: a single
- * native call walks the active data source instances and serializes the {@code
+ * structs through the High Level ABI, this drives the LL ABI: a single native
+ * call walks the active data source instances and serializes the {@code
  * TrackEvent} with protozero. Category / event-name interning, incremental-state
  * resets and per-instance fan-out stay native (the LL ABI owns them).
  *
- * <p>The hot path is allocation-free: the event name is converted with the
- * thread-local {@code StringBuffer} (no Java-heap object, no native malloc), and
- * the optional event body is encoded into a reused {@link ProtoWriter} buffer.
- *
- * <p>This first step covers the bare {type, category, name} event with an empty
- * body. Later steps encode debug args / tracks / proto fields into the body via
- * {@link ProtoWriter}.
+ * <p>The "body" -- the variable part of a {@code TrackEvent} (debug annotations,
+ * and later flows / proto fields) -- is encoded on the Java side into a reused
+ * {@link ProtoWriter} and appended verbatim into the {@code track_event}
+ * submessage natively. The hot path is allocation-free: the event name is
+ * converted with the thread-local {@code StringBuffer} (no Java-heap object, no
+ * native malloc), and the body buffer is reused across events.
  *
  * @hide
  */
@@ -45,25 +45,84 @@ public final class PerfettoEvent {
   static final int TYPE_INSTANT = 3;
   static final int TYPE_COUNTER = 4;
 
-  private static final byte[] EMPTY_BODY = new byte[0];
+  // TrackEvent field numbers.
+  private static final int TE_DEBUG_ANNOTATIONS = 4;
+
+  // DebugAnnotation field numbers.
+  private static final int DA_BOOL_VALUE = 2;
+  private static final int DA_INT_VALUE = 4;
+  private static final int DA_DOUBLE_VALUE = 5;
+  private static final int DA_STRING_VALUE = 6;
+  private static final int DA_NAME = 10;
+
+  // Per-thread reusable body encoder. The TrackEvent body is small, so the
+  // 32 KB ProtoWriter never grows in practice.
+  private static final ThreadLocal<ProtoWriter> sBody =
+      ThreadLocal.withInitial(ProtoWriter::new);
 
   private PerfettoEvent() {}
 
+  /** Resets the per-thread body buffer for a new event. */
+  static void beginBody() {
+    sBody.get().reset();
+  }
+
+  /** Appends an int64 debug annotation to the body. */
+  static void addArg(String name, long value) {
+    ProtoWriter b = sBody.get();
+    int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
+    b.writeString(DA_NAME, name);
+    b.writeVarInt(DA_INT_VALUE, value);
+    b.endNested(da);
+  }
+
+  /** Appends a bool debug annotation to the body. */
+  static void addArg(String name, boolean value) {
+    ProtoWriter b = sBody.get();
+    int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
+    b.writeString(DA_NAME, name);
+    b.writeBool(DA_BOOL_VALUE, value);
+    b.endNested(da);
+  }
+
+  /** Appends a double debug annotation to the body. */
+  static void addArg(String name, double value) {
+    ProtoWriter b = sBody.get();
+    int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
+    b.writeString(DA_NAME, name);
+    b.writeDouble(DA_DOUBLE_VALUE, value);
+    b.endNested(da);
+  }
+
+  /** Appends a string debug annotation to the body. */
+  static void addArg(String name, String value) {
+    ProtoWriter b = sBody.get();
+    int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
+    b.writeString(DA_NAME, name);
+    b.writeString(DA_STRING_VALUE, value);
+    b.endNested(da);
+  }
+
   /**
-   * Emits a track event of {@code type} on {@code category} with {@code name}.
-   * No-op if the category is not registered or enabled. {@code name} is omitted
-   * natively for {@code SLICE_END} and {@code COUNTER} events.
+   * Emits a track event of {@code type} on {@code category} with {@code name},
+   * appending whatever was encoded into the per-thread body since {@link
+   * #beginBody}.
+   */
+  static void emit(int type, long categoryPtr, String name) {
+    ProtoWriter b = sBody.get();
+    native_emit(type, categoryPtr, name, b.buffer(), b.position());
+  }
+
+  /**
+   * Emits a bare {type, category, name} event (empty body). No-op if the
+   * category is not registered or enabled.
    */
   public static void emit(int type, Category category, String name) {
     if (!category.isRegistered() || !category.isEnabled()) {
       return;
     }
+    beginBody();
     emit(type, category.getPtr(), name);
-  }
-
-  /** As {@link #emit(int, Category, String)} but with an already-resolved ptr. */
-  static void emit(int type, long categoryPtr, String name) {
-    native_emit(type, categoryPtr, name, EMPTY_BODY, 0);
   }
 
   @FastNative

@@ -39,11 +39,11 @@ public final class PerfettoTrackEventBuilder {
   private static final int DEFAULT_EXTRA_CACHE_SIZE = 5;
   private static final int DEFAULT_PENDING_POINTERS_LIST_SIZE = 16;
 
-  // When true, events with no extras are emitted via the Java-side Low Level
-  // path ({@link PerfettoEvent}) instead of the High Level ABI. Events that
-  // carry extras (args, tracks, flows, proto fields) always use the HL path
-  // until the migration of those operations completes. Defaults to the
-  // "perfetto.use_java_emit" system property (off unless set).
+  // When true, events are emitted via the Java-side path ({@link PerfettoEvent})
+  // instead of the High Level ABI, as long as they use only migrated features
+  // (name, category, debug args). An event that also uses a not-yet-migrated
+  // extra (track, flow, counter, proto) falls back to the HL path. Defaults to
+  // the "perfetto.use_java_emit" system property (off unless set).
   private static volatile boolean sUseJavaEmit =
       Boolean.getBoolean("perfetto.use_java_emit");
 
@@ -124,6 +124,27 @@ public final class PerfettoTrackEventBuilder {
 
   private ArrayList<PerfettoPointer> mPendingPointers;
 
+  // Debug args buffered for the Java emit path. While sUseJavaEmit is on, args
+  // are stashed here (allocation-free, reused arrays) instead of being built as
+  // High Level Arg extras, then either encoded into the Java event body (if the
+  // event uses no not-yet-migrated extra) or replayed as HL args (if it does).
+  // This keeps the common args-only event allocation-free without losing data
+  // when an arg is combined with, say, a track. Only used by the root builder.
+  private static final int ARG_KIND_LONG = 0;
+  private static final int ARG_KIND_BOOL = 1;
+  private static final int ARG_KIND_DOUBLE = 2;
+  private static final int ARG_KIND_STRING = 3;
+  private static final int MAX_BUFFERED_ARGS = 32;
+  private String[] mArgNames;
+  private int[] mArgKinds;
+  private long[] mArgLongs;
+  private double[] mArgDoubles;
+  private String[] mArgStrings;
+  private int mArgCount;
+  // Set when the buffer overflowed and the buffered args were already replayed
+  // as HL args; further args on this event go straight to HL.
+  private boolean mArgsSpilled;
+
   private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
       () -> new PerfettoTrackEventBuilder(true, this);
   private final Supplier<FieldNested> fieldNestedSupplier =
@@ -162,6 +183,11 @@ public final class PerfettoTrackEventBuilder {
       mObjectsCache = new ObjectsCache(DEFAULT_EXTRA_CACHE_SIZE);
       mLazyInitObjects = new LazyInitObjects(mNativeMemoryCleaner);
       mPendingPointers = new ArrayList<>(DEFAULT_PENDING_POINTERS_LIST_SIZE);
+      mArgNames = new String[MAX_BUFFERED_ARGS];
+      mArgKinds = new int[MAX_BUFFERED_ARGS];
+      mArgLongs = new long[MAX_BUFFERED_ARGS];
+      mArgDoubles = new double[MAX_BUFFERED_ARGS];
+      mArgStrings = new String[MAX_BUFFERED_ARGS];
     } else {
       // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
@@ -182,12 +208,19 @@ public final class PerfettoTrackEventBuilder {
     }
 
     mIsBuilt = true;
-    if (sUseJavaEmit && mPendingPointers.isEmpty()) {
-      // Java-side LL path. Only the bare {type, category, name} event is
-      // supported so far; events that accumulated any extra fall through to the
-      // High Level path below.
+    // Java-side LL path: taken when the flag is on and the event carries only
+    // migrated extras (debug args, which are buffered, not in mPendingPointers).
+    // Any not-yet-migrated extra (track, flow, counter, proto) lands in
+    // mPendingPointers and forces the High Level path; buffered args are then
+    // replayed as HL args so nothing is lost.
+    if (sUseJavaEmit && !mArgsSpilled && mPendingPointers.isEmpty()) {
+      PerfettoEvent.beginBody();
+      writeArgs();
       PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName);
       return;
+    }
+    if (mArgCount > 0) {
+      flushArgsToHl();
     }
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
@@ -226,6 +259,8 @@ public final class PerfettoTrackEventBuilder {
     mObjectsPool.reset();
     mPendingPointers.clear();
     mCurrentContainer = null;
+    mArgCount = 0;
+    mArgsSpilled = false;
 
     return this;
   }
@@ -285,13 +320,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
-    if (arg == null || !arg.getName().equals(name)) {
-      arg = new Arg(name, mNativeMemoryCleaner);
-      mObjectsCache.mArgCache.put(name.hashCode(), arg);
+    if (stashArg(name, ARG_KIND_LONG)) {
+      mArgLongs[mArgCount - 1] = val;
+    } else {
+      addArgHl(name).setValueInt64(val);
     }
-    arg.setValueInt64(val);
-    addPerfettoPointerToExtra(arg);
     return this;
   }
 
@@ -303,13 +336,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
-    if (arg == null || !arg.getName().equals(name)) {
-      arg = new Arg(name, mNativeMemoryCleaner);
-      mObjectsCache.mArgCache.put(name.hashCode(), arg);
+    if (stashArg(name, ARG_KIND_BOOL)) {
+      mArgLongs[mArgCount - 1] = val ? 1 : 0;
+    } else {
+      addArgHl(name).setValueBool(val);
     }
-    arg.setValueBool(val);
-    addPerfettoPointerToExtra(arg);
     return this;
   }
 
@@ -321,13 +352,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
-    if (arg == null || !arg.getName().equals(name)) {
-      arg = new Arg(name, mNativeMemoryCleaner);
-      mObjectsCache.mArgCache.put(name.hashCode(), arg);
+    if (stashArg(name, ARG_KIND_DOUBLE)) {
+      mArgDoubles[mArgCount - 1] = val;
+    } else {
+      addArgHl(name).setValueDouble(val);
     }
-    arg.setValueDouble(val);
-    addPerfettoPointerToExtra(arg);
     return this;
   }
 
@@ -339,14 +368,93 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
+    if (stashArg(name, ARG_KIND_STRING)) {
+      mArgStrings[mArgCount - 1] = val;
+    } else {
+      addArgHl(name).setValueString(val);
+    }
+    return this;
+  }
+
+  // Buffers an arg slot for the Java emit path; the caller fills the value in the
+  // returned slot (mArgCount-1). Returns false if the event is not on the Java
+  // path (flag off, or buffer spilled to HL), in which case the caller uses the
+  // HL path via addArgHl(). On overflow the buffered args are spilled to HL.
+  private boolean stashArg(String name, int kind) {
+    if (!sUseJavaEmit || mArgsSpilled) {
+      return false;
+    }
+    if (mArgCount == MAX_BUFFERED_ARGS) {
+      flushArgsToHl();
+      mArgsSpilled = true;
+      return false;
+    }
+    mArgNames[mArgCount] = name;
+    mArgKinds[mArgCount] = kind;
+    mArgCount++;
+    return true;
+  }
+
+  // Returns a (cached) HL Arg for `name`, registered as an extra. Holds the HL
+  // arg-creation logic shared by the direct HL path and the buffer spill/replay.
+  private Arg addArgHl(String name) {
     Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
     if (arg == null || !arg.getName().equals(name)) {
       arg = new Arg(name, mNativeMemoryCleaner);
       mObjectsCache.mArgCache.put(name.hashCode(), arg);
     }
-    arg.setValueString(val);
     addPerfettoPointerToExtra(arg);
-    return this;
+    return arg;
+  }
+
+  // Replays the buffered args as HL extras (used when the event also carries a
+  // not-yet-migrated extra, so the whole event must take the HL path).
+  private void flushArgsToHl() {
+    for (int i = 0; i < mArgCount; i++) {
+      Arg arg = addArgHl(mArgNames[i]);
+      switch (mArgKinds[i]) {
+        case ARG_KIND_LONG:
+          arg.setValueInt64(mArgLongs[i]);
+          break;
+        case ARG_KIND_BOOL:
+          arg.setValueBool(mArgLongs[i] != 0);
+          break;
+        case ARG_KIND_DOUBLE:
+          arg.setValueDouble(mArgDoubles[i]);
+          break;
+        case ARG_KIND_STRING:
+          arg.setValueString(mArgStrings[i]);
+          break;
+        default: // unreachable
+      }
+      mArgNames[i] = null;
+      mArgStrings[i] = null;
+    }
+    mArgCount = 0;
+  }
+
+  // Encodes the buffered args into the Java event body (PerfettoEvent).
+  private void writeArgs() {
+    for (int i = 0; i < mArgCount; i++) {
+      String name = mArgNames[i];
+      switch (mArgKinds[i]) {
+        case ARG_KIND_LONG:
+          PerfettoEvent.addArg(name, mArgLongs[i]);
+          break;
+        case ARG_KIND_BOOL:
+          PerfettoEvent.addArg(name, mArgLongs[i] != 0);
+          break;
+        case ARG_KIND_DOUBLE:
+          PerfettoEvent.addArg(name, mArgDoubles[i]);
+          break;
+        case ARG_KIND_STRING:
+          PerfettoEvent.addArg(name, mArgStrings[i]);
+          break;
+        default: // unreachable
+      }
+      mArgNames[i] = null;
+      mArgStrings[i] = null;
+    }
   }
 
   /** Deprecated: use {@link #addFlow} */

@@ -165,6 +165,40 @@ public class PerfettoEventEmitTest {
   }
 
   @Test
+  public void builderRoutesDebugArgsThroughJavaEmit() throws Exception {
+    boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
+    PerfettoTrackEventBuilder.setUseJavaEmit(true);
+    try {
+      PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+      PerfettoTrace.instant(FOO_CATEGORY, "event")
+          .addArg("int_arg", 10000000000L)
+          .addArg("bool_arg", true)
+          .addArg("double_arg", 3.14)
+          .addArg("string_arg", "value")
+          .emit();
+
+      Trace trace = Trace.parseFrom(session.close());
+
+      boolean hasArgs = false;
+      for (TracePacket packet : trace.getPacketList()) {
+        if (packet.hasTrackEvent() && packet.getTrackEvent().getDebugAnnotationsCount() == 4) {
+          var ann = packet.getTrackEvent().getDebugAnnotationsList();
+          assertThat(ann.get(0).getName()).isEqualTo("int_arg");
+          assertThat(ann.get(0).getIntValue()).isEqualTo(10000000000L);
+          assertThat(ann.get(1).getBoolValue()).isTrue();
+          assertThat(ann.get(2).getDoubleValue()).isEqualTo(3.14);
+          assertThat(ann.get(3).getStringValue()).isEqualTo("value");
+          hasArgs = true;
+        }
+      }
+      assertThat(hasArgs).isTrue();
+    } finally {
+      PerfettoTrackEventBuilder.setUseJavaEmit(previous);
+    }
+  }
+
+  @Test
   public void disabledCategoryEmitsNothing() throws Exception {
     Category barCategory = new Category("bar").register();
     // Only FOO is enabled by the config; bar should be dropped.
