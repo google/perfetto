@@ -62,9 +62,6 @@ function setupContentSecurityPolicy() {
       `'self'`,
       'https://autopush-brush-googleapis.corp.google.com',
       'https://brush-googleapis.corp.google.com',
-      // Local reference / TP backends for dev (perfetto_2/tools/).
-      'http://localhost:*',
-      'http://127.0.0.1:*',
     ],
     'img-src': [`'self'`, 'data:', 'blob:'],
     'style-src': [
