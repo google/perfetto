@@ -20880,7 +20880,15 @@ java_defaults {
     libs: [
         "error_prone_annotations",
     ],
+    host_supported: true,
     sdk_version: "module_current",
+    target: {
+        host: {
+            libs: [
+                "perfetto_trace_lib_host_stubs",
+            ],
+        },
+    },
 }
 
 // GN: //protos/perfetto/trace:perfetto_trace_protos
@@ -24303,5 +24311,20 @@ filegroup {
     name: "ravenwood-perfetto-policies",
     srcs: [
         "src/android_sdk/jni/ravenwood-perfetto-policies.txt",
+    ],
+}
+
+// Host-only stubs for the small set of Android classes the perfetto Java
+// SDK references that are missing from Soong's host module_current
+// classpath (dalvik.annotation.optimization.{Critical,Fast}Native and
+// android.system.SystemCleaner; plus android.util.{ArraySet,Log} and
+// android.os.Process). Linked into the host variant of
+// perfetto_trace_lib_java_defaults as a libs: dep so the stubs are visible
+// to javac but not bundled into the jar; the Android variant continues
+// to use the real platform classes from module_current.
+java_library_host {
+    name: "perfetto_trace_lib_host_stubs",
+    srcs: [
+        "src/android_sdk/java/host_stubs/**/*.java",
     ],
 }
