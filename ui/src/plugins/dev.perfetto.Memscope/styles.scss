@@ -43,16 +43,7 @@
     font-weight: 700;
     text-transform: uppercase;
     align-self: center;
-
-    // Fancy gradient background clipped to the text.
-    background: linear-gradient(
-      45deg,
-      var(--pf-color-primary),
-      var(--pf-color-success)
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--pf-color-text-muted);
   }
 }
 

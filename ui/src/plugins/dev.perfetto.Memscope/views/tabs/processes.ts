@@ -518,7 +518,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
           {orientation: 'horizontal', spacing: 'large'},
           m(Billboard, {
             ...billboardKb(totalAnonSwapKb),
-            label: 'Anon + Swap',
+            label: 'RSS Anon + Swap',
             desc: 'Sum of anonymous RSS + swap across all processes',
           }),
           m(Billboard, {
@@ -652,7 +652,7 @@ interface ProcessTableAttrs {
 }
 
 class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
-  private sortKey: string = 'rss_kb';
+  private sortKey: string = 'anon_swap_kb';
   private sortDir: SortDirection = 'DESC';
   private showDebuggableOnly: boolean = false;
   private oomBucketFilter: Set<number> = new Set();
@@ -665,7 +665,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
   ): m.Children {
     const current = this.sortKey === key ? this.sortDir : undefined;
     const onSort = (dir: SortDirection | undefined) => {
-      this.sortKey = dir !== undefined ? key : 'rss_kb';
+      this.sortKey = dir !== undefined ? key : 'anon_swap_kb';
       this.sortDir = dir ?? 'DESC';
     };
     return m(
@@ -754,7 +754,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       {key: 'trend', header: m(GridCell, 'RSS trend')},
       {
         key: 'anon_swap_kb',
-        header: this.headerCell('anon_swap_kb', 'Anon + Swap'),
+        header: this.headerCell('anon_swap_kb', 'RSS Anon + Swap'),
       },
       {key: 'file_kb', header: this.headerCell('file_kb', 'File')},
       {key: 'shmem_kb', header: this.headerCell('shmem_kb', 'Shmem')},

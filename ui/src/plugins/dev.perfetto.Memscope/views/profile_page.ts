@@ -175,9 +175,9 @@ function renderBillboards(
 
   return m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
     card(
-      latest('Anon + Swap'),
+      latest('RSS Anon + Swap'),
       baseline?.anonSwap,
-      'Anon + Swap',
+      'RSS Anon + Swap',
       'Anonymous resident + swapped pages',
     ),
     card(latest('File'), baseline?.file, 'File', 'File-backed resident pages'),

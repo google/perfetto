@@ -55,10 +55,10 @@ function buildProcessMemoryBreakdown(
   if (upid === undefined) return undefined;
   const pidCounters = data.processCountersByUpid.get(upid);
   if (pidCounters === undefined) return undefined;
-  const SERIES_NAMES = ['Anon + Swap', 'File', 'DMA-BUF'] as const;
+  const SERIES_NAMES = ['RSS Anon + Swap', 'File', 'DMA-BUF'] as const;
   const counterMapping: Record<string, string> = {
-    'mem.rss.anon': 'Anon + Swap',
-    'mem.swap': 'Anon + Swap',
+    'mem.rss.anon': 'RSS Anon + Swap',
+    'mem.swap': 'RSS Anon + Swap',
     'mem.rss.file': 'File',
     'mem.dmabuf_rss': 'DMA-BUF',
   };
@@ -83,7 +83,7 @@ function buildProcessMemoryBreakdown(
   const timestamps = [...tsSet].sort((a, b) => a - b);
   if (timestamps.length < 2) return undefined;
   const colors: Record<string, string> = {
-    'Anon + Swap': 'var(--pf-color-warning)',
+    'RSS Anon + Swap': 'var(--pf-color-warning)',
     'File': 'var(--pf-color-success)',
     'DMA-BUF': 'var(--pf-color-primary)',
   };
@@ -343,7 +343,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         return s !== undefined && s.points.length > 0 ? s.points[0].y : 0;
       };
       this.profileBaseline = {
-        anonSwap: first('Anon + Swap'),
+        anonSwap: first('RSS Anon + Swap'),
         file: first('File'),
         dmabuf: first('DMA-BUF'),
       };

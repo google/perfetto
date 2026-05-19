@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
+import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {createAdbTracingSession} from '../../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
-import {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
+import type {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
 import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 
 const DUMP_INTERVAL_MS = 10_000;
@@ -163,7 +163,7 @@ function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
           heapprofdConfig: {
             pid: [pid],
             samplingIntervalBytes: 32 * 1024, // Slightly larger than default to reduce overhead.
-            shmemSizeBytes: 16 * 1024 * 1024, // Arbitrary, could use default.
+            shmemSizeBytes: 16 * 1024 * 1024,
             blockClient: true, // Important for trace integrity.
             continuousDumpConfig: {
               dumpIntervalMs: DUMP_INTERVAL_MS, // Important for getting regular heap snapshots to see how memory usage evolves over time.
