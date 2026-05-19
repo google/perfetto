@@ -385,8 +385,6 @@ additional_args = {
     ],
     'perfetto_trace_lib_java': [
         ('sdk_version', 'module_current'),
-        # Propagates to perfetto_trace_lib_framework_java via shared defaults.
-        ('host_supported', True),
         # Framework should use 'perfetto_trace_lib_framework_java' instead.
         ('visibility', {':__subpackages__'}),
     ],

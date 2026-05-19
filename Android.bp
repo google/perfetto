@@ -20880,7 +20880,6 @@ java_defaults {
     libs: [
         "error_prone_annotations",
     ],
-    host_supported: true,
     sdk_version: "module_current",
 }
 
