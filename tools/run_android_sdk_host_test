@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" Runs the perfetto Java SDK test suite on a host JVM.
+
+Companion to tools/run_android_test (which runs the same Java SDK test on a
+device or emulator under ART). This script compiles the perfetto Java SDK
+sources together with a small set of host-only stubs for the android.*
+classes the SDK references, links against the native libperfetto_jni.so
+built by the gn+ninja C++ pipeline, and runs the JUnit suite under whatever
+host JVM the user's PATH points at (HotSpot or OpenJ9).
+
+Prerequisites
+-------------
+  tools/install-build-deps              # standard C++ toolchain
+  tools/install-build-deps --java-sdk   # Maven jars (opt-in)
+
+The script itself takes care of running `tools/gn gen` (with the host JDK's
+include path wired into `jdk_include_path` so libperfetto_jni can find
+jni.h) and `tools/ninja -C out/release libperfetto_jni protoc`.
+
+Mechanics
+---------
+1. Generate Java protos with `protoc --java_out` for the perfetto trace +
+   config descriptors imported by PerfettoTraceTest.
+2. Compile the perfetto SDK Java sources + host stubs + generated protos
+   into out/release/perfetto_sdk_host.jar.
+3. Compile PerfettoTraceTest.java against the SDK jar +
+   junit/truth/hamcrest, producing out/release/perfetto_sdk_host_test.jar.
+4. Invoke `java -Djava.library.path=out/release …` with JUnitCore on the
+   test class. The libperfetto_jni.so loaded by System.loadLibrary uses the
+   standard JNIEnv*/jclass ABI on host thanks to PERFETTO_JNI_HOST_PARAMS,
+   so no trampoline / closure indirection is required.
+"""
+
+import argparse
+import logging
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SDK_DIR = os.path.join(ROOT_DIR, 'src/android_sdk/java')
+SDK_MAIN_DIR = os.path.join(SDK_DIR, 'main')
+SDK_TEST_DIR = os.path.join(SDK_DIR, 'test')
+SDK_STUBS_DIR = os.path.join(SDK_DIR, 'host_stubs')
+JAVA_DEPS_DIR = os.path.join(ROOT_DIR, 'buildtools/java_sdk_host_test')
+
+# Seed proto descriptors directly referenced by the SDK test imports. The
+# driver walks `import "…"` lines starting from these and feeds the closure
+# to protoc, so the codegen surface scales with what the test actually
+# uses, not the whole 400-file perfetto proto tree (which has merged
+# uber-descriptors and intentionally-overlapping sibling files that would
+# clash if codegen'd together).
+SEED_PROTOS = [
+    'protos/perfetto/config/trace_config.proto',
+    'protos/perfetto/config/track_event/track_event_config.proto',
+    'protos/perfetto/trace/trace.proto',
+    'protos/perfetto/trace/trace_packet.proto',
+    'protos/perfetto/trace/interned_data/interned_data.proto',
+    'protos/perfetto/trace/track_event/chrome_latency_info.proto',
+    'protos/perfetto/trace/track_event/debug_annotation.proto',
+    'protos/perfetto/trace/track_event/source_location.proto',
+    'protos/perfetto/trace/track_event/track_descriptor.proto',
+    'protos/perfetto/trace/track_event/track_event.proto',
+]
+
+# Maven jars that tools/install-build-deps --java-sdk lands in
+# buildtools/java_sdk_host_test/. Order matters only for the classpath echoed
+# to the user on failure; javac/java don't care.
+MAVEN_JARS = [
+    'junit-4.13.2.jar',
+    'hamcrest-2.2.jar',
+    'truth-1.4.4.jar',
+    'guava-33.4.0-jre.jar',
+    'failureaccess-1.0.2.jar',
+    'protobuf-java-4.31.1.jar',
+    'error_prone_annotations-2.36.0.jar',
+    'checker-qual-3.43.0.jar',
+    'j2objc-annotations-3.0.0.jar',
+]
+
+TEST_CLASS = 'dev.perfetto.sdk.test.PerfettoTraceTest'
+
+
+def Die(msg):
+  logging.error(msg)
+  sys.exit(1)
+
+
+def CheckTool(name, install_hint):
+  if shutil.which(name) is None:
+    Die('Required tool `%s` not on PATH. %s' % (name, install_hint))
+
+
+def CheckJavac():
+  CheckTool('javac', 'Install a JDK >= 11 (e.g. apt install openjdk-17-jdk).')
+  CheckTool('java', 'Install a JDK >= 11.')
+  out = subprocess.check_output(['javac', '-version'],
+                                stderr=subprocess.STDOUT).decode().strip()
+  # Format: "javac 17.0.18"
+  try:
+    major = int(out.split()[1].split('.')[0])
+  except (IndexError, ValueError):
+    logging.warning('Could not parse `javac -version` output: %r', out)
+    return
+  if major < 11:
+    Die('javac too old: %s (need >= 11 for java.lang.ref.Cleaner)' % out)
+
+
+def CheckMavenDeps():
+  for jar in MAVEN_JARS:
+    if not os.path.exists(os.path.join(JAVA_DEPS_DIR, jar)):
+      Die('Missing %s under buildtools/java_sdk_host_test/. Run\n'
+          '  tools/install-build-deps --java-sdk' % jar)
+
+
+def DetectJdkIncludePath():
+  """Best-effort host JDK include dir discovery. Returns "" if not found."""
+  java_home = os.environ.get('JAVA_HOME')
+  candidates = []
+  if java_home:
+    candidates.append(os.path.join(java_home, 'include'))
+  javac = shutil.which('javac')
+  if javac:
+    # Resolve symlinks: /usr/bin/javac -> /etc/alternatives/javac ->
+    # /usr/lib/jvm/java-17-openjdk-amd64/bin/javac. The JDK root is two
+    # levels above bin/javac.
+    real = os.path.realpath(javac)
+    jdk_root = os.path.dirname(os.path.dirname(real))
+    candidates.append(os.path.join(jdk_root, 'include'))
+  for c in candidates:
+    if os.path.exists(os.path.join(c, 'jni.h')):
+      return c
+  return ''
+
+
+def EnsureNativeArtefacts(out_dir, jdk_include_path):
+  """Runs `tools/gn gen` (only if args changed) and `tools/ninja`. """
+  args_gn = os.path.join(out_dir, 'args.gn')
+  desired = [
+      'is_debug = false', 'enable_perfetto_android_java_sdk = true',
+      'jdk_include_path = "%s"' % jdk_include_path
+  ]
+  existing = ''
+  if os.path.exists(args_gn):
+    with open(args_gn) as f:
+      existing = f.read()
+  needs_regen = not all(a in existing for a in desired)
+  if needs_regen:
+    logging.info('Re-running `tools/gn gen %s` with JDK headers',
+                 os.path.relpath(out_dir, ROOT_DIR))
+    Run([
+        os.path.join(ROOT_DIR, 'tools/gn'), 'gen', out_dir,
+        '--args=' + ' '.join(desired)
+    ])
+  jni_so = os.path.join(out_dir, 'libperfetto_jni.so')
+  protoc = os.path.join(out_dir, 'protoc')
+  if not (os.path.exists(jni_so) and os.path.exists(protoc)) or needs_regen:
+    logging.info('Building libperfetto_jni + protoc')
+    Run([
+        os.path.join(ROOT_DIR, 'tools/ninja'), '-C', out_dir, 'libperfetto_jni',
+        'protoc'
+    ])
+
+
+def Run(cmd, **kwargs):
+  logging.debug('+ %s', ' '.join(cmd))
+  return subprocess.run(cmd, check=True, **kwargs)
+
+
+_IMPORT_RE = re.compile(r'^\s*import\s+"([^"]+)"\s*;')
+
+
+def TransitiveImports(seeds):
+  """Walks `import "…";` lines to compute the import closure of `seeds`."""
+  visited = set()
+  queue = list(seeds)
+  while queue:
+    rel = queue.pop()
+    if rel in visited:
+      continue
+    abs_path = os.path.join(ROOT_DIR, rel)
+    if not os.path.exists(abs_path):
+      continue
+    visited.add(rel)
+    with open(abs_path) as f:
+      for line in f:
+        m = _IMPORT_RE.match(line)
+        if m and m.group(1).startswith('protos/perfetto/'):
+          queue.append(m.group(1))
+  return sorted(visited)
+
+
+def GenerateProtos(out_dir, gen_dir):
+  protoc = os.path.join(out_dir, 'protoc')
+  if os.path.isdir(gen_dir):
+    shutil.rmtree(gen_dir)
+  os.makedirs(gen_dir)
+  protos = TransitiveImports(SEED_PROTOS)
+  Run([protoc, '--proto_path=' + ROOT_DIR, '--java_out=' + gen_dir] + protos)
+  generated = []
+  for dirpath, _, files in os.walk(gen_dir):
+    for f in files:
+      if f.endswith('.java'):
+        generated.append(os.path.join(dirpath, f))
+  if not generated:
+    Die('protoc produced no .java files under %s' % gen_dir)
+  logging.info('protoc generated %d Java file(s) from %d proto source(s)',
+               len(generated), len(protos))
+  return generated
+
+
+def Glob(root, suffix='.java'):
+  out = []
+  for dirpath, _, files in os.walk(root):
+    for f in files:
+      if f.endswith(suffix):
+        out.append(os.path.join(dirpath, f))
+  return out
+
+
+def JavaDepsClasspath():
+  return os.pathsep.join(os.path.join(JAVA_DEPS_DIR, j) for j in MAVEN_JARS)
+
+
+def CompileSdk(out_dir, gen_dir, work_dir):
+  classes_dir = os.path.join(work_dir, 'sdk_classes')
+  os.makedirs(classes_dir, exist_ok=True)
+  sources = (Glob(SDK_MAIN_DIR) + Glob(SDK_STUBS_DIR) + Glob(gen_dir))
+  cp = JavaDepsClasspath()
+  Run([
+      'javac', '-d', classes_dir, '-cp', cp, '-source', '11', '-target', '11',
+      '-Xlint:none', '-implicit:none', '-proc:none'
+  ] + sources)
+  jar = os.path.join(out_dir, 'perfetto_sdk_host.jar')
+  Run(['jar', '--create', '--file=' + jar, '-C', classes_dir, '.'])
+  logging.info('Built %s (%d sources)', jar, len(sources))
+  return jar
+
+
+def CompileTest(out_dir, sdk_jar, work_dir):
+  classes_dir = os.path.join(work_dir, 'test_classes')
+  os.makedirs(classes_dir, exist_ok=True)
+  sources = Glob(SDK_TEST_DIR)
+  cp = os.pathsep.join([sdk_jar, JavaDepsClasspath()])
+  Run([
+      'javac', '-d', classes_dir, '-cp', cp, '-source', '11', '-target', '11',
+      '-Xlint:none', '-implicit:none', '-proc:none'
+  ] + sources)
+  jar = os.path.join(out_dir, 'perfetto_sdk_host_test.jar')
+  Run(['jar', '--create', '--file=' + jar, '-C', classes_dir, '.'])
+  logging.info('Built %s', jar)
+  return jar
+
+
+def RunTest(out_dir, sdk_jar, test_jar, test_class, jvm_args):
+  cp = os.pathsep.join([test_jar, sdk_jar, JavaDepsClasspath()])
+  # libperfetto_jni.so dlopens libperfetto_c.so by SONAME, which the
+  # dynamic linker resolves via LD_LIBRARY_PATH (not java.library.path).
+  env = dict(os.environ)
+  env['LD_LIBRARY_PATH'] = os.pathsep.join(
+      [out_dir, env.get('LD_LIBRARY_PATH', '')]).rstrip(os.pathsep)
+  cmd = (['java', '-Djava.library.path=' + out_dir] + jvm_args +
+         ['-cp', cp, 'org.junit.runner.JUnitCore', test_class])
+  logging.info('Running %s under host JVM', test_class)
+  result = subprocess.run(cmd, env=env)
+  return result.returncode
+
+
+def Main():
+  parser = argparse.ArgumentParser(
+      description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument(
+      '--out',
+      default='out/release',
+      help='gn+ninja output directory (default: out/release)')
+  parser.add_argument(
+      '--test', default=TEST_CLASS, help='Fully-qualified test class to run')
+  parser.add_argument(
+      '--jvm-arg',
+      action='append',
+      default=[],
+      help='Extra JVM arg, may be repeated')
+  parser.add_argument(
+      '--keep-work',
+      action='store_true',
+      help='Retain intermediate javac output for debugging')
+  parser.add_argument('-v', '--verbose', action='store_true')
+  args = parser.parse_args()
+
+  logging.basicConfig(
+      level=logging.DEBUG if args.verbose else logging.INFO,
+      format='%(levelname)s: %(message)s')
+
+  out_dir = os.path.join(ROOT_DIR, args.out) if not os.path.isabs(args.out) \
+      else args.out
+  CheckJavac()
+  CheckMavenDeps()
+  jdk_include = DetectJdkIncludePath()
+  if not jdk_include:
+    Die('Could not find jni.h. Set JAVA_HOME to a JDK install root.')
+  logging.info('Host JDK include path: %s', jdk_include)
+  EnsureNativeArtefacts(out_dir, jdk_include)
+
+  work_dir = os.path.join(out_dir, 'android_sdk_host_test')
+  gen_dir = os.path.join(work_dir, 'gen_java_protos')
+  os.makedirs(work_dir, exist_ok=True)
+  try:
+    GenerateProtos(out_dir, gen_dir)
+    sdk_jar = CompileSdk(out_dir, gen_dir, work_dir)
+    test_jar = CompileTest(out_dir, sdk_jar, work_dir)
+    rc = RunTest(out_dir, sdk_jar, test_jar, args.test, args.jvm_arg)
+  finally:
+    if not args.keep_work and os.path.isdir(work_dir):
+      shutil.rmtree(work_dir)
+  return rc
+
+
+if __name__ == '__main__':
+  sys.exit(Main())

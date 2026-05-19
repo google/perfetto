@@ -3,6 +3,16 @@ import("../../../gn/perfetto_android_sdk.gni")
 
 assert(enable_perfetto_android_java_sdk)
 
+declare_args() {
+  # Path to the host JDK include directory that contains jni.h. When set,
+  # libperfetto_jni's source set adds this and its platform-specific
+  # subdirectory to its include path so the .so can be built against a host
+  # JVM. Used by tools/run_android_sdk_host_test, which auto-detects
+  # JAVA_HOME and re-runs `tools/gn gen` with this populated. Has no effect
+  # on Android / AOSP builds, where jni.h comes from the NDK / jni_headers.
+  jdk_include_path = ""
+}
+
 SOURCE_SET_SOURCES = [
   "dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
   "dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h",
@@ -19,15 +29,58 @@ SOURCE_SET_DEPS = [
   "../perfetto_sdk_for_jni:perfetto_sdk_for_jni",
 ]
 
+SOURCE_SET_INCLUDE_DIRS = []
+SOURCE_SET_HOST_CFLAGS = []
+if (jdk_include_path != "") {
+  SOURCE_SET_INCLUDE_DIRS += [
+    jdk_include_path,
+    "$jdk_include_path/linux",
+    "$jdk_include_path/darwin",
+
+    # Stub <android/log.h> mapping ANDROID_LOG_* + __android_log_print to
+    # stderr so the JNI sources compile cleanly without liblog on host.
+    "host_shims",
+  ]
+
+  # The upstream perfetto Java SDK JNI sources are written against AOSP's
+  # warning profile. On standalone host (which enables -Weverything) the
+  # same code trips a handful of pedantic warnings that don't fire under
+  # AOSP. We suppress them for this source set only; nothing else in the
+  # tree is affected, and the AOSP/device build path is untouched.
+  SOURCE_SET_HOST_CFLAGS += [
+    "-Wno-old-style-cast",
+    "-Wno-writable-strings",
+    "-Wno-format-nonliteral",
+    "-Wno-extra-semi-stmt",
+    "-Wno-exit-time-destructors",
+    "-Wno-global-constructors",
+    "-Wno-sign-conversion",
+    "-Wno-shorten-64-to-32",
+    "-Wno-implicit-int-conversion",
+    "-Wno-cast-align",
+    "-Wno-missing-prototypes",
+    "-Wno-unused-parameter",
+    "-Wno-unused-but-set-variable",
+    "-Wno-zero-as-null-pointer-constant",
+    "-Wno-comma",
+    "-Wno-suggest-override",
+    "-Wno-suggest-destructor-override",
+  ]
+}
+
 source_set("libperfetto_jni_src") {
   sources = SOURCE_SET_SOURCES
   deps = SOURCE_SET_DEPS
+  include_dirs = SOURCE_SET_INCLUDE_DIRS
+  cflags = SOURCE_SET_HOST_CFLAGS
 }
 
 source_set("libperfetto_framework_jni_src") {
   sources = SOURCE_SET_SOURCES
   deps = SOURCE_SET_DEPS
-  cflags = [ "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal/" ]
+  include_dirs = SOURCE_SET_INCLUDE_DIRS
+  cflags = SOURCE_SET_HOST_CFLAGS +
+           [ "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal/" ]
 }
 
 perfetto_android_jni_library("libperfetto_jni") {

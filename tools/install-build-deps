@@ -552,6 +552,59 @@ BUILD_DEPS_RUST = [
         'all', 'all'),
 ]
 
+# Maven jars required by tools/run_android_sdk_host_test to compile and run
+# PerfettoTraceTest against a host JVM (HotSpot). These are *not* downloaded
+# by default; they only land if the user opts in with --java-sdk. Fetching is
+# strictly additive: the standard build (gn+ninja for the C++ stack and the
+# UI) does not pull or link against any of these jars.
+JAVA_SDK_HOST_TEST_DEPS = [
+    Dependency(
+        'buildtools/java_sdk_host_test/junit-4.13.2.jar',
+        'https://repo1.maven.org/maven2/junit/junit/4.13.2/junit-4.13.2.jar',
+        '8e495b634469d64fb8acfa3495a065cbacc8a0fff55ce1e31007be4c16dc57d3',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/hamcrest-2.2.jar',
+        'https://repo1.maven.org/maven2/org/hamcrest/hamcrest/2.2/hamcrest-2.2.jar',
+        '5e62846a89f05cd78cd9c1a553f340d002458380c320455dd1f8fc5497a8a1c1',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/truth-1.4.4.jar',
+        'https://repo1.maven.org/maven2/com/google/truth/truth/1.4.4/truth-1.4.4.jar',
+        '52c86cddadc31bc8457c1e15689fc6b75e2e97ce2a83d8b54b795d556d489f8c',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/guava-33.4.0-jre.jar',
+        'https://repo1.maven.org/maven2/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar',
+        'b918c98a7e44dbe94ebd9fe3e40cddaadb5a93e6a78eb6008b42df237241e538',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/failureaccess-1.0.2.jar',
+        'https://repo1.maven.org/maven2/com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2.jar',
+        '8a8f81cf9b359e3f6dfa691a1e776985c061ef2f223c9b2c80753e1b458e8064',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/protobuf-java-4.31.1.jar',
+        'https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/4.31.1/protobuf-java-4.31.1.jar',
+        'd60dfe7c68a0d38a248cca96924f289dc7e1966a887ee7cae397701af08575ae',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/error_prone_annotations-2.36.0.jar',
+        'https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotations/2.36.0/error_prone_annotations-2.36.0.jar',
+        '77440e270b0bc9a249903c5a076c36a722c4886ca4f42675f2903a1c53ed61a5',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/checker-qual-3.43.0.jar',
+        'https://repo1.maven.org/maven2/org/checkerframework/checker-qual/3.43.0/checker-qual-3.43.0.jar',
+        '3fbc2e98f05854c3df16df9abaa955b91b15b3ecac33623208ed6424640ef0f6',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk_host_test/j2objc-annotations-3.0.0.jar',
+        'https://repo1.maven.org/maven2/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0.jar',
+        '88241573467ddca44ffd4d74aa04c2bbfd11bf7c17e0c342c94c9de7a70a7c64',
+        'all', 'all'),
+]
+
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
 BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
@@ -944,6 +997,12 @@ def Main():
       help='Override the autodetected build CPU architecture')
   parser.add_argument(
       '--rust', action='store_true', help='Rust toolchain to build Rust SDK')
+  parser.add_argument(
+      '--java-sdk',
+      action='store_true',
+      help='Maven jars (JUnit, Truth, protobuf-java, …) used by '
+      'tools/run_android_sdk_host_test to run the Java SDK tests against '
+      'a host JVM. Not needed for the standard build.')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -977,6 +1036,8 @@ def Main():
     deps += BIGTRACE_DEPS
   if args.rust:
     deps += BUILD_DEPS_RUST
+  if args.java_sdk:
+    deps += JAVA_SDK_HOST_TEST_DEPS
   deps += SYNTAQLITE_DEPS
   deps_updated = False
   nodejs_updated = False
