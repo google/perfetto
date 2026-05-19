@@ -15,6 +15,7 @@
 // Keep this import first.
 import '../base/static_initializers';
 import '../assets/bigtrace.scss';
+import '../frontend/ui_main.scss';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, type ErrorDetails} from '../base/logging';
