@@ -16,8 +16,10 @@
 
 package dev.perfetto.sdk;
 
-import dalvik.annotation.optimization.FastNative;
+import dalvik.annotation.optimization.CriticalNative;
 import dev.perfetto.sdk.PerfettoTrace.Category;
+
+import java.nio.ByteBuffer;
 
 /**
  * Java-side track event emit path, built on the public Low Level track event
@@ -154,24 +156,43 @@ public final class PerfettoEvent {
     b.endNested(token);
   }
 
-  /** Emits a track event on the sequence default track with body {@code b}. */
-  static void emit(int type, long categoryPtr, String name, ProtoWriter b) {
-    native_emit(type, categoryPtr, name, b.buffer(), b.position());
+  // ==========================================================================
+  // Frame
+  //
+  // Everything the native emit needs that is not in the protobuf body -- the
+  // event name, the track chain and the interned-string fields -- is encoded
+  // into a little-endian "frame" appended after the body in the off-heap
+  // EmitBuffer. Native parses it back by pointer arithmetic (no JNI accessors).
+  //
+  // Layout (after the body):
+  //   name           : cstr
+  //   flags          : u8   (bit0 set_track_uuid, bit1 counter, bit2 name_static)
+  //   leaf_uuid      : u64
+  //   track_count    : i32, then per track: uuid u64, parent u64, name cstr
+  //   interned_count : i32, then per field: field_id i32, type_id i32, str cstr
+  // where cstr = len i32, then `len` ASCII bytes, then a NUL terminator (so the
+  // bytes are a valid C string the native track/intern APIs can use in place).
+  // ==========================================================================
+
+  /** Upper bound on the frame size for the given event, in bytes. */
+  static int frameSize(
+      String name, int trackCount, String[] trackNames, int internedCount,
+      String[] internedStrs) {
+    int n = cstrSize(name) + 1 + 8 + 4;
+    for (int i = 0; i < trackCount; i++) {
+      n += 8 + 8 + cstrSize(trackNames[i]);
+    }
+    n += 4;
+    for (int i = 0; i < internedCount; i++) {
+      n += 4 + 4 + cstrSize(internedStrs[i]);
+    }
+    return n;
   }
 
-  /**
-   * Emits a track event with extras: a track (when {@code setTrackUuid}) and/or
-   * interned-string proto fields. The track chain ({@code trackUuids} /
-   * {@code trackParentUuids} / {@code trackNames}, {@code trackCount} levels) has
-   * each descriptor emitted once per sequence. The interned fields ({@code
-   * internedFieldIds} / {@code internedTypeIds} / {@code internedStrs}, {@code
-   * internedCount} of them) are interned natively and referenced by iid.
-   */
-  static void emitWithExtras(
-      int type,
-      long categoryPtr,
+  /** Encodes the frame at {@code b}'s current position; returns its length. */
+  static int encodeFrame(
+      ByteBuffer b,
       String name,
-      ProtoWriter b,
       boolean setTrackUuid,
       long leafTrackUuid,
       int trackCount,
@@ -184,14 +205,48 @@ public final class PerfettoEvent {
       int[] internedFieldIds,
       int[] internedTypeIds,
       String[] internedStrs) {
-    native_emit_with_extras(
-        type, categoryPtr, name, b.buffer(), b.position(), setTrackUuid,
-        leafTrackUuid, trackCount, trackUuids, trackParentUuids, trackNames,
-        trackNameStatic, trackIsCounter, internedCount, internedFieldIds,
-        internedTypeIds, internedStrs);
+    int start = b.position();
+    putCStr(b, name);
+    int flags = (setTrackUuid ? 1 : 0) | (trackIsCounter ? 2 : 0)
+        | (trackNameStatic ? 4 : 0);
+    b.put((byte) flags);
+    b.putLong(leafTrackUuid);
+    b.putInt(trackCount);
+    for (int i = 0; i < trackCount; i++) {
+      b.putLong(trackUuids[i]);
+      b.putLong(trackParentUuids[i]);
+      putCStr(b, trackNames[i]);
+    }
+    b.putInt(internedCount);
+    for (int i = 0; i < internedCount; i++) {
+      b.putInt(internedFieldIds[i]);
+      b.putInt(internedTypeIds[i]);
+      putCStr(b, internedStrs[i]);
+    }
+    return b.position() - start;
   }
 
-  private static final byte[] EMPTY_BODY = new byte[0];
+  // Writes `s` as { len, ASCII bytes, NUL }. Chars above 0x7F fold to '?', the
+  // same conversion the JNI string path used, so track uuids (derived in Java
+  // with the same fold) and descriptor names stay consistent.
+  private static void putCStr(ByteBuffer b, String s) {
+    int len = (s == null) ? 0 : s.length();
+    b.putInt(len);
+    for (int i = 0; i < len; i++) {
+      char c = s.charAt(i);
+      b.put((byte) (c <= 0x7F ? c : '?'));
+    }
+    b.put((byte) 0);
+  }
+
+  private static int cstrSize(String s) {
+    return 4 + (s == null ? 0 : s.length()) + 1;
+  }
+
+  // Standalone (non-builder) emits share one off-heap buffer per thread; this
+  // path is not the builder hot path, so a ThreadLocal lookup here is fine.
+  private static final ThreadLocal<EmitBuffer> sStandaloneBuffer =
+      ThreadLocal.withInitial(EmitBuffer::new);
 
   /**
    * Emits a bare {type, category, name} event (empty body). No-op if the
@@ -201,30 +256,27 @@ public final class PerfettoEvent {
     if (!category.isRegistered() || !category.isEnabled()) {
       return;
     }
-    native_emit(type, category.getPtr(), name, EMPTY_BODY, 0);
+    EmitBuffer x = sStandaloneBuffer.get();
+    x.ensureCapacity(frameSize(name, 0, null, 0, null));
+    ByteBuffer b = x.buf;
+    b.clear();
+    int frameLen = encodeFrame(
+        b, name, /*setTrackUuid=*/false, /*leafTrackUuid=*/0, /*trackCount=*/0,
+        null, null, null, /*trackNameStatic=*/false, /*trackIsCounter=*/false,
+        /*internedCount=*/0, null, null, null);
+    native_emit(type, category.getPtr(), x.addr, /*bodyLen=*/0, frameLen);
   }
 
-  @FastNative
-  private static native void native_emit(
-      int type, long categoryPtr, String name, byte[] body, int bodyLen);
-
-  @FastNative
-  private static native void native_emit_with_extras(
-      int type,
-      long categoryPtr,
-      String name,
-      byte[] body,
-      int bodyLen,
-      boolean setTrackUuid,
-      long leafTrackUuid,
-      int trackCount,
-      long[] trackUuids,
-      long[] trackParentUuids,
-      String[] trackNames,
-      boolean trackNameStatic,
-      boolean trackIsCounter,
-      int internedCount,
-      int[] internedFieldIds,
-      int[] internedTypeIds,
-      String[] internedStrs);
+  /**
+   * Emits a track event. The off-heap buffer at {@code addr} holds the protobuf
+   * body in {@code [0, bodyLen)} followed by the frame in {@code [bodyLen,
+   * bodyLen + frameLen)}. All arguments are primitives and the native side
+   * touches no JVM state, so this is a {@code @CriticalNative}: on ART it uses
+   * the cheapest JVM->native transition (no {@code JNIEnv}, no {@code jclass},
+   * no local-ref frame). Host JVMs ignore the annotation and call it as a normal
+   * native; the C side handles both ABIs.
+   */
+  @CriticalNative
+  static native void native_emit(
+      int type, long categoryPtr, long addr, int bodyLen, int frameLen);
 }

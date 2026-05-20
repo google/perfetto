@@ -46,7 +46,9 @@ public final class ProtoWriter {
   private static final int NESTED_LENGTH_FIELD_SIZE = 4;
   private static final int MAX_NESTING_DEPTH = 16;
   private static final int UTF8_SCRATCH_SIZE = 512;
-  private static final int DEFAULT_BUFFER_SIZE = 32 * 1024;
+  // Small by default (a track-event body is well under this); grows on demand.
+  // Kept small so that hundreds of per-thread writers stay cheap.
+  private static final int DEFAULT_BUFFER_SIZE = 512;
 
   private byte[] mBuf;
   private int mPos;

@@ -19,173 +19,155 @@
 #include <jni.h>
 
 #include <cstdint>
+#include <cstring>
 
+#include "perfetto/base/build_config.h"
 #include "src/android_sdk/jni/macros.h"
-#include "src/android_sdk/jni/string_buffer.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
 namespace perfetto {
 namespace jni {
 
-// Deepest track hierarchy passed in one emit. Deeper chains are clamped (a
-// pathological case; real hierarchies are a handful of levels).
-static constexpr jint kMaxTrackLevels = 16;
-static constexpr jint kMaxInternedFields = 16;
+// Deepest track hierarchy / most interned fields handled in one emit. Deeper
+// inputs are clamped (pathological; real events use a handful).
+static constexpr int32_t kMaxTrackLevels = 16;
+static constexpr int32_t kMaxInternedFields = 16;
 
 template <typename T>
 inline static T* toPointer(jlong ptr) {
   return reinterpret_cast<T*>(static_cast<uintptr_t>(ptr));
 }
 
-// Copies the first `len` bytes of `body` into `stack_buf` (fast path), or via
-// GetByteArrayElements for oversized bodies (returns the pointer to release in
-// `*heap_out`). Returns the data pointer.
-static const uint8_t* CopyBody(JNIEnv* env,
-                               jbyteArray body,
-                               jint len,
-                               uint8_t* stack_buf,
-                               jint stack_size,
-                               jbyte** heap_out) {
-  *heap_out = nullptr;
-  if (len <= 0) {
-    return nullptr;
-  }
-  if (len <= stack_size) {
-    env->GetByteArrayRegion(body, 0, len, reinterpret_cast<jbyte*>(stack_buf));
-    return stack_buf;
-  }
-  *heap_out = env->GetByteArrayElements(body, nullptr);
-  return reinterpret_cast<const uint8_t*>(*heap_out);
+// The frame is little-endian and only read on little-endian targets (every host
+// JVM and Android ABI), so a plain memcpy reproduces the Java-written value.
+static int32_t ReadI32(const uint8_t** p) {
+  int32_t v;
+  memcpy(&v, *p, sizeof(v));
+  *p += sizeof(v);
+  return v;
 }
 
-// Shared emit. `name` and any track names are converted via the thread-local
-// StringBuffer (GetStringRegion fast path: no Java-heap object, no native
-// malloc); the body and the track chain are copied onto the stack. All
-// conversions are allocation-free. Track arrays are only read when track_count
-// or set_track_uuid require them.
-static void emit(JNIEnv* env,
-                 jint type,
-                 jlong cat_ptr,
-                 jstring name,
-                 jbyteArray body,
-                 jint body_len,
-                 bool set_track_uuid,
-                 jlong leaf_track_uuid,
-                 jint track_count,
-                 jlongArray track_uuids,
-                 jlongArray track_parent_uuids,
-                 jobjectArray track_names,
-                 bool track_name_static,
-                 bool track_is_counter,
-                 jint interned_count,
-                 jintArray interned_field_ids,
-                 jintArray interned_type_ids,
-                 jobjectArray interned_strs) {
+static uint64_t ReadU64(const uint8_t** p) {
+  uint64_t v;
+  memcpy(&v, *p, sizeof(v));
+  *p += sizeof(v);
+  return v;
+}
+
+// Reads a { len, bytes, NUL } string and returns a pointer to the bytes, which
+// are NUL-terminated in place so they can be used directly as a C string. The
+// cursor is advanced past the terminator.
+static const char* ReadCStr(const uint8_t** p) {
+  int32_t len = ReadI32(p);
+  const char* s = reinterpret_cast<const char*>(*p);
+  *p += len + 1;
+  return s;
+}
+
+// Parses the off-heap buffer (protobuf body in [0, body_len), then the frame)
+// and drives the LL emit. Touches no JVM state, so it is shared by the host and
+// ART (@CriticalNative) entry points below.
+static void EmitFromBuffer(jint type,
+                           jlong cat_ptr,
+                           jlong addr,
+                           jint body_len,
+                           jint /*frame_len*/) {
   auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
-  std::string_view name_view = StringBuffer::utf16_to_ascii(env, name);
+  const uint8_t* base = toPointer<const uint8_t>(addr);
+  const void* body = base;
+  size_t body_size = body_len > 0 ? static_cast<size_t>(body_len) : 0;
+
+  const uint8_t* p = base + body_len;
+  const char* name = ReadCStr(&p);
+  uint8_t flags = *p++;
+  bool set_track_uuid = flags & 1;
+  bool track_is_counter = flags & 2;
+  bool track_name_static = flags & 4;
+  uint64_t leaf_track_uuid = ReadU64(&p);
 
   uint64_t uuids[kMaxTrackLevels];
   uint64_t parent_uuids[kMaxTrackLevels];
   const char* names[kMaxTrackLevels];
-  jint count = 0;
-  if (track_count > 0) {
-    count = track_count < kMaxTrackLevels ? track_count : kMaxTrackLevels;
-    env->GetLongArrayRegion(track_uuids, 0, count,
-                            reinterpret_cast<jlong*>(uuids));
-    env->GetLongArrayRegion(track_parent_uuids, 0, count,
-                            reinterpret_cast<jlong*>(parent_uuids));
-    for (jint i = 0; i < count; i++) {
-      jstring tn =
-          static_cast<jstring>(env->GetObjectArrayElement(track_names, i));
-      names[i] = StringBuffer::utf16_to_ascii(env, tn).data();
-      env->DeleteLocalRef(tn);
+  int32_t track_count = ReadI32(&p);
+  int32_t stored_tracks = 0;
+  for (int32_t i = 0; i < track_count; i++) {
+    uint64_t uuid = ReadU64(&p);
+    uint64_t parent = ReadU64(&p);
+    const char* tname = ReadCStr(&p);
+    if (i < kMaxTrackLevels) {
+      uuids[i] = uuid;
+      parent_uuids[i] = parent;
+      names[i] = tname;
+      stored_tracks++;
     }
   }
 
   int32_t ifield_ids[kMaxInternedFields];
   int32_t itype_ids[kMaxInternedFields];
   const char* istrs[kMaxInternedFields];
-  jint icount = 0;
-  if (interned_count > 0) {
-    icount =
-        interned_count < kMaxInternedFields ? interned_count : kMaxInternedFields;
-    env->GetIntArrayRegion(interned_field_ids, 0, icount, ifield_ids);
-    env->GetIntArrayRegion(interned_type_ids, 0, icount, itype_ids);
-    for (jint i = 0; i < icount; i++) {
-      jstring s =
-          static_cast<jstring>(env->GetObjectArrayElement(interned_strs, i));
-      istrs[i] = StringBuffer::utf16_to_ascii(env, s).data();
-      env->DeleteLocalRef(s);
+  int32_t interned_count = ReadI32(&p);
+  int32_t stored_interned = 0;
+  for (int32_t i = 0; i < interned_count; i++) {
+    int32_t fid = ReadI32(&p);
+    int32_t tid = ReadI32(&p);
+    const char* s = ReadCStr(&p);
+    if (i < kMaxInternedFields) {
+      ifield_ids[i] = fid;
+      itype_ids[i] = tid;
+      istrs[i] = s;
+      stored_interned++;
     }
   }
 
-  constexpr jint kStackBufSize = 4096;
-  uint8_t stack_buf[kStackBufSize];
-  jbyte* heap = nullptr;
-  const uint8_t* data =
-      CopyBody(env, body, body_len, stack_buf, kStackBufSize, &heap);
-
   sdk_for_jni::emit_track_event(
-      category->get(), type, name_view.data(), data,
-      body_len > 0 ? static_cast<size_t>(body_len) : 0, set_track_uuid,
-      static_cast<uint64_t>(leaf_track_uuid), count, uuids, parent_uuids, names,
-      track_name_static, track_is_counter, icount, ifield_ids, itype_ids, istrs);
-
-  if (heap) {
-    env->ReleaseByteArrayElements(body, heap, JNI_ABORT);
-  }
-  StringBuffer::reset();
+      category->get(), type, name, body, body_size, set_track_uuid,
+      leaf_track_uuid, stored_tracks, uuids, parent_uuids, names,
+      track_name_static, track_is_counter, stored_interned, ifield_ids,
+      itype_ids, istrs);
 }
 
-// Common path: event on the sequence default track. No track arrays.
-static void dev_perfetto_sdk_PerfettoEvent_native_emit(JNIEnv* env,
+// native_emit is @CriticalNative on ART (no JNIEnv/jclass, primitives only).
+// Host JVMs ignore the annotation and call it with the standard JNI signature,
+// so the function ABI differs by platform; both forward to EmitFromBuffer.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+static void dev_perfetto_sdk_PerfettoEvent_native_emit(jint type,
+                                                       jlong cat_ptr,
+                                                       jlong addr,
+                                                       jint body_len,
+                                                       jint frame_len) {
+  EmitFromBuffer(type, cat_ptr, addr, body_len, frame_len);
+}
+#else
+static void dev_perfetto_sdk_PerfettoEvent_native_emit(JNIEnv*,
                                                        jclass,
                                                        jint type,
                                                        jlong cat_ptr,
-                                                       jstring name,
-                                                       jbyteArray body,
-                                                       jint body_len) {
-  emit(env, type, cat_ptr, name, body, body_len, /*set_track_uuid=*/false,
-       /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
-       /*track_name_static=*/false, /*track_is_counter=*/false,
-       /*interned_count=*/0, nullptr, nullptr, nullptr);
+                                                       jlong addr,
+                                                       jint body_len,
+                                                       jint frame_len) {
+  EmitFromBuffer(type, cat_ptr, addr, body_len, frame_len);
 }
+#endif
 
-// Extras path: event with a track and/or interned-string proto fields.
-static void dev_perfetto_sdk_PerfettoEvent_native_emit_with_extras(
-    JNIEnv* env,
-    jclass,
-    jint type,
-    jlong cat_ptr,
-    jstring name,
-    jbyteArray body,
-    jint body_len,
-    jboolean set_track_uuid,
-    jlong leaf_track_uuid,
-    jint track_count,
-    jlongArray track_uuids,
-    jlongArray track_parent_uuids,
-    jobjectArray track_names,
-    jboolean track_name_static,
-    jboolean track_is_counter,
-    jint interned_count,
-    jintArray interned_field_ids,
-    jintArray interned_type_ids,
-    jobjectArray interned_strs) {
-  emit(env, type, cat_ptr, name, body, body_len, set_track_uuid == JNI_TRUE,
-       leaf_track_uuid, track_count, track_uuids, track_parent_uuids,
-       track_names, track_name_static == JNI_TRUE, track_is_counter == JNI_TRUE,
-       interned_count, interned_field_ids, interned_type_ids, interned_strs);
+// Returns the stable native address of a direct ByteBuffer. Called once per
+// buffer (and on growth), never on the hot path, so a normal @FastNative is
+// fine.
+static jlong dev_perfetto_sdk_EmitBuffer_nativeAddress(JNIEnv* env,
+                                                       jclass,
+                                                       jobject buffer) {
+  return static_cast<jlong>(reinterpret_cast<uintptr_t>(
+      env->GetDirectBufferAddress(buffer)));
 }
 
 static const JNINativeMethod gEventMethods[] = {
-    {"native_emit", "(IJLjava/lang/String;[BI)V",
+    {"native_emit", "(IJJII)V",
      (void*)dev_perfetto_sdk_PerfettoEvent_native_emit},
-    {"native_emit_with_extras",
-     "(IJLjava/lang/String;[BIZJI[J[J[Ljava/lang/String;ZZI[I[I[Ljava/lang/"
-     "String;)V",
-     (void*)dev_perfetto_sdk_PerfettoEvent_native_emit_with_extras},
+};
+
+static const JNINativeMethod gBufferMethods[] = {
+    {"nativeAddress", "(Ljava/nio/ByteBuffer;)J",
+     (void*)dev_perfetto_sdk_EmitBuffer_nativeAddress},
 };
 
 int register_dev_perfetto_sdk_PerfettoEvent(JNIEnv* env) {
@@ -194,6 +176,11 @@ int register_dev_perfetto_sdk_PerfettoEvent(JNIEnv* env) {
       gEventMethods, NELEM(gEventMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register PerfettoEvent native methods.");
+  res = jniRegisterNativeMethods(
+      env, TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/EmitBuffer"),
+      gBufferMethods, NELEM(gBufferMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0,
+                      "Unable to register EmitBuffer native methods.");
   return 0;
 }
 

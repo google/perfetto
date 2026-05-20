@@ -202,6 +202,51 @@ public class PerfettoEventEmitTest {
   }
 
   @Test
+  public void growsEmitBufferForLargeBodyAndReusesAfter() throws Exception {
+    boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
+    PerfettoTrackEventBuilder.setUseJavaEmit(true);
+    try {
+      PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+      // A value well past the 512-byte default EmitBuffer, so emit must grow the
+      // off-heap buffer (and re-fetch its native address) mid-flight.
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < 2048; i++) {
+        sb.append((char) ('a' + (i % 26)));
+      }
+      String big = sb.toString();
+
+      PerfettoTrace.instant(FOO_CATEGORY, "big").addArg("blob", big).emit();
+      // A small event right after, on the same thread, to confirm the grown
+      // buffer is reused correctly.
+      PerfettoTrace.instant(FOO_CATEGORY, "small").addArg("k", 7L).emit();
+
+      Trace trace = Trace.parseFrom(session.close());
+
+      boolean hasBig = false;
+      boolean hasSmall = false;
+      for (TracePacket packet : trace.getPacketList()) {
+        if (!packet.hasTrackEvent()) {
+          continue;
+        }
+        var ann = packet.getTrackEvent().getDebugAnnotationsList();
+        if (ann.size() == 1 && ann.get(0).getName().equals("blob")) {
+          assertThat(ann.get(0).getStringValue()).isEqualTo(big);
+          hasBig = true;
+        }
+        if (ann.size() == 1 && ann.get(0).getName().equals("k")) {
+          assertThat(ann.get(0).getIntValue()).isEqualTo(7L);
+          hasSmall = true;
+        }
+      }
+      assertThat(hasBig).isTrue();
+      assertThat(hasSmall).isTrue();
+    } finally {
+      PerfettoTrackEventBuilder.setUseJavaEmit(previous);
+    }
+  }
+
+  @Test
   public void builderRoutesNamedTrackThroughJavaEmit() throws Exception {
     boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
     PerfettoTrackEventBuilder.setUseJavaEmit(true);

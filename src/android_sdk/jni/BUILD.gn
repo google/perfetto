@@ -18,6 +18,7 @@ SOURCE_SET_SOURCES = [
 #TODO(ktimofeev): use builtin 'nativehelper' lib when building in AOSP.
 SOURCE_SET_DEPS = [
   "../../../gn:default_deps",
+  "../../../include/perfetto/base",
   "../nativehelper:nativehelper",
   "../perfetto_sdk_for_jni:perfetto_sdk_for_jni",
 ]

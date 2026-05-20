@@ -18,6 +18,7 @@ package dev.perfetto.sdk;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.function.Supplier;
 
@@ -197,6 +198,11 @@ public final class PerfettoTrackEventBuilder {
   // ThreadLocal lookup. Reset at the start of each event.
   private ProtoWriter mBody;
 
+  // Off-heap staging buffer the assembled event (body + frame) is copied into,
+  // so emit passes a single native pointer instead of Java arrays. Owned by the
+  // root builder. See EmitBuffer and PerfettoEvent's frame layout.
+  private EmitBuffer mXfer;
+
   private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
       () -> new PerfettoTrackEventBuilder(true, this);
   private final Supplier<FieldNested> fieldNestedSupplier =
@@ -251,6 +257,7 @@ public final class PerfettoTrackEventBuilder {
       mInternedTypeIds = new int[MAX_INTERNED_FIELDS];
       mInternedStrings = new String[MAX_INTERNED_FIELDS];
       mBody = new ProtoWriter();
+      mXfer = new EmitBuffer();
     } else {
       // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
@@ -288,15 +295,7 @@ public final class PerfettoTrackEventBuilder {
           PerfettoEvent.setCounter(mBody, mCounterLong);
         }
       }
-      if (mHasTrack || mInternedFieldCount > 0) {
-        PerfettoEvent.emitWithExtras(
-            mTraceType, mCategory.getPtr(), mEventName, mBody, mHasTrack,
-            mTrackLeafUuid, mTrackCount, mTrackUuids, mTrackParentUuids,
-            mTrackNames, mTrackNameStatic, mTrackIsCounter, mInternedFieldCount,
-            mInternedFieldIds, mInternedTypeIds, mInternedStrings);
-      } else {
-        PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName, mBody);
-      }
+      emitJava();
       return;
     }
     if (mArgCount > 0) {
@@ -313,6 +312,30 @@ public final class PerfettoTrackEventBuilder {
     }
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
+  }
+
+  // Assembles the event into the off-heap buffer (protobuf body followed by the
+  // frame), then emits it with a single primitive-only native call. The body is
+  // bulk-copied once; the frame (name, track chain, interned fields) is encoded
+  // straight into the buffer. See PerfettoEvent for the frame layout.
+  private void emitJava() {
+    int bodyLen = mBody.position();
+    int needed = bodyLen
+        + PerfettoEvent.frameSize(
+            mEventName, mTrackCount, mTrackNames, mInternedFieldCount,
+            mInternedStrings);
+    mXfer.ensureCapacity(needed);
+    ByteBuffer b = mXfer.buf;
+    b.clear();
+    b.put(mBody.buffer(), 0, bodyLen);
+    int frameLen =
+        PerfettoEvent.encodeFrame(
+            b, mEventName, mHasTrack, mTrackLeafUuid, mTrackCount, mTrackUuids,
+            mTrackParentUuids, mTrackNames, mTrackNameStatic, mTrackIsCounter,
+            mInternedFieldCount, mInternedFieldIds, mInternedTypeIds,
+            mInternedStrings);
+    PerfettoEvent.native_emit(
+        mTraceType, mCategory.getPtr(), mXfer.addr, bodyLen, frameLen);
   }
 
   /**
