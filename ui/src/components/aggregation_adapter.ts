@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './aggregation_adapter.scss';
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {type time, Time} from '../base/time';
