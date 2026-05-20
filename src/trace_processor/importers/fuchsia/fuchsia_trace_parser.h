@@ -87,7 +87,8 @@ class FuchsiaTraceParser
   void Wake(Thread* thread,
             int64_t ts,
             uint32_t cpu,
-            std::optional<UniqueTid> waker_utid = std::nullopt);
+            std::optional<UniqueTid> waker_utid = std::nullopt,
+            std::optional<uint64_t> waker_tid = std::nullopt);
 
   StringId IdForOutgoingThreadState(uint32_t state);
 

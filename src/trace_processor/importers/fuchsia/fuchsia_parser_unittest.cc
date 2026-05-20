@@ -613,6 +613,77 @@ TEST_F(FuchsiaTraceParserTest, SchedulerEventsWithWaker) {
   EXPECT_TRUE(found_waker);
 }
 
+TEST_F(FuchsiaTraceParserTest, SchedulerEventsWithWakerId) {
+  uint64_t thread1_tid = 0x1AAA'AAAA'AAAA'AAAA;
+  uint64_t thread2_tid = 0x2CCC'CCCC'CCCC'CCCC;
+
+  uint64_t context_switch_record_type = uint64_t{1} << 60;
+  uint64_t wakeup_record_type = uint64_t{2} << 60;
+  uint64_t cpu = 1 << 20;
+  uint64_t record_type = 8;
+  uint64_t context_switch_size = uint64_t{4} << 4;
+
+  // 1. Context switch to thread 2 (so it gets a state row)
+  uint64_t context_switch_header =
+      context_switch_record_type | cpu | record_type | context_switch_size;
+  push_word(context_switch_header);
+  // Timestamp
+  push_word(0x1);
+  // outgoing tid
+  push_word(thread1_tid);
+  // incoming tid
+  push_word(thread2_tid);
+
+  // 2. Wakeup thread 1 by thread 2
+  uint64_t argument_count = uint64_t{1} << 16;
+  uint64_t wakeup_size = uint64_t{6} << 4;
+  uint64_t wakeup_header =
+      wakeup_record_type | cpu | argument_count | record_type | wakeup_size;
+  push_word(wakeup_header);
+  // Timestamp
+  push_word(0x2);
+  // wakeup tid
+  push_word(thread1_tid);
+
+  // Waker argument
+  uint64_t arg_type = uint64_t{8};  // kKoid
+  uint64_t arg_size_words = uint64_t{3} << 4;
+  uint64_t inline_string = uint64_t{1} << 15;
+  uint64_t string_len = uint64_t{5};
+  uint64_t arg_name_ref = (inline_string | string_len) << 16;
+  uint64_t arg_header = arg_type | arg_size_words | arg_name_ref;
+  push_word(arg_header);
+  // string "waker\0\0\0"
+  push_word(0x00000072656b6177);
+  // koid value
+  push_word(thread2_tid);
+
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread1_tid), _))
+      .WillRepeatedly(testing::Return(1));
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread2_tid), _))
+      .WillRepeatedly(testing::Return(2));
+
+  EXPECT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  // Verify waker_utid and waker_id are recorded properly
+  const auto& table = storage_->thread_state_table();
+  bool found_waker = false;
+
+  auto expected_waker_utid = context_.process_tracker->GetOrCreateThread(
+      static_cast<uint32_t>(thread2_tid));
+
+  for (auto it = table.IterateRows(); it; ++it) {
+    if (it.waker_utid().has_value() &&
+        it.waker_utid().value() == expected_waker_utid) {
+      found_waker = true;
+      ASSERT_TRUE(it.waker_id().has_value());
+      EXPECT_EQ(it.waker_id().value().value, 1u);
+    }
+  }
+  EXPECT_TRUE(found_waker);
+}
+
 TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {
   uint64_t thread1_pid = 0x1AAA'AAAA'AAAA'AAAA;
   uint64_t thread1_tid = 0x1BBB'BBBB'BBBB'BBBB;
