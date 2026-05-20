@@ -4,6 +4,8 @@ import("../../../gn/perfetto_android_sdk.gni")
 assert(enable_perfetto_android_java_sdk)
 
 SOURCE_SET_SOURCES = [
+  "dev_perfetto_sdk_PerfettoDataSource.cc",
+  "dev_perfetto_sdk_PerfettoDataSource.h",
   "dev_perfetto_sdk_PerfettoEvent.cc",
   "dev_perfetto_sdk_PerfettoEvent.h",
   "dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",

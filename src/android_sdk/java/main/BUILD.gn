@@ -6,6 +6,8 @@ assert(enable_perfetto_android_java_sdk)
 perfetto_android_library("perfetto_trace_lib") {
   sources = [
     "dev/perfetto/sdk/EmitBuffer.java",
+    "dev/perfetto/sdk/InternPool.java",
+    "dev/perfetto/sdk/PerfettoDataSource.java",
     "dev/perfetto/sdk/PerfettoEvent.java",
     "dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
     "dev/perfetto/sdk/PerfettoTrace.java",
