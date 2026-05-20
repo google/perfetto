@@ -24,7 +24,6 @@ import {
   LONG,
   NUM_NULL,
   STR,
-  LONG_NULL,
   type QueryResult,
   NUM,
 } from '../../trace_processor/query_result';
@@ -431,7 +430,7 @@ export class BreakdownTracks {
             schema: {
               id: NUM,
               ts: LONG,
-              dur: LONG_NULL,
+              dur: LONG,
               name: STR,
             },
             src: `
