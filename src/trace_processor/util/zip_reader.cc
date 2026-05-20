@@ -49,6 +49,9 @@ namespace {
 // Entry signatures.
 constexpr uint32_t kFileHeaderSig = 0x04034b50;
 constexpr uint32_t kCentralDirectorySig = 0x02014b50;
+constexpr uint32_t kEndOfCentralDirectorySig = 0x06054b50;
+constexpr uint32_t kZip64EndOfCentralDirectoryRecordSig = 0x06064b50;
+constexpr uint32_t kZip64EndOfCentralDirectoryLocatorSig = 0x07064b50;
 constexpr uint32_t kDataDescriptorSig = 0x08074b50;
 
 // 4 bytes each of: 1) signature, 2) crc, 3) compressed size 4) uncompressed
@@ -143,8 +146,11 @@ base::Status ZipReader::TryParseHeader() {
 
   const uint8_t* hdr_it = hdr->data();
   cur_.hdr.signature = ReadAndAdvance<uint32_t>(&hdr_it);
-  if (cur_.hdr.signature == kCentralDirectorySig) {
-    // We reached the central directory at the end of file.
+  if (cur_.hdr.signature == kCentralDirectorySig ||
+      cur_.hdr.signature == kEndOfCentralDirectorySig ||
+      cur_.hdr.signature == kZip64EndOfCentralDirectoryRecordSig ||
+      cur_.hdr.signature == kZip64EndOfCentralDirectoryLocatorSig) {
+    // We reached the central directory / EOCD structures at the end of file.
     // We don't make any use here of the central directory, so we just
     // ignore everything else after this point.
     // Here we abuse the ZipFile class a bit. The Central Directory header
@@ -188,10 +194,7 @@ base::Status ZipReader::TryParseHeader() {
   }
   if (cur_.hdr.compression != kNoCompression &&
       cur_.hdr.compression != kDeflate) {
-    return base::ErrStatus(
-        "Unsupported compression type at offset 0x%zx. type=%x. Only "
-        "deflate and no compression are supported.",
-        reader_.start_offset(), cur_.hdr.compression);
+    return base::ErrStatus("Unsupported compression method");
   }
   if (cur_.hdr.flags & kDataDescriptor && cur_.hdr.compression != kDeflate) {
     return base::ErrStatus(
@@ -276,6 +279,10 @@ base::Status ZipReader::ParseExtraFields(const uint8_t* data, size_t size) {
         }
         cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&field_it);
         cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&field_it);
+        // Parse local header offset if present in the Zip64 extra field.
+        if (field_it + sizeof(uint64_t) <= field_end) {
+          ReadAndAdvance<uint64_t>(&field_it);  // Local header offset
+        }
       }
     }
     it += field_size;
