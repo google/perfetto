@@ -24464,8 +24464,8 @@ phony {
             required: [
                 "system_tracing_protos_descriptor",
             ],
-        },
-    },
+        }
+    }
 }
 
 filegroup {
