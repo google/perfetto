@@ -65,6 +65,7 @@
     "eslint-plugin-jsdoc": "^48.5.0",
     "globals": "^15.6.0",
     "happy-dom": "^20.9.0",
+    "ora": "^9.4.0",
     "pngjs": "^7.0.0",
     "prettier": "^3.3.2",
     "puppeteer": "^22.15.0",

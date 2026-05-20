@@ -22,11 +22,15 @@
 import {defineConfig} from 'vite';
 import path from 'node:path';
 import fs from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {SourceMapConsumer, SourceMapGenerator} from 'source-map';
 import {lezer} from '@lezer/generator/rollup';
 import checker from 'vite-plugin-checker';
+import {pluginGenRelativeImports} from './vite/gen.mjs';
+import {pluginPatchIndexHtml} from './vite/dev.mjs';
+import {pluginPerfettoPluginBarrels} from './vite/plugins.mjs';
+import {pluginPerfettoVersion} from './vite/version.mjs';
+import {pluginPerfettoVirtualWasmModules} from './vite/wasm.mjs';
+import {pluginEmbedMinimalSourceMap} from './vite/sourcemap.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.dirname(__dirname);
@@ -42,312 +46,13 @@ const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
 const DEV_VERSION = process.env.PERFETTO_DEV_VERSION || '';
 const DEV_TITLE_OVERRIDE = process.env.PERFETTO_DEV_TITLE_OVERRIDE || '';
 
-// IIFE bundles go to dist_version (the symlink to dist/v1.2.3). The service
-// worker and chrome extension go elsewhere; for the minimum migration we keep
-// them on the old rollup path until needed. (build.mjs still runs rollup for
-// those if we wire it that way, but for now we ship the three main bundles.)
+// IIFE bundles go to dist/v<version>/ so multiple releases can coexist in the
+// GCS bucket. The version comes from build.mjs via PERFETTO_UI_VERSION (set
+// from tools/write_version_header.py). Root-level files (service_worker.js,
+// chrome extension) live outside the versioned dir.
 const SRC = path.join(ROOT_DIR, 'ui/src');
-const GEN_SYMLINK = path.join(SRC, 'gen');
-// Canonical (real) path of the gen dir. Vite/Rollup resolves symlinks by
-// default, so a file imported through ui/src/gen ends up reported with this
-// path. We use it below to detect "the importer is a generated file".
-const GEN_REAL = fs.existsSync(GEN_SYMLINK) ? fs.realpathSync(GEN_SYMLINK) : '';
-
-// The generated import barrels (all_plugins.ts, all_core_plugins.ts) live under
-// ui/src/gen which is a symlink into out/.../tsc/gen. Their relative imports
-// (e.g. "../core_plugins/foo") only make sense relative to ui/src, not to the
-// real gen dir. When Rollup canonicalises the symlink, those relative paths
-// break. This plugin rewrites them to absolute paths under ui/src.
-// Strips Rollup's full source map down to one mapping per generated line and
-// embeds it inline into each _bundle.js under self.__SOURCEMAPS[fileName] for
-// runtime error reporting. Skipped when source maps are disabled.
-function pluginEmbedMinimalSourceMap() {
-  return {
-    name: 'perfetto:embed-minimal-sourcemap',
-    async generateBundle(_options, bundle) {
-      for (const chunk of Object.values(bundle)) {
-        if (!chunk.fileName || !chunk.fileName.endsWith('.js') || !chunk.map) {
-          continue;
-        }
-        try {
-          const consumer = await new SourceMapConsumer(chunk.map);
-          const generator = new SourceMapGenerator({file: chunk.map.file});
-          const seenLines = new Set();
-          const cleanSourcePath = (source) => {
-            let cleaned = source.replace('../../../out/ui/', '');
-            cleaned = cleaned.replace('../../node_modules/', 'node_modules/');
-            return cleaned;
-          };
-          consumer.eachMapping((mapping) => {
-            if (!mapping.source) return;
-            if (seenLines.has(mapping.generatedLine)) return;
-            seenLines.add(mapping.generatedLine);
-            generator.addMapping({
-              generated: {line: mapping.generatedLine, column: 0},
-              original: {
-                line: mapping.originalLine,
-                column: mapping.originalColumn,
-              },
-              source: cleanSourcePath(mapping.source),
-            });
-          });
-          consumer.destroy();
-          const minimalMap = JSON.parse(generator.toString());
-          delete minimalMap.sourcesContent;
-          delete minimalMap.names;
-          chunk.code +=
-            `\n;(self.__SOURCEMAPS=self.__SOURCEMAPS||{})` +
-            `['${chunk.fileName}']=${JSON.stringify(minimalMap)};`;
-        } catch (err) {
-          console.error(
-            `Error creating minimal source map for ${chunk.fileName}:`,
-            err.message,
-          );
-        }
-      }
-    },
-  };
-}
-
-// Shared helper for plugins that synthesise a module's source on the fly but
-// expose it via a normal relative import (typed by a colocated .d.ts).
-//
-// `modules` maps an absolute path (no extension) — e.g. <SRC>/plugins/index —
-// to a function that returns the module source. resolveId intercepts both
-// file-style imports ('../base/version') and directory-style imports
-// ('../plugins' → '../plugins/index') before Vite's filesystem resolver runs.
-function makeSynthModulePlugin({name, modules}) {
-  const PREFIX = '\0' + name + ':';
-  return {
-    name,
-    enforce: 'pre',
-    resolveId(source, importer) {
-      if (!importer || !source.startsWith('.')) return null;
-      const stripped = source.replace(/\.(ts|js)$/, '');
-      const abs = path.resolve(path.dirname(importer), stripped);
-      for (const candidate of [abs, path.join(abs, 'index')]) {
-        if (candidate in modules) return PREFIX + candidate;
-      }
-    },
-    load(id) {
-      if (!id.startsWith(PREFIX)) return;
-      const gen = modules[id.slice(PREFIX.length)];
-      if (gen) return gen(this);
-    },
-  };
-}
-
-// Synthesises ui/src/virtual/plugins — a single barrel that imports every
-// sub-directory under ui/src/plugins and ui/src/core_plugins and exposes them
-// as two named arrays:
-//
-//   export const plugins:     PerfettoPluginStatic<PerfettoPlugin>[];
-//   export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];
-//
-// Types live alongside at ui/src/virtual/plugins.d.ts.
-function pluginPerfettoPluginBarrels() {
-  const SOURCES = [
-    {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
-    {
-      exportName: 'corePlugins',
-      dir: path.join(SRC, 'core_plugins'),
-      prefix: 'core_',
-    },
-  ];
-  const PLUGIN_DIRS = SOURCES.map((s) => s.dir);
-  const VIRTUAL_MODULE = path.join(SRC, 'virtual', 'plugins');
-  const toCamelCase = (s) => {
-    const [first, ...rest] = s.split(/[._]/);
-    return (
-      first + rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('')
-    );
-  };
-  const listEntries = (dir) =>
-    fs
-      .readdirSync(dir)
-      .map((name) => ({name, full: path.join(dir, name)}))
-      .filter(({full}) => {
-        try {
-          return (
-            fs.statSync(full).isDirectory() &&
-            fs.existsSync(path.join(full, 'index.ts'))
-          );
-        } catch (_) {
-          return false;
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  const generate = (ctx) => {
-    const importLines = [];
-    const exportLines = [];
-    for (const {exportName, dir, prefix} of SOURCES) {
-      const entries = listEntries(dir);
-      for (const {full} of entries) {
-        ctx.addWatchFile(path.join(full, 'index.ts'));
-      }
-      for (const {name, full} of entries) {
-        importLines.push(
-          `import ${toCamelCase(prefix + name)} from '${full}';`,
-        );
-      }
-      const arr = entries
-        .map(({name}) => `  ${toCamelCase(prefix + name)},`)
-        .join('\n');
-      exportLines.push(`export const ${exportName} = [\n${arr}\n];`);
-    }
-    return `${importLines.join('\n')}\n\n${exportLines.join('\n\n')}\n`;
-  };
-  const base = makeSynthModulePlugin({
-    name: 'perfetto:plugin-barrels',
-    modules: {[VIRTUAL_MODULE]: generate},
-  });
-  let server = null;
-  return {
-    ...base,
-    configureServer(s) {
-      server = s;
-      // Watch the parent dirs so adding/removing a plugin dir invalidates
-      // the barrel even before any file inside it changes.
-      for (const dir of PLUGIN_DIRS) s.watcher.add(dir);
-    },
-    handleHotUpdate(ctx) {
-      if (!server) return;
-      for (const dir of PLUGIN_DIRS) {
-        if (!ctx.file.startsWith(dir + path.sep)) continue;
-        const id = '\0perfetto:plugin-barrels:' + VIRTUAL_MODULE;
-        const mod = server.moduleGraph.getModuleById(id);
-        if (mod) server.moduleGraph.invalidateModule(mod);
-        return;
-      }
-    },
-  };
-}
-
-// Exposes VERSION and SCM_REVISION via ui/src/base/version (typed by
-// version.d.ts). Replaces the on-disk ui/src/gen/perfetto_version.ts that
-// build.mjs used to generate via tools/write_version_header.py.
-function pluginPerfettoVersion() {
-  const SCRIPT = path.join(ROOT_DIR, 'tools/write_version_header.py');
-  const generate = () => {
-    const out = execFileSync('python3', [SCRIPT, '--json'], {encoding: 'utf8'});
-    const {version, sha1} = JSON.parse(out);
-    return (
-      `export const VERSION = ${JSON.stringify(version)};\n` +
-      `export const SCM_REVISION = ${JSON.stringify(sha1)};\n`
-    );
-  };
-  return makeSynthModulePlugin({
-    name: 'perfetto:version',
-    modules: {[path.join(SRC, 'virtual', 'version')]: generate},
-  });
-}
-
-// Dev-mode patches to ui/src/assets/index.html: rewrite the inline bootstrap
-// so it loads the TS entry through Vite's module graph, swap the version map
-// for a single-channel dev map, and apply an optional title override. In prod
-// the same shaping is done by cpHtml() in build.mjs.
-function pluginPatchIndexHtml() {
-  return {
-    name: 'perfetto:patch-index-html',
-    apply: 'serve',
-    transformIndexHtml: {
-      order: 'pre',
-      handler(html) {
-        let out = html.replace(
-          /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
-          `script.src = '/frontend/index.ts';`,
-        );
-        out = out.replace(
-          /script\.async\s*=\s*true;?/,
-          `script.type = 'module'; window.__GLOBAL_ASSET_ROOT__ = version + '/';`,
-        );
-        const versionMap = JSON.stringify({stable: DEV_VERSION || '.'});
-        out = out.replace(
-          /data-perfetto_version='[^']*'/,
-          `data-perfetto_version='${versionMap}'`,
-        );
-        if (DEV_TITLE_OVERRIDE) {
-          out = out.replace(
-            /<title>[^<]*<\/title>/,
-            `<title>${DEV_TITLE_OVERRIDE}</title>`,
-          );
-        }
-        return out;
-      },
-    },
-  };
-}
-
-// Rewrites `import X from '../virtual/<name>'` to the real emscripten glue
-// under ui/src/gen at resolve time. TypeScript sees only the manually-curated
-// .d.ts in ui/src/virtual/, which avoids pulling the giant generated .js into
-// the type system.
-//
-// Under --only-wasm-memory64 the 32-bit trace_processor entry resolves to a
-// virtual module synthesised below whose default export throws — keeps the
-// build linkable without shipping a real stub file.
-function pluginPerfettoVirtualWasmModules() {
-  const TP32_STUB_ID = '\0perfetto:trace-processor-32-stub';
-  const TP32_STUB_SOURCE =
-    `export default () => {\n` +
-    `  throw new Error(\n` +
-    `    'Unable to load the 32-bit trace_processor.wasm. This browser ' +\n` +
-    `    'does NOT support Memory64 but --only-wasm-memory64 was passed ' +\n` +
-    `    'to ui/build.'\n` +
-    `  );\n` +
-    `};\n`;
-  const TARGETS = {
-    [path.join(SRC, 'virtual', 'trace_processor')]: IS_MEMORY64_ONLY
-      ? TP32_STUB_ID
-      : path.join(SRC, 'gen', 'trace_processor.js'),
-    [path.join(SRC, 'virtual', 'trace_processor_memory64')]: path.join(
-      SRC,
-      'gen',
-      'trace_processor_memory64.js',
-    ),
-    [path.join(SRC, 'virtual', 'proto_utils')]: path.join(
-      SRC,
-      'gen',
-      'proto_utils.js',
-    ),
-    [path.join(SRC, 'virtual', 'traceconv')]: path.join(
-      SRC,
-      'gen',
-      'traceconv.js',
-    ),
-  };
-  return {
-    name: 'perfetto:virtual-wasm-modules',
-    enforce: 'pre',
-    async resolveId(source, importer) {
-      if (!importer || !source.startsWith('.')) return null;
-      const stripped = source.replace(/\.(ts|js)$/, '');
-      const abs = path.resolve(path.dirname(importer), stripped);
-      const target = TARGETS[abs];
-      if (!target) return null;
-      if (target === TP32_STUB_ID) return TP32_STUB_ID;
-      return this.resolve(target, importer, {skipSelf: true});
-    },
-    load(id) {
-      if (id === TP32_STUB_ID) return TP32_STUB_SOURCE;
-    },
-  };
-}
-
-function pluginGenRelativeImports() {
-  return {
-    name: 'perfetto:gen-relative-imports',
-    enforce: 'pre',
-    async resolveId(source, importer) {
-      if (!importer || !source.startsWith('.')) return null;
-      if (!GEN_REAL || !importer.startsWith(GEN_REAL + path.sep)) return null;
-      // Re-anchor the relative import to ui/src/gen (the symlinked location)
-      // rather than the canonical out/.../tsc/gen path.
-      const reanchored = path.resolve(GEN_SYMLINK, source);
-      return this.resolve(reanchored, importer, {skipSelf: true});
-    },
-  };
-}
+const VERSION = process.env.PERFETTO_UI_VERSION || '';
+const VERSIONED_DIST = VERSION ? `dist/${VERSION}` : 'dist';
 
 // Dev-mode shim for the UMD wasm glue files in ui/src/gen/*.js. They end with
 //   if (typeof exports === 'object' && typeof module === 'object') {
@@ -380,10 +85,10 @@ function pluginGenWasmGlueEsm() {
 // filename. Most bundles follow the standard convention; service_worker and
 // chrome_extension differ.
 const BUNDLE_CONFIGS = {
-  frontend: {dir: 'dist_version', entry: 'index.ts'},
-  engine: {dir: 'dist_version', entry: 'index.ts'},
-  traceconv: {dir: 'dist_version', entry: 'index.ts'},
-  bigtrace: {dir: 'dist_version/bigtrace', entry: 'index.ts'},
+  frontend: {dir: VERSIONED_DIST, entry: 'index.ts'},
+  engine: {dir: VERSIONED_DIST, entry: 'index.ts'},
+  traceconv: {dir: VERSIONED_DIST, entry: 'index.ts'},
+  bigtrace: {dir: `${VERSIONED_DIST}/bigtrace`, entry: 'index.ts'},
   open_perfetto_trace: {dir: 'dist/open_perfetto_trace', entry: 'index.ts'},
   chrome_extension: {dir: 'chrome_extension', entry: 'index.ts'},
   service_worker: {
@@ -423,10 +128,30 @@ export default defineConfig(({command}) => {
     // magic "publicDir" handling so it doesn't try to serve it at /.
     publicDir: false,
     plugins: [
-      pluginPerfettoPluginBarrels(),
-      pluginPerfettoVersion(),
-      pluginPerfettoVirtualWasmModules(),
-      pluginPatchIndexHtml(),
+      pluginPerfettoPluginBarrels({
+        sources: [
+          {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
+          {
+            exportName: 'corePlugins',
+            dir: path.join(SRC, 'core_plugins'),
+            prefix: 'core_',
+          },
+        ],
+        virtualModule: path.join(SRC, 'virtual', 'plugins'),
+      }),
+      pluginPerfettoVersion({
+        virtualModule: path.join(SRC, 'virtual', 'version'),
+        scriptPath: path.join(ROOT_DIR, 'tools/write_version_header.py'),
+      }),
+      pluginPerfettoVirtualWasmModules({
+        virtualDir: path.join(SRC, 'virtual'),
+        genDir: path.join(SRC, 'gen'),
+        isMemory64Only: IS_MEMORY64_ONLY,
+      }),
+      pluginPatchIndexHtml({
+        devVersion: DEV_VERSION,
+        devTitleOverride: DEV_TITLE_OVERRIDE,
+      }),
       // build.mjs spawns one `vite build` per bundle in parallel. Running
       // vite-plugin-checker in every one of them would launch N racing tsc
       // processes against the same project; gate it to a single bundle.
@@ -436,9 +161,18 @@ export default defineConfig(({command}) => {
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
-      pluginGenRelativeImports(),
+      // pluginGenRelativeImports({genSymlink: path.join(SRC, 'gen')}),
       ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
-      ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
+      ...(NO_SOURCE_MAPS
+        ? []
+        : [
+            pluginEmbedMinimalSourceMap({
+              sourceReplacements: [
+                ['../../../out/ui/', ''],
+                ['../../node_modules/', 'node_modules/'],
+              ],
+            }),
+          ]),
     ],
     resolve: {
       // NB: do NOT set preserveSymlinks:true. pnpm puts every dep under

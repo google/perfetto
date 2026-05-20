@@ -35,6 +35,7 @@ import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
 import {ResultsTable} from './results_table';
+import {assetSrc} from '../../base/assets';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -104,7 +105,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       this.formatterEnginePromise = (async () => {
         await engine.load();
         const binding = await engine.loadDialectFromUrl(
-          'assets/syntaqlite-perfetto.wasm',
+          assetSrc('assets/syntaqlite-perfetto.wasm'),
           'syntaqlite_perfetto_dialect_template',
         );
         engine.setDialectPointer(binding.ptr);
