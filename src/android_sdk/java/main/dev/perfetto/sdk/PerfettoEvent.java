@@ -140,6 +140,31 @@ public final class PerfettoEvent {
     sBody.get().writeDouble(TE_DOUBLE_COUNTER_VALUE, value);
   }
 
+  /** Appends a varint proto field to the body (for beginProto/addField). */
+  static void protoVarInt(int fieldId, long value) {
+    sBody.get().writeVarInt(fieldId, value);
+  }
+
+  /** Appends a double proto field to the body. */
+  static void protoDouble(int fieldId, double value) {
+    sBody.get().writeDouble(fieldId, value);
+  }
+
+  /** Appends a string proto field to the body. */
+  static void protoString(int fieldId, String value) {
+    sBody.get().writeString(fieldId, value);
+  }
+
+  /** Begins a nested proto message in the body; returns the token for endNested. */
+  static int protoBeginNested(int fieldId) {
+    return sBody.get().beginNested(fieldId);
+  }
+
+  /** Ends a nested proto message started with {@link #protoBeginNested}. */
+  static void protoEndNested(int token) {
+    sBody.get().endNested(token);
+  }
+
   /**
    * Emits a track event on the sequence default track, appending whatever was
    * encoded into the per-thread body since {@link #beginBody}.
@@ -150,26 +175,35 @@ public final class PerfettoEvent {
   }
 
   /**
-   * Emits a track event attached to {@code leafTrackUuid}. {@code trackUuids} /
-   * {@code trackParentUuids} / {@code trackNames} describe the {@code
-   * trackCount} named levels whose descriptors are emitted once per sequence.
+   * Emits a track event with extras: a track (when {@code setTrackUuid}) and/or
+   * interned-string proto fields. The track chain ({@code trackUuids} /
+   * {@code trackParentUuids} / {@code trackNames}, {@code trackCount} levels) has
+   * each descriptor emitted once per sequence. The interned fields ({@code
+   * internedFieldIds} / {@code internedTypeIds} / {@code internedStrs}, {@code
+   * internedCount} of them) are interned natively and referenced by iid.
    */
-  static void emitOnTrack(
+  static void emitWithExtras(
       int type,
       long categoryPtr,
       String name,
+      boolean setTrackUuid,
       long leafTrackUuid,
       int trackCount,
       long[] trackUuids,
       long[] trackParentUuids,
       String[] trackNames,
       boolean trackNameStatic,
-      boolean trackIsCounter) {
+      boolean trackIsCounter,
+      int internedCount,
+      int[] internedFieldIds,
+      int[] internedTypeIds,
+      String[] internedStrs) {
     ProtoWriter b = sBody.get();
-    native_emit_on_track(
-        type, categoryPtr, name, b.buffer(), b.position(), leafTrackUuid,
-        trackCount, trackUuids, trackParentUuids, trackNames, trackNameStatic,
-        trackIsCounter);
+    native_emit_with_extras(
+        type, categoryPtr, name, b.buffer(), b.position(), setTrackUuid,
+        leafTrackUuid, trackCount, trackUuids, trackParentUuids, trackNames,
+        trackNameStatic, trackIsCounter, internedCount, internedFieldIds,
+        internedTypeIds, internedStrs);
   }
 
   /**
@@ -189,17 +223,22 @@ public final class PerfettoEvent {
       int type, long categoryPtr, String name, byte[] body, int bodyLen);
 
   @FastNative
-  private static native void native_emit_on_track(
+  private static native void native_emit_with_extras(
       int type,
       long categoryPtr,
       String name,
       byte[] body,
       int bodyLen,
+      boolean setTrackUuid,
       long leafTrackUuid,
       int trackCount,
       long[] trackUuids,
       long[] trackParentUuids,
       String[] trackNames,
       boolean trackNameStatic,
-      boolean trackIsCounter);
+      boolean trackIsCounter,
+      int internedCount,
+      int[] internedFieldIds,
+      int[] internedTypeIds,
+      String[] internedStrs);
 }

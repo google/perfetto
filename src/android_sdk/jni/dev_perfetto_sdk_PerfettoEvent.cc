@@ -31,6 +31,7 @@ namespace jni {
 // Deepest track hierarchy passed in one emit. Deeper chains are clamped (a
 // pathological case; real hierarchies are a handful of levels).
 static constexpr jint kMaxTrackLevels = 16;
+static constexpr jint kMaxInternedFields = 16;
 
 template <typename T>
 inline static T* toPointer(jlong ptr) {
@@ -76,7 +77,11 @@ static void emit(JNIEnv* env,
                  jlongArray track_parent_uuids,
                  jobjectArray track_names,
                  bool track_name_static,
-                 bool track_is_counter) {
+                 bool track_is_counter,
+                 jint interned_count,
+                 jintArray interned_field_ids,
+                 jintArray interned_type_ids,
+                 jobjectArray interned_strs) {
   auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
   std::string_view name_view = StringBuffer::utf16_to_ascii(env, name);
 
@@ -98,6 +103,23 @@ static void emit(JNIEnv* env,
     }
   }
 
+  int32_t ifield_ids[kMaxInternedFields];
+  int32_t itype_ids[kMaxInternedFields];
+  const char* istrs[kMaxInternedFields];
+  jint icount = 0;
+  if (interned_count > 0) {
+    icount =
+        interned_count < kMaxInternedFields ? interned_count : kMaxInternedFields;
+    env->GetIntArrayRegion(interned_field_ids, 0, icount, ifield_ids);
+    env->GetIntArrayRegion(interned_type_ids, 0, icount, itype_ids);
+    for (jint i = 0; i < icount; i++) {
+      jstring s =
+          static_cast<jstring>(env->GetObjectArrayElement(interned_strs, i));
+      istrs[i] = StringBuffer::utf16_to_ascii(env, s).data();
+      env->DeleteLocalRef(s);
+    }
+  }
+
   constexpr jint kStackBufSize = 4096;
   uint8_t stack_buf[kStackBufSize];
   jbyte* heap = nullptr;
@@ -108,7 +130,7 @@ static void emit(JNIEnv* env,
       category->get(), type, name_view.data(), data,
       body_len > 0 ? static_cast<size_t>(body_len) : 0, set_track_uuid,
       static_cast<uint64_t>(leaf_track_uuid), count, uuids, parent_uuids, names,
-      track_name_static, track_is_counter);
+      track_name_static, track_is_counter, icount, ifield_ids, itype_ids, istrs);
 
   if (heap) {
     env->ReleaseByteArrayElements(body, heap, JNI_ABORT);
@@ -126,11 +148,12 @@ static void dev_perfetto_sdk_PerfettoEvent_native_emit(JNIEnv* env,
                                                        jint body_len) {
   emit(env, type, cat_ptr, name, body, body_len, /*set_track_uuid=*/false,
        /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
-       /*track_name_static=*/false, /*track_is_counter=*/false);
+       /*track_name_static=*/false, /*track_is_counter=*/false,
+       /*interned_count=*/0, nullptr, nullptr, nullptr);
 }
 
-// Track path: event attached to a (possibly nested) track.
-static void dev_perfetto_sdk_PerfettoEvent_native_emit_on_track(
+// Extras path: event with a track and/or interned-string proto fields.
+static void dev_perfetto_sdk_PerfettoEvent_native_emit_with_extras(
     JNIEnv* env,
     jclass,
     jint type,
@@ -138,24 +161,31 @@ static void dev_perfetto_sdk_PerfettoEvent_native_emit_on_track(
     jstring name,
     jbyteArray body,
     jint body_len,
+    jboolean set_track_uuid,
     jlong leaf_track_uuid,
     jint track_count,
     jlongArray track_uuids,
     jlongArray track_parent_uuids,
     jobjectArray track_names,
     jboolean track_name_static,
-    jboolean track_is_counter) {
-  emit(env, type, cat_ptr, name, body, body_len, /*set_track_uuid=*/true,
+    jboolean track_is_counter,
+    jint interned_count,
+    jintArray interned_field_ids,
+    jintArray interned_type_ids,
+    jobjectArray interned_strs) {
+  emit(env, type, cat_ptr, name, body, body_len, set_track_uuid == JNI_TRUE,
        leaf_track_uuid, track_count, track_uuids, track_parent_uuids,
-       track_names, track_name_static == JNI_TRUE, track_is_counter == JNI_TRUE);
+       track_names, track_name_static == JNI_TRUE, track_is_counter == JNI_TRUE,
+       interned_count, interned_field_ids, interned_type_ids, interned_strs);
 }
 
 static const JNINativeMethod gEventMethods[] = {
     {"native_emit", "(IJLjava/lang/String;[BI)V",
      (void*)dev_perfetto_sdk_PerfettoEvent_native_emit},
-    {"native_emit_on_track",
-     "(IJLjava/lang/String;[BIJI[J[J[Ljava/lang/String;ZZ)V",
-     (void*)dev_perfetto_sdk_PerfettoEvent_native_emit_on_track},
+    {"native_emit_with_extras",
+     "(IJLjava/lang/String;[BIZJI[J[J[Ljava/lang/String;ZZI[I[I[Ljava/lang/"
+     "String;)V",
+     (void*)dev_perfetto_sdk_PerfettoEvent_native_emit_with_extras},
 };
 
 int register_dev_perfetto_sdk_PerfettoEvent(JNIEnv* env) {

@@ -117,6 +117,10 @@ void trace_event(int type,
  * @param track_names Per-level names (length track_count).
  * @param track_name_static Whether track names are compile-time constants.
  * @param track_is_counter Whether the leaf level is a counter track.
+ * @param interned_count Number of interned-string proto fields, or 0.
+ * @param interned_field_ids Per-field track_event field ids (length count).
+ * @param interned_type_ids Per-field InternedData type ids (length count).
+ * @param interned_strs Per-field strings to intern (length count).
  */
 void emit_track_event(const PerfettoTeCategory* cat,
                       int32_t type,
@@ -130,7 +134,11 @@ void emit_track_event(const PerfettoTeCategory* cat,
                       const uint64_t* track_parent_uuids,
                       const char* const* track_names,
                       bool track_name_static,
-                      bool track_is_counter);
+                      bool track_is_counter,
+                      int32_t interned_count,
+                      const int32_t* interned_field_ids,
+                      const int32_t* interned_type_ids,
+                      const char* const* interned_strs);
 
 /**
  * @brief Gets the process track UUID.

@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import perfetto.protos.DataSourceConfigOuterClass.DataSourceConfig;
 import perfetto.protos.InternedDataOuterClass.InternedData;
+import perfetto.protos.SourceLocationOuterClass.SourceLocation;
 import perfetto.protos.TraceConfigOuterClass.TraceConfig;
 import perfetto.protos.TraceConfigOuterClass.TraceConfig.BufferConfig;
 import perfetto.protos.TraceConfigOuterClass.TraceConfig.DataSource;
@@ -313,6 +314,72 @@ public class PerfettoEventEmitTest {
       assertThat(hasCounterDescriptor).isTrue();
       assertThat(hasIntCounter).isTrue();
       assertThat(hasDoubleCounter).isTrue();
+    } finally {
+      PerfettoTrackEventBuilder.setUseJavaEmit(previous);
+    }
+  }
+
+  @Test
+  public void builderRoutesProtoThroughJavaEmit() throws Exception {
+    boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
+    PerfettoTrackEventBuilder.setUseJavaEmit(true);
+    try {
+      PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+      PerfettoTrace.instant(FOO_CATEGORY, "event_proto")
+          .beginProto()
+          .beginNested(33L) // TrackEvent.source_location
+          .addField(4L, 2L) // line_number
+          .addField(3L, "ActivityManagerService.java:11489") // function_name
+          .endNested()
+          .addField(2001L, "AIDL::IActivityManager")
+          .endProto()
+          .emit();
+
+      Trace trace = Trace.parseFrom(session.close());
+
+      boolean hasSourceLocation = false;
+      for (TracePacket packet : trace.getPacketList()) {
+        if (packet.hasTrackEvent() && packet.getTrackEvent().hasSourceLocation()) {
+          SourceLocation loc = packet.getTrackEvent().getSourceLocation();
+          if ("ActivityManagerService.java:11489".equals(loc.getFunctionName())
+              && loc.getLineNumber() == 2) {
+            hasSourceLocation = true;
+          }
+        }
+      }
+      assertThat(hasSourceLocation).isTrue();
+    } finally {
+      PerfettoTrackEventBuilder.setUseJavaEmit(previous);
+    }
+  }
+
+  @Test
+  public void builderRoutesInternedProtoThroughJavaEmit() throws Exception {
+    boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
+    PerfettoTrackEventBuilder.setUseJavaEmit(true);
+    try {
+      PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+      // internedTypeId 44 = InternedData.android_job_name (an InternedString).
+      PerfettoTrace.instant(FOO_CATEGORY, "event_with_interning")
+          .beginProto()
+          .addFieldWithInterning(1L, "my_interned_string", 44L)
+          .endProto()
+          .emit();
+
+      Trace trace = Trace.parseFrom(session.close());
+
+      boolean hasInternedString = false;
+      for (TracePacket packet : trace.getPacketList()) {
+        if (packet.hasInternedData()
+            && packet.getInternedData().getAndroidJobNameCount() > 0
+            && "my_interned_string"
+                .equals(packet.getInternedData().getAndroidJobName(0).getName())) {
+          hasInternedString = true;
+        }
+      }
+      assertThat(hasInternedString).isTrue();
     } finally {
       PerfettoTrackEventBuilder.setUseJavaEmit(previous);
     }

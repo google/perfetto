@@ -177,6 +177,20 @@ public final class PerfettoTrackEventBuilder {
   private boolean[] mFlowTerminating;
   private int mFlowCount;
 
+  // Proto-field state for the Java emit path. Non-interned fields are written
+  // straight into the body; nesting tokens are tracked here for endNested.
+  // Interned-string fields can't be Java-encoded (their iids need native, per-
+  // sequence interning), so they're recorded and the native layer interns them.
+  private static final int MAX_NESTING_DEPTH = 16;
+  private static final int MAX_INTERNED_FIELDS = 16;
+  private boolean mInProto;
+  private int[] mProtoTokens;
+  private int mProtoDepth;
+  private int[] mInternedFieldIds;
+  private int[] mInternedTypeIds;
+  private String[] mInternedStrings;
+  private int mInternedFieldCount;
+
   private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
       () -> new PerfettoTrackEventBuilder(true, this);
   private final Supplier<FieldNested> fieldNestedSupplier =
@@ -226,6 +240,10 @@ public final class PerfettoTrackEventBuilder {
       mTrackNames = new String[MAX_TRACK_LEVELS];
       mFlowIds = new long[MAX_BUFFERED_FLOWS];
       mFlowTerminating = new boolean[MAX_BUFFERED_FLOWS];
+      mProtoTokens = new int[MAX_NESTING_DEPTH];
+      mInternedFieldIds = new int[MAX_INTERNED_FIELDS];
+      mInternedTypeIds = new int[MAX_INTERNED_FIELDS];
+      mInternedStrings = new String[MAX_INTERNED_FIELDS];
     } else {
       // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
@@ -252,7 +270,8 @@ public final class PerfettoTrackEventBuilder {
     // and forces the High Level path; buffered args and the track are then
     // replayed as HL extras so nothing is lost.
     if (sUseJavaEmit && !mArgsSpilled && mPendingPointers.isEmpty()) {
-      PerfettoEvent.beginBody();
+      // Body was reset at newEvent; proto fields are already in it. Append the
+      // buffered args / flows / counter, then emit.
       writeArgs();
       writeFlows();
       if (mHasCounter) {
@@ -262,11 +281,12 @@ public final class PerfettoTrackEventBuilder {
           PerfettoEvent.setCounter(mCounterLong);
         }
       }
-      if (mHasTrack) {
-        PerfettoEvent.emitOnTrack(
-            mTraceType, mCategory.getPtr(), mEventName, mTrackLeafUuid,
+      if (mHasTrack || mInternedFieldCount > 0) {
+        PerfettoEvent.emitWithExtras(
+            mTraceType, mCategory.getPtr(), mEventName, mHasTrack, mTrackLeafUuid,
             mTrackCount, mTrackUuids, mTrackParentUuids, mTrackNames,
-            mTrackNameStatic, mTrackIsCounter);
+            mTrackNameStatic, mTrackIsCounter, mInternedFieldCount,
+            mInternedFieldIds, mInternedTypeIds, mInternedStrings);
       } else {
         PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName);
       }
@@ -328,6 +348,15 @@ public final class PerfettoTrackEventBuilder {
     mTrackIsCounter = false;
     mHasCounter = false;
     mFlowCount = 0;
+    mInProto = false;
+    mProtoDepth = 0;
+    mInternedFieldCount = 0;
+    if (sUseJavaEmit) {
+      // Reset the body here so proto fields written during the event (which go
+      // straight into the body) accumulate; args/flows/counter are appended at
+      // emit.
+      PerfettoEvent.beginBody();
+    }
 
     return this;
   }
@@ -902,9 +931,13 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueInt64(id, val);
-    addFieldToContainer(field);
+    if (sUseJavaEmit) {
+      PerfettoEvent.protoVarInt((int) id, val);
+    } else {
+      Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
+      field.setValueInt64(id, val);
+      addFieldToContainer(field);
+    }
     return this;
   }
 
@@ -916,9 +949,13 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueDouble(id, val);
-    addFieldToContainer(field);
+    if (sUseJavaEmit) {
+      PerfettoEvent.protoDouble((int) id, val);
+    } else {
+      Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
+      field.setValueDouble(id, val);
+      addFieldToContainer(field);
+    }
     return this;
   }
 
@@ -930,16 +967,21 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueString(id, val);
-    addFieldToContainer(field);
+    if (sUseJavaEmit) {
+      PerfettoEvent.protoString((int) id, val);
+    } else {
+      Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
+      field.setValueString(id, val);
+      addFieldToContainer(field);
+    }
     return this;
   }
 
   /**
-   * Adds a proto field with field id { @code id} and value { @code val}.
-   * { @code internedTypeId} must be non-zero, in which case the string { @code val} will be interned
-   * with the given type ID. If { @code internedTypeId} is zero, the string is dropped silently.
+   * Adds a proto field with field id {@code id} whose string {@code val} is
+   * interned under {@code internedTypeId} (an InternedData field number). On the
+   * Java path the field is recorded and interned natively (its iid is per-
+   * sequence). {@code internedTypeId} must be non-zero.
    */
   public PerfettoTrackEventBuilder addFieldWithInterning(long id, String val, long internedTypeId) {
     if (!mIsCategoryEnabled) {
@@ -948,9 +990,18 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueWithInterning(id, val, internedTypeId);
-    addFieldToContainer(field);
+    if (sUseJavaEmit) {
+      if (internedTypeId != 0 && mInternedFieldCount < MAX_INTERNED_FIELDS) {
+        mInternedFieldIds[mInternedFieldCount] = (int) id;
+        mInternedTypeIds[mInternedFieldCount] = (int) internedTypeId;
+        mInternedStrings[mInternedFieldCount] = val;
+        mInternedFieldCount++;
+      }
+    } else {
+      Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
+      field.setValueWithInterning(id, val, internedTypeId);
+      addFieldToContainer(field);
+    }
     return this;
   }
 
@@ -968,6 +1019,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
+    if (sUseJavaEmit) {
+      // Proto fields are written straight into the body; no child builder.
+      mInProto = true;
+      return this;
+    }
     Proto proto = mObjectsPool.mProtoPool.get(protoSupplier);
     proto.clearFields();
     addPerfettoPointerToExtra(proto);
@@ -984,6 +1040,10 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkMatchingBeginProto();
     }
+    if (sUseJavaEmit) {
+      mInProto = false;
+      return this;
+    }
     return mParent;
   }
 
@@ -997,6 +1057,10 @@ public final class PerfettoTrackEventBuilder {
     }
     if (mIsDebug) {
       checkBuildingProto();
+    }
+    if (sUseJavaEmit) {
+      mProtoTokens[mProtoDepth++] = PerfettoEvent.protoBeginNested((int) id);
+      return this;
     }
     FieldNested field = mObjectsPool.mFieldNestedPool.get(fieldNestedSupplier);
     field.setId(id);
@@ -1014,6 +1078,11 @@ public final class PerfettoTrackEventBuilder {
 
     if (mIsDebug) {
       checkMatchingBeginNested();
+    }
+
+    if (sUseJavaEmit) {
+      PerfettoEvent.protoEndNested(mProtoTokens[--mProtoDepth]);
+      return this;
     }
 
     return mParent;
@@ -1125,6 +1194,10 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkNotBuildingProto() {
     checkState();
+    if (sUseJavaEmit) {
+      if (mInProto) throwNotBuildingProtoError();
+      return;
+    }
     if (isBuildingProtoOrNestedProto()) throwNotBuildingProtoError();
   }
 
@@ -1135,6 +1208,10 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkBuildingProto() {
     checkState();
+    if (sUseJavaEmit) {
+      if (!mInProto) throwBuildingProtoError();
+      return;
+    }
     if (isBuildingTopLevelExtra()) throwBuildingProtoError();
   }
 
@@ -1145,6 +1222,10 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkMatchingBeginNested() {
     checkState();
+    if (sUseJavaEmit) {
+      if (mProtoDepth == 0) throwMatchingBeginNestedError();
+      return;
+    }
     if (!isBuildingNestedProto()) throwMatchingBeginNestedError();
   }
 
@@ -1155,6 +1236,10 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkMatchingBeginProto() {
     checkState();
+    if (sUseJavaEmit) {
+      if (!mInProto || mProtoDepth > 0) throwMatchingBeginProtoError();
+      return;
+    }
     if (!isBuildingProto()) throwMatchingBeginProtoError();
   }
 

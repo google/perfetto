@@ -107,6 +107,9 @@ public final class PerfettoEmitBenchmark {
     // Debug args: HL builds per-name Arg objects + per-arg native structs; the
     // Java path encodes them inline into the reused body buffer (zero alloc).
     benchScenario("instant + 3 debug args", PerfettoEmitBenchmark::emitInstantWithArgs);
+    benchScenario("instant on named track", PerfettoEmitBenchmark::emitOnTrack);
+    benchScenario("instant + 2 flows", PerfettoEmitBenchmark::emitWithFlows);
+    benchScenario("counter on counter track", PerfettoEmitBenchmark::emitCounter);
 
     session.close();
   }
@@ -130,6 +133,18 @@ public final class PerfettoEmitBenchmark {
         .addArg("bool_arg", true)
         .addArg("str_arg", "value")
         .emit();
+  }
+
+  private static void emitOnTrack() {
+    PerfettoTrace.instant(FOO_CATEGORY, "event").usingProcessNamedTrack(7, "track").emit();
+  }
+
+  private static void emitWithFlows() {
+    PerfettoTrace.instant(FOO_CATEGORY, "event").addFlow(11).addTerminatingFlow(22).emit();
+  }
+
+  private static void emitCounter() {
+    PerfettoTrace.counter(FOO_CATEGORY, 42).usingProcessCounterTrack("ctr").emit();
   }
 
   // A fixed pool of distinct arg names, larger than the HL Arg name cache, so
