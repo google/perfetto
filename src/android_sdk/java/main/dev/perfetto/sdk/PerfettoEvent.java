@@ -25,18 +25,20 @@ import java.nio.ByteBuffer;
  * Java-side track event emit path, built on the public Low Level track event
  * ABI.
  *
- * <p>Where {@link PerfettoTrackEventExtra} builds an event out of native "extra"
- * structs through the High Level ABI, this drives the LL ABI: a single native
- * call walks the active data source instances and serializes the {@code
- * TrackEvent} with protozero. Category / event-name interning, incremental-state
- * resets and per-instance fan-out stay native (the LL ABI owns them).
+ * <p>A single native call drives the LL ABI ({@code PerfettoTeLl*}): it walks the
+ * active data source instances and serializes the {@code TrackEvent} with
+ * protozero. Category / event-name interning, incremental-state resets and
+ * per-instance fan-out stay native (the LL ABI owns them).
  *
- * <p>The "body" -- the variable part of a {@code TrackEvent} (debug annotations,
- * and later flows / proto fields) -- is encoded on the Java side into a reused
+ * <p>The variable part of a {@code TrackEvent} (debug annotations, flows, counter
+ * value, proto fields) is the "body", encoded on the Java side into a reused
  * {@link ProtoWriter} and appended verbatim into the {@code track_event}
- * submessage natively. The hot path is allocation-free: the event name is
- * converted with the thread-local {@code StringBuffer} (no Java-heap object, no
- * native malloc), and the body buffer is reused across events.
+ * submessage natively. Everything else the native side needs (event name, track
+ * chain, interned-string fields) is encoded as a little-endian {@link #encodeFrame
+ * frame} after the body. The body and frame are copied once into an off-heap
+ * {@link EmitBuffer} and handed down as a single pointer plus lengths, so the
+ * call carries only primitives (see {@link #native_emit}) and the hot path makes
+ * no Java-heap allocation.
  *
  * @hide
  */

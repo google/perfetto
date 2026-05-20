@@ -19,22 +19,15 @@
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 #include "src/shared_lib/test/utils.h"
 
-#include "perfetto/ext/base/string_utils.h"
-
 #include "protos/perfetto/trace/interned_data/interned_data.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.gen.h"
 
 namespace perfetto {
 namespace {
 using namespace perfetto::shlib::test_utils;
 
-using protos::gen::DebugAnnotation;
-using protos::gen::EventCategory;
-using protos::gen::EventName;
-using protos::gen::InternedData;
 using protos::gen::Trace;
 using protos::gen::TracePacket;
 using protos::gen::TrackEvent;
@@ -58,110 +51,53 @@ Trace StopTracing(sdk_for_jni::Session& tracing_session) {
   return trace;
 }
 
-template <class T>
-std::vector<std::string> GetNames(const std::vector<T>& items) {
-  std::vector<std::string> names;
-  names.reserve(items.size());
-  for (const auto& item : items) {
-    names.push_back(item.name());
-  }
-  return names;
-}
-
-std::string DebugAnnotationToString(const DebugAnnotation& annotation) {
-  std::stringstream ss;
-  if (annotation.has_int_value()) {
-    ss << "int: " << annotation.int_value();
-  } else if (annotation.has_bool_value()) {
-    ss << "bool: " << annotation.bool_value();
-  } else {
-    ss << "unexpected";
-  }
-  return ss.str();
-}
-
-std::string packet_to_string(const TracePacket& packet) {
-  std::stringstream ss;
-  ss << "packet {\n";
-  if (packet.has_interned_data()) {
-    ss << "data {";
-    const InternedData& interned_data = packet.interned_data();
-    ss << " categories: ["
-       << base::Join(GetNames(interned_data.event_categories()), ", ") << "]";
-    ss << " names: [" << base::Join(GetNames(interned_data.event_names()), ", ")
-       << "],";
-    ss << " debug_annotation_names: ["
-       << base::Join(GetNames(interned_data.debug_annotation_names()), ", ")
-       << "]";
-    ss << " }\n";
-  }
-  if (packet.has_track_event()) {
-    const TrackEvent& track_event = packet.track_event();
-    ss << "event {";
-    ss << " type: " << track_event.type() << ", ";
-    std::vector<std::string> annotation_values;
-    for (const auto& annotation : track_event.debug_annotations()) {
-      annotation_values.push_back(DebugAnnotationToString(annotation));
-    }
-    ss << "debug_annotations: [" << base::Join(annotation_values, ", ") << "]";
-    ss << " }\n";
-  }
-  ss << "}\n";
-  return ss.str();
-}
-
-TEST(TracingSdkForJniTest, mySimpleTest) {
+// Smoke test for the Low Level emit path. The body and frame the JNI layer
+// assembles are exercised end-to-end by the Java host tests; here we just check
+// emit_track_event drives the LL ABI and produces the expected track events.
+TEST(TracingSdkForJniTest, EmitsSlice) {
   sdk_for_jni::register_perfetto(true);
   sdk_for_jni::Category category("rendering");
   category.register_category();
 
   auto tracing_session = StartTracing();
 
-  // In this test we generate a named slice with an additional payload
-
-  sdk_for_jni::DebugArg player_number_extra("player_number");
-  player_number_extra.get()->arg_int64.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64;
-  player_number_extra.get()->arg_int64.name = player_number_extra.name();
-  player_number_extra.get()->arg_int64.value = 42;
-
-  sdk_for_jni::DebugArg player_alive_extra("player_alive");
-  player_alive_extra.get()->arg_bool.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL;
-  player_alive_extra.get()->arg_bool.name = player_alive_extra.name();
-  player_alive_extra.get()->arg_bool.value = true;
-
-  sdk_for_jni::Extra extra;
-  extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
-      &player_number_extra.get()->arg_int64));
-  extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
-      &player_alive_extra.get()->arg_bool));
-  trace_event(PERFETTO_TE_TYPE_SLICE_BEGIN, category.get(), "DrawPlayer",
-              &extra);
-
-  sdk_for_jni::Extra empty_extra;
-  trace_event(PERFETTO_TE_TYPE_SLICE_END, category.get(), "DrawPlayer",
-              &empty_extra);
+  sdk_for_jni::emit_track_event(
+      category.get(), PERFETTO_TE_TYPE_SLICE_BEGIN, "DrawPlayer",
+      /*body=*/nullptr, /*body_size=*/0, /*set_track_uuid=*/false,
+      /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
+      /*track_name_static=*/false, /*track_is_counter=*/false,
+      /*interned_count=*/0, nullptr, nullptr, nullptr);
+  sdk_for_jni::emit_track_event(
+      category.get(), PERFETTO_TE_TYPE_SLICE_END, "DrawPlayer",
+      /*body=*/nullptr, /*body_size=*/0, /*set_track_uuid=*/false,
+      /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
+      /*track_name_static=*/false, /*track_is_counter=*/false,
+      /*interned_count=*/0, nullptr, nullptr, nullptr);
 
   Trace trace = StopTracing(tracing_session);
 
-  std::string result;
+  std::vector<int> event_types;
+  std::vector<std::string> category_names;
+  std::vector<std::string> event_names;
   for (const TracePacket& packet : trace.packet()) {
-    if (packet.has_interned_data() || packet.has_track_event()) {
-      result += packet_to_string(packet);
+    if (packet.has_interned_data()) {
+      for (const auto& cat : packet.interned_data().event_categories()) {
+        category_names.push_back(cat.name());
+      }
+      for (const auto& name : packet.interned_data().event_names()) {
+        event_names.push_back(name.name());
+      }
+    }
+    if (packet.has_track_event()) {
+      event_types.push_back(packet.track_event().type());
     }
   }
 
-  const char* actual = R"(packet {
-data { categories: [rendering] names: [DrawPlayer], debug_annotation_names: [player_number, player_alive] }
-event { type: 1, debug_annotations: [int: 42, bool: 1] }
-}
-packet {
-event { type: 2, debug_annotations: [] }
-}
-)";
-
-  EXPECT_STREQ(result.c_str(), actual);
+  EXPECT_THAT(event_types,
+              testing::ElementsAre(TrackEvent::TYPE_SLICE_BEGIN,
+                                   TrackEvent::TYPE_SLICE_END));
+  EXPECT_THAT(category_names, testing::Contains("rendering"));
+  EXPECT_THAT(event_names, testing::Contains("DrawPlayer"));
 }
 }  // namespace
 }  // namespace perfetto

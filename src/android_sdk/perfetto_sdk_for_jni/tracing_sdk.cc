@@ -45,21 +45,6 @@ void register_perfetto(bool backend_in_process) {
   });
 }
 
-void trace_event(int type,
-                 const PerfettoTeCategory* perfettoTeCategory,
-                 const char* name,
-                 Extra* extra) {
-  bool enabled = PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
-      perfettoTeCategory->enabled, PERFETTO_MEMORY_ORDER_RELAXED));
-  if (enabled) {
-    extra->push_extra(nullptr);
-    PerfettoTeHlEmitImpl(perfettoTeCategory->impl, type,
-                         type == PERFETTO_TE_TYPE_COUNTER ? nullptr : name,
-                         extra->get());
-    extra->clear_extras();
-  }
-}
-
 // Max interned-string proto fields per event (matches the Java-side cap).
 static constexpr int kMaxInternedFields = 16;
 
@@ -219,24 +204,6 @@ uint64_t get_thread_track_uuid(pid_t tid) {
   return PerfettoTeProcessTrackUuid() ^ PERFETTO_STATIC_CAST(uint64_t, tid);
 }
 
-Extra::Extra() {}
-
-void Extra::push_extra(PerfettoTeHlExtra* ptr) {
-  extras_.push_back(ptr);
-}
-
-void Extra::pop_extra() {
-  extras_.pop_back();
-}
-
-void Extra::clear_extras() {
-  extras_.clear();
-}
-
-void Extra::delete_extra(Extra* ptr) {
-  delete ptr;
-}
-
 Category::Category(const std::string& name) : Category(name, {}) {}
 
 Category::Category(const std::string& name,
@@ -276,126 +243,6 @@ bool Category::is_category_enabled() {
 }
 
 void Category::delete_category(Category* ptr) {
-  delete ptr;
-}
-
-Flow::Flow() : flow_{} {}
-
-void Flow::set_process_flow(uint64_t id) {
-  flow_.header.type = PERFETTO_TE_HL_EXTRA_TYPE_FLOW;
-  PerfettoTeFlow ret = PerfettoTeProcessScopedFlow(id);
-  flow_.id = ret.id;
-}
-
-void Flow::set_process_terminating_flow(uint64_t id) {
-  flow_.header.type = PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW;
-  PerfettoTeFlow ret = PerfettoTeProcessScopedFlow(id);
-  flow_.id = ret.id;
-}
-
-void Flow::delete_flow(Flow* ptr) {
-  delete ptr;
-}
-
-NamedTrack::NamedTrack(uint64_t id,
-                       uint64_t parent_uuid,
-                       const std::string& name,
-                       bool is_name_static)
-    : name_(name),
-      track_{{PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK},
-             name_.data(),
-             id,
-             parent_uuid,
-             is_name_static} {}
-
-void NamedTrack::delete_track(NamedTrack* ptr) {
-  delete ptr;
-}
-
-RegisteredTrack::RegisteredTrack(uint64_t id,
-                                 uint64_t parent_uuid,
-                                 const std::string& name,
-                                 bool is_counter,
-                                 bool is_name_static)
-    : registered_track_{},
-      track_{{PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK},
-             &registered_track_.impl},
-      name_(name),
-      id_(id),
-      parent_uuid_(parent_uuid),
-      is_counter_(is_counter),
-      is_name_static_(is_name_static) {
-  register_track();
-}
-
-RegisteredTrack::~RegisteredTrack() {
-  unregister_track();
-}
-
-void RegisteredTrack::register_track() {
-  if (registered_track_.impl.descriptor)
-    return;
-
-  if (is_counter_) {
-    PerfettoTeCounterTrackRegister(&registered_track_, name_.data(),
-                                   parent_uuid_, is_name_static_);
-  } else {
-    PerfettoTeNamedTrackRegister(&registered_track_, name_.data(), id_,
-                                 parent_uuid_, is_name_static_);
-  }
-}
-
-void RegisteredTrack::unregister_track() {
-  if (!registered_track_.impl.descriptor)
-    return;
-  PerfettoTeRegisteredTrackUnregister(&registered_track_);
-}
-
-void RegisteredTrack::delete_track(RegisteredTrack* ptr) {
-  delete ptr;
-}
-
-Proto::Proto() : proto_({{PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS}, nullptr}) {}
-
-void Proto::add_field(PerfettoTeHlProtoField* ptr) {
-  if (!fields_.empty()) {
-    fields_.pop_back();
-  }
-
-  fields_.push_back(ptr);
-  fields_.push_back(nullptr);
-  proto_.fields = fields_.data();
-}
-
-void Proto::clear_fields() {
-  fields_.clear();
-  proto_.fields = nullptr;
-}
-
-void Proto::delete_proto(Proto* ptr) {
-  delete ptr;
-}
-
-ProtoFieldNested::ProtoFieldNested()
-    : field_({{PERFETTO_TE_HL_PROTO_TYPE_NESTED, 0}, nullptr}) {}
-
-void ProtoFieldNested::add_field(PerfettoTeHlProtoField* ptr) {
-  if (!fields_.empty()) {
-    fields_.pop_back();
-  }
-
-  fields_.push_back(ptr);
-  fields_.push_back(nullptr);
-  field_.fields = fields_.data();
-}
-
-void ProtoFieldNested::set_id(uint32_t id) {
-  fields_.clear();
-  field_.header.id = id;
-  field_.fields = nullptr;
-}
-
-void ProtoFieldNested::delete_field(ProtoFieldNested* ptr) {
   delete ptr;
 }
 

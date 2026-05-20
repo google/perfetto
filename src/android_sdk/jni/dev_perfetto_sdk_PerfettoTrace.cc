@@ -18,7 +18,6 @@
 
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoEvent.h"
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h"
-#include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
 #include "src/android_sdk/jni/macros.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
@@ -188,7 +187,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
   }
 
   perfetto::jni::register_dev_perfetto_sdk_PerfettoTrace(env);
-  perfetto::jni::register_dev_perfetto_sdk_PerfettoTrackEventExtra(env);
   perfetto::jni::register_dev_perfetto_sdk_PerfettoEvent(env);
   perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(env);
 

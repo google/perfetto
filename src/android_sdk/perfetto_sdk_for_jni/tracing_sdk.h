@@ -21,11 +21,9 @@
 
 #include <sys/types.h>
 
-#include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/public/abi/track_event_hl_abi.h"
 #include "perfetto/public/tracing_session.h"
 #include "perfetto/public/track_event.h"
 
@@ -33,13 +31,6 @@
 // https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:system/libbase/include/android-base/macros.h;l=45;drc=bd641075ad60ed703baf59f63a9153d96d96b98e
 // A macro to disallow the copy constructor and operator= functions
 // This must be placed in the private: declarations for a class.
-//
-// For disallowing only assign or copy, delete the relevant operator or
-// constructor, for example:
-// void operator=(const TypeName&) = delete;
-// Note, that most uses of DISALLOW_ASSIGN and DISALLOW_COPY are broken
-// semantically, one should either use disallow both or neither. Try to
-// avoid these in new code.
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
   TypeName(const TypeName&) = delete;      \
   void operator=(const TypeName&) = delete
@@ -63,36 +54,17 @@ namespace sdk_for_jni {
 void register_perfetto(bool backend_in_process = false);
 
 /**
- * @brief Represents extra data associated with a trace event.
- * This class manages a collection of PerfettoTeHlExtra pointers.
- */
-class Extra;
-
-/**
- * @brief Emits a trace event.
- * @param type The type of the event.
- * @param cat The category of the event.
- * @param name The name of the event.
- * @param extra Pointer to Extra data.
- */
-void trace_event(int type,
-                 const PerfettoTeCategory* cat,
-                 const char* name,
-                 Extra* extra);
-
-/**
  * @brief Emits a track event through the Low Level track event ABI.
  *
- * Unlike trace_event(), which marshals a list of PerfettoTeHlExtra structs built
- * up on the Java side, this drives the public LL ABI (PerfettoTeLl*): it walks
- * the active data source instances and serializes the TrackEvent with protozero.
- * The LL ABI keeps ownership of the parts that must stay native -- category and
- * event-name interning, incremental-state resets (sequence defaults, clock
- * snapshot, thread/process descriptors) and per-instance fan-out.
+ * Drives the public LL ABI (PerfettoTeLl*): it walks the active data source
+ * instances and serializes the TrackEvent with protozero. The LL ABI keeps
+ * ownership of the parts that must stay native -- category and event-name
+ * interning, incremental-state resets (sequence defaults, clock snapshot,
+ * thread/process descriptors) and per-instance fan-out.
  *
  * `body`/`body_size`, when non-empty, is an opaque, already-encoded sequence of
- * TrackEvent proto fields (debug annotations, track_uuid, proto fields, ...)
- * produced on the Java side with ProtoWriter; it is appended verbatim into the
+ * TrackEvent proto fields (debug annotations, flows, proto fields, ...) produced
+ * on the Java side with ProtoWriter; it is appended verbatim into the
  * `track_event` submessage. Bare events pass an empty body.
  *
  * The event can be placed on a nested track. The track chain is passed
@@ -151,28 +123,6 @@ uint64_t get_process_track_uuid();
 uint64_t get_thread_track_uuid(pid_t tid);
 
 /**
- * @brief Holder for all the other classes in the file.
- */
-class Extra {
- public:
-  Extra();
-  void push_extra(PerfettoTeHlExtra* extra);
-  void pop_extra();
-  void clear_extras();
-  static void delete_extra(Extra* extra);
-
-  PerfettoTeHlExtra* const* get() const { return extras_.data(); }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(Extra);
-
-  // These PerfettoTeHlExtra pointers are really pointers to all the other
-  // types of extras: Category, DebugArg, Counter etc. Those objects are
-  // individually managed by Java.
-  std::vector<PerfettoTeHlExtra*> extras_;
-};
-
-/**
  * @brief Represents a trace event category.
  */
 class Category {
@@ -199,162 +149,6 @@ class Category {
   const std::string name_;
   const std::vector<std::string> tags_;
   std::vector<const char*> tags_data_;
-};
-
-/**
- * @brief Represents one end of a flow between two events.
- */
-class Flow {
- public:
-  Flow();
-
-  void set_process_flow(uint64_t id);
-  void set_process_terminating_flow(uint64_t id);
-  static void delete_flow(Flow* flow);
-
-  const PerfettoTeHlExtraFlow* get() const { return &flow_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(Flow);
-  PerfettoTeHlExtraFlow flow_;
-};
-
-/**
- * @brief Represents a named track.
- */
-class NamedTrack {
- public:
-  NamedTrack(uint64_t id,
-             uint64_t parent_uuid,
-             const std::string& name,
-             bool is_name_static);
-
-  static void delete_track(NamedTrack* track);
-
-  const PerfettoTeHlExtraNamedTrack* get() const { return &track_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(NamedTrack);
-  const std::string name_;
-  PerfettoTeHlExtraNamedTrack track_;
-};
-
-/**
- * @brief Represents a registered track.
- */
-class RegisteredTrack {
- public:
-  RegisteredTrack(uint64_t id,
-                  uint64_t parent_uuid,
-                  const std::string& name,
-                  bool is_counter,
-                  bool is_name_static_);
-
-  ~RegisteredTrack();
-
-  void register_track();
-  void unregister_track();
-  static void delete_track(RegisteredTrack* track);
-
-  const PerfettoTeHlExtraRegisteredTrack* get() const { return &track_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(RegisteredTrack);
-  PerfettoTeRegisteredTrack registered_track_;
-  PerfettoTeHlExtraRegisteredTrack track_;
-  const std::string name_;
-  const uint64_t id_;
-  const uint64_t parent_uuid_;
-  const bool is_counter_;
-  const bool is_name_static_;
-};
-
-/**
- * @brief Represents a counter track event.
- */
-class Counter {
- public:
-  Counter() {}
-
-  static void delete_counter(Counter* counter) { delete counter; }
-
-  PerfettoTeHlExtraCounterUnion* get() { return &counter_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(Counter);
-  PerfettoTeHlExtraCounterUnion counter_;
-};
-
-/**
- * @brief Represents a debug argument for a trace event.
- */
-class DebugArg {
- public:
-  explicit DebugArg(const std::string& name) : name_(name) {}
-
-  static void delete_arg(DebugArg* arg) { delete arg; }
-
-  const char* name() const { return name_.c_str(); }
-  PerfettoTeHlExtraDebugArgUnion* get() { return &arg_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(DebugArg);
-  PerfettoTeHlExtraDebugArgUnion arg_;
-  const std::string name_;
-};
-
-class ProtoField {
- public:
-  ProtoField() {}
-  static void delete_field(ProtoField* field) { delete field; }
-
-  PerfettoTeHlProtoFieldUnion* get() { return &arg_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ProtoField);
-  PerfettoTeHlProtoFieldUnion arg_;
-};
-
-class ProtoFieldNested {
- public:
-  ProtoFieldNested();
-
-  void add_field(PerfettoTeHlProtoField* field);
-  void set_id(uint32_t id);
-  static void delete_field(ProtoFieldNested* field);
-
-  const PerfettoTeHlProtoFieldNested* get() const { return &field_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ProtoFieldNested);
-  PerfettoTeHlProtoFieldNested field_;
-  // These PerfettoTeHlProtoField pointers are really pointers to all the other
-  // types of protos: PerfettoTeHlProtoFieldVarInt,
-  // PerfettoTeHlProtoFieldVarInt, PerfettoTeHlProtoFieldVarInt,
-  // PerfettoTeHlProtoFieldNested. Those objects are individually managed by
-  // Java.
-  std::vector<PerfettoTeHlProtoField*> fields_;
-};
-
-class Proto {
- public:
-  Proto();
-
-  void add_field(PerfettoTeHlProtoField* field);
-  void clear_fields();
-  static void delete_proto(Proto* proto);
-
-  const PerfettoTeHlExtraProtoFields* get() const { return &proto_; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(Proto);
-  PerfettoTeHlExtraProtoFields proto_;
-  // These PerfettoTeHlProtoField pointers are really pointers to all the other
-  // types of protos: PerfettoTeHlProtoFieldVarInt,
-  // PerfettoTeHlProtoFieldVarInt, PerfettoTeHlProtoFieldVarInt,
-  // PerfettoTeHlProtoFieldNested. Those objects are individually managed by
-  // Java.
-  std::vector<PerfettoTeHlProtoField*> fields_;
 };
 
 class Session {
