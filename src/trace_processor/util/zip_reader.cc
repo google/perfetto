@@ -69,6 +69,10 @@ enum GeneralPurposeBitFlag : uint32_t {
 const uint16_t kNoCompression = 0;
 const uint16_t kDeflate = 8;
 
+// Zip64 constants.
+constexpr uint16_t kZip64ExtendedInfoId = 0x0001;
+constexpr uint32_t kZip64Marker = 0xFFFFFFFFu;
+
 template <typename T>
 T ReadAndAdvance(const uint8_t** ptr) {
   T res{};
@@ -193,7 +197,13 @@ base::Status ZipReader::TryParseHeader() {
         "deflate supported for ZIPs compressed in a streaming fashion.",
         reader_.start_offset(), cur_.hdr.compression);
   }
-  cur_.ignore_bytes_after_fname = cur_.hdr.extra_field_len;
+  if ((cur_.hdr.flags & kDataDescriptor) &&
+      (cur_.hdr.compressed_size == kZip64Marker ||
+       cur_.hdr.uncompressed_size == kZip64Marker || cur_.hdr.version >= 45)) {
+    return base::ErrStatus(
+        "Zip64 Data Descriptors are not supported at offset 0x%zx.",
+        reader_.start_offset());
+  }
   cur_.parse_state = FileParseState::kFilename;
   return base::OkStatus();
 }
@@ -229,7 +239,6 @@ base::Status ZipReader::TryParseExtraFields() {
     return base::OkStatus();
   }
   PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.extra_field_len));
-  cur_.ignore_bytes_after_fname = 0;
 
   RETURN_IF_ERROR(ParseExtraFields(extra_tbv->data(), extra_tbv->size()));
 
@@ -246,14 +255,15 @@ base::Status ZipReader::ParseExtraFields(const uint8_t* data, size_t size) {
     if (it + sz > end) {
       return base::ErrStatus("Invalid extra field size");
     }
-    if (id == 0x0001) {  // Zip64 extended information
+    if (id == kZip64ExtendedInfoId) {
       const uint8_t* field_it = it;
       const uint8_t* field_end = it + sz;
-      if (cur_.hdr.uncompressed_size == 0xFFFFFFFF &&
-          field_it + 8 <= field_end) {
+      if (cur_.hdr.uncompressed_size == kZip64Marker ||
+          cur_.hdr.compressed_size == kZip64Marker) {
+        if (field_it + 16 > field_end) {
+          return base::ErrStatus("Malformed Zip64 extra field");
+        }
         cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&field_it);
-      }
-      if (cur_.hdr.compressed_size == 0xFFFFFFFF && field_it + 8 <= field_end) {
         cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&field_it);
       }
     }
@@ -331,7 +341,7 @@ base::Status ZipReader::TryParseCompressedData() {
   files_.back().compressed_data_ = *std::move(cur_.compressed);
   cur_ = FileParseState();  // Reset the parsing state for the next file.
   return base::OkStatus();
-}  // namespace perfetto::trace_processor::util
+}
 
 base::StatusOr<std::optional<TraceBlobView>>
 ZipReader::TryParseUnsizedCompressedData() {

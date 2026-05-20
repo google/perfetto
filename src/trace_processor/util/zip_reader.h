@@ -43,7 +43,8 @@
 // - Supports line-based streaming for compressed text files (e.g. logs). This
 //   enables line-based processing of compressed logs without having to
 //   decompress fully the individual text file in memory.
-// - Does NOT support zip64, encryption and other advanced zip file features.
+// - Supports Zip64 extended information. Does NOT support encryption or other
+//   advanced zip file features.
 // - It is not suitable for security-sensitive contexts. E.g. it doesn't deal
 //   with zip path traversal attacks (the same file showing up twice with two
 //   different payloads).
