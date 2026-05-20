@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {SourceMapConsumer, SourceMapGenerator} from 'source-map';
 import {lezer} from '@lezer/generator/rollup';
+import checker from 'vite-plugin-checker';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.dirname(__dirname);
@@ -281,6 +282,11 @@ export default defineConfig(({command}) => {
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
       pluginGenRelativeImports(),
+      checker({
+        typescript: true,
+        // Due to the way that the
+        overlay: false,
+      }),
       ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
       ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
     ],

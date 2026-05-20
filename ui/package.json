@@ -75,11 +75,14 @@
     "tslib": "^2.6.3",
     "typescript": "5.5.2",
     "vite": "^6.4.2",
+    "vite-plugin-checker": "^0.13.0",
     "vitest": "^4.1.6"
   },
   "scripts": {
+    "dev": "node build.mjs --watch --serve -n",
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
-    "lint": "npx eslint . --ext .js,.ts"
+    "lint": "npx eslint . --ext .js,.ts",
+    "typecheck": "tsc --noEmit"
   }
 }
