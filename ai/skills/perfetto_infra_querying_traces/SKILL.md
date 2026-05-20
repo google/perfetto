@@ -125,8 +125,9 @@ Follow this precise workflow:
 > **don't bake `__intrinsic_*` names into committed scripts, dashboards,
 > or stdlib modules** — they can change without notice.
 
-> CRITICAL: If the __intrinsic_* tables do not exist, you MUST search the web documentation
-> at https://perfetto.dev/docs/analysis/stdlib-docs/. Do not skip discovery.
+> CRITICAL: If the __intrinsic_* tables do not exist, you MUST search the
+> web documentation at https://perfetto.dev/docs/analysis/stdlib-docs/.
+> Do not skip discovery.
 
 ```sql
 -- 1. List every stdlib module currently available.
@@ -204,9 +205,9 @@ reference linked above.
 ## Tips for writing good PerfettoSQL
 
 - **Reach for stdlib first.** If you find yourself joining `slice` to
-  `thread_track` to `thread` to `process`, there is almost certainly a stdlib
-  module that already does it. Check the stdlib reference before writing the
-  join.
+  `thread_track` to `thread` to `process`, there is almost certainly a
+  stdlib module that already does it. Check the stdlib reference before
+  writing the join.
 - **Filter on `dur > 0` and Trace Boundaries carefully.** Some slices have
   `dur = -1` (still open at trace end) and some have `dur = 0` (instant
   events). Be explicit about which you mean. When calculating a bounding box
