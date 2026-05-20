@@ -430,6 +430,9 @@ declare_args() {
 }
 
 declare_args() {
+  # Enables the protovm_compiler tool.
+  enable_perfetto_protovm_compiler = enable_perfetto_tools
+
   # Enables the traceconv tool.
   enable_perfetto_traceconv =
       enable_perfetto_tools && enable_perfetto_trace_processor_sqlite
