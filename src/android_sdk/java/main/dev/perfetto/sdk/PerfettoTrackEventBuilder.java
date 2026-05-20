@@ -160,6 +160,13 @@ public final class PerfettoTrackEventBuilder {
   private boolean mTrackNameStatic;
   private long mTrackLeafUuid;
 
+  // Flows buffered for the Java emit path (raw ids; folded with the process
+  // track uuid at encode time). Same rationale as the arg buffer. Root only.
+  private static final int MAX_BUFFERED_FLOWS = 16;
+  private long[] mFlowIds;
+  private boolean[] mFlowTerminating;
+  private int mFlowCount;
+
   private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
       () -> new PerfettoTrackEventBuilder(true, this);
   private final Supplier<FieldNested> fieldNestedSupplier =
@@ -207,6 +214,8 @@ public final class PerfettoTrackEventBuilder {
       mTrackParentUuids = new long[MAX_TRACK_LEVELS];
       mTrackIds = new long[MAX_TRACK_LEVELS];
       mTrackNames = new String[MAX_TRACK_LEVELS];
+      mFlowIds = new long[MAX_BUFFERED_FLOWS];
+      mFlowTerminating = new boolean[MAX_BUFFERED_FLOWS];
     } else {
       // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
@@ -235,6 +244,7 @@ public final class PerfettoTrackEventBuilder {
     if (sUseJavaEmit && !mArgsSpilled && mPendingPointers.isEmpty()) {
       PerfettoEvent.beginBody();
       writeArgs();
+      writeFlows();
       if (mHasTrack) {
         PerfettoEvent.emitOnTrack(
             mTraceType, mCategory.getPtr(), mEventName, mTrackLeafUuid,
@@ -247,6 +257,9 @@ public final class PerfettoTrackEventBuilder {
     }
     if (mArgCount > 0) {
       flushArgsToHl();
+    }
+    if (mFlowCount > 0) {
+      flushFlowsToHl();
     }
     if (mHasTrack) {
       flushTrackToHl();
@@ -292,6 +305,7 @@ public final class PerfettoTrackEventBuilder {
     mArgsSpilled = false;
     mHasTrack = false;
     mTrackCount = 0;
+    mFlowCount = 0;
 
     return this;
   }
@@ -501,9 +515,10 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Flow flow = mObjectsPool.mFlowPool.get(flowSupplier);
-    flow.setProcessFlow(id);
-    addPerfettoPointerToExtra(flow);
+    if (stashFlow(id, /* terminating= */ false)) {
+      return this;
+    }
+    addFlowHl(id, /* terminating= */ false);
     return this;
   }
 
@@ -520,10 +535,53 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Flow terminatingFlow = mObjectsPool.mTerminatingFlowPool.get(flowSupplier);
-    terminatingFlow.setProcessTerminatingFlow(id);
-    addPerfettoPointerToExtra(terminatingFlow);
+    if (stashFlow(id, /* terminating= */ true)) {
+      return this;
+    }
+    addFlowHl(id, /* terminating= */ true);
     return this;
+  }
+
+  // Buffers a flow for the Java emit path (raw id; the process-scoped fold
+  // happens at encode time). Returns false (use the HL path) when the flag is
+  // off or the buffer is full.
+  private boolean stashFlow(long id, boolean terminating) {
+    if (!sUseJavaEmit || mFlowCount == MAX_BUFFERED_FLOWS) {
+      return false;
+    }
+    mFlowIds[mFlowCount] = id;
+    mFlowTerminating[mFlowCount] = terminating;
+    mFlowCount++;
+    return true;
+  }
+
+  // High Level flow extra (flag off, or HL fallback replay).
+  private void addFlowHl(long id, boolean terminating) {
+    Flow flow =
+        (terminating ? mObjectsPool.mTerminatingFlowPool : mObjectsPool.mFlowPool)
+            .get(flowSupplier);
+    if (terminating) {
+      flow.setProcessTerminatingFlow(id);
+    } else {
+      flow.setProcessFlow(id);
+    }
+    addPerfettoPointerToExtra(flow);
+  }
+
+  private void writeFlows() {
+    for (int i = 0; i < mFlowCount; i++) {
+      if (mFlowTerminating[i]) {
+        PerfettoEvent.addTerminatingFlow(mFlowIds[i]);
+      } else {
+        PerfettoEvent.addFlow(mFlowIds[i]);
+      }
+    }
+  }
+
+  private void flushFlowsToHl() {
+    for (int i = 0; i < mFlowCount; i++) {
+      addFlowHl(mFlowIds[i], mFlowTerminating[i]);
+    }
   }
 
   // Replays the pending track as an HL named-track extra (used when the event

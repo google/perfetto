@@ -47,6 +47,8 @@ public final class PerfettoEvent {
 
   // TrackEvent field numbers.
   private static final int TE_DEBUG_ANNOTATIONS = 4;
+  private static final int TE_FLOW_IDS = 47;
+  private static final int TE_TERMINATING_FLOW_IDS = 48;
 
   // DebugAnnotation field numbers.
   private static final int DA_BOOL_VALUE = 2;
@@ -60,7 +62,20 @@ public final class PerfettoEvent {
   private static final ThreadLocal<ProtoWriter> sBody =
       ThreadLocal.withInitial(ProtoWriter::new);
 
+  // Process track uuid, cached on first use; flows are xor-folded with it,
+  // matching PerfettoTeProcessScopedFlow in the C SDK.
+  private static volatile long sProcessTrackUuid;
+  private static volatile boolean sProcessTrackUuidValid;
+
   private PerfettoEvent() {}
+
+  private static long processTrackUuid() {
+    if (!sProcessTrackUuidValid) {
+      sProcessTrackUuid = PerfettoTrace.getProcessTrackUuid();
+      sProcessTrackUuidValid = true;
+    }
+    return sProcessTrackUuid;
+  }
 
   /** Resets the per-thread body buffer for a new event. */
   static void beginBody() {
@@ -101,6 +116,16 @@ public final class PerfettoEvent {
     b.writeString(DA_NAME, name);
     b.writeString(DA_STRING_VALUE, value);
     b.endNested(da);
+  }
+
+  /** Appends a (process-scoped) flow id to the body. */
+  static void addFlow(long id) {
+    sBody.get().writeFixed64(TE_FLOW_IDS, id ^ processTrackUuid());
+  }
+
+  /** Appends a (process-scoped) terminating flow id to the body. */
+  static void addTerminatingFlow(long id) {
+    sBody.get().writeFixed64(TE_TERMINATING_FLOW_IDS, id ^ processTrackUuid());
   }
 
   /**

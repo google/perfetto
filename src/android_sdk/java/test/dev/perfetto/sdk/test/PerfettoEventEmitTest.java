@@ -24,6 +24,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import dev.perfetto.sdk.PerfettoEvent;
 import dev.perfetto.sdk.PerfettoTrace;
 import dev.perfetto.sdk.PerfettoTrackEventBuilder;
+import java.util.HashSet;
 import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
@@ -238,6 +239,39 @@ public class PerfettoEventEmitTest {
       assertThat(descriptorCount).isEqualTo(1);
       assertThat(beginTrackUuid).isEqualTo(descriptorUuid);
       assertThat(endTrackUuid).isEqualTo(descriptorUuid);
+    } finally {
+      PerfettoTrackEventBuilder.setUseJavaEmit(previous);
+    }
+  }
+
+  @Test
+  public void builderRoutesFlowsThroughJavaEmit() throws Exception {
+    boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
+    PerfettoTrackEventBuilder.setUseJavaEmit(true);
+    try {
+      PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+      PerfettoTrace.instant(FOO_CATEGORY, "event")
+          .addFlow(2)
+          .addFlow(3)
+          .addTerminatingFlow(4)
+          .emit();
+
+      Trace trace = Trace.parseFrom(session.close());
+
+      boolean found = false;
+      for (TracePacket packet : trace.getPacketList()) {
+        if (packet.hasTrackEvent()) {
+          TrackEvent event = packet.getTrackEvent();
+          if (event.getFlowIdsCount() == 2 && event.getTerminatingFlowIdsCount() == 1) {
+            // Flow ids are folded with the process track uuid, so we check the
+            // counts and distinctness rather than exact values.
+            assertThat(new HashSet<>(event.getFlowIdsList())).hasSize(2);
+            found = true;
+          }
+        }
+      }
+      assertThat(found).isTrue();
     } finally {
       PerfettoTrackEventBuilder.setUseJavaEmit(previous);
     }
