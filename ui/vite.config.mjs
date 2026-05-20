@@ -34,7 +34,8 @@ const NO_SOURCE_MAPS = process.env.NO_SOURCE_MAPS === 'true';
 const NO_TREESHAKE = process.env.NO_TREESHAKE === 'true';
 const MINIFY_JS = process.env.MINIFY_JS || '';
 const ENABLE_BIGTRACE = process.env.ENABLE_BIGTRACE === 'true';
-const ENABLE_OPEN_PERFETTO_TRACE = process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
+const ENABLE_OPEN_PERFETTO_TRACE =
+  process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
 const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
 
 // IIFE bundles go to dist_version (the symlink to dist/v1.2.3). The service
@@ -61,8 +62,7 @@ function pluginEmbedMinimalSourceMap() {
     name: 'perfetto:embed-minimal-sourcemap',
     async generateBundle(_options, bundle) {
       for (const chunk of Object.values(bundle)) {
-        if (!chunk.fileName || !chunk.fileName.endsWith('.js') ||
-            !chunk.map) {
+        if (!chunk.fileName || !chunk.fileName.endsWith('.js') || !chunk.map) {
           continue;
         }
         try {
@@ -92,12 +92,13 @@ function pluginEmbedMinimalSourceMap() {
           delete minimalMap.sourcesContent;
           delete minimalMap.names;
           chunk.code +=
-              `\n;(self.__SOURCEMAPS=self.__SOURCEMAPS||{})` +
-              `['${chunk.fileName}']=${JSON.stringify(minimalMap)};`;
+            `\n;(self.__SOURCEMAPS=self.__SOURCEMAPS||{})` +
+            `['${chunk.fileName}']=${JSON.stringify(minimalMap)};`;
         } catch (err) {
           console.error(
-              `Error creating minimal source map for ${chunk.fileName}:`,
-              err.message);
+            `Error creating minimal source map for ${chunk.fileName}:`,
+            err.message,
+          );
         }
       }
     },
@@ -115,22 +116,28 @@ function pluginEmbedMinimalSourceMap() {
 // Types live in ui/src/types/virtual-modules.d.ts.
 function pluginAllPluginsBarrel() {
   const VIRTUALS = {
-    'virtual:perfetto/all_plugins':      path.join(SRC, 'plugins'),
+    'virtual:perfetto/all_plugins': path.join(SRC, 'plugins'),
     'virtual:perfetto/all_core_plugins': path.join(SRC, 'core_plugins'),
   };
   const toCamelCase = (s) => {
     const [first, ...rest] = s.split(/[._]/);
-    return first +
-        rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('');
+    return (
+      first + rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('')
+    );
   };
   const generate = (dir) => {
-    const entries = fs.readdirSync(dir)
+    const entries = fs
+      .readdirSync(dir)
       .map((name) => ({name, full: path.join(dir, name)}))
       .filter(({full}) => {
         try {
-          return fs.statSync(full).isDirectory() &&
-                 fs.existsSync(path.join(full, 'index.ts'));
-        } catch (_) { return false; }
+          return (
+            fs.statSync(full).isDirectory() &&
+            fs.existsSync(path.join(full, 'index.ts'))
+          );
+        } catch (_) {
+          return false;
+        }
       })
       .sort((a, b) => a.name.localeCompare(b.name));
     const imports = entries
@@ -209,7 +216,12 @@ function pluginGenWasmGlueEsm() {
     enforce: 'pre',
     async load(id) {
       const file = id.split('?', 1)[0];
-      if (!/\/gen\/(proto_utils|trace_processor(_memory64)?|traceconv)\.js$/.test(file)) return null;
+      if (
+        !/\/gen\/(proto_utils|trace_processor(_memory64)?|traceconv)\.js$/.test(
+          file,
+        )
+      )
+        return null;
       const src = await fs.promises.readFile(file, 'utf8');
       // Wrap the UMD in a CJS-style shim and re-export as ESM.
       return `const module = {exports: {}};\nconst exports = module.exports;\n${src}\nexport default module.exports.default ?? module.exports;\n`;
@@ -221,14 +233,17 @@ function pluginGenWasmGlueEsm() {
 // filename. Most bundles follow the standard convention; service_worker and
 // chrome_extension differ.
 const BUNDLE_CONFIGS = {
-  frontend:            {dir: 'dist_version',                 entry: 'index.ts'},
-  engine:              {dir: 'dist_version',                 entry: 'index.ts'},
-  traceconv:           {dir: 'dist_version',                 entry: 'index.ts'},
-  bigtrace:            {dir: 'dist_version/bigtrace',        entry: 'index.ts'},
-  open_perfetto_trace: {dir: 'dist/open_perfetto_trace',     entry: 'index.ts'},
-  chrome_extension:    {dir: 'chrome_extension',             entry: 'index.ts'},
-  service_worker:      {dir: 'dist',                         entry: 'service_worker.ts',
-                        fileName: 'service_worker.js'},
+  frontend: {dir: 'dist_version', entry: 'index.ts'},
+  engine: {dir: 'dist_version', entry: 'index.ts'},
+  traceconv: {dir: 'dist_version', entry: 'index.ts'},
+  bigtrace: {dir: 'dist_version/bigtrace', entry: 'index.ts'},
+  open_perfetto_trace: {dir: 'dist/open_perfetto_trace', entry: 'index.ts'},
+  chrome_extension: {dir: 'chrome_extension', entry: 'index.ts'},
+  service_worker: {
+    dir: 'dist',
+    entry: 'service_worker.ts',
+    fileName: 'service_worker.js',
+  },
 };
 
 // When invoked as `vite build`, BUNDLE selects one entry per invocation
@@ -248,107 +263,115 @@ export default defineConfig(({command}) => {
   }
   const inputPath = isBuild ? path.join(SRC, BUNDLE, bundleCfg.entry) : null;
   const entryFileNames = isBuild
-      ? (bundleCfg.fileName || '[name]_bundle.js')
-      : undefined;
+    ? bundleCfg.fileName || '[name]_bundle.js'
+    : undefined;
 
   return {
-  root: SRC,
-  // Vite is used purely as a TS transpiler + bundler in build mode, and as
-  // a module-serving dev server in serve mode. build.mjs owns HTML in both
-  // modes (in dev it calls server.transformIndexHtml() and serves at /).
-  appType: 'custom',
-  // We have a real source directory at ui/src/public — disable Vite's
-  // magic "publicDir" handling so it doesn't try to serve it at /.
-  publicDir: false,
-  plugins: [
-    pluginAllPluginsBarrel(),
-    // Compiles *.grammar files (lezer parser definitions) on import. Replaces
-    // the old "manually run lezer-generator and commit gen/*.js" workflow.
-    lezer(),
-    pluginGenRelativeImports(),
-    ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
-    ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
-  ],
-  resolve: {
-    // NB: do NOT set preserveSymlinks:true. pnpm puts every dep under
-    // .pnpm/<pkg>@<ver>/node_modules/<pkg> and exposes a symlink at
-    // node_modules/<pkg>. With preserveSymlinks @rollup/plugin-commonjs
-    // mis-resolves intra-package requires (e.g. ajv's require of its own
-    // ./codegen) and emits a stub external `require$$N` that crashes at
-    // runtime. The symlinked ui/src/gen dir is handled below by aliasing
-    // the importer side, not by preserving symlinks globally.
-    alias: [
-      // The trace_processor_32_stub indirection (see old rollup.config.js).
-      ...(IS_MEMORY64_ONLY ? [] : [{
-        find: /.*\/trace_processor_32_stub$/,
-        replacement: path.join(SRC, 'gen/trace_processor'),
-      }]),
+    root: SRC,
+    // Vite is used purely as a TS transpiler + bundler in build mode, and as
+    // a module-serving dev server in serve mode. build.mjs owns HTML in both
+    // modes (in dev it calls server.transformIndexHtml() and serves at /).
+    appType: 'custom',
+    // We have a real source directory at ui/src/public — disable Vite's
+    // magic "publicDir" handling so it doesn't try to serve it at /.
+    publicDir: false,
+    plugins: [
+      pluginAllPluginsBarrel(),
+      // Compiles *.grammar files (lezer parser definitions) on import. Replaces
+      // the old "manually run lezer-generator and commit gen/*.js" workflow.
+      lezer(),
+      pluginGenRelativeImports(),
+      ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
+      ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
     ],
-  },
-  define: {
-    // Immer reads process.env.NODE_ENV; not defined in browser.
-    'process.env.NODE_ENV': JSON.stringify('production'),
-  },
-  // The wasm glue files in ui/src/gen (proto_utils.js, trace_processor.js,
-  // traceconv.js) are UMD with a tacked-on `module.exports.default`. Vite's
-  // built-in CJS handling needs help recognising them as CJS so the
-  // `import X from '../gen/foo'` pattern works.
-  optimizeDeps: {
-    esbuildOptions: {
-      // No-op for build, but keeps dev parity if we ever flip to `vite dev`.
+    resolve: {
+      // NB: do NOT set preserveSymlinks:true. pnpm puts every dep under
+      // .pnpm/<pkg>@<ver>/node_modules/<pkg> and exposes a symlink at
+      // node_modules/<pkg>. With preserveSymlinks @rollup/plugin-commonjs
+      // mis-resolves intra-package requires (e.g. ajv's require of its own
+      // ./codegen) and emits a stub external `require$$N` that crashes at
+      // runtime. The symlinked ui/src/gen dir is handled below by aliasing
+      // the importer side, not by preserving symlinks globally.
+      alias: [
+        // The trace_processor_32_stub indirection (see old rollup.config.js).
+        ...(IS_MEMORY64_ONLY
+          ? []
+          : [
+              {
+                find: /.*\/trace_processor_32_stub$/,
+                replacement: path.join(SRC, 'gen/trace_processor'),
+              },
+            ]),
+      ],
     },
-  },
-  build: isBuild ? {
-    commonjsOptions: {
-      transformMixedEsModules: true,
-      // The UMD wasm glue files don't look like CJS to rollup's auto-detect.
-      // Force CJS interpretation for everything under ui/src/gen/*.js.
-      include: [/node_modules/, /\/gen\/.*\.js$/],
-      // ajv's JIT validator codegen emits strings like
-      //   `require("ajv/dist/runtime/equal").default`
-      // which @rollup/plugin-commonjs tries to resolve as transitive deps and
-      // then leaves dangling `require$$N` references in the IIFE. Those
-      // require()s are only ever evaluated inside ajv's own codegen layer,
-      // never at runtime in the browser. Tell commonjs not to analyse them.
-      ignoreDynamicRequires: true,
+    define: {
+      // Immer reads process.env.NODE_ENV; not defined in browser.
+      'process.env.NODE_ENV': JSON.stringify('production'),
     },
-    outDir: path.join(OUT_SYMLINK, bundleCfg.dir),
-    emptyOutDir: false,           // build.mjs puts wasm/css/assets here too.
-    // Force a single CSS asset per bundle (named after the entry chunk, e.g.
-    // frontend.css). IIFE builds don't auto-inject <link> tags, so extraction
-    // needs to be explicit.
-    cssCodeSplit: false,
-    sourcemap: !NO_SOURCE_MAPS,
-    minify: MINIFY_JS ? 'terser' : false,
-    terserOptions: MINIFY_JS === 'preserve_comments'
-        ? {format: {comments: 'all'}}
-        : undefined,
-    rollupOptions: {
-      input: {[BUNDLE]: inputPath},
-      treeshake: NO_TREESHAKE ? false : undefined,
-      output: {
-        format: 'iife',
-        name: BUNDLE,
-        entryFileNames,
-        // With cssCodeSplit:false Vite emits the CSS as "style.css" by
-        // default. Rename it to <bundle>.css so that index.html's preload
-        // and the assetSrc('frontend.css') call match.
-        assetFileNames: (info) => {
-          const name = info.names?.[0] || info.name || '';
-          if (name.endsWith('.css')) return `${BUNDLE}.css`;
-          return '[name][extname]';
-        },
-        inlineDynamicImports: true,
+    // The wasm glue files in ui/src/gen (proto_utils.js, trace_processor.js,
+    // traceconv.js) are UMD with a tacked-on `module.exports.default`. Vite's
+    // built-in CJS handling needs help recognising them as CJS so the
+    // `import X from '../gen/foo'` pattern works.
+    optimizeDeps: {
+      esbuildOptions: {
+        // No-op for build, but keeps dev parity if we ever flip to `vite dev`.
       },
-      onwarn(warning, warn) {
-        if (warning.code === 'CIRCULAR_DEPENDENCY') {
-          if ((warning.message || '').includes('node_modules')) return;
-          throw new Error(
-              `Circular dependency: ${warning.importer}\n  ${(warning.cycle || []).join('\n  ')}`);
+    },
+    build: isBuild
+      ? {
+          commonjsOptions: {
+            transformMixedEsModules: true,
+            // The UMD wasm glue files don't look like CJS to rollup's auto-detect.
+            // Force CJS interpretation for everything under ui/src/gen/*.js.
+            include: [/node_modules/, /\/gen\/.*\.js$/],
+            // ajv's JIT validator codegen emits strings like
+            //   `require("ajv/dist/runtime/equal").default`
+            // which @rollup/plugin-commonjs tries to resolve as transitive deps and
+            // then leaves dangling `require$$N` references in the IIFE. Those
+            // require()s are only ever evaluated inside ajv's own codegen layer,
+            // never at runtime in the browser. Tell commonjs not to analyse them.
+            ignoreDynamicRequires: true,
+          },
+          outDir: path.join(OUT_SYMLINK, bundleCfg.dir),
+          emptyOutDir: false, // build.mjs puts wasm/css/assets here too.
+          // Force a single CSS asset per bundle (named after the entry chunk, e.g.
+          // frontend.css). IIFE builds don't auto-inject <link> tags, so extraction
+          // needs to be explicit.
+          cssCodeSplit: false,
+          sourcemap: !NO_SOURCE_MAPS,
+          minify: MINIFY_JS ? 'terser' : false,
+          terserOptions:
+            MINIFY_JS === 'preserve_comments'
+              ? {format: {comments: 'all'}}
+              : undefined,
+          rollupOptions: {
+            input: {[BUNDLE]: inputPath},
+            treeshake: NO_TREESHAKE ? false : undefined,
+            output: {
+              format: 'iife',
+              name: BUNDLE,
+              entryFileNames,
+              // With cssCodeSplit:false Vite emits the CSS as "style.css" by
+              // default. Rename it to <bundle>.css so that index.html's preload
+              // and the assetSrc('frontend.css') call match.
+              assetFileNames: (info) => {
+                const name = info.names?.[0] || info.name || '';
+                if (name.endsWith('.css')) return `${BUNDLE}.css`;
+                return '[name][extname]';
+              },
+              inlineDynamicImports: true,
+            },
+            onwarn(warning, warn) {
+              if (warning.code === 'CIRCULAR_DEPENDENCY') {
+                if ((warning.message || '').includes('node_modules')) return;
+                throw new Error(
+                  `Circular dependency: ${warning.importer}\n  ${(warning.cycle || []).join('\n  ')}`,
+                );
+              }
+              warn(warning);
+            },
+          },
         }
-        warn(warning);
-      },
-    },
-  } : undefined,
+      : undefined,
   };
 });
