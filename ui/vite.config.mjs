@@ -26,6 +26,7 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {SourceMapConsumer, SourceMapGenerator} from 'source-map';
 import {lezer} from '@lezer/generator/rollup';
+import checker from 'vite-plugin-checker';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.dirname(__dirname);
@@ -369,6 +370,7 @@ export default defineConfig(({command}) => {
       pluginPerfettoPluginBarrels(),
       pluginPerfettoVersion(),
       pluginPatchIndexHtml(),
+      checker({typescript: true, overlay: false}),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),

@@ -45,6 +45,7 @@
     "syntaqlite": "^0.5.9",
     "util": "^0.12.5",
     "uuid": "^10.0.0",
+    "vite-plugin-checker": "^0.13.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {
@@ -78,6 +79,7 @@
     "vitest": "^4.1.6"
   },
   "scripts": {
+    "dev": "node build.mjs --watch --serve",
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
