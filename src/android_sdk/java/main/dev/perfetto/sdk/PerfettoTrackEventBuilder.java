@@ -48,9 +48,6 @@ public final class PerfettoTrackEventBuilder {
 
   private final boolean mIsCategoryEnabled;
 
-  // Counter track uuid magic, matching kCounterMagic in the C SDK.
-  private static final long COUNTER_TRACK_MAGIC = 0xb1a4a67d7970839eL;
-
   // Deepest track chain / most interned fields / proto nesting per event; keep
   // MAX_TRACK_LEVELS / MAX_INTERNED_FIELDS in sync with the C++ JNI.
   private static final int MAX_TRACK_LEVELS = 16;
@@ -284,9 +281,9 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    // The uuid is derived the same way as native (parentUuid ^ fnv1a(name) ^ id),
-    // so a track is identical whether emitted from here or from C++.
-    long uuid = parentUuid ^ fnv1a(name) ^ id;
+    // uuid derived exactly as native (see PerfettoTrack), so a track is identical
+    // whether emitted from here or from C++.
+    long uuid = PerfettoTrack.namedUuid(parentUuid, id, name);
     mHasTrack = true;
     mTrackIsCounter = false;
     mTrackLeafUuid = uuid;
@@ -298,17 +295,32 @@ public final class PerfettoTrackEventBuilder {
     return this;
   }
 
-  // FNV-1a over the name bytes, matching PerfettoFnv1a / PerfettoTeNamedTrackUuid
-  // in the C SDK (chars above 0x7F fold to '?', the same ASCII conversion the
-  // frame uses) so Java-derived track uuids match native ones.
-  private static long fnv1a(String s) {
-    long h = 0xcbf29ce484222325L;
-    for (int i = 0; i < s.length(); i++) {
-      char c = s.charAt(i);
-      h ^= (c <= 0x7F) ? c : '?';
-      h *= 0x100000001b3L;
+  /**
+   * Adds the events to {@code track}, emitting a TrackDescriptor for every level
+   * of its hierarchy not yet seen on a sequence. The event attaches to the leaf.
+   */
+  public PerfettoTrackEventBuilder usingTrack(PerfettoTrack track) {
+    if (!mIsCategoryEnabled) {
+      return this;
     }
-    return h;
+    if (mIsDebug) {
+      checkNotBuildingProto();
+    }
+    mHasTrack = true;
+    mTrackLeafUuid = track.mUuid;
+    mTrackIsCounter = track.mIsCounter;
+    mTrackNameStatic = true; // PerfettoTrack names are compile-time constants
+    int n = Math.min(track.mDepth, MAX_TRACK_LEVELS);
+    mTrackCount = n;
+    // Flatten root->leaf: walk leaf->root filling from the last slot back.
+    PerfettoTrack level = track;
+    for (int i = n - 1; i >= 0; i--) {
+      mTrackUuids[i] = level.mUuid;
+      mTrackParentUuids[i] = level.mParentUuid;
+      mTrackNames[i] = level.mName;
+      level = level.mParent;
+    }
+    return this;
   }
 
   /**
@@ -382,10 +394,8 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    // uuid uses the counter magic (kCounterMagic ^ parentUuid ^ fnv1a(name)),
-    // matching PerfettoTeCounterTrackUuid; no id, since counter tracks are keyed
-    // by name + parent only.
-    long uuid = COUNTER_TRACK_MAGIC ^ parentUuid ^ fnv1a(name);
+    // Counter tracks are keyed by name + parent only (see PerfettoTrack).
+    long uuid = PerfettoTrack.counterUuid(parentUuid, name);
     mHasTrack = true;
     mTrackIsCounter = true;
     mTrackLeafUuid = uuid;

@@ -23,6 +23,7 @@ import android.util.ArraySet;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import dev.perfetto.sdk.PerfettoEvent;
 import dev.perfetto.sdk.PerfettoTrace;
+import dev.perfetto.sdk.PerfettoTrack;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.Before;
@@ -263,6 +264,49 @@ public class PerfettoEventEmitTest {
     assertThat(descriptorCount).isEqualTo(1);
     assertThat(beginTrackUuid).isEqualTo(descriptorUuid);
     assertThat(endTrackUuid).isEqualTo(descriptorUuid);
+  }
+
+  @Test
+  public void usingNestedTrackEmitsAncestorDescriptors() throws Exception {
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+    PerfettoTrack parent = PerfettoTrack.process("parent_track");
+    PerfettoTrack child = parent.child("child_track");
+    PerfettoTrace.instant(FOO_CATEGORY, "nested").usingTrack(child).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    int parentDescriptors = 0;
+    int childDescriptors = 0;
+    long parentUuid = 0;
+    long childUuid = 0;
+    long childParentUuid = 0;
+    long eventTrackUuid = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("parent_track".equals(td.getStaticName())) {
+          parentDescriptors++;
+          parentUuid = td.getUuid();
+        }
+        if ("child_track".equals(td.getStaticName())) {
+          childDescriptors++;
+          childUuid = td.getUuid();
+          childParentUuid = td.getParentUuid();
+        }
+      }
+      if (packet.hasTrackEvent() && packet.getTrackEvent().hasTrackUuid()) {
+        eventTrackUuid = packet.getTrackEvent().getTrackUuid();
+      }
+    }
+
+    // Both levels' descriptors are emitted once, the child is linked under the
+    // parent, and the event attaches to the leaf.
+    assertThat(parentDescriptors).isEqualTo(1);
+    assertThat(childDescriptors).isEqualTo(1);
+    assertThat(childParentUuid).isEqualTo(parentUuid);
+    assertThat(eventTrackUuid).isEqualTo(childUuid);
+    assertThat(eventTrackUuid).isEqualTo(child.getUuid());
   }
 
   @Test
