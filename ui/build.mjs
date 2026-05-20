@@ -370,9 +370,6 @@ Env-var overrides:
     const tsProjects = ['ui', 'ui/src/service_worker'];
     if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
     if (cfg.openPerfettoTrace) tsProjects.push('ui/src/open_perfetto_trace');
-    for (const prj of tsProjects) {
-      transpileTsProject(prj, {noEmit: true});
-    }
   } else if (!args.no_build) {
     updateSymlinks(); // Links //ui/out -> //out/xxx/ui/
 
@@ -394,25 +391,11 @@ Env-var overrides:
     }
 
     if (cfg.check) {
-      for (const prj of tsProjects) {
-        transpileTsProject(prj, {noEmit: true});
-      }
     } else {
       // Vite owns TS transpile + bundling. tsc is invoked separately purely
       // for type checking. In non-watch builds it runs synchronously and a
       // type error fails the build. In watch mode tsc --watch runs async in
       // the background and prints errors without killing the build.
-      for (const prj of tsProjects) {
-        if (cfg.watch) {
-          transpileTsProject(prj, {
-            watch: true,
-            noEmit: true,
-            noErrCheck: true,
-          });
-        } else {
-          transpileTsProject(prj, {noEmit: true});
-        }
-      }
       runVite();
       genServiceWorkerManifestJson();
 

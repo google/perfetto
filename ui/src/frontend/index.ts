@@ -104,6 +104,8 @@ import {sleepMs} from '../base/utils';
 //
 // =============================================================================
 
+const foo: string = 123;
+
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
   name: 'Relax Content Security Policy for 127.0.0.1:*',

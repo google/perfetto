@@ -79,6 +79,7 @@
     "vitest": "^4.1.6"
   },
   "scripts": {
+    "vite": "vite",
     "dev": "node build.mjs --watch --serve -n",
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
