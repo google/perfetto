@@ -404,7 +404,11 @@ Env-var overrides:
       // the background and prints errors without killing the build.
       for (const prj of tsProjects) {
         if (cfg.watch) {
-          transpileTsProject(prj, {watch: true, noEmit: true, noErrCheck: true});
+          transpileTsProject(prj, {
+            watch: true,
+            noEmit: true,
+            noErrCheck: true,
+          });
         } else {
           transpileTsProject(prj, {noEmit: true});
         }
@@ -754,26 +758,22 @@ function runVite() {
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
   const useDevServer = cfg.watch && cfg.startHttpServer;
-  const bundles = [
-    'engine',
-    'traceconv',
-    'service_worker',
-    'chrome_extension',
-  ];
+  const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
   if (!useDevServer) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
   for (const bundle of bundles) {
-    const args = [
-      'build',
-      '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
-    ];
+    const args = ['build', '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs')];
     if (cfg.watch) args.push('--watch');
     if (!cfg.verbose) args.push('--logLevel', 'warn');
-    addTask(execModule, ['vite', args, {
-      async: cfg.watch,
-      env: {...baseEnv, BUNDLE: bundle},
-    }]);
+    addTask(execModule, [
+      'vite',
+      args,
+      {
+        async: cfg.watch,
+        env: {...baseEnv, BUNDLE: bundle},
+      },
+    ]);
   }
 }
 
@@ -817,10 +817,12 @@ async function startViteDevServer() {
   const {createServer} = await import('vite');
   const port = cfg.httpServerListenPort ?? DEFAULT_PORT;
 
-  const headers = cfg.crossOriginIsolation ? {
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Embedder-Policy': 'require-corp',
-  } : undefined;
+  const headers = cfg.crossOriginIsolation
+    ? {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      }
+    : undefined;
 
   const server = await createServer({
     configFile: pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
@@ -843,23 +845,27 @@ async function startViteDevServer() {
     // Vite's transformIndexHtml will then resolve /frontend/index.ts through
     // its module graph (with HMR client injected).
     let html = raw.replace(
-        /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
-        `script.src = '/frontend/index.ts';`);
+      /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
+      `script.src = '/frontend/index.ts';`,
+    );
     // Native ESM entry needs type="module". Vite also needs a global hint at
     // where versioned assets live (assetSrc()/getServingRoot() use it).
     html = html.replace(
-        /script\.async\s*=\s*true;?/,
-        `script.type = 'module'; window.__GLOBAL_ASSET_ROOT__ = version + '/';`);
+      /script\.async\s*=\s*true;?/,
+      `script.type = 'module'; window.__GLOBAL_ASSET_ROOT__ = version + '/';`,
+    );
     // Patch the version map (same job as cpHtml in prod). In dev there is
     // exactly one channel served from the root, version '.'.
     const versionMap = JSON.stringify({stable: cfg.version});
     html = html.replace(
-        /data-perfetto_version='[^']*'/,
-        `data-perfetto_version='${versionMap}'`);
+      /data-perfetto_version='[^']*'/,
+      `data-perfetto_version='${versionMap}'`,
+    );
     if (cfg.titleOverride) {
       html = html.replace(
-          /<title>[^<]*<\/title>/,
-          `<title>${cfg.titleOverride}</title>`);
+        /<title>[^<]*<\/title>/,
+        `<title>${cfg.titleOverride}</title>`,
+      );
     }
     return html;
   };
@@ -875,7 +881,10 @@ async function startViteDevServer() {
       return res.end('403');
     }
     fs.readFile(absPath, (err, data) => {
-      if (err) { res.statusCode = 404; return res.end(); }
+      if (err) {
+        res.statusCode = 404;
+        return res.end();
+      }
       res.end(data);
     });
   });
@@ -915,15 +924,16 @@ async function startViteDevServer() {
         fs.readFile(absPath, (rerr, data) => {
           if (rerr) return tryRoot(i + 1);
           const ext = url.split('.').pop();
-          const mime = {
-            wasm: 'application/wasm',
-            woff2: 'font/woff2',
-            png: 'image/png',
-            json: 'application/json',
-            css: 'text/css',
-            js: 'application/javascript',
-            html: 'text/html',
-          }[ext] || 'application/octet-stream';
+          const mime =
+            {
+              wasm: 'application/wasm',
+              woff2: 'font/woff2',
+              png: 'image/png',
+              json: 'application/json',
+              css: 'text/css',
+              js: 'application/javascript',
+              html: 'text/html',
+            }[ext] || 'application/octet-stream';
           res.setHeader('Content-Type', mime);
           res.end(data);
         });
