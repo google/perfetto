@@ -89,13 +89,20 @@ AS (
       __intrinsic_token_apply!(__ifg_null, $data_cols)
     FROM Bounds
     UNION ALL
-    -- Part 4: the whole trace, if no valid slices are present.
+    -- Part 4.a: when there is no data for a group, return one row for the whole trace.
     SELECT
       trace_start(), trace_dur(),
       metasql_unparenthesize_exprlist!($group_cols),
       __intrinsic_token_apply!(__ifg_null, $data_cols)
     FROM Bounds
     WHERE min_ts IS NULL AND max_ts IS NULL
+    UNION ALL
+    -- Part 4.b: when there is no data at all, return null group_cols for the whole trace.
+    SELECT
+      trace_start(), trace_dur(),
+      __intrinsic_token_apply!(__ifg_null, $group_cols),
+      __intrinsic_token_apply!(__ifg_null, $data_cols)
+    WHERE NOT EXISTS(SELECT * FROM SourceData)
     UNION ALL
     -- Part 5: the time between slices (from when one ends, to next start).
     SELECT
@@ -107,4 +114,5 @@ AS (
   SELECT *
   FROM Parts
   WHERE IFNULL(dur, 0) > 0
+  ORDER BY ts
 );
