@@ -117,6 +117,11 @@ public final class PerfettoTrack {
     return root(PerfettoTrace.getThreadTrackUuid(tid), 0, name, /* isCounter= */ false);
   }
 
+  /** A named track at the global (root) scope, shared across processes. */
+  public static PerfettoTrack global(@CompileTimeConstant String name) {
+    return root(PerfettoTrace.getGlobalTrackUuid(), 0, name, /* isCounter= */ false);
+  }
+
   /**
    * A named track rooted at an arbitrary existing track {@code parentUuid} (whose
    * descriptor is assumed to be emitted elsewhere, e.g. a process/thread track).
@@ -133,6 +138,11 @@ public final class PerfettoTrack {
   /** A counter track scoped to thread {@code tid}. */
   public static PerfettoTrack threadCounter(long tid, @CompileTimeConstant String name) {
     return root(PerfettoTrace.getThreadTrackUuid(tid), 0, name, /* isCounter= */ true);
+  }
+
+  /** A counter track at the global (root) scope, shared across processes. */
+  public static PerfettoTrack globalCounter(@CompileTimeConstant String name) {
+    return root(PerfettoTrace.getGlobalTrackUuid(), 0, name, /* isCounter= */ true);
   }
 
   /** A counter track rooted at an arbitrary existing track {@code parentUuid}. */

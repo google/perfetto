@@ -311,6 +311,35 @@ public class PerfettoEventEmitTest {
   }
 
   @Test
+  public void usingGlobalTrackEmitsRootLevelDescriptor() throws Exception {
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+    PerfettoTrack g = PerfettoTrack.global("global_track");
+    PerfettoTrace.instant(FOO_CATEGORY, "on_global").usingTrack(g).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean hasDescriptor = false;
+    long descriptorParent = -1;
+    long eventTrackUuid = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()
+          && "global_track".equals(packet.getTrackDescriptor().getStaticName())) {
+        hasDescriptor = true;
+        descriptorParent = packet.getTrackDescriptor().getParentUuid();
+      }
+      if (packet.hasTrackEvent() && packet.getTrackEvent().hasTrackUuid()) {
+        eventTrackUuid = packet.getTrackEvent().getTrackUuid();
+      }
+    }
+
+    // Global tracks are root-level: no parent uuid (0).
+    assertThat(hasDescriptor).isTrue();
+    assertThat(descriptorParent).isEqualTo(0);
+    assertThat(eventTrackUuid).isEqualTo(g.getUuid());
+  }
+
+  @Test
   public void usingTrackWritesChildOrderingAndSiblingRank() throws Exception {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
 
