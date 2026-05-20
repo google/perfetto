@@ -3745,7 +3745,7 @@ class V8Config(_message.Message):
     def __init__(self, log_script_sources: bool = ..., log_instructions: bool = ...) -> None: ...
 
 class EtwConfig(_message.Message):
-    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events", "stack_sampling_events")
+    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events", "stack_sampling_events", "disk_provider_events")
     class KernelFlag(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         CSWITCH: _ClassVar[EtwConfig.KernelFlag]
@@ -3757,12 +3757,14 @@ class EtwConfig(_message.Message):
     MEMORY_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     FILE_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     STACK_SAMPLING_EVENTS_FIELD_NUMBER: _ClassVar[int]
+    DISK_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     kernel_flags: _containers.RepeatedScalarFieldContainer[EtwConfig.KernelFlag]
     scheduler_provider_events: _containers.RepeatedScalarFieldContainer[str]
     memory_provider_events: _containers.RepeatedScalarFieldContainer[str]
     file_provider_events: _containers.RepeatedScalarFieldContainer[str]
     stack_sampling_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_events: _Optional[_Iterable[str]] = ...) -> None: ...
+    disk_provider_events: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_events: _Optional[_Iterable[str]] = ..., disk_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class FrozenFtraceConfig(_message.Message):
     __slots__ = ("instance_name",)
@@ -7980,8 +7982,30 @@ class StackWalkEtwEvent(_message.Message):
     callstack_iid: int
     def __init__(self, trigger: _Optional[str] = ..., callstack_iid: _Optional[int] = ...) -> None: ...
 
+class DiskIoEtwEvent(_message.Message):
+    __slots__ = ("disk_number", "irp_flags", "transfer_size", "byte_offset", "file_object", "irp_ptr", "response_time", "issuing_thread_id", "opcode")
+    DISK_NUMBER_FIELD_NUMBER: _ClassVar[int]
+    IRP_FLAGS_FIELD_NUMBER: _ClassVar[int]
+    TRANSFER_SIZE_FIELD_NUMBER: _ClassVar[int]
+    BYTE_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    FILE_OBJECT_FIELD_NUMBER: _ClassVar[int]
+    IRP_PTR_FIELD_NUMBER: _ClassVar[int]
+    RESPONSE_TIME_FIELD_NUMBER: _ClassVar[int]
+    ISSUING_THREAD_ID_FIELD_NUMBER: _ClassVar[int]
+    OPCODE_FIELD_NUMBER: _ClassVar[int]
+    disk_number: int
+    irp_flags: int
+    transfer_size: int
+    byte_offset: int
+    file_object: int
+    irp_ptr: int
+    response_time: int
+    issuing_thread_id: int
+    opcode: int
+    def __init__(self, disk_number: _Optional[int] = ..., irp_flags: _Optional[int] = ..., transfer_size: _Optional[int] = ..., byte_offset: _Optional[int] = ..., file_object: _Optional[int] = ..., irp_ptr: _Optional[int] = ..., response_time: _Optional[int] = ..., issuing_thread_id: _Optional[int] = ..., opcode: _Optional[int] = ...) -> None: ...
+
 class EtwTraceEvent(_message.Message):
-    __slots__ = ("timestamp", "cpu", "thread_id", "c_switch", "ready_thread", "mem_info", "file_io_create", "file_io_dir_enum", "file_io_info", "file_io_read_write", "file_io_simple_op", "file_io_op_end", "stack_walk", "file_io_path_operation")
+    __slots__ = ("timestamp", "cpu", "thread_id", "c_switch", "ready_thread", "mem_info", "file_io_create", "file_io_dir_enum", "file_io_info", "file_io_read_write", "file_io_simple_op", "file_io_op_end", "stack_walk", "file_io_path_operation", "disk_io")
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     CPU_FIELD_NUMBER: _ClassVar[int]
     THREAD_ID_FIELD_NUMBER: _ClassVar[int]
@@ -7996,6 +8020,7 @@ class EtwTraceEvent(_message.Message):
     FILE_IO_OP_END_FIELD_NUMBER: _ClassVar[int]
     STACK_WALK_FIELD_NUMBER: _ClassVar[int]
     FILE_IO_PATH_OPERATION_FIELD_NUMBER: _ClassVar[int]
+    DISK_IO_FIELD_NUMBER: _ClassVar[int]
     timestamp: int
     cpu: int
     thread_id: int
@@ -8010,7 +8035,8 @@ class EtwTraceEvent(_message.Message):
     file_io_op_end: FileIoOpEndEtwEvent
     stack_walk: StackWalkEtwEvent
     file_io_path_operation: FileIoPathOperationEtwEvent
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ..., file_io_create: _Optional[_Union[FileIoCreateEtwEvent, _Mapping]] = ..., file_io_dir_enum: _Optional[_Union[FileIoDirEnumEtwEvent, _Mapping]] = ..., file_io_info: _Optional[_Union[FileIoInfoEtwEvent, _Mapping]] = ..., file_io_read_write: _Optional[_Union[FileIoReadWriteEtwEvent, _Mapping]] = ..., file_io_simple_op: _Optional[_Union[FileIoSimpleOpEtwEvent, _Mapping]] = ..., file_io_op_end: _Optional[_Union[FileIoOpEndEtwEvent, _Mapping]] = ..., stack_walk: _Optional[_Union[StackWalkEtwEvent, _Mapping]] = ..., file_io_path_operation: _Optional[_Union[FileIoPathOperationEtwEvent, _Mapping]] = ...) -> None: ...
+    disk_io: DiskIoEtwEvent
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ..., file_io_create: _Optional[_Union[FileIoCreateEtwEvent, _Mapping]] = ..., file_io_dir_enum: _Optional[_Union[FileIoDirEnumEtwEvent, _Mapping]] = ..., file_io_info: _Optional[_Union[FileIoInfoEtwEvent, _Mapping]] = ..., file_io_read_write: _Optional[_Union[FileIoReadWriteEtwEvent, _Mapping]] = ..., file_io_simple_op: _Optional[_Union[FileIoSimpleOpEtwEvent, _Mapping]] = ..., file_io_op_end: _Optional[_Union[FileIoOpEndEtwEvent, _Mapping]] = ..., stack_walk: _Optional[_Union[StackWalkEtwEvent, _Mapping]] = ..., file_io_path_operation: _Optional[_Union[FileIoPathOperationEtwEvent, _Mapping]] = ..., disk_io: _Optional[_Union[DiskIoEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ("cpu", "event")
