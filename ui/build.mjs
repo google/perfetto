@@ -801,6 +801,10 @@ async function startViteDevServer() {
   if (cfg.noSourceMaps) process.env.NO_SOURCE_MAPS = 'true';
   if (cfg.noTreeshake) process.env.NO_TREESHAKE = 'true';
   if (cfg.minifyJs) process.env.MINIFY_JS = cfg.minifyJs;
+  if (cfg.version) process.env.PERFETTO_DEV_VERSION = cfg.version;
+  if (cfg.titleOverride) {
+    process.env.PERFETTO_DEV_TITLE_OVERRIDE = cfg.titleOverride;
+  }
 
   const {createServer} = await import('vite');
   const port = cfg.httpServerListenPort ?? DEFAULT_PORT;
@@ -825,38 +829,10 @@ async function startViteDevServer() {
     },
   });
 
-  // Read the source index.html, patch for dev (point the inline bootstrap
-  // at the frontend source entry), and serve at /.
+  // Source HTML is served at / below; all patching now lives in
+  // pluginPatchIndexHtml in ui/vite.config.mjs and runs via Vite's
+  // transformIndexHtml pipeline.
   const indexSrc = pjoin(ROOT_DIR, 'ui/src/assets/index.html');
-  const patchHtml = (raw) => {
-    // Replace the prod-relative bundle path with the dev source entry.
-    // Vite's transformIndexHtml will then resolve /frontend/index.ts through
-    // its module graph (with HMR client injected).
-    let html = raw.replace(
-      /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
-      `script.src = '/frontend/index.ts';`,
-    );
-    // Native ESM entry needs type="module". Vite also needs a global hint at
-    // where versioned assets live (assetSrc()/getServingRoot() use it).
-    html = html.replace(
-      /script\.async\s*=\s*true;?/,
-      `script.type = 'module'; window.__GLOBAL_ASSET_ROOT__ = version + '/';`,
-    );
-    // Patch the version map (same job as cpHtml in prod). In dev there is
-    // exactly one channel served from the root, version '.'.
-    const versionMap = JSON.stringify({stable: cfg.version});
-    html = html.replace(
-      /data-perfetto_version='[^']*'/,
-      `data-perfetto_version='${versionMap}'`,
-    );
-    if (cfg.titleOverride) {
-      html = html.replace(
-        /<title>[^<]*<\/title>/,
-        `<title>${cfg.titleOverride}</title>`,
-      );
-    }
-    return html;
-  };
 
   // Serve /test/* from the repo (used by some e2e flows). Mirrors the
   // equivalent branch in startServer().
@@ -937,8 +913,7 @@ async function startViteDevServer() {
     if (url !== '/' && url !== '/index.html') return next();
     try {
       const raw = fs.readFileSync(indexSrc, 'utf8');
-      const patched = patchHtml(raw);
-      const transformed = await server.transformIndexHtml(url, patched);
+      const transformed = await server.transformIndexHtml(url, raw);
       res.setHeader('Content-Type', 'text/html');
       res.end(transformed);
     } catch (e) {

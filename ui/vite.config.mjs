@@ -38,6 +38,8 @@ const ENABLE_BIGTRACE = process.env.ENABLE_BIGTRACE === 'true';
 const ENABLE_OPEN_PERFETTO_TRACE =
   process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
 const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
+const DEV_VERSION = process.env.PERFETTO_DEV_VERSION || '';
+const DEV_TITLE_OVERRIDE = process.env.PERFETTO_DEV_TITLE_OVERRIDE || '';
 
 // IIFE bundles go to dist_version (the symlink to dist/v1.2.3). The service
 // worker and chrome extension go elsewhere; for the minimum migration we keep
@@ -235,8 +237,44 @@ function pluginPerfettoVersion() {
   };
   return makeSynthModulePlugin({
     name: 'perfetto:version',
-    modules: {[path.join(SRC, 'base', 'version')]: generate},
+    modules: {[path.join(SRC, 'virtual', 'version')]: generate},
   });
+}
+
+// Dev-mode patches to ui/src/assets/index.html: rewrite the inline bootstrap
+// so it loads the TS entry through Vite's module graph, swap the version map
+// for a single-channel dev map, and apply an optional title override. In prod
+// the same shaping is done by cpHtml() in build.mjs.
+function pluginPatchIndexHtml() {
+  return {
+    name: 'perfetto:patch-index-html',
+    apply: 'serve',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        let out = html.replace(
+          /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
+          `script.src = '/frontend/index.ts';`,
+        );
+        out = out.replace(
+          /script\.async\s*=\s*true;?/,
+          `script.type = 'module'; window.__GLOBAL_ASSET_ROOT__ = version + '/';`,
+        );
+        const versionMap = JSON.stringify({stable: DEV_VERSION || '.'});
+        out = out.replace(
+          /data-perfetto_version='[^']*'/,
+          `data-perfetto_version='${versionMap}'`,
+        );
+        if (DEV_TITLE_OVERRIDE) {
+          out = out.replace(
+            /<title>[^<]*<\/title>/,
+            `<title>${DEV_TITLE_OVERRIDE}</title>`,
+          );
+        }
+        return out;
+      },
+    },
+  };
 }
 
 function pluginGenRelativeImports() {
@@ -330,6 +368,7 @@ export default defineConfig(({command}) => {
     plugins: [
       pluginPerfettoPluginBarrels(),
       pluginPerfettoVersion(),
+      pluginPatchIndexHtml(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
