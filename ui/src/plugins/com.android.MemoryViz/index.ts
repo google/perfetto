@@ -56,6 +56,7 @@ export default class MemoryViz implements PerfettoPlugin {
 
     await this.addKswapdTrack(ctx, memoryGroup);
     await this.addDirectReclaimTracks(ctx, memoryGroup);
+    await this.addMemcgReclaimTracks(ctx, memoryGroup);
     await this.addLmkTracks(ctx, memoryGroup);
 
     ctx.commands.registerCommand({
@@ -165,9 +166,9 @@ export default class MemoryViz implements PerfettoPlugin {
     const breakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: 'Direct Reclaim',
-      description:
-        'Shows synchronous page reclaim events.' +
-        'This usually indicates severe memory pressure.',
+      description: `Shows synchronous page reclaim events. Significant activity indicates
+        severe system-wide memory pressure, forcing an app's own threads
+        to perform synchronous reclaim.`,
       aggregationType: BreakdownTrackAggType.COUNT,
       aggregation: {
         columns: ['process_name', 'thread_name'],
@@ -188,6 +189,58 @@ export default class MemoryViz implements PerfettoPlugin {
     const directReclaimNode = await breakdowns.createTracks();
     directReclaimNode.sortOrder = 102;
     parent.addChildInOrder(directReclaimNode);
+  }
+
+  private async addMemcgReclaimTracks(
+    ctx: Trace,
+    parent: TrackNode,
+  ): Promise<void> {
+    const tableName = 'memory_viz_memcg_reclaim';
+    await createPerfettoTable({
+      engine: ctx.engine,
+      name: tableName,
+      as: `
+        SELECT id, ts, dur, name,
+        COALESCE(process_name, 'Unknown Process') AS process_name,
+        COALESCE(thread_name, 'Unknown Thread') AS thread_name
+        FROM thread_slice
+        WHERE name GLOB 'mm_vmscan_memcg_reclaim*' AND dur > 0
+      `,
+    });
+
+    const rowCount = await ctx.engine.query(
+      `SELECT COUNT(*) AS n FROM ${tableName}`,
+    );
+    if (rowCount.firstRow({n: NUM}).n === 0) {
+      return;
+    }
+
+    const breakdowns = new BreakdownTracks({
+      trace: ctx,
+      trackTitle: 'Memory Cgroup Reclaim',
+      description: `Shows memory cgroup reclaim events. Significant activity indicates
+        an app is allocating past its memory budget, forcing its own threads
+        to perform synchronous reclaim.`,
+      aggregationType: BreakdownTrackAggType.COUNT,
+      aggregation: {
+        columns: ['process_name', 'thread_name'],
+        tsCol: 'ts',
+        durCol: 'dur',
+        tableName,
+      },
+      slice: {
+        columns: ['name'],
+        tsCol: 'ts',
+        durCol: 'dur',
+        tableName,
+      },
+      sliceIdColumn: 'id',
+      sortTracks: true,
+    });
+
+    const memcgReclaimNode = await breakdowns.createTracks();
+    memcgReclaimNode.sortOrder = 103;
+    parent.addChildInOrder(memcgReclaimNode);
   }
 
   private async addLmkTracks(ctx: Trace, parent: TrackNode): Promise<void> {
