@@ -58,7 +58,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT * FROM data;
 
         SELECT ts, dur, grp, val
-        FROM intervals_fill_gaps!((grp), (val), data_table)
+        FROM _intervals_fill_gaps!((grp), (val), data_table)
         ORDER BY ts;
         """,
         out=Csv("""
@@ -86,7 +86,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT * FROM data;
 
         SELECT ts, dur, grp, val
-        FROM intervals_fill_gaps!((grp), (val), data_table)
+        FROM _intervals_fill_gaps!((grp), (val), data_table)
         ORDER BY grp, ts;
         """,
         out=Csv("""
@@ -111,7 +111,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT CAST(NULL AS INT) AS ts, CAST(NULL AS INT) AS dur, CAST(NULL AS TEXT) AS grp, CAST(NULL AS INT) AS val LIMIT 0;
 
         SELECT ts, dur, grp, val
-        FROM intervals_fill_gaps!((grp), (val), empty_table);
+        FROM _intervals_fill_gaps!((grp), (val), empty_table);
         """,
         out=Csv("""
         "ts","dur","grp","val"
@@ -131,7 +131,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT * FROM data;
 
         SELECT ts, dur, grp, val
-        FROM intervals_fill_gaps!((grp), (val), data_table);
+        FROM _intervals_fill_gaps!((grp), (val), data_table);
         """,
         out=Csv("""
         "ts","dur","grp","val"
@@ -153,7 +153,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT * FROM data;
 
         SELECT ts, dur, grp1, grp2, val
-        FROM intervals_fill_gaps!((grp1, grp2), (val), data_table)
+        FROM _intervals_fill_gaps!((grp1, grp2), (val), data_table)
         ORDER BY grp1, grp2, ts;
         """,
         out=Csv("""
@@ -181,7 +181,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT * FROM data;
 
         SELECT ts, dur, grp, val1, val2
-        FROM intervals_fill_gaps!((grp), (val1, val2), data_table)
+        FROM _intervals_fill_gaps!((grp), (val1, val2), data_table)
         ORDER BY ts;
         """,
         out=Csv("""
@@ -208,7 +208,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT * FROM data;
 
         SELECT ts, dur, uid, val
-        FROM intervals_fill_gaps!((uid), (val), data_table)
+        FROM _intervals_fill_gaps!((uid), (val), data_table)
         ORDER BY uid, ts;
         """,
         out=Csv("""
@@ -232,7 +232,7 @@ class IntervalsFillGaps(TestSuite):
         SELECT * FROM data;
 
         SELECT ts, dur, val
-        FROM intervals_fill_gaps!((NULL), (val), data_table)
+        FROM _intervals_fill_gaps!((NULL), (val), data_table)
         ORDER BY ts;
         """,
         out=Csv("""

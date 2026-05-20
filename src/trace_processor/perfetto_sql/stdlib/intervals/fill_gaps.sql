@@ -36,13 +36,13 @@ AS NULL;
 --
 -- Example:
 -- ```
--- intervals_fill_gaps!(
+-- _intervals_fill_gaps!(
 --   (uid, package_name),
 --   (process_state),
 --   process_state_table
 -- )
 -- ```
-CREATE PERFETTO MACRO intervals_fill_gaps(
+CREATE PERFETTO MACRO _intervals_fill_gaps(
   -- A parenthesized list of column names to group by, or (NULL) to not group.
   group_cols ColumnNameList,
   -- A parethensizes list of column names to carry through.
