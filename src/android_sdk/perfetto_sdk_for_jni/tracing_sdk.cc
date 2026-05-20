@@ -68,7 +68,8 @@ static void emit_unseen_track_descriptors(struct PerfettoTeLlIterator* ctx,
                                           const uint64_t* track_uuids,
                                           const uint64_t* track_parent_uuids,
                                           const char* const* track_names,
-                                          bool track_name_static) {
+                                          bool track_name_static,
+                                          bool track_is_counter) {
   for (int32_t i = 0; i < track_count; i++) {
     if (PerfettoTeLlTrackSeen(ctx->impl.incr, track_uuids[i])) {
       continue;
@@ -80,9 +81,16 @@ static void emit_unseen_track_descriptors(struct PerfettoTeLlIterator* ctx,
         perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
     struct perfetto_protos_TrackDescriptor desc;
     perfetto_protos_TracePacket_begin_track_descriptor(&desc_packet.msg, &desc);
-    PerfettoTeNamedTrackFillDesc(&desc, track_names[i], /*id=*/0,
-                                 track_parent_uuids[i], track_uuids[i],
-                                 track_name_static);
+    // The leaf is a counter track when requested; ancestors are always named.
+    if (track_is_counter && i == track_count - 1) {
+      PerfettoTeCounterTrackFillDesc(&desc, track_names[i],
+                                     track_parent_uuids[i], track_uuids[i],
+                                     track_name_static);
+    } else {
+      PerfettoTeNamedTrackFillDesc(&desc, track_names[i], /*id=*/0,
+                                   track_parent_uuids[i], track_uuids[i],
+                                   track_name_static);
+    }
     perfetto_protos_TracePacket_end_track_descriptor(&desc_packet.msg, &desc);
     PerfettoTeLlPacketEnd(ctx, &desc_packet);
   }
@@ -99,7 +107,8 @@ void emit_track_event(const PerfettoTeCategory* cat,
                       const uint64_t* track_uuids,
                       const uint64_t* track_parent_uuids,
                       const char* const* track_names,
-                      bool track_name_static) {
+                      bool track_name_static,
+                      bool track_is_counter) {
   bool enabled = PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
       cat->enabled, PERFETTO_MEMORY_ORDER_RELAXED));
   if (!enabled) {
@@ -123,7 +132,7 @@ void emit_track_event(const PerfettoTeCategory* cat,
     if (track_count > 0) {
       emit_unseen_track_descriptors(&ctx, track_count, track_uuids,
                                     track_parent_uuids, track_names,
-                                    track_name_static);
+                                    track_name_static, track_is_counter);
     }
 
     struct PerfettoDsRootTracePacket trace_packet;

@@ -47,6 +47,8 @@ public final class PerfettoEvent {
 
   // TrackEvent field numbers.
   private static final int TE_DEBUG_ANNOTATIONS = 4;
+  private static final int TE_COUNTER_VALUE = 30;
+  private static final int TE_DOUBLE_COUNTER_VALUE = 44;
   private static final int TE_FLOW_IDS = 47;
   private static final int TE_TERMINATING_FLOW_IDS = 48;
 
@@ -128,6 +130,16 @@ public final class PerfettoEvent {
     sBody.get().writeFixed64(TE_TERMINATING_FLOW_IDS, id ^ processTrackUuid());
   }
 
+  /** Sets a long counter value on the body. */
+  static void setCounter(long value) {
+    sBody.get().writeVarInt(TE_COUNTER_VALUE, value);
+  }
+
+  /** Sets a double counter value on the body. */
+  static void setCounter(double value) {
+    sBody.get().writeDouble(TE_DOUBLE_COUNTER_VALUE, value);
+  }
+
   /**
    * Emits a track event on the sequence default track, appending whatever was
    * encoded into the per-thread body since {@link #beginBody}.
@@ -151,11 +163,13 @@ public final class PerfettoEvent {
       long[] trackUuids,
       long[] trackParentUuids,
       String[] trackNames,
-      boolean trackNameStatic) {
+      boolean trackNameStatic,
+      boolean trackIsCounter) {
     ProtoWriter b = sBody.get();
     native_emit_on_track(
         type, categoryPtr, name, b.buffer(), b.position(), leafTrackUuid,
-        trackCount, trackUuids, trackParentUuids, trackNames, trackNameStatic);
+        trackCount, trackUuids, trackParentUuids, trackNames, trackNameStatic,
+        trackIsCounter);
   }
 
   /**
@@ -186,5 +200,6 @@ public final class PerfettoEvent {
       long[] trackUuids,
       long[] trackParentUuids,
       String[] trackNames,
-      boolean trackNameStatic);
+      boolean trackNameStatic,
+      boolean trackIsCounter);
 }

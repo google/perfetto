@@ -75,7 +75,8 @@ static void emit(JNIEnv* env,
                  jlongArray track_uuids,
                  jlongArray track_parent_uuids,
                  jobjectArray track_names,
-                 bool track_name_static) {
+                 bool track_name_static,
+                 bool track_is_counter) {
   auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
   std::string_view name_view = StringBuffer::utf16_to_ascii(env, name);
 
@@ -107,7 +108,7 @@ static void emit(JNIEnv* env,
       category->get(), type, name_view.data(), data,
       body_len > 0 ? static_cast<size_t>(body_len) : 0, set_track_uuid,
       static_cast<uint64_t>(leaf_track_uuid), count, uuids, parent_uuids, names,
-      track_name_static);
+      track_name_static, track_is_counter);
 
   if (heap) {
     env->ReleaseByteArrayElements(body, heap, JNI_ABORT);
@@ -125,7 +126,7 @@ static void dev_perfetto_sdk_PerfettoEvent_native_emit(JNIEnv* env,
                                                        jint body_len) {
   emit(env, type, cat_ptr, name, body, body_len, /*set_track_uuid=*/false,
        /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
-       /*track_name_static=*/false);
+       /*track_name_static=*/false, /*track_is_counter=*/false);
 }
 
 // Track path: event attached to a (possibly nested) track.
@@ -142,17 +143,18 @@ static void dev_perfetto_sdk_PerfettoEvent_native_emit_on_track(
     jlongArray track_uuids,
     jlongArray track_parent_uuids,
     jobjectArray track_names,
-    jboolean track_name_static) {
+    jboolean track_name_static,
+    jboolean track_is_counter) {
   emit(env, type, cat_ptr, name, body, body_len, /*set_track_uuid=*/true,
        leaf_track_uuid, track_count, track_uuids, track_parent_uuids,
-       track_names, track_name_static == JNI_TRUE);
+       track_names, track_name_static == JNI_TRUE, track_is_counter == JNI_TRUE);
 }
 
 static const JNINativeMethod gEventMethods[] = {
     {"native_emit", "(IJLjava/lang/String;[BI)V",
      (void*)dev_perfetto_sdk_PerfettoEvent_native_emit},
     {"native_emit_on_track",
-     "(IJLjava/lang/String;[BIJI[J[J[Ljava/lang/String;Z)V",
+     "(IJLjava/lang/String;[BIJI[J[J[Ljava/lang/String;ZZ)V",
      (void*)dev_perfetto_sdk_PerfettoEvent_native_emit_on_track},
 };
 

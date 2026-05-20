@@ -158,7 +158,17 @@ public final class PerfettoTrackEventBuilder {
   private int mTrackCount;
   private boolean mHasTrack;
   private boolean mTrackNameStatic;
+  private boolean mTrackIsCounter;
   private long mTrackLeafUuid;
+
+  // Counter track uuid magic, matching kCounterMagic in the C SDK.
+  private static final long COUNTER_TRACK_MAGIC = 0xb1a4a67d7970839eL;
+
+  // Counter value set by setCounter() for the Java emit path.
+  private boolean mHasCounter;
+  private boolean mCounterIsDouble;
+  private long mCounterLong;
+  private double mCounterDouble;
 
   // Flows buffered for the Java emit path (raw ids; folded with the process
   // track uuid at encode time). Same rationale as the arg buffer. Root only.
@@ -245,11 +255,18 @@ public final class PerfettoTrackEventBuilder {
       PerfettoEvent.beginBody();
       writeArgs();
       writeFlows();
+      if (mHasCounter) {
+        if (mCounterIsDouble) {
+          PerfettoEvent.setCounter(mCounterDouble);
+        } else {
+          PerfettoEvent.setCounter(mCounterLong);
+        }
+      }
       if (mHasTrack) {
         PerfettoEvent.emitOnTrack(
             mTraceType, mCategory.getPtr(), mEventName, mTrackLeafUuid,
             mTrackCount, mTrackUuids, mTrackParentUuids, mTrackNames,
-            mTrackNameStatic);
+            mTrackNameStatic, mTrackIsCounter);
       } else {
         PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName);
       }
@@ -260,6 +277,9 @@ public final class PerfettoTrackEventBuilder {
     }
     if (mFlowCount > 0) {
       flushFlowsToHl();
+    }
+    if (mHasCounter) {
+      flushCounterToHl();
     }
     if (mHasTrack) {
       flushTrackToHl();
@@ -305,6 +325,8 @@ public final class PerfettoTrackEventBuilder {
     mArgsSpilled = false;
     mHasTrack = false;
     mTrackCount = 0;
+    mTrackIsCounter = false;
+    mHasCounter = false;
     mFlowCount = 0;
 
     return this;
@@ -584,10 +606,14 @@ public final class PerfettoTrackEventBuilder {
     }
   }
 
-  // Replays the pending track as an HL named-track extra (used when the event
-  // also carries a not-yet-migrated extra, forcing the HL path). Same
-  // name/id/parent, so HL recomputes the identical uuid.
+  // Replays the pending track as an HL extra (used when the event also carries a
+  // not-yet-migrated extra, forcing the HL path). Same name/id/parent, so HL
+  // recomputes the identical uuid.
   private void flushTrackToHl() {
+    if (mTrackIsCounter) {
+      usingCounterTrackHl(mTrackParentUuids[0], mTrackNames[0], mTrackNameStatic);
+      return;
+    }
     for (int i = 0; i < mTrackCount; i++) {
       usingNamedTrackHl(mTrackIds[i], mTrackNames[i], mTrackParentUuids[i],
           mTrackNameStatic);
@@ -633,12 +659,29 @@ public final class PerfettoTrackEventBuilder {
   private void setTrack(long id, String name, long parentUuid, boolean isNameStatic) {
     long uuid = parentUuid ^ fnv1a(name) ^ id;
     mHasTrack = true;
+    mTrackIsCounter = false;
     mTrackLeafUuid = uuid;
     mTrackNameStatic = isNameStatic;
     mTrackCount = 1;
     mTrackUuids[0] = uuid;
     mTrackParentUuids[0] = parentUuid;
     mTrackIds[0] = id;
+    mTrackNames[0] = name;
+  }
+
+  // Records a counter track for the Java emit path. uuid uses the counter magic
+  // (kCounterMagic ^ parentUuid ^ fnv1a(name)), matching PerfettoTeCounterTrack
+  // Uuid; no id, since counter tracks are keyed by name + parent only.
+  private void setCounterTrack(long parentUuid, String name, boolean isNameStatic) {
+    long uuid = COUNTER_TRACK_MAGIC ^ parentUuid ^ fnv1a(name);
+    mHasTrack = true;
+    mTrackIsCounter = true;
+    mTrackLeafUuid = uuid;
+    mTrackNameStatic = isNameStatic;
+    mTrackCount = 1;
+    mTrackUuids[0] = uuid;
+    mTrackParentUuids[0] = parentUuid;
+    mTrackIds[0] = 0;
     mTrackNames[0] = name;
   }
 
@@ -728,6 +771,7 @@ public final class PerfettoTrackEventBuilder {
     return usingCounterTrack(parentUuid, name, /* isNameStatic = */ false);
   }
 
+  // Routes a counter track to the Java emit path, or to HL when the flag is off.
   private PerfettoTrackEventBuilder usingCounterTrack(
       long parentUuid, String name, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
@@ -736,14 +780,22 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
+    if (sUseJavaEmit) {
+      setCounterTrack(parentUuid, name, isNameStatic);
+    } else {
+      usingCounterTrackHl(parentUuid, name, isNameStatic);
+    }
+    return this;
+  }
 
+  // High Level counter track (flag off, or HL fallback).
+  private void usingCounterTrackHl(long parentUuid, String name, boolean isNameStatic) {
     CounterTrack track = mObjectsCache.mCounterTrackCache.get(name.hashCode());
     if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
       track = new CounterTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
       mObjectsCache.mCounterTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
-    return this;
   }
 
   /**
@@ -801,9 +853,14 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Counter counter = mLazyInitObjects.getCounter();
-    counter.setValueInt64(val);
-    addPerfettoPointerToExtra(counter);
+    if (sUseJavaEmit) {
+      mHasCounter = true;
+      mCounterIsDouble = false;
+      mCounterLong = val;
+    } else {
+      mLazyInitObjects.getCounter().setValueInt64(val);
+      addPerfettoPointerToExtra(mLazyInitObjects.getCounter());
+    }
     return this;
   }
 
@@ -815,10 +872,26 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Counter counter = mLazyInitObjects.getCounter();
-    counter.setValueDouble(val);
-    addPerfettoPointerToExtra(counter);
+    if (sUseJavaEmit) {
+      mHasCounter = true;
+      mCounterIsDouble = true;
+      mCounterDouble = val;
+    } else {
+      mLazyInitObjects.getCounter().setValueDouble(val);
+      addPerfettoPointerToExtra(mLazyInitObjects.getCounter());
+    }
     return this;
+  }
+
+  // Replays the pending counter value as an HL Counter extra (HL fallback).
+  private void flushCounterToHl() {
+    Counter counter = mLazyInitObjects.getCounter();
+    if (mCounterIsDouble) {
+      counter.setValueDouble(mCounterDouble);
+    } else {
+      counter.setValueInt64(mCounterLong);
+    }
+    addPerfettoPointerToExtra(counter);
   }
 
   /** Adds a proto field with field id {@code id} and value {@code val}. */

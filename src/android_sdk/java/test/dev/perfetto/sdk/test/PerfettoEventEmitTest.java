@@ -278,6 +278,47 @@ public class PerfettoEventEmitTest {
   }
 
   @Test
+  public void builderRoutesCounterThroughJavaEmit() throws Exception {
+    boolean previous = PerfettoTrackEventBuilder.getUseJavaEmit();
+    PerfettoTrackEventBuilder.setUseJavaEmit(true);
+    try {
+      PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+      PerfettoTrace.counter(FOO_CATEGORY, 42).usingProcessCounterTrack("ctr").emit();
+      PerfettoTrace.counter(FOO_CATEGORY, 3.5)
+          .usingProcessCounterTrackWithDynamicName("ctr2")
+          .emit();
+
+      Trace trace = Trace.parseFrom(session.close());
+
+      boolean hasCounterDescriptor = false;
+      boolean hasIntCounter = false;
+      boolean hasDoubleCounter = false;
+      for (TracePacket packet : trace.getPacketList()) {
+        if (packet.hasTrackDescriptor() && packet.getTrackDescriptor().hasCounter()) {
+          hasCounterDescriptor = true;
+        }
+        if (packet.hasTrackEvent()) {
+          TrackEvent event = packet.getTrackEvent();
+          if (TrackEvent.Type.TYPE_COUNTER.equals(event.getType())) {
+            if (event.getCounterValue() == 42) {
+              hasIntCounter = true;
+            }
+            if (event.getDoubleCounterValue() == 3.5) {
+              hasDoubleCounter = true;
+            }
+          }
+        }
+      }
+      assertThat(hasCounterDescriptor).isTrue();
+      assertThat(hasIntCounter).isTrue();
+      assertThat(hasDoubleCounter).isTrue();
+    } finally {
+      PerfettoTrackEventBuilder.setUseJavaEmit(previous);
+    }
+  }
+
+  @Test
   public void disabledCategoryEmitsNothing() throws Exception {
     Category barCategory = new Category("bar").register();
     // Only FOO is enabled by the config; bar should be dropped.
