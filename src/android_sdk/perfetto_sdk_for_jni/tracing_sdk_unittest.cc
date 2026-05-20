@@ -93,9 +93,8 @@ TEST(TracingSdkForJniTest, EmitsSlice) {
     }
   }
 
-  EXPECT_THAT(event_types,
-              testing::ElementsAre(TrackEvent::TYPE_SLICE_BEGIN,
-                                   TrackEvent::TYPE_SLICE_END));
+  EXPECT_THAT(event_types, testing::ElementsAre(TrackEvent::TYPE_SLICE_BEGIN,
+                                                TrackEvent::TYPE_SLICE_END));
   EXPECT_THAT(category_names, testing::Contains("rendering"));
   EXPECT_THAT(event_names, testing::Contains("DrawPlayer"));
 }

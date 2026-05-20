@@ -150,8 +150,8 @@ void emit_track_event(const PerfettoTeCategory* cat,
       for (int32_t i = 0; i < interned_count; i++) {
         const char* str = interned_strs[i];
         bool seen;
-        interned_iids[i] = PerfettoTeLlIntern(ctx.impl.incr, interned_type_ids[i],
-                                              str, strlen(str), &seen);
+        interned_iids[i] = PerfettoTeLlIntern(
+            ctx.impl.incr, interned_type_ids[i], str, strlen(str), &seen);
         if (!seen) {
           PerfettoTeLlInternContextStartIfNeeded(&intern_ctx);
           struct PerfettoPbMsg entry;
@@ -180,8 +180,8 @@ void emit_track_event(const PerfettoTeCategory* cat,
       // Append the Java-encoded TrackEvent body (debug args, non-interned proto
       // fields, ...) verbatim into the track_event submessage.
       if (body_size) {
-        PerfettoPbMsgAppendBytes(&te_msg.msg,
-                                 static_cast<const uint8_t*>(body), body_size);
+        PerfettoPbMsgAppendBytes(&te_msg.msg, static_cast<const uint8_t*>(body),
+                                 body_size);
       }
       // Reference the interned strings by iid (top-level track_event fields).
       for (int32_t i = 0; i < interned_count; i++) {

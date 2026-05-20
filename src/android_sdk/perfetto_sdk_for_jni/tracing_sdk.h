@@ -63,8 +63,8 @@ void register_perfetto(bool backend_in_process = false);
  * thread/process descriptors) and per-instance fan-out.
  *
  * `body`/`body_size`, when non-empty, is an opaque, already-encoded sequence of
- * TrackEvent proto fields (debug annotations, flows, proto fields, ...) produced
- * on the Java side with ProtoWriter; it is appended verbatim into the
+ * TrackEvent proto fields (debug annotations, flows, proto fields, ...)
+ * produced on the Java side with ProtoWriter; it is appended verbatim into the
  * `track_event` submessage. Bare events pass an empty body.
  *
  * The event can be placed on a nested track. The track chain is passed
@@ -83,7 +83,8 @@ void register_perfetto(bool backend_in_process = false);
  *     (false leaves it on the sequence default track). True for any usingTrack.
  * @param leaf_track_uuid The uuid the event is attached to.
  * @param track_count Number of named track levels whose descriptors may need
- *     emitting (0 for a root track that already has a descriptor, e.g. process).
+ *     emitting (0 for a root track that already has a descriptor, e.g.
+ * process).
  * @param track_uuids Per-level track uuids (length track_count).
  * @param track_parent_uuids Per-level parent uuids (length track_count).
  * @param track_names Per-level names (length track_count).

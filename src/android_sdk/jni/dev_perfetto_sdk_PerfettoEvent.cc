@@ -120,11 +120,11 @@ static void EmitFromBuffer(jint type,
     }
   }
 
-  sdk_for_jni::emit_track_event(
-      category->get(), type, name, body, body_size, set_track_uuid,
-      leaf_track_uuid, stored_tracks, uuids, parent_uuids, names,
-      track_name_static, track_is_counter, stored_interned, ifield_ids,
-      itype_ids, istrs);
+  sdk_for_jni::emit_track_event(category->get(), type, name, body, body_size,
+                                set_track_uuid, leaf_track_uuid, stored_tracks,
+                                uuids, parent_uuids, names, track_name_static,
+                                track_is_counter, stored_interned, ifield_ids,
+                                itype_ids, istrs);
 }
 
 // native_emit is @CriticalNative on ART (no JNIEnv/jclass, primitives only).
@@ -156,8 +156,8 @@ static void dev_perfetto_sdk_PerfettoEvent_native_emit(JNIEnv*,
 static jlong dev_perfetto_sdk_EmitBuffer_nativeAddress(JNIEnv* env,
                                                        jclass,
                                                        jobject buffer) {
-  return static_cast<jlong>(reinterpret_cast<uintptr_t>(
-      env->GetDirectBufferAddress(buffer)));
+  return static_cast<jlong>(
+      reinterpret_cast<uintptr_t>(env->GetDirectBufferAddress(buffer)));
 }
 
 static const JNINativeMethod gEventMethods[] = {
@@ -179,8 +179,7 @@ int register_dev_perfetto_sdk_PerfettoEvent(JNIEnv* env) {
   res = jniRegisterNativeMethods(
       env, TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/EmitBuffer"),
       gBufferMethods, NELEM(gBufferMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register EmitBuffer native methods.");
+  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register EmitBuffer native methods.");
   return 0;
 }
 
