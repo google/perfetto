@@ -170,7 +170,8 @@ public final class PerfettoEvent {
   //   name           : cstr
   //   flags          : u8   (bit0 set_track_uuid, bit1 counter, bit2 name_static)
   //   leaf_uuid      : u64
-  //   track_count    : i32, then per track: uuid u64, parent u64, name cstr
+  //   track_count    : i32, then per track: uuid u64, parent u64,
+  //                    child_ordering u8, sibling_order_rank i32, name cstr
   //   interned_count : i32, then per field: field_id i32, type_id i32, str cstr
   // where cstr = len i32, then `len` ASCII bytes, then a NUL terminator (so the
   // bytes are a valid C string the native track/intern APIs can use in place).
@@ -182,7 +183,7 @@ public final class PerfettoEvent {
       String[] internedStrs) {
     int n = cstrSize(name) + 1 + 8 + 4;
     for (int i = 0; i < trackCount; i++) {
-      n += 8 + 8 + cstrSize(trackNames[i]);
+      n += 8 + 8 + 1 + 4 + cstrSize(trackNames[i]);
     }
     n += 4;
     for (int i = 0; i < internedCount; i++) {
@@ -201,6 +202,8 @@ public final class PerfettoEvent {
       long[] trackUuids,
       long[] trackParentUuids,
       String[] trackNames,
+      int[] trackChildOrderings,
+      int[] trackSiblingRanks,
       boolean trackNameStatic,
       boolean trackIsCounter,
       int internedCount,
@@ -217,6 +220,8 @@ public final class PerfettoEvent {
     for (int i = 0; i < trackCount; i++) {
       b.putLong(trackUuids[i]);
       b.putLong(trackParentUuids[i]);
+      b.put((byte) trackChildOrderings[i]);
+      b.putInt(trackSiblingRanks[i]);
       putCStr(b, trackNames[i]);
     }
     b.putInt(internedCount);
@@ -264,8 +269,8 @@ public final class PerfettoEvent {
     b.clear();
     int frameLen = encodeFrame(
         b, name, /*setTrackUuid=*/false, /*leafTrackUuid=*/0, /*trackCount=*/0,
-        null, null, null, /*trackNameStatic=*/false, /*trackIsCounter=*/false,
-        /*internedCount=*/0, null, null, null);
+        null, null, null, null, null, /*trackNameStatic=*/false,
+        /*trackIsCounter=*/false, /*internedCount=*/0, null, null, null);
     native_emit(type, category.getPtr(), x.addr, /*bodyLen=*/0, frameLen);
   }
 

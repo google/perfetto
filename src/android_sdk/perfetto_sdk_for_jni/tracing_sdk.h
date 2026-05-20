@@ -88,6 +88,9 @@ void register_perfetto(bool backend_in_process = false);
  * @param track_uuids Per-level track uuids (length track_count).
  * @param track_parent_uuids Per-level parent uuids (length track_count).
  * @param track_names Per-level names (length track_count).
+ * @param track_child_orderings Per-level child-ordering (0 = unset), length
+ * count.
+ * @param track_sibling_ranks Per-level sibling rank (0 = unset), length count.
  * @param track_name_static Whether track names are compile-time constants.
  * @param track_is_counter Whether the leaf level is a counter track.
  * @param interned_count Number of interned-string proto fields, or 0.
@@ -106,6 +109,8 @@ void emit_track_event(const PerfettoTeCategory* cat,
                       const uint64_t* track_uuids,
                       const uint64_t* track_parent_uuids,
                       const char* const* track_names,
+                      const int32_t* track_child_orderings,
+                      const int32_t* track_sibling_ranks,
                       bool track_name_static,
                       bool track_is_counter,
                       int32_t interned_count,

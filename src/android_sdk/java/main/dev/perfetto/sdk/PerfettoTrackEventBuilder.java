@@ -67,6 +67,8 @@ public final class PerfettoTrackEventBuilder {
   private long[] mTrackUuids;
   private long[] mTrackParentUuids;
   private String[] mTrackNames;
+  private int[] mTrackChildOrderings;
+  private int[] mTrackSiblingRanks;
   private int mTrackCount;
   private boolean mHasTrack;
   private boolean mTrackNameStatic;
@@ -110,6 +112,8 @@ public final class PerfettoTrackEventBuilder {
     mTrackUuids = new long[MAX_TRACK_LEVELS];
     mTrackParentUuids = new long[MAX_TRACK_LEVELS];
     mTrackNames = new String[MAX_TRACK_LEVELS];
+    mTrackChildOrderings = new int[MAX_TRACK_LEVELS];
+    mTrackSiblingRanks = new int[MAX_TRACK_LEVELS];
     mInternedFieldIds = new int[MAX_INTERNED_FIELDS];
     mInternedTypeIds = new int[MAX_INTERNED_FIELDS];
     mInternedStrings = new String[MAX_INTERNED_FIELDS];
@@ -140,7 +144,8 @@ public final class PerfettoTrackEventBuilder {
     int frameLen =
         PerfettoEvent.encodeFrame(
             b, mEventName, mHasTrack, mTrackLeafUuid, mTrackCount, mTrackUuids,
-            mTrackParentUuids, mTrackNames, mTrackNameStatic, mTrackIsCounter,
+            mTrackParentUuids, mTrackNames, mTrackChildOrderings,
+            mTrackSiblingRanks, mTrackNameStatic, mTrackIsCounter,
             mInternedFieldCount, mInternedFieldIds, mInternedTypeIds,
             mInternedStrings);
     PerfettoEvent.native_emit(
@@ -292,6 +297,8 @@ public final class PerfettoTrackEventBuilder {
     mTrackUuids[0] = uuid;
     mTrackParentUuids[0] = parentUuid;
     mTrackNames[0] = name;
+    mTrackChildOrderings[0] = 0;
+    mTrackSiblingRanks[0] = 0;
     return this;
   }
 
@@ -318,6 +325,8 @@ public final class PerfettoTrackEventBuilder {
       mTrackUuids[i] = level.mUuid;
       mTrackParentUuids[i] = level.mParentUuid;
       mTrackNames[i] = level.mName;
+      mTrackChildOrderings[i] = level.mChildOrdering;
+      mTrackSiblingRanks[i] = level.mSiblingOrderRank;
       level = level.mParent;
     }
     return this;
@@ -404,6 +413,8 @@ public final class PerfettoTrackEventBuilder {
     mTrackUuids[0] = uuid;
     mTrackParentUuids[0] = parentUuid;
     mTrackNames[0] = name;
+    mTrackChildOrderings[0] = 0;
+    mTrackSiblingRanks[0] = 0;
     return this;
   }
 

@@ -56,6 +56,8 @@ static void emit_unseen_track_descriptors(struct PerfettoTeLlIterator* ctx,
                                           const uint64_t* track_uuids,
                                           const uint64_t* track_parent_uuids,
                                           const char* const* track_names,
+                                          const int32_t* track_child_orderings,
+                                          const int32_t* track_sibling_ranks,
                                           bool track_name_static,
                                           bool track_is_counter) {
   for (int32_t i = 0; i < track_count; i++) {
@@ -79,6 +81,17 @@ static void emit_unseen_track_descriptors(struct PerfettoTeLlIterator* ctx,
                                    track_parent_uuids[i], track_uuids[i],
                                    track_name_static);
     }
+    // Optional sibling ordering (0 = unset). FillDesc does not set these.
+    if (track_child_orderings[i] != 0) {
+      perfetto_protos_TrackDescriptor_set_child_ordering(
+          &desc,
+          static_cast<enum perfetto_protos_TrackDescriptor_ChildTracksOrdering>(
+              track_child_orderings[i]));
+    }
+    if (track_sibling_ranks[i] != 0) {
+      perfetto_protos_TrackDescriptor_set_sibling_order_rank(
+          &desc, track_sibling_ranks[i]);
+    }
     perfetto_protos_TracePacket_end_track_descriptor(&desc_packet.msg, &desc);
     PerfettoTeLlPacketEnd(ctx, &desc_packet);
   }
@@ -95,6 +108,8 @@ void emit_track_event(const PerfettoTeCategory* cat,
                       const uint64_t* track_uuids,
                       const uint64_t* track_parent_uuids,
                       const char* const* track_names,
+                      const int32_t* track_child_orderings,
+                      const int32_t* track_sibling_ranks,
                       bool track_name_static,
                       bool track_is_counter,
                       int32_t interned_count,
@@ -124,6 +139,7 @@ void emit_track_event(const PerfettoTeCategory* cat,
     if (track_count > 0) {
       emit_unseen_track_descriptors(&ctx, track_count, track_uuids,
                                     track_parent_uuids, track_names,
+                                    track_child_orderings, track_sibling_ranks,
                                     track_name_static, track_is_counter);
     }
 

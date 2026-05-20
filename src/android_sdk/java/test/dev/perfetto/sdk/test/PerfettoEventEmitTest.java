@@ -310,6 +310,37 @@ public class PerfettoEventEmitTest {
   }
 
   @Test
+  public void usingTrackWritesChildOrderingAndSiblingRank() throws Exception {
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+    PerfettoTrack parent =
+        PerfettoTrack.process("ordered_parent")
+            .withChildOrdering(PerfettoTrack.ChildOrdering.EXPLICIT);
+    PerfettoTrack child = parent.child("ranked_child").withSiblingOrderRank(7);
+    PerfettoTrace.instant(FOO_CATEGORY, "ordered").usingTrack(child).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean parentHasExplicitOrdering = false;
+    boolean childHasRank = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (!packet.hasTrackDescriptor()) {
+        continue;
+      }
+      TrackDescriptor td = packet.getTrackDescriptor();
+      if ("ordered_parent".equals(td.getStaticName())) {
+        parentHasExplicitOrdering =
+            td.getChildOrdering() == TrackDescriptor.ChildTracksOrdering.EXPLICIT;
+      }
+      if ("ranked_child".equals(td.getStaticName())) {
+        childHasRank = td.getSiblingOrderRank() == 7;
+      }
+    }
+    assertThat(parentHasExplicitOrdering).isTrue();
+    assertThat(childHasRank).isTrue();
+  }
+
+  @Test
   public void builderRoutesFlowsThroughJavaEmit() throws Exception {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
 

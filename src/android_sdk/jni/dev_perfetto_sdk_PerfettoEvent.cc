@@ -89,15 +89,21 @@ static void EmitFromBuffer(jint type,
   uint64_t uuids[kMaxTrackLevels];
   uint64_t parent_uuids[kMaxTrackLevels];
   const char* names[kMaxTrackLevels];
+  int32_t child_orderings[kMaxTrackLevels];
+  int32_t sibling_ranks[kMaxTrackLevels];
   int32_t track_count = ReadI32(&p);
   int32_t stored_tracks = 0;
   for (int32_t i = 0; i < track_count; i++) {
     uint64_t uuid = ReadU64(&p);
     uint64_t parent = ReadU64(&p);
+    uint8_t ordering = *p++;
+    int32_t rank = ReadI32(&p);
     const char* tname = ReadCStr(&p);
     if (i < kMaxTrackLevels) {
       uuids[i] = uuid;
       parent_uuids[i] = parent;
+      child_orderings[i] = ordering;
+      sibling_ranks[i] = rank;
       names[i] = tname;
       stored_tracks++;
     }
@@ -120,11 +126,11 @@ static void EmitFromBuffer(jint type,
     }
   }
 
-  sdk_for_jni::emit_track_event(category->get(), type, name, body, body_size,
-                                set_track_uuid, leaf_track_uuid, stored_tracks,
-                                uuids, parent_uuids, names, track_name_static,
-                                track_is_counter, stored_interned, ifield_ids,
-                                itype_ids, istrs);
+  sdk_for_jni::emit_track_event(
+      category->get(), type, name, body, body_size, set_track_uuid,
+      leaf_track_uuid, stored_tracks, uuids, parent_uuids, names,
+      child_orderings, sibling_ranks, track_name_static, track_is_counter,
+      stored_interned, ifield_ids, itype_ids, istrs);
 }
 
 // native_emit is @CriticalNative on ART (no JNIEnv/jclass, primitives only).

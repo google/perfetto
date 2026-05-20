@@ -46,21 +46,65 @@ public final class PerfettoTrack {
   // Counter track uuid magic, matching kCounterMagic in the C SDK.
   private static final long COUNTER_TRACK_MAGIC = 0xb1a4a67d7970839eL;
 
+  /**
+   * How a track's children are ordered in the UI. Values match
+   * {@code TrackDescriptor.ChildTracksOrdering}.
+   */
+  public enum ChildOrdering {
+    LEXICOGRAPHIC(1),
+    CHRONOLOGICAL(2),
+    EXPLICIT(3);
+
+    final int value;
+
+    ChildOrdering(int value) {
+      this.value = value;
+    }
+  }
+
   final long mUuid;
   final long mParentUuid;
   final String mName;
   final boolean mIsCounter;
   final PerfettoTrack mParent; // null when rooted at a non-PerfettoTrack uuid
   final int mDepth; // number of levels whose descriptor this track owns
+  // How this track's children are ordered (0 = unset); and this track's own rank
+  // among its siblings when the parent orders children EXPLICIT.
+  final int mChildOrdering;
+  final int mSiblingOrderRank;
 
   private PerfettoTrack(
-      long uuid, long parentUuid, String name, boolean isCounter, PerfettoTrack parent) {
+      long uuid,
+      long parentUuid,
+      String name,
+      boolean isCounter,
+      PerfettoTrack parent,
+      int childOrdering,
+      int siblingOrderRank) {
     mUuid = uuid;
     mParentUuid = parentUuid;
     mName = name;
     mIsCounter = isCounter;
     mParent = parent;
     mDepth = (parent == null) ? 1 : parent.mDepth + 1;
+    mChildOrdering = childOrdering;
+    mSiblingOrderRank = siblingOrderRank;
+  }
+
+  /** Returns a copy of this track that orders its children by {@code ordering}. */
+  public PerfettoTrack withChildOrdering(ChildOrdering ordering) {
+    return new PerfettoTrack(
+        mUuid, mParentUuid, mName, mIsCounter, mParent, ordering.value, mSiblingOrderRank);
+  }
+
+  /**
+   * Returns a copy of this track with sibling rank {@code rank}, used to position
+   * it among its siblings when the parent orders children
+   * {@link ChildOrdering#EXPLICIT}.
+   */
+  public PerfettoTrack withSiblingOrderRank(int rank) {
+    return new PerfettoTrack(
+        mUuid, mParentUuid, mName, mIsCounter, mParent, mChildOrdering, rank);
   }
 
   /** A named track scoped to the current process. */
@@ -103,12 +147,14 @@ public final class PerfettoTrack {
 
   /** A named child track nested under this one, with {@code id} disambiguating siblings. */
   public PerfettoTrack child(long id, @CompileTimeConstant String name) {
-    return new PerfettoTrack(namedUuid(mUuid, id, name), mUuid, name, /* isCounter= */ false, this);
+    return new PerfettoTrack(
+        namedUuid(mUuid, id, name), mUuid, name, /* isCounter= */ false, this, 0, 0);
   }
 
   /** A counter child track nested under this one. */
   public PerfettoTrack counterChild(@CompileTimeConstant String name) {
-    return new PerfettoTrack(counterUuid(mUuid, name), mUuid, name, /* isCounter= */ true, this);
+    return new PerfettoTrack(
+        counterUuid(mUuid, name), mUuid, name, /* isCounter= */ true, this, 0, 0);
   }
 
   /** The track uuid (e.g. to root another track or reference it elsewhere). */
@@ -118,7 +164,7 @@ public final class PerfettoTrack {
 
   private static PerfettoTrack root(long parentUuid, long id, String name, boolean isCounter) {
     long uuid = isCounter ? counterUuid(parentUuid, name) : namedUuid(parentUuid, id, name);
-    return new PerfettoTrack(uuid, parentUuid, name, isCounter, /* parent= */ null);
+    return new PerfettoTrack(uuid, parentUuid, name, isCounter, /* parent= */ null, 0, 0);
   }
 
   static long namedUuid(long parentUuid, long id, String name) {
