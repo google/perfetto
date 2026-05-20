@@ -278,6 +278,62 @@ function pluginPatchIndexHtml() {
   };
 }
 
+// Rewrites `import X from '../virtual/<name>'` to the real emscripten glue
+// under ui/src/gen at resolve time. TypeScript sees only the manually-curated
+// .d.ts in ui/src/virtual/, which avoids pulling the giant generated .js into
+// the type system.
+//
+// Under --only-wasm-memory64 the 32-bit trace_processor entry resolves to a
+// virtual module synthesised below whose default export throws — keeps the
+// build linkable without shipping a real stub file.
+function pluginPerfettoVirtualWasmModules() {
+  const TP32_STUB_ID = '\0perfetto:trace-processor-32-stub';
+  const TP32_STUB_SOURCE =
+    `export default () => {\n` +
+    `  throw new Error(\n` +
+    `    'Unable to load the 32-bit trace_processor.wasm. This browser ' +\n` +
+    `    'does NOT support Memory64 but --only-wasm-memory64 was passed ' +\n` +
+    `    'to ui/build.'\n` +
+    `  );\n` +
+    `};\n`;
+  const TARGETS = {
+    [path.join(SRC, 'virtual', 'trace_processor')]: IS_MEMORY64_ONLY
+      ? TP32_STUB_ID
+      : path.join(SRC, 'gen', 'trace_processor.js'),
+    [path.join(SRC, 'virtual', 'trace_processor_memory64')]: path.join(
+      SRC,
+      'gen',
+      'trace_processor_memory64.js',
+    ),
+    [path.join(SRC, 'virtual', 'proto_utils')]: path.join(
+      SRC,
+      'gen',
+      'proto_utils.js',
+    ),
+    [path.join(SRC, 'virtual', 'traceconv')]: path.join(
+      SRC,
+      'gen',
+      'traceconv.js',
+    ),
+  };
+  return {
+    name: 'perfetto:virtual-wasm-modules',
+    enforce: 'pre',
+    async resolveId(source, importer) {
+      if (!importer || !source.startsWith('.')) return null;
+      const stripped = source.replace(/\.(ts|js)$/, '');
+      const abs = path.resolve(path.dirname(importer), stripped);
+      const target = TARGETS[abs];
+      if (!target) return null;
+      if (target === TP32_STUB_ID) return TP32_STUB_ID;
+      return this.resolve(target, importer, {skipSelf: true});
+    },
+    load(id) {
+      if (id === TP32_STUB_ID) return TP32_STUB_SOURCE;
+    },
+  };
+}
+
 function pluginGenRelativeImports() {
   return {
     name: 'perfetto:gen-relative-imports',
@@ -369,6 +425,7 @@ export default defineConfig(({command}) => {
     plugins: [
       pluginPerfettoPluginBarrels(),
       pluginPerfettoVersion(),
+      pluginPerfettoVirtualWasmModules(),
       pluginPatchIndexHtml(),
       checker({typescript: true, overlay: false}),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
@@ -386,17 +443,7 @@ export default defineConfig(({command}) => {
       // ./codegen) and emits a stub external `require$$N` that crashes at
       // runtime. The symlinked ui/src/gen dir is handled below by aliasing
       // the importer side, not by preserving symlinks globally.
-      alias: [
-        // The trace_processor_32_stub indirection (see old rollup.config.js).
-        ...(IS_MEMORY64_ONLY
-          ? []
-          : [
-              {
-                find: /.*\/trace_processor_32_stub$/,
-                replacement: path.join(SRC, 'gen/trace_processor'),
-              },
-            ]),
-      ],
+      alias: [],
     },
     define: {
       // Immer reads process.env.NODE_ENV; not defined in browser.
