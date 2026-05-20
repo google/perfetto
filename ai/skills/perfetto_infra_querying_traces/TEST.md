@@ -3,12 +3,11 @@
 ## Tier 1 — Build & Smoke Tests
 
 ### Test 1: File Existence
-Verify that the skill files and references exist.
+Verify that the skill files exist.
 ```bash
 ls ai/skills/perfetto_infra_querying_traces/SKILL.md
-ls ai/skills/perfetto_infra_querying_traces/references/perfetto-stdlib.md
 ```
-**Verify:** Files exist.
+**Verify:** File exists.
 
 ## Tier 2 — Smoke Tests
 
