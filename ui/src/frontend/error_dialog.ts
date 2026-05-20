@@ -17,7 +17,7 @@ import type {ErrorDetails} from '../base/logging';
 import {GcsUploader} from '../base/gcs_uploader';
 import {raf} from '../core/raf_scheduler';
 import {VITE_RELOAD_CANCEL_MSG} from '../core/vite_live_reload';
-import {VERSION} from '../base/version';
+import {VERSION} from '../virtual/version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';

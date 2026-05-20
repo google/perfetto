@@ -134,22 +134,33 @@ function makeSynthModulePlugin({name, modules}) {
   };
 }
 
-// Generates barrel modules under ui/src/plugins and ui/src/core_plugins that
-// default-export an array of every sub-directory's plugin. Types live in the
-// colocated index.d.ts files.
+// Synthesises ui/src/virtual/plugins — a single barrel that imports every
+// sub-directory under ui/src/plugins and ui/src/core_plugins and exposes them
+// as two named arrays:
+//
+//   export const plugins:     PerfettoPluginStatic<PerfettoPlugin>[];
+//   export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];
+//
+// Types live alongside at ui/src/virtual/plugins.d.ts.
 function pluginPerfettoPluginBarrels() {
-  const PLUGIN_DIRS = [
-    path.join(SRC, 'plugins'),
-    path.join(SRC, 'core_plugins'),
+  const SOURCES = [
+    {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
+    {
+      exportName: 'corePlugins',
+      dir: path.join(SRC, 'core_plugins'),
+      prefix: 'core_',
+    },
   ];
+  const PLUGIN_DIRS = SOURCES.map((s) => s.dir);
+  const VIRTUAL_MODULE = path.join(SRC, 'virtual', 'plugins');
   const toCamelCase = (s) => {
     const [first, ...rest] = s.split(/[._]/);
     return (
       first + rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('')
     );
   };
-  const generate = (dir) => (ctx) => {
-    const entries = fs
+  const listEntries = (dir) =>
+    fs
       .readdirSync(dir)
       .map((name) => ({name, full: path.join(dir, name)}))
       .filter(({full}) => {
@@ -163,19 +174,29 @@ function pluginPerfettoPluginBarrels() {
         }
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-    for (const {full} of entries) ctx.addWatchFile(path.join(full, 'index.ts'));
-    const imports = entries
-      .map(({name, full}) => `import ${toCamelCase(name)} from '${full}';`)
-      .join('\n');
-    const arr = entries.map(({name}) => `  ${toCamelCase(name)},`).join('\n');
-    return `${imports}\n\nexport default [\n${arr}\n];\n`;
+  const generate = (ctx) => {
+    const importLines = [];
+    const exportLines = [];
+    for (const {exportName, dir, prefix} of SOURCES) {
+      const entries = listEntries(dir);
+      for (const {full} of entries) {
+        ctx.addWatchFile(path.join(full, 'index.ts'));
+      }
+      for (const {name, full} of entries) {
+        importLines.push(
+          `import ${toCamelCase(prefix + name)} from '${full}';`,
+        );
+      }
+      const arr = entries
+        .map(({name}) => `  ${toCamelCase(prefix + name)},`)
+        .join('\n');
+      exportLines.push(`export const ${exportName} = [\n${arr}\n];`);
+    }
+    return `${importLines.join('\n')}\n\n${exportLines.join('\n\n')}\n`;
   };
-  const modules = Object.fromEntries(
-    PLUGIN_DIRS.map((dir) => [path.join(dir, 'index'), generate(dir)]),
-  );
   const base = makeSynthModulePlugin({
     name: 'perfetto:plugin-barrels',
-    modules,
+    modules: {[VIRTUAL_MODULE]: generate},
   });
   let server = null;
   return {
@@ -190,9 +211,10 @@ function pluginPerfettoPluginBarrels() {
       if (!server) return;
       for (const dir of PLUGIN_DIRS) {
         if (!ctx.file.startsWith(dir + path.sep)) continue;
-        const id = '\0perfetto:plugin-barrels:' + path.join(dir, 'index');
+        const id = '\0perfetto:plugin-barrels:' + VIRTUAL_MODULE;
         const mod = server.moduleGraph.getModuleById(id);
         if (mod) server.moduleGraph.invalidateModule(mod);
+        return;
       }
     },
   };

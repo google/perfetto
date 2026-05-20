@@ -18,5 +18,5 @@
 
 import type {PerfettoPluginStatic, PerfettoPlugin} from '../public/plugin';
 
-declare const plugins: PerfettoPluginStatic<PerfettoPlugin>[];
-export default plugins;
+export const plugins: PerfettoPluginStatic<PerfettoPlugin>[];
+export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];

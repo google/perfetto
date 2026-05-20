@@ -14,7 +14,7 @@
 
 import type {ErrorDetails} from '../base/logging';
 import {getCurrentChannel} from './channels';
-import {VERSION} from '../base/version';
+import {VERSION} from '../virtual/version';
 import {Router} from './router';
 import type {Analytics, TraceCategories} from '../public/analytics';
 
