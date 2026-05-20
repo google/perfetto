@@ -72,6 +72,8 @@ const uint16_t kDeflate = 8;
 // Zip64 constants.
 constexpr uint16_t kZip64ExtendedInfoId = 0x0001;
 constexpr uint32_t kZip64Marker = 0xFFFFFFFFu;
+constexpr size_t kExtraFieldHdrSize = 4;
+constexpr size_t kZip64LocalFieldPayloadSize = 16;
 
 template <typename T>
 T ReadAndAdvance(const uint8_t** ptr) {
@@ -228,19 +230,21 @@ base::Status ZipReader::TryParseFilename() {
 }
 
 base::Status ZipReader::TryParseExtraFields() {
-  if (cur_.hdr.extra_field_len == 0) {
-    cur_.parse_state = FileParseState::kCompressedData;
-    return base::OkStatus();
+  if (cur_.hdr.extra_field_len != 0) {
+    std::optional<TraceBlobView> extra_tbv =
+        reader_.SliceOff(reader_.start_offset(), cur_.hdr.extra_field_len);
+    if (!extra_tbv) {
+      return base::OkStatus();
+    }
+    PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.extra_field_len));
+    RETURN_IF_ERROR(ParseExtraFields(extra_tbv->data(), extra_tbv->size()));
   }
 
-  std::optional<TraceBlobView> extra_tbv =
-      reader_.SliceOff(reader_.start_offset(), cur_.hdr.extra_field_len);
-  if (!extra_tbv) {
-    return base::OkStatus();
+  if (cur_.hdr.uncompressed_size == kZip64Marker ||
+      cur_.hdr.compressed_size == kZip64Marker) {
+    return base::ErrStatus(
+        "Zip64 marker present but no valid 0x0001 extra field found");
   }
-  PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.extra_field_len));
-
-  RETURN_IF_ERROR(ParseExtraFields(extra_tbv->data(), extra_tbv->size()));
 
   cur_.parse_state = FileParseState::kCompressedData;
   return base::OkStatus();
@@ -249,25 +253,32 @@ base::Status ZipReader::TryParseExtraFields() {
 base::Status ZipReader::ParseExtraFields(const uint8_t* data, size_t size) {
   const uint8_t* it = data;
   const uint8_t* end = data + size;
-  while (it + 4 <= end) {
-    uint16_t id = ReadAndAdvance<uint16_t>(&it);
-    uint16_t sz = ReadAndAdvance<uint16_t>(&it);
-    if (it + sz > end) {
+  bool zip64_field_seen = false;
+  while (it + kExtraFieldHdrSize <= end) {
+    uint16_t field_id = ReadAndAdvance<uint16_t>(&it);
+    uint16_t field_size = ReadAndAdvance<uint16_t>(&it);
+    if (it + field_size > end) {
       return base::ErrStatus("Invalid extra field size");
     }
-    if (id == kZip64ExtendedInfoId) {
+    if (field_id == kZip64ExtendedInfoId) {
+      if (zip64_field_seen) {
+        return base::ErrStatus("Duplicate Zip64 extra field found");
+      }
+      zip64_field_seen = true;
       const uint8_t* field_it = it;
-      const uint8_t* field_end = it + sz;
+      const uint8_t* field_end = it + field_size;
+      // Only override sizes if the Zip64 marker is present
+      // which implies the size in the extra fields.
       if (cur_.hdr.uncompressed_size == kZip64Marker ||
           cur_.hdr.compressed_size == kZip64Marker) {
-        if (field_it + 16 > field_end) {
+        if (field_it + kZip64LocalFieldPayloadSize > field_end) {
           return base::ErrStatus("Malformed Zip64 extra field");
         }
         cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&field_it);
         cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&field_it);
       }
     }
-    it += sz;
+    it += field_size;
   }
   return base::OkStatus();
 }
