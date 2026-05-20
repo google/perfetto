@@ -6481,10 +6481,15 @@ perfetto_android_binary(
 perfetto_android_library(
     name = "src_android_sdk_java_main_perfetto_trace_lib",
     srcs = [
+        "src/android_sdk/java/main/dev/perfetto/sdk/EmitBuffer.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/InternPool.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoDataSource.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoEvent.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
-        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/ProtoWriter.java",
     ],
     manifest = "src/android_sdk/java/main/AndroidManifest.xml",
     deps = [
@@ -6518,6 +6523,10 @@ perfetto_android_library(
     name = "src_android_sdk_java_test_perfetto_trace_test_lib",
     testonly = True,
     srcs = [
+        "src/android_sdk/java/test/dev/perfetto/sdk/InternPoolTest.java",
+        "src/android_sdk/java/test/dev/perfetto/sdk/ProtoWriterTest.java",
+        "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoDataSourceTest.java",
+        "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoEventEmitTest.java",
         "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoTraceTest.java",
     ],
     manifest = "src/android_sdk/java/test/AndroidTestManifest.xml",
@@ -6544,6 +6553,7 @@ perfetto_android_jni_library(
         "-llog",
     ],
     hdrs = [
+        ":include_perfetto_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
@@ -6563,11 +6573,13 @@ perfetto_android_jni_library(
 perfetto_filegroup(
     name = "src_android_sdk_jni_libperfetto_jni_src",
     srcs = [
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoDataSource.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoDataSource.h",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoEvent.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoEvent.h",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
-        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
-        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h",
         "src/android_sdk/jni/macros.h",
     ],
 )
