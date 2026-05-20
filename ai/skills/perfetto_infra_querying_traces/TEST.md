@@ -19,7 +19,7 @@ trace_processor query dummy.pftrace "SELECT 1"
 ```
 **Verify:** Command runs (might fail if dummy.pftrace not found, but checks binary existence).
 
-## Tier 3 — Functional Tests (Original)
+## Tier 3 — Functional Tests
 
 ### Test 3: Ask how to query trace
 **Prompt:** "I have a trace file called `my_trace.pftrace`. How do I find all slices longer than 1 second?"
