@@ -427,7 +427,12 @@ export default defineConfig(({command}) => {
       pluginPerfettoVersion(),
       pluginPerfettoVirtualWasmModules(),
       pluginPatchIndexHtml(),
-      checker({typescript: true, overlay: false}),
+      // build.mjs spawns one `vite build` per bundle in parallel. Running
+      // vite-plugin-checker in every one of them would launch N racing tsc
+      // processes against the same project; gate it to a single bundle.
+      ...(BUNDLE === 'frontend'
+        ? [checker({typescript: true, overlay: false})]
+        : []),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),

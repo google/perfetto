@@ -66,10 +66,9 @@ import argparse from 'argparse';
 import childProcess from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import http from 'node:http';
 import path from 'node:path';
-import zlib from 'node:zlib';
 import {fileURLToPath} from 'node:url';
+import {startStaticServer} from './static_server.mjs';
 
 const pjoin = path.join;
 const __filename = fileURLToPath(import.meta.url);
@@ -131,18 +130,13 @@ const RULES = [
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
-  {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
 ];
 
 const tasks = [];
 let tasksTot = 0;
 let tasksRan = 0;
-const httpWatches = [];
 const tStart = performance.now();
 const subprocesses = [];
-const LIVE_SERVER_DEBOUNCE_MS = 250;
-let liveServerDebounceTimerId = 0;
-const notifyLiveServerPendingFiles = new Set();
 
 // Loads ~/.config/perfetto/ui-dev-server.env and injects any KEY=VALUE pairs
 // into process.env, without overriding variables already set in the environment.
@@ -227,6 +221,16 @@ Env-var overrides:
   });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
+  });
+
+  // New commands for dev/preview server modes
+  parser.add_argument('--preview', {
+    action: 'store_true',
+    help: 'Preview the build output in a temporary HTTP server',
+  });
+  parser.add_argument('--dev', {
+    action: 'store_true',
+    help: 'Start a dev server with watch mode and live reload',
   });
 
   // Load ~/.config/perfetto/ui-dev-server.env defaults, then map any
@@ -402,9 +406,7 @@ Env-var overrides:
       runVite();
       genServiceWorkerManifestJson();
 
-      // Watches the /dist. When changed:
-      // - Notifies the HTTP live reload clients.
-      // - Regenerates the ServiceWorker file map.
+      // Watches /dist to regenerate the ServiceWorker file map on change.
       scanDir(cfg.outDistRootDir);
     }
   }
@@ -431,7 +433,15 @@ Env-var overrides:
     if (cfg.watch) {
       await startViteDevServer();
     } else {
-      startServer();
+      startStaticServer({
+        rootDir: ROOT_DIR,
+        distRootDir: cfg.outDistRootDir,
+        host: cfg.httpServerListenHost,
+        port: cfg.httpServerListenPort,
+        defaultPort: DEFAULT_PORT,
+        portWasExplicit: cfg.httpServerListenPort !== undefined,
+        crossOriginIsolation: cfg.crossOriginIsolation,
+      });
     }
   }
   if (args.run_unittests) {
@@ -747,6 +757,11 @@ function runVite() {
       {
         async: cfg.watch,
         env: {...baseEnv, BUNDLE: bundle},
+        // Run Vite (and any tooling it spawns, e.g. vite-plugin-checker's
+        // tsc) from ui/ so they pick up ui/tsconfig.json and resolve
+        // node_modules naturally. build.mjs's global chdir to out/ui is
+        // tailored to ninja/gn-style tasks, not to Vite's expectations.
+        cwd: pjoin(ROOT_DIR, 'ui'),
       },
     ]);
   }
@@ -914,155 +929,6 @@ async function startViteDevServer() {
   subprocesses.push({pid: 'vite-dev', kill: () => server.close()});
 }
 
-function startServer() {
-  const server = http.createServer(function (req, res) {
-    console.debug(req.method, req.url);
-    let uri = req.url.split('?', 1)[0];
-    if (uri.endsWith('/')) {
-      uri += 'index.html';
-    }
-
-    if (uri === '/live_reload') {
-      // Implements the Server-Side-Events protocol.
-      const head = {
-        'Content-Type': 'text/event-stream',
-        'Connection': 'keep-alive',
-        'Cache-Control': 'no-cache',
-      };
-      res.writeHead(200, head);
-      const arrayIdx = httpWatches.length;
-      // We never remove from the array, the delete leaves an undefined item
-      // around. It makes keeping track of the index easier at the cost of a
-      // small leak.
-      httpWatches.push(res);
-      req.on('close', () => delete httpWatches[arrayIdx]);
-      return;
-    }
-
-    let absPath = path.normalize(path.join(cfg.outDistRootDir, uri));
-    // We want to be able to use the data in '/test/' for e2e tests.
-    // However, we don't want do create a symlink into the 'dist/' dir,
-    // because 'dist/' gets shipped on the production server.
-    if (uri.startsWith('/test/')) {
-      absPath = pjoin(ROOT_DIR, uri);
-    }
-
-    // Don't serve contents outside of the project root (b/221101533).
-    if (path.relative(ROOT_DIR, absPath).startsWith('..')) {
-      res.writeHead(403);
-      res.end('403 Forbidden - Request path outside of the repo root');
-      return;
-    }
-
-    let stat;
-    try {
-      stat = fs.statSync(absPath);
-    } catch (statErr) {
-      res.writeHead(404);
-      res.end(JSON.stringify(statErr));
-      return;
-    }
-
-    // Truncate to second precision: HTTP dates have 1s resolution, so the
-    // sub-millisecond part of mtime would cause a permanent mismatch.
-    const mtimeSec = Math.floor(stat.mtime.getTime() / 1000) * 1000;
-    const mtimeStr = new Date(mtimeSec).toUTCString();
-
-    // Return 304 if the browser's cached copy is still fresh.
-    const ifModifiedSince = req.headers['if-modified-since'];
-    if (
-      ifModifiedSince !== undefined &&
-      new Date(ifModifiedSince).getTime() >= mtimeSec
-    ) {
-      res.writeHead(304);
-      res.end();
-      return;
-    }
-
-    fs.readFile(absPath, function (err, data) {
-      if (err) {
-        res.writeHead(404);
-        res.end(JSON.stringify(err));
-        return;
-      }
-
-      const mimeMap = {
-        html: 'text/html',
-        css: 'text/css',
-        js: 'application/javascript',
-        wasm: 'application/wasm',
-      };
-      const ext = uri.split('.').pop();
-      const cType = mimeMap[ext] || 'octect/stream';
-      const acceptsGzip = (req.headers['accept-encoding'] || '').includes(
-        'gzip',
-      );
-      const finalize = (body) => {
-        const head = {
-          'Content-Type': cType,
-          'Content-Length': body.length,
-          'Last-Modified': mtimeStr,
-          'Cache-Control': 'no-cache',
-        };
-        if (acceptsGzip) head['Content-Encoding'] = 'gzip';
-        if (cfg.crossOriginIsolation) {
-          head['Cross-Origin-Opener-Policy'] = 'same-origin';
-          head['Cross-Origin-Embedder-Policy'] = 'require-corp';
-        }
-        res.writeHead(200, head);
-        res.write(body);
-        res.end();
-      };
-      if (acceptsGzip) {
-        zlib.gzip(data, (gzErr, compressed) => {
-          finalize(gzErr ? data : compressed);
-        });
-      } else {
-        finalize(data);
-      }
-    });
-  });
-
-  let port = cfg.httpServerListenPort ?? DEFAULT_PORT;
-  let retryCount = 0;
-
-  // Pick the next free port starting at 10000
-  server.on('error', (e) => {
-    if (e.code === 'EADDRINUSE') {
-      if (cfg.httpServerListenPort === undefined) {
-        if (retryCount <= 10) {
-          // Try the next port.
-          console.log(`Port ${port} is in use, trying ${port + 1}...`);
-          ++port;
-          ++retryCount;
-          server.listen(port, cfg.httpServerListenHost);
-        } else {
-          console.error(
-            `ERROR: Port ${port} is in use, and no free port found after 10 tries. Exiting.`,
-          );
-          process.exit(1);
-        }
-      } else {
-        console.error(
-          `ERROR: Port ${port} is in use, and --serve-port was explicitly set. Exiting.`,
-        );
-        process.exit(1);
-      }
-    } else {
-      console.error('HTTP SERVER ERROR:', e);
-      process.exit(1);
-    }
-  });
-
-  server.listen(port, cfg.httpServerListenHost);
-
-  server.on('listening', () => {
-    const {address, port} = server.address();
-    const host = address == '127.0.0.1' ? 'localhost' : address;
-    console.log(`HTTP server is listening on http://${host}:${port}`);
-  });
-}
-
 function isDistComplete() {
   // In watch+serve mode the frontend bundle and its CSS are served live by
   // the Vite dev server, never materialised on disk. Only require the
@@ -1082,29 +948,6 @@ function isDistComplete() {
     if (!relPaths.has(fName)) return false;
   }
   return true;
-}
-
-function notifyLiveServer(changedFile) {
-  // Add file to pending set
-  notifyLiveServerPendingFiles.add(changedFile);
-
-  // Clear existing timeout if any
-  if (liveServerDebounceTimerId > 0) {
-    clearTimeout(liveServerDebounceTimerId);
-  }
-
-  // Set new timeout to batch notifications
-  liveServerDebounceTimerId = setTimeout(() => {
-    // Send all pending files in one batch
-    for (const cli of httpWatches) {
-      if (cli === undefined) continue;
-      for (const file of notifyLiveServerPendingFiles) {
-        cli.write('data: ' + path.relative(cfg.outDistRootDir, file) + '\n\n');
-      }
-    }
-    notifyLiveServerPendingFiles.clear();
-    liveServerDebounceTimerId = 0;
-  }, LIVE_SERVER_DEBOUNCE_MS);
 }
 
 function copyExtensionAssets() {
@@ -1189,7 +1032,10 @@ function exec(cmd, args, opts) {
   opts = opts || {};
   opts.stdout = opts.stdout || 'inherit';
   if (cfg.verbose) console.log(`${cmd} ${args.join(' ')}\n`);
-  const spwOpts = {cwd: cfg.outDir, stdio: ['ignore', opts.stdout, 'inherit']};
+  const spwOpts = {
+    cwd: opts.cwd || cfg.outDir,
+    stdio: ['ignore', opts.stdout, 'inherit'],
+  };
   if (opts.env) {
     spwOpts.env = {...process.env, ...opts.env};
   }
