@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  QuerySlot,
-  SerialTaskQueue,
-  type QueryResult,
-} from '../../../base/query_slot';
-import {Engine} from '../../../trace_processor/engine';
+import {QuerySlot, type QueryResult} from '../../../base/query_slot';
+import type {Engine} from '../../../trace_processor/engine';
 import {NUM, STR} from '../../../trace_processor/query_result';
-import {BoxplotData} from './boxplot';
+import type {BoxplotData} from './boxplot';
 import {validateColumnName} from './chart_utils';
 
 /**
@@ -62,8 +58,7 @@ export class SQLBoxplotLoader {
   private readonly query: string;
   private readonly categoryColumn: string;
   private readonly valueColumn: string;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<BoxplotData>(this.taskQueue);
+  private readonly querySlot = new QuerySlot<BoxplotData>();
 
   constructor(opts: SQLBoxplotLoaderOpts) {
     validateColumnName(opts.categoryColumn);

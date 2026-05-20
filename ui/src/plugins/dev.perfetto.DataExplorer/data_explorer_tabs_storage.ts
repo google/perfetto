@@ -14,7 +14,7 @@
 
 import {z} from 'zod';
 import {shortUuid} from '../../base/uuid';
-import {
+import type {
   DataExplorerTab,
   DashboardTabState,
   DataExplorerState,

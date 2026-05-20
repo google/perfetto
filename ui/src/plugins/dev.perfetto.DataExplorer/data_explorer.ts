@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import type SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {Builder} from './query_builder/builder';
-import {QueryNode} from './query_node';
+import type {QueryNode} from './query_node';
 import {ensureAllNodeActions} from './node_actions';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {getOrCreate} from '../../base/utils';
 import {shortUuid} from '../../base/uuid';
 import {MenuItem} from '../../widgets/menu';
-import {Tabs, TabsTab} from '../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {Button, ButtonBar} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {showModal} from '../../widgets/modal';
@@ -37,7 +37,7 @@ import {
   loadGraphFromJson,
   loadGraphFromPath,
   createDataExplorerGraph,
-  GraphIODeps,
+  type GraphIODeps,
 } from './graph_io';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
@@ -68,8 +68,8 @@ import {Dashboard} from './dashboard/dashboard';
 import {isDashboardNode} from './query_builder/nodes/dashboard_node';
 import {
   dashboardRegistry,
-  DashboardBrushFilter,
-  DashboardItem,
+  type DashboardBrushFilter,
+  type DashboardItem,
 } from './dashboard/dashboard_registry';
 import type {NodeCrudDeps} from './node_crud_operations';
 import {addFilter, addColumnFromJoinid} from './datagrid_node_creation';
@@ -500,17 +500,17 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       if (!isDashboardNode(node)) continue;
       // Propagate the stable tab ID so sources are namespaced by graph.
       // Re-publish if the graphId changed so the registry has the right key.
-      const prevGraphId = node.state.graphId;
-      node.state.graphId = tab.id;
+      const prevGraphId = node.graphId;
+      node.graphId = tab.id;
       if (prevGraphId !== tab.id) {
         node.onPrevNodesUpdated?.();
       }
-      if (node.state.getTableNameForNode === undefined) {
-        node.state.getTableNameForNode = (nodeId: string) =>
+      if (node.context.getTableNameForNode === undefined) {
+        node.context.getTableNameForNode = (nodeId: string) =>
           services.queryExecutionService.getTableName(nodeId);
       }
-      if (node.state.requestNodeExecution === undefined) {
-        node.state.requestNodeExecution = (nodeId: string) => {
+      if (node.context.requestNodeExecution === undefined) {
+        node.context.requestNodeExecution = (nodeId: string) => {
           const targetNode = allNodes.find((n) => n.nodeId === nodeId);
           if (targetNode === undefined) return Promise.resolve();
           return services.queryExecutionService
@@ -525,8 +525,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       // Provide getTableNameForNode callback for all nodes (used by
       // add_columns_node and others).
       for (const node of allNodes) {
-        if (node.state.getTableNameForNode === undefined) {
-          node.state.getTableNameForNode = (nodeId: string) =>
+        if (node.context.getTableNameForNode === undefined) {
+          node.context.getTableNameForNode = (nodeId: string) =>
             services.queryExecutionService.getTableName(nodeId);
         }
       }

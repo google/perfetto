@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {nextNodeId, QueryNode} from '../query_node';
+import {nextNodeId, type QueryNode} from '../query_node';
 
 /**
  * ARCHITECTURE: Query Building Strategy - Reference vs. Embedding
@@ -203,7 +203,7 @@ export class StructuredQueryBuilder {
       .filter((c) => c.checked !== false)
       .map((c) => {
         const col = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-        col.columnName = c.column.name;
+        col.columnName = c.name;
         if (c.alias) col.alias = c.alias;
         return col;
       });

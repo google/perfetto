@@ -16,20 +16,21 @@ import m from 'mithril';
 import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraph,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {Time, time} from '../../base/time';
+import {Time, type time} from '../../base/time';
 import {
   Flamegraph,
-  FlamegraphState,
+  type FlamegraphState,
   FLAMEGRAPH_STATE_SCHEMA,
 } from '../../widgets/flamegraph';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {SourceDataset} from '../../trace_processor/dataset';
+import type {SourceDataset} from '../../trace_processor/dataset';
 
 /**
  * Configuration for creating a profiling track (CPU profile, perf samples, etc)
@@ -113,8 +114,6 @@ export function createProfilingTrack(
     sliceName: () => config.sliceName,
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
-      // Create flamegraph, metrics, and initial state once per panel, not on every render
-      const flamegraph = new QueryFlamegraph(trace);
       const ts = Time.fromRaw(row.ts);
       const metrics: ReadonlyArray<QueryFlamegraphMetric> =
         metricsFromTableOrSubquery({
@@ -169,7 +168,6 @@ export function createProfilingTrack(
               state = newState;
               onDetailsPanelStateChange(newState);
             },
-            flamegraph,
             metrics,
           ),
         // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
@@ -193,11 +191,10 @@ function renderProfilingDetailsPanel(
   config: ProfilingTrackConfig,
   state: FlamegraphState,
   onStateChange: (state: FlamegraphState) => void,
-  flamegraph: QueryFlamegraph,
   metrics: ReadonlyArray<QueryFlamegraphMetric>,
 ): m.Children {
   return m(
-    '.pf-flamegraph-profile',
+    FlamegraphProfile,
     m(
       DetailsShell,
       {
@@ -205,11 +202,7 @@ function renderProfilingDetailsPanel(
         title: config.panelTitle,
         buttons: m('span', 'Timestamp: ', m(Timestamp, {trace, ts})),
       },
-      flamegraph.render({
-        metrics,
-        state,
-        onStateChange,
-      }),
+      m(FlamegraphPanel, {trace, metrics, state, onStateChange}),
     ),
   );
 }

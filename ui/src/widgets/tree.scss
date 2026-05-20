@@ -1,0 +1,165 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../assets/theme";
+
+$chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='8' width='8'%3E%3Cline x1='2' y1='0' x2='6' y2='4' stroke='black'/%3E%3Cline x1='6' y1='4' x2='2' y2='8' stroke='black'/%3E%3C/svg%3E");
+
+.pf-tree {
+  display: grid;
+  grid-template-columns: [left]auto [right]1fr;
+  row-gap: 5px;
+
+  .pf-tree-node {
+    display: contents;
+
+    &:hover {
+      background: color_hover(transparent);
+    }
+
+    .pf-tree-left {
+      grid-column: left;
+      background: inherit;
+      min-width: max-content;
+      border-radius: $border-radius 0 0 $border-radius;
+      font-weight: bolder;
+    }
+
+    .pf-tree-right {
+      grid-column: right;
+      background: inherit;
+      padding: 0 0 0 15px;
+      border-radius: 0 $border-radius $border-radius 0;
+      overflow-wrap: break-word; // Break words if overflowing
+      white-space: pre-wrap;
+      min-width: 0; // Allow column to shrink past content if container is thin
+    }
+
+    .pf-tree-gutter {
+      display: inline-flex;
+      position: relative;
+      width: 16px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    &.pf-collapsed > .pf-tree-left > .pf-tree-gutter {
+      cursor: pointer;
+
+      &::after {
+        @include material-icon("chevron_right");
+        font-size: inherit;
+      }
+    }
+    &.pf-expanded > .pf-tree-left > .pf-tree-gutter {
+      cursor: pointer;
+      &::after {
+        @include material-icon("expand_more");
+        font-size: inherit;
+      }
+    }
+
+    &.pf-loading > .pf-tree-left > .pf-tree-gutter {
+      &::after {
+        content: "";
+        border: solid 1px var(--pf-color-border);
+        border-top: solid 1px var(--pf-color-primary);
+        animation: pf-spinner-rotation 1s infinite linear;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+    }
+    .pf-tree-indent-gutter {
+      display: block;
+      position: relative;
+    }
+
+    &.pf-collapsed + .pf-tree-children {
+      display: none;
+    }
+  }
+
+  .pf-tree-children {
+    display: grid;
+    grid-column: 1 / span 2;
+    grid-template-columns: subgrid;
+    row-gap: 5px;
+    border-left: solid var(--pf-color-border) 1px;
+    margin-left: 6px;
+    padding-left: 6px;
+  }
+}
+
+// Bordered variant: renders the tree as a card with cell-like dividers and a
+// tinted label column. Works for flat key/value tables (e.g. stats) as well
+// as nested trees, where hierarchy is shown via the gutter caret on parent
+// rows and a label-column indent on nested rows.
+.pf-tree.pf-tree--bordered {
+  border: 1px solid var(--pf-color-border);
+  border-radius: $border-radius;
+  overflow: hidden;
+  row-gap: 0;
+
+  .pf-tree-left,
+  .pf-tree-right {
+    padding: 4px 10px;
+    border-top: 1px solid var(--pf-color-border);
+    border-radius: 0;
+  }
+
+  .pf-tree-left {
+    border-right: 1px solid var(--pf-color-border);
+  }
+
+  // The very first row reuses the outer container's top edge as its divider.
+  & > .pf-tree-node:first-child > .pf-tree-left,
+  & > .pf-tree-node:first-child > .pf-tree-right {
+    border-top: none;
+  }
+
+  // The default tree decorates each nested group with a left rule + 6px
+  // indent that clashes with the cell borders. Drop the ornaments so nested
+  // rows align with the outer columns; per-cell padding below provides the
+  // indent.
+  .pf-tree-children {
+    border-left: none;
+    margin-left: 0;
+    padding-left: 0;
+  }
+
+  // Indent the label on nested rows so hierarchy is visible while keeping
+  // column dividers aligned across the whole table.
+  .pf-tree-children > .pf-tree-node > .pf-tree-left {
+    padding-left: 26px;
+  }
+  .pf-tree-children .pf-tree-children > .pf-tree-node > .pf-tree-left {
+    padding-left: 42px;
+  }
+  .pf-tree-children
+    .pf-tree-children
+    .pf-tree-children
+    > .pf-tree-node
+    > .pf-tree-left {
+    padding-left: 58px;
+  }
+
+  // Hide the gutter on leaf rows so flat tables stay tight; parent rows keep
+  // theirs so the expand/collapse caret remains clickable.
+  .pf-tree-node:not(.pf-collapsed):not(.pf-expanded):not(.pf-loading)
+    > .pf-tree-left
+    > .pf-tree-gutter {
+    display: none;
+  }
+}

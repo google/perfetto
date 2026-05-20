@@ -16,12 +16,12 @@ import m from 'mithril';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Form, FormSection} from '../../../../widgets/form';
-import {FunctionList, FunctionWithModule} from '../function_list';
-import {FunctionArgBinding, NewColumn} from './add_columns_types';
-import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnInfo} from '../column_info';
+import {FunctionList, type FunctionWithModule} from '../function_list';
+import type {FunctionArgBinding, NewColumn} from './add_columns_types';
+import type {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
+import type {ColumnInfo} from '../column_info';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   parsePerfettoSqlTypeFromString,
   isQuantitativeType,
 } from '../../../../trace_processor/perfetto_sql_type';
@@ -111,7 +111,7 @@ export function getColumnsForArgType(
   const argTypeResult = parsePerfettoSqlTypeFromString({type: argType});
   if (!argTypeResult.ok) {
     // Unknown arg type - show all columns
-    return sourceCols.map((col) => col.column.name);
+    return sourceCols.map((col) => col.name);
   }
   const parsedArgType = argTypeResult.value;
   const argIsQuantitative = isQuantitativeType(parsedArgType);
@@ -119,7 +119,7 @@ export function getColumnsForArgType(
 
   return sourceCols
     .filter((col) => {
-      const colType = col.column.type;
+      const colType = col.type;
       if (colType === undefined) {
         // Unknown column type - include it
         return true;
@@ -133,7 +133,7 @@ export function getColumnsForArgType(
       // For other types (like bytes), show all columns
       return true;
     })
-    .map((col) => col.column.name);
+    .map((col) => col.name);
 }
 
 /**

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
@@ -27,8 +27,11 @@ import {
   stdlibRef,
   trackEventRefTreeNode,
 } from './utils';
-import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
-import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
+import {getSlice, type SliceDetails} from '../../components/sql_utils/slice';
+import {
+  asSliceSqlId,
+  type SliceSqlId,
+} from '../../components/sql_utils/core_types';
 import {renderDetails} from '../../components/details/slice_details';
 import {hasArgs} from '../../components/details/args';
 import {renderSliceArguments} from '../../components/details/slice_args';

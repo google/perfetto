@@ -22,48 +22,51 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor {
-extern "C" {
-int sqlite3GetToken(const unsigned char* z, int* tokenType);
-int sqliteTokenizeInternalAnalyzeWindowKeyword(const unsigned char* z);
-int sqliteTokenizeInternalAnalyzeOverKeyword(const unsigned char* z,
-                                             int lastToken);
-int sqliteTokenizeInternalAnalyzeFilterKeyword(const unsigned char* z,
-                                               int lastToken);
+
+// Verify that the sql_token constants in the header match the generated values.
+static_assert(sql_token::kId == SYNTAQLITE_TK_ID);
+static_assert(sql_token::kSemi == SYNTAQLITE_TK_SEMI);
+static_assert(sql_token::kLp == SYNTAQLITE_TK_LP);
+static_assert(sql_token::kRp == SYNTAQLITE_TK_RP);
+static_assert(sql_token::kComma == SYNTAQLITE_TK_COMMA);
+static_assert(sql_token::kVariable == SYNTAQLITE_TK_VARIABLE);
+static_assert(sql_token::kSelect == SYNTAQLITE_TK_SELECT);
+static_assert(sql_token::kFrom == SYNTAQLITE_TK_FROM);
+static_assert(sql_token::kStar == SYNTAQLITE_TK_STAR);
+static_assert(sql_token::kSpace == SYNTAQLITE_TK_SPACE);
+static_assert(sql_token::kComment == SYNTAQLITE_TK_COMMENT);
+static_assert(sql_token::kIllegal == SYNTAQLITE_TK_ILLEGAL);
+
+SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {
+  tok_ = syntaqlite_tokenizer_create_with_dialect(
+      nullptr, syntaqlite_perfetto_dialect());
+  PERFETTO_CHECK(tok_ != nullptr);
+  syntaqlite_tokenizer_reset(tok_, source_.sql().data(),
+                             static_cast<uint32_t>(source_.sql().size()));
 }
 
-SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {}
+SqliteTokenizer::~SqliteTokenizer() {
+  syntaqlite_tokenizer_destroy(tok_);
+}
 
 SqliteTokenizer::Token SqliteTokenizer::Next() {
-  Token token;
-  const char* start = source_.sql().data() + offset_;
-  int n = sqlite3GetToken(reinterpret_cast<const unsigned char*>(start),
-                          &token.token_type);
-  if (token.token_type == TK_WINDOW) {
-    token.token_type = sqliteTokenizeInternalAnalyzeWindowKeyword(
-        reinterpret_cast<const unsigned char*>(start + n));
-  } else if (token.token_type == TK_OVER) {
-    token.token_type = sqliteTokenizeInternalAnalyzeOverKeyword(
-        reinterpret_cast<const unsigned char*>(start + n),
-        last_non_space_token_);
-  } else if (token.token_type == TK_FILTER) {
-    token.token_type = sqliteTokenizeInternalAnalyzeFilterKeyword(
-        reinterpret_cast<const unsigned char*>(start + n),
-        last_non_space_token_);
+  SyntaqliteToken st;
+  if (!syntaqlite_tokenizer_next(tok_, &st)) {
+    // Point past the end of the source string so AsTraceback still works.
+    const char* end = source_.sql().data() + source_.sql().size();
+    return Token{std::string_view(end, 0), sql_token::kIllegal};
   }
-  offset_ += static_cast<uint32_t>(n);
-  token.str = std::string_view(start, static_cast<uint32_t>(n));
-  if (token.token_type != TK_SPACE && token.token_type != TK_COMMENT) {
-    last_non_space_token_ = token.token_type;
-  }
-  return token;
+  return Token{std::string_view(st.text, st.length), static_cast<int>(st.type)};
 }
 
 SqliteTokenizer::Token SqliteTokenizer::NextNonWhitespace() {
   Token t;
-  for (t = Next(); t.token_type == TK_SPACE || t.token_type == TK_COMMENT;
+  for (t = Next();
+       t.token_type == sql_token::kSpace || t.token_type == sql_token::kComment;
        t = Next()) {
   }
   return t;
@@ -122,6 +125,12 @@ void SqliteTokenizer::RewriteToken(SqlSource::Rewriter& rewriter,
   auto e_off = static_cast<uint32_t>(token.str.data() + token.str.size() -
                                      source_.sql().c_str());
   rewriter.Rewrite(s_off, e_off, std::move(rewrite));
+}
+
+void SqliteTokenizer::Reset(SqlSource source) {
+  source_ = std::move(source);
+  syntaqlite_tokenizer_reset(tok_, source_.sql().data(),
+                             static_cast<uint32_t>(source_.sql().size()));
 }
 
 }  // namespace perfetto::trace_processor

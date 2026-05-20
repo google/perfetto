@@ -28,7 +28,7 @@ FtraceModule::FtraceModule(ProtoImporterModuleContext* module_context)
 
 void FtraceModule::ParseFtraceEventData(uint32_t /*cpu*/,
                                         int64_t /*ts*/,
-                                        const TracePacketData&) {}
+                                        const FtraceData&) {}
 
 void FtraceModule::ParseInlineSchedSwitch(uint32_t /*cpu*/,
                                           int64_t /*ts*/,

@@ -18,17 +18,17 @@ INCLUDE PERFETTO MODULE graphs.scan;
 -- Given a list of classes as ancestor classes, return all the classes that
 -- descend from them.
 CREATE PERFETTO MACRO android_heap_graph_class_find_descendants(
-    -- ancestor class `id`s from the heap_graph_class table containing a
-    -- single column: `id`
-    ancestor_class_ids TableOrSubquery
+  -- ancestor class `id`s from the heap_graph_class table containing a
+  -- single column: `id`
+  ancestor_class_ids TableOrSubquery
 )
 -- Table of the schema
 -- (id JOINID(heap_graph_class.id), ancestor_class_id JOINID(heap_graph_class.id), ancestor_class_name STRING)
 -- id: `id` of the class as in heap_graph_class
 -- ancestor_class_id: `id` of the ancestor class as given in the input
 -- ancestor_class_name: `name` of the ancestor class as in heap_graph_class
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     class_forest(source_node_id, dest_node_id) AS (
       SELECT

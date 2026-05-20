@@ -17,7 +17,7 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/assert';
 import {uuidv4Sql} from '../base/uuid';
-import {Engine} from '../trace_processor/engine';
+import type {Engine} from '../trace_processor/engine';
 import {
   createPerfettoIndex,
   createPerfettoTable,
@@ -31,14 +31,14 @@ import {
 } from '../trace_processor/query_result';
 import {
   Flamegraph,
-  FlamegraphPropertyDefinition,
-  FlamegraphQueryData,
-  FlamegraphState,
-  FlamegraphView,
-  FlamegraphOptionalAction,
-  FlamegraphOptionalMarker,
+  type FlamegraphPropertyDefinition,
+  type FlamegraphQueryData,
+  type FlamegraphState,
+  type FlamegraphView,
+  type FlamegraphOptionalAction,
+  type FlamegraphOptionalMarker,
 } from '../widgets/flamegraph';
-import {Trace} from '../public/trace';
+import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
@@ -157,7 +157,7 @@ export function metricsFromTableOrSubquery(
       `,
       unaggregatableProperties: opts.unaggregatableProperties,
       aggregatableProperties: opts.aggregatableProperties,
-      optionalActions: opts.optionalActions,
+      optionalNodeActions: opts.optionalActions,
     });
   }
   return metrics;
@@ -174,11 +174,6 @@ interface QueryFlamegraphAttrs {
   // Callback invoked when the flamegraph state changes (e.g., user changes
   // filters, selects a different metric, etc).
   readonly onStateChange: (state: FlamegraphState) => void;
-}
-
-export interface QueryFlamegraphWithMetrics {
-  flamegraph: QueryFlamegraph;
-  metrics: ReadonlyArray<QueryFlamegraphMetric>;
 }
 
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the

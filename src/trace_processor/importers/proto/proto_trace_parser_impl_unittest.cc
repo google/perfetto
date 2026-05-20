@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
@@ -51,6 +52,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
@@ -261,6 +263,8 @@ class ProtoTraceParserTest : public ::testing::Test {
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.global_metadata_tracker =
         std::make_unique<GlobalMetadataTracker>(context_.storage.get());
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
     context_.import_logs_tracker =
         std::make_unique<ImportLogsTracker>(&context_, TraceId(1));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
@@ -292,12 +296,14 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(
         &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
         primary_sync_.get(), true);
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
     context_.uuid_state = std::make_unique<TraceProcessorContext::UuidState>();
-    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(storage_);
+    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(
+        storage_, context_.global_stats_tracker.get());
 
     context_.track_compressor.reset(new TrackCompressor(&context_));
     context_.track_group_idx_state =
@@ -699,18 +705,18 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
 
   EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
 
-  auto track_row = context_.storage->track_table().FindById(TrackId(0));
-  EXPECT_EQ(context_.storage->GetString(track_row->name()), "cpufreq");
+  auto track_row = context_.storage->track_table()[TrackId(0)];
+  EXPECT_EQ(context_.storage->GetString(track_row.name()), "cpufreq");
   ArgExtractor args_cursor(context_.storage->arg_table());
   uint32_t arg_row =
-      args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
+      args_cursor.Get(track_row.dimension_arg_set_id().value(), "cpu");
   ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
   Variadic cpu = GetArgValue(*context_.storage, args_cursor.cursor());
   ASSERT_EQ(cpu.type, Variadic::Type::kInt);
   EXPECT_EQ(cpu.uint_value, 0u);
 
-  track_row = context_.storage->track_table().FindById(TrackId(1));
-  arg_row = args_cursor.Get(track_row->dimension_arg_set_id().value(), "cpu");
+  track_row = context_.storage->track_table()[TrackId(1)];
+  arg_row = args_cursor.Get(track_row.dimension_arg_set_id().value(), "cpu");
   ASSERT_NE(arg_row, std::numeric_limits<uint32_t>::max());
   cpu = GetArgValue(*context_.storage, args_cursor.cursor());
   ASSERT_EQ(cpu.type, Variadic::Type::kInt);
@@ -1025,14 +1031,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->thread_ts(), 2003000);
-  EXPECT_EQ(rr_0->thread_dur(), 12000);
-  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
-  EXPECT_TRUE(rr_1);
-  EXPECT_EQ(rr_1->thread_ts(), 2005000);
-  EXPECT_EQ(rr_1->thread_dur(), 5000);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.thread_ts(), 2003000);
+  EXPECT_EQ(rr_0.thread_dur(), 12000);
+  auto rr_1 = storage_->slice_table()[SliceId(1u)];
+  EXPECT_EQ(rr_1.thread_ts(), 2005000);
+  EXPECT_EQ(rr_1.thread_dur(), 5000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
@@ -1103,14 +1107,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->thread_ts(), 2005000);
-  EXPECT_EQ(rr_0->thread_dur(), 5000);
-  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
-  EXPECT_TRUE(rr_1);
-  EXPECT_EQ(rr_1->thread_ts(), 2007000);
-  EXPECT_EQ(rr_1->thread_dur(), 0);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.thread_ts(), 2005000);
+  EXPECT_EQ(rr_0.thread_dur(), 5000);
+  auto rr_1 = storage_->slice_table()[SliceId(1u)];
+  EXPECT_EQ(rr_1.thread_ts(), 2007000);
+  EXPECT_EQ(rr_1.thread_dur(), 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
@@ -1281,24 +1283,21 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 4u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->thread_ts(), 2003000);
-  EXPECT_EQ(rr_0->thread_dur(), 12000);
-  EXPECT_EQ(rr_0->thread_instruction_count(), 3010);
-  EXPECT_EQ(rr_0->thread_instruction_delta(), 50);
-  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
-  EXPECT_TRUE(rr_1);
-  EXPECT_EQ(rr_1->thread_ts(), 2005000);
-  EXPECT_EQ(rr_1->thread_dur(), 5000);
-  EXPECT_EQ(rr_1->thread_instruction_count(), 3020);
-  EXPECT_EQ(rr_1->thread_instruction_delta(), 20);
-  auto rr_2 = storage_->slice_table().FindById(SliceId(2u));
-  EXPECT_TRUE(rr_2);
-  EXPECT_EQ(rr_2->thread_ts(), 2030000);
-  EXPECT_EQ(rr_2->thread_dur(), 0);
-  EXPECT_EQ(rr_2->thread_instruction_count(), 3100);
-  EXPECT_EQ(rr_2->thread_instruction_delta(), 0);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.thread_ts(), 2003000);
+  EXPECT_EQ(rr_0.thread_dur(), 12000);
+  EXPECT_EQ(rr_0.thread_instruction_count(), 3010);
+  EXPECT_EQ(rr_0.thread_instruction_delta(), 50);
+  auto rr_1 = storage_->slice_table()[SliceId(1u)];
+  EXPECT_EQ(rr_1.thread_ts(), 2005000);
+  EXPECT_EQ(rr_1.thread_dur(), 5000);
+  EXPECT_EQ(rr_1.thread_instruction_count(), 3020);
+  EXPECT_EQ(rr_1.thread_instruction_delta(), 20);
+  auto rr_2 = storage_->slice_table()[SliceId(2u)];
+  EXPECT_EQ(rr_2.thread_ts(), 2030000);
+  EXPECT_EQ(rr_2.thread_dur(), 0);
+  EXPECT_EQ(rr_2.thread_instruction_count(), 3100);
+  EXPECT_EQ(rr_2.thread_instruction_delta(), 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
@@ -1618,19 +1617,17 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
             20);
 
   EXPECT_EQ(storage_->slice_table().row_count(), 3u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(1u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->thread_ts(), 2007000);
-  EXPECT_EQ(rr_0->thread_dur(), 0);
+  auto rr_0 = storage_->slice_table()[SliceId(1u)];
+  EXPECT_EQ(rr_0.thread_ts(), 2007000);
+  EXPECT_EQ(rr_0.thread_dur(), 0);
   // There was no thread instructions in the packets above.
-  EXPECT_FALSE(rr_0->thread_instruction_count());
-  EXPECT_FALSE(rr_0->thread_instruction_delta());
-  auto rr_1 = storage_->slice_table().FindById(SliceId(2u));
-  EXPECT_TRUE(rr_1);
-  EXPECT_EQ(rr_1->thread_ts(), 2008000);
-  EXPECT_EQ(rr_1->thread_dur(), 0);
-  EXPECT_FALSE(rr_1->thread_instruction_count());
-  EXPECT_FALSE(rr_1->thread_instruction_delta());
+  EXPECT_FALSE(rr_0.thread_instruction_count());
+  EXPECT_FALSE(rr_0.thread_instruction_delta());
+  auto rr_1 = storage_->slice_table()[SliceId(2u)];
+  EXPECT_EQ(rr_1.thread_ts(), 2008000);
+  EXPECT_EQ(rr_1.thread_dur(), 0);
+  EXPECT_FALSE(rr_1.thread_instruction_count());
+  EXPECT_FALSE(rr_1.thread_instruction_delta());
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
@@ -1722,10 +1719,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
 
   // Counter values should also be imported into thread slices.
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->thread_ts(), 1000000);
-  EXPECT_EQ(rr_0->thread_dur(), 10000);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.thread_ts(), 1000000);
+  EXPECT_EQ(rr_0.thread_dur(), 10000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
@@ -1784,10 +1780,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->category(), cat1);
-  EXPECT_EQ(rr_0->name(), ev2);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.category(), cat1);
+  EXPECT_EQ(rr_0.name(), ev2);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
@@ -1827,13 +1822,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 2000000);
-  EXPECT_EQ(rr_0->track_id(), TrackId{0});
-  EXPECT_EQ(rr_0->dur(), 0);
-  EXPECT_EQ(rr_0->category(), cat1);
-  EXPECT_EQ(rr_0->name(), ev1);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 2000000);
+  EXPECT_EQ(rr_0.track_id(), TrackId{0});
+  EXPECT_EQ(rr_0.dur(), 0);
+  EXPECT_EQ(rr_0.category(), cat1);
+  EXPECT_EQ(rr_0.name(), ev1);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
@@ -1925,13 +1919,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 1010000);
-  EXPECT_EQ(rr_0->track_id(), track);
-  EXPECT_EQ(rr_0->dur(), 1000000);
-  EXPECT_EQ(rr_0->category(), unknown_cat);
-  EXPECT_EQ(rr_0->name(), std::nullopt);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 1010000);
+  EXPECT_EQ(rr_0.track_id(), track);
+  EXPECT_EQ(rr_0.dur(), 1000000);
+  EXPECT_EQ(rr_0.category(), unknown_cat);
+  EXPECT_EQ(rr_0.name(), std::nullopt);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
@@ -2034,21 +2027,19 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 1005000);
-  EXPECT_EQ(rr_0->track_id(), thread_2_track);
-  EXPECT_EQ(rr_0->dur(), 10000);
-  EXPECT_EQ(rr_0->category(), cat_1);
-  EXPECT_EQ(rr_0->name(), ev_2);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 1005000);
+  EXPECT_EQ(rr_0.track_id(), thread_2_track);
+  EXPECT_EQ(rr_0.dur(), 10000);
+  EXPECT_EQ(rr_0.category(), cat_1);
+  EXPECT_EQ(rr_0.name(), ev_2);
 
-  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
-  EXPECT_TRUE(rr_1);
-  EXPECT_EQ(rr_1->ts(), 1010000);
-  EXPECT_EQ(rr_1->track_id(), thread_1_track);
-  EXPECT_EQ(rr_1->dur(), 10000);
-  EXPECT_EQ(rr_1->category(), cat_1);
-  EXPECT_EQ(rr_1->name(), ev_1);
+  auto rr_1 = storage_->slice_table()[SliceId(1u)];
+  EXPECT_EQ(rr_1.ts(), 1010000);
+  EXPECT_EQ(rr_1.track_id(), thread_1_track);
+  EXPECT_EQ(rr_1.dur(), 10000);
+  EXPECT_EQ(rr_1.category(), cat_1);
+  EXPECT_EQ(rr_1.name(), ev_1);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
@@ -2187,13 +2178,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 1010000);
-  EXPECT_EQ(rr_0->track_id(), track);
-  EXPECT_EQ(rr_0->dur(), 10000);
-  EXPECT_EQ(rr_0->category(), cat_1);
-  EXPECT_EQ(rr_0->name(), ev_1);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 1010000);
+  EXPECT_EQ(rr_0.track_id(), track);
+  EXPECT_EQ(rr_0.dur(), 10000);
+  EXPECT_EQ(rr_0.category(), cat_1);
+  EXPECT_EQ(rr_0.name(), ev_1);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
@@ -2247,10 +2237,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 1010000);
-  EXPECT_EQ(rr_0->track_id(), track);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 1010000);
+  EXPECT_EQ(rr_0.track_id(), track);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
@@ -2315,10 +2304,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 1010000);
-  EXPECT_EQ(rr_0->track_id(), track);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 1010000);
+  EXPECT_EQ(rr_0.track_id(), track);
 
   EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
   EXPECT_EQ(context_.storage->android_log_table()[0].ts(), 1010000);
@@ -2468,10 +2456,9 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 10000);
-  EXPECT_EQ(rr_0->track_id(), track);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 10000);
+  EXPECT_EQ(rr_0.track_id(), track);
 }
 
 TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
@@ -2531,10 +2518,9 @@ TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButDelayedClockSnapshot) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 10000010);
-  EXPECT_EQ(rr_0->track_id(), track);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 10000010);
+  EXPECT_EQ(rr_0.track_id(), track);
 }
 
 TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
@@ -2733,9 +2719,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   context_.sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
-  const auto& stats = context_.storage->stats();
-  EXPECT_FALSE(stats[stats::packages_list_has_read_errors].value);
-  EXPECT_TRUE(stats[stats::packages_list_has_parse_errors].value);
+  EXPECT_FALSE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_read_errors));
+  EXPECT_TRUE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_parse_errors));
 
   // Expect two metadata rows, each with an int_value of a separate arg set id.
   // The relevant arg sets have the info about the packages. To simplify test
@@ -2786,9 +2773,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   context_.sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
-  const auto& stats = context_.storage->stats();
-  EXPECT_FALSE(stats[stats::packages_list_has_read_errors].value);
-  EXPECT_TRUE(stats[stats::packages_list_has_parse_errors].value);
+  EXPECT_FALSE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_read_errors));
+  EXPECT_TRUE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_parse_errors));
 
   // Expect two metadata rows, each with an int_value of a separate arg set id.
   // The relevant arg sets have the info about the packages. To simplify test

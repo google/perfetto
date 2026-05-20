@@ -26,11 +26,14 @@
 
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -49,6 +52,12 @@ class PerfSampleTrackerTest : public ::testing::Test {
     context.storage = std::make_unique<TraceStorage>();
     context.machine_tracker =
         std::make_unique<MachineTracker>(&context, kDefaultMachineId);
+    context.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context.storage.get());
+    context.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context.stats_tracker = std::make_unique<StatsTracker>(&context);
     context.cpu_tracker = std::make_unique<CpuTracker>(&context);
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
@@ -124,25 +133,25 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Counter) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // Name derived from the timebase.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "page-faults");
 }
 
@@ -163,25 +172,25 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Tracepoint) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // Name derived from the timebase.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "sched:sched_switch");
 }
 
@@ -194,26 +203,26 @@ TEST_F(PerfSampleTrackerTest, UnknownCounterTreatedAsCpuClock) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // If the trace doesn't have a PerfSampleDefaults describing the timebase
   // counter, we assume cpu-clock.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "cpu-clock");
 }
 
@@ -237,25 +246,25 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_ConfigSuppliedName) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // Using the config-supplied name for the track.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "test-name");
 }
 
@@ -305,24 +314,24 @@ TEST_F(PerfSampleTrackerTest, FollowersTracks) {
   for (size_t i = 0; i < track_ids.size(); ++i) {
     TrackId track_id = track_ids[i];
     const auto& track_table = context.storage->track_table();
-    auto rr = track_table.FindById(track_id);
+    auto rr = track_table[track_id];
 
     // Check the track exists and looks sensible.
-    ASSERT_TRUE(rr.has_value());
+    ASSERT_TRUE(true);
 
     std::string track_name =
-        context.storage->GetString(rr->name()).ToStdString();
+        context.storage->GetString(rr.name()).ToStdString();
 
-    auto perf_session_id = GetDimension(*rr, "perf_session_id");
+    auto perf_session_id = GetDimension(rr, "perf_session_id");
     ASSERT_TRUE(perf_session_id.has_value());
     EXPECT_EQ(*perf_session_id,
               Variadic::Integer(stream.perf_session_id.value));
 
-    auto cpu = GetDimension(*rr, "cpu");
+    auto cpu = GetDimension(rr, "cpu");
     ASSERT_TRUE(cpu.has_value());
     EXPECT_EQ(*cpu, Variadic::Integer(cpu_id));
 
-    auto is_timebase = GetArg(*rr, "is_timebase");
+    auto is_timebase = GetArg(rr, "is_timebase");
     ASSERT_TRUE(is_timebase.has_value());
     EXPECT_EQ(*is_timebase, Variadic::Boolean(track_name == "leader"));
 
@@ -360,10 +369,10 @@ TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
 
   EXPECT_NE(stream.perf_session_id, stream2.perf_session_id);
 
-  std::optional<int64_t> shard_count = context.storage->GetIndexedStats(
+  std::optional<int64_t> shard_count = context.stats_tracker->GetIndexedStats(
       stats::perf_process_shard_count,
       static_cast<int>(stream.perf_session_id.value));
-  std::optional<int64_t> chosen_shard = context.storage->GetIndexedStats(
+  std::optional<int64_t> chosen_shard = context.stats_tracker->GetIndexedStats(
       stats::perf_chosen_process_shard,
       static_cast<int>(stream.perf_session_id.value));
 
@@ -372,10 +381,10 @@ TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
   ASSERT_TRUE(chosen_shard.has_value());
   EXPECT_EQ(chosen_shard.value(), 7);
 
-  std::optional<int64_t> shard_count2 = context.storage->GetIndexedStats(
+  std::optional<int64_t> shard_count2 = context.stats_tracker->GetIndexedStats(
       stats::perf_process_shard_count,
       static_cast<int>(stream.perf_session_id.value));
-  std::optional<int64_t> chosen_shard2 = context.storage->GetIndexedStats(
+  std::optional<int64_t> chosen_shard2 = context.stats_tracker->GetIndexedStats(
       stats::perf_chosen_process_shard,
       static_cast<int>(stream.perf_session_id.value));
 

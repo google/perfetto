@@ -175,9 +175,7 @@ function buildBoxplotOption(
 
   const option: Record<string, unknown> = {
     animation: false,
-    grid: buildGridOption({
-      bottom: horizontal ? 25 : categoryLabel ? 40 : 25,
-    }),
+    grid: buildGridOption(),
     xAxis: horizontal ? valueAxis : categoryAxis,
     yAxis: horizontal ? categoryAxis : valueAxis,
     tooltip: buildTooltipOption({

@@ -12,44 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import type m from 'mithril';
 import {
-  QueryNode,
-  QueryNodeState,
+  type QueryNode,
   NodeType,
   nextNodeId,
+  type NodeContext,
 } from '../../../query_node';
 import {
-  ColumnInfo,
+  type ColumnInfo,
   columnInfoFromSqlColumn,
-  newColumnInfoList,
+  newColumnInfo,
 } from '../../column_info';
-import protos from '../../../../../protos';
-import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
+import type protos from '../../../../../protos';
+import type {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
-import {NodeDetailsAttrs} from '../../../node_types';
+import type {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 
-export interface SlicesSourceSerializedState {
-  comment?: string;
-}
-
-export interface SlicesSourceState extends QueryNodeState {
-  onchange?: () => void;
-}
+// Serializable node configuration (slices source has no config fields).
+export interface SlicesSourceNodeAttrs {}
 
 export class SlicesSourceNode implements QueryNode {
   readonly nodeId: string;
-  readonly state: SlicesSourceState;
+  readonly attrs: SlicesSourceNodeAttrs;
+  readonly context: NodeContext;
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 
-  constructor(attrs: SlicesSourceState) {
+  constructor(attrs: SlicesSourceNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = attrs;
-    this.state.onchange = attrs.onchange;
-    this.finalCols = newColumnInfoList(slicesSourceNodeColumns(true), true);
+    this.attrs = attrs;
+    this.context = context;
+    this.finalCols = slicesSourceNodeColumns(true).map((col) =>
+      newColumnInfo(col, true),
+    );
     this.nextNodes = [];
   }
 
@@ -62,11 +60,7 @@ export class SlicesSourceNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: SlicesSourceState = {
-      onchange: this.state.onchange,
-      trace: this.state.trace,
-    };
-    return new SlicesSourceNode(stateCopy);
+    return new SlicesSourceNode(this.attrs, this.context);
   }
 
   getTitle(): string {
@@ -77,10 +71,6 @@ export class SlicesSourceNode implements QueryNode {
     return {
       content: NodeTitle(this.getTitle()),
     };
-  }
-
-  serializeState(): SlicesSourceSerializedState {
-    return {};
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {materialColorScheme} from '../../components/colorizer';
-import {Time} from '../../base/time';
+import {Time, type time} from '../../base/time';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {FlamegraphState} from '../../widgets/flamegraph';
+import type {FlamegraphState} from '../../widgets/flamegraph';
 import {profileDescriptor} from './common';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
@@ -30,7 +30,12 @@ export function createHeapProfileTrack(
   heapProfileIsIncomplete: boolean,
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
-  onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
+  onNodeSelected?: (args: {
+    pathHashes: string;
+    isDominator: boolean;
+    upid: number;
+    ts: time;
+  }) => void,
 ) {
   return SliceTrack.create({
     trace,

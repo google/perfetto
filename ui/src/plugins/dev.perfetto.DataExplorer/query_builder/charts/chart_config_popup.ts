@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ChartConfig, BarOrientation} from '../nodes/visualisation_node';
+import type {ChartConfig, BarOrientation} from '../nodes/visualisation_node';
 import {
   CHART_TYPES,
   getChartTypeDefinition,
   isValidChartType,
 } from '../nodes/chart_type_registry';
-import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+import type {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
 import {Select} from '../../../../widgets/select';
 import {Form, FormLabel} from '../../../../widgets/form';
-import {ChartColumnProvider} from './chart_renderers';
+import type {ChartColumnProvider} from './chart_renderers';
 
 interface ColumnInfo {
   readonly name: string;
@@ -98,7 +98,7 @@ export function renderChartConfigPopup(
   // Orientation only applies to bar charts.
   const showOrientation = config.chartType === 'bar';
 
-  const showDelete = ctx.node.state.chartConfigs.length > 1;
+  const showDelete = ctx.node.attrs.chartConfigs.length > 1;
 
   return m(
     Form,
@@ -169,10 +169,10 @@ export function renderChartConfigPopup(
           ],
         ),
       ]),
-      // Y column — for line and scatter
+      // Y column — for line, scatter, boxplot, heatmap
       def?.supportsYColumn &&
         m(FormLabel, [
-          m('span', 'Y Column'),
+          m('span', def.yColumnLabel ?? 'Y Column'),
           m(
             Select,
             {

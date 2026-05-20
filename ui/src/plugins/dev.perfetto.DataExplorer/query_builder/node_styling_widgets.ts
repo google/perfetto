@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
-import {TextInput, TextInputAttrs} from '../../../widgets/text_input';
+import {TextInput, type TextInputAttrs} from '../../../widgets/text_input';
 
 // Helper functions and components for consistent node details styling
 //

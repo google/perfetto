@@ -1,4 +1,4 @@
-# Heap profiler
+# Memory: Callstack-based Allocation Profiling
 
 NOTE: **heapprofd requires Android 10 or higher**
 
@@ -24,10 +24,10 @@ started with heapprofd.
 ## UI
 
 Dumps from heapprofd are shown as flamegraphs in the UI after clicking on the
-diamond. Each diamond corresponds to a snapshot of the allocations and
-callstacks collected at that point in time.
+corresponding slice. Each slice represents a summary of the allocations and
+callstacks collected during the lifetime of that slice.
 
-![heapprofd snapshots in the UI tracks](/docs/images/profile-diamond.png)
+![heapprofd snapshots in the UI tracks](/docs/images/profile-slice-malloc.png)
 
 ![heapprofd flamegraph](/docs/images/native-heap-prof.png)
 
@@ -65,19 +65,24 @@ make sure you are using the
 [latest version](
 https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile).
 
-You can target processes either by name (`-n com.example.myapp`) or by PID
-(`-p 1234`). In the first case, the heap profile will be initiated on both on
-already-running processes that match the package name and new processes launched
-after the profiling session is started.
+The script has two subcommands:
+
+* `heap_profile android` - profile a process on a connected Android device
+  via `adb` (default if no subcommand is given, preserving the historical
+  invocation).
+* `heap_profile host` - profile a local Linux process; see
+  [(non-Android) Linux support](#non-android-linux-support) below.
+
+For Android, you can target processes either by name (`-n com.example.myapp`)
+or by PID (`-p 1234`). In the first case, the heap profile will be initiated
+on both already-running processes that match the package name and new
+processes launched after the profiling session is started.
 For the full arguments list see the
 [heap_profile cmdline reference page](/docs/reference/heap_profile-cli).
 
 You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
 Upload the `raw-trace` file in your output directory. You will see all heap
-dumps as diamonds on the timeline, click any of them to get a flamegraph.
-
-Alternatively [Speedscope](https://speedscope.app) can be used to visualize
-the gzipped protos, but will only show the "Unreleased malloc size" view.
+dumps as slices on the timeline, click any of them to get a flamegraph.
 
 #### Using the Recording page of Perfetto UI
 
@@ -89,24 +94,18 @@ Windows.
 
 ## Viewing the data
 
-![Profile Diamond](/docs/images/profile-diamond.png)
+![Profile slice](/docs/images/profile-slice-malloc.png)
 
-The resulting profile proto contains four views on the data, for each diamond.
+The resulting profile proto contains four views on the data, for each slice.
 
 * **Unreleased malloc size**: how many bytes were allocated but not freed at
-  this callstack, from the moment the recording was started until the timestamp
-  of the diamond.
-* **Total malloc size**: how many bytes were allocated (including ones freed at
-  the moment of the dump) at this callstack, from the moment the recording was
-  started until the timestamp of the diamond.
+  this callstack, throughout the duration of the slice.
+* **Total malloc size**: how many bytes were allocated (including ones with matching
+  frees) at this callstack, throughout the duration of the slice.
 * **Unreleased malloc count**: how many allocations without matching frees were
-  done at this callstack, from the moment the recording was started until the
-  timestamp of the diamond.
+  done at this callstack, throughout the duration of the slice.
 * **Total malloc count**: how many allocations (including ones with matching
-  frees) were done at this callstack, from the moment the recording was started
-  started until the timestamp of the diamond.
-
-_(Googlers: You can also open the gzipped protos using http://pprof/)_
+  frees) were done at this callstack, throughout the duration of the slice.
 
 TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
 
@@ -115,7 +114,7 @@ TIP: Click Left Heavy on the top left for a good visualization.
 ## Continuous dumps
 
 By default, the heap profiler captures all the allocations from the beginning of
-the recording and stores a single snapshot, shown as a single diamond in the UI,
+the recording and stores a single snapshot, shown as a single slice in the UI,
 which summarizes all allocations/frees.
 
 It is possible to configure the heap profiler to periodically (not just at the
@@ -131,13 +130,13 @@ end of the trace) store snapshots (continuous dumps), for example every 5000ms
   in the
   [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
 * By adding `-c 5000` to the invocation of
-  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+  [`tools/heap_profile android`](/docs/reference/heap_profile-cli) (or
+  `tools/heap_profile host` for local Linux processes).
 
 ![Continuous dump flamegraph](/docs/images/heap_prof_continuous.png)
 
-The resulting visualization shows multiple diamonds. Clicking on each diamond
-shows a summary of the allocations/frees from the beginning of the trace until
-that point (i.e. the summary is cumulative).
+The resulting visualization shows multiple slices. Clicking on each slice
+shows a summary of the allocations/frees during that slice. You can drag & select multiple consecutive slices to summarize allocations during that window of time.
 
 ## Sampling interval
 
@@ -254,18 +253,18 @@ the `<application>` section of the app manifest.
 </manifest>
 ```
 
-## {#java-heap-sampling} Java heap sampling
+## {#java-heap-sampling} Java Allocation Profiling (Churn Profiling)
 
-NOTE: **Java heap sampling is available on Android 12 or higher**
+NOTE: **Java allocation profiling is available on Android 12 or higher**
 
-NOTE: **Java heap sampling is not to be confused with [Java heap
+NOTE: **Java allocation profiling is not to be confused with [Heap
 dumps](/docs/data-sources/java-heap-profiler.md)**
 
 Heapprofd can be configured to track Java allocations instead of native ones.
 * By setting adding `heaps: "com.android.art"` in
   [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
 * By adding `--heaps com.android.art` to the invocation of
-  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+  [`tools/heap_profile android`](/docs/reference/heap_profile-cli).
 
 Unlike java heap dumps (which show the retention graph of a snapshot of the live
 objects) but like native heap profiles, java heap samples show callstacks of
@@ -309,88 +308,13 @@ This dump will show up in addition to the dump at the end of the profile that is
 always produced. You can create multiple of these dumps, and they will be
 enumerated in the output directory.
 
-## Symbolization
+## Symbolization and deobfuscation
 
-### Set up llvm-symbolizer
-
-You only need to do this once.
-
-To use symbolization, your system must have llvm-symbolizer installed and
-accessible from `$PATH` as `llvm-symbolizer`. On Debian, you can install it
-using `sudo apt install llvm`.
-
-### Symbolize your profile
-
-If the profiled binary or libraries do not have symbol names, you can
-symbolize profiles offline. Even if they do, you might want to symbolize in
-order to get inlined function and line number information. All tools
-(traceconv, trace_processor_shell, the heap_profile script) support specifying
-the `PERFETTO_BINARY_PATH` as an environment variable.
-
-```
-PERFETTO_BINARY_PATH=somedir tools/heap_profile --name ${NAME}
-```
-
-You can persist symbols for a trace by running
-`PERFETTO_BINARY_PATH=somedir tools/traceconv symbolize raw-trace > symbols`.
-You can then concatenate the symbols to the trace (
-`cat raw-trace symbols > symbolized-trace`) and the symbols will part of
-`symbolized-trace`. The `tools/heap_profile` script will also generate this
-file in your output directory, if `PERFETTO_BINARY_PATH` is used.
-
-The symbol file is the first with matching Build ID in the following order:
-
-1. absolute path of library file relative to binary path.
-2. absolute path of library file relative to binary path, but with base.apk!
-    removed from filename.
-3. basename of library file relative to binary path.
-4. basename of library file relative to binary path, but with base.apk!
-    removed from filename.
-5. in the subdirectory .build-id: the first two hex digits of the build-id
-    as subdirectory, then the rest of the hex digits, with ".debug" appended.
-    See
-    https://fedoraproject.org/wiki/RolandMcGrath/BuildID#Find_files_by_build_ID
-
-For example, "/system/lib/base.apk!foo.so" with build id abcd1234,
-is looked for at:
-
-1. $PERFETTO_BINARY_PATH/system/lib/base.apk!foo.so
-2. $PERFETTO_BINARY_PATH/system/lib/foo.so
-3. $PERFETTO_BINARY_PATH/base.apk!foo.so
-4. $PERFETTO_BINARY_PATH/foo.so
-5. $PERFETTO_BINARY_PATH/.build-id/ab/cd1234.debug
-
-Alternatively, you can set the `PERFETTO_SYMBOLIZER_MODE` environment variable
-to `index`, and the symbolizer will recursively search the given directory for
-an ELF file with the given build id. This way, you will not have to worry
-about correct filenames.
-
-## Deobfuscation
-
-If your profile contains obfuscated Java methods (like `fsd.a`), you can
-provide a deobfuscation map to turn them back into human readable.
-To do so, use the `PERFETTO_PROGUARD_MAP` environment variable, using the
-format `packagename=map_filename[:packagename=map_filename...]`, e.g.
-`PERFETTO_PROGUARD_MAP=com.example.pkg1=foo.txt:com.example.pkg2=bar.txt`.
-All tools (traceconv, trace_processor_shell, the heap_profile script) support
-specifying the `PERFETTO_PROGUARD_MAP` as an environment variable.
-
-```
-PERFETTO_PROGUARD_MAP=com.example.pkg1=proguard_map1.txt:com.example.pkg2=proguard_map2.txt ./tools/heap_profile -n com.example.app
-```
-
-You can get a deobfuscation map for the trace you already collected using
-`tools/traceconv deobfuscate`. Then concatenate the resulting file to your
-trace to get a deobfuscated version of it (the input trace should be in the
-perfetto format, otherwise concatenation will not produce a reasonable output).
-
-```
-PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt tools/traceconv deobfuscate ${TRACE} > deobfuscation_map
-cat ${TRACE} deobfuscation_map > deobfuscated_trace
-```
-
-`deobfuscated_trace` can be viewed in the
-[Perfetto UI](https://ui.perfetto.dev).
+If your profile shows raw addresses or obfuscated Java/Kotlin names, run
+`traceconv bundle` against the collected trace to produce an enriched
+archive. See [Symbolization and deobfuscation](/docs/learning-more/symbolization.md)
+for the full workflow, including the legacy `PERFETTO_BINARY_PATH` /
+`PERFETTO_PROGUARD_MAP` approach.
 
 ## Troubleshooting
 
@@ -399,7 +323,8 @@ cat ${TRACE} deobfuscation_map > deobfuscated_trace
 If the rate of allocations is too high for heapprofd to keep up, the profiling
 session will end early due to a buffer overrun. If the buffer overrun is
 caused by a transient spike in allocations, increasing the shared memory buffer
-size (passing `--shmem-size` to `tools/heap_profile`) can resolve the issue.
+size (passing `--shmem-size` to `tools/heap_profile android` /
+`tools/heap_profile host`) can resolve the issue.
 Otherwise the sampling interval can be increased (at the expense of lower
 accuracy in the resulting profile) by passing `--interval=16000` or higher.
 
@@ -420,89 +345,59 @@ Also, if your code is linked using _Identical Code Folding_
 constructors and destructors, can be aliased to binary-equivalent operators
 of completely unrelated classes.
 
-### Symbolization: Could not find library
+### Symbolization issues
 
-When symbolizing a profile, you might come across messages like this:
+For "could not find library", Build ID mismatches and "only one frame shown"
+problems, see the troubleshooting section in
+[Symbolization and deobfuscation](/docs/learning-more/symbolization.md#troubleshooting).
+
+## {#non-android-linux-support} (non-Android) Linux support
 
 ```bash
-Could not find /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so
-(Build ID: 44b7138abd5957b8d0a56ce86216d478).
+tools/heap_profile host -- ./my_binary --some-flag
 ```
 
-Check whether your library (in this example somelib.so) exists in
-`PERFETTO_BINARY_PATH`. Then compare the Build ID to the one in your
-symbol file, which you can get by running
-`readelf -n /path/in/binary/path/somelib.so`. If it does not match, the
-symbolized file has a different version than the one on device, and cannot
-be used for symbolization.
-If it does, try moving somelib.so to the root of `PERFETTO_BINARY_PATH` and
-try again.
+The script:
 
-### Only one frame shown
-If you only see a single frame for functions in a specific library, make sure
-that the library has unwind information. We need one of
+1. Auto-downloads `tracebox` and `libheapprofd_glibc_preload.so` (linux-amd64
+   / arm / arm64) into `~/.local/share/perfetto/prebuilts/` on first run.
+2. Starts a bundled `traced` daemon via `tracebox --system-sockets`.
+3. Launches the target binary with `LD_PRELOAD` pointing at the preload
+   library and `PERFETTO_HEAPPROFD_BLOCKING_INIT=1` set. By default
+   heapprofd initializes lazily to avoid blocking the main thread, which
+   means startup allocations can be missed; setting this variable instead
+   blocks the very first `malloc` until heapprofd has fully attached, so
+   every allocation is correctly tracked.
+4. Waits for the target to exit (or `Ctrl-C` from you), then runs
+   `traceconv` to produce gzipped pprof files alongside the raw trace.
 
-* `.gnu_debugdata`
-* `.eh_frame` (+ preferably `.eh_frame_hdr`)
-* `.debug_frame`.
+If `-n` / `--name` is omitted, the process name defaults to the basename of
+the binary you passed after `--`.
 
-Frame-pointer unwinding is *not supported*.
+When the run completes the script prints the output directory:
 
-To check if an ELF file has any of those, run
-
-```console
-$ readelf -S file.so | grep "gnu_debugdata\|eh_frame\|debug_frame"
-  [12] .eh_frame_hdr     PROGBITS         000000000000c2b0  0000c2b0
-  [13] .eh_frame         PROGBITS         0000000000011000  00011000
-  [24] .gnu_debugdata    PROGBITS         0000000000000000  000f7292
+```text
+Wrote profiles to /tmp/heap_profile-XXXXXX (symlink /tmp/heap_profile-latest)
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
 ```
 
-If this does not show one or more of the sections, change your build system
-to not strip them.
+Upload the `raw-trace` file to the [Perfetto UI](https://ui.perfetto.dev).
 
-## (non-Android) Linux support
+### Using a custom-built preload library
 
-NOTE: Do not use this for production purposes.
+If the prebuilt is not yet available for your platform, build the library
+from a Perfetto checkout
+([build instructions](/docs/contributing/build-instructions.md)) and pass
+it via `--preload-library`:
 
-You can use a standalone library to profile memory allocations on Linux.
-First [build Perfetto](/docs/contributing/build-instructions.md). You only need
-to do this once.
-
-```
+```bash
 tools/setup_all_configs.py
-ninja -C out/linux_clang_release
+tools/ninja -C out/linux_clang_release heapprofd_glibc_preload
+
+tools/heap_profile host \
+  --preload-library out/linux_clang_release/libheapprofd_glibc_preload.so \
+  -- ./my_binary --some-flag
 ```
-
-Then, run traced
-
-```
-out/linux_clang_release/traced
-```
-
-Start the profile (e.g. targeting trace_processor_shell)
-
-```
-tools/heap_profile -n trace_processor_shell --print-config  | \
-out/linux_clang_release/perfetto \
-  -c - --txt \
-  -o ~/heapprofd-trace
-```
-
-Finally, run your target (e.g. trace_processor_shell) with LD_PRELOAD
-
-```
-LD_PRELOAD=out/linux_clang_release/libheapprofd_glibc_preload.so out/linux_clang_release/trace_processor_shell <trace>
-```
-
-Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
-[Perfetto UI](https://ui.perfetto.dev).
-
-NOTE: by default, heapprofd lazily initalizes to avoid blocking your program's
-main thread. However, if your program makes memory allocations on startup,
-these can be missed. To avoid this from happening, set the enironment variable
-`PERFETTO_HEAPPROFD_BLOCKING_INIT=1`; on the first malloc, your program will
-be blocked until heapprofd initializes fully but means every allocation will
-be correctly tracked.
 
 ## Known Issues
 
@@ -533,7 +428,8 @@ be correctly tracked.
 
 ### {#known-issues-android10} Android 10
 * Function names in libraries with load bias might be incorrect. Use
-  [offline symbolization](#symbolization) to resolve this issue.
+  [offline symbolization](/docs/learning-more/symbolization.md) to resolve this
+  issue.
 * For startup profiles, some frame names might be missing. This will be
   resolved in Android 12.
 * 32-bit programs cannot be targeted on 64-bit devices.
@@ -600,10 +496,8 @@ you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
-<!-- You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap dumps
-in a trace into the [pprof](https://github.com/google/pprof) format. These can
-then be viewed using the pprof CLI or a UI (e.g. Speedscope, or Google-internal
-pprof/). -->
+You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap
+dumps in a trace into the [pprof](https://github.com/google/pprof) format:
 
 ```bash
 tools/traceconv profile /tmp/profile

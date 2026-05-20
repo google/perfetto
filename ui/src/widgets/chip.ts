@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './chip.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {HTMLAttrs, Intent, classForIntent} from './common';
+import {type HTMLAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Button} from './button';
 

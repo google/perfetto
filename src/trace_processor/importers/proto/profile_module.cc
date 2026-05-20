@@ -35,12 +35,14 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -149,8 +151,8 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // pid/tid are resolved correctly during parsing), we forward the packet as a
   // whole through the sorter, using the "root" timestamp of the packet, i.e.
   // the current timestamp of the packet sequence.
-  auto packet_ts =
-      sequence_state->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
+  auto* track_event = sequence_state->GetCustomState<TrackEventSequenceState>();
+  auto packet_ts = track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
       ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), packet_ts);
   if (trace_ts)
@@ -159,7 +161,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // Increment the sequence's timestamp by all deltas.
   for (auto timestamp_it = decoder.timestamp_delta_us(); timestamp_it;
        ++timestamp_it) {
-    sequence_state->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
+    track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
   }
 
   module_context_->trace_packet_stream->Push(
@@ -180,8 +182,9 @@ void ProfileModule::ParseStreamingProfilePacket(
   StackProfileSequenceState& stack_profile_sequence_state =
       *sequence_state->GetCustomState<StackProfileSequenceState>();
 
-  uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
-  uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
+  const auto& thread = sequence_state->thread_descriptor();
+  uint32_t pid = static_cast<uint32_t>(thread.pid());
+  uint32_t tid = static_cast<uint32_t>(thread.tid());
   const UniqueTid utid = procs->UpdateThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 
@@ -190,16 +193,16 @@ void ProfileModule::ParseStreamingProfilePacket(
   for (auto callstack_it = packet.callstack_iid(); callstack_it;
        ++callstack_it, ++timestamp_it) {
     if (!timestamp_it) {
-      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
       PERFETTO_ELOG(
           "StreamingProfilePacket has less callstack IDs than timestamps!");
       break;
     }
 
-    auto opt_cs_id =
-        stack_profile_sequence_state.FindOrInsertCallstack(upid, *callstack_it);
+    auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+        sequence_state, upid, *callstack_it);
     if (!opt_cs_id) {
-      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
       continue;
     }
 
@@ -230,7 +233,7 @@ void ProfileModule::ParsePerfSample(
   if (sample.kernel_records_lost() > 0) {
     PERFETTO_DCHECK(sample.pid() == 0);
 
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::perf_cpu_lost_records, static_cast<int>(sample.cpu()),
         static_cast<int64_t>(sample.kernel_records_lost()));
     return;
@@ -245,7 +248,7 @@ void ProfileModule::ParsePerfSample(
     PerfSample::ProducerEvent::Decoder producer_event(sample.producer_event());
     if (producer_event.source_stop_reason() ==
         PerfSample::ProducerEvent::PROFILER_STOP_GUARDRAIL) {
-      context_->storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
           stats::perf_guardrail_stop_ts,
           static_cast<int>(sampling_stream.perf_session_id.value), ts);
     }
@@ -261,10 +264,11 @@ void ProfileModule::ParsePerfSample(
         break;
       case (PerfSample::PROFILER_SKIP_READ_STAGE):
       case (PerfSample::PROFILER_SKIP_UNWIND_STAGE):
-        context_->storage->IncrementStats(stats::perf_samples_skipped);
+        context_->stats_tracker->IncrementStats(stats::perf_samples_skipped);
         break;
       case (PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE):
-        context_->storage->IncrementStats(stats::perf_samples_skipped_dataloss);
+        context_->stats_tracker->IncrementStats(
+            stats::perf_samples_skipped_dataloss);
         break;
       default:
         break;
@@ -312,8 +316,8 @@ void ProfileModule::ParsePerfSample(
       *sequence_state->GetCustomState<StackProfileSequenceState>();
   if (sample.has_callstack_iid()) {
     uint64_t callstack_iid = sample.callstack_iid();
-    cs_id =
-        stack_profile_sequence_state.FindOrInsertCallstack(upid, callstack_iid);
+    cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+        sequence_state, upid, callstack_iid);
   }
 
   using protos::pbzero::Profiling;
@@ -383,47 +387,47 @@ void ProfileModule::ParseProfilePacket(
     int64_t timestamp = *maybe_timestamp;
 
     int pid = static_cast<int>(entry.pid());
-    context_->storage->SetIndexedStats(stats::heapprofd_last_profile_timestamp,
-                                       pid, ts);
+    context_->stats_tracker->SetIndexedStats(
+        stats::heapprofd_last_profile_timestamp, pid, ts);
 
     if (entry.disconnected())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_client_disconnected, pid);
     if (entry.buffer_corrupted())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_buffer_corrupted, pid);
     if (entry.buffer_overran() ||
         entry.client_error() ==
             protos::pbzero::ProfilePacket::ProcessHeapSamples::
                 CLIENT_ERROR_HIT_TIMEOUT) {
-      context_->storage->IncrementIndexedStats(stats::heapprofd_buffer_overran,
-                                               pid);
+      context_->stats_tracker->IncrementIndexedStats(
+          stats::heapprofd_buffer_overran, pid);
     }
     if (entry.client_error()) {
-      context_->storage->SetIndexedStats(stats::heapprofd_client_error, pid,
-                                         entry.client_error());
+      context_->stats_tracker->SetIndexedStats(stats::heapprofd_client_error,
+                                               pid, entry.client_error());
     }
     if (entry.rejected_concurrent())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_rejected_concurrent, pid);
     if (entry.hit_guardrail())
-      context_->storage->IncrementIndexedStats(stats::heapprofd_hit_guardrail,
-                                               pid);
+      context_->stats_tracker->IncrementIndexedStats(
+          stats::heapprofd_hit_guardrail, pid);
     if (entry.orig_sampling_interval_bytes()) {
-      context_->storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
           stats::heapprofd_sampling_interval_adjusted, pid,
           static_cast<int64_t>(entry.sampling_interval_bytes()) -
               static_cast<int64_t>(entry.orig_sampling_interval_bytes()));
     }
 
     protos::pbzero::ProfilePacket::ProcessStats::Decoder stats(entry.stats());
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_unwind_time_us, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.total_unwinding_time_us()));
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_unwind_samples, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.heap_samples()));
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_client_spinlock_blocked, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.client_spinlock_blocked_us()));
 
@@ -463,7 +467,7 @@ void ProfileModule::ParseProfilePacket(
     }
   }
   if (!packet.continued()) {
-    profile_packet_sequence_state.FinalizeProfile();
+    profile_packet_sequence_state.FinalizeProfile(sequence_state);
   }
 }
 
@@ -477,7 +481,8 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   auto mappings =
       context_->mapping_tracker->FindMappings(module_symbols.path(), build_id);
   if (mappings.empty()) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return;
   }
   for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
@@ -515,14 +520,15 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
 
       for (const FrameId frame_id : frame_ids) {
         auto* frames = context_->storage->mutable_stack_profile_frame_table();
-        auto rr = *frames->FindById(frame_id);
+        auto rr = (*frames)[frame_id];
         rr.set_symbol_set_id(symbol_set_id);
         frame_found = true;
       }
     }
 
     if (!frame_found) {
-      context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+      context_->stats_tracker->IncrementStats(
+          stats::stackprofile_invalid_frame_id);
       continue;
     }
   }
@@ -560,7 +566,7 @@ void ProfileModule::OnEventsFullyExtracted() {
     NullTermStringView build_id = context_->storage->GetString(it.build_id());
 
     if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::symbolization_tmp_build_id_not_found);
     }
   }

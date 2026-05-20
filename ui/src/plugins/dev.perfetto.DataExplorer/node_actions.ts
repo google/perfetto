@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, NodeActions} from './query_node';
+import type {QueryNode, NodeActions} from './query_node';
 
 // Handler functions that NodeActions delegates to.
 export interface NodeActionHandlers {
@@ -90,8 +90,8 @@ export function ensureAllNodeActions(
     if (initializedNodes.has(node.nodeId)) {
       continue;
     }
-    if (!node.state.actions) {
-      node.state.actions = createNodeActions(node, handlers);
+    if (!node.context.actions) {
+      node.context.actions = createNodeActions(node, handlers);
     }
     initializedNodes.add(node.nodeId);
   }

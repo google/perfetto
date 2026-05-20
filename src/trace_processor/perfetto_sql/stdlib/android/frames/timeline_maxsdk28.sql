@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE slices.with_context;
 -- "Choreographer#doFrame" and "DrawFrame". Tries to guess the `ts` and `dur`
 -- of the frame by first guessing which "DrawFrame" slices are related to which
 -- "Choreographer#doSlice".
-CREATE PERFETTO TABLE _frames_maxsdk_28 (
+CREATE PERFETTO TABLE _frames_maxsdk_28(
   -- Frame id. Created manually starting from 0.
   frame_id LONG,
   -- Timestamp of the frame. Start of "Choreographer#doFrame" slice.
@@ -44,7 +44,8 @@ CREATE PERFETTO TABLE _frames_maxsdk_28 (
   upid JOINID(process.id),
   -- process name.
   process_name STRING
-) AS
+)
+AS
 WITH
   do_frames AS (
     SELECT
@@ -55,18 +56,13 @@ WITH
       upid
     FROM thread_slice
     WHERE
-      is_main_thread = 1 AND name = 'Choreographer#doFrame'
+      is_main_thread = 1
+      AND name = 'Choreographer#doFrame'
     ORDER BY
       ts
   ),
   draw_frames AS (
-    SELECT
-      id,
-      ts,
-      dur,
-      ts + dur AS ts_end,
-      utid,
-      upid
+    SELECT id, ts, dur, ts + dur AS ts_end, utid, upid
     FROM thread_slice
     WHERE
       name = 'DrawFrame'
@@ -84,10 +80,7 @@ SELECT
   "maxsdk28" AS sdk
 FROM do_frames AS do
 JOIN draw_frames AS draw
-  ON (
-    do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < next_do_frame
-  )
-JOIN process
-  USING (upid)
+  ON (do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < next_do_frame)
+JOIN process USING (upid)
 ORDER BY
   do.ts;

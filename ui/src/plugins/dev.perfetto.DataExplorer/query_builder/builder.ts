@@ -105,13 +105,13 @@ import {classNames} from '../../../base/classnames';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Icon} from '../../../widgets/icon';
-import {Trace} from '../../../public/trace';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, Query} from '../query_node';
+import type {Trace} from '../../../public/trace';
+import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {QueryNode, Query} from '../query_node';
 import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodePanel} from './node_panel';
-import {Graph, GraphCallbacks} from './graph/graph';
+import {Graph, type GraphCallbacks} from './graph/graph';
 import {ResultsPanel} from './results_panel';
 import {
   DrawerPanel,
@@ -119,19 +119,19 @@ import {
 } from '../../../widgets/drawer_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import {QueryResponse} from '../../../components/query_table/queries';
+import type {QueryResponse} from '../../../components/query_table/queries';
 import QueryPagePlugin from '../../dev.perfetto.QueryPage';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {ResultsPanelEmptyState, RoundActionButton} from './widgets';
-import {UIFilter} from './operations/filter';
-import {QueryExecutionService} from './query_execution_service';
-import {Column} from '../../../components/widgets/datagrid/model';
+import type {UIFilter} from './operations/filter';
+import type {QueryExecutionService} from './query_execution_service';
+import type {Column} from '../../../components/widgets/datagrid/model';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {getAllDownstreamNodes, getAllNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
-import {DataSource} from '../../../components/widgets/datagrid/data_source';
+import type {DataSource} from '../../../components/widgets/datagrid/data_source';
 import {NavigationSidePanel} from './navigation_sidepanel';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
@@ -481,7 +481,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   },
                   m(
                     '.pf-error-details',
-                    selectedNode.state.issues?.getTitle() ?? 'No error details',
+                    selectedNode.context.issues?.getTitle() ??
+                      'No error details',
                   ),
                 ),
             ),
@@ -760,16 +761,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         : undefined;
 
     if (error || warning || noDataWarning) {
-      if (!node.state.issues) {
-        node.state.issues = new NodeIssues();
+      if (!node.context.issues) {
+        node.context.issues = new NodeIssues();
       }
-      node.state.issues.queryError = error;
-      node.state.issues.responseError = warning;
-      node.state.issues.dataError = noDataWarning;
+      node.context.issues.queryError = error;
+      node.context.issues.responseError = warning;
+      node.context.issues.dataError = noDataWarning;
       // Clear any previous execution error since we got a successful response
-      node.state.issues.clearExecutionError();
+      node.context.issues.clearExecutionError();
     } else {
-      node.state.issues = undefined;
+      node.context.issues = undefined;
     }
   }
 
@@ -790,12 +791,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     // Clear response and data source but keep query so Retry can re-execute
     this.dataSource = undefined;
     this.response = undefined;
-    if (!node.state.issues) {
-      node.state.issues = new NodeIssues();
+    if (!node.context.issues) {
+      node.context.issues = new NodeIssues();
     }
     // Use executionError (not queryError) so error persists across re-renders
     // that trigger validate() - queryError gets cleared during validation
-    node.state.issues.executionError =
+    node.context.issues.executionError =
       e instanceof Error ? e : new Error(String(e));
   }
 }

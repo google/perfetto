@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {duration, time} from '../base/time';
-import {Size2D, VerticalBounds} from '../base/geom';
-import {TimeScale} from '../base/time_scale';
-import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {TrackEventDetailsPanel} from './details_panel';
-import {TrackEventDetails, TrackEventSelection} from './selection';
-import {SourceDataset} from '../trace_processor/dataset';
-import {TrackNode} from './workspace';
-import {CanvasColors} from './canvas_colors';
-import {z} from 'zod';
-import {Renderer} from '../base/renderer';
+import type m from 'mithril';
+import type {duration, time} from '../base/time';
+import type {Size2D, VerticalBounds} from '../base/geom';
+import type {TimeScale} from '../base/time_scale';
+import type {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import type {TrackEventDetailsPanel} from './details_panel';
+import type {TrackEventDetails, TrackEventSelection} from './selection';
+import type {SourceDataset} from '../trace_processor/dataset';
+import type {TrackNode} from './workspace';
+import type {CanvasColors} from './canvas_colors';
+import type {Renderer} from '../base/renderer';
 
 /**
  * Represents a snap point for the snap-to-boundaries feature.
@@ -186,11 +185,7 @@ export interface TrackMouseEvent {
  * A lot of the fields in this interface are currently unused, but they will be
  * used in the future when track serialization is implemented.
  */
-export interface TrackSettingDescriptor<T> {
-  // A unique identifier for this setting. Will be used to store the serialized
-  // value for this setting. Currently unused.
-  readonly id: string;
-
+export interface TrackSettingDescriptor<T = unknown> {
   // A human readable name for this setting. This is displayed in the settings
   // menu unless overridden.
   readonly name: string;
@@ -200,21 +195,11 @@ export interface TrackSettingDescriptor<T> {
   // used for.
   readonly description: string;
 
-  // A Zod schema describing the setting's value type which is used to infer the
-  // automatic settings menu type and options, and will be used for
-  // serialization and deserialization.
-  readonly schema: z.ZodType<T>;
-
-  // The default value for this setting. This will be used to render a 'reset'
-  // button in the render menu, and possibly as a fallback if parsing fails when
-  // we add serialization. Currently unused.
-  readonly defaultValue: T;
-
   // An optional function used to render a control for this setting. This
   // describes what the control looks like in the settings menu on the track and
   // also the bulk settings menu when multiple tracks are selected. If omitted,
   // a control will be automatically generated based on the schema and name.
-  render?(setter: (value: T) => void, values: ReadonlyArray<T>): m.Children;
+  render(setter: (value: T) => void, values: ReadonlyArray<T>): m.Children;
 }
 
 /**
@@ -222,10 +207,10 @@ export interface TrackSettingDescriptor<T> {
  * rendered or behaves. References a TrackSettingDescriptor which describes the
  * setting's metadata and how to render a control for it.
  */
-export interface TrackSetting<T> {
+export interface TrackSetting<T = unknown> {
   readonly descriptor: TrackSettingDescriptor<T>;
-  getValue: () => T;
-  setValue(newValue: T): void;
+  readonly value: T;
+  update(value: T): void;
 }
 
 export interface TrackRenderer {

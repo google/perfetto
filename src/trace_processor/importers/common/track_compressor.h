@@ -254,9 +254,8 @@ class TrackCompressor {
           if (on_new_track) {
             on_new_track(track_id);
           }
-          auto rr =
-              context_->storage->mutable_track_table()->FindById(track_id);
-          rr->set_track_group_id(state.set_id);
+          auto rr = (*context_->storage->mutable_track_table())[track_id];
+          rr.set_track_group_id(state.set_id);
           return track_id;
         },
     };

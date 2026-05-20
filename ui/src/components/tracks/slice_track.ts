@@ -15,33 +15,41 @@
 import m from 'mithril';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {ColorScheme} from '../../base/color_scheme';
-import {Point2D, Size2D, Transform1D, VerticalBounds} from '../../base/geom';
+import type {ColorScheme} from '../../base/color_scheme';
+import type {
+  Point2D,
+  Size2D,
+  Transform1D,
+  VerticalBounds,
+} from '../../base/geom';
 import {assertExists} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
-  CancellationSignal,
+  type CancellationSignal,
   QuerySlot,
   QUERY_CANCELLED,
   SerialTaskQueue,
 } from '../../base/query_slot';
-import {duration, Time, time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
+import {type duration, Time, type time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
 import {clamp, floatEqual} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {deferChunkedTask} from '../../base/chunked_task';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {
+  TrackEventDetails,
+  TrackEventSelection,
+} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {
   SnapPoint,
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,
 } from '../../public/track';
-import {DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
+import {type DatasetSchema, SourceDataset} from '../../trace_processor/dataset';
 import {
-  SqlValue,
+  type SqlValue,
   LONG,
   NUM,
   LONG_NULL,
@@ -50,7 +58,7 @@ import {
 import {
   createPerfettoTable,
   createVirtualTable,
-  DisposableSqlEntity,
+  type DisposableSqlEntity,
 } from '../../trace_processor/sql_utils';
 import {checkerboardExcept} from '../checkerboard';
 import {getColorForSlice} from '../colorizer';
@@ -60,7 +68,7 @@ import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {SliceTrackDetailsPanel} from './slice_track_details_panel';
 import {
   RECT_PATTERN_FADE_RIGHT,
-  RowLayout,
+  type RowLayout,
   rowHeightFromLayout,
   rowTopFromLayout,
 } from '../../base/renderer';
@@ -749,17 +757,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ))`,
     });
 
-    // Pre-compute incomplete slices with LEAD() to find next_ts
-    // We compute LEAD over ALL slices first, then filter to incomplete ones
-    // This ensures next_ts is the next slice at the same depth (complete or incomplete)
     const incompleteSlicesTable = await createPerfettoTable({
       engine,
       as: `
-        SELECT id, ts, depth, next_ts
-        FROM (
-          SELECT id, ts, dur, depth, LEAD(ts) OVER (PARTITION BY depth ORDER BY ts) as next_ts
-          FROM (${sqlSource})
-        )
+        SELECT id, ts, depth, (
+          SELECT i.ts
+          FROM (${sqlSource}) i
+          WHERE i.ts > o.ts AND o.depth = i.depth
+          ORDER BY i.ts
+          LIMIT 1
+        ) AS next_ts
+        FROM (${sqlSource}) o
         WHERE dur = -1
       `,
     });
@@ -1089,7 +1097,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private onUpdatedSlices(
     slices: readonly SliceOrInstant<T>[],
-  ): ColorVariant[] {
+  ): readonly ColorVariant[] {
     if (this.attrs.onUpdatedSlices) {
       return this.attrs.onUpdatedSlices(slices);
     } else {
@@ -1099,25 +1107,27 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private highlightHoveredAndSameTitle(
     slices: readonly SliceOrInstant<T>[],
-  ): ColorVariant[] {
-    const highlightedSliceId = this.trace.timeline.highlightedSliceId;
-    const hoveredTitle = this.hoveredSlice?.title;
-    const isHovering =
-      hoveredTitle !== undefined || highlightedSliceId !== undefined;
-    const n = slices.length;
-    const variants = new Array<ColorVariant>(n);
-    for (let i = 0; i < n; i++) {
-      if (!isHovering) {
-        variants[i] = ColorVariant.BASE;
-      } else {
-        const slice = slices[i];
-        const isMatch =
-          highlightedSliceId === slice.id ||
-          (hoveredTitle !== undefined && hoveredTitle === slice.title);
-        variants[i] = isMatch ? ColorVariant.VARIANT : ColorVariant.BASE;
+  ): readonly ColorVariant[] {
+    const hoveredSlice = this.hoveredSlice;
+    const highlightedSliceName = this.attrs.trace.timeline.highlightedSliceName;
+    const variants = new Array<ColorVariant>(slices.length);
+    if (hoveredSlice || highlightedSliceName !== undefined) {
+      const hoveredSliceId = hoveredSlice?.id;
+      const hoveredTitle = highlightedSliceName;
+      // Index based iteration is more efficient than .map
+      for (let i = 0; i < slices.length; i++) {
+        const {id, title} = slices[i];
+        variants[i] =
+          id === hoveredSliceId || title === hoveredTitle
+            ? ColorVariant.VARIANT
+            : ColorVariant.BASE;
       }
+      return variants;
+    } else {
+      // No hovered slice, all variants are the same. .fill is more efficient
+      // than iteration.
+      return variants.fill(ColorVariant.BASE);
     }
-    return variants;
   }
 
   renderTooltip(): m.Children {
@@ -1260,6 +1270,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.hoveredSlice = this.findSlice(e);
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
+      this.trace.timeline.highlightedSliceName = this.hoveredSlice?.title;
       if (this.hoveredSlice === undefined) {
         if (this.attrs.onSliceOut) {
           this.attrs.onSliceOut({slice: assertExists(prevHoveredSlice)});
@@ -1278,6 +1289,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.hoveredSlice = undefined;
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = undefined;
+      this.trace.timeline.highlightedSliceName = undefined;
       if (this.attrs.onSliceOut && prevHoveredSlice) {
         this.attrs.onSliceOut({slice: prevHoveredSlice});
       }

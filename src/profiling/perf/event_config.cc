@@ -26,6 +26,8 @@
 #include <unwindstack/Regs.h>
 
 #include "perfetto/base/flat_set.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
@@ -82,6 +84,20 @@ std::optional<uint32_t> ParseTracepointAndResolveId(
     return std::nullopt;
   }
   return std::make_optional(tracepoint_id);
+}
+
+std::optional<uint32_t> ReadPmuTypeFromSysfs(const std::string& pmu_name) {
+  if (pmu_name.empty())
+    return std::nullopt;
+  if (base::Contains(pmu_name, '/') || base::StartsWith(pmu_name, ".."))
+    return std::nullopt;
+
+  std::string type_path = "/sys/bus/event_source/devices/" + pmu_name + "/type";
+  std::string buf;
+  if (!base::ReadFile(type_path, &buf))
+    return std::nullopt;
+
+  return base::StringToUInt32(base::TrimWhitespace(buf));
 }
 
 // |T| is either gen::PerfEventConfig or gen::PerfEventConfig::Scope.
@@ -301,8 +317,21 @@ std::optional<PerfCounter> MakePerfCounter(
                                      tracepoint_pb.filter(), *maybe_id);
     } else if (event_desc.has_raw_event()) {
       const auto& raw = event_desc.raw_event();
-      return PerfCounter::RawEvent(name, raw.type(), raw.config(),
-                                   raw.config1(), raw.config2());
+      if (!raw.pmu_name().empty() && raw.has_type()) {
+        PERFETTO_ELOG("raw_event cannot specify both type and pmu_name.");
+        return std::nullopt;
+      }
+      std::optional<uint32_t> raw_type =
+          raw.has_type() ? std::make_optional(raw.type())
+                         : ReadPmuTypeFromSysfs(raw.pmu_name());
+      if (!raw_type) {
+        PERFETTO_ELOG(
+            "Failed to resolve raw_event.pmu_name to a type value. Ensure that "
+            "the profiler process has permissions to read from sysfs.");
+        return std::nullopt;
+      }
+      return PerfCounter::RawEvent(name, *raw_type, raw.config(), raw.config1(),
+                                   raw.config2());
     } else {
       return PerfCounter::BuiltinCounter(
           name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
@@ -325,6 +354,7 @@ bool IsSupportedUnwindMode(
     case PerfEventConfig::UNWIND_SKIP:
     case PerfEventConfig::UNWIND_DWARF:
     case PerfEventConfig::UNWIND_FRAME_POINTER:
+    case PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER:
       return true;
     default:
       return false;
@@ -620,7 +650,14 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   pe.clockid = ToClockId(pb_config.timebase().timestamp_clock());
   pe.use_clockid = true;
 
-  if (IsUserFramesEnabled(unwind_mode)) {
+  // UNWIND_KERNEL_FRAME_POINTER asks the kernel to walk the userspace frame
+  // pointer chain, returning the result via PERF_SAMPLE_CALLCHAIN. In this mode
+  // we do not request the user stack/regs, since no userspace unwinding will be
+  // performed.
+  bool kernel_unwinds_user_frames =
+      unwind_mode == protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER;
+
+  if (IsUserFramesEnabled(unwind_mode) && !kernel_unwinds_user_frames) {
     pe.sample_type |= PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
     // PERF_SAMPLE_STACK_USER:
     // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
@@ -632,9 +669,10 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     pe.sample_regs_user =
         PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
   }
-  if (kernel_frames) {
+  if (kernel_frames || kernel_unwinds_user_frames) {
     pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
-    pe.exclude_callchain_user = true;
+    pe.exclude_callchain_kernel = !kernel_frames;
+    pe.exclude_callchain_user = !kernel_unwinds_user_frames;
   }
 
   // Additional counters to include whenever the timebase is sampled, each
@@ -683,6 +721,7 @@ bool EventConfig::IsUserFramesEnabled(
     // almost always what the user wants.
     case PerfEventConfig::UNWIND_DWARF:
     case PerfEventConfig::UNWIND_FRAME_POINTER:
+    case PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER:
       return true;
     case PerfEventConfig::UNWIND_SKIP:
       return false;

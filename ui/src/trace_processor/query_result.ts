@@ -50,10 +50,10 @@
 // Ensure protobuf is initialized.
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
-import {defer, Deferred} from '../base/deferred';
+import {defer, type Deferred} from '../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
-import {Duration, duration, Time, time} from '../base/time';
+import {Duration, type duration, Time, type time} from '../base/time';
 
 export type SqlValue = string | number | bigint | null | Uint8Array;
 

@@ -19,29 +19,19 @@ import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../core/metatracing';
-import {Engine} from '../trace_processor/engine';
+import type {Engine} from '../trace_processor/engine';
 import {AppImpl} from '../core/app_impl';
-import {Trace} from '../public/trace';
-import {TraceImpl} from '../core/trace_impl';
+import type {Trace} from '../public/trace';
+import type {TraceImpl} from '../core/trace_impl';
 import {download, downloadUrl} from '../base/download_utils';
 import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
-import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
 import {showModal} from '../widgets/modal';
 import {assertExists} from '../base/assert';
 
 const TRACE_SUFFIX = '.perfetto-trace';
-
-export async function openCurrentTraceWithOldUI(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent(
-    'Trace Actions',
-    'Open current trace in legacy UI',
-  );
-  const file = await trace.getTraceFile();
-  await openInOldUIWithSizeCheck(file);
-}
 
 export async function convertTraceToSystrace(trace: Trace): Promise<void> {
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');

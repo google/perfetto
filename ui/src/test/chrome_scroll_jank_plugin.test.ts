@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, Page} from '@playwright/test';
+import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 import {
   EVENT_LATENCY_TRACK,
   SCROLL_TIMELINE_TRACK,
   SCROLL_TIMELINE_V4_TRACK,
-  TrackSpec,
+  type TrackSpec,
 } from '../plugins/org.chromium.ChromeScrollJank/tracks';
-import {Time, time} from '../base/time';
+import {Time, type time} from '../base/time';
 
 let pth: PerfettoTestHelper;
 let page: Page;

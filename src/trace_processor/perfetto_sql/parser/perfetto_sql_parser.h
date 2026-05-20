@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_PARSER_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_PARSER_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,10 +25,9 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -47,6 +45,14 @@ namespace perfetto::trace_processor {
 // RETURN_IF_ERROR(r.status());
 class PerfettoSqlParser {
  public:
+  // A CREATE PERFETTO MACRO definition.
+  struct Macro {
+    bool replace;
+    std::string name;
+    std::vector<std::string> args;
+    SqlSource sql;
+  };
+
   // Indicates that the specified SQLite SQL was extracted directly from a
   // PerfettoSQL statement and should be directly executed with SQLite.
   struct SqliteSql {};
@@ -129,9 +135,8 @@ class PerfettoSqlParser {
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
-  explicit PerfettoSqlParser(
-      SqlSource,
-      const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&);
+  explicit PerfettoSqlParser(SqlSource,
+                             const base::FlatHashMap<std::string, Macro>&);
 
   ~PerfettoSqlParser();
 
@@ -166,7 +171,8 @@ class PerfettoSqlParser {
   const base::Status& status() const;
 
  private:
-  std::unique_ptr<PerfettoSqlParserState> parser_state_;
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
   std::optional<SqlSource> statement_sql_;
 };
 

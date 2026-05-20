@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -101,11 +102,11 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   std::optional<int64_t> mm_id) {
   const char* memory_key = GetProcessMemoryKey(member);
   if (!memory_key) {
-    context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
+    context_->stats_tracker->IncrementStats(stats::rss_stat_unknown_keys);
     return;
   }
   if (size < 0) {
-    context_->storage->IncrementStats(stats::rss_stat_negative_size);
+    context_->stats_tracker->IncrementStats(stats::rss_stat_negative_size);
     return;
   }
 
@@ -121,7 +122,8 @@ void RssStatTracker::ParseRssStat(int64_t ts,
         EventTracker::RssStat{memory_key}, ts, static_cast<double>(size),
         *utid);
   } else {
-    context_->storage->IncrementStats(stats::rss_stat_unknown_thread_for_mm_id);
+    context_->stats_tracker->IncrementStats(
+        stats::rss_stat_unknown_thread_for_mm_id);
   }
 }
 
@@ -142,28 +144,22 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   if (!it)
     return std::nullopt;
 
-  // If the utid in the map is the same as our current utid but curr is false,
-  // that means we are in the middle of a process changing mm structs (i.e. in
-  // the middle of a vfork + exec). Therefore, we should discard the association
-  // of this vm struct with this thread.
-  const UniqueTid mm_utid = *it;
-  const UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  if (mm_utid == utid) {
-    mm_id_to_utid_.Erase(mm_id);
-    return std::nullopt;
-  }
-
   // Verify that the utid in the map is still alive. This can happen if an mm
   // struct we saw in the past is about to be reused after thread but we don't
   // know the new process that struct will be associated with.
+  const UniqueTid mm_utid = *it;
   if (!context_->process_tracker->IsThreadAlive(mm_utid)) {
     mm_id_to_utid_.Erase(mm_id);
     return std::nullopt;
   }
 
   // This case happens when a process is changing the VM of another process and
-  // we know that the utid corresponding to the target process. Just return that
-  // utid.
+  // we know the utid corresponding to the target process; or when the current
+  // thread is tearing down its own mm (e.g. during exit_mm(), where
+  // current->mm is cleared before mmput() synchronously emits teardown
+  // rss_stat events, or during exec() while the old mm is released after the
+  // new mm has been installed). In either case the event describes the
+  // recorded owner's mm, so return that utid.
   return mm_utid;
 }
 

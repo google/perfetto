@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {Switch} from '../../../../widgets/switch';
 import {OutlinedField, FormListItem, AddItemPlaceholder} from '../widgets';
-import {NewColumn} from './add_columns_types';
+import type {NewColumn} from './add_columns_types';
 
 /**
  * Attrs for the SwitchComponent.
@@ -83,7 +83,7 @@ export class SwitchComponent implements m.ClassComponent<SwitchComponentAttrs> {
     };
 
     if (column.switchOn === undefined || column.switchOn === '') {
-      const columnNames = columns.map((c) => c.column.name);
+      const columnNames = columns.map((c) => c.name);
       return m(
         OutlinedField,
         {
@@ -100,12 +100,10 @@ export class SwitchComponent implements m.ClassComponent<SwitchComponentAttrs> {
       );
     }
 
-    const columnNames = columns.map((c) => c.column.name);
+    const columnNames = columns.map((c) => c.name);
 
-    const selectedColumn = columns.find(
-      (c) => c.column.name === column.switchOn,
-    );
-    const isStringColumn = selectedColumn?.column.type?.kind === 'string';
+    const selectedColumn = columns.find((c) => c.name === column.switchOn);
+    const isStringColumn = selectedColumn?.type?.kind === 'string';
 
     return m('.pf-inline-edit-list', [
       m(

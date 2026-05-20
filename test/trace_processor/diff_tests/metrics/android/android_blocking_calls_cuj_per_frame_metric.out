@@ -4,9 +4,18 @@ android_blocking_calls_cuj_per_frame_metric {
     process {
       name: "com.android.systemui"
       uid: 10001
-      pid: 5000
       android_user_id: 0
+      pid: 5000
       is_kernel_task: false
+    }
+    blocking_calls {
+      name: "CreateGraphicsPipeline"
+      max_dur_per_frame_ms: 0
+      max_dur_per_frame_ns: 800000
+      mean_dur_per_frame_ms: 0
+      mean_dur_per_frame_ns: 200000
+      max_cnt_per_frame: 1
+      mean_cnt_per_frame: 0.250000
     }
     blocking_calls {
       name: "animation"
@@ -15,7 +24,7 @@ android_blocking_calls_cuj_per_frame_metric {
       mean_dur_per_frame_ms: 1
       mean_dur_per_frame_ns: 1000000
       max_cnt_per_frame: 1
-      mean_cnt_per_frame: 0.5
+      mean_cnt_per_frame: 0.500000
     }
     blocking_calls {
       name: "binder transaction"
@@ -24,7 +33,7 @@ android_blocking_calls_cuj_per_frame_metric {
       mean_dur_per_frame_ms: 1
       mean_dur_per_frame_ns: 1375000
       max_cnt_per_frame: 2
-      mean_cnt_per_frame: 0.75
+      mean_cnt_per_frame: 0.750000
     }
   }
   cuj {
@@ -32,8 +41,8 @@ android_blocking_calls_cuj_per_frame_metric {
     process {
       name: "com.google.android.apps.nexuslauncher"
       uid: 10002
-      pid: 6000
       android_user_id: 0
+      pid: 6000
       is_kernel_task: false
     }
     blocking_calls {
@@ -43,7 +52,7 @@ android_blocking_calls_cuj_per_frame_metric {
       mean_dur_per_frame_ms: 5
       mean_dur_per_frame_ns: 5500000
       max_cnt_per_frame: 1
-      mean_cnt_per_frame: 0.5
+      mean_cnt_per_frame: 0.500000
     }
   }
 }

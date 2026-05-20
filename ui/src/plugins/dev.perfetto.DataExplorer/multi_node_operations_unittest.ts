@@ -13,12 +13,15 @@
 // limitations under the License.
 
 import {HistoryManager} from './history_manager';
-import {DataExplorerState} from './data_explorer';
-import {Trace} from '../../public/trace';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import type {DataExplorerState} from './data_explorer';
+import type {Trace} from '../../public/trace';
+import type {
+  SqlModules,
+  SqlTable,
+} from '../dev.perfetto.SqlModules/sql_modules';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
 import {FilterNode} from './query_builder/nodes/filter_node';
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import {addConnection, getAllNodes} from './query_builder/graph_utils';
 import {registerCoreNodes} from './query_builder/core_nodes';
 
@@ -62,16 +65,14 @@ describe('Multi-node operations', () => {
 
   describe('Multi-node copy', () => {
     test('should capture relative positions of multiple nodes', () => {
-      const node1 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node2 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
+      const node1 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node2 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
 
       const state: DataExplorerState = {
         rootNodes: [node1, node2],
@@ -115,12 +116,11 @@ describe('Multi-node operations', () => {
     });
 
     test('should capture connections between selected nodes', () => {
-      const node1 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node2 = new FilterNode({filters: []});
+      const node1 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node2 = new FilterNode({filters: []}, {});
       addConnection(node1, node2);
 
       // Verify connection exists
@@ -129,12 +129,11 @@ describe('Multi-node operations', () => {
     });
 
     test('should handle docked nodes (nodes without explicit layout)', () => {
-      const node1 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node2 = new FilterNode({filters: []});
+      const node1 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node2 = new FilterNode({filters: []}, {});
       addConnection(node1, node2);
 
       const nodeLayouts = new Map([[node1.nodeId, {x: 100, y: 200}]]);
@@ -147,11 +146,10 @@ describe('Multi-node operations', () => {
 
   describe('Multi-node paste', () => {
     test('should paste multiple times from same clipboard', () => {
-      const node1 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
+      const node1 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
 
       const clipboardNodes = [
         {
@@ -175,12 +173,11 @@ describe('Multi-node operations', () => {
     });
 
     test('should restore connections between pasted nodes', () => {
-      const node1 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node2 = new FilterNode({filters: []});
+      const node1 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node2 = new FilterNode({filters: []}, {});
       addConnection(node1, node2);
 
       // Clone nodes for clipboard
@@ -204,21 +201,18 @@ describe('Multi-node operations', () => {
     test('should create single undo entry when using handleDeleteSelectedNodes', () => {
       // This test verifies that the batched multi-node deletion creates
       // only ONE undo entry, so users can restore all deleted nodes at once
-      const node1 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node2 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node3 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
+      const node1 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node2 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node3 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
 
       // Initial state with 3 nodes
       const state1: DataExplorerState = {
@@ -250,13 +244,12 @@ describe('Multi-node operations', () => {
 
     test('should restore connected nodes properly after undo', () => {
       // Create a chain: table -> filter1 -> filter2
-      const tableNode = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const filter1 = new FilterNode({filters: []});
-      const filter2 = new FilterNode({filters: []});
+      const tableNode = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const filter1 = new FilterNode({filters: []}, {});
+      const filter2 = new FilterNode({filters: []}, {});
 
       addConnection(tableNode, filter1);
       addConnection(filter1, filter2);
@@ -307,21 +300,18 @@ describe('Multi-node operations', () => {
 
   describe('Multi-node selection', () => {
     test('should maintain primary selected node when removing from selection', () => {
-      const node1 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node2 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
-      const node3 = new TableSourceNode({
-        trace,
-        sqlModules,
-        sqlTable: sqlModules.getTable('test_table')!,
-      });
+      const node1 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node2 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
+      const node3 = new TableSourceNode(
+        {sqlTable: 'test_table'},
+        {trace, sqlModules},
+      );
 
       const state: DataExplorerState = {
         rootNodes: [node1, node2, node3],

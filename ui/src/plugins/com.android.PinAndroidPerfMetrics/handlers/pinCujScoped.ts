@@ -14,12 +14,12 @@
 
 import {
   expandProcessName,
-  CujScopedMetricData,
-  MetricHandler,
-  JankType,
+  type CujScopedMetricData,
+  type MetricHandler,
+  type JankType,
 } from './metricUtils';
 import {NUM} from '../../../trace_processor/query_result';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 
 // TODO(primiano): make deps check stricter, we shouldn't allow plugins to
 // depend on each other.
@@ -37,18 +37,17 @@ class PinCujScopedJank implements MetricHandler {
    */
   public match(metricKey: string): CujScopedMetricData | undefined {
     const matcher =
-      /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-missed_(?<jankType>frames|sf_frames|app_frames)/;
+      /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-(?<jps>weighted_)?missed_(?<jankType>frames|sf_frames|app_frames)/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;
     }
-    const metricData: CujScopedMetricData = {
+    return {
       process: expandProcessName(match.groups.process),
       cujName: match.groups.cujName,
       jankType: match.groups.jankType as JankType,
+      isWeighted: !!match.groups.jps,
     };
-    return metricData;
-    1;
   }
 
   /**
@@ -83,6 +82,10 @@ class PinCujScopedJank implements MetricHandler {
       jankTypeFilter = ' AND sf_missed > 0';
       jankTypeDisplayName = 'sf';
     }
+    if (metricData.isWeighted) {
+      jankTypeFilter += ' AND jank_score > 0';
+    }
+
     const cuj = metricData.cujName;
     const processName = metricData.process;
 
@@ -93,7 +96,8 @@ class PinCujScopedJank implements MetricHandler {
       SELECT
         f.vsync as id,
         f.ts AS ts,
-        f.dur as dur
+        f.dur as dur,
+        f.jank_score as jank_score
       FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
       WHERE cuj.process_name = "${processName}"
       AND cuj_name = "${cuj}" ${jankTypeFilter}
@@ -102,7 +106,7 @@ class PinCujScopedJank implements MetricHandler {
     await ctx.engine.query(createJankyCujFrameTable);
 
     const jankyFramesDuringCujQuery = `
-      SELECT id, ts, dur
+      SELECT id, ts, dur, jank_score
       FROM ${tableWithJankyFramesName}
     `;
 
@@ -111,10 +115,14 @@ class PinCujScopedJank implements MetricHandler {
     const cujScopedJankSlice = {
       data: {
         sqlSource: jankyFramesDuringCujQuery,
-        columns: ['id', 'ts', 'dur'],
+        columns: ['id', 'ts', 'dur', 'jank_score'],
       },
-      columns: {ts: 'ts', dur: 'dur', name: 'id'},
-      argColumns: ['id', 'ts', 'dur'],
+      columns: {
+        ts: 'ts',
+        dur: 'dur',
+        name: metricData.isWeighted ? 'jank_score' : 'id',
+      },
+      argColumns: ['id', 'ts', 'dur', 'jank_score'],
       title: trackName,
     };
 

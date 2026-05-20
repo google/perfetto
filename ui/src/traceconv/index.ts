@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from '../base/deferred';
-import {addErrorHandler, ErrorDetails, reportError} from '../base/logging';
+import {addErrorHandler, type ErrorDetails, reportError} from '../base/logging';
 import {assertExists} from '../base/assert';
-import {time} from '../base/time';
+import type {time} from '../base/time';
 import traceconv from '../gen/traceconv';
 
 const selfWorker = self as {} as Worker;
@@ -71,15 +70,13 @@ function fsNodeToBuffer(fsNode: traceconv.FileSystemNode): Uint8Array {
 }
 
 async function runTraceconv(trace: Blob, args: string[]) {
-  const deferredRuntimeInitialized = defer<void>();
-  const module = traceconv({
+  const module = await traceconv({
     noInitialRun: true,
     locateFile: (s: string) => s,
     print: updateStatus,
     printErr: updateStatus,
-    onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
+    onRuntimeInitialized: () => {},
   });
-  await deferredRuntimeInitialized;
   module.FS.mkdir('/fs');
   module.FS.mount(
     assertExists(module.FS.filesystems.WORKERFS),

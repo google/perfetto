@@ -16,8 +16,10 @@
 
 use crate::pb_msg;
 use crate::pb_msg_ext;
+use crate::protos::trace::generic_kernel::generic_gpu_frequency::*;
 use crate::protos::trace::gpu::gpu_counter_event::*;
 use crate::protos::trace::gpu::gpu_log::*;
+use crate::protos::trace::gpu::gpu_mem_event::*;
 use crate::protos::trace::gpu::gpu_render_stage_event::*;
 use crate::protos::trace::gpu::vulkan_api_event::*;
 use crate::protos::trace::gpu::vulkan_memory_event::*;
@@ -31,7 +33,9 @@ pb_msg_ext!(TracePacket {
     vulkan_memory_event: VulkanMemoryEvent, msg, 62,
     gpu_log: GpuLog, msg, 63,
     vulkan_api_event: VulkanApiEvent, msg, 65,
+    gpu_mem_total_event: GpuMemTotalEvent, msg, 71,
     gpu_info: GpuInfo, msg, 128,
+    generic_gpu_frequency_event: GenericGpuFrequencyEvent, msg, 129,
 });
 
 /// Import this to use the extra `TracePacket` fields.

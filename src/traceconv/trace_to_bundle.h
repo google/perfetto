@@ -39,6 +39,9 @@ struct BundleContext {
   // If true, disables automatic symbol path discovery
   bool no_auto_symbol_paths = false;
 
+  // If true, disables automatic ProGuard/R8 mapping discovery.
+  bool no_auto_proguard_maps = false;
+
   // If true, output verbose details (all paths tried, etc.)
   bool verbose = false;
 

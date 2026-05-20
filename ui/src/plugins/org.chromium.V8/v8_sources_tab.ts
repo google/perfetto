@@ -14,13 +14,18 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import {Filter} from '../../components/widgets/datagrid/model';
+import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {Filter} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
-import {Tab} from '../../public/tab';
-import {Trace} from '../../public/trace';
-import {NUM, Row, SqlValue, STR} from '../../trace_processor/query_result';
+import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {Tab} from '../../public/tab';
+import type {Trace} from '../../public/trace';
+import {
+  NUM,
+  type Row,
+  type SqlValue,
+  STR,
+} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {Editor} from '../../widgets/editor';
@@ -31,7 +36,7 @@ import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {formatFileSize} from '../../base/file_utils';
-import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
+import {QuerySlot} from '../../base/query_slot';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -106,9 +111,7 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private readonly slot = new QuerySlot<ScriptResults | undefined>(
-    new SerialTaskQueue(),
-  );
+  private readonly slot = new QuerySlot<ScriptResults | undefined>();
   private selectedScriptId: number | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;

@@ -41,16 +41,18 @@ WITH
       fr.frame_id,
       fr.frame_ts AS ts,
       fr.ui_thread_utid,
+      fr.render_thread_utid,
       fr.cuj_id,
       fr.cuj_name,
       fr.layer_id,
       -- Calculate the first doFrame start that occurs AFTER the current frame ends
       (
-        SELECT
-          min(ts)
+        SELECT min(ts)
         FROM _android_jank_cuj_do_frames
         WHERE
-          utid = fr.ui_thread_utid AND ts >= fr.ts_end AND ts <= fr.next_frame_start
+          utid = fr.ui_thread_utid
+          AND ts >= fr.ts_end
+          AND ts <= fr.next_frame_start
       ) AS next_do_slice_after_frame,
       fr.next_frame_start,
       fr.ts_end AS original_ts_end
@@ -59,6 +61,7 @@ WITH
 SELECT
   ts,
   ui_thread_utid,
+  render_thread_utid,
   frame_id,
   layer_id,
   cuj_id,
@@ -90,17 +93,12 @@ SELECT
   cuj_name
 FROM _android_critical_blocking_calls AS bc
 JOIN _extended_frame_boundary AS frame
-  ON bc.utid = frame.ui_thread_utid
+  ON (bc.utid = frame.ui_thread_utid OR bc.utid = frame.render_thread_utid)
 -- The following condition to accommodate blocking call crossing frame boundary. The blocking
 -- call starts in a frame or ends in a frame. It can either be the same frame or a different
 -- frame.
 WHERE
   (
-    -- Blocking call starts within the frame.
-    (
-      bc.ts >= frame.ts AND bc.ts <= frame.ts_end
-    )
-    OR (
-      bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end
-    )
-  );
+  -- Blocking call starts within the frame.
+  (bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
+  OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end));

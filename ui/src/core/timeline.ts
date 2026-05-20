@@ -15,16 +15,16 @@
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {assertUnreachable} from '../base/assert';
-import {Time, time, timezoneOffsetMap} from '../base/time';
-import {Setting} from '../public/settings';
+import {Time, type time, timezoneOffsetMap} from '../base/time';
+import type {Setting} from '../public/settings';
 import {
-  DurationPrecision,
-  PanInstantIntoViewOptions,
-  PanIntoViewOptions,
-  Timeline,
+  type DurationPrecision,
+  type PanInstantIntoViewOptions,
+  type PanIntoViewOptions,
+  type Timeline,
   TimestampFormat,
 } from '../public/timeline';
-import {TraceInfo} from '../public/trace_info';
+import type {TraceInfo} from '../public/trace_info';
 import {raf} from './raf_scheduler';
 
 /**
@@ -39,6 +39,7 @@ export class TimelineImpl implements Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;
   private _highlightedSliceId?: number;
+  private _highlightedSliceName?: string;
   private _hoveredNoteTimestamp?: time;
   private _animationStartTime?: number;
   private _animationStartWindow?: HighPrecisionTimeSpan;
@@ -66,6 +67,16 @@ export class TimelineImpl implements Timeline {
   set highlightedSliceId(x) {
     if (this._highlightedSliceId === x) return;
     this._highlightedSliceId = x;
+    raf.scheduleCanvasRedraw();
+  }
+
+  get highlightedSliceName() {
+    return this._highlightedSliceName;
+  }
+
+  set highlightedSliceName(x) {
+    if (this._highlightedSliceName === x) return;
+    this._highlightedSliceName = x;
     raf.scheduleCanvasRedraw();
   }
 

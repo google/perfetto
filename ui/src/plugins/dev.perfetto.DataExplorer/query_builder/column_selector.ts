@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnInfo} from './column_info';
+import type {ColumnInfo} from './column_info';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
 import {DraggableItem} from './widgets';
@@ -89,7 +89,7 @@ export class ColumnSelector implements m.ClassComponent<ColumnSelectorAttrs> {
             columns.map((col, index) => {
               const checkbox = m(Checkbox, {
                 checked: col.checked,
-                label: col.column.name,
+                label: col.name,
                 onchange: (e) => {
                   const newColumns = [...columns];
                   newColumns[index] = {

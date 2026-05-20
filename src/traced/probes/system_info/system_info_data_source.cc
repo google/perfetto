@@ -20,45 +20,110 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/cpu_info.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/traced/probes/system_info/cpu_info_features_allowlist.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
+#include "protos/perfetto/config/system_info/system_info_config.gen.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
+#include "protos/perfetto/trace/system_info/interrupt_info.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
 namespace {
 
-// Key for default processor string in /proc/cpuinfo as seen on arm. Note the
-// uppercase P.
-const char kDefaultProcessor[] = "Processor";
+struct InterruptMapping {
+  uint32_t irq_id;
+  std::string name;
+};
 
-// Key for processor entry in /proc/cpuinfo. Used to determine whether a group
-// of lines describes a CPU.
-const char kProcessor[] = "processor";
+std::vector<InterruptMapping> ReadInterruptMappings(std::string content) {
+  std::vector<InterruptMapping> mappings;
 
-// Key for CPU implementer in /proc/cpuinfo. Arm only.
-const char kImplementer[] = "CPU implementer";
+  base::StringSplitter lines(std::move(content), '\n');
+  if (!lines.Next())
+    return mappings;
 
-// Key for CPU architecture in /proc/cpuinfo. Arm only.
-const char kArchitecture[] = "CPU architecture";
+  // Count CPUs from the header line (tokens starting with "CPU").
+  size_t num_cpus = 0;
+  {
+    base::StringSplitter header_tok(&lines, ' ');
+    while (header_tok.Next()) {
+      if (base::StartsWith(header_tok.cur_token(), "CPU"))
+        num_cpus++;
+    }
+  }
 
-// Key for CPU variant in /proc/cpuinfo. Arm only.
-const char kVariant[] = "CPU variant";
+  if (num_cpus == 0)
+    return mappings;
 
-// Key for CPU part in /proc/cpuinfo. Arm only.
-const char kPart[] = "CPU part";
+  while (lines.Next()) {
+    std::vector<std::string> tokens;
+    {
+      base::StringSplitter tok(&lines, ' ');
+      while (tok.Next())
+        tokens.emplace_back(tok.cur_token(), tok.cur_token_size());
+    }
 
-// Key for CPU revision in /proc/cpuinfo. Arm only.
-const char kRevision[] = "CPU revision";
+    if (tokens.size() <= num_cpus)
+      continue;
 
-// Key for feature flags in /proc/cpuinfo. Arm calls them Features,
-// Intel calls them Flags.
-const char kFeatures[] = "Features";
-const char kFlags[] = "Flags";
+    // First token must be numeric "IRQ_NUM:". Non-numeric pseudo-IRQ rollup
+    // lines are intentionally skipped (e.g. "NMI: Non-maskable interrupts",
+    // "LOC: Local timer interrupts").
+    const std::string& id_token = tokens[0];
+    if (id_token.empty() || id_token.back() != ':')
+      continue;
+    auto irq_id_opt =
+        base::CStringToUInt32(id_token.substr(0, id_token.size() - 1).c_str());
+    if (!irq_id_opt)
+      continue;
+    uint32_t irq_id = *irq_id_opt;
+
+    // Find the trigger token to anchor the name. ARM GIC uses standalone
+    // "Level"/"Edge"; x86 IO-APIC embeds the trigger in the hw-irq field
+    // (e.g. "16-fasteoi", "2-edge"). Searching backwards is efficient since
+    // the trigger appears within a few tokens of the end. Handles multi-word
+    // chip names (e.g. "cs40l26 IRQ1 Controller"). Falls back to the last
+    // token when no trigger is recognised.
+    auto is_trigger = [](const std::string& t) {
+      return t == "Level" || t == "Edge" || base::EndsWith(t, "-edge") ||
+             base::EndsWith(t, "-fasteoi") || base::EndsWith(t, "-level") ||
+             base::EndsWith(t, "-fasteoi-level");
+    };
+
+    ssize_t trigger_idx = -1;
+    for (size_t i = tokens.size() - 1; i > num_cpus; --i) {
+      if (is_trigger(tokens[i])) {
+        trigger_idx = static_cast<ssize_t>(i);
+        break;
+      }
+    }
+
+    size_t name_start = (trigger_idx != -1)
+                            ? static_cast<size_t>(trigger_idx + 1)
+                            : tokens.size() - 1;
+
+    if (name_start >= tokens.size() || name_start < num_cpus + 2)
+      continue;
+
+    InterruptMapping mapping;
+    mapping.irq_id = irq_id;
+    for (size_t j = name_start; j < tokens.size(); ++j) {
+      if (!mapping.name.empty())
+        mapping.name += " ";
+      mapping.name += tokens[j];
+    }
+
+    if (!mapping.name.empty())
+      mappings.push_back(std::move(mapping));
+  }
+
+  return mappings;
+}
 
 }  // namespace
 
@@ -72,125 +137,82 @@ const ProbesDataSource::Descriptor SystemInfoDataSource::descriptor = {
 SystemInfoDataSource::SystemInfoDataSource(
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
-    std::unique_ptr<CpuFreqInfo> cpu_freq_info)
+    std::unique_ptr<CpuFreqInfo> cpu_freq_info,
+    const DataSourceConfig& config)
     : ProbesDataSource(session_id, &descriptor),
       writer_(std::move(writer)),
-      cpu_freq_info_(std::move(cpu_freq_info)) {}
+      cpu_freq_info_(std::move(cpu_freq_info)),
+      include_irq_mapping_(config.system_info_config().irq_names()) {}
 
 void SystemInfoDataSource::Start() {
   auto packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
   auto* cpu_info = packet->set_cpu_info();
 
-  // Parse /proc/cpuinfo which contains groups of "key\t: value" lines separated
-  // by an empty line. Each group represents a CPU. See the full example in the
-  // unittest.
-  std::string proc_cpu_info = ReadFile("/proc/cpuinfo");
-  std::string::iterator line_start = proc_cpu_info.begin();
-  std::string::iterator line_end = proc_cpu_info.end();
-  std::string default_processor = "unknown";
-  std::string cpu_index = "";
+  for (const auto& parsed_cpu : ReadCpuInfo()) {
+    auto* cpu = cpu_info->add_cpus();
+    cpu->set_processor(parsed_cpu.processor);
 
-  std::optional<uint32_t> implementer;
-  std::optional<uint32_t> architecture;
-  std::optional<uint32_t> variant;
-  std::optional<uint32_t> part;
-  std::optional<uint32_t> revision;
-  uint64_t features = 0;
+    std::optional<uint32_t> cpu_capacity =
+        base::StringToUInt32(base::StripSuffix(
+            ReadFile("/sys/devices/system/cpu/cpu" +
+                     std::to_string(parsed_cpu.cpu_index) + "/cpu_capacity"),
+            "\n"));
 
-  uint32_t next_cpu_index = 0;
-  while (line_start != proc_cpu_info.end()) {
-    line_end = find(line_start, proc_cpu_info.end(), '\n');
-    if (line_end == proc_cpu_info.end())
-      break;
-    std::string line = std::string(line_start, line_end);
-    line_start = line_end + 1;
-    if (line.empty() && !cpu_index.empty()) {
-      PERFETTO_DCHECK(cpu_index == std::to_string(next_cpu_index));
-
-      auto* cpu = cpu_info->add_cpus();
-      cpu->set_processor(default_processor);
-
-      std::optional<uint32_t> cpu_capacity = base::StringToUInt32(
-          base::StripSuffix(ReadFile("/sys/devices/system/cpu/cpu" + cpu_index +
-                                     "/cpu_capacity"),
-                            "\n"));
-
-      if (cpu_capacity.has_value()) {
-        cpu->set_capacity(cpu_capacity.value());
-      }
-
-      auto freqs_range = cpu_freq_info_->GetFreqs(next_cpu_index);
-      for (auto it = freqs_range.first; it != freqs_range.second; it++) {
-        cpu->add_frequencies(*it);
-      }
-      cpu_index = "";
-
-      // Set Arm CPU identifier if available
-      if (implementer && architecture && part && variant && revision) {
-        auto* identifier = cpu->set_arm_identifier();
-        identifier->set_implementer(implementer.value());
-        identifier->set_architecture(architecture.value());
-        identifier->set_variant(variant.value());
-        identifier->set_part(part.value());
-        identifier->set_revision(revision.value());
-      } else if (implementer || architecture || part || variant || revision) {
-        PERFETTO_ILOG("Failed to parse Arm specific fields from /proc/cpuinfo");
-      }
-
-      if (features != 0) {
-        cpu->set_features(features);
-      }
-
-      implementer = std::nullopt;
-      architecture = std::nullopt;
-      variant = std::nullopt;
-      part = std::nullopt;
-      revision = std::nullopt;
-      features = 0;
-
-      next_cpu_index++;
-      continue;
+    if (cpu_capacity.has_value()) {
+      cpu->set_capacity(cpu_capacity.value());
     }
-    auto splits = base::SplitString(line, ":");
-    if (splits.size() != 2)
-      continue;
-    std::string key =
-        base::StripSuffix(base::StripChars(splits[0], "\t", ' '), " ");
-    std::string value = base::StripPrefix(splits[1], " ");
-    if (key == kDefaultProcessor) {
-      default_processor = value;
-    } else if (key == kProcessor) {
-      cpu_index = value;
-    } else if (key == kImplementer) {
-      implementer = base::CStringToUInt32(value.data(), 16);
-    } else if (key == kArchitecture) {
-      architecture = base::CStringToUInt32(value.data(), 10);
-    } else if (key == kVariant) {
-      variant = base::CStringToUInt32(value.data(), 16);
-    } else if (key == kPart) {
-      part = base::CStringToUInt32(value.data(), 16);
-    } else if (key == kRevision) {
-      revision = base::CStringToUInt32(value.data(), 10);
-    } else if (key == kFeatures || key == kFlags) {
-      for (base::StringSplitter ss(value.data(), ' '); ss.Next();) {
-        for (size_t i = 0; i < base::ArraySize(kCpuInfoFeatures); ++i) {
-          if (strcmp(ss.cur_token(), kCpuInfoFeatures[i]) == 0) {
-            static_assert(base::ArraySize(kCpuInfoFeatures) < 64);
-            features |= 1 << i;
-          }
-        }
-      }
+
+    auto freqs_range = cpu_freq_info_->GetFreqs(parsed_cpu.cpu_index);
+    for (auto it = freqs_range.first; it != freqs_range.second; it++) {
+      cpu->add_frequencies(*it);
+    }
+
+    if (parsed_cpu.implementer && parsed_cpu.architecture && parsed_cpu.part &&
+        parsed_cpu.variant && parsed_cpu.revision) {
+      auto* identifier = cpu->set_arm_identifier();
+      identifier->set_implementer(parsed_cpu.implementer.value());
+      identifier->set_architecture(parsed_cpu.architecture.value());
+      identifier->set_variant(parsed_cpu.variant.value());
+      identifier->set_part(parsed_cpu.part.value());
+      identifier->set_revision(parsed_cpu.revision.value());
+    } else if (parsed_cpu.implementer || parsed_cpu.architecture ||
+               parsed_cpu.part || parsed_cpu.variant || parsed_cpu.revision) {
+      PERFETTO_DLOG("Arm specific fields not found for cpu %" PRIu32,
+                    parsed_cpu.cpu_index);
+    }
+
+    if (parsed_cpu.features != 0) {
+      cpu->set_features(parsed_cpu.features);
     }
   }
 
   packet->Finalize();
+
+  if (include_irq_mapping_) {
+    auto mappings = ReadInterruptMappings(ReadFile("/proc/interrupts"));
+    if (!mappings.empty()) {
+      auto irq_packet = writer_->NewTracePacket();
+      irq_packet->set_timestamp(
+          static_cast<uint64_t>(base::GetBootTimeNs().count()));
+      auto* interrupt_info = irq_packet->set_interrupt_info();
+      for (const auto& mapping : mappings) {
+        auto* irq_proto = interrupt_info->add_irq_mapping();
+        irq_proto->set_irq_id(mapping.irq_id);
+        irq_proto->set_name(mapping.name);
+      }
+    }
+  }
   writer_->Flush();
 }
 
 void SystemInfoDataSource::Flush(FlushRequestID,
                                  std::function<void()> callback) {
   writer_->Flush(callback);
+}
+
+std::vector<base::CpuInfo> SystemInfoDataSource::ReadCpuInfo() {
+  return base::ReadCpuInfo();
 }
 
 std::string SystemInfoDataSource::ReadFile(std::string path) {

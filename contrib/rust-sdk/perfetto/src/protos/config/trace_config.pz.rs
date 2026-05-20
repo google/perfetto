@@ -221,6 +221,7 @@ pb_msg!(TraceConfigBuiltinDataSource {
     snapshot_interval_ms: u32, primitive, 6,
     prefer_suspend_clock_for_snapshot: bool, primitive, 7,
     disable_chunk_usage_histograms: bool, primitive, 8,
+    disable_extension_descriptors: bool, primitive, 9,
 });
 
 pb_msg!(TraceConfigDataSource {

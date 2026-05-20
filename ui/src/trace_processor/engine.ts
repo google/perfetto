@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import protos from '../protos';
-import {defer, Deferred} from '../base/deferred';
+import {defer, type Deferred} from '../base/deferred';
 import {assertExists, assertTrue, assertUnreachable} from '../base/assert';
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
   QueryError,
-  QueryResult,
-  WritableQueryResult,
+  type QueryResult,
+  type WritableQueryResult,
 } from './query_result';
 import TPM = protos.TraceProcessorRpc.TraceProcessorMethod;
 import {exists} from '../base/utils';
-import {errResult, okResult, Result} from '../base/result';
+import {errResult, okResult, type Result} from '../base/result';
 
 export type EngineMode = 'WASM' | 'HTTP_RPC';
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';

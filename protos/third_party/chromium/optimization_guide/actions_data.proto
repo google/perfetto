@@ -353,6 +353,23 @@ message AttemptFormFillingAction {
   repeated FormFillingRequest form_filling_requests = 2;
 }
 
+// Attempts to fill One-Time Password (OTP) /verification codes in the tab. This
+// action is used for OTP filling, which is different from the general form
+// filling action above. Next ID: 4
+message AttemptOtpFillingAction {
+  // The tab ID in which to attempt OTP filling.
+  int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
+
+  // The input field elements where the OTP/verification code should be filled.
+  repeated ActionTarget target_fields = 2;
+
+  // Indicates whether this operation call is needed for a signin.
+  // This field determines whether a user confirmation dialog is shown before
+  // filling the OTP/verification code. A dialog is shown only when
+  // `for_signin` is false.
+  bool for_signin = 3 [features = { field_presence: EXPLICIT }];
+}
+
 // Scrolls the DOM element into viewport.
 // Next ID: 5
 message ScrollToAction {
@@ -426,7 +443,7 @@ message LoadAndExtractContentAction {
 
 // All of the actions that can be taken.
 // Only one of these is allowed per action.
-// Next ID: 24
+// Next ID: 25
 message Action {
 
   oneof action {
@@ -475,6 +492,8 @@ message Action {
     AttemptFormFillingAction attempt_form_filling = 22;
 
     LoadAndExtractContentAction load_and_extract_content = 23;
+
+    AttemptOtpFillingAction attempt_otp_filling = 24;
   }
 }
 
@@ -485,7 +504,7 @@ message TaskMetadata {
 }
 
 // Metadata related to action security.
-// Next ID: 2
+// Next ID: 3
 message SecurityMetadata {
   // If the server predicted that new mainframe origins may be navigated to as a
   // result of the current task turn, those are given here.
@@ -493,6 +512,12 @@ message SecurityMetadata {
   // These origins, if any, are added to the set of all writeable origins kept
   // by the Chrome browser process.
   repeated string added_writable_mainframe_origins = 1;
+
+  // If set, this config will be used to determine which locations the agent
+  // may visit and what resources and capabilities are available.
+  // This field is only respected the first turn if it is received; any
+  // subsequent turns' values are ignored.
+  AgentContainerConfig agent_container_config = 2 [features = { field_presence: EXPLICIT }];
 }
 
 // Options for screenshot collection.
@@ -731,8 +756,7 @@ message ActionsResult {
 }
 
 // A request to start a task.
-// Next ID: 1
-
+// Next ID: 2
 message BrowserStartTask {
   // The id of the tab the task should be started in. If not set, the task
   // will be started in a new tab.

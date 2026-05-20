@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {assertExists} from '../../base/assert';
-import {
-  QueryFlamegraph,
-  QueryFlamegraphMetric,
-  QueryFlamegraphWithMetrics,
-} from '../../components/query_flamegraph';
-import {PerfettoPlugin} from '../../public/plugin';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import {Trace} from '../../public/trace';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -34,12 +32,12 @@ import {
 import {
   Flamegraph,
   FLAMEGRAPH_STATE_SCHEMA,
-  FlamegraphState,
+  type FlamegraphState,
 } from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import CpuProfilePlugin from '../dev.perfetto.CpuProfile';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -398,16 +396,14 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           trackIds: [trackId],
           cpu: cpu ?? undefined,
         },
-        renderer: new TraceProcessorCounterTrack(
+        renderer: new TraceProcessorCounterTrack({
           trace,
           uri,
-          {
-            yMode: 'rate', // Default to rate mode
-            unit: unit ?? undefined,
-          },
+          yMode: 'rate', // Default to rate mode
+          unit: unit ?? undefined,
           trackId,
-          title,
-        ),
+          trackName: title,
+        }),
       });
       const trackNode = new TrackNode({
         uri,
@@ -427,7 +423,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
 
   private createAreaSelectionTab(trace: Trace) {
     let previousSelection: AreaSelection | undefined;
-    let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
+    let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
 
     return {
       id: 'perf_sample_flamegraph',
@@ -438,20 +434,17 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           !areaSelectionsEqual(previousSelection, selection);
         if (changed) {
           previousSelection = selection;
-          flamegraphWithMetrics = this.computePerfSampleFlamegraph(
-            trace,
-            selection,
-          );
+          flamegraphMetrics = this.computePerfSampleFlamegraph(selection);
         }
-        if (flamegraphWithMetrics === undefined) {
+        if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const {flamegraph, metrics} = flamegraphWithMetrics;
         const store = assertExists(this.store);
         return {
           isLoading: false,
-          content: flamegraph.render({
-            metrics,
+          content: m(FlamegraphPanel, {
+            trace,
+            metrics: flamegraphMetrics,
             state: store.state.areaSelectionFlamegraphState,
             onStateChange: (state) => {
               store.edit((draft) => {
@@ -465,9 +458,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   }
 
   private computePerfSampleFlamegraph(
-    trace: Trace,
     currentSelection: AreaSelection,
-  ): QueryFlamegraphWithMetrics | undefined {
+  ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
     const processTrackTags = getSelectedProcessTrackTags(currentSelection);
     const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
     if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
@@ -578,7 +570,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return {flamegraph: new QueryFlamegraph(trace), metrics};
+    return metrics;
   }
 
   // Get counter types for the given session IDs from the pre-populated cache.

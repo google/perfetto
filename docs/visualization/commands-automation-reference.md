@@ -515,13 +515,13 @@ None (macro commands and arguments are pre-configured)
 These stable automation commands can be used in several contexts:
 
 - **Startup Commands** - Automatically run when loading traces. See
-  [Startup Commands](/docs/visualization/ui-automation.md#commands-system-overview)
+  [Startup Commands](/docs/visualization/ui-automation.md#setting-up-startup-commands)
   in the UI automation guide.
 - **Macros** - Named command sequences for on-demand execution. See
-  [Macros](/docs/visualization/ui-automation.md#commands-system-overview) in the
+  [Macros](/docs/visualization/ui-automation.md#creating-macros) in the
   UI automation guide.
 - **URL Deep Linking** - Embed commands in URLs or postMessage. See
-  [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md#configuring-the-ui-with-startup-commands)
+  [Deep Linking](/docs/visualization/deep-linking-to-perfetto-ui.md#startup-commands)
   for URL patterns and postMessage integration.
 
 For practical automation examples and recipes, see the

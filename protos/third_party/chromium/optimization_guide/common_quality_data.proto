@@ -376,7 +376,7 @@ message ContentAttributes {
 }
 
 // The geometry of the content, in the page coordinate system.
-// Next ID: 7
+// Next ID: 8
 // NOTE: If `visual_bounding_box` is empty, i.e., the content is offscreen and
 // it's in an iframe, the `outer_bounding_box` may be incorrect. See crbug.com/384996050
 // for details.
@@ -400,6 +400,14 @@ message Geometry {
   // ancestor clipping. These are the element bounds visible to the user and
   // hit-testable in the DOM.
   BoundingRect visible_bounding_box = 2 [features = { field_presence: EXPLICIT }];
+
+  // The bounding box of the content node relative to the viewport including all
+  // ancestor clipping. This is conceptually the same as `visible_bounding_box`,
+  // but with coordinates calculated by the compositor on the client side. This
+  // geometry should be more in sync with the browser screenshot, and should be
+  // used for screenshot redaction when present. See crbug.com/441532128 for more
+  // details.
+  BoundingRect compositor_bounding_box = 7 [features = { field_presence: EXPLICIT }];
 
   // Multiple boxes are used when there are multiple rectangles belonging to
   // the same node, e.g.: across multiple lines, columns or pages. In layout
@@ -962,7 +970,7 @@ message TableRowData {
 // there can only be one unique value.
 // Currently this is only tracked for the main frame. The IDs correspond to the
 // DOM node IDs of the content nodes in the main frame.
-// Next ID: 5
+// Next ID: 6
 message PageInteractionInfo {
   // The content node ID of the content node that is currently focused.
   // TODO(linnan): Deprecate this field in favor of
@@ -980,6 +988,11 @@ message PageInteractionInfo {
 
   // The identifier of the frame that currently has focus.
   DocumentIdentifier focused_frame = 4 [features = { field_presence: EXPLICIT }];
+
+  // The identifier of the frame that currently has accessibility focus. If the
+  // field is present but the identifier is empty, it means no frame has
+  // accessibility focus.
+  DocumentIdentifier accessibility_focused_frame = 5 [features = { field_presence: EXPLICIT }];
 }
 
 message Point {
@@ -1264,6 +1277,119 @@ message DocumentSelection {
 
   // The selection in the document.
   Selection selection = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// Next ID: 2
+message AgentContainerConfig {
+  // If the same location is provided multiple times with different metadata,
+  // it is undefined which one is actually used.
+  //
+  // Note: a global blocklist may be written by keeping this field empty.
+  //
+  // Any attempt to navigate/actuate on a location that has no matching
+  // LocationRule will be disallowed.
+  //
+  // Note: location_rules may include a wildcard Location, to allow the agent
+  // to visit any site (with a given set of resources and actuation level).
+  repeated LocationRule location_rules = 1;
+}
+
+// A rule governing how a web location may or may not be used.
+// Next ID: 4
+message LocationRule {
+  // The location (origin, site, etc.).
+  Location location = 1 [features = { field_presence: EXPLICIT }];
+
+  // Metadata/controls associated with this rule.
+  RuleMetadata metadata = 2 [features = { field_presence: EXPLICIT }];
+
+  // Navigations to this location must have one of these sources to match this
+  // rule. If no sources are provided, then all navigations to this location
+  // match this rule.
+  repeated NavigationSource navigation_sources = 3;
+}
+
+// Locations that the agent may visit and/or actuate.
+// May be scoped to an origin, site, or a wildcard token that matches any URL.
+// Next ID: 4
+message Location {
+  oneof identifier_oneof {
+    Origin origin = 1;
+
+    Site site = 2;
+
+    // Wildcard that matches any URL.
+    AnySite wildcard = 3;
+  }
+}
+
+// An origin is a combination of a protocol (scheme), host, and port. See
+// https://web.dev/articles/same-site-same-origin.
+//
+// Next ID: 4
+message Origin {
+  Protocol protocol = 1 [features = { field_presence: EXPLICIT }];
+
+  string host = 2 [features = { field_presence: EXPLICIT }];
+
+  // Assumes the default port for the protocol, if absent.
+  int32 port = 3 [features = { field_presence: EXPLICIT }];
+}
+
+// A site is a protocol (scheme) and an eTLD+1. Note that computing an eTLD+1
+// relies on the Public Suffix List and is not necessarily the same as the host
+// in an origin. See https://web.dev/articles/same-site-same-origin.
+//
+// Next ID: 3
+message Site {
+  Protocol protocol = 1 [features = { field_presence: EXPLICIT }];
+
+  string domain = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// This empty struct represents a wildcard token that matches any URL.
+// Next ID: 1
+message AnySite {
+}
+
+// Next ID: 3
+message RuleMetadata {
+  // The set of resources that the agent may access when visiting/actuating
+  // according to this rule. May be empty if no resources are accessible.
+  repeated AgentResource accessible_resources = 1;
+
+  // How the agent may interact with the page.
+  // The field is repeated to allow for multiple capabilities to be specified.
+  // Empty list means no capabilities are allowed and the model is blocked
+  // from interacting with this location.
+  repeated ActuationCapability capabilities = 2;
+
+  // Resources that may be accessible to the agent.
+  // RESOURCE_UNKNOWN is ignored, RESOURCE_SESSION is the only meaningful value
+  // right now.
+  // Next ID: 2
+  enum AgentResource {
+    RESOURCE_UNKNOWN = 0;
+
+    // The agent may use the user's existing session.
+    RESOURCE_SESSION = 1;
+  }
+
+  // What capabilities the agent has permission for when visiting/actuating on
+  // a location.
+  // Next ID: 2
+  enum ActuationCapability {
+    CAPABILITY_UNKNOWN = 0;
+
+    // The agent may navigate to and interact with the page. The agent may also
+    // execute any tool.
+    CAPABILITY_ALL = 1;
+  }
+}
+
+// Next ID: 2
+message NavigationSource {
+  Location source = 1 [features = { field_presence: EXPLICIT }];
 }
 
 // Selection text affinity, part of the a11y snapshot.
@@ -2085,7 +2211,7 @@ enum AXIntListAttribute {
 }
 
 // AX StringList attribute enum.
-// Next ID: 4
+// Next ID: 5
 enum AXStringListAttribute {
   AX_SLA_NONE = 0;
 
@@ -2094,11 +2220,15 @@ enum AXStringListAttribute {
   AX_SLA_ARIANOTIFICATIONANNOUNCEMENTS = 2;
 
   AX_SLA_ARIANOTIFICATIONTYPES = 3;
+
+  AX_SLA_TEXTOPERATIONREPLACEMENTSTRINGS = 4;
 }
 
 // This will be updated when there is a significant change in the parsing logic.
 // Next ID: 3
 enum AnnotatedPageContentVersion {
+  option allow_alias = true;
+
   ANNOTATED_PAGE_CONTENT_VERSION_UNKNOWN = 0;
 
   ANNOTATED_PAGE_CONTENT_VERSION_1_0 = 1;
@@ -2107,6 +2237,10 @@ enum AnnotatedPageContentVersion {
   // TODO(crbug.com/490195093): Maintain both on the client until all users have been
   // switched over.
   ANNOTATED_PAGE_CONTENT_VERSION_ONLY_ACTIONABLE_ELEMENTS_1_0 = 2 [deprecated = true];
+
+  // The maximum valid version of the proto. This value includes deprecated
+  // versions to ensure backward compatibility with older clients.
+  ANNOTATED_PAGE_CONTENT_VERSION_MAX_VALID = 2;
 }
 
 // The extraction on the client can be configured to a specific mode. This
@@ -2405,6 +2539,9 @@ enum RedactionDecision {
   // Is a non-empty field that autofill recognized as an OTP field and so must
   // be redacted.
   REDACTION_DECISION_REDACTED_IS_OTP = 8;
+
+  // Is a empty field that autofill recognized as an OTP field.
+  REDACTION_DECISION_UNREDACTED_EMPTY_OTP_FIELD = 9;
 }
 
 // The type of data that can be autofilled into a form.
@@ -2414,6 +2551,8 @@ enum CoarseAutofillFieldType {
   COARSE_AUTOFILL_FIELD_TYPE_ADDRESS = 1;
 
   COARSE_AUTOFILL_FIELD_TYPE_CREDIT_CARD = 2;
+
+  COARSE_AUTOFILL_FIELD_TYPE_OTP = 3;
 }
 
 // Indicates the type of media in the media data.
@@ -2479,6 +2618,19 @@ enum AnnotatedRole {
   ANNOTATED_ROLE_PAID_CONTENT = 14;
 
   reserved 1 to 4;
+}
+
+// Next ID: 5
+enum Protocol {
+  PROTOCOL_UNKNOWN = 0;
+
+  PROTOCOL_HTTP = 1;
+
+  PROTOCOL_HTTPS = 2;
+
+  PROTOCOL_WS = 3;
+
+  PROTOCOL_WSS = 4;
 }
 
 // Whether or not status of the model's output is a success (i.e "is good") or

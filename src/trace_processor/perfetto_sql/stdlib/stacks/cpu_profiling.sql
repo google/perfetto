@@ -25,7 +25,7 @@ INCLUDE PERFETTO MODULE callstacks.stack_profile;
 --  * Chrome CPU profiling
 --  * Legacy V8 CPU profiling
 --  * Profiling data in Gecko traces
-CREATE PERFETTO TABLE cpu_profiling_samples (
+CREATE PERFETTO TABLE cpu_profiling_samples(
   -- The id of the sample.
   id LONG,
   -- The timestamp of the sample.
@@ -42,31 +42,19 @@ CREATE PERFETTO TABLE cpu_profiling_samples (
   cpu LONG,
   -- The callsite id of the sample.
   callsite_id LONG
-) AS
+)
+AS
 WITH
   raw_samples AS (
     -- Linux perf samples.
-    SELECT
-      p.ts,
-      p.utid,
-      p.cpu AS ucpu,
-      p.callsite_id
-    FROM perf_sample AS p
+    SELECT p.ts, p.utid, p.cpu AS ucpu, p.callsite_id FROM perf_sample AS p
     UNION ALL
     -- Instruments samples.
-    SELECT
-      p.ts,
-      p.utid,
-      p.cpu AS ucpu,
-      p.callsite_id
+    SELECT p.ts, p.utid, p.cpu AS ucpu, p.callsite_id
     FROM instruments_sample AS p
     UNION ALL
     -- All other CPU profiling.
-    SELECT
-      s.ts,
-      s.utid,
-      NULL AS ucpu,
-      s.callsite_id
+    SELECT s.ts, s.utid, NULL AS ucpu, s.callsite_id
     FROM cpu_profile_stack_sample AS s
   )
 SELECT
@@ -76,20 +64,14 @@ SELECT
   t.name AS thread_name,
   c.cpu
 FROM raw_samples AS r
-LEFT JOIN thread AS t
-  USING (utid)
-LEFT JOIN cpu AS c
-  USING (ucpu)
+LEFT JOIN thread AS t USING (utid)
+LEFT JOIN cpu AS c USING (ucpu)
 ORDER BY
   ts;
 
 CREATE PERFETTO TABLE _cpu_profiling_self_callsites AS
-SELECT
-  *
-FROM _callstacks_for_callsites!((
-  SELECT callsite_id
-  FROM cpu_profiling_samples
-))
+SELECT *
+FROM _callstacks_for_callsites!((SELECT callsite_id FROM cpu_profiling_samples))
 ORDER BY
   id;
 
@@ -102,7 +84,7 @@ ORDER BY
 -- the frame anywhere in the tree.
 --
 -- The data sources supported are the same as the `cpu_profiling_samples` table.
-CREATE PERFETTO TABLE cpu_profiling_summary_tree (
+CREATE PERFETTO TABLE cpu_profiling_summary_tree(
   -- The id of the callstack; by callstack we mean a unique set of frames up to
   -- the root frame.
   id LONG,
@@ -122,7 +104,8 @@ CREATE PERFETTO TABLE cpu_profiling_summary_tree (
   -- The number of samples with this function appearing anywhere on the
   -- callstack.
   cumulative_count LONG
-) AS
+)
+AS
 SELECT
   id,
   parent_id,
@@ -133,15 +116,14 @@ SELECT
   sum(self_count) AS self_count,
   sum(cumulative_count) AS cumulative_count
 FROM (
-  SELECT
-    r.*,
-    a.cumulative_count
+  SELECT r.*, a.cumulative_count
   FROM _cpu_profiling_self_callsites AS r
   JOIN _callstacks_self_to_cumulative!((
     SELECT id, parent_id, self_count
     FROM _cpu_profiling_self_callsites
-  )) AS a
-    USING (id)
+  )) AS a USING (
+    id
+  )
 )
 GROUP BY
   id;

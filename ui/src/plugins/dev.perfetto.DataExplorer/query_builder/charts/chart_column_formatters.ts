@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CellFormatter} from '../../../../components/widgets/datagrid/datagrid_schema';
+import type {CellFormatter} from '../../../../components/widgets/datagrid/datagrid_schema';
 import {Duration} from '../../../../base/time';
 import {
   underlyingSqlType,
-  PerfettoSqlType,
+  type PerfettoSqlType,
 } from '../../../../trace_processor/perfetto_sql_type';
-import {ChartColumnProvider} from './chart_renderers';
+import type {ChartColumnProvider} from './chart_renderers';
 
 /**
  * Whether a column's underlying SQL type is INTEGER.
@@ -28,7 +28,7 @@ export function isIntegerColumn(
   columnName: string,
 ): boolean {
   const columnInfo = node.sourceCols.find((col) => col.name === columnName);
-  const columnType = columnInfo?.column.type;
+  const columnType = columnInfo?.type;
   return (
     columnType !== undefined && underlyingSqlType(columnType) === 'INTEGER'
   );
@@ -42,7 +42,7 @@ export function getColumnTypeKind(
   columnName: string,
 ): PerfettoSqlType['kind'] | undefined {
   const columnInfo = node.sourceCols.find((col) => col.name === columnName);
-  return columnInfo?.column.type?.kind;
+  return columnInfo?.type?.kind;
 }
 
 /**

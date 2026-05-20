@@ -14,9 +14,9 @@
 
 import protos from '../../../protos';
 import {StructuredQueryBuilder} from './structured_query_builder';
-import {QueryNode, NodeType} from '../query_node';
-import {ColumnInfo} from './column_info';
-import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
+import {type QueryNode, NodeType} from '../query_node';
+import type {ColumnInfo} from './column_info';
+import type {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
 
 describe('StructuredQueryBuilder', () => {
   describe('applyNodeColumnSelection', () => {
@@ -29,7 +29,8 @@ describe('StructuredQueryBuilder', () => {
         type: NodeType.kTable,
         nextNodes: [],
         finalCols: columns,
-        state: {},
+        attrs: {},
+        context: {},
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
@@ -37,7 +38,6 @@ describe('StructuredQueryBuilder', () => {
         nodeInfo: () => null,
         clone: () => createMockNode(columns),
         getStructuredQuery: () => undefined,
-        serializeState: () => ({}),
       } as QueryNode;
     }
 
@@ -50,12 +50,12 @@ describe('StructuredQueryBuilder', () => {
         {
           name: 'id',
           checked: true,
-          column: {name: 'id', type: intType},
+          type: intType,
         },
         {
           name: 'name',
           checked: true,
-          column: {name: 'name', type: stringType},
+          type: stringType,
         },
       ];
       const node = createMockNode(columns);
@@ -71,17 +71,17 @@ describe('StructuredQueryBuilder', () => {
         {
           name: 'id',
           checked: true,
-          column: {name: 'id', type: intType},
+          type: intType,
         },
         {
           name: 'name',
           checked: false,
-          column: {name: 'name', type: stringType},
+          type: stringType,
         },
         {
           name: 'age',
           checked: true,
-          column: {name: 'age', type: intType},
+          type: intType,
         },
       ];
       const node = createMockNode(columns);
@@ -99,13 +99,13 @@ describe('StructuredQueryBuilder', () => {
         {
           name: 'id',
           checked: true,
-          column: {name: 'id', type: intType},
+          type: intType,
           alias: 'identifier',
         },
         {
           name: 'name',
           checked: false,
-          column: {name: 'name', type: stringType},
+          type: stringType,
         },
       ];
       const node = createMockNode(columns);
@@ -133,12 +133,12 @@ describe('StructuredQueryBuilder', () => {
         {
           name: 'id',
           checked: false,
-          column: {name: 'id', type: intType},
+          type: intType,
         },
         {
           name: 'name',
           checked: false,
-          column: {name: 'name', type: stringType},
+          type: stringType,
         },
       ];
       const node = createMockNode(columns);

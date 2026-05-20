@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {
   addDebugSliceTrack,
-  DebugSliceTrackArgs,
+  type DebugSliceTrackArgs,
 } from '../../components/tracks/debug_tracks';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
 

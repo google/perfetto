@@ -1,5 +1,8 @@
-# Test flow events between GpuRenderStageEvents using event_wait_ids.
-# Flow: softmax (GPU, queue 1) -> matmul (GPU, queue 2) via event_wait_ids
+# Test flow events between TrackEvent and GpuRenderStageEvent using
+# GpuCorrelation and event_wait_ids.
+# Flow 1: HostSubmit (track event) -> softmax (GPU render stage, queue 1)
+# Flow 2: softmax (GPU, queue 1) -> matmul (GPU, queue 2) via event_wait_ids
+# Flow 3: softmax (GPU, queue 1) -> cudaEventWait (track event)
 
 # Interned data: graphics context and hw queue / stage specs.
 packet {
@@ -40,6 +43,42 @@ packet {
   sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
 }
 
+# Host-side track event correlating with GPU event_id 1.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  interned_data {
+    event_categories { iid: 1 name: "gpu" }
+    event_names { iid: 1 name: "HostSubmit" }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 20
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    category_iids: 1
+    name_iid: 1
+    [perfetto.protos.GpuTrackEvent.gpu_correlation] {
+      render_stage_submission_event_ids: 1
+    }
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 22
+  track_event {
+    type: TYPE_SLICE_END
+    category_iids: 1
+  }
+  sequence_flags: 2
+}
+
 # GPU render stage event on queue 1: softmax kernel.
 packet {
   trusted_uid: 9999
@@ -68,6 +107,41 @@ packet {
     stage_iid: 4
     context: 0
     event_wait_ids: 1
+  }
+  sequence_flags: 2
+}
+
+# Host-side track event that waits for GPU work (terminates flow from GPU).
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  interned_data {
+    event_names { iid: 2 name: "cudaEventWait" }
+  }
+  sequence_flags: 2
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 160
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    category_iids: 1
+    name_iid: 2
+    [perfetto.protos.GpuTrackEvent.gpu_correlation] {
+      render_stage_wait_event_ids: 1
+    }
+  }
+  sequence_flags: 2
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 162
+  track_event {
+    type: TYPE_SLICE_END
+    category_iids: 1
   }
   sequence_flags: 2
 }

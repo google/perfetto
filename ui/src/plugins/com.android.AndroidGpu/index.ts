@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {STR_NULL} from '../../trace_processor/query_result';
 import GpuPlugin from '../dev.perfetto.Gpu';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -83,22 +83,27 @@ class CumulativeSumCounterTrack extends TraceProcessorCounterTrack {
     trace: Trace,
     uri: string,
     unit: string,
-    private readonly tid: number,
+    tid: number,
     trackName: string,
   ) {
-    super(trace, uri, {yMode: 'rate', unit}, tid, trackName);
-  }
-
-  override getSqlSource(): string {
-    return `
+    super({
+      trace,
+      uri,
+      yMode: 'rate',
+      unit,
+      trackId: tid,
+      trackName,
+      rootTable: 'counter',
+      sqlSource: `
       select
         id,
         ts,
         sum(value) over (order by ts) - value as value,
         arg_set_id
       from counter
-      where track_id = ${this.tid}
-    `;
+      where track_id = ${tid}
+    `,
+    });
   }
 }
 

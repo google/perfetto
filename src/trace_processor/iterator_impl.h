@@ -28,8 +28,8 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -39,7 +39,7 @@ class TraceProcessorImpl;
 class IteratorImpl {
  public:
   IteratorImpl(TraceProcessorImpl* impl,
-               base::StatusOr<PerfettoSqlEngine::ExecutionResult>,
+               base::StatusOr<PerfettoSqlConnection::ExecutionResult>,
                uint32_t sql_stats_row);
   ~IteratorImpl();
 
@@ -154,7 +154,7 @@ class IteratorImpl {
   void RecordFirstNextInSqlStats();
 
   ScopedTraceProcessor trace_processor_;
-  base::StatusOr<PerfettoSqlEngine::ExecutionResult> result_;
+  base::StatusOr<PerfettoSqlConnection::ExecutionResult> result_;
   uint32_t sql_stats_row_ = 0;
   bool called_next_ = false;
 };

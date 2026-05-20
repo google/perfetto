@@ -16,11 +16,11 @@ import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
 import {PopupMenu, MenuDivider, MenuTitle} from '../../../../widgets/menu';
-import {QueryNode} from '../../query_node';
+import type {QueryNode} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
 import {buildMenuItems} from './menu_utils';
 import {nodeRegistry} from '../node_registry';
-import {NodeDetailsAttrs} from '../../node_types';
+import type {NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsContent} from '../node_styling_widgets';
 
 export interface NodeBoxAttrs {
@@ -29,14 +29,14 @@ export interface NodeBoxAttrs {
 }
 
 export function renderWarningIcon(node: QueryNode): m.Child {
-  if (!node.state.issues || !node.state.issues.hasIssues()) return null;
+  if (!node.context.issues || !node.context.issues.hasIssues()) return null;
 
   const iconClasses = classNames('pf-exp-node-box__warning-icon');
 
   return m(Icon, {
     className: iconClasses,
     icon: 'warning',
-    title: node.state.issues.getTitle(),
+    title: node.context.issues.getTitle(),
   });
 }
 

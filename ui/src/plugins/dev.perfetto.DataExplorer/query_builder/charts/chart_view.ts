@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../../../public/trace';
+import type {Trace} from '../../../../public/trace';
 import {
-  VisualisationNode,
-  ChartConfig,
+  type VisualisationNode,
+  type ChartConfig,
   getDefaultChartLabel,
 } from '../nodes/visualisation_node';
 import {
-  ChartLoaderEntry,
-  ChartRenderContext,
+  type ChartLoaderEntry,
+  type ChartRenderContext,
   buildLoaderCacheKey,
   createChartLoaders,
   disposeChartLoaders,
@@ -33,7 +33,7 @@ import {classNames} from '../../../../base/classnames';
 import {Popup, PopupPosition} from '../../../../widgets/popup';
 import {Select} from '../../../../widgets/select';
 import {ResizeHandle} from '../../../../widgets/resize_handle';
-import {QueryExecutionService} from '../query_execution_service';
+import type {QueryExecutionService} from '../query_execution_service';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Card} from '../../../../widgets/card';
 import {AddItemPlaceholder} from '../widgets';
@@ -162,8 +162,8 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
   }
 
   view({attrs}: m.CVnode<ChartViewAttrs>) {
-    const configs = attrs.node.state.chartConfigs;
-    const filters = attrs.node.state.chartFilters ?? [];
+    const configs = attrs.node.attrs.chartConfigs;
+    const filters = attrs.node.attrs.chartFilters ?? [];
     const hasFilters = filters.some((f) => f.enabled !== false);
 
     if (configs.length === 0) {
@@ -391,7 +391,7 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
       onResize: (deltaPx: number) => {
         const currentWidth =
           config.widthPx ??
-          this.getDefaultChartWidth(attrs.node.state.chartConfigs.length);
+          this.getDefaultChartWidth(attrs.node.attrs.chartConfigs.length);
         const newWidth = Math.max(200, currentWidth + deltaPx);
         attrs.node.updateChart(config.id, {widthPx: newWidth});
       },

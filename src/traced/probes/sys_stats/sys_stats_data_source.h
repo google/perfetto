@@ -103,6 +103,7 @@ class SysStatsDataSource : public ProbesDataSource {
   void ReadThermalZones(protos::pbzero::SysStats* sys_stats);
   void ReadCpuIdleStates(protos::pbzero::SysStats* sys_stats);
   void ReadGpuFrequency(protos::pbzero::SysStats* sys_stats);
+  void ReadSlabInfo(protos::pbzero::SysStats* sys_stats);
   std::optional<uint64_t> ReadAMDGpuFreq();
 
   size_t ReadFile(base::ScopedFile*, const char* path);
@@ -117,6 +118,7 @@ class SysStatsDataSource : public ProbesDataSource {
   base::ScopedFile psi_cpu_fd_;
   base::ScopedFile psi_io_fd_;
   base::ScopedFile psi_memory_fd_;
+  base::ScopedFile slab_fd_;
   base::PagedMemory read_buf_;
   TraceWriter::TracePacketHandle cur_packet_;
   std::map<const char*, int, CStrCmp> meminfo_counters_;
@@ -136,6 +138,7 @@ class SysStatsDataSource : public ProbesDataSource {
   uint32_t thermal_ticks_ = 0;
   uint32_t cpuidle_ticks_ = 0;
   uint32_t gpufreq_ticks_ = 0;
+  uint32_t slab_ticks_ = 0;
 
   std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
 

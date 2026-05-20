@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -37,6 +36,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -120,7 +120,7 @@ void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
 
 void ProtoTraceParserImpl::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
-                                            TracePacketData data) {
+                                            FtraceData data) {
   PERFETTO_DCHECK(module_context_->ftrace_module);
   module_context_->ftrace_module->ParseFtraceEventData(cpu, ts, data);
 }
@@ -168,25 +168,25 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       } else if (metadata.has_json_value()) {
         value = Variadic::Json(storage->InternString(metadata.json_value()));
       } else {
-        context_->storage->IncrementStats(stats::empty_chrome_metadata);
+        context_->stats_tracker->IncrementStats(stats::empty_chrome_metadata);
         continue;
       }
 
       StringId name_id = storage->InternString(metadata.name());
       args.AddArgsTo(id).AddArg(name_id, value);
 
-      char buffer[2048];
-      base::FixedStringWriter writer(buffer, sizeof(buffer));
-      writer.AppendString("cr-");
+      // metadata.name() comes from the trace and is untrusted/unbounded,
+      // so we build the key on the heap rather than a fixed stack buffer.
+      std::string key = "cr-";
       // If we have data from multiple Chrome instances, append a suffix
       // to differentiate them.
       if (bundle_index > 1) {
-        writer.AppendUnsignedInt(bundle_index);
-        writer.AppendChar('-');
+        key += std::to_string(bundle_index);
+        key += '-';
       }
-      writer.AppendString(metadata.name());
+      key.append(metadata.name().data, metadata.name().size);
 
-      auto metadata_id = storage->InternString(writer.GetStringView());
+      auto metadata_id = storage->InternString(base::StringView(key));
       context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
     }
   }
@@ -357,7 +357,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   }
 
   if (event.has_overruns())
-    context_->storage->IncrementStats(stats::metatrace_overruns);
+    context_->stats_tracker->IncrementStats(stats::metatrace_overruns);
 }
 
 StringId ProtoTraceParserImpl::GetMetatraceInternedString(uint64_t iid) {

@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {AppImpl} from '../../core/app_impl';
-import {PerfettoPlugin} from '../../public/plugin';
-import {RouteArgs} from '../../public/route_schema';
+import type {AppImpl} from '../../core/app_impl';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {RouteArgs} from '../../public/route_schema';
 import {
   initializeServers,
   initializeServerFromManifest,
@@ -23,13 +24,13 @@ import {
   showErrorsOnCompletion,
 } from './extension_server';
 import {
-  ExtensionServer,
-  Manifest,
-  UserInput,
+  type ExtensionServer,
+  type Manifest,
+  type UserInput,
   extensionServerSchema,
   extensionServersSchema,
 } from './types';
-import {Setting} from '../../public/settings';
+import type {Setting} from '../../public/settings';
 import {Button} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {showAddExtensionServerModal} from './add_extension_server_modal';
@@ -46,7 +47,11 @@ import {
   utf8Decode,
   utf8Encode,
 } from '../../base/string_utils';
-import {Result} from '../../base/result';
+import type {Result} from '../../base/result';
+import {
+  loadLegacyUserscript,
+  registerLegacyMacroStubs,
+} from './legacy_userscript';
 
 export default class ExtensionServersPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExtensionServers';
@@ -85,6 +90,11 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
       );
     }
 
+    // Kick off the legacy userscript fetch in parallel with the extension
+    // server fetches; the result is consumed below once the extension server
+    // macros have settled.
+    const legacyGlobals = loadLegacyUserscript();
+
     maybeAddExtServerFromUrl(setting, args).then(async () => {
       const nonEmbedderServers = setting
         .get()
@@ -93,6 +103,11 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
         maybeAddEmbedderExtServer(ctx, setting, embedder),
         initializeServers(ctx, nonEmbedderServers),
       ]);
+      // All extension server macros have been resolved into AppImpl at this
+      // point. Apply the legacy-macro backcompat shim now: it suppresses any
+      // legacy macro that's superseded by an extension server macro and
+      // turns the rest into deprecation stubs.
+      await registerLegacyMacroStubs(ctx, await legacyGlobals);
       showErrorsOnCompletion([...embedderResults, ...serverResults]);
     });
   }

@@ -81,6 +81,11 @@ struct PerfettoDsParams {
   // When true the data source is expected to ack the stop request through the
   // NotifyDataSourceStopped() IPC.
   bool will_notify_on_stop;
+
+  // When present the tracing service executes this program within a ProtoVM to
+  // process overwritten packets (patches).
+  const uint8_t* protovm_program;
+  size_t protovm_program_size;
 };
 
 static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
@@ -99,7 +104,9 @@ static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
       /* .buffer_exhausted_policy = */
       PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP,
       /* .buffer_exhausted_policy_configurable = */ false,
-      /* .will_notify_on_stop = */ true};
+      /* .will_notify_on_stop = */ true,
+      /* .protovm_program = */ PERFETTO_NULL,
+      /* .protovm_program_size = */ 0};
   return ret;
 }
 
@@ -125,6 +132,13 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
     perfetto_protos_DataSourceDescriptor_set_cstr_name(&desc, data_source_name);
     perfetto_protos_DataSourceDescriptor_set_will_notify_on_stop(
         &desc, params.will_notify_on_stop);
+
+    if (params.protovm_program && params.protovm_program_size > 0) {
+      PerfettoPbMsgAppendType2Field(
+          &desc.msg,
+          perfetto_protos_DataSourceDescriptor_protovm_program_field_number,
+          params.protovm_program, params.protovm_program_size);
+    }
 
     desc_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
     desc_buf = malloc(desc_size);

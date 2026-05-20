@@ -12,51 +12,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
+import {z} from 'zod';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
-import {
-  HeapDumpPage,
-  setFlamegraphSelection,
-  resetFlamegraphSelection,
-  resetInstanceTabs,
-  resetCachedOverview,
-} from './heap_dump_page';
-import {resetBitmapDumpDataCache} from './queries';
+import HeapProfilePlugin, {
+  traceHasTimelineData,
+} from '../dev.perfetto.HeapProfile';
+import {HeapDumpPage} from './heap_dump_page';
+import {HeapDumpExplorerSession} from './session';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.HeapDumpExplorer';
   static readonly dependencies = [HeapProfilePlugin];
 
-  static onActivate(app: App): void {
-    app.pages.registerPage({
-      route: '/heapdump',
-      render: (subpage) => m(HeapDumpPage, {subpage}),
-    });
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const hideDefaultChangedHint = ctx.settings.register({
+      id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
+      name: 'Hide Heap Dump Explorer Explanation',
+      description:
+        'Hide the explanation about default changes in Heap Dump Explorer',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+
     const res = await ctx.engine.query(
       'SELECT count(*) AS cnt FROM heap_graph_object LIMIT 1',
     );
-    const cnt = res.iter({cnt: NUM}).cnt;
-    if (cnt === 0) return;
+    if (res.iter({cnt: NUM}).cnt === 0) return;
 
-    HeapDumpPage.engine = ctx.engine;
-    HeapDumpPage.trace = ctx;
-    HeapDumpPage.hasHeapData = true;
-    resetBitmapDumpDataCache();
-    resetFlamegraphSelection();
-    resetInstanceTabs();
-    resetCachedOverview();
+    const session = new HeapDumpExplorerSession(
+      ctx,
+      ctx.engine,
+      hideDefaultChangedHint,
+    );
+    await session.loadDumps();
+
+    ctx.pages.registerPage({
+      route: '/heapdump',
+      render: (subpage) => m(HeapDumpPage, {session, subpage}),
+    });
+
+    if (
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(ctx))
+    ) {
+      session.autoNavigated = true;
+      ctx.initialPage.suggest('/heapdump', 100);
+    }
 
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator}) =>
-        setFlamegraphSelection({pathHashes, isDominator}, ctx.engine),
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
+        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
       );
 
     ctx.sidebar.addMenuItem({

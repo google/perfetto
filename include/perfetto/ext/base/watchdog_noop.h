@@ -19,10 +19,15 @@
 
 #include <stdint.h>
 
+#include <functional>
+
 namespace perfetto {
 namespace base {
 
+class TaskRunner;
+
 enum class WatchdogCrashReason;  // Defined in watchdog.h.
+struct WatchdogCrashInfo;        // Defined in watchdog.h.
 
 class Watchdog {
  public:
@@ -40,7 +45,8 @@ class Watchdog {
   Timer CreateFatalTimer(uint32_t /*ms*/, WatchdogCrashReason) {
     return Timer();
   }
-  void Start() {}
+  void Start(TaskRunner* /*task_runner*/ = nullptr,
+             std::function<void(WatchdogCrashInfo)> /*handler*/ = {}) {}
   void SetMemoryLimit(uint64_t /*bytes*/, uint32_t /*window_ms*/) {}
   void SetCpuLimit(uint32_t /*percentage*/, uint32_t /*window_ms*/) {}
 };

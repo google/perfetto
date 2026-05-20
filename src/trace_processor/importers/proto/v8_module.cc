@@ -26,6 +26,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/v8_sequence_state.h"
@@ -105,12 +106,11 @@ std::optional<UniqueTid> V8Module::GetUtid(
   auto* pid = isolate_to_pid_.Find(isolate_id);
   if (!pid) {
     tables::ProcessTable::Id upid(
-        context_->storage->v8_isolate_table().FindById(isolate_id)->upid());
+        context_->storage->v8_isolate_table()[isolate_id].upid());
     pid = isolate_to_pid_
-              .Insert(
-                  isolate_id,
-                  static_cast<uint32_t>(
-                      context_->storage->process_table().FindById(upid)->pid()))
+              .Insert(isolate_id,
+                      static_cast<uint32_t>(
+                          context_->storage->process_table()[upid].pid()))
               .first;
   }
 
@@ -129,18 +129,18 @@ std::optional<uint32_t> V8Module::GetDefaultTid(
     PacketSequenceStateGeneration& generation) const {
   auto* tp_defaults = generation.GetTracePacketDefaults();
   if (!tp_defaults) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->stats_tracker->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
   if (!tp_defaults->has_v8_code_defaults()) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->stats_tracker->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
 
   V8CodeDefaults::Decoder v8_defaults(tp_defaults->v8_code_defaults());
 
   if (!v8_defaults.has_tid()) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->stats_tracker->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
 
@@ -155,7 +155,8 @@ void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
 
   V8JsCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -166,8 +167,8 @@ void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
     return;
   }
 
-  auto v8_function_id =
-      state.GetOrInsertJsFunction(code.v8_js_function_iid(), *v8_isolate_id);
+  auto v8_function_id = state.GetOrInsertJsFunction(
+      data.sequence_state.get(), code.v8_js_function_iid(), *v8_isolate_id);
   if (!v8_function_id) {
     return;
   }
@@ -183,7 +184,8 @@ void V8Module::ParseV8InternalCode(protozero::ConstBytes bytes,
 
   V8InternalCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -205,13 +207,14 @@ void V8Module::ParseV8WasmCode(protozero::ConstBytes bytes,
 
   V8WasmCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
 
-  auto v8_wasm_script_id =
-      state.GetOrInsertWasmScript(code.v8_wasm_script_iid(), *v8_isolate_id);
+  auto v8_wasm_script_id = state.GetOrInsertWasmScript(
+      data.sequence_state.get(), code.v8_wasm_script_iid(), *v8_isolate_id);
   if (!v8_wasm_script_id) {
     return;
   }
@@ -233,7 +236,8 @@ void V8Module::ParseV8RegExpCode(protozero::ConstBytes bytes,
 
   V8RegExpCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -254,8 +258,8 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
       *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
   protos::pbzero::V8CodeMove::Decoder v8_code_move(bytes);
 
-  std::optional<IsolateId> isolate_id =
-      state.GetOrInsertIsolate(v8_code_move.isolate_iid());
+  std::optional<IsolateId> isolate_id = state.GetOrInsertIsolate(
+      data.sequence_state.get(), v8_code_move.isolate_iid());
   if (!isolate_id) {
     return;
   }

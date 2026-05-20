@@ -23,8 +23,8 @@ import {
   OutlinedFieldReadOnly,
 } from '../widgets';
 import {JoinSourceCard} from '../join_widgets';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
-import {
+import {type ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
+import type {
   SqlTable,
   SqlColumn,
 } from '../../../dev.perfetto.SqlModules/sql_modules';
@@ -43,7 +43,7 @@ export interface AddColumnsSuggestionModalAttrs {
   readonly sourceCols: ColumnInfo[];
   readonly selectedTable?: string;
   readonly selectedColumns: string[];
-  readonly suggestionAliases?: Map<string, string>;
+  readonly suggestionAliases?: Record<string, string>;
 
   // Callbacks
   readonly getTable: (tableName: string) => SqlTable | undefined;
@@ -100,7 +100,7 @@ export class AddColumnsSuggestionModal
       ? tableInfo.columns.map((col: SqlColumn) => ({
           ...columnInfoFromSqlColumn(col),
           checked: selectedColumns.includes(col.name),
-          alias: suggestionAliases?.get(col.name),
+          alias: suggestionAliases?.[col.name],
         }))
       : [];
 

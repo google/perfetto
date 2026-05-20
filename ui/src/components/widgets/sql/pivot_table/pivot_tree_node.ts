@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {assertExists, assertDefined, assertTrue} from '../../../../base/assert';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
-import {Filter, StandardFilters} from '../table/filters';
-import {TableColumn} from '../table/table_column';
+import type {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {type Filter, StandardFilters} from '../table/filters';
+import type {TableColumn} from '../table/table_column';
 import {
-  Aggregation,
-  BasicAggregation,
+  type Aggregation,
+  type BasicAggregation,
   basicAggregations,
   expandAggregations,
   getAggregationValue as getAggregationValueImpl,

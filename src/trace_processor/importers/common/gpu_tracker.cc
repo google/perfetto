@@ -51,26 +51,25 @@ tables::GpuTable::Id GpuTracker::SetGpuInfo(uint32_t gpu,
                                             std::string_view uuid,
                                             std::string_view pci_bdf) {
   auto id = GetOrCreateGpu(gpu);
-  auto gpu_row = context_->storage->mutable_gpu_table()->FindById(id);
-  PERFETTO_CHECK(gpu_row.has_value());
+  auto gpu_row = (*context_->storage->mutable_gpu_table())[id];
 
   if (!name.empty()) {
-    gpu_row->set_name(context_->storage->InternString(name));
+    gpu_row.set_name(context_->storage->InternString(name));
   }
   if (!vendor.empty()) {
-    gpu_row->set_vendor(context_->storage->InternString(vendor));
+    gpu_row.set_vendor(context_->storage->InternString(vendor));
   }
   if (!model.empty()) {
-    gpu_row->set_model(context_->storage->InternString(model));
+    gpu_row.set_model(context_->storage->InternString(model));
   }
   if (!architecture.empty()) {
-    gpu_row->set_architecture(context_->storage->InternString(architecture));
+    gpu_row.set_architecture(context_->storage->InternString(architecture));
   }
   if (!uuid.empty()) {
-    gpu_row->set_uuid(context_->storage->InternString(uuid));
+    gpu_row.set_uuid(context_->storage->InternString(uuid));
   }
   if (!pci_bdf.empty()) {
-    gpu_row->set_pci_bdf(context_->storage->InternString(pci_bdf));
+    gpu_row.set_pci_bdf(context_->storage->InternString(pci_bdf));
   }
   return id;
 }
@@ -83,10 +82,52 @@ void GpuTracker::AddGpuRenderStageSlice(uint64_t event_id, SliceId slice_id) {
     gpu_slices->push_back(slice_id);
   }
 
+  auto* te_slice = event_id_to_track_event_slice_.Find(event_id);
+  if (te_slice) {
+    context_->flow_tracker->InsertFlow(*te_slice, slice_id);
+  }
+
+  auto* term_slice = event_id_to_terminating_slice_.Find(event_id);
+  if (term_slice) {
+    context_->flow_tracker->InsertFlow(slice_id, *term_slice);
+  }
+
   auto* waiting = event_id_to_waiting_slices_.Find(event_id);
   if (waiting) {
     for (SliceId wait_slice : *waiting) {
       context_->flow_tracker->InsertFlow(slice_id, wait_slice);
+    }
+  }
+}
+
+void GpuTracker::AddRenderStageSubmission(uint64_t event_id, SliceId slice_id) {
+  auto* existing = event_id_to_track_event_slice_.Find(event_id);
+  if (existing) {
+    *existing = slice_id;
+  } else {
+    event_id_to_track_event_slice_.Insert(event_id, slice_id);
+  }
+
+  auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
+  if (gpu_slices) {
+    for (SliceId gpu_slice : *gpu_slices) {
+      context_->flow_tracker->InsertFlow(slice_id, gpu_slice);
+    }
+  }
+}
+
+void GpuTracker::AddRenderStageWait(uint64_t event_id, SliceId slice_id) {
+  auto* existing = event_id_to_terminating_slice_.Find(event_id);
+  if (existing) {
+    *existing = slice_id;
+  } else {
+    event_id_to_terminating_slice_.Insert(event_id, slice_id);
+  }
+
+  auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
+  if (gpu_slices) {
+    for (SliceId gpu_slice : *gpu_slices) {
+      context_->flow_tracker->InsertFlow(gpu_slice, slice_id);
     }
   }
 }

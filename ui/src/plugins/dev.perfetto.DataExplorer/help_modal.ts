@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../../frontend/help_modal.scss';
 import m from 'mithril';
-import {Hotkey} from '../../base/hotkeys';
+import type {Hotkey} from '../../base/hotkeys';
 import {HotkeyGlyphs, Keycap} from '../../widgets/hotkey_glyphs';
 import {showModal} from '../../widgets/modal';
 import {nodeRegistry} from './query_builder/node_registry';

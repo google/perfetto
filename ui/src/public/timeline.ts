@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {time} from '../base/time';
-import {Setting} from './settings';
+import type {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import type {time} from '../base/time';
+import type {Setting} from './settings';
 
 export enum TimestampFormat {
   Timecode = 'timecode',
@@ -203,7 +203,8 @@ export interface Timeline {
   hoverCursorTimestamp: time | undefined;
 
   hoveredNoteTimestamp: time | undefined;
-  highlightedSliceId: number | undefined;
+  highlightedSliceId: number | undefined; // Deprecated, only used for flows.
+  highlightedSliceName: string | undefined;
 
   hoveredUtid: number | undefined;
   hoveredPid: bigint | undefined;

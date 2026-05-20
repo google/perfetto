@@ -16,13 +16,16 @@ import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
 import {Icons} from '../../base/semantic_icons';
 import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
-import {TraceImpl} from '../../core/trace_impl';
-import {AreaSelection, Selection} from '../../public/selection';
-import {TrackSetting, TrackSettingDescriptor} from '../../public/track';
-import {TrackNode, Workspace} from '../../public/workspace';
+import type {TraceImpl} from '../../core/trace_impl';
+import type {AreaSelection, Selection} from '../../public/selection';
+import type {TrackSetting, TrackSettingDescriptor} from '../../public/track';
+import {TrackNode, type Workspace} from '../../public/workspace';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
-import {MultiSelectOption, PopupMultiSelect} from '../../widgets/multiselect';
+import {
+  type MultiSelectOption,
+  PopupMultiSelect,
+} from '../../widgets/multiselect';
 import {Popup} from '../../widgets/popup';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
@@ -431,12 +434,12 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         renderTrackSettingMenu(
           descriptor,
           (value) => {
-            // Set all the settings to the same thing!
+            // Set all the settings to the same value
             for (const setting of settings) {
-              setting.setValue(value);
+              setting.update(value);
             }
           },
-          settings.map((s) => s.getValue()),
+          settings.map((s) => s.value),
         ),
       );
     }

@@ -12,20 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  QuerySlot,
-  SerialTaskQueue,
-  type QueryResult,
-} from '../../../base/query_slot';
-import {Engine} from '../../../trace_processor/engine';
+import {QuerySlot, type QueryResult} from '../../../base/query_slot';
+import type {Engine} from '../../../trace_processor/engine';
 import {
   NUM,
   STR,
-  QueryResult as TPQueryResult,
+  type QueryResult as TPQueryResult,
 } from '../../../trace_processor/query_result';
-import {AggregateFunction} from '../datagrid/model';
+import type {AggregateFunction} from '../datagrid/model';
 import {sqlAggregateExpr} from '../datagrid/sql_utils';
-import {HeatmapData} from './heatmap';
+import type {HeatmapData} from './heatmap';
 import {validateColumnName} from './chart_utils';
 
 /**
@@ -74,8 +70,7 @@ export class SQLHeatmapLoader {
   private readonly xColumn: string;
   private readonly yColumn: string;
   private readonly valueColumn: string;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<HeatmapData>(this.taskQueue);
+  private readonly querySlot = new QuerySlot<HeatmapData>();
 
   constructor(opts: SQLHeatmapLoaderOpts) {
     validateColumnName(opts.xColumn);

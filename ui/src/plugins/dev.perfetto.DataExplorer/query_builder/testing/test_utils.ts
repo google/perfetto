@@ -19,12 +19,16 @@
  * columns, and assertions used across all node unit tests.
  */
 
-import {QueryNode, NodeType, SecondaryInputSpec} from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import {NodeDetailsAttrs} from '../../node_types';
+import {
+  type QueryNode,
+  NodeType,
+  type SecondaryInputSpec,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
+import type {NodeDetailsAttrs} from '../../node_types';
 import {NodeIssues} from '../node_issues';
 import protos from '../../../../protos';
-import {
+import type {
   PerfettoSqlType,
   SimpleTypeKind,
 } from '../../../../trace_processor/perfetto_sql_type';
@@ -50,10 +54,10 @@ export interface MockNodeOptions {
   getTitle?: () => string;
   /** Custom getStructuredQuery function (default: returns undefined) */
   getStructuredQuery?: () => protos.PerfettoSqlStructuredQuery | undefined;
-  /** Custom state to merge with default state */
-  state?: Partial<QueryNode['state']>;
   /** Secondary inputs spec (default: undefined) */
   secondaryInputs?: SecondaryInputSpec;
+  /** Custom context to merge with default context */
+  context?: Partial<QueryNode['context']>;
 }
 
 /** Options for creating a column info */
@@ -103,8 +107,8 @@ export function createMockNode(options: MockNodeOptions = {}): QueryNode {
     validate = () => true,
     getTitle = () => 'Mock Node',
     getStructuredQuery = () => undefined,
-    state = {},
     secondaryInputs,
+    context = {},
   } = options;
 
   const node: QueryNode = {
@@ -112,16 +116,16 @@ export function createMockNode(options: MockNodeOptions = {}): QueryNode {
     type,
     nextNodes: [],
     finalCols: columns,
-    state: {...state},
     secondaryInputs,
+    context: {...context},
     validate,
     getTitle,
+    attrs: {},
     nodeSpecificModify: () => null,
     nodeDetails: (): NodeDetailsAttrs => ({content: null}),
     nodeInfo: () => null,
     clone: () => createMockNode(options),
     getStructuredQuery,
-    serializeState: () => ({}),
   };
 
   return node;
@@ -188,7 +192,7 @@ export function createColumnInfo(
   return {
     name,
     checked,
-    column: {name, type: sqlType},
+    type: sqlType,
     alias,
   };
 }
@@ -212,8 +216,8 @@ export function createColumnInfoWithType(
 
   return {
     name,
+    type,
     checked,
-    column: {name, type},
     alias,
   };
 }
@@ -390,7 +394,7 @@ export function expectValidationError(
   expectedMessage: string,
 ): void {
   expect(node.validate()).toBe(false);
-  expect(node.state.issues?.queryError?.message).toContain(expectedMessage);
+  expect(node.context.issues?.queryError?.message).toContain(expectedMessage);
 }
 
 /**
@@ -403,7 +407,7 @@ export function expectValidationError(
  */
 export function expectValidationSuccess(node: QueryNode): void {
   expect(node.validate()).toBe(true);
-  expect(node.state.issues?.hasIssues() ?? false).toBe(false);
+  expect(node.context.issues?.hasIssues() ?? false).toBe(false);
 }
 
 /**
@@ -412,7 +416,7 @@ export function expectValidationSuccess(node: QueryNode): void {
  * @param node - The node to check
  */
 export function expectNoIssues(node: QueryNode): void {
-  expect(node.state.issues?.hasIssues() ?? false).toBe(false);
+  expect(node.context.issues?.hasIssues() ?? false).toBe(false);
 }
 
 // ============================================================================

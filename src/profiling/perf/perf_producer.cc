@@ -16,6 +16,7 @@
 
 #include "src/profiling/perf/perf_producer.h"
 
+#include <map>
 #include <optional>
 #include <random>
 #include <utility>
@@ -28,6 +29,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/cpu_info.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -70,7 +72,7 @@ namespace {
 // cases when a mature process calls execve, or when the target gets descheduled
 // (since this is a naive walltime wait).
 // The proper fix is in the platform, see bug for progress.
-constexpr uint32_t kProcDescriptorsAndroidDelayMs = 50;
+constexpr uint32_t kProcDescriptorsAndroidDelayMs = 250;
 
 constexpr uint32_t kMemoryLimitCheckPeriodMs = 1000;
 
@@ -262,6 +264,47 @@ uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
 
   uint64_t now_ms = static_cast<uint64_t>(base::GetWallTimeMs().count());
   return period_ms - ((now_ms - ds_period_offset) % period_ms);
+}
+
+// True if the kernel-supplied callchain contains a userspace section. The
+// kernel inserts a PERF_CONTEXT_USER marker before the userspace frames iff
+// the sampled task has a userspace context, regardless of whether the FP
+// walk produces any user IPs.
+bool CallchainHasUserSection(const std::vector<uint64_t>& kernel_ips) {
+  for (uint64_t ip : kernel_ips) {
+    if (ip == PERF_CONTEXT_USER)
+      return true;
+  }
+  return false;
+}
+
+Unwinder::UnwindMode ToUnwinderMode(
+    protos::gen::PerfEventConfig::UnwindMode pb_mode) {
+  using Pb = protos::gen::PerfEventConfig;
+  switch (pb_mode) {
+    case Pb::UNWIND_FRAME_POINTER:
+      return Unwinder::UnwindMode::kFramePointer;
+    case Pb::UNWIND_KERNEL_FRAME_POINTER:
+      return Unwinder::UnwindMode::kKernelFramePointer;
+    case Pb::UNWIND_UNKNOWN:
+    case Pb::UNWIND_SKIP:
+    case Pb::UNWIND_DWARF:
+      return Unwinder::UnwindMode::kUnwindStack;
+  }
+  return Unwinder::UnwindMode::kUnwindStack;  // unreachable; pacify -Wreturn
+}
+
+// Returns true if this sample is for a kernel thread:
+// * if we're performing unwinding in this profiler, then we requested
+//   userspace registers in the samples. No registers means it's a kernel
+//   thread.
+// * if the kernel is unwinding userspace, look for a PERF_CONTEXT_USER marker
+//   in the callchain as that mode doesn't sample userspace registers.
+bool LooksLikeKernelThread(const ParsedSample& sample,
+                           const EventConfig& event_config) {
+  if (event_config.kernel_unwinds_user_frames())
+    return !CallchainHasUserSection(sample.kernel_ips);
+  return !sample.regs;
 }
 
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
@@ -479,13 +522,43 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   }
 
   std::vector<EventReader> per_cpu_readers;
+  const auto& config_ids = event_config_pb.cpuid();
+  std::vector<base::CpuInfo> cpu_infos = base::ReadCpuInfo();
+
   for (uint32_t cpu : target_cpus) {
+    // Filter using the CPUID
+    if (!config_ids.empty()) {
+      auto cpu_info_it = std::find_if(cpu_infos.begin(), cpu_infos.end(),
+                                      [cpu](const base::CpuInfo& cpu_info) {
+                                        return cpu_info.cpu_index == cpu;
+                                      });
+      if (cpu_info_it == cpu_infos.end()) {
+        continue;
+      }
+      const char* cpuid = (*cpu_info_it).arm_cpuid;
+      if (cpuid[0] == '\0') {
+        continue;
+      }
+      bool allowed = std::find_if(config_ids.begin(), config_ids.end(),
+                                  [&](const auto& config_id) {
+                                    return base::StartsWith(cpuid, config_id);
+                                  }) != config_ids.end();
+      if (!allowed) {
+        continue;
+      }
+    }
+
     std::optional<EventReader> event_reader =
         EventReader::ConfigureEvents(cpu, event_config.value());
     if (!event_reader.has_value()) {
       PERFETTO_ELOG("Failed to set up perf events for cpu%" PRIu32
                     ", discarding data source.",
                     cpu);
+      if (event_config_pb.has_ignore_open_failure() &&
+          event_config_pb.ignore_open_failure()) {
+        continue;
+      }
+
       return;
     }
     per_cpu_readers.emplace_back(std::move(event_reader.value()));
@@ -535,12 +608,9 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
 
   // Inform unwinder of the new data source instance, and optionally start a
   // periodic task to clear its cached state.
-  auto unwind_mode = (ds.event_config.unwind_mode() ==
-                      protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
-                         ? Unwinder::UnwindMode::kFramePointer
-                         : Unwinder::UnwindMode::kUnwindStack;
-  unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
-                                         unwind_mode);
+  unwinding_worker_->PostStartDataSource(
+      ds_id, ds.event_config.kernel_frames(),
+      ToUnwinderMode(ds.event_config.unwind_mode()));
   if (ds.event_config.unwind_state_clear_period_ms()) {
     unwinding_worker_->PostClearCachedStatePeriodic(
         ds_id, ds.event_config.unwind_state_clear_period_ms());
@@ -809,7 +879,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
 
       // Kernel threads (which have no userspace state) are never relevant if
       // we're not recording kernel callchains.
-      bool is_kthread = !sample->regs;  // no userspace regs
+      bool is_kthread = LooksLikeKernelThread(*sample, event_config);
       if (is_kthread && !event_config.kernel_frames()) {
         process_state = ProcessTrackingStatus::kRejected;
         EmitSkippedSample(ds_id, std::move(sample.value()),

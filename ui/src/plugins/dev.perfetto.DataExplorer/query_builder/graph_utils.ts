@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {
-  QueryNode,
+  type QueryNode,
   NodeType,
-  SecondaryInputSpec,
+  type SecondaryInputSpec,
   singleNodeOperation,
 } from '../query_node';
-import {GroupNode, ExternalGroupConnection} from './nodes/group_node';
-import {Result, errResult, okResult} from '../../../base/result';
+import {GroupNode, type ExternalGroupConnection} from './nodes/group_node';
+import {type Result, errResult, okResult} from '../../../base/result';
 
 /**
  * Graph traversal and connection utilities for the Data Explorer query builder.
@@ -744,7 +744,13 @@ export function createGroupFromSelection(
   const outerNodes = endNode.nextNodes.filter((n) => !innerSet.has(n.nodeId));
 
   // Create the GroupNode (no mutations yet).
-  const groupNode = new GroupNode(innerNodes, endNode, externalConnections);
+  const groupNode = new GroupNode(
+    {name: 'Group'},
+    {},
+    innerNodes,
+    endNode,
+    externalConnections,
+  );
   groupNode.nextNodes = [...outerNodes];
 
   return okResult(groupNode);

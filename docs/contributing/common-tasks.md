@@ -20,7 +20,7 @@ Files inside the standard library have to be formatted in a very specific way, a
 - Running the file cannot generate any data. There can be only `CREATE PERFETTO {FUNCTION|TABLE|VIEW|MACRO}` statements inside.
 - The name of each standard library object needs to start with `{module_name}_` or be prefixed with an underscore(`_`) for internal objects.
   The names must only contain lower and upper case letters and underscores. When a module is included (using the `INCLUDE PERFETTO MODULE`) the internal objects should not be treated as an API.
-- Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#tableview-schema).
+- Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#schema).
 
 #### Documentation
 
@@ -122,13 +122,14 @@ WHERE launch_id = $launch_id AND slice_name GLOB $slice_name;
 
 Generally you do not have to worry about version skew between the UI
 and the `trace_processor` since they are built together at the same
-commit. However version skew can occur when using the `--httpd` mode
-which allows a native `trace_processor` instance to be used with the UI.
+commit. However version skew can occur when running `trace_processor`
+in HTTP RPC mode (`trace_processor server http`), which allows a
+native `trace_processor` instance to be used with the UI.
 
 A common case is when the UI is more recent than `trace_processor`
 and depends on a new table definition. With older versions of
-`trace_processor` in `--httpd` mode the UI crashes attempting to query
-a non-existant table. To avoid this we use a version number. If the
+`trace_processor` in HTTP RPC mode the UI crashes attempting to query
+a non-existent table. To avoid this we use a version number. If the
 version number `trace_processor` reports is older than the one the UI
 was built with we prompt the user to update.
 

@@ -16,8 +16,9 @@
 
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 
-#include <cctype>
-#include <cstdlib>
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -28,13 +29,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
-#include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
+#include "src/trace_processor/perfetto_sql/parser/intrinsic_macro_expansion.h"
+#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -42,440 +43,648 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-using Token = SqliteTokenizer::Token;
+using Macro = PerfettoSqlParser::Macro;
 using Statement = PerfettoSqlParser::Statement;
 
-PerfettoSqlToken TokenToPerfettoSqlToken(const Token& token) {
-  return PerfettoSqlToken{token.str.data(), token.str.size()};
+std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
+  uint32_t len;
+  const char* text = syntaqlite_parser_span_expanded_text(p, &span, &len);
+  PERFETTO_CHECK(text != nullptr);
+  return {text, len};
 }
 
-Token PerfettoSqlTokenToToken(const PerfettoSqlToken& token) {
-  return Token{std::string_view(token.ptr, token.n), 0};
+base::StatusOr<std::vector<sql_argument::ArgumentDefinition>> BuildArgDefs(
+    SyntaqliteParser* p,
+    uint32_t list_id) {
+  std::vector<sql_argument::ArgumentDefinition> result;
+  if (!syntaqlite_node_is_present(list_id))
+    return result;
+
+  const auto* list = static_cast<const SyntaqlitePerfettoArgDefList*>(
+      syntaqlite_parser_node(p, list_id));
+  uint32_t count = syntaqlite_list_count(list);
+  for (uint32_t i = 0; i < count; i++) {
+    const auto* item = static_cast<const SyntaqlitePerfettoArgDef*>(
+        syntaqlite_list_child(p, list, i));
+
+    const auto* name_node = static_cast<const SyntaqliteNode*>(
+        syntaqlite_parser_node(p, item->arg_name));
+    std::string name = "$" + SpanText(p, name_node->ident_name.source);
+
+    std::string type_str = SpanText(p, item->arg_type);
+    // For JOINID(table.col) syntax, strip the hint suffix before type lookup.
+    auto paren = type_str.find('(');
+    if (paren != std::string::npos)
+      type_str = type_str.substr(0, paren);
+    auto type = sql_argument::ParseType(base::StringView(type_str));
+    if (!type)
+      return base::ErrStatus("Unknown argument type: %s", type_str.c_str());
+
+    bool is_variadic = item->is_variadic == SYNTAQLITE_BOOL_TRUE;
+    result.emplace_back(std::move(name), *type, is_variadic);
+  }
+  return result;
+}
+
+base::StatusOr<PerfettoSqlParser::CreateFunction::Returns> BuildReturnType(
+    SyntaqliteParser* p,
+    uint32_t rt_id) {
+  const auto* rt = static_cast<const SyntaqlitePerfettoReturnType*>(
+      syntaqlite_parser_node(p, rt_id));
+
+  PerfettoSqlParser::CreateFunction::Returns result;
+  if (rt->kind == SYNTAQLITE_PERFETTO_RETURN_KIND_TABLE) {
+    result.is_table = true;
+    auto cols = BuildArgDefs(p, rt->table_columns);
+    if (!cols.ok())
+      return cols.status();
+    result.table_columns = std::move(*cols);
+  } else {
+    result.is_table = false;
+    std::string type_str = SpanText(p, rt->scalar_type);
+    auto type = sql_argument::ParseType(base::StringView(type_str));
+    if (!type)
+      return base::ErrStatus("Unknown return type: %s", type_str.c_str());
+    result.scalar_type = *type;
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Macro rewrite tree -> SqlSource
+// ---------------------------------------------------------------------------
+
+// Walks the flat list of macro rewrites produced by syntaqlite and, for a
+// given AST node, builds a SqlSource whose `Rewriter` structure mirrors the
+// nesting of macro calls. This lets SQLite-side error tracebacks resolve
+// through macro expansions back to the authored call site.
+//
+// The flat list has O(N) entries reported in insertion order (outer macros
+// before their nested calls). Rather than re-scanning the list for each
+// rewrite we materialize a parent -> children adjacency once in the
+// constructor, so every subsequent lookup descends the tree in O(subtree).
+class MacroRewriteBuilder {
+ public:
+  // `stmt_doc_offset` is the byte offset of the current statement within
+  // `stmt`.  Syntaqlite v0.5 reports every layer-0 offset (node extents,
+  // spans, macro call offsets) statement-relative, so call sites that
+  // slice `stmt` add this offset to translate into document coordinates.
+  MacroRewriteBuilder(SyntaqliteParser* p,
+                      const SqlSource& stmt,
+                      uint32_t stmt_doc_offset,
+                      const base::FlatHashMap<std::string, Macro>& macros)
+      : p_(p), stmt_(stmt), stmt_doc_offset_(stmt_doc_offset), macros_(macros) {
+    uint32_t total = syntaqlite_result_macro_count(p_);
+    children_.resize(total);
+    for (uint32_t i = 0; i < total; i++) {
+      auto r = syntaqlite_result_macro_rewrite_at(p_, i);
+      if (r.parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE) {
+        source_rooted_.push_back(i);
+      } else {
+        children_[r.parent_idx].push_back(i);
+      }
+    }
+  }
+
+  // Returns a SqlSource for the AST subtree rooted at `node_id`, with any
+  // macro rewrites that fall within its range applied. Returns std::nullopt
+  // if the node has no recorded extent.
+  std::optional<SqlSource> NodeSource(uint32_t node_id) const {
+    uint32_t len = 0;
+    uint32_t stmt_off = 0;
+    if (syntaqlite_parser_node_text(p_, node_id, &len, &stmt_off) == nullptr)
+      return std::nullopt;
+    SqlSource base = stmt_.Substr(stmt_off + stmt_doc_offset_, len);
+    if (syntaqlite_node_is_macro_free(p_, node_id))
+      return base;
+    return ApplyChildrenInRange(std::move(base), source_rooted_, stmt_off, len);
+  }
+
+ private:
+  struct RewriteItem {
+    uint32_t start;  // in base-SqlSource coordinates
+    uint32_t end;    // exclusive, in base-SqlSource coordinates
+    SqlSource replacement;
+  };
+
+  // Returns `base` with every rewrite in `children` whose call site lies
+  // inside [range_offset, range_offset + range_length) applied to it
+  // (translated into base-local coordinates).  Shared by every caller that
+  // works in `call_offset`-based coordinates: the authored source range,
+  // an intrinsic's expansion buffer, and a $param arg's expansion range.
+  //
+  // Relies on syntaqlite's guarantee that siblings in the rewrite tree are
+  // reported in source order, so the filtered items end up pre-sorted by
+  // `call_offset` and can be fed straight to the Rewriter.
+  SqlSource ApplyChildrenInRange(SqlSource base,
+                                 const std::vector<uint32_t>& children,
+                                 uint32_t range_offset,
+                                 uint32_t range_length) const {
+    std::vector<RewriteItem> items;
+    for (uint32_t idx : children) {
+      auto c = syntaqlite_result_macro_rewrite_at(p_, idx);
+      if (c.call_offset < range_offset)
+        continue;
+      if (c.call_offset + c.call_length > range_offset + range_length)
+        continue;
+      uint32_t local = c.call_offset - range_offset;
+      items.push_back({local, local + c.call_length, BuildForRewrite(idx)});
+    }
+    return ApplyRewrites(std::move(base), std::move(items));
+  }
+
+  // Recursive case: the expansion of a single macro rewrite.
+  SqlSource BuildForRewrite(uint32_t idx) const {
+    auto r = syntaqlite_result_macro_rewrite_at(p_, idx);
+    std::string_view name(r.name, r.name_len);
+    if (const Macro* m = macros_.Find(name); m)
+      return BuildForUserMacro(idx, *m);
+    // Intrinsic macro: no authored body, so work directly in expansion
+    // coordinates. The base is the expansion text and children already
+    // carry call_offsets into that buffer.
+    return ApplyChildrenInRange(
+        SqlSource::FromMacroExpansion(std::string(r.expansion, r.expansion_len),
+                                      std::string(name)),
+        children_[idx], 0, r.expansion_len);
+  }
+
+  // A user-defined macro has an authored body (macro->sql) with `$param`
+  // placeholders. Two kinds of rewrites apply, both in body coordinates:
+  //   1. Nested calls that appear *literally* in the body. Children whose
+  //      body_call_length is SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL came
+  //      from a substituted arg and will be handled by BuildForArg when
+  //      its segment is processed.
+  //   2. `$param` substitution segments. A segment whose body range is
+  //      contained by a literal nested call is dropped: that call's
+  //      expansion already pulled the arg text through, and emitting an
+  //      overlapping rewrite would violate Rewriter's invariant.
+  SqlSource BuildForUserMacro(uint32_t idx, const Macro& m) const {
+    std::vector<RewriteItem> items;
+    for (uint32_t cidx : children_[idx]) {
+      auto c = syntaqlite_result_macro_rewrite_at(p_, cidx);
+      if (c.body_call_length == SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL)
+        continue;
+      items.push_back({c.body_call_offset,
+                       c.body_call_offset + c.body_call_length,
+                       BuildForRewrite(cidx)});
+    }
+    uint32_t seg_count = syntaqlite_macro_rewrite_arg_segment_count(p_, idx);
+    for (uint32_t si = 0; si < seg_count; si++) {
+      auto seg = syntaqlite_macro_rewrite_arg_segment_at(p_, idx, si);
+      bool subsumed = false;
+      for (const auto& it : items) {
+        if (seg.body_offset >= it.start &&
+            seg.body_offset + seg.body_length <= it.end) {
+          subsumed = true;
+          break;
+        }
+      }
+      if (subsumed)
+        continue;
+      items.push_back({seg.body_offset, seg.body_offset + seg.body_length,
+                       BuildForArg(idx, seg)});
+    }
+    // This is the only ApplyRewrites caller whose items aren't already in
+    // `start` order: we concatenated literal body calls and $param segments,
+    // each internally sorted but interleaved relative to each other.
+    std::sort(items.begin(), items.end(),
+              [](const RewriteItem& a, const RewriteItem& b) {
+                return a.start < b.start;
+              });
+    return ApplyRewrites(m.sql, std::move(items));
+  }
+
+  // The SqlSource for one `$param` substitution: the arg's authored text,
+  // with any of the parent's nested calls that happen to fall inside the
+  // substituted region applied on top.
+  SqlSource BuildForArg(uint32_t parent_idx,
+                        const SyntaqliteMacroArgSegment& seg) const {
+    return ApplyChildrenInRange(
+        AuthoredSourceOf(seg.origin_parent_idx, seg.origin_offset,
+                         seg.origin_length),
+        children_[parent_idx], seg.expansion_offset, seg.expansion_length);
+  }
+
+  // Returns the SqlSource for the byte range [offset, offset+length) inside
+  // `parent`'s text (`parent` is either SYNTAQLITE_MACRO_PARENT_SOURCE or
+  // a rewrite index).
+  //
+  // If that range lies inside a `$param` substitution of `parent`, the arg
+  // text was pasted in from somewhere else - we recurse into the segment's
+  // own origin instead of claiming it was authored inside `parent`.  This
+  // keeps error tracebacks pointing at the location the user actually
+  // typed the text, rather than a macro expansion buffer it flowed
+  // through.
+  SqlSource AuthoredSourceOf(uint32_t parent,
+                             uint32_t offset,
+                             uint32_t length) const {
+    if (parent == SYNTAQLITE_MACRO_PARENT_SOURCE)
+      return stmt_.Substr(offset + stmt_doc_offset_, length);
+    uint32_t seg_count = syntaqlite_macro_rewrite_arg_segment_count(p_, parent);
+    for (uint32_t i = 0; i < seg_count; i++) {
+      auto s = syntaqlite_macro_rewrite_arg_segment_at(p_, parent, i);
+      if (offset >= s.expansion_offset &&
+          offset + length <= s.expansion_offset + s.expansion_length) {
+        return AuthoredSourceOf(s.origin_parent_idx,
+                                s.origin_offset + (offset - s.expansion_offset),
+                                length);
+      }
+    }
+    // Literal text in `parent`'s body - not from any $param.
+    auto r = syntaqlite_result_macro_rewrite_at(p_, parent);
+    return SqlSource::FromMacroExpansion(
+        std::string(r.expansion + offset, length),
+        std::string(r.name, r.name_len));
+  }
+
+  // Applies `items` on top of `base`.  Items must already be sorted by
+  // `start` and non-overlapping; the sort lives at the (single) call site
+  // that can produce unsorted input.
+  static SqlSource ApplyRewrites(SqlSource base,
+                                 std::vector<RewriteItem> items) {
+    if (items.empty())
+      return base;
+    PERFETTO_DCHECK(
+        std::is_sorted(items.begin(), items.end(),
+                       [](const RewriteItem& a, const RewriteItem& b) {
+                         return a.start < b.start;
+                       }));
+    SqlSource::Rewriter rw(std::move(base));
+    for (auto& it : items) {
+      rw.Rewrite(it.start, it.end, std::move(it.replacement));
+    }
+    return std::move(rw).Build();
+  }
+
+  SyntaqliteParser* p_;
+  const SqlSource& stmt_;
+  uint32_t stmt_doc_offset_;
+  const base::FlatHashMap<std::string, Macro>& macros_;
+  // children_[parent_idx] = rewrite indices whose `parent_idx` equals that.
+  std::vector<std::vector<uint32_t>> children_;
+  // Rewrites whose parent is SYNTAQLITE_MACRO_PARENT_SOURCE.
+  std::vector<uint32_t> source_rooted_;
+};
+
+SqlSource NodeSource(const MacroRewriteBuilder& rb, uint32_t node_id) {
+  auto s = rb.NodeSource(node_id);
+  PERFETTO_CHECK(s.has_value());
+  return std::move(*s);
+}
+
+// ---------------------------------------------------------------------------
+// Per-statement dispatch (syntaqlite path)
+// ---------------------------------------------------------------------------
+
+// Document-relative byte offset of the statement currently held by `p`,
+// or 0 when the parser hasn't started a statement yet (e.g. tokenizer
+// error before any statement boundary was found).  Every layer-0 offset
+// syntaqlite emits for the current statement is measured from this
+// position within the bound source.
+uint32_t CurrentStatementDocOffset(SyntaqliteParser* p) {
+  uint32_t doc_offset = 0;
+  syntaqlite_parser_text(p, &doc_offset, nullptr);
+  return doc_offset;
+}
+
+base::StatusOr<Statement> ParseCreateTable(
+    SyntaqliteParser* p,
+    const MacroRewriteBuilder& rb,
+    const SyntaqliteCreatePerfettoTableStmt& n) {
+  if (syntaqlite_node_is_present(n.table_impl)) {
+    const auto* impl_node = static_cast<const SyntaqlitePerfettoTableImpl*>(
+        syntaqlite_parser_node(p, n.table_impl));
+    std::string impl_name = SpanText(p, impl_node->name);
+    if (!base::CaseInsensitiveEqual(impl_name, "dataframe"))
+      return base::ErrStatus("Invalid table implementation '%s'",
+                             impl_name.c_str());
+  }
+  ASSIGN_OR_RETURN(auto schema, BuildArgDefs(p, n.schema));
+  return Statement(PerfettoSqlParser::CreateTable{
+      n.or_replace == SYNTAQLITE_BOOL_TRUE,
+      SpanText(p, n.table_name),
+      std::move(schema),
+      NodeSource(rb, n.select),
+  });
+}
+
+base::StatusOr<Statement> ParseCreateView(
+    SyntaqliteParser* p,
+    const MacroRewriteBuilder& rb,
+    const SyntaqliteCreatePerfettoViewStmt& n) {
+  ASSIGN_OR_RETURN(auto schema, BuildArgDefs(p, n.schema));
+  std::string name = SpanText(p, n.view_name);
+  SqlSource select_sql = NodeSource(rb, n.select);
+  SqlSource create_view_sql = SqlSource::FromTraceProcessorImplementation(
+      "CREATE VIEW " + name + " AS " + select_sql.sql());
+  return Statement(PerfettoSqlParser::CreateView{
+      n.or_replace == SYNTAQLITE_BOOL_TRUE,
+      std::move(name),
+      std::move(schema),
+      std::move(select_sql),
+      std::move(create_view_sql),
+  });
+}
+
+base::StatusOr<Statement> ParseCreateFunction(
+    SyntaqliteParser* p,
+    const MacroRewriteBuilder& rb,
+    const SyntaqliteCreatePerfettoFunctionStmt& n) {
+  ASSIGN_OR_RETURN(auto args, BuildArgDefs(p, n.args));
+  for (const auto& arg : args) {
+    if (arg.is_variadic()) {
+      return base::ErrStatus(
+          "Variadic arguments are only allowed in delegate functions (use "
+          "DELEGATES TO instead of AS)");
+    }
+  }
+  ASSIGN_OR_RETURN(auto returns, BuildReturnType(p, n.return_type));
+  return Statement(PerfettoSqlParser::CreateFunction{
+      n.or_replace == SYNTAQLITE_BOOL_TRUE,
+      FunctionPrototype{SpanText(p, n.function_name), std::move(args)},
+      std::move(returns),
+      NodeSource(rb, n.select),
+      "",
+      std::nullopt,
+  });
+}
+
+base::StatusOr<Statement> ParseCreateDelegatingFunction(
+    SyntaqliteParser* p,
+    const SyntaqliteCreatePerfettoDelegatingFunctionStmt& n) {
+  ASSIGN_OR_RETURN(auto args, BuildArgDefs(p, n.args));
+  // Variadic argument, if present, must be the last in the list.
+  for (uint32_t i = 0; i + 1 < args.size(); ++i) {
+    if (args[i].is_variadic())
+      return base::ErrStatus("Variadic argument must be the last argument");
+  }
+  ASSIGN_OR_RETURN(auto returns, BuildReturnType(p, n.return_type));
+  return Statement(PerfettoSqlParser::CreateFunction{
+      n.or_replace == SYNTAQLITE_BOOL_TRUE,
+      FunctionPrototype{SpanText(p, n.function_name), std::move(args)},
+      std::move(returns),
+      SqlSource::FromTraceProcessorImplementation(""),
+      "",
+      SpanText(p, n.delegate_to),
+  });
+}
+
+Statement ParseCreateIndex(SyntaqliteParser* p,
+                           const SyntaqliteCreatePerfettoIndexStmt& n) {
+  std::vector<std::string> col_names;
+  if (syntaqlite_node_is_present(n.columns)) {
+    const auto* list = static_cast<const SyntaqlitePerfettoIndexedColumnList*>(
+        syntaqlite_parser_node(p, n.columns));
+    uint32_t count = syntaqlite_list_count(list);
+    for (uint32_t i = 0; i < count; i++) {
+      const auto* col = static_cast<const SyntaqlitePerfettoIndexedColumn*>(
+          syntaqlite_list_child(p, list, i));
+      col_names.push_back(SpanText(p, col->column_name));
+    }
+  }
+  return PerfettoSqlParser::CreateIndex{
+      n.or_replace == SYNTAQLITE_BOOL_TRUE,
+      SpanText(p, n.index_name),
+      SpanText(p, n.table_name),
+      std::move(col_names),
+  };
+}
+
+Statement ParseCreateMacro(SyntaqliteParser* p,
+                           const SqlSource& stmt,
+                           uint32_t stmt_doc_offset,
+                           const SyntaqliteCreatePerfettoMacroStmt& n) {
+  // Macro definitions can't appear inside macro expansions, so every span
+  // on this statement lives in the original source - slicing `stmt`
+  // directly keeps line/col information intact for error messages.  The
+  // spans carry statement-relative offsets, shifted back to document
+  // coordinates by `stmt_doc_offset`.
+  auto span_src = [&](SyntaqliteTextSpan s) {
+    return stmt.Substr(s.offset + stmt_doc_offset, s.length);
+  };
+  std::vector<std::pair<SqlSource, SqlSource>> args;
+  if (syntaqlite_node_is_present(n.args)) {
+    const auto* list = static_cast<const SyntaqlitePerfettoMacroArgList*>(
+        syntaqlite_parser_node(p, n.args));
+    uint32_t count = syntaqlite_list_count(list);
+    for (uint32_t i = 0; i < count; i++) {
+      const auto* arg = static_cast<const SyntaqlitePerfettoMacroArg*>(
+          syntaqlite_list_child(p, list, i));
+      PERFETTO_CHECK(syntaqlite_span_is_macro_free(&arg->arg_name));
+      PERFETTO_CHECK(syntaqlite_span_is_macro_free(&arg->arg_type));
+      args.emplace_back(span_src(arg->arg_name), span_src(arg->arg_type));
+    }
+  }
+  PERFETTO_CHECK(syntaqlite_span_is_macro_free(&n.macro_name));
+  PERFETTO_CHECK(syntaqlite_span_is_macro_free(&n.return_type));
+  PERFETTO_CHECK(syntaqlite_span_is_macro_free(&n.body));
+  return PerfettoSqlParser::CreateMacro{
+      n.or_replace == SYNTAQLITE_BOOL_TRUE,
+      span_src(n.macro_name),
+      std::move(args),
+      span_src(n.return_type),
+      span_src(n.body),
+  };
+}
+
+base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
+                                         const MacroRewriteBuilder& rb,
+                                         const SqlSource& stmt,
+                                         uint32_t stmt_doc_offset,
+                                         const SyntaqliteNode* node) {
+  // Cast to int to suppress -Wswitch-enum: we intentionally handle only
+  // Perfetto-dialect node types; all SQLite statement types fall through to
+  // the default case and are returned as SqliteSql{}.
+  switch (static_cast<int>(node->tag)) {
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT:
+      return ParseCreateTable(p, rb, node->create_perfetto_table_stmt);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT:
+      return ParseCreateView(p, rb, node->create_perfetto_view_stmt);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT:
+      return ParseCreateFunction(p, rb, node->create_perfetto_function_stmt);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_DELEGATING_FUNCTION_STMT:
+      return ParseCreateDelegatingFunction(
+          p, node->create_perfetto_delegating_function_stmt);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_INDEX_STMT:
+      return ParseCreateIndex(p, node->create_perfetto_index_stmt);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT:
+      return ParseCreateMacro(p, stmt, stmt_doc_offset,
+                              node->create_perfetto_macro_stmt);
+    case SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT:
+      return Statement(PerfettoSqlParser::Include{
+          SpanText(p, node->include_perfetto_module_stmt.module_name),
+      });
+    case SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT:
+      return Statement(PerfettoSqlParser::DropIndex{
+          SpanText(p, node->drop_perfetto_index_stmt.index_name),
+          SpanText(p, node->drop_perfetto_index_stmt.table_name),
+      });
+    default:
+      return Statement(PerfettoSqlParser::SqliteSql{});
+  }
 }
 
 }  // namespace
 
-// Grammar interface implementation
-extern "C" {
+// ---------------------------------------------------------------------------
+// PerfettoSqlParser::Impl
+// ---------------------------------------------------------------------------
+//
+// Macro expansion + statement splitting both delegated to syntaqlite.
+// Bridges syntaqlite's macro-lookup callback to a small intrinsic expander
+// (preprocessor-compat shims) and the engine-owned user macro registry.
 
-struct PerfettoSqlParserState {
-  explicit PerfettoSqlParserState(
-      SqlSource source,
-      const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&
-          macros)
-      : tokenizer{SqlSource::FromTraceProcessorImplementation("")},
-        preprocessor(std::move(source), macros) {}
-
-  void ErrorAtToken(const char* msg, const PerfettoSqlToken& token) {
-    status = base::ErrStatus(
-        "%s%s", tokenizer.AsTraceback(PerfettoSqlTokenToToken(token)).c_str(),
-        msg);
+struct PerfettoSqlParser::Impl {
+  Impl(SqlSource src, const base::FlatHashMap<std::string, Macro>& m)
+      : source(std::move(src)), macros(m) {
+    synq = syntaqlite_parser_create_with_dialect(nullptr,
+                                                 syntaqlite_perfetto_dialect());
+    PERFETTO_CHECK(synq != nullptr);
+    PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
+    syntaqlite_parser_set_macro_lookup(synq, &Impl::LookupMacro, this);
+    syntaqlite_parser_reset(synq, source.sql().data(),
+                            static_cast<uint32_t>(source.sql().size()));
   }
 
-  // Current statement being built
-  std::optional<PerfettoSqlParser::Statement> current_statement;
+  ~Impl() { syntaqlite_parser_destroy(synq); }
 
-  // Tokenizer for the current statement
-  SqliteTokenizer tokenizer;
+  Impl(const Impl&) = delete;
+  Impl& operator=(const Impl&) = delete;
+  Impl(Impl&&) = delete;
+  Impl& operator=(Impl&&) = delete;
 
-  // Preprocessor for handling SQL statements
-  PerfettoSqlPreprocessor preprocessor;
+  [[maybe_unused]] bool Next(std::optional<SqlSource>& out_statement_sql);
 
-  // Error handling
-  base::Status status;
-};
+  // Bridges syntaqlite's macro-lookup callback to our intrinsic expander
+  // and user macro registry. Return codes are defined by syntaqlite:
+  //   0   success (a result was published via set_result)
+  //  -1   macro does not exist
+  //  -2   expansion error
+  static int LookupMacro(void* user_data,
+                         SyntaqliteParser* parser,
+                         const char* name,
+                         uint32_t name_len,
+                         const SyntaqliteToken* args,
+                         uint32_t arg_count) {
+    auto* self = static_cast<Impl*>(user_data);
+    std::string_view name_sv(name, name_len);
 
-struct PerfettoSqlArgumentList {
-  std::vector<sql_argument::ArgumentDefinition> inner;
-};
-
-struct PerfettoSqlIndexedColumnList {
-  std::vector<std::string> cols;
-};
-
-struct PerfettoSqlMacroArgumentList {
-  std::vector<std::pair<SqlSource, SqlSource>> args;
-};
-
-struct PerfettoSqlFnReturnType {
-  bool is_table;
-  sql_argument::Type scalar_type;
-  std::vector<sql_argument::ArgumentDefinition> table_columns;
-};
-
-struct PerfettoSqlTableSchema {
-  std::vector<sql_argument::ArgumentDefinition> columns;
-  std::string description;
-};
-
-PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
-    PerfettoSqlParserState* state,
-    PerfettoSqlArgumentList* list,
-    PerfettoSqlToken* name,
-    PerfettoSqlToken* type,
-    int is_variadic) {
-  std::unique_ptr<PerfettoSqlArgumentList> owned_list(list);
-  if (!owned_list) {
-    owned_list = std::make_unique<PerfettoSqlArgumentList>();
-  }
-  // If there's already a variadic argument, we can't add more arguments
-  if (!owned_list->inner.empty() && owned_list->inner.back().is_variadic()) {
-    state->ErrorAtToken("Variadic argument must be the last argument", *name);
-    return nullptr;
-  }
-  auto parsed = sql_argument::ParseType(base::StringView(type->ptr, type->n));
-  if (!parsed) {
-    state->ErrorAtToken("Failed to parse type", *type);
-    return nullptr;
-  }
-  owned_list->inner.emplace_back("$" + std::string(name->ptr, name->n), *parsed,
-                                 is_variadic != 0);
-  return owned_list.release();
-}
-
-void OnPerfettoSqlFreeArgumentList(PerfettoSqlParserState*,
-                                   PerfettoSqlArgumentList* args) {
-  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
-}
-
-PerfettoSqlIndexedColumnList* OnPerfettoSqlCreateOrAppendIndexedColumn(
-    PerfettoSqlIndexedColumnList* list,
-    PerfettoSqlToken* col) {
-  std::unique_ptr<PerfettoSqlIndexedColumnList> owned_list(list);
-  if (!owned_list) {
-    owned_list = std::make_unique<PerfettoSqlIndexedColumnList>();
-  }
-  owned_list->cols.emplace_back(col->ptr, col->n);
-  return owned_list.release();
-}
-
-void OnPerfettoSqlFreeIndexedColumnList(PerfettoSqlParserState*,
-                                        PerfettoSqlIndexedColumnList* cols) {
-  std::unique_ptr<PerfettoSqlIndexedColumnList> cols_deleter(cols);
-}
-
-PerfettoSqlMacroArgumentList* OnPerfettoSqlCreateOrAppendMacroArgument(
-    PerfettoSqlParserState* state,
-    PerfettoSqlMacroArgumentList* list,
-    PerfettoSqlToken* name,
-    PerfettoSqlToken* type) {
-  std::unique_ptr<PerfettoSqlMacroArgumentList> owned_list(list);
-  if (!owned_list) {
-    owned_list = std::make_unique<PerfettoSqlMacroArgumentList>();
-  }
-  owned_list->args.emplace_back(
-      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*name)),
-      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*type)));
-  return owned_list.release();
-}
-
-void OnPerfettoSqlFreeMacroArgumentList(PerfettoSqlParserState*,
-                                        PerfettoSqlMacroArgumentList* list) {
-  std::unique_ptr<PerfettoSqlMacroArgumentList> list_deleter(list);
-}
-
-void OnPerfettoSqlSyntaxError(PerfettoSqlParserState* state,
-                              PerfettoSqlToken* token) {
-  if (token->n == 0) {
-    state->ErrorAtToken("incomplete input", *token);
-  } else {
-    state->ErrorAtToken("syntax error", *token);
-  }
-}
-
-PerfettoSqlFnReturnType* OnPerfettoSqlCreateScalarReturnType(
-    PerfettoSqlToken* type) {
-  auto res = std::make_unique<PerfettoSqlFnReturnType>();
-  res->is_table = false;
-  auto parsed = sql_argument::ParseType(base::StringView(type->ptr, type->n));
-  if (!parsed) {
-    return nullptr;
-  }
-  res->scalar_type = *parsed;
-  return res.release();
-}
-
-PerfettoSqlFnReturnType* OnPerfettoSqlCreateTableReturnType(
-    PerfettoSqlArgumentList* args) {
-  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
-  auto res = std::make_unique<PerfettoSqlFnReturnType>();
-  res->is_table = true;
-  res->table_columns = std::move(args->inner);
-  return res.release();
-}
-
-void OnPerfettoSqlFnFreeReturnType(PerfettoSqlParserState*,
-                                   PerfettoSqlFnReturnType* type) {
-  std::unique_ptr<PerfettoSqlFnReturnType> type_deleter(type);
-}
-
-void OnPerfettoSqlCreateFunction(PerfettoSqlParserState* state,
-                                 int replace,
-                                 PerfettoSqlToken* name,
-                                 PerfettoSqlArgumentList* args,
-                                 PerfettoSqlFnReturnType* returns,
-                                 PerfettoSqlToken* body_start,
-                                 PerfettoSqlToken* body_end) {
-  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
-  std::unique_ptr<PerfettoSqlFnReturnType> returns_deleter(returns);
-
-  // Variadic arguments are not allowed in SQL functions (only in delegate
-  // functions)
-  if (args) {
-    for (const auto& arg : args->inner) {
-      if (arg.is_variadic()) {
-        state->ErrorAtToken(
-            "Variadic arguments are only allowed in delegate functions (use "
-            "DELEGATES TO instead of AS)",
-            *name);
-        return;
-      }
+    auto status = self->intrinsic_expander.TryExpand(name_sv, args, arg_count);
+    if (status == perfetto_sql::ExpandStatus::kExpanded) {
+      std::string_view body = self->intrinsic_expander.body();
+      syntaqlite_macro_expansion_set_result(
+          parser, body.data(), static_cast<uint32_t>(body.size()), 0, 0);
+      return 0;
     }
+    if (status == perfetto_sql::ExpandStatus::kExpansionFailed)
+      return -2;
+
+    const Macro* macro = self->macros.Find(name_sv);
+    if (!macro)
+      return -1;
+    if (macro->args.size() != arg_count)
+      return -2;
+
+    self->param_names.clear();
+    self->param_name_lens.clear();
+    self->param_names.reserve(macro->args.size());
+    self->param_name_lens.reserve(macro->args.size());
+    for (const auto& a : macro->args) {
+      self->param_names.push_back(a.data());
+      self->param_name_lens.push_back(static_cast<uint32_t>(a.size()));
+    }
+    // PASSTHROUGH_UNKNOWN: leave `$param` references that don't match a
+    // macro parameter alone, so they reach SQLite as bind variables (used
+    // by CREATE PERFETTO FUNCTION bodies).
+    int rc = syntaqlite_macro_expansion_expand_and_set_result(
+        parser, macro->sql.sql().data(),
+        static_cast<uint32_t>(macro->sql.sql().size()),
+        self->param_names.data(), self->param_name_lens.data(),
+        static_cast<uint32_t>(macro->args.size()),
+        SYNTAQLITE_EXPAND_PASSTHROUGH_UNKNOWN);
+    return rc == 0 ? 0 : -2;
   }
 
-  // Convert the return type
-  PerfettoSqlParser::CreateFunction::Returns returns_res;
-  returns_res.is_table = returns->is_table;
-  if (returns->is_table) {
-    returns_res.table_columns = std::move(returns->table_columns);
-  } else {
-    returns_res.scalar_type = returns->scalar_type;
+  SyntaqliteParser* synq;
+  SqlSource source;
+  const base::FlatHashMap<std::string, Macro>& macros;
+  base::Status status;
+  std::optional<Statement> current_statement;
+  perfetto_sql::IntrinsicMacroExpander intrinsic_expander;
+  // Scratch buffers for LookupMacro, reused across user-macro lookups.
+  std::vector<const char*> param_names;
+  std::vector<uint32_t> param_name_lens;
+};
+
+bool PerfettoSqlParser::Impl::Next(
+    std::optional<SqlSource>& out_statement_sql) {
+  PERFETTO_DCHECK(status.ok());
+
+  current_statement = std::nullopt;
+  out_statement_sql = std::nullopt;
+
+  const SqlSource& stmt = source;
+  uint32_t root = 0;
+  for (;;) {
+    int32_t rc = syntaqlite_parser_next(synq);
+    if (rc == SYNTAQLITE_PARSE_DONE)
+      return false;
+    if (rc == SYNTAQLITE_PARSE_ERROR) {
+      // error_offset is statement-relative; shift by the statement's
+      // position within the source to get a document offset.
+      uint64_t off = uint64_t{syntaqlite_result_error_offset(synq)} +
+                     CurrentStatementDocOffset(synq);
+      auto clamped =
+          static_cast<uint32_t>(std::min<uint64_t>(off, stmt.sql().size()));
+      status = base::ErrStatus("%s%s", stmt.AsTraceback(clamped).c_str(),
+                               syntaqlite_result_error_msg(synq));
+      return false;
+    }
+    root = syntaqlite_result_root(synq);
+    // PARSE_OK with no root node means bare comments/whitespace between
+    // statements; skip to the next statement.
+    if (syntaqlite_node_is_present(root))
+      break;
   }
 
-  // Create a new CreateFunction statement
-  state->current_statement = PerfettoSqlParser::CreateFunction{
-      replace != 0,
-      FunctionPrototype{
-          std::string(name->ptr, name->n),
-          args ? std::move(args->inner)
-               : std::vector<sql_argument::ArgumentDefinition>{},
-      },
-      std::move(returns_res),
-      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
-                              PerfettoSqlTokenToToken(*body_end),
-                              SqliteTokenizer::EndToken::kInclusive),
-      "",
-      std::nullopt,  // No target function for SQL functions
-  };
-}
+  // Every layer-0 offset the parser emits (node extents, spans, macro
+  // rewrite call offsets) is relative to this position within the bound
+  // source; callers that slice `stmt` add it back on.
+  uint32_t stmt_doc_offset = CurrentStatementDocOffset(synq);
 
-void OnPerfettoSqlCreateDelegatingFunction(PerfettoSqlParserState* state,
-                                           int replace,
-                                           PerfettoSqlToken* name,
-                                           PerfettoSqlArgumentList* args,
-                                           PerfettoSqlFnReturnType* returns,
-                                           PerfettoSqlToken* target_function,
-                                           PerfettoSqlToken* /*stmt_end*/) {
-  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
-  std::unique_ptr<PerfettoSqlFnReturnType> returns_deleter(returns);
+  MacroRewriteBuilder rb(synq, stmt, stmt_doc_offset, macros);
+  auto root_src = rb.NodeSource(root);
+  out_statement_sql = root_src.has_value() ? *std::move(root_src) : stmt;
 
-  // Validate the target function name is not empty
-  if (target_function->n == 0) {
-    state->ErrorAtToken("Target function name cannot be empty",
-                        *target_function);
-    return;
+  const auto* node =
+      static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(synq, root));
+  auto result = ParseStatement(synq, rb, stmt, stmt_doc_offset, node);
+  if (!result.ok()) {
+    status = result.status();
+    return false;
   }
-
-  // Convert the return type
-  PerfettoSqlParser::CreateFunction::Returns returns_res;
-  returns_res.is_table = returns->is_table;
-  if (returns->is_table) {
-    returns_res.table_columns = std::move(returns->table_columns);
-  } else {
-    returns_res.scalar_type = returns->scalar_type;
-  }
-
-  // Create a new CreateFunction statement with intrinsic name
-  state->current_statement = PerfettoSqlParser::CreateFunction{
-      replace != 0,
-      FunctionPrototype{
-          std::string(name->ptr, name->n),
-          args ? std::move(args->inner)
-               : std::vector<sql_argument::ArgumentDefinition>{},
-      },
-      std::move(returns_res),
-      SqlSource::FromTraceProcessorImplementation(
-          ""),  // Empty SQL source for delegating functions
-      "",       // Empty description for now
-      std::string(target_function->ptr,
-                  target_function->n),  // Set target function name
-  };
+  current_statement = std::move(*result);
+  return true;
 }
-
-void OnPerfettoSqlCreateTable(PerfettoSqlParserState* state,
-                              int replace,
-                              PerfettoSqlToken* name,
-                              PerfettoSqlToken* table_impl,
-                              PerfettoSqlArgumentList* args,
-                              PerfettoSqlToken* body_start,
-                              PerfettoSqlToken* body_end) {
-  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
-  if (table_impl->n == 0 ||
-      base::CaseInsensitiveEqual(std::string(table_impl->ptr, table_impl->n),
-                                 "dataframe")) {
-    // Do nothing.
-  } else {
-    state->ErrorAtToken("Invalid table implementation", *table_impl);
-    return;
-  }
-  state->current_statement = PerfettoSqlParser::CreateTable{
-      replace != 0,
-      std::string(name->ptr, name->n),
-      args ? std::move(args->inner)
-           : std::vector<sql_argument::ArgumentDefinition>{},
-      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
-                              PerfettoSqlTokenToToken(*body_end)),
-  };
-}
-
-void OnPerfettoSqlCreateView(PerfettoSqlParserState* state,
-                             int replace,
-                             PerfettoSqlToken* create_token,
-                             PerfettoSqlToken* name,
-                             PerfettoSqlArgumentList* args,
-                             PerfettoSqlToken* body_start,
-                             PerfettoSqlToken* body_end) {
-  std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
-
-  SqlSource header = SqlSource::FromTraceProcessorImplementation(
-      "CREATE VIEW " + std::string(name->ptr, name->n) + " AS ");
-  SqlSource::Rewriter rewriter(state->preprocessor.statement());
-  state->tokenizer.Rewrite(rewriter, PerfettoSqlTokenToToken(*create_token),
-                           PerfettoSqlTokenToToken(*body_start), header);
-
-  state->current_statement = PerfettoSqlParser::CreateView{
-      replace != 0,
-      std::string(name->ptr, name->n),
-      args ? std::move(args->inner)
-           : std::vector<sql_argument::ArgumentDefinition>(),
-      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
-                              PerfettoSqlTokenToToken(*body_end)),
-      std::move(rewriter).Build(),
-  };
-}
-
-void OnPerfettoSqlCreateIndex(PerfettoSqlParserState* state,
-                              int replace,
-                              PerfettoSqlToken* create_token,
-                              PerfettoSqlToken* name,
-                              PerfettoSqlToken* table_name,
-                              PerfettoSqlIndexedColumnList* cols) {
-  std::unique_ptr<PerfettoSqlIndexedColumnList> cols_deleter(cols);
-
-  SqlSource header = SqlSource::FromTraceProcessorImplementation(
-      "CREATE INDEX " + std::string(name->ptr, name->n));
-  SqlSource::Rewriter rewriter(state->preprocessor.statement());
-  state->tokenizer.Rewrite(rewriter, PerfettoSqlTokenToToken(*create_token),
-                           PerfettoSqlTokenToToken(*create_token), header,
-                           SqliteTokenizer::EndToken::kExclusive);
-
-  state->current_statement = PerfettoSqlParser::CreateIndex{
-      replace != 0,
-      std::string(name->ptr, name->n),
-      std::string(table_name->ptr, table_name->n),
-      std::move(cols->cols),
-  };
-}
-
-void OnPerfettoSqlDropIndex(PerfettoSqlParserState* state,
-                            PerfettoSqlToken* name,
-                            PerfettoSqlToken* table_name) {
-  state->current_statement = PerfettoSqlParser::DropIndex{
-      std::string(name->ptr, name->n),
-      std::string(table_name->ptr, table_name->n),
-  };
-}
-
-void OnPerfettoSqlCreateMacro(PerfettoSqlParserState* state,
-                              int replace,
-                              PerfettoSqlToken* name,
-                              PerfettoSqlMacroArgumentList* args,
-                              PerfettoSqlToken* returns,
-                              PerfettoSqlToken* body_start,
-                              PerfettoSqlToken* body_end) {
-  std::unique_ptr<PerfettoSqlMacroArgumentList> args_deleter(args);
-
-  state->current_statement = PerfettoSqlParser::CreateMacro{
-      replace != 0,
-      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*name)),
-      args ? std::move(args->args)
-           : std::vector<std::pair<SqlSource, SqlSource>>{},
-
-      state->tokenizer.SubstrToken(PerfettoSqlTokenToToken(*returns)),
-      state->tokenizer.Substr(PerfettoSqlTokenToToken(*body_start),
-                              PerfettoSqlTokenToToken(*body_end)),
-  };
-}
-
-void OnPerfettoSqlInclude(PerfettoSqlParserState* state,
-                          PerfettoSqlToken* module_name) {
-  state->current_statement =
-      PerfettoSqlParser::Include{std::string(module_name->ptr, module_name->n)};
-}
-
-}  // extern "C"
 
 PerfettoSqlParser::PerfettoSqlParser(
     SqlSource source,
-    const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&
-        macros)
-    : parser_state_(std::make_unique<PerfettoSqlParserState>(std::move(source),
-                                                             macros)) {}
+    const base::FlatHashMap<std::string, Macro>& macros)
+    : impl_(std::make_unique<Impl>(std::move(source), macros)) {}
 
 PerfettoSqlParser::~PerfettoSqlParser() = default;
 
 bool PerfettoSqlParser::Next() {
-  PERFETTO_DCHECK(parser_state_->status.ok());
-
-  parser_state_->current_statement = std::nullopt;
-  statement_sql_ = std::nullopt;
-
-  if (!parser_state_->preprocessor.NextStatement()) {
-    parser_state_->status = parser_state_->preprocessor.status();
-    return false;
-  }
-  parser_state_->tokenizer.Reset(parser_state_->preprocessor.statement());
-
-  auto* parser = PerfettoSqlParseAlloc(malloc, parser_state_.get());
-  auto guard = base::OnScopeExit([&]() { PerfettoSqlParseFree(parser, free); });
-
-  enum { kEof, kSemicolon, kNone } eof = kNone;
-  for (Token token = parser_state_->tokenizer.Next();;
-       token = parser_state_->tokenizer.Next()) {
-    if (!parser_state_->status.ok()) {
-      return false;
-    }
-    if (token.IsTerminal()) {
-      if (eof == kNone) {
-        PerfettoSqlParse(parser, TK_SEMI, TokenToPerfettoSqlToken(token));
-        eof = kSemicolon;
-        continue;
-      }
-      if (eof == kSemicolon) {
-        PerfettoSqlParse(parser, 0, TokenToPerfettoSqlToken(token));
-        eof = kEof;
-        continue;
-      }
-      if (!parser_state_->current_statement) {
-        parser_state_->current_statement = SqliteSql{};
-      }
-      statement_sql_ = parser_state_->preprocessor.statement();
-      return true;
-    }
-    if (token.token_type == TK_SPACE || token.token_type == TK_COMMENT) {
-      continue;
-    }
-    PerfettoSqlParse(parser, token.token_type, TokenToPerfettoSqlToken(token));
-  }
+  return impl_->Next(statement_sql_);
 }
 
-const Statement& PerfettoSqlParser::statement() const {
-  PERFETTO_DCHECK(parser_state_->current_statement.has_value());
-  return *parser_state_->current_statement;
+const PerfettoSqlParser::Statement& PerfettoSqlParser::statement() const {
+  PERFETTO_DCHECK(impl_->current_statement.has_value());
+  return *impl_->current_statement;
 }
 
 const base::Status& PerfettoSqlParser::status() const {
-  return parser_state_->status;
+  return impl_->status;
 }
 
 }  // namespace perfetto::trace_processor

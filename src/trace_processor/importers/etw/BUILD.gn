@@ -16,6 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("minimal") {
   sources = [
+    "disk_io_tracker.cc",
+    "disk_io_tracker.h",
     "etw_module.cc",
     "etw_module.h",
     "file_io_tracker.cc",

@@ -105,8 +105,6 @@ source_set("lib") {
     "trace_to_bundle.h",
     "trace_to_firefox.cc",
     "trace_to_firefox.h",
-    "trace_to_hprof.cc",
-    "trace_to_hprof.h",
     "trace_to_json.cc",
     "trace_to_json.h",
     "trace_to_profile.cc",
@@ -144,6 +142,10 @@ source_set("traceconv_lib") {
 if (enable_perfetto_ui) {
   wasm_lib("traceconv_wasm") {
     name = "traceconv"
+
+    # Loaded from main thread; uses MEMFS + WORKERFS to ingest trace files.
+    enable_web_environment = true
+    enable_filesystem = true
     deps = [
       ":main",
       "../../gn:default_deps",
@@ -161,22 +163,28 @@ perfetto_cc_proto_descriptor("gen_cc_winscope_descriptor") {
   descriptor_target = "../../protos/perfetto/trace/android:winscope_descriptor"
 }
 
-source_set("integrationtests") {
-  testonly = true
-  deps = [
-    ":lib",
-    "../../gn:default_deps",
-    "../../gn:gtest_and_gmock",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base:base",
-    "../../protos/third_party/pprof:cpp",
-    "../../protos/third_party/pprof:zero",
-    "../../src/base:test_support",
-  ]
-  sources = [
-    "pprof_reader.cc",
-    "pprof_reader.h",
-    "trace_to_pprof_integrationtest.cc",
-    "trace_to_text_integrationtest.cc",
-  ]
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtests") {
+    testonly = true
+    deps = [
+      ":lib",
+      ":traceconv_lib",
+      "../../gn:default_deps",
+      "../../gn:gtest_and_gmock",
+      "../../include/perfetto/base",
+      "../../include/perfetto/ext/base:base",
+      "../../protos/perfetto/trace:cpp",
+      "../../protos/perfetto/trace/profiling:cpp",
+      "../../protos/third_party/pprof:cpp",
+      "../../protos/third_party/pprof:zero",
+      "../../src/base:test_support",
+    ]
+    sources = [
+      "pprof_reader.cc",
+      "pprof_reader.h",
+      "trace_to_pprof_integrationtest.cc",
+      "trace_to_text_integrationtest.cc",
+      "traceconv_bundle_integrationtest.cc",
+    ]
+  }
 }

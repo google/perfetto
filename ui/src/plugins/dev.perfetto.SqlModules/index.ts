@@ -16,13 +16,13 @@ import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {defer} from '../../base/deferred';
 import {extensions} from '../../components/extensions';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
-import {SqlModules, isTableEffectivelyDisabled} from './sql_modules';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import {type SqlModules, isTableEffectivelyDisabled} from './sql_modules';
 import {
   SQL_MODULES_DOCS_SCHEMA,
-  SqlModulesDocsSchema,
+  type SqlModulesDocsSchema,
   SqlModulesImpl,
 } from './sql_modules_impl';
 

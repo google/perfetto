@@ -15,20 +15,20 @@
 import m from 'mithril';
 
 import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
-import {ArrowConnection} from '../../components/related_events/arrow_visualiser';
+import type {ArrowConnection} from '../../components/related_events/arrow_visualiser';
 import {TrackPinningManager} from '../../components/related_events/utils';
 import {Time} from '../../base/time';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 
 import {
   AndroidInputEventSource,
-  InputChainRow,
-  NavTarget,
+  type InputChainRow,
+  type NavTarget,
 } from './android_input_event_source';
 import {AndroidInputLifecycleTab} from './tab';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {QueryResult} from '../../base/query_slot';
+import type {QueryResult} from '../../base/query_slot';
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
@@ -43,7 +43,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
     const source = new AndroidInputEventSource(trace);
-    const pinningManager = new TrackPinningManager();
+    const pinningManager = new TrackPinningManager(trace);
 
     trace.tracks.registerOverlay(
       new RelatedEventsOverlay(trace, () => this.getConnections(trace, source)),
@@ -58,7 +58,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
           const {data: rows, isPending} = this.useRowState(trace, source);
 
           if (rows) {
-            this.applyInitialSelection(trace, rows, pinningManager);
+            this.applyInitialSelection(trace, rows);
           }
 
           return m(AndroidInputLifecycleTab, {
@@ -110,11 +110,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     return source.use(selection.eventId);
   }
 
-  private applyInitialSelection(
-    trace: Trace,
-    rows: InputChainRow[],
-    pinningManager: TrackPinningManager,
-  ) {
+  private applyInitialSelection(trace: Trace, rows: InputChainRow[]) {
     const selection = trace.selection.selection;
     if (selection.kind !== 'track_event') return;
 
@@ -137,8 +133,6 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
         break;
       }
     }
-
-    pinningManager.applyPinning(trace);
   }
 
   private getConnections(

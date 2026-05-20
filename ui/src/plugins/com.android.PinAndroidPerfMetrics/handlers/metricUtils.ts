@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 
 /**
  * Represents data for a Full trace metric
@@ -24,6 +24,9 @@ export interface FullTraceMetricData {
 
   /** Jank type (e.g., app or sf missed frame) */
   jankType: JankType;
+
+  /** Whether the metric is weighted */
+  isWeighted: boolean;
 }
 
 /**
@@ -39,6 +42,9 @@ export interface CujScopedMetricData {
 
   /** Jank type (e.g., app or sf missed frame) */
   jankType: JankType;
+
+  /** Whether the metric is weighted */
+  isWeighted: boolean;
 }
 
 /**

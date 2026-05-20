@@ -233,6 +233,8 @@ const char* GetThreadNameString(int32_t thread_type,
         return "LoaderLockSampler";
       case chrome_enums::THREAD_COMPOSITOR_GPU:
         return "CompositorGpuThread";
+      case chrome_enums::THREAD_BROWSER_VSYNC:
+        return "VSyncThread";
       default:
         // Fall through to the generated name.
         break;

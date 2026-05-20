@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
-import {SqlValue} from '../../../../trace_processor/query_result';
-import {ColumnInfo} from '../column_info';
+import type {SqlValue} from '../../../../trace_processor/query_result';
+import type {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
-import {Filter} from '../../../../components/widgets/datagrid/model';
+import type {Filter} from '../../../../components/widgets/datagrid/model';
 import {ColumnName} from '../node_styling_widgets';
 
 // ============================================================================
@@ -412,7 +412,7 @@ function partitionValuesByType(
     if (typeof value === 'string') {
       stringValues.push(value);
     } else if (typeof value === 'number' || typeof value === 'bigint') {
-      if (column?.column.type?.kind === 'int') {
+      if (column?.type?.kind === 'int') {
         int64Values.push(Number(value));
       } else {
         doubleValues.push(Number(value));
@@ -498,7 +498,7 @@ export function createFiltersProto(
           if (typeof value === 'string') {
             result.stringRhs = [value];
           } else if (typeof value === 'number' || typeof value === 'bigint') {
-            if (col?.column.type?.kind === 'int') {
+            if (col?.type?.kind === 'int') {
               result.int64Rhs = [Number(value)];
             } else {
               result.doubleRhs = [Number(value)];

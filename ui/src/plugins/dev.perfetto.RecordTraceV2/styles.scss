@@ -13,7 +13,9 @@
 // limitations under the License.
 
 @import "../../assets/theme";
-@import "../../assets/widgets/checkbox";
+@import "../../widgets/checkbox";
+
+@import "views/import_config";
 
 // The whole record page.
 .pf-record-page {

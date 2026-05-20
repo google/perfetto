@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 import {
-  ChartConfig,
-  ChartType,
+  type ChartConfig,
+  type ChartType,
   getDefaultChartLabel,
 } from '../nodes/visualisation_node';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {BarChart} from '../../../../components/widgets/charts/bar_chart';
 import {Histogram} from '../../../../components/widgets/charts/histogram';
 import {LineChart} from '../../../../components/widgets/charts/line_chart';
@@ -26,7 +26,7 @@ import {Scatterplot} from '../../../../components/widgets/charts/scatterplot';
 import {PieChart} from '../../../../components/widgets/charts/pie_chart';
 import {
   Treemap,
-  TreemapNode,
+  type TreemapNode,
 } from '../../../../components/widgets/charts/treemap';
 import {BoxplotChart} from '../../../../components/widgets/charts/boxplot';
 import {HeatmapChart} from '../../../../components/widgets/charts/heatmap';
@@ -42,10 +42,10 @@ import {SQLCdfLoader} from '../../../../components/widgets/charts/cdf_loader';
 import {SQLSingleValueLoader} from '../../../../components/widgets/charts/single_value_loader';
 import {Scorecard} from '../../../../components/widgets/charts/scorecard';
 import {EmptyState} from '../../../../widgets/empty_state';
-import {SqlValue} from '../../../../trace_processor/query_result';
-import {Engine} from '../../../../trace_processor/engine';
+import type {SqlValue} from '../../../../trace_processor/query_result';
+import type {Engine} from '../../../../trace_processor/engine';
 import {isIntegerColumn, getNumericFormatter} from './chart_column_formatters';
-import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+import type {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
 
 /**
  * Formats a human-readable measure label for chart axes.
@@ -99,7 +99,7 @@ export interface ChartColumnProvider {
   addRangeFilter(column: string, min: number, max: number): void;
   updateChart(chartId: string, updates: Partial<Omit<ChartConfig, 'id'>>): void;
   removeChart(chartId: string): void;
-  readonly state: {readonly chartConfigs: ReadonlyArray<ChartConfig>};
+  readonly attrs: {readonly chartConfigs: ReadonlyArray<ChartConfig>};
 }
 
 /**
@@ -110,6 +110,8 @@ export interface ChartColumnProvider {
 export interface ChartRenderContext {
   readonly node: ChartColumnProvider;
   readonly onFilterChange?: () => void;
+  /** When set, charts that support grid lines will render them. */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
 }
 
 /** Dispose all loaders on a ChartLoaderEntry. */
@@ -158,6 +160,7 @@ export function createChartLoaders(
         query,
         dimensionColumn: config.column,
         measureColumn: config.measureColumn ?? config.column,
+        seriesColumn: config.groupColumn,
       });
       break;
     case 'histogram':
@@ -310,6 +313,7 @@ export function renderBarChart(
     fillParent: true,
     formatDimension,
     formatMeasure,
+    gridLines: ctx.gridLines,
     onBrush: (labels) => handleBarBrush(ctx, config, labels),
   });
 }
@@ -368,6 +372,7 @@ export function renderLineChart(
     scaleAxes: true,
     formatXValue,
     formatYValue,
+    gridLines: ctx.gridLines,
     onBrush: (range) =>
       handleHistogramBrush(ctx, config, range.start, range.end),
   });
@@ -398,6 +403,7 @@ export function renderScatterChart(
     scaleAxes: true,
     formatXValue,
     formatYValue,
+    gridLines: ctx.gridLines,
   });
 }
 
@@ -486,6 +492,7 @@ export function renderBoxplot(
     valueLabel: config.yColumn,
     fillParent: true,
     formatValue,
+    gridLines: ctx.gridLines,
   });
 }
 

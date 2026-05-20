@@ -18,9 +18,8 @@ import {
   isColumnValidForAggregation,
   getAggregationTypeRequirements,
 } from './utils';
-import {ColumnInfo} from './column_info';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../trace_processor/perfetto_sql_type';
 
@@ -102,15 +101,8 @@ describe('utils', () => {
     function createColumnInfo(
       name: string,
       type?: PerfettoSqlType,
-    ): ColumnInfo {
-      return {
-        name,
-        checked: false,
-        column: {
-          name,
-          type,
-        },
-      };
+    ): {name: string; type?: PerfettoSqlType} {
+      return {name, type};
     }
 
     describe('MEAN operation', () => {

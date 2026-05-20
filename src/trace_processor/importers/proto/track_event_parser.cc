@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -43,7 +44,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -78,9 +78,10 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
-  auto* mapping = delegate.seq_state()
-                      ->GetCustomState<StackProfileSequenceState>()
-                      ->FindOrInsertMapping(decoder->mapping_id());
+  auto* mapping =
+      delegate.seq_state()
+          ->GetCustomState<StackProfileSequenceState>()
+          ->FindOrInsertMapping(delegate.seq_state(), decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
   }
@@ -229,6 +230,13 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context_->storage->InternString("end_callsite_id")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
+  // Opt into DebugAnnotation handling: ParseMessage routes DebugAnnotation
+  // sub-fields and direct DebugAnnotation parses through the iterative
+  // DebugAnnotation work-item path on the same stack as proto-message
+  // reflection, so deeply nested DebugAnnotation -> proto_value cycles do
+  // not consume C++ stack.
+  args_parser_.EnableDebugAnnotationParsing();
+
   args_parser_.AddParsingOverrideForField(
       "chrome_mojo_event_info.mojo_interface_method_iid",
       [](const protozero::Field& field,
@@ -274,18 +282,6 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
         return MaybeParseAndroidJobName(field, delegate);
       });
 
-  // Parse DebugAnnotations.
-  args_parser_.AddParsingOverrideForType(
-      ".perfetto.protos.DebugAnnotation",
-      [&](util::ProtoToArgsParser::ScopedNestedKeyContext& key,
-          const protozero::ConstBytes& data,
-          util::ProtoToArgsParser::Delegate& delegate) {
-        // Do not add "debug_annotations" to the final key.
-        key.RemoveFieldSuffix();
-        util::DebugAnnotationParser annotation_parser(args_parser_);
-        return annotation_parser.Parse(data, delegate);
-      });
-
   args_parser_.AddParsingOverrideForField(
       "active_processes.pid", [&](const protozero::Field& field,
                                   util::ProtoToArgsParser::Delegate& delegate) {
@@ -309,7 +305,7 @@ void TrackEventParser::ParseTrackDescriptor(
   // process and/or thread (i.e. new upid/utid).
   auto track = track_event_tracker_->ResolveDescriptorTrack(decoder.uuid());
   if (!track) {
-    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     return;
   }
 
@@ -455,7 +451,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       range_of_interest_start_us && ts < *range_of_interest_start_us * 1000) {
     // The event is outside of the range of interest, and dropping is enabled.
     // So we drop the event.
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::track_event_dropped_packets_outside_of_range_of_interest);
     return;
   }
@@ -463,7 +459,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       TrackEventEventImporter(this, ts, event_data, blob, packet_sequence_id)
           .Import();
   if (!status.ok()) {
-    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
 }

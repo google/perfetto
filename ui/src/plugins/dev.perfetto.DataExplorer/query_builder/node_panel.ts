@@ -15,18 +15,18 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {Query, QueryNode, NodeType} from '../query_node';
+import {type Query, type QueryNode, NodeType} from '../query_node';
 import {isAQuery} from './query_builder_utils';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
 import {TabStrip} from '../../../widgets/tab_strip';
-import {NodeModifyAttrs} from '../node_types';
-import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
+import type {NodeModifyAttrs} from '../node_types';
+import {Button, type ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {ResultsPanelEmptyState, InfoBox} from './widgets';
-import {QueryExecutionService} from './query_execution_service';
+import type {QueryExecutionService} from './query_execution_service';
 
 export interface NodePanelAttrs {
   readonly node?: QueryNode;
@@ -82,15 +82,13 @@ export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
   }
 
   private updateQuery(node: QueryNode, attrs: NodePanelAttrs) {
-    // TODO: Re-implement WITH statement dependencies for SqlSourceNode
-    // This was removed during the connection model migration
-    if (node instanceof SqlSourceNode && node.state.sql) {
+    if (node instanceof SqlSourceNode && node.attrs.sql) {
       // Validate that the node doesn't reference itself
       const nodeIds = node.findDependencies();
       for (const nodeId of nodeIds) {
         if (nodeId === node.nodeId) {
-          node.state.issues = new NodeIssues();
-          node.state.issues.queryError = new Error(
+          node.context.issues = new NodeIssues();
+          node.context.issues.queryError = new Error(
             'Node cannot depend on itself',
           );
           return;
@@ -125,9 +123,9 @@ export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
 
     const curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
-    if (curSqString !== this.prevSqString || node.state.hasOperationChanged) {
-      if (node.state.hasOperationChanged) {
-        node.state.hasOperationChanged = false;
+    if (curSqString !== this.prevSqString || node.context.hasOperationChanged) {
+      if (node.context.hasOperationChanged) {
+        node.context.hasOperationChanged = false;
       }
 
       // Use the centralized service to handle analysis and execution.
@@ -365,7 +363,7 @@ export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
 
     // Update the node's onchange callback to point to our attrs.onchange
     // This ensures that changes in the node's UI components trigger the callback chain
-    node.state.onchange = attrs.onchange;
+    node.context.onchange = attrs.onchange;
 
     // When a different node is selected, reset the service's initialization
     // state for it so the next processNode call performs a full TP sync

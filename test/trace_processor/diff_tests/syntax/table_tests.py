@@ -352,13 +352,14 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX foo ON __intrinsic_slice(track_id);
-        CREATE PERFETTO INDEX foo_name ON __intrinsic_slice(name);
+        CREATE PERFETTO TABLE slice_copy AS SELECT * FROM __intrinsic_slice;
+        CREATE PERFETTO INDEX foo ON slice_copy(track_id);
+        CREATE PERFETTO INDEX foo_name ON slice_copy(name);
 
         SELECT
           COUNT() FILTER (WHERE track_id > 10) AS track_idx,
           COUNT() FILTER (WHERE name > "g") AS name_idx
-        FROM __intrinsic_slice;
+        FROM slice_copy;
         """,
         out=Csv("""
         "track_idx","name_idx"
@@ -369,7 +370,8 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-          CREATE PERFETTO INDEX foo ON __intrinsic_slice(track_id, name);
+          CREATE PERFETTO TABLE slice_copy AS SELECT * FROM __intrinsic_slice;
+          CREATE PERFETTO INDEX foo ON slice_copy(track_id, name);
 
           WITH
             ttid AS (
@@ -383,7 +385,7 @@ class PerfettoTable(TestSuite):
               SELECT
                 MIN(track_id) AS min_track_id,
                 MAX(name) AS min_name
-              FROM __intrinsic_slice
+              FROM slice_copy
               WHERE track_id = (SELECT id FROM ttid) AND name > "c"
             )
             SELECT
@@ -400,7 +402,8 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-          CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
+          CREATE PERFETTO TABLE foo AS SELECT * FROM __intrinsic_slice;
+          CREATE PERFETTO INDEX idx ON foo(track_id, name);
           CREATE PERFETTO TABLE bar AS SELECT * FROM slice;
 
           WITH ttid AS (
@@ -417,7 +420,7 @@ class PerfettoTable(TestSuite):
           ) AS non_indexes_stats,
           (
             SELECT count()
-            FROM __intrinsic_slice
+            FROM foo
             WHERE track_id = (SELECT id FROM ttid) AND dur > 1000 AND name > "b"
           ) AS indexed_stats
         """,
@@ -430,8 +433,9 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-          CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
-          CREATE OR REPLACE PERFETTO INDEX idx ON __intrinsic_slice(name);
+          CREATE PERFETTO TABLE slice_copy AS SELECT * FROM __intrinsic_slice;
+          CREATE PERFETTO INDEX idx ON slice_copy(track_id, name);
+          CREATE OR REPLACE PERFETTO INDEX idx ON slice_copy(name);
 
           WITH ttid AS (
             SELECT thread_track.id
@@ -441,7 +445,7 @@ class PerfettoTable(TestSuite):
             LIMIT 1
           )
           SELECT MAX(id)
-          FROM __intrinsic_slice
+          FROM slice_copy
           WHERE track_id = (SELECT id FROM ttid);
         """,
         out=Csv("""
@@ -453,8 +457,9 @@ class PerfettoTable(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        CREATE PERFETTO INDEX idx ON __intrinsic_slice(track_id, name);
-        DROP PERFETTO INDEX idx ON __intrinsic_slice;
+        CREATE PERFETTO TABLE slice_copy AS SELECT * FROM __intrinsic_slice;
+        CREATE PERFETTO INDEX idx ON slice_copy(track_id, name);
+        DROP PERFETTO INDEX idx ON slice_copy;
 
         WITH ttid AS (
           SELECT thread_track.id
@@ -463,7 +468,7 @@ class PerfettoTable(TestSuite):
           WHERE thread.name = 'android.bg'
           LIMIT 1
         )
-        SELECT MAX(id) FROM __intrinsic_slice
+        SELECT MAX(id) FROM slice_copy
         WHERE track_id = (SELECT id FROM ttid);
         """,
         out=Csv("""

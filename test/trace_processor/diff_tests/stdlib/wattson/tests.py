@@ -247,7 +247,9 @@ class WattsonStdlib(TestSuite):
           cpu6_mw,
           cpu7_mw,
           dsu_scu_mw
-        FROM _windowed_system_state_mw(362426061658, 5067704349)
+        FROM _wattson_base_components_avg_mw!(
+          (SELECT 362426061658 AS ts, 5067704349 AS dur, 0 AS period_id)
+        )
         """,
         out=Csv("""
             "cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
@@ -488,11 +490,11 @@ class WattsonStdlib(TestSuite):
         """,
         out=Csv("""
           "ts","dur","cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
-          11209755572327,32239,100.800000,100.800000,3.360000,30.950000,30.950000,100.980000,100.980000,1959.070000,144.309659
-          11209755604566,43021,100.800000,100.800000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,144.307743
-          11209755647587,3776,139.420000,100.800000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,156.206139
-          11209755651363,50651,139.420000,139.420000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,156.229919
-          11209755702014,8177,139.420000,139.420000,30.950000,3.360000,30.950000,100.980000,100.980000,1959.070000,156.204294
+          11209755572327,32239,100.800000,100.800000,3.360000,30.950000,30.950000,473.600000,473.600000,2244.540000,140.319659
+          11209755604566,43021,100.800000,100.800000,30.950000,30.950000,30.950000,473.600000,473.600000,2244.540000,140.317743
+          11209755647587,3776,139.420000,100.800000,30.950000,30.950000,30.950000,473.600000,473.600000,2244.540000,152.216139
+          11209755651363,50651,139.420000,139.420000,30.950000,30.950000,30.950000,473.600000,473.600000,2244.540000,152.239919
+          11209755702014,8177,139.420000,139.420000,30.950000,3.360000,30.950000,473.600000,473.600000,2244.540000,152.214294
           """))
 
   def test_wattson_tpu_estimate(self):
@@ -509,4 +511,70 @@ class WattsonStdlib(TestSuite):
         out=Csv("""
             "avg_tpu_mw","total_tpu_mws"
             52.389828,592.702934
+            """))
+
+  # Verify intermediate GPU active region extraction
+  def test_wattson_gpu_active_regions(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_gpu_attribution.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.tasks.gpu_active_regions;
+            SELECT ts, dur FROM _gpu_active_regions ORDER BY ts ASC LIMIT 5;
+            """),
+        out=Csv("""
+            "ts","dur"
+            13399714638761,10769428
+            13399727319204,5759219
+            13399741522303,7668750
+            13399760952069,6746745
+            13399768883996,4985000
+            """))
+
+  # Verify final standalone GPU attribution output
+  def test_wattson_gpu_attribution(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_gpu_attribution.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+            SELECT ts, dur, package_name, estimated_mw, idle_mw
+            FROM _gpu_estimates_w_tasks_attribution
+            WHERE estimated_mw > 0 OR idle_mw > 0
+            ORDER BY ts ASC LIMIT 5;
+            """),
+        out=Csv("""
+            "ts","dur","package_name","estimated_mw","idle_mw"
+            13399714825233,44479,"android",750.380000,0.000000
+            13399714869712,28333,"GPU Idle",0.000000,750.380000
+            13399714898045,48464,"android",750.380000,0.000000
+            13399714946509,263607,"GPU Idle",0.000000,750.380000
+            13399715210116,1828255,"GPU Idle",0.000000,750.380000
+            """))
+
+  def test_wattson_multiple_1d_static(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_multiple_1d_static.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.estimates;
+            SELECT ts, dur, static_1d
+            FROM _w_independent_cpus_calc
+            WHERE ts >= 159400423427
+            LIMIT 15
+            """),
+        out=Csv("""
+            "ts","dur","static_1d"
+            159400423427,47188,20.790000
+            159400470615,51875,45.340000
+            159400522490,625,83.940000
+            159400523115,573,83.940000
+            159400523688,469,83.940000
+            159400524157,520,83.940000
+            159400524677,469,83.940000
+            159400525146,6042,83.940000
+            159400531188,40052,83.940000
+            159400571240,49375,83.940000
+            159400620615,250781,59.390000
+            159400871396,59844,59.390000
+            159400931240,142656,59.390000
+            159401073896,17031,59.390000
+            159401090927,37032,59.390000
             """))

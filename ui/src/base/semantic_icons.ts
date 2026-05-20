@@ -58,6 +58,8 @@ export class Icons {
   static readonly AddColumnLeft = 'add_column_left';
   static readonly UnfoldLess = 'unfold_less';
   static readonly UnfoldMore = 'unfold_more';
+  static readonly RadioChecked = 'radio_button_checked';
+  static readonly RadioUnchecked = 'radio_button_unchecked';
 
   // Page control
   static readonly NextPage = 'chevron_right';

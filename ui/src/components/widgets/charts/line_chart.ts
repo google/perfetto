@@ -15,7 +15,8 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
-import {EChartView, EChartEventHandler} from './echart_view';
+import {EChartView, type EChartEventHandler} from './echart_view';
+import type {LegendPosition} from './common';
 import {
   buildChartOption,
   buildLegendOption,
@@ -88,6 +89,18 @@ export interface LineChartAttrs {
   readonly selection?: {readonly start: number; readonly end: number};
 
   /**
+   * Vertical markers drawn at specific X values. Each marker renders as a
+   * thin vertical line spanning the plot area with a small dot at the top.
+   * Useful for annotating point-in-time events (e.g. LMK kills) on top of
+   * a time series.
+   */
+  readonly markers?: ReadonlyArray<{
+    readonly x: number;
+    readonly color?: string;
+    readonly label?: string;
+  }>;
+
+  /**
    * Fill parent container. Defaults to false.
    */
   readonly fillParent?: boolean;
@@ -123,9 +136,21 @@ export interface LineChartAttrs {
   readonly integerY?: boolean;
 
   /**
+   * Minimum interval between Y axis ticks. Use this to align ticks with a
+   * display unit — e.g. pass 1024 so ticks land on whole MB boundaries when
+   * data is in KB.
+   */
+  readonly yAxisMinInterval?: number;
+
+  /**
    * Show legend. Defaults to true when multiple series.
    */
   readonly showLegend?: boolean;
+
+  /**
+   * Where the legend sits relative to the chart. Defaults to 'top'.
+   */
+  readonly legendPosition?: LegendPosition;
 
   /**
    * Show data points as circles. Defaults to true.
@@ -166,6 +191,11 @@ export interface LineChartAttrs {
    * Note: When stacked, all series must be aligned to the same X values.
    */
   readonly stacked?: boolean;
+
+  /**
+   * Callback when a series is clicked. Called with the series name.
+   */
+  readonly onSeriesClick?: (seriesName: string) => void;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -203,6 +233,7 @@ function buildLineOption(
     logScale = false,
     integerX = false,
     integerY = false,
+    yAxisMinInterval,
     showLegend,
     showPoints = true,
     lineWidth = 2,
@@ -242,10 +273,6 @@ function buildLineOption(
   });
 
   const option = buildChartOption({
-    grid: {
-      top: displayLegend ? 30 : 10,
-      bottom: xAxisLabel ? 40 : 25,
-    },
     xAxis: {
       // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
       // or 'time'. Since we want to support x-values at irregular intervals, we
@@ -267,7 +294,7 @@ function buildLineOption(
         formatYValue !== undefined
           ? (v) => formatYValue(v as number)
           : undefined,
-      minInterval: integerY ? 1 : undefined,
+      minInterval: yAxisMinInterval ?? (integerY ? 1 : undefined),
       scale: attrs.scaleAxes,
       showSplitLine: gridLines === 'horizontal' || gridLines === 'both',
     },
@@ -291,7 +318,9 @@ function buildLineOption(
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
-    legend: displayLegend ? buildLegendOption() : {show: false},
+    legend: displayLegend
+      ? buildLegendOption(attrs.legendPosition)
+      : {show: false},
   });
 
   (option as Record<string, unknown>).series = series;
@@ -302,18 +331,16 @@ function buildLineEventHandlers(
   attrs: LineChartAttrs,
   data: LineChartData | undefined,
 ): ReadonlyArray<EChartEventHandler> {
-  if (
-    !attrs.onBrush ||
-    data === undefined ||
-    data.series.length === 0 ||
-    data.series.every((s) => s.points.length === 0)
-  ) {
-    return [];
-  }
-  const onBrush = attrs.onBrush;
+  const handlers: EChartEventHandler[] = [];
 
-  return [
-    {
+  if (
+    attrs.onBrush &&
+    data !== undefined &&
+    data.series.length > 0 &&
+    data.series.some((s) => s.points.length > 0)
+  ) {
+    const onBrush = attrs.onBrush;
+    handlers.push({
       eventName: 'brushEnd',
       handler: (params) => {
         const range = extractBrushRange(params);
@@ -322,6 +349,21 @@ function buildLineEventHandlers(
           onBrush({start, end});
         }
       },
-    },
-  ];
+    });
+  }
+
+  if (attrs.onSeriesClick) {
+    const onSeriesClick = attrs.onSeriesClick;
+    handlers.push({
+      eventName: 'click',
+      handler: (params) => {
+        const p = params as {seriesName?: string};
+        if (p.seriesName !== undefined) {
+          onSeriesClick(p.seriesName);
+        }
+      },
+    });
+  }
+
+  return handlers;
 }

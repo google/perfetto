@@ -15,7 +15,7 @@
 
 -- All kernel threads of the trace. As kernel threads are processes, provides
 -- also process data.
-CREATE PERFETTO TABLE linux_kernel_threads (
+CREATE PERFETTO TABLE linux_kernel_threads(
   -- Upid of kernel thread. Alias of |process.upid|.
   upid JOINID(process.id),
   -- Utid of kernel thread. Alias of |thread.utid|.
@@ -31,24 +31,12 @@ CREATE PERFETTO TABLE linux_kernel_threads (
   -- Machine id of kernel thread.
   -- Alias of |process.machine_id|.
   machine_id JOINID(machine.id)
-) AS
+)
+AS
 WITH
-  pid_2 AS (
-    SELECT
-      upid,
-      pid,
-      name,
-      machine_id
-    FROM process
-    WHERE
-      pid = 2
-  ),
+  pid_2 AS (SELECT upid, pid, name, machine_id FROM process WHERE pid = 2),
   parent_pid_2 AS (
-    SELECT
-      p.upid,
-      p.pid,
-      p.name,
-      p.machine_id
+    SELECT p.upid, p.pid, p.name, p.machine_id
     FROM process AS p
     JOIN pid_2
       ON p.parent_upid = pid_2.upid
@@ -62,13 +50,8 @@ SELECT
   t.name AS thread_name,
   p.machine_id
 FROM (
-  SELECT
-    *
-  FROM parent_pid_2
+  SELECT * FROM parent_pid_2
   UNION
-  SELECT
-    *
-  FROM pid_2
+  SELECT * FROM pid_2
 ) AS p
-JOIN thread AS t
-  USING (upid);
+JOIN thread AS t USING (upid);
