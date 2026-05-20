@@ -12,26 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-// Hash-based router (#!/query, #!/settings). Replaces m.route() because
-// m.route bypasses the raf scheduler and breaks portal-based popups.
-
-export function getCurrentRoute(): string {
-  const hash = window.location.hash;
-  if (hash.startsWith('#!')) {
-    const route = hash.slice(2);
-    return route || '/';
+// Forward `parent` aborts to `child`; returns a detacher (call in `finally`
+// to avoid leaking on long-lived parents). Already-aborted parent fires now.
+export function forwardAbort(
+  parent: AbortSignal,
+  child: AbortController,
+): () => void {
+  if (parent.aborted) {
+    child.abort(parent.reason);
+    return () => {};
   }
-  return '/';
-}
-
-export function setRoute(route: string): void {
-  window.location.hash = '!' + route;
-}
-
-export function initRouter(): void {
-  window.addEventListener('hashchange', () => {
-    m.redraw();
-  });
+  const handler = () => child.abort(parent.reason);
+  parent.addEventListener('abort', handler, {once: true});
+  return () => parent.removeEventListener('abort', handler);
 }
