@@ -166,7 +166,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const breakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: 'Direct Reclaim',
-      description: `Shows synchronous page reclaim events. Significant activity indicates
+      description: `Shows synchronous page reclaim events. This usually indicates
         severe system-wide memory pressure, forcing an app's own threads
         to perform synchronous reclaim.`,
       aggregationType: BreakdownTrackAggType.COUNT,
@@ -218,7 +218,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const breakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: 'Memory Cgroup Reclaim',
-      description: `Shows memory cgroup reclaim events. Significant activity indicates
+      description: `Shows memory cgroup reclaim events. This indicates
         an app is allocating past its memory budget, forcing its own threads
         to perform synchronous reclaim.`,
       aggregationType: BreakdownTrackAggType.COUNT,
