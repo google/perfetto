@@ -37,6 +37,130 @@ wrapper objects / native structs have been removed.
 | `jni/dev_perfetto_sdk_PerfettoEvent.cc` | Parses the off-heap buffer by pointer arithmetic and calls `emit_track_event`. |
 | `perfetto_sdk_for_jni/tracing_sdk.cc` | `emit_track_event`: the native LL emit loop. |
 
+## Design walkthrough (by stage)
+
+The path was built in stages; each is a self-contained idea.
+
+### 1. A Java protozero encoder (`ProtoWriter`)
+
+To encode a `TrackEvent` in Java we need protobuf wire format without
+allocating. `ProtoWriter` writes straight into a `byte[]`. Nested messages use
+protozero's single-pass trick: reserve a **fixed 4-byte** length up front and
+back-fill it as a redundant varint on close, so sizes never need a second pass.
+
+```java
+public int beginNested(int fieldId) {
+  writeRawVarInt(makeTag(fieldId, WIRE_TYPE_DELIMITED));
+  int bookmark = mPos;
+  mPos += 4;                       // reserve 4 bytes for the length
+  mNestingStack[mNestingDepth++] = bookmark;
+  return mNestingDepth - 1;
+}
+
+public void endNested(int token) {
+  int bookmark = mNestingStack[token];
+  int size = mPos - bookmark - 4;
+  mBuf[bookmark]     = (byte) ((size & 0x7F) | 0x80);   // redundant varint:
+  mBuf[bookmark + 1] = (byte) (((size >> 7) & 0x7F) | 0x80);   // always 4 bytes,
+  mBuf[bookmark + 2] = (byte) (((size >> 14) & 0x7F) | 0x80);  // valid protobuf
+  mBuf[bookmark + 3] = (byte) ((size >> 21) & 0x7F);
+}
+```
+
+### 2. Native LL fan-out (`emit_track_event`)
+
+The Java side hands down an opaque, already-encoded `TrackEvent` body. The
+native side runs the LL loop: for each active data-source instance it begins a
+packet, writes the timestamp, interns the category/name, then appends the body
+verbatim. This is the part that *must* stay native (per-instance sequences,
+interning, incremental state).
+
+```cpp
+for (auto ctx = PerfettoTeLlBeginSlowPath(cat, timestamp);
+     ctx.impl.ds.tracer != nullptr;
+     PerfettoTeLlNext(cat, timestamp, &ctx)) {
+  emit_unseen_track_descriptors(&ctx, ...);          // once per sequence
+  PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+  PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+  // ... intern category + name ...
+  perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg, &te_msg);
+  PerfettoPbMsgAppendBytes(&te_msg.msg, body, body_size);  // the Java body
+  // ...
+}
+```
+
+### 3. The body: args / flows / counter / proto in Java
+
+Builder calls encode straight into the body `ProtoWriter`. A debug annotation is
+a nested `DebugAnnotation` with an inline name and a typed value:
+
+```java
+static void addArg(ProtoWriter b, String name, long value) {
+  int da = b.beginNested(TE_DEBUG_ANNOTATIONS);   // track_event.debug_annotations
+  b.writeString(DA_NAME, name);                   // DebugAnnotation.name
+  b.writeVarInt(DA_INT_VALUE, value);             // DebugAnnotation.int_value
+  b.endNested(da);
+}
+```
+
+Flows fold their id with the process track uuid (`id ^ processTrackUuid()`,
+matching `PerfettoTeProcessScopedFlow`); the counter value is a single
+`counter_value` / `double_counter_value` field.
+
+### 4. Tracks: derive the uuid in Java, identically to native
+
+A track is identified by a uuid the trace processor uses to thread events onto
+the same timeline. We compute it in Java with the **same** FNV-1a + ASCII fold
+the C SDK uses, so a Java-emitted track and a C++-emitted one coincide:
+
+```java
+long uuid = parentUuid ^ fnv1a(name) ^ id;                  // named track
+long uuid = COUNTER_TRACK_MAGIC ^ parentUuid ^ fnv1a(name); // counter track
+```
+
+The builder records the level(s) (`mTrackUuids` / `mTrackParentUuids` /
+`mTrackNames`); native emits each descriptor once per sequence, deduped by
+`PerfettoTeLlTrackSeen`.
+
+### 5. Interned proto fields
+
+Some proto string fields are interned (referenced by a per-sequence iid). iids
+must be assigned natively, so the builder records `(field_id, type_id, string)`
+and native interns + references them:
+
+```cpp
+iid = PerfettoTeLlIntern(incr, type_id, str, strlen(str), &seen);
+if (!seen) { /* write the { iid, name } entry into InternedData */ }
+// later, in the track_event: field_id -> iid
+```
+
+### 6. One off-heap buffer + a single primitive call
+
+The track chain and interned fields used to be passed as Java arrays, which made
+the JNI layer pull them out element-by-element (`GetLongArrayRegion`,
+`GetObjectArrayElement`, `DeleteLocalRef`) — ~150 ns for one track level.
+Instead, everything is packed into one direct `ByteBuffer` (body + a
+little-endian frame) and passed as a raw pointer; native parses it with pointer
+arithmetic and `memcpy`. Because the call is all primitives and touches no JVM
+state, it is `@CriticalNative` on ART (cheapest transition); host JVMs ignore the
+annotation, so the C function has two ABIs:
+
+```cpp
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)   // ART: no JNIEnv/jclass
+static void native_emit(jint type, jlong cat, jlong addr, jint bl, jint fl) {...}
+#else                                          // host: standard JNI signature
+static void native_emit(JNIEnv*, jclass, jint type, jlong cat, jlong addr,
+                        jint bl, jint fl) {...}
+#endif
+```
+
+### 7. Removing HL
+
+Once every shape was on the LL path at parity-or-better, the HL machinery (the
+`PerfettoTrackEventExtra` wrapper objects, their pools, the HL JNI and the
+`PerfettoTeHlEmitImpl` glue) was deleted, along with the staging/spill code that
+existed only to fall back to it.
+
 ## What crosses the JNI boundary
 
 Exactly one off-heap buffer pointer plus lengths. Nothing else — no Java arrays,
