@@ -69,6 +69,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {startStaticServer} from './static_server.mjs';
+import {buildWasm, copySyntaqliteRuntime} from './build_wasm.mjs';
 
 const pjoin = path.join;
 const __filename = fileURLToPath(import.meta.url);
@@ -380,8 +381,9 @@ Env-var overrides:
   } else if (!args.no_build) {
     updateSymlinks(); // Links //ui/out -> //out/xxx/ui/
 
-    buildWasm(args.no_wasm);
-    copySyntaqliteRuntime();
+    const wasmCtx = {ROOT_DIR, addTask, exec, cp, ensureDir};
+    buildWasm(wasmCtx, cfg, args.no_wasm);
+    copySyntaqliteRuntime(wasmCtx, cfg);
     scanDir('ui/src/assets');
     scanDir('ui/src/chrome_extension');
     scanDir('buildtools/typefaces');
@@ -603,102 +605,6 @@ function updateSymlinks() {
     pjoin(ROOT_DIR, 'ui/node_modules'),
     pjoin(cfg.outTscDir, 'node_modules'),
   );
-}
-
-// Invokes ninja for building the {trace_processor, traceconv} Wasm modules.
-// It copies the .wasm directly into the out/dist/ dir, and the .js/.ts into
-// out/tsc/, so the typescript compiler and the bundler can pick them up.
-function buildWasm(skipWasmBuild) {
-  if (!skipWasmBuild) {
-    if (!cfg.noOverrideGnArgs) {
-      let gnVars = `is_debug=${cfg.debug}`;
-      if (childProcess.spawnSync('which', ['ccache']).status === 0) {
-        gnVars += ` cc_wrapper="ccache"`;
-      }
-      const gnArgs = ['gen', `--args=${gnVars}`, cfg.outDir];
-      addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
-    }
-    const ninjaArgs = ['-C', cfg.outDir];
-    ninjaArgs.push(...cfg.wasmModules.map((x) => `${x}_wasm`));
-    addTask(exec, [pjoin(ROOT_DIR, 'tools/ninja'), ninjaArgs]);
-  }
-
-  for (const wasmMod of cfg.wasmModules) {
-    const isMem64 = wasmMod.endsWith('_memory64');
-    const wasmOutDir = pjoin(cfg.outDir, isMem64 ? 'wasm_memory64' : 'wasm');
-    // The .wasm file goes directly into the dist dir (also .map in debug)
-    for (const ext of ['.wasm'].concat(cfg.debug ? ['.wasm.map'] : [])) {
-      const src = `${wasmOutDir}/${wasmMod}${ext}`;
-      addTask(cp, [src, pjoin(cfg.outDistDir, wasmMod + ext)]);
-    }
-    // The .js / .ts go into intermediates, they will be bundled by rollup.
-    for (const ext of ['.js', '.d.ts']) {
-      const fname = `${wasmMod}${ext}`;
-      addTask(cp, [pjoin(wasmOutDir, fname), pjoin(cfg.outGenDir, fname)]);
-    }
-  }
-}
-
-function copySyntaqliteRuntime() {
-  const srcDir = pjoin(ROOT_DIR, 'ui/node_modules/syntaqlite/wasm');
-  const dstDir = pjoin(cfg.outDistRootDir, 'assets');
-  for (const fname of [
-    'syntaqlite-runtime.js',
-    'syntaqlite-runtime.wasm',
-    'syntaqlite-sqlite.wasm',
-  ]) {
-    addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
-  }
-  addTask(buildSyntaqlitePerfettoDialect, []);
-}
-
-function getBuildToolsBinDir() {
-  function getBinDirName() {
-    switch (process.platform) {
-      case 'darwin':
-        return 'mac';
-      case 'linux':
-        return 'linux64';
-      default:
-        throw new Error(`Unsupported platform: ${process.platform}`);
-    }
-  }
-
-  return pjoin(ROOT_DIR, 'buildtools', getBinDirName());
-}
-
-function buildSyntaqlitePerfettoDialect() {
-  const buildToolsBinDir = getBuildToolsBinDir();
-  const emcc = pjoin(buildToolsBinDir, 'emsdk/emscripten/emcc');
-  const src = pjoin(
-    ROOT_DIR,
-    'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
-  );
-  const dst = pjoin(cfg.outDistRootDir, 'assets', 'syntaqlite-perfetto.wasm');
-  try {
-    const srcMtime = fs.statSync(src).mtimeMs;
-    const dstMtime = fs.statSync(dst).mtimeMs;
-    if (dstMtime >= srcMtime) return;
-  } catch (e) {
-    /* dst missing → rebuild */
-  }
-  ensureDir(path.dirname(dst));
-  const emConfig = pjoin(ROOT_DIR, 'gn/standalone/.emscripten');
-  const prevEmConfig = process.env.EM_CONFIG;
-  process.env.EM_CONFIG = emConfig;
-  try {
-    exec(emcc, [
-      '-O2',
-      '-sSIDE_MODULE=2',
-      '-sEXPORTED_FUNCTIONS=_syntaqlite_perfetto_dialect_template',
-      '-o',
-      dst,
-      src,
-    ]);
-  } finally {
-    if (prevEmConfig === undefined) delete process.env.EM_CONFIG;
-    else process.env.EM_CONFIG = prevEmConfig;
-  }
 }
 
 // This transpiles all the sources (frontend, controller, engine, extension) in
