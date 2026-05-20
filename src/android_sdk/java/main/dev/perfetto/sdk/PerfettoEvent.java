@@ -59,11 +59,6 @@ public final class PerfettoEvent {
   private static final int DA_STRING_VALUE = 6;
   private static final int DA_NAME = 10;
 
-  // Per-thread reusable body encoder. The TrackEvent body is small, so the
-  // 32 KB ProtoWriter never grows in practice.
-  private static final ThreadLocal<ProtoWriter> sBody =
-      ThreadLocal.withInitial(ProtoWriter::new);
-
   // Process track uuid, cached on first use; flows are xor-folded with it,
   // matching PerfettoTeProcessScopedFlow in the C SDK.
   private static volatile long sProcessTrackUuid;
@@ -79,14 +74,11 @@ public final class PerfettoEvent {
     return sProcessTrackUuid;
   }
 
-  /** Resets the per-thread body buffer for a new event. */
-  static void beginBody() {
-    sBody.get().reset();
-  }
+  // All encode methods take the caller's ProtoWriter `b` (owned by the thread-
+  // local PerfettoTrackEventBuilder) so the hot path does no ThreadLocal lookup.
 
   /** Appends an int64 debug annotation to the body. */
-  static void addArg(String name, long value) {
-    ProtoWriter b = sBody.get();
+  static void addArg(ProtoWriter b, String name, long value) {
     int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
     b.writeString(DA_NAME, name);
     b.writeVarInt(DA_INT_VALUE, value);
@@ -94,8 +86,7 @@ public final class PerfettoEvent {
   }
 
   /** Appends a bool debug annotation to the body. */
-  static void addArg(String name, boolean value) {
-    ProtoWriter b = sBody.get();
+  static void addArg(ProtoWriter b, String name, boolean value) {
     int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
     b.writeString(DA_NAME, name);
     b.writeBool(DA_BOOL_VALUE, value);
@@ -103,8 +94,7 @@ public final class PerfettoEvent {
   }
 
   /** Appends a double debug annotation to the body. */
-  static void addArg(String name, double value) {
-    ProtoWriter b = sBody.get();
+  static void addArg(ProtoWriter b, String name, double value) {
     int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
     b.writeString(DA_NAME, name);
     b.writeDouble(DA_DOUBLE_VALUE, value);
@@ -112,8 +102,7 @@ public final class PerfettoEvent {
   }
 
   /** Appends a string debug annotation to the body. */
-  static void addArg(String name, String value) {
-    ProtoWriter b = sBody.get();
+  static void addArg(ProtoWriter b, String name, String value) {
     int da = b.beginNested(TE_DEBUG_ANNOTATIONS);
     b.writeString(DA_NAME, name);
     b.writeString(DA_STRING_VALUE, value);
@@ -121,56 +110,52 @@ public final class PerfettoEvent {
   }
 
   /** Appends a (process-scoped) flow id to the body. */
-  static void addFlow(long id) {
-    sBody.get().writeFixed64(TE_FLOW_IDS, id ^ processTrackUuid());
+  static void addFlow(ProtoWriter b, long id) {
+    b.writeFixed64(TE_FLOW_IDS, id ^ processTrackUuid());
   }
 
   /** Appends a (process-scoped) terminating flow id to the body. */
-  static void addTerminatingFlow(long id) {
-    sBody.get().writeFixed64(TE_TERMINATING_FLOW_IDS, id ^ processTrackUuid());
+  static void addTerminatingFlow(ProtoWriter b, long id) {
+    b.writeFixed64(TE_TERMINATING_FLOW_IDS, id ^ processTrackUuid());
   }
 
   /** Sets a long counter value on the body. */
-  static void setCounter(long value) {
-    sBody.get().writeVarInt(TE_COUNTER_VALUE, value);
+  static void setCounter(ProtoWriter b, long value) {
+    b.writeVarInt(TE_COUNTER_VALUE, value);
   }
 
   /** Sets a double counter value on the body. */
-  static void setCounter(double value) {
-    sBody.get().writeDouble(TE_DOUBLE_COUNTER_VALUE, value);
+  static void setCounter(ProtoWriter b, double value) {
+    b.writeDouble(TE_DOUBLE_COUNTER_VALUE, value);
   }
 
   /** Appends a varint proto field to the body (for beginProto/addField). */
-  static void protoVarInt(int fieldId, long value) {
-    sBody.get().writeVarInt(fieldId, value);
+  static void protoVarInt(ProtoWriter b, int fieldId, long value) {
+    b.writeVarInt(fieldId, value);
   }
 
   /** Appends a double proto field to the body. */
-  static void protoDouble(int fieldId, double value) {
-    sBody.get().writeDouble(fieldId, value);
+  static void protoDouble(ProtoWriter b, int fieldId, double value) {
+    b.writeDouble(fieldId, value);
   }
 
   /** Appends a string proto field to the body. */
-  static void protoString(int fieldId, String value) {
-    sBody.get().writeString(fieldId, value);
+  static void protoString(ProtoWriter b, int fieldId, String value) {
+    b.writeString(fieldId, value);
   }
 
   /** Begins a nested proto message in the body; returns the token for endNested. */
-  static int protoBeginNested(int fieldId) {
-    return sBody.get().beginNested(fieldId);
+  static int protoBeginNested(ProtoWriter b, int fieldId) {
+    return b.beginNested(fieldId);
   }
 
   /** Ends a nested proto message started with {@link #protoBeginNested}. */
-  static void protoEndNested(int token) {
-    sBody.get().endNested(token);
+  static void protoEndNested(ProtoWriter b, int token) {
+    b.endNested(token);
   }
 
-  /**
-   * Emits a track event on the sequence default track, appending whatever was
-   * encoded into the per-thread body since {@link #beginBody}.
-   */
-  static void emit(int type, long categoryPtr, String name) {
-    ProtoWriter b = sBody.get();
+  /** Emits a track event on the sequence default track with body {@code b}. */
+  static void emit(int type, long categoryPtr, String name, ProtoWriter b) {
     native_emit(type, categoryPtr, name, b.buffer(), b.position());
   }
 
@@ -186,6 +171,7 @@ public final class PerfettoEvent {
       int type,
       long categoryPtr,
       String name,
+      ProtoWriter b,
       boolean setTrackUuid,
       long leafTrackUuid,
       int trackCount,
@@ -198,13 +184,14 @@ public final class PerfettoEvent {
       int[] internedFieldIds,
       int[] internedTypeIds,
       String[] internedStrs) {
-    ProtoWriter b = sBody.get();
     native_emit_with_extras(
         type, categoryPtr, name, b.buffer(), b.position(), setTrackUuid,
         leafTrackUuid, trackCount, trackUuids, trackParentUuids, trackNames,
         trackNameStatic, trackIsCounter, internedCount, internedFieldIds,
         internedTypeIds, internedStrs);
   }
+
+  private static final byte[] EMPTY_BODY = new byte[0];
 
   /**
    * Emits a bare {type, category, name} event (empty body). No-op if the
@@ -214,8 +201,7 @@ public final class PerfettoEvent {
     if (!category.isRegistered() || !category.isEnabled()) {
       return;
     }
-    beginBody();
-    emit(type, category.getPtr(), name);
+    native_emit(type, category.getPtr(), name, EMPTY_BODY, 0);
   }
 
   @FastNative

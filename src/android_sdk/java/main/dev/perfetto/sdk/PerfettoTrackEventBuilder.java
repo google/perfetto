@@ -191,6 +191,12 @@ public final class PerfettoTrackEventBuilder {
   private String[] mInternedStrings;
   private int mInternedFieldCount;
 
+  // The TrackEvent body for the Java emit path: debug annotations, flows, counter
+  // value and proto fields are encoded here, then handed to PerfettoEvent. Owned
+  // by the root builder (already thread-local), so the hot path does no per-call
+  // ThreadLocal lookup. Reset at the start of each event.
+  private ProtoWriter mBody;
+
   private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
       () -> new PerfettoTrackEventBuilder(true, this);
   private final Supplier<FieldNested> fieldNestedSupplier =
@@ -244,6 +250,7 @@ public final class PerfettoTrackEventBuilder {
       mInternedFieldIds = new int[MAX_INTERNED_FIELDS];
       mInternedTypeIds = new int[MAX_INTERNED_FIELDS];
       mInternedStrings = new String[MAX_INTERNED_FIELDS];
+      mBody = new ProtoWriter();
     } else {
       // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
@@ -276,19 +283,19 @@ public final class PerfettoTrackEventBuilder {
       writeFlows();
       if (mHasCounter) {
         if (mCounterIsDouble) {
-          PerfettoEvent.setCounter(mCounterDouble);
+          PerfettoEvent.setCounter(mBody, mCounterDouble);
         } else {
-          PerfettoEvent.setCounter(mCounterLong);
+          PerfettoEvent.setCounter(mBody, mCounterLong);
         }
       }
       if (mHasTrack || mInternedFieldCount > 0) {
         PerfettoEvent.emitWithExtras(
-            mTraceType, mCategory.getPtr(), mEventName, mHasTrack, mTrackLeafUuid,
-            mTrackCount, mTrackUuids, mTrackParentUuids, mTrackNames,
-            mTrackNameStatic, mTrackIsCounter, mInternedFieldCount,
+            mTraceType, mCategory.getPtr(), mEventName, mBody, mHasTrack,
+            mTrackLeafUuid, mTrackCount, mTrackUuids, mTrackParentUuids,
+            mTrackNames, mTrackNameStatic, mTrackIsCounter, mInternedFieldCount,
             mInternedFieldIds, mInternedTypeIds, mInternedStrings);
       } else {
-        PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName);
+        PerfettoEvent.emit(mTraceType, mCategory.getPtr(), mEventName, mBody);
       }
       return;
     }
@@ -355,7 +362,7 @@ public final class PerfettoTrackEventBuilder {
       // Reset the body here so proto fields written during the event (which go
       // straight into the body) accumulate; args/flows/counter are appended at
       // emit.
-      PerfettoEvent.beginBody();
+      mBody.reset();
     }
 
     return this;
@@ -535,16 +542,16 @@ public final class PerfettoTrackEventBuilder {
       String name = mArgNames[i];
       switch (mArgKinds[i]) {
         case ARG_KIND_LONG:
-          PerfettoEvent.addArg(name, mArgLongs[i]);
+          PerfettoEvent.addArg(mBody, name, mArgLongs[i]);
           break;
         case ARG_KIND_BOOL:
-          PerfettoEvent.addArg(name, mArgLongs[i] != 0);
+          PerfettoEvent.addArg(mBody, name, mArgLongs[i] != 0);
           break;
         case ARG_KIND_DOUBLE:
-          PerfettoEvent.addArg(name, mArgDoubles[i]);
+          PerfettoEvent.addArg(mBody, name, mArgDoubles[i]);
           break;
         case ARG_KIND_STRING:
-          PerfettoEvent.addArg(name, mArgStrings[i]);
+          PerfettoEvent.addArg(mBody, name, mArgStrings[i]);
           break;
         default: // unreachable
       }
@@ -622,9 +629,9 @@ public final class PerfettoTrackEventBuilder {
   private void writeFlows() {
     for (int i = 0; i < mFlowCount; i++) {
       if (mFlowTerminating[i]) {
-        PerfettoEvent.addTerminatingFlow(mFlowIds[i]);
+        PerfettoEvent.addTerminatingFlow(mBody, mFlowIds[i]);
       } else {
-        PerfettoEvent.addFlow(mFlowIds[i]);
+        PerfettoEvent.addFlow(mBody, mFlowIds[i]);
       }
     }
   }
@@ -932,7 +939,7 @@ public final class PerfettoTrackEventBuilder {
       checkBuildingProto();
     }
     if (sUseJavaEmit) {
-      PerfettoEvent.protoVarInt((int) id, val);
+      PerfettoEvent.protoVarInt(mBody, (int) id, val);
     } else {
       Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
       field.setValueInt64(id, val);
@@ -950,7 +957,7 @@ public final class PerfettoTrackEventBuilder {
       checkBuildingProto();
     }
     if (sUseJavaEmit) {
-      PerfettoEvent.protoDouble((int) id, val);
+      PerfettoEvent.protoDouble(mBody, (int) id, val);
     } else {
       Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
       field.setValueDouble(id, val);
@@ -968,7 +975,7 @@ public final class PerfettoTrackEventBuilder {
       checkBuildingProto();
     }
     if (sUseJavaEmit) {
-      PerfettoEvent.protoString((int) id, val);
+      PerfettoEvent.protoString(mBody, (int) id, val);
     } else {
       Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
       field.setValueString(id, val);
@@ -1059,7 +1066,7 @@ public final class PerfettoTrackEventBuilder {
       checkBuildingProto();
     }
     if (sUseJavaEmit) {
-      mProtoTokens[mProtoDepth++] = PerfettoEvent.protoBeginNested((int) id);
+      mProtoTokens[mProtoDepth++] = PerfettoEvent.protoBeginNested(mBody, (int) id);
       return this;
     }
     FieldNested field = mObjectsPool.mFieldNestedPool.get(fieldNestedSupplier);
@@ -1081,7 +1088,7 @@ public final class PerfettoTrackEventBuilder {
     }
 
     if (sUseJavaEmit) {
-      PerfettoEvent.protoEndNested(mProtoTokens[--mProtoDepth]);
+      PerfettoEvent.protoEndNested(mBody, mProtoTokens[--mProtoDepth]);
       return this;
     }
 
