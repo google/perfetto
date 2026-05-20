@@ -67,14 +67,14 @@ TEST(TracingSdkForJniTest, EmitsSlice) {
       /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
       nullptr, nullptr, /*track_name_static=*/false, /*track_is_counter=*/false,
       /*interned_count=*/0, nullptr, nullptr, nullptr,
-      /*explicit_timestamp=*/nullptr);
+      /*counter_config=*/nullptr, /*explicit_timestamp=*/nullptr);
   sdk_for_jni::emit_track_event(
       category.get(), PERFETTO_TE_TYPE_SLICE_END, "DrawPlayer",
       /*body=*/nullptr, /*body_size=*/0, /*set_track_uuid=*/false,
       /*leaf_track_uuid=*/0, /*track_count=*/0, nullptr, nullptr, nullptr,
       nullptr, nullptr, /*track_name_static=*/false, /*track_is_counter=*/false,
       /*interned_count=*/0, nullptr, nullptr, nullptr,
-      /*explicit_timestamp=*/nullptr);
+      /*counter_config=*/nullptr, /*explicit_timestamp=*/nullptr);
 
   Trace trace = StopTracing(tracing_session);
 

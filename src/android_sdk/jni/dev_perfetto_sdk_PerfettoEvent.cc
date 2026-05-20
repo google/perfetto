@@ -134,11 +134,22 @@ static void EmitFromBuffer(jint type,
     }
   }
 
+  sdk_for_jni::CounterTrackConfig counter_config;
+  const sdk_for_jni::CounterTrackConfig* counter_config_ptr = nullptr;
+  if (track_is_counter) {
+    counter_config.unit = ReadI32(&p);
+    counter_config.unit_multiplier = static_cast<int64_t>(ReadU64(&p));
+    counter_config.is_incremental = (*p++ != 0);
+    counter_config.unit_name = ReadCStr(&p);
+    counter_config_ptr = &counter_config;
+  }
+
   sdk_for_jni::emit_track_event(
       category->get(), type, name, body, body_size, set_track_uuid,
       leaf_track_uuid, stored_tracks, uuids, parent_uuids, names,
       child_orderings, sibling_ranks, track_name_static, track_is_counter,
-      stored_interned, ifield_ids, itype_ids, istrs, explicit_ts_ptr);
+      stored_interned, ifield_ids, itype_ids, istrs, counter_config_ptr,
+      explicit_ts_ptr);
 }
 
 // native_emit is @CriticalNative on ART (no JNIEnv/jclass, primitives only).

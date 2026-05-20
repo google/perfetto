@@ -53,6 +53,15 @@ namespace sdk_for_jni {
  */
 void register_perfetto(bool backend_in_process = false);
 
+// Optional display metadata for a counter leaf's CounterDescriptor. Fields left
+// at 0 / nullptr are not written.
+struct CounterTrackConfig {
+  int32_t unit;             // CounterDescriptor.Unit (0 = unset)
+  const char* unit_name;    // custom unit, or nullptr/""
+  int64_t unit_multiplier;  // 0 = unset
+  bool is_incremental;
+};
+
 /**
  * @brief Emits a track event through the Low Level track event ABI.
  *
@@ -118,6 +127,7 @@ void emit_track_event(const PerfettoTeCategory* cat,
                       const int32_t* interned_field_ids,
                       const int32_t* interned_type_ids,
                       const char* const* interned_strs,
+                      const struct CounterTrackConfig* counter_config,
                       const struct PerfettoTeTimestamp* explicit_timestamp);
 
 /**

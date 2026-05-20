@@ -26,6 +26,7 @@
 #include "perfetto/public/pb_msg.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/protos/trace/trace_packet.pzc.h"
+#include "perfetto/public/protos/trace/track_event/counter_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/track_event/track_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 #include "perfetto/public/te_macros.h"
@@ -51,15 +52,58 @@ static constexpr int kMaxInternedFields = 16;
 // Emits TrackDescriptor packets for any track levels not yet seen on this
 // instance's sequence. Each level's parent is the level above it (the first
 // level's parent is the root uuid the Java side derived the chain from).
-static void emit_unseen_track_descriptors(struct PerfettoTeLlIterator* ctx,
-                                          int32_t track_count,
-                                          const uint64_t* track_uuids,
-                                          const uint64_t* track_parent_uuids,
-                                          const char* const* track_names,
-                                          const int32_t* track_child_orderings,
-                                          const int32_t* track_sibling_ranks,
-                                          bool track_name_static,
-                                          bool track_is_counter) {
+// Fills a counter TrackDescriptor, including any CounterDescriptor display
+// metadata. Mirrors PerfettoTeCounterTrackFillDesc, which writes only an empty
+// counter sub-message and so cannot carry units.
+static void fill_counter_desc(struct perfetto_protos_TrackDescriptor* desc,
+                              const char* name,
+                              uint64_t parent_uuid,
+                              uint64_t uuid,
+                              bool name_static,
+                              const struct CounterTrackConfig* cfg) {
+  perfetto_protos_TrackDescriptor_set_uuid(desc, uuid);
+  if (parent_uuid) {
+    perfetto_protos_TrackDescriptor_set_parent_uuid(desc, parent_uuid);
+  }
+  if (name_static) {
+    perfetto_protos_TrackDescriptor_set_cstr_static_name(desc, name);
+  } else {
+    perfetto_protos_TrackDescriptor_set_cstr_name(desc, name);
+  }
+  struct perfetto_protos_CounterDescriptor counter;
+  perfetto_protos_TrackDescriptor_begin_counter(desc, &counter);
+  if (cfg) {
+    if (cfg->unit) {
+      perfetto_protos_CounterDescriptor_set_unit(
+          &counter,
+          static_cast<enum perfetto_protos_CounterDescriptor_Unit>(cfg->unit));
+    }
+    if (cfg->unit_multiplier) {
+      perfetto_protos_CounterDescriptor_set_unit_multiplier(
+          &counter, cfg->unit_multiplier);
+    }
+    if (cfg->is_incremental) {
+      perfetto_protos_CounterDescriptor_set_is_incremental(&counter, true);
+    }
+    if (cfg->unit_name && cfg->unit_name[0]) {
+      perfetto_protos_CounterDescriptor_set_cstr_unit_name(&counter,
+                                                           cfg->unit_name);
+    }
+  }
+  perfetto_protos_TrackDescriptor_end_counter(desc, &counter);
+}
+
+static void emit_unseen_track_descriptors(
+    struct PerfettoTeLlIterator* ctx,
+    int32_t track_count,
+    const uint64_t* track_uuids,
+    const uint64_t* track_parent_uuids,
+    const char* const* track_names,
+    const int32_t* track_child_orderings,
+    const int32_t* track_sibling_ranks,
+    bool track_name_static,
+    bool track_is_counter,
+    const struct CounterTrackConfig* counter_config) {
   for (int32_t i = 0; i < track_count; i++) {
     if (PerfettoTeLlTrackSeen(ctx->impl.incr, track_uuids[i])) {
       continue;
@@ -73,9 +117,8 @@ static void emit_unseen_track_descriptors(struct PerfettoTeLlIterator* ctx,
     perfetto_protos_TracePacket_begin_track_descriptor(&desc_packet.msg, &desc);
     // The leaf is a counter track when requested; ancestors are always named.
     if (track_is_counter && i == track_count - 1) {
-      PerfettoTeCounterTrackFillDesc(&desc, track_names[i],
-                                     track_parent_uuids[i], track_uuids[i],
-                                     track_name_static);
+      fill_counter_desc(&desc, track_names[i], track_parent_uuids[i],
+                        track_uuids[i], track_name_static, counter_config);
     } else {
       PerfettoTeNamedTrackFillDesc(&desc, track_names[i], /*id=*/0,
                                    track_parent_uuids[i], track_uuids[i],
@@ -116,6 +159,7 @@ void emit_track_event(const PerfettoTeCategory* cat,
                       const int32_t* interned_field_ids,
                       const int32_t* interned_type_ids,
                       const char* const* interned_strs,
+                      const struct CounterTrackConfig* counter_config,
                       const struct PerfettoTeTimestamp* explicit_timestamp) {
   bool enabled = PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
       cat->enabled, PERFETTO_MEMORY_ORDER_RELAXED));
@@ -139,10 +183,10 @@ void emit_track_event(const PerfettoTeCategory* cat,
        ctx.impl.ds.tracer != nullptr;
        PerfettoTeLlNext(mut_cat, timestamp, &ctx)) {
     if (track_count > 0) {
-      emit_unseen_track_descriptors(&ctx, track_count, track_uuids,
-                                    track_parent_uuids, track_names,
-                                    track_child_orderings, track_sibling_ranks,
-                                    track_name_static, track_is_counter);
+      emit_unseen_track_descriptors(
+          &ctx, track_count, track_uuids, track_parent_uuids, track_names,
+          track_child_orderings, track_sibling_ranks, track_name_static,
+          track_is_counter, counter_config);
     }
 
     struct PerfettoDsRootTracePacket trace_packet;

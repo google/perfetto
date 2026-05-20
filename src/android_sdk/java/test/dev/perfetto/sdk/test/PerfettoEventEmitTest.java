@@ -30,6 +30,7 @@ import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import perfetto.protos.CounterDescriptorOuterClass.CounterDescriptor;
 import perfetto.protos.DataSourceConfigOuterClass.DataSourceConfig;
 import perfetto.protos.InternedDataOuterClass.InternedData;
 import perfetto.protos.SourceLocationOuterClass.SourceLocation;
@@ -337,6 +338,34 @@ public class PerfettoEventEmitTest {
     assertThat(hasDescriptor).isTrue();
     assertThat(descriptorParent).isEqualTo(0);
     assertThat(eventTrackUuid).isEqualTo(g.getUuid());
+  }
+
+  @Test
+  public void usingCounterTrackWritesUnits() throws Exception {
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+    PerfettoTrack mem =
+        PerfettoTrack.processCounter("mem_counter")
+            .withUnit(PerfettoTrack.CounterUnit.SIZE_BYTES)
+            .withUnitMultiplier(1024)
+            .withIsIncremental(true);
+    PerfettoTrace.counter(FOO_CATEGORY, 5).usingTrack(mem).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean checked = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()
+          && "mem_counter".equals(packet.getTrackDescriptor().getStaticName())
+          && packet.getTrackDescriptor().hasCounter()) {
+        CounterDescriptor cd = packet.getTrackDescriptor().getCounter();
+        assertThat(cd.getUnit()).isEqualTo(CounterDescriptor.Unit.UNIT_SIZE_BYTES);
+        assertThat(cd.getUnitMultiplier()).isEqualTo(1024);
+        assertThat(cd.getIsIncremental()).isTrue();
+        checked = true;
+      }
+    }
+    assertThat(checked).isTrue();
   }
 
   @Test

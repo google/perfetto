@@ -62,6 +62,37 @@ public final class PerfettoTrack {
     }
   }
 
+  /** Display unit for a counter track. Values match {@code CounterDescriptor.Unit}. */
+  public enum CounterUnit {
+    TIME_NS(1),
+    COUNT(2),
+    SIZE_BYTES(3);
+
+    final int value;
+
+    CounterUnit(int value) {
+      this.value = value;
+    }
+  }
+
+  // Counter-track display metadata (unit / unit name / multiplier / incremental),
+  // written into the leaf CounterDescriptor. null when unset.
+  static final class CounterConfig {
+    static final CounterConfig EMPTY = new CounterConfig(0, null, 0, false);
+
+    final int unit; // 0 = unset, else CounterUnit.value
+    final String unitName;
+    final long unitMultiplier; // 0 = unset
+    final boolean isIncremental;
+
+    CounterConfig(int unit, String unitName, long unitMultiplier, boolean isIncremental) {
+      this.unit = unit;
+      this.unitName = unitName;
+      this.unitMultiplier = unitMultiplier;
+      this.isIncremental = isIncremental;
+    }
+  }
+
   final long mUuid;
   final long mParentUuid;
   final String mName;
@@ -72,6 +103,7 @@ public final class PerfettoTrack {
   // among its siblings when the parent orders children EXPLICIT.
   final int mChildOrdering;
   final int mSiblingOrderRank;
+  final CounterConfig mCounterConfig; // null unless set via withUnit/... on a counter
 
   private PerfettoTrack(
       long uuid,
@@ -80,7 +112,8 @@ public final class PerfettoTrack {
       boolean isCounter,
       PerfettoTrack parent,
       int childOrdering,
-      int siblingOrderRank) {
+      int siblingOrderRank,
+      CounterConfig counterConfig) {
     mUuid = uuid;
     mParentUuid = parentUuid;
     mName = name;
@@ -89,12 +122,14 @@ public final class PerfettoTrack {
     mDepth = (parent == null) ? 1 : parent.mDepth + 1;
     mChildOrdering = childOrdering;
     mSiblingOrderRank = siblingOrderRank;
+    mCounterConfig = counterConfig;
   }
 
   /** Returns a copy of this track that orders its children by {@code ordering}. */
   public PerfettoTrack withChildOrdering(ChildOrdering ordering) {
     return new PerfettoTrack(
-        mUuid, mParentUuid, mName, mIsCounter, mParent, ordering.value, mSiblingOrderRank);
+        mUuid, mParentUuid, mName, mIsCounter, mParent, ordering.value, mSiblingOrderRank,
+        mCounterConfig);
   }
 
   /**
@@ -104,7 +139,41 @@ public final class PerfettoTrack {
    */
   public PerfettoTrack withSiblingOrderRank(int rank) {
     return new PerfettoTrack(
-        mUuid, mParentUuid, mName, mIsCounter, mParent, mChildOrdering, rank);
+        mUuid, mParentUuid, mName, mIsCounter, mParent, mChildOrdering, rank, mCounterConfig);
+  }
+
+  /** Returns a copy of this counter track displayed with {@code unit}. */
+  public PerfettoTrack withUnit(CounterUnit unit) {
+    CounterConfig c = mCounterConfig != null ? mCounterConfig : CounterConfig.EMPTY;
+    return withCounterConfig(
+        new CounterConfig(unit.value, c.unitName, c.unitMultiplier, c.isIncremental));
+  }
+
+  /** Returns a copy of this counter track displayed with custom unit {@code unitName}. */
+  public PerfettoTrack withUnitName(@CompileTimeConstant String unitName) {
+    CounterConfig c = mCounterConfig != null ? mCounterConfig : CounterConfig.EMPTY;
+    return withCounterConfig(
+        new CounterConfig(c.unit, unitName, c.unitMultiplier, c.isIncremental));
+  }
+
+  /** Returns a copy of this counter track whose raw values are scaled by {@code multiplier}. */
+  public PerfettoTrack withUnitMultiplier(long multiplier) {
+    CounterConfig c = mCounterConfig != null ? mCounterConfig : CounterConfig.EMPTY;
+    return withCounterConfig(
+        new CounterConfig(c.unit, c.unitName, multiplier, c.isIncremental));
+  }
+
+  /** Returns a copy of this counter track whose values are deltas to accumulate. */
+  public PerfettoTrack withIsIncremental(boolean isIncremental) {
+    CounterConfig c = mCounterConfig != null ? mCounterConfig : CounterConfig.EMPTY;
+    return withCounterConfig(
+        new CounterConfig(c.unit, c.unitName, c.unitMultiplier, isIncremental));
+  }
+
+  private PerfettoTrack withCounterConfig(CounterConfig counterConfig) {
+    return new PerfettoTrack(
+        mUuid, mParentUuid, mName, mIsCounter, mParent, mChildOrdering, mSiblingOrderRank,
+        counterConfig);
   }
 
   /** A named track scoped to the current process. */
@@ -158,13 +227,13 @@ public final class PerfettoTrack {
   /** A named child track nested under this one, with {@code id} disambiguating siblings. */
   public PerfettoTrack child(long id, @CompileTimeConstant String name) {
     return new PerfettoTrack(
-        namedUuid(mUuid, id, name), mUuid, name, /* isCounter= */ false, this, 0, 0);
+        namedUuid(mUuid, id, name), mUuid, name, /* isCounter= */ false, this, 0, 0, null);
   }
 
   /** A counter child track nested under this one. */
   public PerfettoTrack counterChild(@CompileTimeConstant String name) {
     return new PerfettoTrack(
-        counterUuid(mUuid, name), mUuid, name, /* isCounter= */ true, this, 0, 0);
+        counterUuid(mUuid, name), mUuid, name, /* isCounter= */ true, this, 0, 0, null);
   }
 
   /** The track uuid (e.g. to root another track or reference it elsewhere). */
@@ -174,7 +243,7 @@ public final class PerfettoTrack {
 
   private static PerfettoTrack root(long parentUuid, long id, String name, boolean isCounter) {
     long uuid = isCounter ? counterUuid(parentUuid, name) : namedUuid(parentUuid, id, name);
-    return new PerfettoTrack(uuid, parentUuid, name, isCounter, /* parent= */ null, 0, 0);
+    return new PerfettoTrack(uuid, parentUuid, name, isCounter, /* parent= */ null, 0, 0, null);
   }
 
   static long namedUuid(long parentUuid, long id, String name) {

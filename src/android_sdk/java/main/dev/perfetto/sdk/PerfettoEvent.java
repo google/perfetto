@@ -195,6 +195,8 @@ public final class PerfettoEvent {
   //   track_count    : i32, then per track: uuid u64, parent u64,
   //                    child_ordering u8, sibling_order_rank i32, name cstr
   //   interned_count : i32, then per field: field_id i32, type_id i32, str cstr
+  //   [if counter]   counter_unit i32, unit_multiplier i64, is_incremental u8,
+  //                  unit_name cstr
   // where cstr = len i32, then `len` ASCII bytes, then a NUL terminator (so the
   // bytes are a valid C string the native track/intern APIs can use in place).
   // ==========================================================================
@@ -202,7 +204,8 @@ public final class PerfettoEvent {
   /** Upper bound on the frame size for the given event, in bytes. */
   static int frameSize(
       String name, boolean hasTimestamp, int trackCount, String[] trackNames,
-      int internedCount, String[] internedStrs) {
+      boolean trackIsCounter, String counterUnitName, int internedCount,
+      String[] internedStrs) {
     int n = cstrSize(name) + 1 + (hasTimestamp ? 12 : 0) + 8 + 4;
     for (int i = 0; i < trackCount; i++) {
       n += 8 + 8 + 1 + 4 + cstrSize(trackNames[i]);
@@ -210,6 +213,9 @@ public final class PerfettoEvent {
     n += 4;
     for (int i = 0; i < internedCount; i++) {
       n += 4 + 4 + cstrSize(internedStrs[i]);
+    }
+    if (trackIsCounter) {
+      n += 4 + 8 + 1 + cstrSize(counterUnitName);
     }
     return n;
   }
@@ -231,6 +237,10 @@ public final class PerfettoEvent {
       int[] trackSiblingRanks,
       boolean trackNameStatic,
       boolean trackIsCounter,
+      int counterUnit,
+      String counterUnitName,
+      long counterUnitMultiplier,
+      boolean counterIsIncremental,
       int internedCount,
       int[] internedFieldIds,
       int[] internedTypeIds,
@@ -258,6 +268,12 @@ public final class PerfettoEvent {
       b.putInt(internedFieldIds[i]);
       b.putInt(internedTypeIds[i]);
       putCStr(b, internedStrs[i]);
+    }
+    if (trackIsCounter) {
+      b.putInt(counterUnit);
+      b.putLong(counterUnitMultiplier);
+      b.put((byte) (counterIsIncremental ? 1 : 0));
+      putCStr(b, counterUnitName);
     }
     return b.position() - start;
   }
@@ -293,14 +309,18 @@ public final class PerfettoEvent {
       return;
     }
     EmitBuffer x = sStandaloneBuffer.get();
-    x.ensureCapacity(frameSize(name, /*hasTimestamp=*/false, 0, null, 0, null));
+    x.ensureCapacity(
+        frameSize(name, /*hasTimestamp=*/false, 0, null, /*trackIsCounter=*/false,
+            null, 0, null));
     ByteBuffer b = x.buf;
     b.clear();
     int frameLen = encodeFrame(
         b, name, /*setTrackUuid=*/false, /*leafTrackUuid=*/0,
         /*hasTimestamp=*/false, /*timestampClockId=*/0, /*timestampValue=*/0,
         /*trackCount=*/0, null, null, null, null, null, /*trackNameStatic=*/false,
-        /*trackIsCounter=*/false, /*internedCount=*/0, null, null, null);
+        /*trackIsCounter=*/false, /*counterUnit=*/0, /*counterUnitName=*/null,
+        /*counterUnitMultiplier=*/0, /*counterIsIncremental=*/false,
+        /*internedCount=*/0, null, null, null);
     native_emit(type, category.getPtr(), x.addr, /*bodyLen=*/0, frameLen);
   }
 

@@ -83,6 +83,11 @@ public final class PerfettoTrackEventBuilder {
   private boolean mTrackNameStatic;
   private boolean mTrackIsCounter;
   private long mTrackLeafUuid;
+  // Counter-track display metadata for the leaf (only when mTrackIsCounter).
+  private int mCounterUnit;
+  private String mCounterUnitName;
+  private long mCounterUnitMultiplier;
+  private boolean mCounterIsIncremental;
 
   // Interned-string proto fields (addFieldWithInterning). Their iids are
   // per-sequence, so they are recorded here and interned natively at emit.
@@ -144,8 +149,8 @@ public final class PerfettoTrackEventBuilder {
     int bodyLen = mBody.position();
     int needed = bodyLen
         + PerfettoEvent.frameSize(
-            mEventName, mHasTimestamp, mTrackCount, mTrackNames,
-            mInternedFieldCount, mInternedStrings);
+            mEventName, mHasTimestamp, mTrackCount, mTrackNames, mTrackIsCounter,
+            mCounterUnitName, mInternedFieldCount, mInternedStrings);
     mXfer.ensureCapacity(needed);
     ByteBuffer b = mXfer.buf;
     b.clear();
@@ -155,7 +160,8 @@ public final class PerfettoTrackEventBuilder {
             b, mEventName, mHasTrack, mTrackLeafUuid, mHasTimestamp,
             mTimestampClockId, mTimestampValue, mTrackCount, mTrackUuids,
             mTrackParentUuids, mTrackNames, mTrackChildOrderings,
-            mTrackSiblingRanks, mTrackNameStatic, mTrackIsCounter,
+            mTrackSiblingRanks, mTrackNameStatic, mTrackIsCounter, mCounterUnit,
+            mCounterUnitName, mCounterUnitMultiplier, mCounterIsIncremental,
             mInternedFieldCount, mInternedFieldIds, mInternedTypeIds,
             mInternedStrings);
     PerfettoEvent.native_emit(
@@ -178,6 +184,10 @@ public final class PerfettoTrackEventBuilder {
     mHasTrack = false;
     mTrackCount = 0;
     mTrackIsCounter = false;
+    mCounterUnit = 0;
+    mCounterUnitName = null;
+    mCounterUnitMultiplier = 0;
+    mCounterIsIncremental = false;
     mHasTimestamp = false;
     mInProto = false;
     mProtoDepth = 0;
@@ -347,6 +357,12 @@ public final class PerfettoTrackEventBuilder {
     mTrackLeafUuid = track.mUuid;
     mTrackIsCounter = track.mIsCounter;
     mTrackNameStatic = true; // PerfettoTrack names are compile-time constants
+    if (track.mIsCounter && track.mCounterConfig != null) {
+      mCounterUnit = track.mCounterConfig.unit;
+      mCounterUnitName = track.mCounterConfig.unitName;
+      mCounterUnitMultiplier = track.mCounterConfig.unitMultiplier;
+      mCounterIsIncremental = track.mCounterConfig.isIncremental;
+    }
     int n = Math.min(track.mDepth, MAX_TRACK_LEVELS);
     mTrackCount = n;
     // Flatten root->leaf: walk leaf->root filling from the last slot back.
