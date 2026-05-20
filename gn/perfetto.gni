@@ -219,6 +219,14 @@ declare_args() {
   enable_perfetto_android_java_sdk =
       perfetto_build_with_android || (is_android && perfetto_build_standalone)
 
+  # Path to a host JDK include directory that contains jni.h. When set,
+  # the host-supported targets that build libperfetto_jni and its Java
+  # proto codegen use this and its platform-specific subdirectory as
+  # additional include paths. Empty (default) on Android / AOSP builds,
+  # where jni.h comes from the NDK / jni_headers; populated by
+  # tools/run_android_sdk_host_test from $JAVA_HOME.
+  jdk_include_path = ""
+
   enable_perfetto_benchmarks = perfetto_build_standalone && !is_win && !is_qnx
 
   enable_perfetto_fuzzers =
