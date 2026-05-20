@@ -341,8 +341,7 @@ const std::string& MaybeRedactName(
                                      : kDefaultReplacement;
 
   // We matched against the pattern but this looks like an anonymous or special
-  // mapping. None of the path-based rules apply, so replace the whole name
-  // (note: there won't be a (deleted) suffix in this case).
+  // mapping. None of the path-based rules apply, so replace the whole name.
   if (name[0] != '/') {
     name = replacement;
     return name;
@@ -354,7 +353,7 @@ const std::string& MaybeRedactName(
   // keep = 3 for /x/y/z -> /x/y/z
   // keep = 4 for /x/y/z -> /x/y/z
   std::string_view keep_prefix;
-  if (rule->keep_path_elements() > 0 && name[0] == '/') {
+  if (rule->keep_path_elements() > 0) {
     size_t pos = 0;
     size_t max_elems = rule->keep_path_elements();
     for (size_t i = 0; i < max_elems && pos != std::string_view::npos; ++i) {
@@ -367,13 +366,15 @@ const std::string& MaybeRedactName(
   // Suffix: keep any (deleted) and optionally retain the file extension:
   // /x/y/z.so -> .so
   // /x/y/z.tar (deleted) -> .tar (deleted)
+  // /x/y.y/z -> ""
+  // /x/y/.z -> ""
   size_t keep_suffix_pos = deleted_suffix_pos;
   if (rule->keep_file_extension()) {
     size_t last_dot = name.rfind('.');
     size_t last_slash = name.rfind('/');
     if ((last_dot != std::string_view::npos &&
          last_slash != std::string_view::npos) &&
-        last_dot > last_slash) {
+        last_dot > last_slash + 1) {
       keep_suffix_pos = last_dot;
     }
   }
@@ -394,11 +395,11 @@ const std::string& MaybeRedactName(
   size_t new_len =
       keep_prefix.length() + replacement.length() + keep_suffix.length();
   if (new_len <= name.capacity()) {
-    size_t replace_pos = keep_prefix.length();
-    size_t replace_len =
+    size_t cut_pos = keep_prefix.length();
+    size_t cut_len =
         name.length() - keep_prefix.length() - keep_suffix.length();
 
-    name.replace(replace_pos, replace_len, replacement);
+    name.replace(cut_pos, cut_len, replacement);
     return name;
   }
 
@@ -491,8 +492,7 @@ void ParseAndSerializeSmaps(FILE* file,
 
   protozero::PackedVarInt packed;
   // If aggregating: write aggregate_count, but skip name_id as a size
-  // optimisation. We write the vmas exactly in string_table order, so the
-  // serialised name_id would be 0, 1, 2, 3, ...
+  // optimisation. We write the aggregated vmas exactly in string_table order.
   if (aggregated) {
     packed.Reset();
     for (const auto& vma : vmas) {

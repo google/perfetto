@@ -17,11 +17,13 @@
 
 #include <stdio.h>
 #include <string>
+#include <vector>
 
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/profiling/smaps_config.gen.h"
 #include "protos/perfetto/trace/profiling/smaps.gen.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "test/gtest_and_gmock.h"
@@ -64,6 +66,15 @@ protos::gen::SmapsPacket ParseAndGetGenPacket(
   protos::gen::TracePacket gen_packet;
   gen_packet.ParseFromString(packet.SerializeAsString());
   return gen_packet.smaps_packet();
+}
+
+std::string ToSmapsFormat(const std::vector<std::string>& names) {
+  std::string ret;
+  for (const std::string& name : names) {
+    ret += "0000-0000 rw-p 00000000 00:00 0    " + name +
+           "\nSize:                   0 kB\n";
+  }
+  return ret;
 }
 
 constexpr char kTestSmaps[] =
@@ -301,6 +312,254 @@ TEST(SmapsParserTest, UnaggregatedMode) {
   EXPECT_THAT(packed.size_kb(), ElementsAre(10u, 20u));
   // aggregate_count not written
   EXPECT_THAT(packed.aggregate_count(), IsEmpty());
+}
+
+TEST(SmapsParserTest, NameRedactionPrefixMatch) {
+  protos::gen::SmapsConfig config;
+  config.set_unaggregated(true);
+
+  auto* rule = config.add_name_redaction_rules();
+  rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_PREFIX);
+  rule->set_pattern("/usr/lib");
+
+  std::string smaps_content = ToSmapsFormat({
+      "/usr/test.so",
+      "/usr/lib/test.so",
+      "/usr/lib/libtest.so",
+      "/usr/lib64/libtest.so",  // note: still matches prefix
+      "/usr/lib64/libtest.so (deleted)",
+      "/usr/lib/nested/libtest.so",
+      "/proc/self/smaps",
+      "/proc/cmdline",
+      "[vdso]",
+      "[anon:named-/lib/libtest.so]",
+  });
+
+  auto packet = ParseAndGetGenPacket(smaps_content, config);
+  const auto& packed = packet.packed_entries();
+
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("",                                //
+                          "/usr/test.so",                    //
+                          "<pf_redacted>",                   //
+                          "<pf_redacted>",                   //
+                          "<pf_redacted>",                   //
+                          "<pf_redacted> (deleted)",         //
+                          "<pf_redacted>",                   //
+                          "/proc/self/smaps",                //
+                          "/proc/cmdline",                   //
+                          "[vdso]",                          //
+                          "[anon:named-/lib/libtest.so]"));  //
+}
+
+TEST(SmapsParserTest, NameRedactionGlobPathMatch) {
+  protos::gen::SmapsConfig config;
+  config.set_unaggregated(true);
+
+  auto* rule = config.add_name_redaction_rules();
+  rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_GLOB_PATH);
+  rule->set_pattern("/*/*/libtest.so");
+
+  std::string smaps_content = ToSmapsFormat({
+      "/usr/libtest.so",
+      "/usr/lib/libtest.so",
+      "/usr/lib64/libtest.so",
+      "/usr/lib64/libtest.so (deleted)",
+      "/usr/lib/nested/libtest.so",
+      "/proc/self/smaps",
+      "/proc/cmdline",
+      "[vdso]",
+      "[anon:named-/lib/libtest.so]",
+  });
+
+  auto packet = ParseAndGetGenPacket(smaps_content, config);
+  const auto& packed = packet.packed_entries();
+
+  // Expect that a glob only matches exactly one path element.
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("",                                //
+                          "/usr/libtest.so",                 //
+                          "<pf_redacted>",                   //
+                          "<pf_redacted>",                   //
+                          "<pf_redacted> (deleted)",         //
+                          "/usr/lib/nested/libtest.so",      //
+                          "/proc/self/smaps",                //
+                          "/proc/cmdline",                   //
+                          "[vdso]",                          //
+                          "[anon:named-/lib/libtest.so]"));  //
+}
+
+TEST(SmapsParserTest, NameRedactionGlobStringMatch) {
+  protos::gen::SmapsConfig config;
+  config.set_unaggregated(true);
+
+  auto* rule = config.add_name_redaction_rules();
+  rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_GLOB_STRING);
+  rule->set_pattern("/usr/*/libtest.so");
+
+  std::string smaps_content = ToSmapsFormat({
+      "/usr/libtest.so",
+      "/usr/lib/libtest.so",
+      "/usr/lib64/libtest.so",
+      "/usr/lib64/libtest.so (deleted)",
+      "/usr/lib/nested/libtest.so",
+      "/proc/self/smaps",
+      "/proc/cmdline",
+      "[vdso]",
+      "[anon:named-/lib/libtest.so]",
+  });
+
+  auto packet = ParseAndGetGenPacket(smaps_content, config);
+  const auto& packed = packet.packed_entries();
+
+  // Expect that a glob can match across path elements.
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("",                                //
+                          "/usr/libtest.so",                 //
+                          "<pf_redacted>",                   //
+                          "<pf_redacted>",                   //
+                          "<pf_redacted> (deleted)",         //
+                          "<pf_redacted>",                   //
+                          "/proc/self/smaps",                //
+                          "/proc/cmdline",                   //
+                          "[vdso]",                          //
+                          "[anon:named-/lib/libtest.so]"));  //
+}
+
+TEST(SmapsParserTest, NameRedactionKeepFileExtension) {
+  protos::gen::SmapsConfig config;
+  config.set_unaggregated(true);
+
+  auto* rule = config.add_name_redaction_rules();
+  rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_PREFIX);
+  rule->set_pattern("/");
+  rule->set_keep_file_extension(true);
+
+  std::string smaps_content = ToSmapsFormat({
+      "/lib/lib64/libtest.so",
+      "/lib/lib64/libtest.so (deleted)",
+      "/files/file.txt",
+      "/files/file.txt (deleted)",
+      "[vdso]",
+      "[anon:named-/lib/libtest.so]",
+      "/files/.hidden",
+      "/files/dot.dot/no_ext",
+  });
+
+  auto packet = ParseAndGetGenPacket(smaps_content, config);
+  const auto& packed = packet.packed_entries();
+
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("",                              //
+                          "<pf_redacted>.so",              //
+                          "<pf_redacted>.so (deleted)",    //
+                          "<pf_redacted>.txt",             //
+                          "<pf_redacted>.txt (deleted)",   //
+                          "[vdso]",                        //
+                          "[anon:named-/lib/libtest.so]",  //
+                          "<pf_redacted>",                 //
+                          "<pf_redacted>"));               //
+}
+
+TEST(SmapsParserTest, NameRedactionKeepPathElements) {
+  protos::gen::SmapsConfig config;
+  config.set_unaggregated(true);
+
+  auto* rule = config.add_name_redaction_rules();
+  rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_PREFIX);
+  rule->set_pattern("/");
+  rule->set_keep_file_extension(true);
+  rule->set_keep_path_elements(2);
+
+  std::string smaps_content = ToSmapsFormat({
+      "/lib/lib64/libtest.so",
+      "/lib/lib64/libtest.so (deleted)",
+      "/file.txt",
+      "/files/file.txt",
+      "/files/file.txt (deleted)",
+      "/files/nested/file.txt",
+      "/very/deep/path/file.txt",
+      "[vdso]",
+      "[anon:named-/lib/libtest.so]",
+  });
+
+  auto packet = ParseAndGetGenPacket(smaps_content, config);
+  const auto& packed = packet.packed_entries();
+
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("",                                       //
+                          "/lib/lib64/<pf_redacted>.so",            //
+                          "/lib/lib64/<pf_redacted>.so (deleted)",  //
+                          "/file.txt",                              //
+                          "/files/file.txt",                        //
+                          "/files/file.txt (deleted)",              //
+                          "/files/nested/<pf_redacted>.txt",        //
+                          "/very/deep/<pf_redacted>.txt",           //
+                          "[vdso]",                                 //
+                          "[anon:named-/lib/libtest.so]"));         //
+}
+
+TEST(SmapsParserTest, NameRedactionReplacementName) {
+  protos::gen::SmapsConfig config;
+  config.set_unaggregated(true);
+
+  auto* rule = config.add_name_redaction_rules();
+  rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_PREFIX);
+  rule->set_pattern("/");
+  rule->set_keep_file_extension(true);
+  rule->set_keep_path_elements(1);
+  rule->set_replacement_name("<snip>");
+
+  std::string smaps_content = ToSmapsFormat({
+      "/lib/lib64/libtest.so",
+      "/lib/lib64/libtest.so (deleted)",
+  });
+
+  auto packet = ParseAndGetGenPacket(smaps_content, config);
+  const auto& packed = packet.packed_entries();
+
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("",                            //
+                          "/lib/<snip>.so",              //
+                          "/lib/<snip>.so (deleted)"));  //
+}
+
+TEST(SmapsParserTest, NameRedactionFirstMatchingRuleWins) {
+  protos::gen::SmapsConfig config;
+  config.set_unaggregated(true);
+
+  // Two rules: first (keep_full) more specific than the second.
+  {
+    auto* rule = config.add_name_redaction_rules();
+    rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_PREFIX);
+    rule->set_pattern("/usr/lib/libtest.so");
+    rule->set_keep_full(true);
+  }
+  {
+    auto* rule = config.add_name_redaction_rules();
+    rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_PREFIX);
+    rule->set_pattern("/usr");
+  }
+
+  std::string smaps_content = ToSmapsFormat({
+      "/usr/lib/libtest.so",
+      "/usr/lib/libtest2.so",
+      "/usr/lib64/libtest.so",
+      "/proc/cmdline",
+      "[vdso]",
+  });
+
+  auto packet = ParseAndGetGenPacket(smaps_content, config);
+  const auto& packed = packet.packed_entries();
+
+  // Everything under /usr is redacted unless it's exactly /usr/lib/libtest.so
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("",                     //
+                          "/usr/lib/libtest.so",  //
+                          "<pf_redacted>",        //
+                          "<pf_redacted>",        //
+                          "/proc/cmdline",        //
+                          "[vdso]"));             //
 }
 
 }  // namespace

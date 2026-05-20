@@ -54,6 +54,9 @@ message SmapsConfig {
 }
 
 message RedactionRule {
+  // How to match |pattern| against the name of the mapping.
+  // Note for future extensions: unrecognised enums are treated as always
+  // matching.
   enum MatchMode {
     MATCH_MODE_UNKNOWN = 0;
     // The pattern matches if it is a prefix of the mapping name.
