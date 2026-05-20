@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/profiling/smaps.h"
 
+#include <fnmatch.h>
 #include <stdio.h>
 #include <cstdlib>
 #include <cstring>
@@ -34,6 +35,9 @@
 namespace perfetto {
 namespace profiling {
 namespace {
+
+static constexpr std::string_view kDeletedSuffix = " (deleted)";
+static constexpr std::string_view kDefaultReplacement = "<pf_redacted>";
 
 class StringInterner {
  public:
@@ -55,7 +59,7 @@ class StringInterner {
     return index;
   }
 
-  const std::deque<std::string>& OrderedStrings() const { return storage_; }
+  std::deque<std::string>& MutableStrings() { return storage_; }
 
  private:
   base::FlatHashMap<std::string_view, StringId> map_;
@@ -271,6 +275,163 @@ void Parse(FILE* file,
     callback(vma);
   }
 }
+
+bool EndsWith(std::string_view s, std::string_view suffix) {
+  return s.size() >= suffix.size() &&
+         !s.compare(s.size() - suffix.size(), suffix.size(), suffix);
+}
+
+bool MatchRedactionPattern(const char* name,
+                           const protos::gen::RedactionRule& rule) {
+  using RR = protos::gen::RedactionRule;
+  const char* pattern = rule.pattern().c_str();
+  if (rule.match_mode() == RR::MATCH_MODE_PREFIX) {
+    return !strncmp(name, pattern, rule.pattern().length());
+  }
+  if (rule.match_mode() == RR::MATCH_MODE_GLOB_PATH) {
+    return !fnmatch(pattern, name, FNM_NOESCAPE | FNM_PATHNAME);
+  }
+  if (rule.match_mode() == RR::MATCH_MODE_GLOB_STRING) {
+    return !fnmatch(pattern, name, FNM_NOESCAPE);
+  }
+  // unknown enum: default to matching against any pattern.
+  return true;
+}
+
+const std::string& MaybeRedactName(
+    std::string& name,
+    const std::vector<protos::gen::RedactionRule>& rules,
+    std::string& extra_storage) {
+  if (name.empty())
+    return name;
+
+  // Trim any "(deleted)" suffix that the kernel appends
+  // for file-backed mappings where the file has been deleted.
+  // Do the edit in-place as we're minimising allocations. We'll restore the
+  // original string after matching.
+  size_t deleted_suffix_pos = std::string_view::npos;
+  if (EndsWith(name, kDeletedSuffix)) {
+    deleted_suffix_pos = name.size() - kDeletedSuffix.size();
+    name[deleted_suffix_pos] = '\0';
+  }
+
+  const protos::gen::RedactionRule* rule = nullptr;
+  for (const auto& candidate_rule : rules) {
+    if (MatchRedactionPattern(name.c_str(), candidate_rule)) {
+      rule = &candidate_rule;
+      break;  // first matching rule wins
+    }
+  }
+
+  // Restore original string.
+  if (deleted_suffix_pos != std::string_view::npos) {
+    name[deleted_suffix_pos] = ' ';
+  }
+
+  if (!rule || rule->keep_full()) {
+    // No match or explicit allow -> keep original string.
+    return name;
+  }
+
+  // At this point, we know that we need to redact at least parts of the string.
+  // Find the prefix and suffix of the original string to keep, and then replace
+  // the rest.
+  std::string_view replacement = rule->has_replacement_name()
+                                     ? rule->replacement_name()
+                                     : kDefaultReplacement;
+
+  // We matched against the pattern but this looks like an anonymous or special
+  // mapping. None of the path-based rules apply, so replace the whole name
+  // (note: there won't be a (deleted) suffix in this case).
+  if (name[0] != '/') {
+    name = replacement;
+    return name;
+  }
+
+  // Prefix: keep up to N path elements:
+  // keep = 1 for /x/y/z -> /x/
+  // keep = 2 for /x/y/z -> /x/y/
+  // keep = 3 for /x/y/z -> /x/y/z
+  // keep = 4 for /x/y/z -> /x/y/z
+  std::string_view keep_prefix;
+  if (rule->keep_path_elements() > 0 && name[0] == '/') {
+    size_t pos = 0;
+    size_t max_elems = rule->keep_path_elements();
+    for (size_t i = 0; i < max_elems && pos != std::string_view::npos; ++i) {
+      pos = name.find('/', pos + 1);
+    }
+    size_t prefix_len = (pos != std::string_view::npos) ? pos + 1 : name.size();
+    keep_prefix = std::string_view(name.data(), prefix_len);
+  }
+
+  // Suffix: keep any (deleted) and optionally retain the file extension:
+  // /x/y/z.so -> .so
+  // /x/y/z.tar (deleted) -> .tar (deleted)
+  size_t keep_suffix_pos = deleted_suffix_pos;
+  if (rule->keep_file_extension()) {
+    size_t last_dot = name.rfind('.');
+    size_t last_slash = name.rfind('/');
+    if ((last_dot != std::string_view::npos &&
+         last_slash != std::string_view::npos) &&
+        last_dot > last_slash) {
+      keep_suffix_pos = last_dot;
+    }
+  }
+  std::string_view keep_suffix;
+  if (keep_suffix_pos != std::string_view::npos) {
+    keep_suffix = std::string_view(name).substr(keep_suffix_pos);
+  }
+
+  // Now assemble the redacted name, trying to stay within the original string
+  // to minimise string copies.
+
+  // Keep rules cover the entire name, so no redaction.
+  if ((keep_prefix.length() + keep_suffix.length()) >= name.length()) {
+    return name;
+  }
+
+  // If the combined pattern fits, rewrite and return the original string.
+  size_t new_len =
+      keep_prefix.length() + replacement.length() + keep_suffix.length();
+  if (new_len <= name.capacity()) {
+    size_t replace_pos = keep_prefix.length();
+    size_t replace_len =
+        name.length() - keep_prefix.length() - keep_suffix.length();
+
+    name.replace(replace_pos, replace_len, replacement);
+    return name;
+  }
+
+  // Unlikely: redacted name is larger than the original, build it in the
+  // pre-allocated string.
+  extra_storage.clear();
+  if (extra_storage.capacity() < new_len) {
+    extra_storage.reserve(new_len);
+  }
+  extra_storage.append(keep_prefix);
+  extra_storage.append(replacement);
+  extra_storage.append(keep_suffix);
+  return extra_storage;
+}
+
+void SerializeStringTable(
+    protos::pbzero::PackedSmaps* packed_smaps,
+    std::deque<std::string>& strings,
+    const std::vector<protos::gen::RedactionRule>& rules) {
+  if (rules.empty()) {
+    for (auto& v : strings) {
+      packed_smaps->add_string_table(v);
+    }
+    return;
+  }
+
+  std::string reusable_string;
+  for (auto& v : strings) {
+    const auto& redacted = MaybeRedactName(v, rules, reusable_string);
+    packed_smaps->add_string_table(redacted);
+  }
+}
+
 }  // namespace
 
 void ParseAndSerializeSmaps(FILE* file,
@@ -325,10 +486,8 @@ void ParseAndSerializeSmaps(FILE* file,
   // Serialise the proto:
 
   auto packed_smaps = packet->set_packed_entries();
-  // string_table
-  for (const auto& v : interner.OrderedStrings()) {
-    packed_smaps->add_string_table(v);
-  }
+  SerializeStringTable(packed_smaps, interner.MutableStrings(),
+                       config.name_redaction_rules());
 
   protozero::PackedVarInt packed;
   // If aggregating: write aggregate_count, but skip name_id as a size
