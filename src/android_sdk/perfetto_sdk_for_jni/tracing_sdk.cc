@@ -115,7 +115,8 @@ void emit_track_event(const PerfettoTeCategory* cat,
                       int32_t interned_count,
                       const int32_t* interned_field_ids,
                       const int32_t* interned_type_ids,
-                      const char* const* interned_strs) {
+                      const char* const* interned_strs,
+                      const struct PerfettoTeTimestamp* explicit_timestamp) {
   bool enabled = PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
       cat->enabled, PERFETTO_MEMORY_ORDER_RELAXED));
   if (!enabled) {
@@ -130,7 +131,8 @@ void emit_track_event(const PerfettoTeCategory* cat,
 
   // The LL ABI takes a non-const category; it only reads `impl`/`enabled`.
   PerfettoTeCategory* mut_cat = const_cast<PerfettoTeCategory*>(cat);
-  struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+  struct PerfettoTeTimestamp timestamp =
+      explicit_timestamp ? *explicit_timestamp : PerfettoTeGetTimestamp();
 
   for (struct PerfettoTeLlIterator ctx =
            PerfettoTeLlBeginSlowPath(mut_cat, timestamp);

@@ -21,6 +21,7 @@ import static dev.perfetto.sdk.PerfettoTrace.Category;
 
 import android.util.ArraySet;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import com.google.protobuf.ByteString;
 import dev.perfetto.sdk.PerfettoEvent;
 import dev.perfetto.sdk.PerfettoTrace;
 import dev.perfetto.sdk.PerfettoTrack;
@@ -338,6 +339,60 @@ public class PerfettoEventEmitTest {
     }
     assertThat(parentHasExplicitOrdering).isTrue();
     assertThat(childHasRank).isTrue();
+  }
+
+  @Test
+  public void emitsWithExplicitTimestamp() throws Exception {
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+    PerfettoTrace.instant(FOO_CATEGORY, "ts").setTimestamp(123456789L).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean found = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()
+          && TrackEvent.Type.TYPE_INSTANT.equals(packet.getTrackEvent().getType())) {
+        // The explicit timestamp + boottime clock are written on the packet.
+        assertThat(packet.getTimestamp()).isEqualTo(123456789L);
+        assertThat(packet.getTimestampClockId()).isEqualTo(6); // CLOCK_BOOTTIME
+        found = true;
+      }
+    }
+    assertThat(found).isTrue();
+  }
+
+  @Test
+  public void emitsTypedProtoFields() throws Exception {
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig().toByteArray());
+
+    // High, unused field ids so the values survive as unknown fields we can read
+    // back (the generated TrackEvent proto would drop known-but-wrong-type ids).
+    PerfettoTrace.instant(FOO_CATEGORY, "typed")
+        .beginProto()
+        .addFieldFixed64(9001, 0x1122334455667788L)
+        .addFieldFixed32(9002, 0x11223344)
+        .addFieldFloat(9003, 1.5f)
+        .addFieldBytes(9004, new byte[] {1, 2, 3})
+        .endProto()
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean found = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (!packet.hasTrackEvent() || packet.getTrackEvent().getUnknownFields().asMap().isEmpty()) {
+        continue;
+      }
+      var uf = packet.getTrackEvent().getUnknownFields();
+      assertThat(uf.getField(9001).getFixed64List()).contains(0x1122334455667788L);
+      assertThat(uf.getField(9002).getFixed32List()).contains(0x11223344);
+      assertThat(uf.getField(9003).getFixed32List()).contains(Float.floatToRawIntBits(1.5f));
+      assertThat(uf.getField(9004).getLengthDelimitedList())
+          .contains(ByteString.copyFrom(new byte[] {1, 2, 3}));
+      found = true;
+    }
+    assertThat(found).isTrue();
   }
 
   @Test

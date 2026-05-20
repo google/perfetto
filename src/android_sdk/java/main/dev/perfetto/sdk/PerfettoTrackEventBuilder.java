@@ -54,6 +54,15 @@ public final class PerfettoTrackEventBuilder {
   private static final int MAX_INTERNED_FIELDS = 16;
   private static final int MAX_NESTING_DEPTH = 16;
 
+  // Clock ids for setTimestamp, matching the C SDK (PERFETTO_TE_TIMESTAMP_TYPE_*).
+  public static final int CLOCK_MONOTONIC = 3;
+  public static final int CLOCK_BOOTTIME = 6;
+
+  // Explicit event timestamp; when unset, native uses PerfettoTeGetTimestamp().
+  private boolean mHasTimestamp;
+  private int mTimestampClockId;
+  private long mTimestampValue;
+
   // The variable TrackEvent body (debug annotations, flows, counter value,
   // non-interned proto fields). Reset at the start of each event.
   private ProtoWriter mBody;
@@ -135,15 +144,16 @@ public final class PerfettoTrackEventBuilder {
     int bodyLen = mBody.position();
     int needed = bodyLen
         + PerfettoEvent.frameSize(
-            mEventName, mTrackCount, mTrackNames, mInternedFieldCount,
-            mInternedStrings);
+            mEventName, mHasTimestamp, mTrackCount, mTrackNames,
+            mInternedFieldCount, mInternedStrings);
     mXfer.ensureCapacity(needed);
     ByteBuffer b = mXfer.buf;
     b.clear();
     b.put(mBody.buffer(), 0, bodyLen);
     int frameLen =
         PerfettoEvent.encodeFrame(
-            b, mEventName, mHasTrack, mTrackLeafUuid, mTrackCount, mTrackUuids,
+            b, mEventName, mHasTrack, mTrackLeafUuid, mHasTimestamp,
+            mTimestampClockId, mTimestampValue, mTrackCount, mTrackUuids,
             mTrackParentUuids, mTrackNames, mTrackChildOrderings,
             mTrackSiblingRanks, mTrackNameStatic, mTrackIsCounter,
             mInternedFieldCount, mInternedFieldIds, mInternedTypeIds,
@@ -168,10 +178,30 @@ public final class PerfettoTrackEventBuilder {
     mHasTrack = false;
     mTrackCount = 0;
     mTrackIsCounter = false;
+    mHasTimestamp = false;
     mInProto = false;
     mProtoDepth = 0;
     mInternedFieldCount = 0;
 
+    return this;
+  }
+
+  /** Emits the event at {@code timestampNs} on the boottime clock. */
+  public PerfettoTrackEventBuilder setTimestamp(long timestampNs) {
+    return setTimestamp(CLOCK_BOOTTIME, timestampNs);
+  }
+
+  /**
+   * Emits the event at {@code value} on clock {@code clockId} (e.g.
+   * {@link #CLOCK_BOOTTIME} or {@link #CLOCK_MONOTONIC}) instead of "now".
+   */
+  public PerfettoTrackEventBuilder setTimestamp(int clockId, long value) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    mHasTimestamp = true;
+    mTimestampClockId = clockId;
+    mTimestampValue = value;
     return this;
   }
 
@@ -544,6 +574,54 @@ public final class PerfettoTrackEventBuilder {
       mInternedStrings[mInternedFieldCount] = val;
       mInternedFieldCount++;
     }
+    return this;
+  }
+
+  /** Adds a fixed64/sfixed64 proto field with field id {@code id}. */
+  public PerfettoTrackEventBuilder addFieldFixed64(long id, long val) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkBuildingProto();
+    }
+    PerfettoEvent.protoFixed64(mBody, (int) id, val);
+    return this;
+  }
+
+  /** Adds a fixed32/sfixed32 proto field with field id {@code id}. */
+  public PerfettoTrackEventBuilder addFieldFixed32(long id, int val) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkBuildingProto();
+    }
+    PerfettoEvent.protoFixed32(mBody, (int) id, val);
+    return this;
+  }
+
+  /** Adds a float proto field with field id {@code id}. */
+  public PerfettoTrackEventBuilder addFieldFloat(long id, float val) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkBuildingProto();
+    }
+    PerfettoEvent.protoFloat(mBody, (int) id, val);
+    return this;
+  }
+
+  /** Adds a bytes proto field with field id {@code id}. */
+  public PerfettoTrackEventBuilder addFieldBytes(long id, byte[] val) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkBuildingProto();
+    }
+    PerfettoEvent.protoBytes(mBody, (int) id, val);
     return this;
   }
 

@@ -148,6 +148,26 @@ public final class PerfettoEvent {
     b.writeString(fieldId, value);
   }
 
+  /** Appends a fixed64/sfixed64 proto field to the body. */
+  static void protoFixed64(ProtoWriter b, int fieldId, long value) {
+    b.writeFixed64(fieldId, value);
+  }
+
+  /** Appends a fixed32/sfixed32 proto field to the body. */
+  static void protoFixed32(ProtoWriter b, int fieldId, int value) {
+    b.writeFixed32(fieldId, value);
+  }
+
+  /** Appends a float proto field to the body. */
+  static void protoFloat(ProtoWriter b, int fieldId, float value) {
+    b.writeFloat(fieldId, value);
+  }
+
+  /** Appends a bytes proto field to the body. */
+  static void protoBytes(ProtoWriter b, int fieldId, byte[] value) {
+    b.writeBytes(fieldId, value);
+  }
+
   /** Begins a nested proto message in the body; returns the token for endNested. */
   static int protoBeginNested(ProtoWriter b, int fieldId) {
     return b.beginNested(fieldId);
@@ -168,7 +188,9 @@ public final class PerfettoEvent {
   //
   // Layout (after the body):
   //   name           : cstr
-  //   flags          : u8   (bit0 set_track_uuid, bit1 counter, bit2 name_static)
+  //   flags          : u8   (bit0 set_track_uuid, bit1 counter, bit2 name_static,
+  //                          bit3 has_timestamp)
+  //   [if has_timestamp] clock_id : i32, ts_value : u64
   //   leaf_uuid      : u64
   //   track_count    : i32, then per track: uuid u64, parent u64,
   //                    child_ordering u8, sibling_order_rank i32, name cstr
@@ -179,9 +201,9 @@ public final class PerfettoEvent {
 
   /** Upper bound on the frame size for the given event, in bytes. */
   static int frameSize(
-      String name, int trackCount, String[] trackNames, int internedCount,
-      String[] internedStrs) {
-    int n = cstrSize(name) + 1 + 8 + 4;
+      String name, boolean hasTimestamp, int trackCount, String[] trackNames,
+      int internedCount, String[] internedStrs) {
+    int n = cstrSize(name) + 1 + (hasTimestamp ? 12 : 0) + 8 + 4;
     for (int i = 0; i < trackCount; i++) {
       n += 8 + 8 + 1 + 4 + cstrSize(trackNames[i]);
     }
@@ -198,6 +220,9 @@ public final class PerfettoEvent {
       String name,
       boolean setTrackUuid,
       long leafTrackUuid,
+      boolean hasTimestamp,
+      int timestampClockId,
+      long timestampValue,
       int trackCount,
       long[] trackUuids,
       long[] trackParentUuids,
@@ -213,8 +238,12 @@ public final class PerfettoEvent {
     int start = b.position();
     putCStr(b, name);
     int flags = (setTrackUuid ? 1 : 0) | (trackIsCounter ? 2 : 0)
-        | (trackNameStatic ? 4 : 0);
+        | (trackNameStatic ? 4 : 0) | (hasTimestamp ? 8 : 0);
     b.put((byte) flags);
+    if (hasTimestamp) {
+      b.putInt(timestampClockId);
+      b.putLong(timestampValue);
+    }
     b.putLong(leafTrackUuid);
     b.putInt(trackCount);
     for (int i = 0; i < trackCount; i++) {
@@ -264,12 +293,13 @@ public final class PerfettoEvent {
       return;
     }
     EmitBuffer x = sStandaloneBuffer.get();
-    x.ensureCapacity(frameSize(name, 0, null, 0, null));
+    x.ensureCapacity(frameSize(name, /*hasTimestamp=*/false, 0, null, 0, null));
     ByteBuffer b = x.buf;
     b.clear();
     int frameLen = encodeFrame(
-        b, name, /*setTrackUuid=*/false, /*leafTrackUuid=*/0, /*trackCount=*/0,
-        null, null, null, null, null, /*trackNameStatic=*/false,
+        b, name, /*setTrackUuid=*/false, /*leafTrackUuid=*/0,
+        /*hasTimestamp=*/false, /*timestampClockId=*/0, /*timestampValue=*/0,
+        /*trackCount=*/0, null, null, null, null, null, /*trackNameStatic=*/false,
         /*trackIsCounter=*/false, /*internedCount=*/0, null, null, null);
     native_emit(type, category.getPtr(), x.addr, /*bodyLen=*/0, frameLen);
   }

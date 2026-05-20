@@ -84,6 +84,14 @@ static void EmitFromBuffer(jint type,
   bool set_track_uuid = flags & 1;
   bool track_is_counter = flags & 2;
   bool track_name_static = flags & 4;
+  bool has_timestamp = flags & 8;
+  struct PerfettoTeTimestamp explicit_ts;
+  const struct PerfettoTeTimestamp* explicit_ts_ptr = nullptr;
+  if (has_timestamp) {
+    explicit_ts.clock_id = static_cast<uint32_t>(ReadI32(&p));
+    explicit_ts.value = ReadU64(&p);
+    explicit_ts_ptr = &explicit_ts;
+  }
   uint64_t leaf_track_uuid = ReadU64(&p);
 
   uint64_t uuids[kMaxTrackLevels];
@@ -130,7 +138,7 @@ static void EmitFromBuffer(jint type,
       category->get(), type, name, body, body_size, set_track_uuid,
       leaf_track_uuid, stored_tracks, uuids, parent_uuids, names,
       child_orderings, sibling_ranks, track_name_static, track_is_counter,
-      stored_interned, ifield_ids, itype_ids, istrs);
+      stored_interned, ifield_ids, itype_ids, istrs, explicit_ts_ptr);
 }
 
 // native_emit is @CriticalNative on ART (no JNIEnv/jclass, primitives only).
