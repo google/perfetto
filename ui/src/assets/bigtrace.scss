@@ -14,15 +14,6 @@
 
 @import "typefaces";
 @import "common";
-@import "home_page";
-@import "sidebar";
-@import "topbar";
-@import "help_modal";
-@import "theme_provider";
-
-// Components - keep these sorted alphabetically
-@import "components/datagrid";
-@import "components/query_history";
 
 // Plugin styles are imported by each plugin's index.ts via Vite's CSS pipeline.
 

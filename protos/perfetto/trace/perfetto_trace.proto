@@ -1364,6 +1364,8 @@ message EtwConfig {
   repeated string file_provider_events = 4;
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
+  // Provides events relating to disk I/O.
+  repeated string disk_provider_events = 6;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -8743,6 +8745,20 @@ message StackWalkEtwEvent {
   optional string trigger = 1;
   optional uint64 callstack_iid = 2;
 }
+
+// Proto definition based on the `DiskIo_TypeGroup1/2/3` class definitions.
+message DiskIoEtwEvent {
+  optional uint32 disk_number = 1;
+  optional uint32 irp_flags = 2;
+  optional uint32 transfer_size = 3;
+  optional int64 byte_offset = 4;
+  optional uint64 file_object = 5;
+  optional uint64 irp_ptr = 6;
+  optional int64 response_time = 7;
+  optional uint32 issuing_thread_id = 8;
+  optional uint32 opcode = 9;
+}
+
 // End of protos/perfetto/trace/etw/etw.proto
 
 // Begin of protos/perfetto/trace/etw/etw_event.proto
@@ -8764,6 +8780,7 @@ message EtwTraceEvent {
     FileIoOpEndEtwEvent file_io_op_end = 12;
     StackWalkEtwEvent stack_walk = 13;
     FileIoPathOperationEtwEvent file_io_path_operation = 14;
+    DiskIoEtwEvent disk_io = 15;
   }
 }
 
@@ -18263,15 +18280,26 @@ message TestEvent {
   }
   optional TestPayload payload = 5;
 
-  // Simple ProtoVm patch and incremental state formats used for integration
-  // testing
+  // Simple ProtoVm patch and incremental state formats used for testing
+  message ProtoVmMessage {
+    message ProtoVmSubmessage {
+      optional uint32 single_int = 1;
+    }
+    optional uint32 id = 1;
+    optional ProtoVmSubmessage submessage = 2;
+  }
   message ProtoVmPatch {
     optional string string_to_merge = 1;
     optional int32 int_to_merge = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
+    repeated uint32 delete_message_ids = 5;
   }
   message ProtoVmIncrementalState {
     optional string string_merged = 1;
     optional int32 int_merged = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
   }
   optional ProtoVmPatch protovm_patch = 6;
   optional ProtoVmIncrementalState protovm_incremental_state = 7;
