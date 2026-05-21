@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import './styles.scss';
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
+import {LiveSession} from './sessions/live_session';
+import './styles.scss';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
-import {LiveSession} from './sessions/live_session';
+import {MemoryOverviewPage} from './views/landing_page/landing_page';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
@@ -60,5 +62,32 @@ export default class implements PerfettoPlugin {
         }
       },
     });
+  }
+
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    const pageRoot = '/memoryoverview';
+
+    ctx.pages.registerPage({
+      route: pageRoot,
+      render: (subpage) =>
+        m(MemoryOverviewPage, {
+          trace: ctx,
+          subpage,
+          onSubpageChange: (subpage) => {
+            ctx.navigate(`#!${pageRoot}/${subpage}`);
+          },
+        }),
+    });
+
+    ctx.sidebar.addMenuItem({
+      section: 'current_trace',
+      sortOrder: 25,
+      text: 'Memory Overview',
+      href: `#!${pageRoot}`,
+      icon: 'memory',
+    });
+
+    // Make this page appear before the heap dump explorer page
+    ctx.initialPage.suggest(pageRoot, 500);
   }
 }

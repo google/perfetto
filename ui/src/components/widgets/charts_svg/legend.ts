@@ -80,13 +80,7 @@ export namespace ChartLegend {
           }),
         m('.pf-chart-svg__legend-name', name),
         value !== undefined &&
-          m(
-            '.pf-chart-svg__legend-value',
-            {
-              style: valueColor ? {color: valueColor} : undefined,
-            },
-            value,
-          ),
+          m('.pf-chart-svg__legend-value', {style: {color: valueColor}}, value),
       );
     },
   };
