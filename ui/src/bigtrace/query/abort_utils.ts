@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
-
-.pf-pivot-table {
-  &__total-values {
-    font-weight: bolder;
+// Forward `parent` aborts to `child`; returns a detacher (call in `finally`
+// to avoid leaking on long-lived parents). Already-aborted parent fires now.
+export function forwardAbort(
+  parent: AbortSignal,
+  child: AbortController,
+): () => void {
+  if (parent.aborted) {
+    child.abort(parent.reason);
+    return () => {};
   }
-
-  &__cell--indent {
-    display: inline-block;
-    width: 24px;
-  }
+  const handler = () => child.abort(parent.reason);
+  parent.addEventListener('abort', handler, {once: true});
+  return () => parent.removeEventListener('abort', handler);
 }

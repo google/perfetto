@@ -20,50 +20,9 @@ import type {
 } from '../../public/settings';
 import {LocalStorage} from '../../core/local_storage';
 import m from 'mithril';
+import {SettingImpl} from './setting_impl';
 
 export const BIGTRACE_SETTINGS_STORAGE_KEY = 'bigtraceSettings';
-
-export class SettingImpl<T> implements Setting<T> {
-  public readonly requiresReload?: boolean;
-  constructor(
-    private storage: LocalSettingsStorage,
-    public readonly id: string,
-    public readonly name: string,
-    public readonly description: string,
-    public readonly schema: z.ZodType<T>,
-    public readonly defaultValue: T,
-    requiresReload?: boolean,
-  ) {
-    this.requiresReload = requiresReload;
-  }
-
-  get isDefault(): boolean {
-    return this.get() === this.defaultValue;
-  }
-
-  get(): T {
-    const storedValue = this.storage.getStoredValue(this.id);
-    const parsed = this.schema.safeParse(storedValue);
-    if (parsed.success) {
-      return parsed.data;
-    }
-    return this.defaultValue;
-  }
-
-  set(value: T): void {
-    this.storage.setStoredValue(this.id, value);
-    m.redraw();
-  }
-
-  reset(): void {
-    this.storage.setStoredValue(this.id, this.defaultValue);
-    m.redraw();
-  }
-
-  [Symbol.dispose](): void {
-    // Not implemented
-  }
-}
 
 export class LocalSettingsStorage implements SettingsManager {
   private settings = new Map<string, Setting<unknown>>();
@@ -75,18 +34,17 @@ export class LocalSettingsStorage implements SettingsManager {
   }
 
   register<T>(descriptor: SettingDescriptor<T>): Setting<T> {
-    const setting = new SettingImpl(
-      this,
-      descriptor.id,
-      descriptor.name,
-      descriptor.description,
-      descriptor.schema,
-      descriptor.defaultValue,
-      descriptor.requiresReload,
-    );
-    this.settings.set(descriptor.id, setting);
+    const setting = new SettingImpl(this, {
+      id: descriptor.id,
+      name: descriptor.name,
+      description: descriptor.description,
+      schema: descriptor.schema,
+      defaultValue: descriptor.defaultValue,
+      requiresReload: descriptor.requiresReload,
+    });
+    this.settings.set(descriptor.id, setting as unknown as Setting<unknown>);
     this.initialValues.set(descriptor.id, setting.get());
-    return setting;
+    return setting as unknown as Setting<T>;
   }
 
   get<T>(id: string): Setting<T> | undefined {
