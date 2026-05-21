@@ -1030,19 +1030,22 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
       }
     };
     std::string current_pkg;
-    sql_modules::RegisteredPackage rp;
+    std::optional<sql_modules::RegisteredPackage> rp;
     for (const auto& f : SqlBundle(stdlib::kStdlib)) {
       std::string include_key = sql_modules::GetIncludeKey(f.path);
       std::string pkg = sql_modules::GetPackageName(include_key);
       if (pkg != current_pkg) {
-        if (!current_pkg.empty())
-          flush(current_pkg, std::move(rp));
+        if (rp.has_value()) {
+          flush(current_pkg, *std::move(rp));
+        }
+        rp = sql_modules::RegisteredPackage();
         current_pkg = std::move(pkg);
       }
-      rp.modules.Insert(std::move(include_key), f.sql_view());
+      rp->modules.Insert(std::move(include_key), f.sql_view());
     }
-    if (!current_pkg.empty())
-      flush(current_pkg, std::move(rp));
+    if (rp.has_value()) {
+      flush(current_pkg, *std::move(rp));
+    }
   }
 
   // Re-register user-added packages.
