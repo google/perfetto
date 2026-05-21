@@ -75,7 +75,7 @@ message GpuCounterDescriptor {
       // timestamp, matching standard Perfetto counters. Producers that emit
       // explicit zero samples to denote "no activity from here on" should
       // use this so the zero is not back-propagated over earlier non-zero
-      // samples (b/issues/5683).
+      // samples (https://github.com/google/perfetto/issues/5683).
       VALUE_DIRECTION_FORWARDS_LOOKING = 2;
     }
     optional ValueDirection value_direction = 11;
