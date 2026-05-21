@@ -15,7 +15,12 @@
 source_set("ipc") {
   public_deps = [
     "../../base",
-    "../core",
+
+    # Pull the slim core variant so the C SDK closure (which reaches
+    # this target via the system_backend -> tracing/ipc:common ->
+    # ext/tracing/ipc chain) doesn't transitively pull
+    # ext/tracing/core:core's full proto deps.
+    "../core:core_minimal",
   ]
   sources = [
     "consumer_ipc_client.h",

@@ -23,7 +23,12 @@ assert(enable_perfetto_ipc)
 
 source_set("common") {
   public_deps = [
-    "../../../include/perfetto/ext/tracing/core",
+    # The shared-memory headers used by the .cc sources below come from
+    # :core_minimal (shared_memory.h, shared_memory_abi.h). Keeping the
+    # public_dep on the slim variant prevents the C SDK closure from
+    # transitively pulling protos/perfetto/{common,config}:cpp full
+    # groups via ext/tracing/core:core's full deps.
+    "../../../include/perfetto/ext/tracing/core:core_minimal",
     "../../../include/perfetto/ext/tracing/ipc",
   ]
   sources = [
@@ -38,20 +43,20 @@ source_set("common") {
     ":default_socket",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/ipc",
-    "../../base",
-    "../core",
+    "../../base:base_minimal",
+    "../core:core_minimal",
   ]
 }
 
 source_set("default_socket") {
   sources = [ "default_socket.cc" ]
-  public_deps = [ "../../../include/perfetto/tracing" ]
+  public_deps = [ "../../../include/perfetto/tracing:tracing_minimal" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/ipc",
-    "../../../include/perfetto/ext/tracing/core",
-    "../../../include/perfetto/tracing",
-    "../../base",
+    "../../../include/perfetto/ext/tracing/core:core_minimal",
+    "../../../include/perfetto/tracing:tracing_minimal",
+    "../../base:base_minimal",
   ]
 }
 

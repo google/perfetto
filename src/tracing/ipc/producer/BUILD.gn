@@ -21,9 +21,9 @@ assert(enable_perfetto_ipc)
 # Provides an IPC transport over a UNIX socket for the producer interface.
 source_set("producer") {
   public_deps = [
-    "../../../../include/perfetto/ext/tracing/core",
+    "../../../../include/perfetto/ext/tracing/core:core_minimal",
     "../../../../include/perfetto/ext/tracing/ipc",
-    "../../../../include/perfetto/tracing",
+    "../../../../include/perfetto/tracing:tracing_minimal",
     "../../../../protos/perfetto/ipc",
   ]
   sources = [
@@ -33,9 +33,9 @@ source_set("producer") {
   deps = [
     "..:common",
     "../../../../gn:default_deps",
-    "../../../base",
+    "../../../base:base_minimal",
     "../../../base:version",
-    "../../core",
+    "../../core:core_minimal",
   ]
   if (perfetto_component_type == "static_library") {
     deps += [ "../../../ipc:perfetto_ipc" ]

@@ -12,39 +12,123 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
-# Proto messages that are required by the IPC service definitions but have also
-# a C++ counterpart in tracing/core (i.e. are used also for the non-IPC cases).
-perfetto_proto_library("@TYPE@") {
-  sources = [
-    "android_energy_consumer_descriptor.proto",
-    "android_log_constants.proto",
-    "builtin_clock.proto",
-    "commit_data_request.proto",
-    "data_source_descriptor.proto",
-    "descriptor.proto",
-    "ftrace_descriptor.proto",
-    "gpu_counter_descriptor.proto",
-    "interceptor_descriptor.proto",
-    "observable_events.proto",
-    "perf_events.proto",
-    "protolog_common.proto",
-    "sys_stats_counters.proto",
-    "system_info.proto",
-    "trace_attributes.proto",
-    "trace_stats.proto",
-    "tracing_service_capabilities.proto",
-    "tracing_service_state.proto",
-    "track_event_descriptor.proto",
-  ]
+# Common protos are split across three libraries so that the C SDK closure
+# can depend on a slim subset that doesn't pull in [lazy=true] referents:
+#
+#   :minimal_@TYPE@     — sources reachable from the C SDK closure under
+#                         src/{shared_lib,tracing}/. Generates zero + cpp.
+#                         pbzero forward-declares cross-file types and
+#                         cppgen honors [lazy=true] (skipping #includes
+#                         transitively, see
+#                         src/protozero/protoc_plugin/cppgen_plugin.cc).
+#                         Both can be split cleanly without needing the
+#                         lazy-imported .h files at compile time.
+#
+#   :non_minimal_@TYPE@ — sources imported only by per-domain trace/config
+#                         protos (themselves not in the C SDK closure) and
+#                         by no minimal common proto. Generates zero + cpp.
+#
+#   :lite_only_@TYPE@   — full source set; generates only `lite`. Lite is
+#                         upstream protobuf's standard cpp generator and
+#                         emits unconditional #includes for every import,
+#                         including [lazy=true] ones. Keeping all sources
+#                         in one library avoids cross-library .pb.h cycles
+#                         that would otherwise force lazy referents back
+#                         into the C SDK closure. The C SDK never depends
+#                         on :lite and so doesn't pay this size cost.
+#
+# Aggregator groups :@TYPE@ preserve the public surface: :zero / :cpp
+# fan out to minimal+non_minimal; :lite forwards to :lite_only_lite.
+
+minimal_proto_sources = [
+  "builtin_clock.proto",
+  "commit_data_request.proto",
+  "data_source_descriptor.proto",
+  "descriptor.proto",
+
+  # ftrace_descriptor and gpu_counter_descriptor are imported by
+  # data_source_descriptor.proto as [lazy = true] fields. cppgen elides
+  # the corresponding #include via lazy-skip, but Bazel's proto_library
+  # strict --direct_dependencies check rejects the import unless the
+  # files are reachable through srcs / direct deps. Putting them in
+  # the minimal sibling here means the C SDK pays ~24KB of .gen.cc
+  # source for two protos that runtime never accesses — small relative
+  # to the rest of the stack's ~6MB savings.
+  "ftrace_descriptor.proto",
+  "gpu_counter_descriptor.proto",
+  "interceptor_descriptor.proto",
+  "observable_events.proto",
+  "system_info.proto",
+  "trace_stats.proto",
+  "tracing_service_capabilities.proto",
+  "tracing_service_state.proto",
+  "track_event_descriptor.proto",
+]
+
+non_minimal_proto_sources = [
+  "android_energy_consumer_descriptor.proto",
+  "android_log_constants.proto",
+  "perf_events.proto",
+  "protolog_common.proto",
+  "sys_stats_counters.proto",  # only referenced by sys_stats config + trace
+  "trace_attributes.proto",
+]
+
+perfetto_proto_library("minimal_@TYPE@") {
+  sources = minimal_proto_sources
   proto_generators = [
-    "lite",
     "zero",
     "cpp",
   ]
   deps = [ "../protovm:@TYPE@" ]
+}
+
+perfetto_proto_library("non_minimal_@TYPE@") {
+  sources = non_minimal_proto_sources
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
+}
+
+perfetto_proto_library("lite_only_@TYPE@") {
+  sources = minimal_proto_sources + non_minimal_proto_sources
+  proto_generators = [ "lite" ]
+  deps = [ "../protovm:@TYPE@" ]
+}
+
+group("zero") {
+  public_deps = [
+    ":minimal_zero",
+    ":non_minimal_zero",
+  ]
+}
+
+group("cpp") {
+  public_deps = [
+    ":minimal_cpp",
+    ":non_minimal_cpp",
+  ]
+}
+
+group("lite") {
+  public_deps = [ ":lite_only_lite" ]
+}
+
+# Build-graph aggregator for the :source_set auto-target produced by the
+# perfetto_proto_library template. Consumers that depend on `xxx:@TYPE@`
+# get a transitive dep on `xxx:source_set` (see proto_library.gni:319-323),
+# so this group has to exist for the C SDK closure to build cleanly when
+# something depends on `protos/perfetto/common:zero` etc. Aggregating only
+# minimal+non_minimal is sufficient — :lite_only_source_set has the same
+# .proto files as the union of those two.
+group("source_set") {
+  public_deps = [
+    ":minimal_source_set",
+    ":non_minimal_source_set",
+  ]
 }
 
 # Semantic types for proto field filtering. This is separate from the main
