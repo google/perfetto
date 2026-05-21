@@ -282,7 +282,7 @@ async function loadTraceIntoEngine(
   // traces.
   if (!hasJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
     const reliableRangeStart = await computeTraceReliableRangeStart(engine);
-    if (reliableRangeStart > 0) {
+    if (reliableRangeStart !== null && reliableRangeStart > 0) {
       trace.notes.addNote({
         timestamp: reliableRangeStart,
         color: '#ff0000',
@@ -444,12 +444,14 @@ async function computeFtraceBounds(engine: Engine): Promise<TimeSpan | null> {
   return null;
 }
 
-async function computeTraceReliableRangeStart(engine: Engine): Promise<time> {
+async function computeTraceReliableRangeStart(
+  engine: Engine,
+): Promise<time | null> {
   const result =
     await engine.query(`SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
        SELECT start FROM chrome_reliable_range`);
-  const bounds = result.firstRow({start: LONG});
-  return Time.fromRaw(bounds.start);
+  const {start} = result.firstRow({start: LONG_NULL});
+  return start === null ? null : Time.fromRaw(start);
 }
 
 async function computeVisibleTime(
@@ -474,7 +476,9 @@ async function computeVisibleTime(
   // traces.
   if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG.get()) {
     const reliableRangeStart = await computeTraceReliableRangeStart(engine);
-    visibleStart = Time.max(visibleStart, reliableRangeStart);
+    if (reliableRangeStart !== null) {
+      visibleStart = Time.max(visibleStart, reliableRangeStart);
+    }
   }
 
   // Move start of visible window to the first ftrace event

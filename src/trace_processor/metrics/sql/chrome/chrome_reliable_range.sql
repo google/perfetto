@@ -158,24 +158,37 @@ DROP VIEW IF EXISTS chrome_reliable_range;
 CREATE PERFETTO VIEW chrome_reliable_range
 AS
 SELECT
-  -- If the trace has a cropping packet, we don't want to recompute the reliable
-  -- based on cropped track events - the result might be incorrect.
-  IFNULL(_extract_int_metadata('range_of_interest_start_us') * 1000,
-         MAX(thread_start, data_loss_free_start)) AS start,
-  IIF(_extract_int_metadata('range_of_interest_start_us') IS NOT NULL,
-      'Range of interest packet',
-      IIF(limiting_upid IN (SELECT upid FROM chrome_processes_with_missing_main),
-          'Missing main thread for upid=' || limiting_upid,
-          IIF(thread_start >= data_loss_free_start,
-              'First slice for utid=' || limiting_utid,
-               'Missing process data for upid=' || limiting_upid))) AS reason,
-  limiting_upid AS debug_limiting_upid,
-  limiting_utid AS debug_limiting_utid
-FROM
-  (SELECT
-    COALESCE(MAX(start), 0) AS thread_start,
-    utid AS limiting_utid,
-    COALESCE((SELECT start FROM chrome_processes_data_loss_free_period), 0) AS data_loss_free_start,
-    (SELECT limiting_upid FROM chrome_processes_data_loss_free_period) AS limiting_upid
-    FROM chrome_reliable_range_per_thread
-    WHERE has_first_packet_on_sequence = 0);
+  -- If the computed start would be at or past the end of the trace, the
+  -- "reliable range" is empty: no part of the trace is reliable. Return NULL
+  -- so consumers can distinguish "nothing reliable" from "reliable from time
+  -- T". `reason` is still populated to explain why.
+  IIF(raw_start >= COALESCE((SELECT MAX(ts + dur) FROM slice), raw_start + 1),
+      NULL, raw_start) AS start,
+  reason,
+  debug_limiting_upid,
+  debug_limiting_utid
+FROM (
+  SELECT
+    -- If the trace has a cropping packet, we don't want to recompute the
+    -- reliable range based on cropped track events - the result might be
+    -- incorrect.
+    IFNULL(_extract_int_metadata('range_of_interest_start_us') * 1000,
+           MAX(thread_start, data_loss_free_start)) AS raw_start,
+    IIF(_extract_int_metadata('range_of_interest_start_us') IS NOT NULL,
+        'Range of interest packet',
+        IIF(limiting_upid IN (SELECT upid FROM chrome_processes_with_missing_main),
+            'Missing main thread for upid=' || limiting_upid,
+            IIF(thread_start >= data_loss_free_start,
+                'First slice for utid=' || limiting_utid,
+                 'Missing process data for upid=' || limiting_upid))) AS reason,
+    limiting_upid AS debug_limiting_upid,
+    limiting_utid AS debug_limiting_utid
+  FROM
+    (SELECT
+      COALESCE(MAX(start), 0) AS thread_start,
+      utid AS limiting_utid,
+      COALESCE((SELECT start FROM chrome_processes_data_loss_free_period), 0) AS data_loss_free_start,
+      (SELECT limiting_upid FROM chrome_processes_data_loss_free_period) AS limiting_upid
+      FROM chrome_reliable_range_per_thread
+      WHERE has_first_packet_on_sequence = 0)
+);
