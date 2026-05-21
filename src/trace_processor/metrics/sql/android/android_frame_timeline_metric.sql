@@ -78,6 +78,7 @@ frames_per_vsync AS (
     vsync,
     MAX(missed_app_frame) AS missed_app_frame,
     MAX(missed_sf_frame) AS missed_sf_frame,
+    MAX(missed_frame) AS missed_frame,
     IFNULL(MAX(ABS(jank_score)), 0) AS jank_score
   FROM frames
   GROUP BY upid, vsync
