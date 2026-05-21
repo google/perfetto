@@ -3415,7 +3415,7 @@ class AndroidGameInterventionListConfig(_message.Message):
     def __init__(self, package_name_filter: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class AndroidInputEventConfig(_message.Message):
-    __slots__ = ("mode", "rules", "trace_dispatcher_input_events", "trace_dispatcher_window_dispatch")
+    __slots__ = ("mode", "rules", "trace_dispatcher_input_events", "trace_dispatcher_window_dispatch", "trace_evdev_events")
     class TraceMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         TRACE_MODE_TRACE_ALL: _ClassVar[AndroidInputEventConfig.TraceMode]
@@ -3447,11 +3447,13 @@ class AndroidInputEventConfig(_message.Message):
     RULES_FIELD_NUMBER: _ClassVar[int]
     TRACE_DISPATCHER_INPUT_EVENTS_FIELD_NUMBER: _ClassVar[int]
     TRACE_DISPATCHER_WINDOW_DISPATCH_FIELD_NUMBER: _ClassVar[int]
+    TRACE_EVDEV_EVENTS_FIELD_NUMBER: _ClassVar[int]
     mode: AndroidInputEventConfig.TraceMode
     rules: _containers.RepeatedCompositeFieldContainer[AndroidInputEventConfig.TraceRule]
     trace_dispatcher_input_events: bool
     trace_dispatcher_window_dispatch: bool
-    def __init__(self, mode: _Optional[_Union[AndroidInputEventConfig.TraceMode, str]] = ..., rules: _Optional[_Iterable[_Union[AndroidInputEventConfig.TraceRule, _Mapping]]] = ..., trace_dispatcher_input_events: bool = ..., trace_dispatcher_window_dispatch: bool = ...) -> None: ...
+    trace_evdev_events: bool
+    def __init__(self, mode: _Optional[_Union[AndroidInputEventConfig.TraceMode, str]] = ..., rules: _Optional[_Iterable[_Union[AndroidInputEventConfig.TraceRule, _Mapping]]] = ..., trace_dispatcher_input_events: bool = ..., trace_dispatcher_window_dispatch: bool = ..., trace_evdev_events: bool = ...) -> None: ...
 
 class AndroidLogConfig(_message.Message):
     __slots__ = ("log_ids", "min_prio", "filter_tags", "preserve_log_buffer")
@@ -20271,20 +20273,42 @@ class TestEvent(_message.Message):
         remaining_nesting_depth: int
         debug_annotations: _containers.RepeatedCompositeFieldContainer[DebugAnnotation]
         def __init__(self, str: _Optional[_Iterable[str]] = ..., nested: _Optional[_Iterable[_Union[TestEvent.TestPayload, _Mapping]]] = ..., single_string: _Optional[str] = ..., single_int: _Optional[int] = ..., repeated_ints: _Optional[_Iterable[int]] = ..., remaining_nesting_depth: _Optional[int] = ..., debug_annotations: _Optional[_Iterable[_Union[DebugAnnotation, _Mapping]]] = ...) -> None: ...
+    class ProtoVmMessage(_message.Message):
+        __slots__ = ("id", "submessage")
+        class ProtoVmSubmessage(_message.Message):
+            __slots__ = ("single_int",)
+            SINGLE_INT_FIELD_NUMBER: _ClassVar[int]
+            single_int: int
+            def __init__(self, single_int: _Optional[int] = ...) -> None: ...
+        ID_FIELD_NUMBER: _ClassVar[int]
+        SUBMESSAGE_FIELD_NUMBER: _ClassVar[int]
+        id: int
+        submessage: TestEvent.ProtoVmMessage.ProtoVmSubmessage
+        def __init__(self, id: _Optional[int] = ..., submessage: _Optional[_Union[TestEvent.ProtoVmMessage.ProtoVmSubmessage, _Mapping]] = ...) -> None: ...
     class ProtoVmPatch(_message.Message):
-        __slots__ = ("string_to_merge", "int_to_merge")
+        __slots__ = ("string_to_merge", "int_to_merge", "single_message", "messages", "delete_message_ids")
         STRING_TO_MERGE_FIELD_NUMBER: _ClassVar[int]
         INT_TO_MERGE_FIELD_NUMBER: _ClassVar[int]
+        SINGLE_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+        MESSAGES_FIELD_NUMBER: _ClassVar[int]
+        DELETE_MESSAGE_IDS_FIELD_NUMBER: _ClassVar[int]
         string_to_merge: str
         int_to_merge: int
-        def __init__(self, string_to_merge: _Optional[str] = ..., int_to_merge: _Optional[int] = ...) -> None: ...
+        single_message: TestEvent.ProtoVmMessage
+        messages: _containers.RepeatedCompositeFieldContainer[TestEvent.ProtoVmMessage]
+        delete_message_ids: _containers.RepeatedScalarFieldContainer[int]
+        def __init__(self, string_to_merge: _Optional[str] = ..., int_to_merge: _Optional[int] = ..., single_message: _Optional[_Union[TestEvent.ProtoVmMessage, _Mapping]] = ..., messages: _Optional[_Iterable[_Union[TestEvent.ProtoVmMessage, _Mapping]]] = ..., delete_message_ids: _Optional[_Iterable[int]] = ...) -> None: ...
     class ProtoVmIncrementalState(_message.Message):
-        __slots__ = ("string_merged", "int_merged")
+        __slots__ = ("string_merged", "int_merged", "single_message", "messages")
         STRING_MERGED_FIELD_NUMBER: _ClassVar[int]
         INT_MERGED_FIELD_NUMBER: _ClassVar[int]
+        SINGLE_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+        MESSAGES_FIELD_NUMBER: _ClassVar[int]
         string_merged: str
         int_merged: int
-        def __init__(self, string_merged: _Optional[str] = ..., int_merged: _Optional[int] = ...) -> None: ...
+        single_message: TestEvent.ProtoVmMessage
+        messages: _containers.RepeatedCompositeFieldContainer[TestEvent.ProtoVmMessage]
+        def __init__(self, string_merged: _Optional[str] = ..., int_merged: _Optional[int] = ..., single_message: _Optional[_Union[TestEvent.ProtoVmMessage, _Mapping]] = ..., messages: _Optional[_Iterable[_Union[TestEvent.ProtoVmMessage, _Mapping]]] = ...) -> None: ...
     STR_FIELD_NUMBER: _ClassVar[int]
     SEQ_VALUE_FIELD_NUMBER: _ClassVar[int]
     COUNTER_FIELD_NUMBER: _ClassVar[int]
