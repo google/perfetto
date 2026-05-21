@@ -34,6 +34,9 @@ export const ALL_BUNDLES = [
 // doesn't intercept.
 export const WORKER_BUNDLES = ['engine', 'traceconv'];
 
+// Optional bundles, only built when the corresponding flag is passed.
+export const OPEN_PERFETTO_TRACE_BUNDLE = 'open_perfetto_trace';
+
 // Runs `vite build` in-process for each named bundle. The config file
 // (ui/vite.config.mjs) selects its input from process.env.BUNDLE, so we set
 // that before each call. Bundles are built sequentially: vite-plugin-checker
@@ -68,7 +71,14 @@ export async function viteBuild({rootDir, bundles, mode}) {
 //     (wasm modules, fonts under /assets/, etc.).
 //   - / and /index.html serve the patched ui/src/assets/index.html via
 //     server.transformIndexHtml so pluginPatchIndexHtml fires.
-export async function viteDev({rootDir, outDir, version, port}) {
+export async function viteDev({
+  rootDir,
+  outDir,
+  version,
+  host = '127.0.0.1',
+  port,
+  crossOriginIsolation = false,
+}) {
   // Static files (wasm, fonts, etc.) live under dist/v<version>/. We serve
   // them at root-relative URLs in dev because the patched index.html sets
   // version='.' (see pluginPatchIndexHtml).
@@ -78,12 +88,19 @@ export async function viteDev({rootDir, outDir, version, port}) {
   process.chdir(pjoin(rootDir, 'ui'));
   let server;
   try {
+    const headers = crossOriginIsolation
+      ? {
+          'Cross-Origin-Opener-Policy': 'same-origin',
+          'Cross-Origin-Embedder-Policy': 'require-corp',
+        }
+      : undefined;
     server = await vite.createServer({
       configFile: pjoin(rootDir, 'ui/vite.config.mjs'),
       server: {
-        host: '127.0.0.1',
+        host,
         port,
         strictPort: false,
+        headers,
         fs: {allow: [rootDir]},
       },
     });

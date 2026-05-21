@@ -17,6 +17,7 @@
 // index.html.
 
 import {spawnSync} from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {buildWasm, copySyntaqliteRuntime} from './build_wasm.mjs';
@@ -45,8 +46,20 @@ const PROTO_INPUTS = [
   'protos/perfetto/trace_processor/trace_processor.proto',
 ];
 
-export async function prebuild({rootDir, outDir, version}) {
-  await checkBuildDeps({rootDir, outDir});
+export async function prebuild({
+  rootDir,
+  outDir,
+  version,
+  debug = false,
+  skipWasm = false,
+  skipDepscheck = false,
+  noOverrideGnArgs = false,
+  onlyWasmMemory64 = false,
+  titleOverride = '',
+}) {
+  if (!skipDepscheck) {
+    await checkBuildDeps({rootDir, outDir});
+  }
 
   // Wipe the UI out dir for a clean prod build. Done up front so both
   // prebuild and prod write into a known-empty tree.
@@ -64,23 +77,29 @@ export async function prebuild({rootDir, outDir, version}) {
   // coexist in the GCS bucket and clients can swap atomically.
   const distDir = ensureDir(pjoin(distRootDir, version));
   const genDir = ensureDir(pjoin(outDir, 'tsc/gen'));
-  // Generated .js under tsc/gen (e.g. protos.js) does `require('protobufjs')`
-  // etc. Node's resolver walks up from the file's directory; without this
-  // symlink it never finds the real node_modules under ui/.
-  const nodeModulesLink = pjoin(outDir, 'tsc/node_modules');
-  if (!fs.existsSync(nodeModulesLink)) {
-    fs.symlinkSync(pjoin(rootDir, 'ui/node_modules'), nodeModulesLink);
-  }
+
+  await runInProcStep('update symlinks', () =>
+    updateSymlinks({rootDir, outDir, genDir}),
+  );
 
   const run = (label, cmd, args) =>
     runStep(label, cmd, args, {cwd: pjoin(rootDir, 'ui')});
+
+  // memory64 always builds; the regular trace_processor is optional so
+  // --only-wasm-memory64 can shave time off when iterating on it.
+  const wasmModules = onlyWasmMemory64
+    ? WASM_MODULES.filter((m) => m !== 'trace_processor')
+    : WASM_MODULES;
 
   await buildWasm({
     rootDir,
     ninjaOutDir,
     distDir,
     genDir,
-    wasmModules: WASM_MODULES,
+    wasmModules,
+    debug,
+    skipBuild: skipWasm,
+    noOverrideGnArgs,
     run,
   });
   await copySyntaqliteRuntime({rootDir, distRootDir: distDir, run});
@@ -94,10 +113,40 @@ export async function prebuild({rootDir, outDir, version}) {
     }),
   );
   await runInProcStep('write index.html', () =>
-    writeIndexHtml({rootDir, distRootDir, distDir, version}),
+    writeIndexHtml({rootDir, distRootDir, distDir, version, titleOverride}),
   );
 
   return {distRootDir, distDir, genDir};
+}
+
+// Sets up the symlinks that the rest of the build (Vite config, tsc, runtime
+// asset loading) assumes. Recreated each build to keep them pointing at the
+// current outDir.
+function updateSymlinks({rootDir, outDir, genDir}) {
+  // ui/out → <outDir> (Vite uses ui/out as a stable path to the build dir).
+  mklink(outDir, pjoin(rootDir, 'ui/out'));
+  // ui/src/gen → <genDir> (TS imports resolve `gen/protos` etc through this).
+  mklink(genDir, pjoin(rootDir, 'ui/src/gen'));
+  // tsc/node_modules → ui/node_modules (the generated .js in tsc/gen does
+  // require('protobufjs'); Node walks up from the file's dir looking for
+  // node_modules).
+  mklink(
+    pjoin(rootDir, 'ui/node_modules'),
+    pjoin(outDir, 'tsc', 'node_modules'),
+  );
+}
+
+// Creates or updates a symlink at |dst| pointing to |src|. No-op if it
+// already points at the right place (avoids touching mtimes).
+function mklink(src, dst) {
+  if (fs.existsSync(dst)) {
+    if (fs.lstatSync(dst).isSymbolicLink() && fs.readlinkSync(dst) === src) {
+      return;
+    }
+    fs.unlinkSync(dst);
+  }
+  ensureDir(path.dirname(dst));
+  fs.symlinkSync(src, dst);
 }
 
 // Checks buildtools/ matches the pinned versions in tools/install-build-deps.
@@ -198,9 +247,47 @@ function copyStaticAssets({rootDir, distRootDir, extDir}) {
 //     'stable' channel to this build, ensuring the channel loader picks the
 //     locally-built bundles instead of whatever's cached in localStorage or
 //     baked into the source index.html.
-function writeIndexHtml({rootDir, distRootDir, distDir, version}) {
+// Walks |distDir| and writes a manifest.json mapping each relative path to
+// its sha256. The service worker reads this to validate cached files. Skips
+// source maps, the manifest itself, and the archival index.html (only the
+// root /index.html is fetched by the SW).
+export function genServiceWorkerManifestJson({distDir}) {
+  const manifest = {resources: {}};
+  const skipRegex = /(\.map|manifest\.json|index\.html)$/;
+  const walk = (dir) => {
+    for (const child of fs.readdirSync(dir)) {
+      const childPath = pjoin(dir, child);
+      const stat = fs.lstatSync(childPath);
+      if (skipRegex.test(child)) continue;
+      if (stat.isDirectory()) {
+        walk(childPath);
+      } else if (!stat.isSymbolicLink()) {
+        const contents = fs.readFileSync(childPath);
+        const relPath = path.relative(distDir, childPath);
+        const b64 = crypto
+          .createHash('sha256')
+          .update(contents)
+          .digest('base64');
+        manifest.resources[relPath] = 'sha256-' + b64;
+      }
+    }
+  };
+  walk(distDir);
+  fs.writeFileSync(
+    pjoin(distDir, 'manifest.json'),
+    JSON.stringify(manifest, null, 2),
+  );
+}
+
+function writeIndexHtml({rootDir, distRootDir, distDir, version, titleOverride}) {
   const src = pjoin(rootDir, 'ui/src/assets/index.html');
-  const html = fs.readFileSync(src, 'utf8');
+  let html = fs.readFileSync(src, 'utf8');
+  if (titleOverride) {
+    html = html.replace(
+      /<title>[^<]*<\/title>/,
+      `<title>${titleOverride}</title>`,
+    );
+  }
   fs.writeFileSync(pjoin(distDir, 'index.html'), html);
   const versionMap = JSON.stringify({stable: version});
   const patched = html.replace(
