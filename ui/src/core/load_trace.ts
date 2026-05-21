@@ -474,7 +474,13 @@ async function computeVisibleTime(
   // traces.
   if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG.get()) {
     const reliableRangeStart = await computeTraceReliableRangeStart(engine);
-    visibleStart = Time.max(visibleStart, reliableRangeStart);
+    // If the reliable range starts at or past the current visible end,
+    // applying it would produce a span with negative duration. Skip the
+    // adjustment in that case (e.g. traces where the reliable-range query
+    // returns trace_end because some process data is missing).
+    if (reliableRangeStart < visibleEnd) {
+      visibleStart = Time.max(visibleStart, reliableRangeStart);
+    }
   }
 
   // Move start of visible window to the first ftrace event
