@@ -73,7 +73,7 @@ Create a directory under `ai/skills/` whose name follows the
 
 ```markdown
 ---
-name: perfetto_infra_querying_traces
+name: perfetto-infra-querying-traces
 description: Use when the user wants to load a Perfetto trace, run
   a SQL query against it, or discover which tables and columns are
   available. Covers trace_processor invocation and the PerfettoSQL
@@ -85,8 +85,10 @@ description: Use when the user wants to load a Perfetto trace, run
 
 Guidelines:
 
-- **`name`** must equal the directory slug. Agents key off the
-  frontmatter name and discovery is a single level deep.
+- **`name`** must be the dashed version of the directory slug (e.g.,
+  `perfetto-infra-querying-traces` for the `perfetto_infra_querying_traces`
+  directory). Agents key off the frontmatter name and discovery is a
+  single level deep.
 - **`description`** must clearly state *when* the skill should be
   invoked. The agent uses this line to decide whether the skill is
   relevant, so be specific about the trigger conditions, not just

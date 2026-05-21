@@ -30,17 +30,21 @@ export function renderSetting(setting: Setting<unknown>): m.Children {
 
   switch (setting.type) {
     case 'number':
+      // Commit on every keystroke so an unrelated Mithril redraw doesn't
+      // wipe the user's typed value.
+      const commitNumber = (value: string) => {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          setting.set(numValue);
+        }
+      };
       return m(TextInput, {
         type: 'number',
         value: String(currentValue),
         placeholder: setting.placeholder,
         disabled,
-        onChange: (value: string) => {
-          const numValue = parseFloat(value);
-          if (!isNaN(numValue)) {
-            setting.set(numValue);
-          }
-        },
+        onInput: commitNumber,
+        onChange: commitNumber,
       });
     case 'string':
       if (setting.format === 'sql') {
@@ -57,6 +61,10 @@ export function renderSetting(setting: Setting<unknown>): m.Children {
         value: String(currentValue),
         placeholder: setting.placeholder,
         disabled,
+        // Commit on every keystroke so Run-click doesn't race blur.
+        onInput: (value: string) => {
+          setting.set(value);
+        },
         onChange: (value: string) => {
           setting.set(value);
         },

@@ -2660,6 +2660,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_etw_minimal",
     srcs = [
+        "src/trace_processor/importers/etw/disk_io_tracker.cc",
+        "src/trace_processor/importers/etw/disk_io_tracker.h",
         "src/trace_processor/importers/etw/etw_module.cc",
         "src/trace_processor/importers/etw/etw_module.h",
         "src/trace_processor/importers/etw/file_io_tracker.cc",
@@ -3917,6 +3919,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/intervals/create_intervals.sql",
+        "src/trace_processor/perfetto_sql/stdlib/intervals/fill_gaps.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/mipmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",

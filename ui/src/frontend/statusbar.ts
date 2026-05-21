@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './statusbar.scss';
 import m from 'mithril';
 import {featureFlags} from '../core/feature_flags';
 import {Button, ButtonVariant} from '../widgets/button';

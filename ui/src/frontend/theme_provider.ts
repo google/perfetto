@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './theme_provider.scss';
 import m from 'mithril';
 
 interface ThemeProviderAttrs {
