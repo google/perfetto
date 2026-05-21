@@ -22,12 +22,15 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -195,6 +198,14 @@ class PerfettoSqlConnection {
     bool deterministic = true;
     std::optional<int> argc =
         std::nullopt;  // If nullopt, uses Function::kArgCount
+    // True for built-in C++ functions registered at initialization time, where
+    // |ctx| is an opaque pointer whose layout is known only to the registrant.
+    // False for functions managed by PerfettoSQL (currently CreatedFunction),
+    // where |ctx| is a Destructible-derived state object that
+    // |RegisterLegacyRuntimeFunction| may recover via a typed downcast. Default
+    // true so that new registrants never accidentally advertise type-safety
+    // they cannot deliver.
+    bool is_intrinsic = true;
   };
 
   template <typename Function>
@@ -367,7 +378,23 @@ class PerfettoSqlConnection {
       SqliteConnection::Fn* func,
       void* ctx,
       SqliteConnection::FnCtxDestructor* ctx_destructor,
-      bool deterministic);
+      bool deterministic,
+      bool is_intrinsic = true);
+
+  // Looks up |ctx| for the function with the given name/argc, or nullptr if no
+  // such function is registered with this connection. Membership in
+  // |fn_registry_| is also the only safe signal that a SQLite function context
+  // belongs to a typed Destructible-derived state (use |IsIntrinsicFunction|
+  // to distinguish): SqliteConnection itself does not track this.
+  void* GetFunctionContextOrNull(const std::string& name, int argc) const;
+
+  // Returns true if a function with the given name/argc is registered with
+  // this connection AND was registered as an intrinsic. Returns false either
+  // when the function is not registered or when it was registered as a
+  // managed-context PerfettoSQL function (currently only CreatedFunction).
+  // Callers MUST consult this before downcasting the result of
+  // |GetFunctionContextOrNull| to a typed Destructible-derived object.
+  bool IsIntrinsicFunction(const std::string& name, int argc) const;
 
   base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
                               const PerfettoSqlParser& parser);
@@ -411,7 +438,7 @@ class PerfettoSqlConnection {
   // database; returns OkStatus on already-included, an error on poisoned,
   // or pushes an include frame on the execution stack on a fresh claim.
   base::Status IncludeModuleImpl(const std::string& key,
-                                 const std::string& sql,
+                                 std::string_view sql,
                                  const PerfettoSqlParser&);
 
   // Returns true iff |key| is the |include_key| of an active |kInclude|
@@ -470,8 +497,9 @@ class PerfettoSqlConnection {
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
 
-  // Registry of intrinsic functions that can be aliased
-  // Maps intrinsic_name -> (function_ptr, argc, ctx, deterministic)
+  // Registry of intrinsic functions that can be aliased.
+  // Maps lowercased name -> (function_ptr, argc, ctx, deterministic). Keys are
+  // lowercased to match SQLite's case-insensitive function namespace.
   struct IntrinsicFunctionInfo {
     SqliteConnection::Fn* func;
     int argc;
@@ -480,6 +508,31 @@ class PerfettoSqlConnection {
   };
   base::FlatHashMap<std::string, IntrinsicFunctionInfo>
       intrinsic_function_registry_;
+
+  // Tracks every scalar function registered with |connection_| via
+  // |RegisterFunctionAndAddToRegistry|, keyed by (name, argc). Used for two
+  // things:
+  //
+  // 1) Discrimination: |is_intrinsic| tells us whether |ctx| is opaque (raw
+  //    C++ intrinsic, e.g. import's PerfettoSqlConnection*) or a typed
+  //    Destructible-derived state (CreatedFunction). Looking at SQLite alone
+  //    can't tell the difference, which is what historically allowed
+  //    CREATE OR REPLACE PERFETTO FUNCTION import(...) to type-confuse the
+  //    intrinsic's context with a CreatedFunction::State.
+  //
+  // 2) Teardown: scalar function contexts can hold prepared statements
+  //    (CreatedFunction::State::stmts_); those must be finalized before the
+  //    underlying sqlite3* is closed. The destructor walks this map and
+  //    explicitly unregisters every entry, which triggers SQLite to invoke
+  //    each entry's |FnCtxDestructor| in turn.
+  struct FunctionEntry {
+    void* ctx;
+    bool is_intrinsic;
+  };
+  base::FlatHashMap<std::pair<std::string, int>,
+                    FunctionEntry,
+                    base::MurmurHash<std::pair<std::string, int>>>
+      fn_registry_;
 
   std::unique_ptr<SqliteConnection> connection_;
 };
@@ -496,7 +549,8 @@ base::Status PerfettoSqlConnection::RegisterFunction(
   const char* name = args.name ? args.name : Function::kName;
   int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
   return RegisterFunctionAndAddToRegistry(name, argc, Function::Step, ctx,
-                                          nullptr, args.deterministic);
+                                          nullptr, args.deterministic,
+                                          args.is_intrinsic);
 }
 
 template <typename Function>
@@ -512,7 +566,7 @@ base::Status PerfettoSqlConnection::RegisterFunction(
         std::unique_ptr<typename Function::UserData>(
             static_cast<typename Function::UserData*>(ptr));
       },
-      args.deterministic);
+      args.deterministic, args.is_intrinsic);
 }
 
 template <typename Function>

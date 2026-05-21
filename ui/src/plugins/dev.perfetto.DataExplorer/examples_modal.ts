@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {closeModal, showModal} from '../../widgets/modal';
-import {EXAMPLE_GRAPHS, ExampleGraph} from './example_graphs';
+import {EXAMPLE_GRAPHS, type ExampleGraph} from './example_graphs';
 import {Card} from '../../widgets/card';
 import {Icon} from '../../widgets/icon';
 

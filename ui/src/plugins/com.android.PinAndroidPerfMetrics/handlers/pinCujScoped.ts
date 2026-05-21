@@ -14,12 +14,12 @@
 
 import {
   expandProcessName,
-  CujScopedMetricData,
-  MetricHandler,
-  JankType,
+  type CujScopedMetricData,
+  type MetricHandler,
+  type JankType,
 } from './metricUtils';
 import {NUM} from '../../../trace_processor/query_result';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 
 // TODO(primiano): make deps check stricter, we shouldn't allow plugins to
 // depend on each other.

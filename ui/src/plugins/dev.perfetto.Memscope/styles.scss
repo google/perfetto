@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "./components/billboard.scss";
-@import "./components/color_chip.scss";
-@import "./components/panel.scss";
-@import "./views/dashboard.scss";
-
 .pf-memscope-page__container {
   display: flex;
   flex-direction: column;
@@ -48,16 +43,7 @@
     font-weight: 700;
     text-transform: uppercase;
     align-self: center;
-
-    // Fancy gradient background clipped to the text.
-    background: linear-gradient(
-      45deg,
-      var(--pf-color-primary),
-      var(--pf-color-success)
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--pf-color-text-muted);
   }
 }
 

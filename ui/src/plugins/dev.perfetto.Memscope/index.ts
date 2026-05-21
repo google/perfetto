@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
@@ -52,7 +53,7 @@ export default class implements PerfettoPlugin {
         } else {
           return m(ConnectionPage, {
             onConnected: (result) => {
-              session = new LiveSession(result);
+              session = new LiveSession(app, result);
               session.onSnapshot(() => m.redraw());
             },
           });

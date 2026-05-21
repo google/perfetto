@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {okResult, Result} from '../../base/result';
+import {okResult, type Result} from '../../base/result';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 
 /**

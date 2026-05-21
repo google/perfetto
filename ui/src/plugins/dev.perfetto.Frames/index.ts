@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {App} from '../../public/app';
+import type {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
@@ -26,7 +26,7 @@ import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   FrameSelectionAggregator,
 } from './frame_selection_aggregator';
-import {Setting} from '../../public/settings';
+import type {Setting} from '../../public/settings';
 import {z} from 'zod';
 
 // Build a standardized URI for a frames track

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Transform1D, Transform2D} from '../geom';
+import type {Transform1D, Transform2D} from '../geom';
 import {
   RECT_PATTERN_FADE_RIGHT,
   RECT_PATTERN_HATCHED,
-  RowLayout,
-  SliceBuffers,
+  type RowLayout,
+  type SliceBuffers,
 } from '../renderer';
 import {createBuffer, createProgram, getUniformLocation} from './gl';
 

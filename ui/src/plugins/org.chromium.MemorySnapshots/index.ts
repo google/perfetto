@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Select} from '../../widgets/select';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';

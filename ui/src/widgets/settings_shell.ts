@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './settings_shell.scss';
 import m from 'mithril';
-import {classForIntent, HTMLAttrs, Intent} from './common';
+import {classForIntent, type HTMLAttrs, type Intent} from './common';
 import {assertExists} from '../base/assert';
 import {Card} from './card';
 import {classNames} from '../base/classnames';

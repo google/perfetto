@@ -16,13 +16,13 @@ import m from 'mithril';
 import {searchTrackEvents} from '../../core/dataset_search';
 import {
   compareSearchResults,
-  SearchResultDifference,
-  SearchResultEvent,
+  type SearchResultDifference,
+  type SearchResultEvent,
 } from '../../core/search_result_utils';
 import {executeSqlSearch} from '../../core/sql_search';
-import {TrackManagerImpl} from '../../core/track_manager';
-import {SearchProvider} from '../../public/search';
-import {Trace} from '../../public/trace';
+import type {TrackManagerImpl} from '../../core/track_manager';
+import type {SearchProvider} from '../../public/search';
+import type {Trace} from '../../public/trace';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';

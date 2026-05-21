@@ -20,8 +20,8 @@ import {TextInput} from '../../widgets/text_input';
 import {RadioGroup} from '../../widgets/radio_group';
 import {Select} from '../../widgets/select';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
-import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
-import {ExtensionServer, UserInput} from './types';
+import {MultiSelect, type MultiSelectDiff} from '../../widgets/multiselect';
+import type {ExtensionServer, UserInput} from './types';
 import {defer} from '../../base/deferred';
 import {loadManifest} from './extension_server';
 import {normalizeHttpsUrl} from './url_utils';
@@ -29,6 +29,7 @@ import {Icon} from '../../widgets/icon';
 import {Anchor} from '../../widgets/anchor';
 import {Popup} from '../../widgets/popup';
 import {EmptyState} from '../../widgets/empty_state';
+import {Intent} from '../../widgets/common';
 import {debounce} from '../../base/rate_limiters';
 
 type GithubUserInput = Extract<UserInput, {type: 'github'}>;
@@ -50,7 +51,8 @@ type LoadedState = OkLoadedState | ErrorLoadedState;
 const PAT_HELP_URL =
   'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens';
 
-class AddExtensionServerModal {
+// Exported for unit testing only.
+export class AddExtensionServerModal {
   private readonly fetchLimiter = new AsyncLimiter();
   private readonly debouncedFetch = debounce(
     () => this.scheduleManifestFetch(),
@@ -59,13 +61,27 @@ class AddExtensionServerModal {
   private userInput: UserInput;
   private loadedState?: LoadedState;
   private readonly isEmbedderManaged: boolean;
+  private awaitingConfirmation = false;
+  private deferredInitialModules?: ReadonlyArray<string>;
 
   constructor(server?: ExtensionServer, prefill?: ExtensionServer) {
     this.userInput = createInitial(server ?? prefill);
     this.isEmbedderManaged = server?.origin === 'embedder_managed';
-    this.scheduleManifestFetch(
-      server?.enabledModules ?? prefill?.enabledModules,
-    );
+    const initialModules = server?.enabledModules ?? prefill?.enabledModules;
+    if (prefill !== undefined && server === undefined) {
+      // Prefill is untrusted: require an explicit click before contacting
+      // the server.
+      this.awaitingConfirmation = true;
+      this.deferredInitialModules = initialModules;
+    } else {
+      this.scheduleManifestFetch(initialModules);
+    }
+  }
+
+  private confirmLoad(): void {
+    const modules = this.deferredInitialModules;
+    this.deferredInitialModules = undefined;
+    this.scheduleManifestFetch(modules);
   }
 
   view() {
@@ -419,6 +435,7 @@ class AddExtensionServerModal {
 
   private renderModuleSection(): m.Children {
     const showRefresh =
+      !this.awaitingConfirmation &&
       !this.isEmptyInput() &&
       (this.loadedState?.type === 'ok' || this.loadedState?.type === 'error');
     return m(
@@ -438,6 +455,9 @@ class AddExtensionServerModal {
   }
 
   private renderModuleContent(): m.Children {
+    if (this.awaitingConfirmation) {
+      return this.renderLoadConfirmation();
+    }
     if (this.isEmptyInput()) {
       return m(EmptyState, {
         icon: 'extension',
@@ -481,9 +501,34 @@ class AddExtensionServerModal {
     });
   }
 
+  private renderLoadConfirmation(): m.Children {
+    return m(
+      '.pf-add-extension-server-modal__confirm',
+      m(Icon, {
+        icon: 'shield',
+        className: 'pf-add-extension-server-modal__confirm-icon',
+      }),
+      m(
+        '.pf-add-extension-server-modal__confirm-title',
+        'Confirm before contacting this server',
+      ),
+      m(
+        '.pf-add-extension-server-modal__confirm-body',
+        'This configuration was opened from a shared link. No request has been sent yet. Review the details above, then load the module list to continue.',
+      ),
+      m(Button, {
+        label: 'Load modules from this server',
+        icon: 'cloud_download',
+        intent: Intent.Primary,
+        onclick: () => this.confirmLoad(),
+      }),
+    );
+  }
+
   private scheduleManifestFetch(
     preserveEnabledModules?: ReadonlyArray<string>,
   ): void {
+    this.awaitingConfirmation = false;
     this.loadedState = undefined;
     this.fetchLimiter.schedule(() => this.loadManifest(preserveEnabledModules));
   }

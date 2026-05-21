@@ -713,6 +713,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
 
           int32_t waking_weight = 0;
           std::optional<UniqueTid> waker_utid = std::nullopt;
+          std::optional<uint64_t> waker_tid = std::nullopt;
 
           for (const auto& arg : *maybe_args) {
             if (arg.name == weight_id_) {
@@ -730,15 +731,15 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
                     stats::fuchsia_invalid_event_arg_type);
                 return;
               }
-              uint64_t waker_tid = arg.value.Koid();
+              waker_tid = arg.value.Koid();
               waker_utid = context_->process_tracker->GetOrCreateThread(
-                  static_cast<uint32_t>(waker_tid));
+                  static_cast<uint32_t>(*waker_tid));
             }
           }
 
           const bool waking_is_idle = waking_weight == kIdleWeight;
           if (!waking_is_idle) {
-            Wake(&waking_thread, ts, cpu, waker_utid);
+            Wake(&waking_thread, ts, cpu, waker_utid, waker_tid);
           }
           break;
         }
@@ -848,7 +849,8 @@ void FuchsiaTraceParser::SwitchTo(Thread* thread,
 void FuchsiaTraceParser::Wake(Thread* thread,
                               int64_t ts,
                               uint32_t cpu,
-                              std::optional<UniqueTid> waker_utid) {
+                              std::optional<UniqueTid> waker_utid,
+                              std::optional<uint64_t> waker_tid) {
   TraceStorage* storage = context_->storage.get();
   ProcessTracker* procs = context_->process_tracker.get();
 
@@ -857,6 +859,22 @@ void FuchsiaTraceParser::Wake(Thread* thread,
 
   const auto duration = ts - thread->last_ts;
   thread->last_ts = ts;
+
+  // Capture waker_id before resetting last_state_row
+  std::optional<tables::ThreadStateTable::Id> waker_id = std::nullopt;
+  if (waker_tid.has_value()) {
+    auto waker_it = threads_.find(*waker_tid);
+    if (waker_it != threads_.end() &&
+        waker_it->second.last_state_row.has_value()) {
+      waker_id = waker_it->second.last_state_row
+                     ->ToRowReference(storage->mutable_thread_state_table())
+                     .id();
+    }
+  } else if (thread->last_state_row.has_value()) {
+    waker_id = thread->last_state_row
+                   ->ToRowReference(storage->mutable_thread_state_table())
+                   .id();
+  }
 
   // Close the state record if one is open for this thread.
   if (thread->last_state_row.has_value()) {
@@ -876,19 +894,7 @@ void FuchsiaTraceParser::Wake(Thread* thread,
 
   // Identify the waker for this thread's wakeup event. If Zircon doesn't
   // report a waker, we infer that the thread woke itself w/ timer/timeout/etc.
-  UniqueTid final_waker_utid = waker_utid.value_or(utid);
-  state_row.waker_utid = final_waker_utid;
-
-  // Find the waker's last state row in the thread state table to find the
-  // non-unique waker id.
-  const auto& table = storage->thread_state_table();
-  std::optional<tables::ThreadStateTable::Id> waker_id = std::nullopt;
-  for (auto it = table.IterateRows(); it; ++it) {
-    if (it.utid() == final_waker_utid) {
-      // We want the *last* one we see since we iterate from beginning to end
-      waker_id = it.id();
-    }
-  }
+  state_row.waker_utid = waker_utid.value_or(utid);
   state_row.waker_id = waker_id;
 
   auto state_row_number =

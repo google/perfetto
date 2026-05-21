@@ -14,8 +14,8 @@
 
 import protos from '../../../protos';
 import {ADV_FTRACE_PROBE_ID, ADV_PROC_ASSOC_PROBE_ID} from './advanced';
-import {RecordSubpage, RecordProbe} from '../config/config_interfaces';
-import {TraceConfigBuilder} from '../config/trace_config_builder';
+import type {RecordSubpage, RecordProbe} from '../config/config_interfaces';
+import type {TraceConfigBuilder} from '../config/trace_config_builder';
 import {POLL_INTERVAL_SLIDER, Slider} from './widgets/slider';
 
 const PROC_POLL_DS = 'linux.sys_stats';

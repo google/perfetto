@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SliceTrack} from '../../components/tracks/slice_track';

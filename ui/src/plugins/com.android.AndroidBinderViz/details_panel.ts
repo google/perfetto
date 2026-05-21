@@ -13,13 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
-import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackEventSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import {
+  asSliceSqlId,
+  type SliceSqlId,
+} from '../../components/sql_utils/core_types';
+import {getSlice, type SliceDetails} from '../../components/sql_utils/slice';
 import {renderDetails} from '../../components/details/slice_details';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {STR_NULL} from '../../trace_processor/query_result';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {DetailsShell} from '../../widgets/details_shell';

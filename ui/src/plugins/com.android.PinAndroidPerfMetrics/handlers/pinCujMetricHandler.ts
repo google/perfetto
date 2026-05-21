@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CujMetricData, MetricHandler} from './metricUtils';
-import {Trace} from '../../../public/trace';
+import type {CujMetricData, MetricHandler} from './metricUtils';
+import type {Trace} from '../../../public/trace';
 import {addJankCUJDebugTrack} from '../../com.android.AndroidCujs';
 
 /** Pins a single CUJ from CUJ scoped metrics. */

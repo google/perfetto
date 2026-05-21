@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 // This widget provides common styling for a reference which selects a track
 // event (e.g. a slice) identified by a table and an ID when clicked.

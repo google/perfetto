@@ -76,7 +76,7 @@ source_set("minimal") {
   ]
   public_deps = [ ":proto_importer_module" ]
   deps = [
-    ":gen_cc_android_track_event_descriptor",
+    ":gen_cc_android_extensions_descriptor",
     ":gen_cc_chrome_track_event_descriptor",
     ":gen_cc_gpu_track_event_descriptor",
     ":gen_cc_track_event_descriptor",
@@ -300,10 +300,10 @@ perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
       "../../../../protos/third_party/chromium:extension_descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {
-  descriptor_name = "android_track_event.descriptor"
+perfetto_cc_proto_descriptor("gen_cc_android_extensions_descriptor") {
+  descriptor_name = "android_extensions_extension.descriptor"
   descriptor_target =
-      "../../../../protos/perfetto/trace/android:android_track_event_descriptor"
+      "../../../../protos/third_party/android:extension_descriptor"
 }
 
 perfetto_cc_proto_descriptor("gen_cc_gpu_track_event_descriptor") {

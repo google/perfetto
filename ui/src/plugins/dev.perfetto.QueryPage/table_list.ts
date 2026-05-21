@@ -13,13 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
+import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
 import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Icon} from '../../widgets/icon';
 import {TextInput} from '../../widgets/text_input';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import type {
+  SqlModules,
+  SqlTable,
+} from '../dev.perfetto.SqlModules/sql_modules';
 import {
   perfettoSqlTypeIcon,
   perfettoSqlTypeToString,

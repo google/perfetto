@@ -14,14 +14,8 @@
 
 import m from 'mithril';
 
-// Simple hash-based router for BigTrace.
-// Uses #! prefix (e.g., #!/query, #!/settings) to match the existing
-// sidebar link format.
-//
-// This replaces Mithril's m.route() so that all rendering goes through
-// the raf scheduler's mount system. m.route() bypasses the raf scheduler
-// because it caches a reference to the original m.mount, which breaks
-// cross-tree redraws (e.g. portal-based popups like the omnibox dropdown).
+// Hash-based router (#!/query, #!/settings). Replaces m.route() because
+// m.route bypasses the raf scheduler and breaks portal-based popups.
 
 export function getCurrentRoute(): string {
   const hash = window.location.hash;

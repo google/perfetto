@@ -14,34 +14,37 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {duration} from '../../base/time';
+import type {duration} from '../../base/time';
 import {formatDuration} from '../../components/time_utils';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {
+import type {
   CellRenderResult,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {
-  AreaSelection,
+  type AreaSelection,
   areaSelectionsEqual,
-  Selection,
-  TrackEventSelection,
-  TrackSelection,
+  type Selection,
+  type TrackEventSelection,
+  type TrackSelection,
 } from '../../public/selection';
-import {Tab} from '../../public/tab';
-import {Trace} from '../../public/trace';
+import type {Tab} from '../../public/tab';
+import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {
   NUM,
-  Row,
-  SqlValue,
+  type Row,
+  type SqlValue,
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {DownloadToFileButton} from '../../widgets/download_to_file_button';
-import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
+import {
+  type MultiSelectDiff,
+  PopupMultiSelect,
+} from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
 

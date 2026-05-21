@@ -16,19 +16,19 @@
 // All transforms are applied via the canvas context's transform matrix
 // (translate/scale), so draw methods use coordinates directly.
 
-import {Color} from './color';
-import {Transform1D, Transform2D} from './geom';
+import type {Color} from './color';
+import {type Transform1D, Transform2D} from './geom';
 import {
-  Renderer,
+  type Renderer,
   RECT_PATTERN_HATCHED,
   RECT_PATTERN_FADE_RIGHT,
-  MarkerRenderFunc,
-  MarkerBuffers,
-  StepAreaBuffers,
-  SliceBuffers,
+  type MarkerRenderFunc,
+  type MarkerBuffers,
+  type StepAreaBuffers,
+  type SliceBuffers,
   rowTopFromLayout,
   rowHeightFromLayout,
-  RowLayout,
+  type RowLayout,
 } from './renderer';
 
 // Clip bounds stored in physical screen coordinates (post-transform).

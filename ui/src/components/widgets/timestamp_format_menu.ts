@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {TimestampFormat} from '../../public/timeline';
 import {formatTimezone, timezoneOffsetMap} from '../../base/time';
 

@@ -15,19 +15,24 @@
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
 import {DurationWidget} from '../../components/widgets/duration';
-import {Trace} from '../../public/trace';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import {
   AndroidLockContentionEventSource,
-  LockContentionDetails,
-  ContentionState,
-  ContentionBlockedFunction,
+  type LockContentionDetails,
+  type ContentionState,
+  type ContentionBlockedFunction,
 } from './android_lock_contention_event_source';
-import AndroidLockContentionPlugin from './index';
+import type AndroidLockContentionPlugin from './index';
 import {translateState} from '../../components/sql_utils/thread_state';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {Grid, GridCell, GridHeaderCell, GridColumn} from '../../widgets/grid';
+import {
+  Grid,
+  GridCell,
+  GridHeaderCell,
+  type GridColumn,
+} from '../../widgets/grid';
 import {Checkbox} from '../../widgets/checkbox';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {CounterTrack} from '../../components/tracks/counter_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';

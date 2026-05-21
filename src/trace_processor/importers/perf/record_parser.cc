@@ -176,9 +176,8 @@ base::Status RecordParser::InternSample(Sample sample) {
 
   UniqueTid utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
                                                            sample.pid_tid->pid);
-  const auto upid = *context_->storage->thread_table()
-                         .FindById(tables::ThreadTable::Id(utid))
-                         ->upid();
+  const auto upid =
+      *context_->storage->thread_table()[tables::ThreadTable::Id(utid)].upid();
 
   if (sample.callchain.empty() && sample.ip.has_value()) {
     sample.callchain.push_back(Sample::Frame{sample.cpu_mode, *sample.ip});
@@ -329,9 +328,8 @@ base::Status RecordParser::ParseItraceStart(Record record) {
 UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
   UniqueTid utid =
       context_->process_tracker->UpdateThread(fields.tid, fields.pid);
-  auto upid = context_->storage->thread_table()
-                  .FindById(tables::ThreadTable::Id(utid))
-                  ->upid();
+  auto upid =
+      context_->storage->thread_table()[tables::ThreadTable::Id(utid)].upid();
   PERFETTO_CHECK(upid.has_value());
   return *upid;
 }
