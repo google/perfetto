@@ -19,6 +19,8 @@ INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
 INCLUDE PERFETTO MODULE wattson.cpu.freq_idle;
 
+INCLUDE PERFETTO MODULE wattson.cpu.hotplug;
+
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
@@ -127,6 +129,7 @@ SELECT
   _stats_cpu5.cpu5_static,
   _stats_cpu6.cpu6_static,
   _stats_cpu7.cpu7_static,
+  suspend.suspended,
   _wattson_dsu_frequency.dsu_freq,
   CAST(_bitmask8!(
     idle_0 != deepest.idle,
@@ -149,7 +152,8 @@ FROM _interval_intersect!(
     _ii_subquery!(_stats_cpu6),
     _ii_subquery!(_stats_cpu7),
     _ii_subquery!(_wattson_dsu_frequency),
-    _ii_subquery!(_arm_l3_rates)
+    _ii_subquery!(_arm_l3_rates),
+    _ii_subquery!(_gapless_suspend_slices)
   ),
   ()
 ) AS base
@@ -173,6 +177,8 @@ JOIN _wattson_dsu_frequency
   ON _wattson_dsu_frequency._auto_id = base.id_8
 JOIN _arm_l3_rates
   ON _arm_l3_rates._auto_id = base.id_9
+JOIN _gapless_suspend_slices AS suspend
+  ON suspend._auto_id = base.id_10
 CROSS JOIN _deepest_idle AS deepest;
 
 -- Does calculations for CPUs that are independent of other CPUs or frequencies
@@ -200,7 +206,8 @@ SELECT
     idle_6,
     freq_7,
     idle_7,
-    dsu_freq
+    dsu_freq,
+    suspended
   ) AS config_hash,
   freq_0,
   idle_0,
@@ -226,6 +233,7 @@ SELECT
   cpu5_curve,
   cpu6_curve,
   cpu7_curve,
+  suspended,
   dsu_freq,
   CAST(_bitmask8!(
     cpus_on_mask & m0,
@@ -294,7 +302,8 @@ WITH
       cpu7_curve,
       dsu_freq,
       static_1d,
-      policy_cpus_on_mask
+      policy_cpus_on_mask,
+      suspended
     FROM _w_independent_cpus_calc
     GROUP BY
       config_hash
