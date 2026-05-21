@@ -851,6 +851,14 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
             : `Recording heap profile for ${profile.processName} (PID ${profile.pid})`,
           !isStopping && [
             m(Button, {
+              label: 'Stop & Download',
+              icon: 'download',
+              minimal: true,
+              intent: Intent.Danger,
+              onclick: () =>
+                session.stopAndDownloadProfile().then(() => m.redraw()),
+            }),
+            m(Button, {
               label: 'Stop & Open',
               icon: 'stop',
               minimal: true,
