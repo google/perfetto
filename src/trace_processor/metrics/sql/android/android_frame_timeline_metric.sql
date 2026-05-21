@@ -85,6 +85,7 @@ frames_per_vsync AS (
 weighted_jank AS (
   SELECT
     upid,
+    SUM(missed_frame * jank_score) AS weighted_missed_frames,
     SUM(missed_app_frame * jank_score) AS weighted_missed_app_frames,
     SUM(missed_sf_frame * jank_score) AS weighted_missed_sf_frames
   FROM frames_per_vsync
@@ -109,6 +110,7 @@ SELECT
   PERCENTILE(dur_ms, 99) AS frame_dur_ms_p99,
   CAST(AVG(dur) AS INTEGER) AS frame_dur_avg,
   MAX(dur) AS frame_dur_max,
+  COALESCE(weighted_jank.weighted_missed_frames, 0) AS weighted_missed_frames,
   COALESCE(weighted_jank.weighted_missed_app_frames, 0) AS weighted_missed_app_frames,
   COALESCE(weighted_jank.weighted_missed_sf_frames, 0) AS weighted_missed_sf_frames
 FROM frames
@@ -159,6 +161,7 @@ SELECT
             'missed_frames', missed_frames,
             'missed_app_frames', missed_app_frames,
             'missed_sf_frames', missed_sf_frames,
+            'weighted_missed_frames', weighted_missed_frames,
             'weighted_missed_app_frames', weighted_missed_app_frames,
             'weighted_missed_sf_frames', weighted_missed_sf_frames,
             'frame_dur_max', frame_dur_max,
