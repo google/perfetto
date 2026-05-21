@@ -338,7 +338,8 @@ class Trace(object):
                            name,
                            description=None,
                            unit_numerators=[],
-                           unit_denominators=[]):
+                           unit_denominators=[],
+                           value_direction=None):
     packet = self.add_packet()
     packet.timestamp = ts
     gpu_counters = packet.gpu_counter_event
@@ -351,6 +352,8 @@ class Trace(object):
       spec.description = description
     spec.numerator_units.extend(unit_numerators)
     spec.denominator_units.extend(unit_denominators)
+    if value_direction is not None:
+      spec.value_direction = value_direction
 
   def add_gpu_counter(self, ts, counter_id, value, clock_id=None, seq_id=None):
     packet = self.add_packet()
