@@ -80,7 +80,14 @@ export default class Wattson implements PerfettoPlugin {
       : [];
 
     // Short circuit if Wattson is not supported for this Perfetto trace
-    if (!(markersSupported || cpuSupported || gpuSupported)) return;
+    if (!(markersSupported || cpuSupported || gpuSupported || tpuSupported)) {
+      return;
+    }
+
+    // Register selection aggregators that are common to all subsystems.
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
+    );
 
     const group = new TrackNode({name: 'Wattson', isSummary: true});
     ctx.defaultWorkspace.addChildInOrder(group);
@@ -307,11 +314,8 @@ async function addWattsonCpuElements(
   group.addChildInOrder(new TrackNode({uri, name: `DSU/SCU${estimateSuffix}`}));
 
   // Register selection aggregators.
-  // NOTE: the registration order matters because the laste two aggregators
-  // depend on views created by the first two.
-  ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
-  );
+  // NOTE: The registration order matters because subsequent aggregators
+  // (Process, Package) depend on views created by Thread aggregator
   ctx.selection.registerAreaSelectionTab(
     createAggregationTab(ctx, new WattsonThreadSelectionAggregator(ctx)),
   );
