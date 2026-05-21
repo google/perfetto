@@ -126,7 +126,6 @@ const RULES = [
   {r: /ui\/src\/open_perfetto_trace\/index.html/, f: copyOpenPerfettoTraceHtml},
   // engine_bench page; no-op without --enable-engine-bench.
   {r: /ui\/src\/engine_bench\/bench\.html$/, f: copyEngineBenchHtml},
-  {r: /ui\/src\/engine_bench\/bench\.js$/, f: copyEngineBenchJs},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/base-page\.json)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/examples\/(.*)[.]json)/, f: copyAssets},
@@ -550,11 +549,6 @@ function makeEngineBenchRedirect() {
   fs.writeFileSync(pjoin(cfg.outDistRootDir, 'engine_bench.html'), html);
 }
 
-function copyEngineBenchJs(src) {
-  if (!cfg.engineBench) return;
-  addTask(cp, [src, pjoin(cfg.outDistDir, 'bench.js')]);
-}
-
 function copyAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outDistDir, 'assets', dst)]);
   if (cfg.bigtrace) {
@@ -799,7 +793,7 @@ function runVite() {
   const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
   if (!useDevServer) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
-  if (cfg.engineBench) bundles.push('engine_bench');
+  if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
   for (const bundle of bundles) {
     const args = ['build', '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs')];

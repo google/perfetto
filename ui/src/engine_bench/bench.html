@@ -10,8 +10,9 @@
 -->
 <!--
  Engine startup benchmark page. Spawns N standalone bench workers
- (engine_bench_bundle.js) sequentially and records per-phase startup
- latencies. Only built when ui/build is run with --enable-engine-bench.
+ (engine_bench_worker_bundle.js) sequentially and records per-phase
+ startup latencies. Only built when ui/build is run with
+ --enable-engine-bench.
 
  Query string:
    n=<int>          number of iterations (default 10)
@@ -55,6 +56,6 @@
 </table>
 <h2 style="font-size:14px">Log</h2>
 <pre id="log"></pre>
-<script src="./bench.js"></script>
+<script src="./engine_bench_bundle.js"></script>
 </body>
 </html>

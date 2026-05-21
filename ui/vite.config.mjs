@@ -236,6 +236,11 @@ const BUNDLE_CONFIGS = {
   frontend: {dir: 'dist_version', entry: 'index.ts'},
   engine: {dir: 'dist_version', entry: 'index.ts'},
   engine_bench: {dir: 'dist_version', entry: 'index.ts'},
+  engine_bench_worker: {
+    dir: 'dist_version',
+    srcDir: 'engine_bench',
+    entry: 'worker.ts',
+  },
   traceconv: {dir: 'dist_version', entry: 'index.ts'},
   bigtrace: {dir: 'dist_version/bigtrace', entry: 'index.ts'},
   open_perfetto_trace: {dir: 'dist/open_perfetto_trace', entry: 'index.ts'},
@@ -262,7 +267,9 @@ export default defineConfig(({command}) => {
   if (isBuild && !bundleCfg) {
     throw new Error(`Unknown BUNDLE: ${BUNDLE}`);
   }
-  const inputPath = isBuild ? path.join(SRC, BUNDLE, bundleCfg.entry) : null;
+  const inputPath = isBuild
+    ? path.join(SRC, bundleCfg.srcDir ?? BUNDLE, bundleCfg.entry)
+    : null;
   const entryFileNames = isBuild
     ? bundleCfg.fileName || '[name]_bundle.js'
     : undefined;
