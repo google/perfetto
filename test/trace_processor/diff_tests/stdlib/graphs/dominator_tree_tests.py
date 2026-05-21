@@ -159,6 +159,31 @@ class DominatorTree(TestSuite):
         12,10
         """))
 
+  def test_unreachable_predecessor(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.dominator_tree;
+
+          CREATE PERFETTO TABLE foo AS
+          SELECT NULL AS source_node_id, NULL AS dest_node_id WHERE FALSE
+          UNION ALL
+          VALUES (0, 1), (1, 2), (2, 3)
+          UNION ALL
+          VALUES (99, 2), (98, 99);
+
+          SELECT *
+          FROM graph_dominator_tree!(foo, 0)
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","dominator_node_id"
+        0,"[NULL]"
+        1,0
+        2,1
+        3,2
+        """))
+
   def test_forest(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
