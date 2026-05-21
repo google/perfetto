@@ -469,7 +469,8 @@ PerfettoSqlConnection::PerfettoSqlConnection(
 
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
-  PerfettoSqlParser parser(std::move(sql_source), database_->macros());
+  PerfettoSqlParser parser(database_->macros());
+  parser.Reset(std::move(sql_source));
   if (!parser.Next()) {
     return base::ErrStatus("No statement found to prepare");
   }
@@ -673,8 +674,10 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
 
   // Initialize parser on first access to this frame
   if (!execution_stack_[frame_idx].parser) {
-    execution_stack_[frame_idx].parser = std::make_unique<PerfettoSqlParser>(
-        std::move(execution_stack_[frame_idx].sql_source), database_->macros());
+    execution_stack_[frame_idx].parser =
+        std::make_unique<PerfettoSqlParser>(database_->macros());
+    execution_stack_[frame_idx].parser->Reset(
+        std::move(execution_stack_[frame_idx].sql_source));
   }
 
   // Try to get next statement from this frame
