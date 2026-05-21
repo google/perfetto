@@ -21,8 +21,15 @@ import {defineConfig} from 'vitest/config';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {lezer} from '@lezer/generator/rollup';
+import checker from 'vite-plugin-checker';
+import {pluginGenRelativeImports} from './vite/gen.mjs';
+import {pluginPerfettoPluginBarrels} from './vite/plugins.mjs';
+import {pluginPerfettoVersion} from './vite/version.mjs';
+import {pluginPerfettoVirtualWasmModules} from './vite/wasm.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = path.dirname(__dirname);
+const SRC = path.join(ROOT_DIR, 'ui/src');
 
 export default defineConfig({
   // Pin root to ui/ (where package.json and node_modules live). Without this,
@@ -32,6 +39,30 @@ export default defineConfig({
   plugins: [
     // *.grammar imports used by codemirror plugins.
     lezer(),
+    // Virtual modules consumed by ui/src/ (kept in sync with vite.config.mjs).
+    pluginPerfettoVersion({
+      virtualModule: path.join(SRC, 'virtual', 'version'),
+      scriptPath: path.join(ROOT_DIR, 'tools/write_version_header.py'),
+    }),
+    pluginPerfettoPluginBarrels({
+      sources: [
+        {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
+        {
+          exportName: 'corePlugins',
+          dir: path.join(SRC, 'core_plugins'),
+          prefix: 'core_',
+        },
+      ],
+      virtualModule: path.join(SRC, 'virtual', 'plugins'),
+    }),
+    pluginPerfettoVirtualWasmModules({
+      virtualDir: path.join(SRC, 'virtual'),
+      genDir: path.join(SRC, 'gen'),
+    }),
+    // pluginGenRelativeImports({genSymlink: path.join(SRC, 'gen')}),
+    // Run tsc in-process so type errors fail the test run alongside
+    // assertion failures.
+    checker({typescript: true, overlay: false}),
   ],
   define: {
     'process.env.NODE_ENV': JSON.stringify('test'),

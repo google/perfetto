@@ -19,7 +19,6 @@ import '../frontend/ui_main.scss';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, type ErrorDetails} from '../base/logging';
-import {initLiveReload} from '../core/live_reload';
 import {settingsStorage} from './settings/settings_storage';
 import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
@@ -272,7 +271,6 @@ function onCssLoaded() {
   document.body.innerHTML = '';
   initRouter();
   m.mount(document.body, BigTraceRoot);
-  initLiveReload();
   registerCommands();
 }
 

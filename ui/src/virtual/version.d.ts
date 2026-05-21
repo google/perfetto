@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export default (() => {
-  throw new Error(
-    'Unable to load the 32-bit trace_processor.wasm. ' +
-      'This is because you are running in a browser that does NOT support ' +
-      'Memory64 but passed --only-wasm-memory64 to ui/build ' +
-      '(run-dev-server does that)',
-  );
-}) as never;
+// The .ts implementation of this module is synthesised at build time by
+// pluginPerfettoSynthModules in ui/vite.config.mjs, which shells out to
+// tools/write_version_header.py. Don't add a real version.ts next to this
+// file — the synth plugin would still win, but it'd be confusing.
+
+export const VERSION: string;
+export const SCM_REVISION: string;

@@ -21,13 +21,16 @@
 // and precompiles the .wasm) and the worker (wasm_bridge.ts, which calls
 // the module factory).
 //
-// trace_processor_32_stub is rewritten by vite to '../gen/trace_processor'
-// in normal builds (see vite.config.mjs); under --only-wasm-memory64 the
-// alias is dropped and the local file is a throwing stub.
+// '../virtual/trace_processor[_memory64]' is resolved by Vite to the real
+// emscripten glue under ui/src/gen at runtime (see
+// pluginPerfettoVirtualWasmModules in vite.config.mjs). TypeScript sees only
+// the manually-curated .d.ts in ui/src/virtual/. Under --only-wasm-memory64
+// the 32-bit module is redirected to the throwing stub
+// ui/src/virtual/trace_processor.js.
 
 import {assetSrc} from '../base/assets';
-import TraceProcessor64 from '../gen/trace_processor_memory64';
-import TraceProcessor32 from './trace_processor_32_stub';
+import TraceProcessor32 from '../virtual/trace_processor';
+import TraceProcessor64 from '../virtual/trace_processor_memory64';
 
 export {TraceProcessor64, TraceProcessor32};
 

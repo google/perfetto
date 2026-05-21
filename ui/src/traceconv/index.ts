@@ -15,7 +15,7 @@
 import {addErrorHandler, type ErrorDetails, reportError} from '../base/logging';
 import {assertExists} from '../base/assert';
 import type {time} from '../base/time';
-import traceconv from '../gen/traceconv';
+import traceconv from '../virtual/traceconv';
 
 const selfWorker = self as {} as Worker;
 

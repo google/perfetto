@@ -16,7 +16,7 @@ import protos from '../protos';
 import {assetSrc} from './assets';
 import {errResult, okResult, type Result} from './result';
 import {utf8Decode, utf8Encode} from './string_utils';
-import WasmModuleGen from '../gen/proto_utils';
+import WasmModuleGen from '../virtual/proto_utils';
 
 /**
  * This file is the TS-equivalent of src/proto_utils.

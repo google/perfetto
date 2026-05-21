@@ -229,7 +229,6 @@ function shouldHandleHttpRequest(req: Request): boolean {
   }
 
   const url = new URL(req.url);
-  if (url.pathname === '/live_reload') return false;
   if (url.pathname.startsWith(OPEN_TRACE_PREFIX)) return true;
 
   return req.method === 'GET' && url.origin === self.location.origin;

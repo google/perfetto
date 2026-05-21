@@ -45,6 +45,7 @@
     "syntaqlite": "^0.5.9",
     "util": "^0.12.5",
     "uuid": "^10.0.0",
+    "vite-plugin-checker": "^0.13.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {
@@ -64,6 +65,7 @@
     "eslint-plugin-jsdoc": "^48.5.0",
     "globals": "^15.6.0",
     "happy-dom": "^20.9.0",
+    "ora": "^9.4.0",
     "pngjs": "^7.0.0",
     "prettier": "^3.3.2",
     "puppeteer": "^22.15.0",
@@ -78,6 +80,7 @@
     "vitest": "^4.1.6"
   },
   "scripts": {
+    "dev": "node build.mjs --watch --serve",
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
