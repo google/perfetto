@@ -1565,6 +1565,7 @@ class AndroidStdlib(TestSuite):
       """,
         out=Csv("""
         "ts","dur","charging_state"
+        368604000000,749651,"Unknown"
         368604749651,59806073237,"Charging"
       """))
 
@@ -1781,16 +1782,14 @@ class AndroidStdlib(TestSuite):
         """),
         query="""
         INCLUDE PERFETTO MODULE android.suspend;
-        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY ts;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY machine_id, ts;
         """,
         out=Csv("""
         "ts","dur","power_state","machine_id"
-          100000000000,0,"awake",0
-          100000000000,6000000000,"awake",1
           100000000000,3000000000,"suspended",0
           103000000000,6000000000,"awake",0
+          100000000000,6000000000,"awake",1
           106000000000,3000000000,"suspended",1
-          109000000000,0,"awake",1
           """))
 
   def test_android_suspend_state_one_machine_no_events(self):
@@ -1840,9 +1839,7 @@ class AndroidStdlib(TestSuite):
         """,
         out=Csv("""
         "ts","dur","power_state","machine_id"
-        100000000000,0,"awake",0
         100000000000,3000000000,"suspended",0
-        103000000000,0,"awake",0
         """))
 
   def test_android_suspend_state_no_events(self):
