@@ -99,8 +99,9 @@ SqlSource::SqlSource(std::string sql,
                      std::string name,
                      bool include_traceback_header) {
   root_.name = std::move(name);
-  root_.original_sql = sql;
-  root_.rewritten_sql = std::move(sql);
+  // Leave |rewritten_sql_storage| unset: with no rewrites, |original_sql|
+  // is the rewritten SQL. Avoids a full copy of every constructed SqlSource.
+  root_.original_sql = std::move(sql);
   root_.include_traceback_header = include_traceback_header;
 }
 
@@ -153,9 +154,10 @@ SqlSource SqlSource::Substr(uint32_t offset, uint32_t len) const {
 }
 
 SqlSource SqlSource::RewriteAllIgnoreExisting(SqlSource source) const {
-  // Reset any rewrites.
+  // Reset any rewrites: drop the rewrite list and the materialized
+  // rewritten form; |rewritten_sql()| then falls back to |original_sql|.
   SqlSource copy = *this;
-  copy.root_.rewritten_sql = copy.root_.original_sql;
+  copy.root_.rewritten_sql_storage.reset();
   copy.root_.rewrites.clear();
 
   SqlSource::Rewriter rewriter(std::move(copy));
@@ -172,7 +174,7 @@ std::string SqlSource::ApplyRewrites(const std::string& original_sql,
     PERFETTO_CHECK(prev_idx <= rewrite.original_sql_start);
     sql.append(
         original_sql.substr(prev_idx, rewrite.original_sql_start - prev_idx));
-    sql.append(rewrite.rewrite_node.rewritten_sql);
+    sql.append(rewrite.rewrite_node.rewritten_sql());
     prev_idx = rewrite.original_sql_end;
   }
   sql.append(original_sql.substr(prev_idx, original_sql.size() - prev_idx));
@@ -180,7 +182,7 @@ std::string SqlSource::ApplyRewrites(const std::string& original_sql,
 }
 
 std::string SqlSource::Node::AsTraceback(uint32_t rewritten_offset) const {
-  PERFETTO_CHECK(rewritten_offset <= rewritten_sql.size());
+  PERFETTO_CHECK(rewritten_offset <= rewritten_sql().size());
   uint32_t original_offset = RewrittenOffsetToOriginalOffset(rewritten_offset);
   std::string res = SelfTraceback(rewritten_offset, original_offset);
   if (auto opt_idx = RewriteForOriginalOffset(original_offset); opt_idx) {
@@ -202,7 +204,7 @@ std::string SqlSource::Node::SelfTraceback(uint32_t rewritten_offset,
   if (include_traceback_header) {
     if (!rewrites.empty()) {
       auto [r_context, r_caret_pos] =
-          SqlContextAndCaretPos(rewritten_sql, rewritten_offset);
+          SqlContextAndCaretPos(rewritten_sql(), rewritten_offset);
       std::string caret = std::string(r_caret_pos, ' ') + "^";
       base::StackString<1024> str("Fully expanded statement\n  %s\n  %s\n",
                                   r_context.c_str(), caret.c_str());
@@ -223,7 +225,7 @@ std::string SqlSource::Node::SelfTraceback(uint32_t rewritten_offset,
 
 SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
   uint32_t offset_end = offset + len;
-  PERFETTO_CHECK(offset_end <= rewritten_sql.size());
+  PERFETTO_CHECK(offset_end <= rewritten_sql().size());
 
   uint32_t original_offset_start = RewrittenOffsetToOriginalOffset(offset);
   uint32_t original_offset_end = RewrittenOffsetToOriginalOffset(offset_end);
@@ -257,8 +259,15 @@ SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
   }
   std::string new_original = original_sql.substr(
       original_offset_start, original_offset_end - original_offset_start);
-  std::string new_rewritten = rewritten_sql.substr(offset, len);
-  PERFETTO_DCHECK(ApplyRewrites(new_original, new_rewrites) == new_rewritten);
+  // Only materialize the rewritten form when there are rewrites in the new
+  // node. Otherwise the IsRewritten invariant (rewrites.empty() iff storage
+  // unset) is preserved and rewritten_sql() falls back to original_sql.
+  std::optional<std::string> new_rewritten_storage;
+  if (!new_rewrites.empty()) {
+    new_rewritten_storage = rewritten_sql().substr(offset, len);
+    PERFETTO_DCHECK(ApplyRewrites(new_original, new_rewrites) ==
+                    *new_rewritten_storage);
+  }
 
   auto line_and_col =
       GetLineAndColumnForOffset(original_sql, line, col, original_offset_start);
@@ -269,7 +278,7 @@ SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
       line_and_col.second,
       new_original,
       std::move(new_rewrites),
-      new_rewritten,
+      std::move(new_rewritten_storage),
   };
 }
 
@@ -320,7 +329,7 @@ void SqlSource::Rewriter::Rewrite(uint32_t rewritten_start,
                                   uint32_t rewritten_end,
                                   SqlSource source) {
   PERFETTO_CHECK(rewritten_start <= rewritten_end);
-  PERFETTO_CHECK(rewritten_end <= orig_.rewritten_sql.size());
+  PERFETTO_CHECK(rewritten_end <= orig_.rewritten_sql().size());
 
   uint32_t original_start =
       orig_.RewrittenOffsetToOriginalOffset(rewritten_start);
@@ -376,7 +385,7 @@ SqlSource SqlSource::Rewriter::Build() && {
   uint32_t rewritten_bytes_in_rewrites = 0;
   for (SqlSource::Rewrite& rewrite : all_rewrites) {
     uint32_t source_size =
-        static_cast<uint32_t>(rewrite.rewrite_node.rewritten_sql.size());
+        static_cast<uint32_t>(rewrite.rewrite_node.rewritten_sql().size());
 
     rewrite.rewritten_sql_start = rewrite.original_sql_start +
                                   rewritten_bytes_in_rewrites -
@@ -391,7 +400,8 @@ SqlSource SqlSource::Rewriter::Build() && {
 
   // Phase 4: update the node to reflect the new rewrites.
   orig_.rewrites = std::move(all_rewrites);
-  orig_.rewritten_sql = ApplyRewrites(orig_.original_sql, orig_.rewrites);
+  orig_.rewritten_sql_storage =
+      ApplyRewrites(orig_.original_sql, orig_.rewrites);
   return SqlSource(std::move(orig_));
 }
 
