@@ -97,6 +97,8 @@ base::FlatSet<GroupAndName> GenerateGfxTracePoints(
   AddEventGroup(table, "panel", &events);
   InsertEvent("panel", "panel_write_generic", &events);
   InsertEvent("panel", "gram_collision", &events);
+  InsertEvent("panel", "panel_settings_full", &events);
+  InsertEvent("panel", "panel_settings_lite", &events);
   return events;
 }
 
