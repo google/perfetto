@@ -353,4 +353,14 @@ java_library_host {
     srcs: [
         "src/android_sdk/java/host_stubs/**/*.java",
     ],
+    // androidx/** is a test-only shim (AndroidJUnit4) for the standalone host
+    // JUnit runner (tools/run_android_sdk_host_test), which compiles host_stubs
+    // with JUnit on the classpath. It is not one of the SDK host shims this
+    // library is meant to provide (see the comment above) and pulling it in here
+    // drags in org.junit, which this library does not depend on -- breaking the
+    // Soong host build. The Soong host/ravenwood build uses the real
+    // androidx.test, so exclude it.
+    exclude_srcs: [
+        "src/android_sdk/java/host_stubs/androidx/**/*.java",
+    ],
 }
