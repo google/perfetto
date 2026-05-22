@@ -30,6 +30,9 @@ export interface OmniboxModeDescriptor {
   // Optional CSS class added to the omnibox container.
   readonly className?: string;
 
+  // Whether to close the omnibox when the user presses Enter. Default = false.
+  readonly closeOnSubmit?: boolean;
+
   // Called when the user presses Enter.
   // |text| is the current omnibox text.
   // |alt| is true when Alt+Enter (or Cmd+Enter on Mac) was pressed.

@@ -82,6 +82,7 @@ export interface Connection {
 export interface NodeTitleBar {
   readonly title: m.Children;
   readonly icon?: string;
+  readonly actions?: m.Children;
 }
 
 export interface NodePort {
@@ -108,6 +109,8 @@ export interface Node {
   readonly contextMenuItems?: m.Children;
   readonly invalid?: boolean; // Whether this node is in an invalid state
   readonly className?: string; // Extra CSS class(es) on the .pf-node element
+  readonly collapsed?: boolean; // When true, hides content and shows only header + ports
+  readonly collapsible?: boolean; // When false, hides the collapse button (default: true)
 }
 
 export interface Label {
@@ -229,9 +232,13 @@ export interface NodeGraphAttrs {
     y: number,
   ) => void;
   readonly onNodeRemove?: (nodeId: string) => void;
+  readonly onNodeCollapse?: (nodeId: string, collapsed: boolean) => void;
   readonly onLabelMove?: (labelId: string, x: number, y: number) => void;
   readonly onLabelResize?: (labelId: string, width: number) => void;
   readonly onLabelRemove?: (labelId: string) => void;
+  readonly onCopy?: () => void;
+  readonly onPaste?: () => void;
+  readonly onCut?: () => void;
   readonly hideControls?: boolean;
   readonly multiselect?: boolean; // Enable multi-node selection (default: true)
   readonly contextMenuOnHover?: boolean; // Show context menu on hover (default: false)
@@ -375,6 +382,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
+  let canvasContentElement: HTMLElement | null = null;
 
   // Unique instance ID for SVG marker references. Multiple NodeGraph instances
   // (e.g. in different tabs) each create <marker id="..."> elements. Without
@@ -428,7 +436,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     | null = null;
 
   const handleMouseMove = (e: PointerEvent) => {
-    m.redraw();
     if (!latestVnode || !canvasElement) return;
     const vnode = latestVnode;
     const canvas = canvasElement;
@@ -447,6 +454,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     };
 
     // Track hovered port (useful for connection snapping and visual feedback)
+    const prevHoveredPort = canvasState.hoveredPort;
     const portElement = (e.target as HTMLElement).closest('.pf-port.pf-input');
     if (portElement) {
       const nodeElement = portElement.closest(
@@ -471,6 +479,10 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     } else {
       canvasState.hoveredPort = null;
     }
+    const hoveredPortChanged =
+      prevHoveredPort?.nodeId !== canvasState.hoveredPort?.nodeId ||
+      prevHoveredPort?.portIndex !== canvasState.hoveredPort?.portIndex;
+    if (hoveredPortChanged) m.redraw();
 
     if (canvasState.selectionRect) {
       // Update selection rectangle
@@ -502,12 +514,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       canvasState.tempLabelWidths.set(canvasState.resizingLabel, newWidth);
       m.redraw();
     } else if (canvasState.isPanning) {
-      // Pan the canvas
+      // Pan the canvas - update DOM directly to avoid Mithril redraw overhead
       const dx = e.clientX - canvasState.panStart.x;
       const dy = e.clientY - canvasState.panStart.y;
       panBy(dx, dy);
       canvasState.panStart = {x: e.clientX, y: e.clientY};
-      m.redraw();
+      if (canvasContentElement) {
+        canvasContentElement.style.transform = `translate(${canvasState.panOffset.x}px, ${canvasState.panOffset.y}px) scale(${canvasState.zoom})`;
+      }
     } else if (canvasState.undockCandidate !== null) {
       // Check if we've exceeded the undock threshold
       const dx = e.clientX - canvasState.undockCandidate.startX;
@@ -840,11 +854,23 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     // Using document.querySelectorAll would pick up ports from other
     // NodeGraph instances (e.g. hidden tabs), causing incorrect positions.
     const container = assertExists(canvasElement);
-    const allPorts = container.querySelectorAll('.pf-port[data-port]');
-    allPorts.forEach((portElement) => {
-      const portId = portElement.getAttribute('data-port');
-      if (!portId) return;
-
+    // Query both top/bottom ports (data-port on .pf-port itself) and
+    // left/right ports (data-port on .pf-port-row wrapper, port is child).
+    const allDirectPorts = container.querySelectorAll('.pf-port[data-port]');
+    const allWrappedPorts = container.querySelectorAll(
+      '[data-port] > .pf-port',
+    );
+    const portEntries: Array<{portElement: Element; portId: string}> = [];
+    allDirectPorts.forEach((el) => {
+      const portId = el.getAttribute('data-port');
+      if (portId) portEntries.push({portElement: el, portId});
+    });
+    allWrappedPorts.forEach((el) => {
+      const parent = el.parentElement;
+      const portId = parent?.getAttribute('data-port');
+      if (portId) portEntries.push({portElement: el, portId});
+    });
+    portEntries.forEach(({portElement, portId}) => {
       const nodeElement = portElement.closest(
         '[data-node]',
       ) as HTMLElement | null;
@@ -1071,12 +1097,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     portType: 'input' | 'output',
     portIndex: number,
   ): Position {
-    // For port index 0 (top/bottom), data-port is on .pf-port itself
-    // For port index 1+ (left/right), data-port is on .pf-port-row wrapper
+    // Top/bottom ports have data-port on .pf-port itself.
+    // Left/right ports have data-port on .pf-port-row wrapper.
+    // Try both selectors to handle either layout.
     const selector =
-      portIndex === 0
-        ? `[data-node="${nodeId}"] .pf-port[data-port="${portType}-${portIndex}"]`
-        : `[data-node="${nodeId}"] [data-port="${portType}-${portIndex}"] .pf-port`;
+      `[data-node="${nodeId}"] .pf-port[data-port="${portType}-${portIndex}"], ` +
+      `[data-node="${nodeId}"] [data-port="${portType}-${portIndex}"] .pf-port`;
 
     // Scope to this NodeGraph instance to avoid matching elements from other
     // instances (e.g. hidden tabs with the same node IDs).
@@ -1319,108 +1345,172 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     return {minX, minY, maxX, maxY};
   }
 
-  // Helper to perform auto-layout
+  // Helper to perform auto-layout using Sugiyama's hierarchical method:
+  //   1. Layer assignment (longest path from sources)
+  //   2. Crossing minimization (barycenter heuristic, multiple passes)
+  //   3. Coordinate assignment (vertically centered per layer)
+  //
+  // Assumptions: inputs are on the left, outputs on the right; chains stack
+  // down as a single unit within a layer.
   function autoLayoutGraph(
     nodes: ReadonlyArray<Node>,
     connections: ReadonlyArray<Connection>,
     onNodeMove: ((nodeId: string, x: number, y: number) => void) | undefined,
   ) {
-    // Build a map from any node ID (including nodes in chains) to its root node ID
+    if (nodes.length === 0 || !onNodeMove) return;
+
+    // Step 0: Map any node ID (including chain members) → root node ID.
     const nodeIdToRootId = new Map<string, string>();
     nodes.forEach((node) => {
       nodeIdToRootId.set(node.id, node.id);
-      const chain = getChain(node);
-      chain.slice(1).forEach((chainNode) => {
-        nodeIdToRootId.set(chainNode.id, node.id);
-      });
+      getChain(node)
+        .slice(1)
+        .forEach((chainNode) => nodeIdToRootId.set(chainNode.id, node.id));
     });
 
-    // Find root nodes (nodes with no incoming connections)
-    // Count connections to any node in a chain as connections to the root
-    const incomingCounts = new Map<string, number>();
-    nodes.forEach((node) => incomingCounts.set(node.id, 0));
+    // Build directed adjacency at the root-chain level.
+    const outEdges = new Map<string, Set<string>>();
+    const inEdges = new Map<string, Set<string>>();
+    nodes.forEach((n) => {
+      outEdges.set(n.id, new Set());
+      inEdges.set(n.id, new Set());
+    });
     connections.forEach((conn) => {
-      const rootId = nodeIdToRootId.get(conn.toNode) ?? conn.toNode;
-      const currentCount = incomingCounts.get(rootId) ?? 0;
-      incomingCounts.set(rootId, currentCount + 1);
+      const from = nodeIdToRootId.get(conn.fromNode) ?? conn.fromNode;
+      const to = nodeIdToRootId.get(conn.toNode) ?? conn.toNode;
+      if (from !== to && outEdges.has(from) && inEdges.has(to)) {
+        outEdges.get(from)!.add(to);
+        inEdges.get(to)!.add(from);
+      }
     });
 
-    const rootNodes = nodes.filter((node) => incomingCounts.get(node.id) === 0);
-    const visited = new Set<string>();
-    const layers: string[][] = [];
+    // Step 1: Layer assignment via longest-path ranking.
+    // Process nodes in topological order (Kahn's algorithm); each node's
+    // layer is max(predecessor layers) + 1, so sources land at layer 0.
+    const layerOf = new Map<string, number>();
+    const inDegree = new Map<string, number>();
+    nodes.forEach((n) => {
+      inDegree.set(n.id, inEdges.get(n.id)!.size);
+      if (inEdges.get(n.id)!.size === 0) layerOf.set(n.id, 0);
+    });
 
-    // BFS to assign nodes to layers
-    const queue: Array<{id: string; layer: number}> = rootNodes.map((n) => ({
-      id: n.id,
-      layer: 0,
-    }));
+    const topoQueue: string[] = nodes
+      .filter((n) => inDegree.get(n.id) === 0)
+      .map((n) => n.id);
 
-    while (queue.length > 0) {
-      const {id, layer} = queue.shift()!;
-      if (visited.has(id)) continue;
-      visited.add(id);
-
-      if (layers[layer] === undefined) layers[layer] = [];
-      layers[layer].push(id);
-
-      // Add connected nodes to next layer
-      // If connection goes to a node in a chain, add the root node
-      connections
-        .filter((conn) => {
-          // Check if this node or any node in its chain is the source
-          const node = nodes.find((n) => n.id === id);
-          if (!node) return false;
-          const chain = getChain(node);
-          return chain.some((chainNode) => chainNode.id === conn.fromNode);
-        })
-        .forEach((conn) => {
-          const rootId = nodeIdToRootId.get(conn.toNode) ?? conn.toNode;
-          if (!visited.has(rootId)) {
-            queue.push({id: rootId, layer: layer + 1});
-          }
-        });
+    while (topoQueue.length > 0) {
+      const id = topoQueue.shift()!;
+      const currentLayer = layerOf.get(id) ?? 0;
+      outEdges.get(id)!.forEach((toId) => {
+        // Push successor to at least currentLayer + 1.
+        layerOf.set(toId, Math.max(layerOf.get(toId) ?? 0, currentLayer + 1));
+        const remaining = (inDegree.get(toId) ?? 1) - 1;
+        inDegree.set(toId, remaining);
+        if (remaining === 0) topoQueue.push(toId);
+      });
     }
 
-    // Position nodes using actual DOM dimensions
-    const layerSpacing = 50; // Horizontal spacing between layers
-    let currentX = 50; // Start position
+    // Any node not reached (cycle) goes in the last layer.
+    const maxAssigned = Math.max(0, ...Array.from(layerOf.values()));
+    nodes.forEach((n) => {
+      if (!layerOf.has(n.id)) layerOf.set(n.id, maxAssigned + 1);
+    });
 
-    layers.forEach((layer) => {
-      // Find the widest node in this layer (considering entire chains)
-      let maxWidth = 0;
-      layer.forEach((nodeId) => {
+    const numLayers = Math.max(0, ...Array.from(layerOf.values())) + 1;
+    const layers: string[][] = Array.from({length: numLayers}, () => []);
+    nodes.forEach((n) => layers[layerOf.get(n.id)!].push(n.id));
+
+    // Step 2: Crossing minimization — barycenter heuristic, alternating
+    // forward/backward sweeps.
+    const orderMap = new Map<string, number>();
+    layers.forEach((layer) => layer.forEach((id, i) => orderMap.set(id, i)));
+
+    function barycenter(
+      nodeId: string,
+      direction: 'forward' | 'backward',
+    ): number {
+      const neighbors =
+        direction === 'forward'
+          ? Array.from(inEdges.get(nodeId) ?? []) // predecessors
+          : Array.from(outEdges.get(nodeId) ?? []); // successors
+      const positions = neighbors
+        .map((n) => orderMap.get(n))
+        .filter((p): p is number => p !== undefined);
+      if (positions.length === 0) return orderMap.get(nodeId) ?? 0;
+      return positions.reduce((a, b) => a + b, 0) / positions.length;
+    }
+
+    const NUM_PASSES = 4;
+    for (let pass = 0; pass < NUM_PASSES; pass++) {
+      const forward = pass % 2 === 0;
+      const indices = Array.from({length: numLayers}, (_, i) =>
+        forward ? i : numLayers - 1 - i,
+      );
+      for (const li of indices) {
+        if (layers[li].length <= 1) continue;
+        layers[li].sort(
+          (a, b) =>
+            barycenter(a, forward ? 'forward' : 'backward') -
+            barycenter(b, forward ? 'forward' : 'backward'),
+        );
+        layers[li].forEach((id, i) => orderMap.set(id, i));
+      }
+    }
+
+    // Step 3: Coordinate assignment.
+    const layerSpacing = 80;
+    const nodeSpacing = 30;
+
+    function chainHeight(nodeId: string): number {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return 100;
+      return getChain(node).reduce(
+        (total, cn) => total + getNodeDimensions(cn.id).height,
+        0,
+      );
+    }
+
+    // Per-layer: max node width and total column height.
+    const layerWidths = layers.map((layerNodes) => {
+      let maxW = 0;
+      layerNodes.forEach((id) => {
+        const node = nodes.find((n) => n.id === id);
+        if (!node) return;
+        getChain(node).forEach((cn) => {
+          maxW = Math.max(maxW, getNodeDimensions(cn.id).width);
+        });
+      });
+      return maxW;
+    });
+
+    const layerTotalHeights = layers.map((layerNodes) =>
+      layerNodes.reduce(
+        (total, id, i) => total + chainHeight(id) + (i > 0 ? nodeSpacing : 0),
+        0,
+      ),
+    );
+
+    const maxTotalHeight = Math.max(0, ...layerTotalHeights);
+
+    // Compute x start per layer.
+    const layerX: number[] = [];
+    let currentX = 50;
+    layers.forEach((_, li) => {
+      layerX[li] = currentX;
+      currentX += layerWidths[li] + layerSpacing;
+    });
+
+    // Place nodes: each layer is vertically centered around the tallest layer.
+    layers.forEach((layerNodes, li) => {
+      const startY = 50 + (maxTotalHeight - layerTotalHeights[li]) / 2;
+      let currentY = startY;
+      layerNodes.forEach((nodeId) => {
         const node = nodes.find((n) => n.id === nodeId);
         if (node) {
-          // Check width of all nodes in the chain
-          const chain = getChain(node);
-          chain.forEach((chainNode) => {
-            const chainDims = getNodeDimensions(chainNode.id);
-            maxWidth = Math.max(maxWidth, chainDims.width);
-          });
+          onNodeMove(node.id, layerX[li], currentY);
+          currentY += chainHeight(nodeId) + nodeSpacing;
         }
       });
-
-      // Position each node in this layer
-      let currentY = 50;
-      layer.forEach((nodeId) => {
-        const node = nodes.find((n) => n.id === nodeId);
-        if (node && onNodeMove) {
-          onNodeMove(node.id, currentX, currentY);
-
-          // Calculate height of entire chain
-          const chain = getChain(node);
-          let chainHeight = 0;
-          chain.forEach((chainNode) => {
-            const dims = getNodeDimensions(chainNode.id);
-            chainHeight += dims.height;
-          });
-
-          currentY += chainHeight + 30;
-        }
-      });
-
-      // Move to next layer
-      currentX += maxWidth + layerSpacing;
     });
 
     m.redraw();
@@ -1549,6 +1639,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       accentBar,
       contextMenuItems,
       invalid,
+      collapsed,
+      collapsible,
       className: nodeClassName,
     } = node;
     const {
@@ -1574,6 +1666,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       isDockTarget && 'pf-dock-target',
       accentBar && 'pf-node--has-accent-bar',
       invalid && 'pf-invalid',
+      collapsed && 'pf-collapsed',
       nodeClassName,
     );
 
@@ -1736,6 +1829,23 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
           const {onNodeSelect, selectedNodeIds} = vnode.attrs;
 
+          // Only allow dragging when the title bar is grabbed, unless
+          // the node has no header, in which case the whole node is
+          // draggable.
+          const hasHeader = titleBar !== undefined;
+          const onTitleBar = !!(e.target as HTMLElement).closest(
+            '.pf-node-header',
+          );
+          if (hasHeader && !onTitleBar) {
+            if (!selectedNodeIds?.has(id) && onNodeSelect !== undefined) {
+              onNodeSelect(id);
+            }
+            if (canvasElement) {
+              canvasElement.focus();
+            }
+            return;
+          }
+
           // When multiple nodes are selected, disable all dragging.
           // Only allow selection change and focus.
           if (selectedNodeIds !== undefined && selectedNodeIds.size > 1) {
@@ -1813,12 +1923,24 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             titleBar.icon !== undefined &&
               m(Icon, {icon: titleBar.icon, className: 'pf-node-title-icon'}),
             m('.pf-node-title', titleBar.title),
+            titleBar.actions,
+            // Collapse toggle button (hidden for non-collapsible nodes)
+            vnode.attrs.onNodeCollapse !== undefined &&
+              (collapsible ?? true) &&
+              m(Button, {
+                icon: collapsed ? 'expand_more' : 'expand_less',
+                title: collapsed ? 'Expand' : 'Collapse',
+                className: 'pf-show-on-hover',
+                onclick: (e: MouseEvent) => {
+                  e.stopPropagation();
+                  vnode.attrs.onNodeCollapse?.(id, !collapsed);
+                },
+              }),
             contextMenuItems !== undefined &&
               m(
                 PopupMenu,
                 {
                   trigger: m(Button, {
-                    rounded: true,
                     icon: Icons.ContextMenuAlt,
                     className: contextMenuOnHover ? 'pf-show-on-hover' : '',
                   }),
@@ -1837,7 +1959,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               PopupMenu,
               {
                 trigger: m(Button, {
-                  rounded: true,
                   icon: Icons.ContextMenuAlt,
                 }),
               },
@@ -1845,14 +1966,16 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             ),
           ),
 
-        // Top input ports (if not docked child)
+        // Top input ports
         topInputs.map((port) => {
           const portIndex = inputs.indexOf(port);
           return renderPort(port, portIndex, 'input');
         }),
 
         m('.pf-node-body', [
-          content !== undefined &&
+          // Content hidden when collapsed
+          !collapsed &&
+            content !== undefined &&
             m(
               '.pf-node-content',
               {
@@ -1863,9 +1986,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               content,
             ),
 
-          // Left input ports
+          // Left input ports (first one hidden when docked child)
           leftInputs.map((port) => {
             const portIndex = inputs.indexOf(port);
+            // Hide the primary (first) left input when this node is docked
+            if (isDockedChild && portIndex === 0) return null;
             return m(
               '.pf-port-row.pf-port-input',
               {
@@ -1875,20 +2000,21 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             );
           }),
 
-          // Right output ports
-          rightOutputs.map((port) => {
-            const portIndex = outputs.indexOf(port);
-            return m(
-              '.pf-port-row.pf-port-output',
-              {
-                'data-port': `output-${portIndex}`,
-              },
-              [port.content, renderPort(port, portIndex, 'output')],
-            );
-          }),
+          // Right output ports (hidden when has docked child)
+          !hasDockedChild &&
+            rightOutputs.map((port) => {
+              const portIndex = outputs.indexOf(port);
+              return m(
+                '.pf-port-row.pf-port-output',
+                {
+                  'data-port': `output-${portIndex}`,
+                },
+                [port.content, renderPort(port, portIndex, 'output')],
+              );
+            }),
         ]),
 
-        // Bottom output ports (if no docked child below)
+        // Bottom output ports
         bottomOutputs.map((port) => {
           const portIndex = outputs.indexOf(port);
           return renderPort(port, portIndex, 'output');
@@ -2333,7 +2459,16 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             }
           },
           onkeydown: (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+              vnode.attrs.onCopy?.();
+              e.preventDefault();
+            } else if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+              vnode.attrs.onPaste?.();
+              e.preventDefault();
+            } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+              vnode.attrs.onCut?.();
+              e.preventDefault();
+            } else if (e.key === 'Escape') {
               // Deselect all nodes and labels
               const hasSelection = canvasState.selectedNodes.size > 0;
               if (hasSelection) {
@@ -2445,6 +2580,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             '.pf-canvas-content',
             {
               style: `transform: translate(${canvasState.panOffset.x}px, ${canvasState.panOffset.y}px) scale(${canvasState.zoom}); transform-origin: 0 0;`,
+              oncreate: (vnode: m.VnodeDOM) => {
+                canvasContentElement = vnode.dom as HTMLElement;
+              },
             },
             [
               // SVG container for connections (rendered imperatively in oncreate/onupdate)

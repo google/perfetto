@@ -21,7 +21,7 @@
 
   &__tabs {
     display: flex;
-    background-color: var(--pf-color-background-secondary);
+    background-color: var(--pf-color-background);
     border-bottom: 1px solid var(--pf-color-border);
     padding-inline: 3px;
     align-items: baseline;
@@ -57,14 +57,14 @@
 
     &--active {
       cursor: default;
-      background-color: var(--pf-color-background);
+      background-color: var(--pf-color-background-secondary);
       border-color: var(--pf-color-border);
       color: var(--pf-color-text);
       z-index: 1;
 
       // Don't change background on hover for active tab
       &:hover {
-        background-color: var(--pf-color-background);
+        background-color: var(--pf-color-background-secondary);
       }
     }
   }
