@@ -53,6 +53,10 @@ export interface OverviewData {
   duplicateArrays?: DuplicateArrayGroup[];
   /** True when HPROF field values are available (heap_graph_primitive). */
   hasFieldValues: boolean;
+  /** Process oom_score_adj at the dump instant; null if the trace has none. */
+  oomScore: number | null;
+  /** oom_adj bucket name from the stdlib (e.g. "cached"); null if unavailable. */
+  oomBucket: string | null;
 }
 
 export type PrimOrRef =

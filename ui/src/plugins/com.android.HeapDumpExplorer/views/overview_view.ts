@@ -291,6 +291,14 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
         (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
       const infoRows: Row[] = [
         {property: 'Process', value: processLabel},
+        ...(overview.oomBucket !== null
+          ? [
+              {
+                property: 'OOM score',
+                value: `${overview.oomBucket} (${overview.oomScore})`,
+              },
+            ]
+          : []),
         {property: 'Classes', value: overview.classCount.toLocaleString()},
         {
           property: 'Reachable instances',
