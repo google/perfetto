@@ -214,22 +214,22 @@ base::Status RegisterAllProtoBuilderFunctions(
   return base::OkStatus();
 }
 
-void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
-  char* error = nullptr;
-  sqlite3_exec(db, "DELETE FROM _trace_bounds", nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error deleting from bounds table: %s", error);
-    sqlite3_free(error);
+void BuildBoundsTable(PerfettoSqlConnection* engine,
+                      std::pair<int64_t, int64_t> bounds) {
+  auto del = engine->Execute(
+      SqlSource::FromTraceProcessorImplementation("DELETE FROM _trace_bounds"));
+  if (!del.ok()) {
+    PERFETTO_ELOG("Error deleting from bounds table: %s",
+                  del.status().c_message());
     return;
   }
-
   base::StackString<1024> sql("INSERT INTO _trace_bounds VALUES(%" PRId64
                               ", %" PRId64 ")",
                               bounds.first, bounds.second);
-  sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error inserting bounds table: %s", error);
-    sqlite3_free(error);
+  auto ins = engine->Execute(
+      SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
+  if (!ins.ok()) {
+    PERFETTO_ELOG("Error inserting bounds table: %s", ins.status().c_message());
   }
 }
 
@@ -264,15 +264,13 @@ std::vector<std::string> SanitizeMetricMountPaths(
   return sanitized;
 }
 
-void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
-  char* insert_sql = sqlite3_mprintf(
-      "INSERT INTO _trace_metrics(name) VALUES('%q')", metric_name.c_str());
-  char* insert_error = nullptr;
-  sqlite3_exec(db, insert_sql, nullptr, nullptr, &insert_error);
-  sqlite3_free(insert_sql);
-  if (insert_error) {
-    PERFETTO_ELOG("Error registering table: %s", insert_error);
-    sqlite3_free(insert_error);
+void InsertIntoTraceMetricsTable(PerfettoSqlConnection* engine,
+                                 const std::string& metric_name) {
+  auto s = engine->Execute(SqlSource::FromTraceProcessorImplementation(
+                               "INSERT INTO _trace_metrics(name) VALUES(?)"),
+                           {metric_name});
+  if (!s.ok()) {
+    PERFETTO_ELOG("Error registering table: %s", s.c_message());
   }
 }
 
@@ -526,11 +524,14 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                 config_.skip_builtin_metric_paths.end(),
                                 "") != config_.skip_builtin_metric_paths.end();
   if (!skip_all_sql) {
+    // Wrap the per-metric INSERTs in one transaction; otherwise SQLite
+    // implicitly commits after each statement.
+    PerfettoSqlConnection::Transaction txn(engine_.get());
     for (const auto& file_to_sql :
          SqlBundle(sql_metrics::kAmalgamatedSqlMetrics)) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
-      RegisterMetric(file_to_sql.path, std::string(file_to_sql.sql_view()));
+      RegisterMetricImpl(file_to_sql.path, std::string(file_to_sql.sql_view()));
     }
   }
 }
@@ -619,7 +620,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
   }
   bounds_tables_mutations_ = mutations;
   cached_trace_bounds_ = AggregatePluginTimestampBounds(plugins_);
-  BuildBoundsTable(engine_->sqlite_connection()->db(), cached_trace_bounds_);
+  BuildBoundsTable(engine_.get(), cached_trace_bounds_);
 }
 
 // =================================================================
@@ -838,13 +839,18 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 
 base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
+  return RegisterMetricImpl(path, sql);
+}
+
+base::Status TraceProcessorImpl::RegisterMetricImpl(std::string path,
+                                                    std::string sql) {
   // Check if the metric with the given path already exists and if it does,
   // just update the SQL associated with it.
   auto it = std::find_if(
       sql_metrics_.begin(), sql_metrics_.end(),
       [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
   if (it != sql_metrics_.end()) {
-    it->sql = sql;
+    it->sql = std::move(sql);
     return base::OkStatus();
   }
 
@@ -859,13 +865,13 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   auto no_ext_name = basename.substr(0, sql_idx);
 
   metrics::SqlMetricFile metric;
-  metric.path = path;
-  metric.sql = sql;
 
   if (IsRootMetricField(no_ext_name)) {
     metric.proto_field_name = no_ext_name;
     metric.output_table_name = no_ext_name + "_output";
 
+    // proto_field_to_sql_metric_path_ stores |path| by value: this is the
+    // one unavoidable copy on the root-metric path.
     auto field_it_and_inserted =
         proto_field_to_sql_metric_path_.emplace(*metric.proto_field_name, path);
     if (!field_it_and_inserted.second) {
@@ -882,13 +888,11 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
           "and %s are both trying to output the proto field %s",
           prev_path.c_str(), path.c_str(), metric.proto_field_name->c_str());
     }
+    InsertIntoTraceMetricsTable(engine_.get(), *metric.proto_field_name);
   }
-
-  if (metric.proto_field_name) {
-    InsertIntoTraceMetricsTable(engine_->sqlite_connection()->db(),
-                                *metric.proto_field_name);
-  }
-  sql_metrics_.emplace_back(metric);
+  metric.path = std::move(path);
+  metric.sql = std::move(sql);
+  sql_metrics_.emplace_back(std::move(metric));
   return base::OkStatus();
 }
 
@@ -1072,13 +1076,17 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     IncludeAfterEofPrelude(connection.get());
   }
 
-  sqlite3* db = connection->sqlite_connection()->db();
-  for (const auto& metric : sql_metrics) {
-    if (metric.proto_field_name) {
-      InsertIntoTraceMetricsTable(db, *metric.proto_field_name);
+  // Same batching as the constructor: wrap the per-metric INSERTs in one
+  // transaction.
+  {
+    PerfettoSqlConnection::Transaction txn(connection.get());
+    for (const auto& metric : sql_metrics) {
+      if (metric.proto_field_name) {
+        InsertIntoTraceMetricsTable(connection.get(), *metric.proto_field_name);
+      }
     }
   }
-  BuildBoundsTable(db, cached_trace_bounds);
+  BuildBoundsTable(connection.get(), cached_trace_bounds);
   return connection;
 }
 
