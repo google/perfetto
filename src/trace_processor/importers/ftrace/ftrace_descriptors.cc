@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 611> descriptors{{
+std::array<FtraceMessageDescriptor, 613> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6802,6 +6802,35 @@ std::array<FtraceMessageDescriptor, 611> descriptors{{
             {"output_id", ProtoSchemaType::kUint32},
             {"frames_pending", ProtoSchemaType::kInt32},
             {"te_count", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "panel_settings_full",
+        10,
+        {
+            {},
+            {"panel_index", ProtoSchemaType::kInt32},
+            {"hbm", ProtoSchemaType::kUint32},
+            {"irc", ProtoSchemaType::kUint32},
+            {"h_pwm", ProtoSchemaType::kUint32},
+            {"fi_auto", ProtoSchemaType::kUint32},
+            {"fi_manual", ProtoSchemaType::kUint32},
+            {"early_exit", ProtoSchemaType::kUint32},
+            {"min_rr", ProtoSchemaType::kUint32},
+            {"max_rr", ProtoSchemaType::kUint32},
+            {"te_freq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "panel_settings_lite",
+        5,
+        {
+            {},
+            {"panel_index", ProtoSchemaType::kInt32},
+            {"vrr", ProtoSchemaType::kUint32},
+            {"min_rr", ProtoSchemaType::kUint32},
+            {"max_rr", ProtoSchemaType::kUint32},
+            {"te_freq", ProtoSchemaType::kUint32},
         },
     },
 }};

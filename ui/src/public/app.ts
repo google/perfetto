@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {RouteArgs} from './route_schema';
-import type {CommandManager} from './commands';
-import type {OmniboxManager} from './omnibox';
-import type {SidebarManager} from './sidebar';
 import type {Analytics} from './analytics';
-import type {PluginManager} from './plugin';
-import type {Trace} from './trace';
-import type {PageManager} from './page';
+import type {CommandManager} from './commands';
 import type {FeatureFlagManager} from './feature_flag';
+import type {OmniboxManager} from './omnibox';
+import type {PageManager} from './page';
+import type {PluginManager} from './plugin';
 import type {Raf} from './raf';
+import type {RouteArgs} from './route_schema';
 import type {SettingsManager} from './settings';
+import type {SidePanelManager} from './side_panel';
+import type {SidebarManager} from './sidebar';
 import type {TraceStream} from './stream';
 import type {TaskTracker} from './task_tracker';
+import type {Trace} from './trace';
 
 /**
  * The API endpoint to interact programmatically with the UI before a trace has
@@ -61,6 +62,15 @@ export interface App {
    * Tracks async tasks for observability and idle detection.
    */
   readonly taskTracker: TaskTracker;
+
+  /**
+   * Manage the side panel tabs - a global side panel that appears on the right
+   * of all pages, adding tabs and switching between them.
+   *
+   * @experimental - This is a new API and may change or be removed in the
+   * future. Use with caution and be prepared for breaking changes.
+   */
+  readonly sidePanel: SidePanelManager;
 
   // True if the current user is an 'internal' user. E.g. a Googler on
   // ui.perfetto.dev. Plugins might use this to determine whether to show
