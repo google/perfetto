@@ -15,87 +15,93 @@
 import m from 'mithril';
 import {
   BarChart,
-  BarChartData,
+  type BarChartData,
   aggregateBarChartData,
 } from '../../../components/widgets/charts/bar_chart';
 import {
-  ChartAggregation,
+  type ChartAggregation,
   isIntegerAggregation,
 } from '../../../components/widgets/charts/chart_utils';
 import {
   SQLBarChartLoader,
-  BarChartLoaderConfig,
+  type BarChartLoaderConfig,
 } from '../../../components/widgets/charts/bar_chart_loader';
 import {Histogram} from '../../../components/widgets/charts/histogram';
 import type {LegendPosition} from '../../../components/widgets/charts/common';
 import {
   InMemoryHistogramLoader,
   SQLHistogramLoader,
-  HistogramLoaderConfig,
+  type HistogramLoaderConfig,
 } from '../../../components/widgets/charts/histogram_loader';
 import {
   LineChart,
-  LineChartData,
+  type LineChartData,
 } from '../../../components/widgets/charts/line_chart';
 import {
   SQLLineChartLoader,
-  LineChartLoaderConfig,
+  type LineChartLoaderConfig,
 } from '../../../components/widgets/charts/line_chart_loader';
 import {
   PieChart,
-  PieChartData,
+  type PieChartData,
 } from '../../../components/widgets/charts/pie_chart';
 import {
   SQLPieChartLoader,
-  PieChartLoaderConfig,
+  type PieChartLoaderConfig,
 } from '../../../components/widgets/charts/pie_chart_loader';
 import {
   Scatterplot,
-  ScatterChartData,
+  type ScatterChartData,
 } from '../../../components/widgets/charts/scatterplot';
 import {
   SQLScatterChartLoader,
-  ScatterChartLoaderConfig,
+  type ScatterChartLoaderConfig,
 } from '../../../components/widgets/charts/scatterplot_loader';
-import {Treemap, TreemapData} from '../../../components/widgets/charts/treemap';
+import {
+  Treemap,
+  type TreemapData,
+} from '../../../components/widgets/charts/treemap';
 import {
   SQLTreemapLoader,
-  TreemapLoaderConfig,
+  type TreemapLoaderConfig,
 } from '../../../components/widgets/charts/treemap_loader';
 import {
   SQLCdfLoader,
-  CdfLoaderConfig,
+  type CdfLoaderConfig,
 } from '../../../components/widgets/charts/cdf_loader';
 import {
   BoxplotChart,
-  BoxplotData,
+  type BoxplotData,
 } from '../../../components/widgets/charts/boxplot';
 import {
   SQLBoxplotLoader,
-  BoxplotLoaderConfig,
+  type BoxplotLoaderConfig,
 } from '../../../components/widgets/charts/boxplot_loader';
 import {
   HeatmapChart,
-  HeatmapData,
+  type HeatmapData,
 } from '../../../components/widgets/charts/heatmap';
-import {Sankey, SankeyData} from '../../../components/widgets/charts/sankey';
+import {
+  Sankey,
+  type SankeyData,
+} from '../../../components/widgets/charts/sankey';
 import {
   SQLSankeyLoader,
-  SankeyLoaderConfig,
+  type SankeyLoaderConfig,
 } from '../../../components/widgets/charts/sankey_loader';
 import {
   SQLHeatmapLoader,
-  HeatmapLoaderConfig,
+  type HeatmapLoaderConfig,
 } from '../../../components/widgets/charts/heatmap_loader';
 import {Gauge} from '../../../components/widgets/charts/gauge';
 import {Scorecard} from '../../../components/widgets/charts/scorecard';
 import {
   SQLSingleValueLoader,
-  SingleValueLoaderConfig,
+  type SingleValueLoaderConfig,
 } from '../../../components/widgets/charts/single_value_loader';
-import {App} from '../../../public/app';
+import type {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {LineChartSvg} from '../../../components/widgets/charts_svg/line_chart_svg';
 import {HistogramSvg} from '../../../components/widgets/charts_svg/histogram_svg';
 

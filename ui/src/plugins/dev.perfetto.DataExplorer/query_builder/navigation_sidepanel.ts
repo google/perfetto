@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Card, CardStack} from '../../../widgets/card';
 import {Icon} from '../../../widgets/icon';
-import {QueryNode} from '../query_node';
+import type {QueryNode} from '../query_node';
 import {EXAMPLE_GRAPHS} from '../example_graphs';
 import {RecentGraphsSection} from '../recent_graphs';
 

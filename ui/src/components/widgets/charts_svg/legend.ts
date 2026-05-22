@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
-import {HTMLAttrs} from '../../../widgets/common';
+import type {HTMLAttrs} from '../../../widgets/common';
 
 export interface ChartLegendEntryAttrs {
   readonly name: string;

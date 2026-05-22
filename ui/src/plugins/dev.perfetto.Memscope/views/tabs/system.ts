@@ -18,7 +18,7 @@ import {
   type LineChartData,
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
-import {LiveSession, SnapshotData} from '../../sessions/live_session';
+import type {LiveSession, SnapshotData} from '../../sessions/live_session';
 import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
 import {Billboard} from '../../components/billboard';
 import {Panel} from '../../components/panel';

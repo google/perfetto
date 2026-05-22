@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../../../../base/async_limiter';
-import {Trace} from '../../../../public/trace';
-import {Row} from '../../../../trace_processor/query_result';
-import {areFiltersEqual, Filter, Filters} from '../table/filters';
+import type {Trace} from '../../../../public/trace';
+import type {Row} from '../../../../trace_processor/query_result';
+import {areFiltersEqual, type Filter, Filters} from '../table/filters';
 import {buildSqlQuery} from '../table/query_builder';
 import {SimpleColumn} from '../table/simple_column';
-import {SqlColumn, sqlColumnId, SqlExpression} from '../table/sql_column';
-import {TableColumn} from '../table/table_column';
-import {SqlTableDescription} from '../table/table_description';
+import {type SqlColumn, sqlColumnId, SqlExpression} from '../table/sql_column';
+import type {TableColumn} from '../table/table_column';
+import type {SqlTableDescription} from '../table/table_description';
 import {moveArrayItem} from '../../../../base/array_utils';
 import {assertExists} from '../../../../base/assert';
-import {SortDirection} from '../../../../base/comparison_utils';
-import {Aggregation, expandAggregations} from './aggregations';
+import type {SortDirection} from '../../../../base/comparison_utils';
+import {type Aggregation, expandAggregations} from './aggregations';
 import {PivotTreeNode} from './pivot_tree_node';
 import {aggregationId, pivotId} from './ids';
 import {uuidv4} from '../../../../base/uuid';

@@ -61,7 +61,7 @@ using perfetto_sql::PartitionedTable;
 using perfetto_sql::Partitions;
 
 constexpr uint32_t kArgCols = 2;
-constexpr uint32_t kIdCols = 10;
+constexpr uint32_t kIdCols = 15;
 constexpr uint32_t kPartitionColsOffset = kArgCols + kIdCols;
 
 using Intervals = std::vector<Interval>;
@@ -247,7 +247,7 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
     auto tabc = static_cast<size_t>(argc - 1);
     if (tabc > kIdCols) {
       return sqlite::result::Error(
-          ctx, "interval intersect: Can intersect at most 10 tables");
+          ctx, "interval intersect: Can intersect at most 15 tables");
     }
     const char* partition_list = sqlite::value::Text(argv[argc - 1]);
     if (!partition_list) {

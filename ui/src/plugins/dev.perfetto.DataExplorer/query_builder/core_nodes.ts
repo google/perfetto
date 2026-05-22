@@ -17,56 +17,63 @@ import {SlicesSourceNode} from './nodes/sources/slices_source';
 import {
   modalForTableSelection,
   TableSourceNode,
-  TableSourceNodeAttrs,
+  type TableSourceNodeAttrs,
 } from './nodes/sources/table_source';
-import {SqlSourceNode, SqlSourceNodeAttrs} from './nodes/sources/sql_source';
+import {
+  SqlSourceNode,
+  type SqlSourceNodeAttrs,
+} from './nodes/sources/sql_source';
 import {
   TimeRangeSourceNode,
-  TimeRangeSourceNodeAttrs,
+  type TimeRangeSourceNodeAttrs,
 } from './nodes/sources/timerange_source';
-import {AggregationNode, AggregationNodeAttrs} from './nodes/aggregation_node';
+import {
+  AggregationNode,
+  type AggregationNodeAttrs,
+} from './nodes/aggregation_node';
 import {
   ModifyColumnsNode,
-  ModifyColumnsNodeAttrs,
+  type ModifyColumnsNodeAttrs,
 } from './nodes/modify_columns_node';
-import {AddColumnsNode, AddColumnsNodeAttrs} from './nodes/add_columns_node';
+import {AddColumnsNode} from './nodes/add_columns_node';
+import type {AddColumnsNodeAttrs} from './nodes/add_columns_types';
 import {
   FilterDuringNode,
-  FilterDuringNodeAttrs,
+  type FilterDuringNodeAttrs,
 } from './nodes/filter_during_node';
-import {FilterInNode, FilterInNodeAttrs} from './nodes/filter_in_node';
+import {FilterInNode, type FilterInNodeAttrs} from './nodes/filter_in_node';
 import {
   IntervalIntersectNode,
-  IntervalIntersectNodeAttrs,
+  type IntervalIntersectNodeAttrs,
 } from './nodes/interval_intersect_node';
-import {JoinNode, JoinNodeAttrs} from './nodes/join_node';
+import {JoinNode, type JoinNodeAttrs} from './nodes/join_node';
 import {
   CreateSlicesNode,
-  CreateSlicesNodeAttrs,
+  type CreateSlicesNodeAttrs,
 } from './nodes/create_slices_node';
-import {SortNode, SortNodeAttrs} from './nodes/sort_node';
-import {FilterNode, FilterNodeAttrs} from './nodes/filter_node';
-import {UnionNode, UnionNodeAttrs} from './nodes/union_node';
+import {SortNode, type SortNodeAttrs} from './nodes/sort_node';
+import {FilterNode, type FilterNodeAttrs} from './nodes/filter_node';
+import {UnionNode, type UnionNodeAttrs} from './nodes/union_node';
 import {
   LimitAndOffsetNode,
-  LimitAndOffsetNodeAttrs,
+  type LimitAndOffsetNodeAttrs,
 } from './nodes/limit_and_offset_node';
 import {
   CounterToIntervalsNode,
-  CounterToIntervalsNodeAttrs,
+  type CounterToIntervalsNodeAttrs,
 } from './nodes/counter_to_intervals_node';
-import {MetricsNode, MetricsNodeAttrs} from './nodes/metrics_node';
+import {MetricsNode, type MetricsNodeAttrs} from './nodes/metrics_node';
 import {
   TraceSummaryNode,
-  TraceSummaryNodeAttrs,
+  type TraceSummaryNodeAttrs,
 } from './nodes/trace_summary_node';
 import {
   VisualisationNode,
-  VisualisationNodeAttrs,
+  type VisualisationNodeAttrs,
 } from './nodes/visualisation_node';
-import {DashboardNode, DashboardNodeAttrs} from './nodes/dashboard_node';
+import {DashboardNode, type DashboardNodeAttrs} from './nodes/dashboard_node';
 import {Icons} from '../../../base/semantic_icons';
-import {NodeType, QueryNode} from '../query_node';
+import {NodeType, type QueryNode} from '../query_node';
 import {GroupNode} from './nodes/group_node';
 
 // After JoinNode.onPrevNodesUpdated() defaults all columns to unchecked on

@@ -14,15 +14,15 @@
 
 import m from 'mithril';
 import {
-  QueryResponse,
+  type QueryResponse,
   runQueryForQueryTable,
 } from '../../components/query_table/queries';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
+import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {Trace} from '../../public/trace';
-import {Tab} from '../../public/tab';
+import type {Trace} from '../../public/trace';
+import type {Tab} from '../../public/tab';
 import {DetailsShell} from '../../widgets/details_shell';
-import {ResultsData, ResultsTable} from './results_table';
+import {type ResultsData, ResultsTable} from './results_table';
 
 interface QueryResultTabConfig {
   readonly query: string;

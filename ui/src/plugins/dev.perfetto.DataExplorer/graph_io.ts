@@ -15,8 +15,8 @@
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {showModal} from '../../widgets/modal';
-import {Trace} from '../../public/trace';
-import {QueryNode} from './query_node';
+import type {Trace} from '../../public/trace';
+import type {QueryNode} from './query_node';
 import {
   serializeState,
   exportStateAsJson,
@@ -30,12 +30,12 @@ import {
   showExportWarning,
 } from './query_builder/widgets';
 import {recentGraphsStorage} from './recent_graphs';
-import {DataExplorerState, DashboardTabState} from './data_explorer';
+import type {DataExplorerState, DashboardTabState} from './data_explorer';
 import type {DataExplorerTab} from './data_explorer';
 import {parsePbtxtToState} from './pbtxt_import';
 import {
   serializeDashboardsForTab,
-  SerializedDashboard,
+  type SerializedDashboard,
 } from './data_explorer_tabs_storage';
 import {
   validateDashboardItems,

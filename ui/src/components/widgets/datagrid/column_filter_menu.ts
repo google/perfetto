@@ -16,15 +16,15 @@ import m from 'mithril';
 import {FuzzyFinder} from '../../../base/fuzzy';
 import {isEmptyVnodes} from '../../../base/mithril_utils';
 import {Icons} from '../../../base/semantic_icons';
-import {SqlValue} from '../../../trace_processor/query_result';
+import type {SqlValue} from '../../../trace_processor/query_result';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Form} from '../../../widgets/form';
 import {Icon} from '../../../widgets/icon';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {DataSource} from './data_source';
-import {ColumnType} from './datagrid_schema';
-import {FilterOpAndValue} from './model';
+import type {DataSource} from './data_source';
+import type {ColumnType} from './datagrid_schema';
+import type {FilterOpAndValue} from './model';
 
 // Helper to convert search text to case-insensitive glob pattern
 export function toCaseInsensitiveGlob(text: string): string {

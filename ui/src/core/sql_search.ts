@@ -18,11 +18,11 @@ import {
   ANDROID_LOGS_TRACK_KIND,
   CPU_SLICE_TRACK_KIND,
 } from '../public/track_kinds';
-import {Engine} from '../trace_processor/engine';
+import type {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
-import {CurrentSearchResults, SearchSource} from './search_data';
-import {TrackManagerImpl} from './track_manager';
+import type {CurrentSearchResults, SearchSource} from './search_data';
+import type {TrackManagerImpl} from './track_manager';
 
 /**
  * Executes a SQL-based search across the trace data.

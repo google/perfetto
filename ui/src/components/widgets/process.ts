@@ -17,13 +17,13 @@ import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
 import {addEphemeralTab} from '../details/add_ephemeral_tab';
-import {Upid} from '../sql_utils/core_types';
+import type {Upid} from '../sql_utils/core_types';
 import {
   getProcessInfo,
   getProcessName,
-  ProcessInfo,
+  type ProcessInfo,
 } from '../sql_utils/process';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ProcessDetailsTab} from '../details/process_details_tab';

@@ -89,11 +89,16 @@ class Graph {
     }
   }
 
-  // Returns the TreeNumber for a given Node.
+  // Returns the semi-dominator TreeNumber for a given Node. v must satisfy
+  // IsInTree(v).
   TreeNumber GetSemiDominator(Node v) const {
-    // Note: if you happen to see this check failing, it's likely a problem that
-    // the graph has nodes which are not reachable from the root node.
     return *GetStateForNode(v).semi_dominator;
+  }
+
+  // Returns whether the given node was visited by RunDfs and is therefore
+  // part of the DFS spanning tree.
+  bool IsInTree(Node v) const {
+    return GetStateForNode(v).semi_dominator.has_value();
   }
 
   // Returns the number of nodes in the tree (== the number of nodes in
@@ -149,8 +154,14 @@ class Forest {
     a = ancestor;
   }
 
-  // Corresponds to the "Eval" function in the paper.
-  Node GetMinSemiDominatorToAncestor(Node vertex, const Graph& graph) {
+  // Corresponds to the "Eval" function in the paper. Returns nullopt if
+  // `vertex` was not visited by the graph's DFS; such a node has no
+  // meaningful semi-dominator to report.
+  std::optional<Node> GetMinSemiDominatorToAncestor(Node vertex,
+                                                    const Graph& graph) {
+    if (!graph.IsInTree(vertex)) {
+      return std::nullopt;
+    }
     NodeState& state = GetStateForNode(vertex);
     if (!state.ancestor) {
       return vertex;
@@ -239,9 +250,12 @@ void Graph::ComputeSemiDominatorAndPartialDominator(Forest& forest) {
     Node w = GetNodeForTreeNumber(TreeNumber{i});
     NodeState& w_state = GetStateForNode(w);
     for (Node v : w_state.predecessors) {
-      Node u = forest.GetMinSemiDominatorToAncestor(v, *this);
+      auto u = forest.GetMinSemiDominatorToAncestor(v, *this);
+      if (!u) {
+        continue;
+      }
       w_state.semi_dominator =
-          std::min(*w_state.semi_dominator, GetSemiDominator(u));
+          std::min(*w_state.semi_dominator, GetSemiDominator(*u));
     }
     NodeState& semi_dominator_state =
         GetStateForNode(GetNodeForTreeNumber(*w_state.semi_dominator));
@@ -253,7 +267,10 @@ void Graph::ComputeSemiDominatorAndPartialDominator(Forest& forest) {
 
     NodeState& w_parent_state = GetStateForNode(w_parent);
     for (Node v : w_parent_state.self_as_semi_dominator) {
-      Node u = forest.GetMinSemiDominatorToAncestor(v, *this);
+      // v is always in-tree: it was pushed onto some node's
+      // self_as_semi_dominator list in an earlier iteration of this loop,
+      // which only runs over tree nodes.
+      Node u = *forest.GetMinSemiDominatorToAncestor(v, *this);
       NodeState& v_state = GetStateForNode(v);
       v_state.dominator =
           GetSemiDominator(u) < v_state.semi_dominator ? u : w_parent;

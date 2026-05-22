@@ -13,18 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Duration, duration, Time, time} from '../../base/time';
+import {Duration, type duration, Time, type time} from '../../base/time';
 import {hasArgs} from '../../components/details/args';
 import {renderDetails} from '../../components/details/slice_details';
 import {
   getDescendantSliceTree,
   getSlice,
-  SliceDetails,
-  SliceTreeNode,
+  type SliceDetails,
+  type SliceTreeNode,
 } from '../../components/sql_utils/slice';
-import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
-import {Grid, GridColumn, GridHeaderCell, GridCell} from '../../widgets/grid';
-import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
+import {
+  asSliceSqlId,
+  type SliceSqlId,
+} from '../../components/sql_utils/core_types';
+import {
+  Grid,
+  type GridColumn,
+  GridHeaderCell,
+  GridCell,
+} from '../../widgets/grid';
+import {
+  TreeTable,
+  type TreeTableAttrs,
+} from '../../components/widgets/treetable';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
@@ -32,8 +43,8 @@ import {Section} from '../../widgets/section';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {
-  EventLatencyCauseThreadTracks,
-  EventLatencyStage,
+  type EventLatencyCauseThreadTracks,
+  type EventLatencyStage,
   getCauseLink,
   getEventLatencyCauseTracks,
   getScrollJankCauseStage,
@@ -47,8 +58,8 @@ import {
   stdlibRef,
   trackEventRefTreeNode,
 } from './utils';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 import {renderSliceArguments} from '../../components/details/slice_args';
 import {TrackEventRef} from '../../components/widgets/track_event_ref';
 import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';

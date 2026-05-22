@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {STR_NULL} from '../../trace_processor/query_result';
 import GpuPlugin from '../dev.perfetto.Gpu';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';

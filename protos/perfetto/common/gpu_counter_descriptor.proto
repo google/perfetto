@@ -50,6 +50,35 @@ message GpuCounterDescriptor {
     repeated MeasureUnit denominator_units = 8;
     optional bool select_by_default = 9;
     repeated GpuCounterGroup groups = 10;
+
+    // Direction of the time interval that each emitted sample applies to.
+    // A GPU counter is sampled at discrete timestamps, but its value really
+    // represents a measurement over some interval around that timestamp
+    // (e.g. average GPU utilization over the sampling window). This field
+    // tells trace processor on which side of the timestamp that interval
+    // lies, which controls where the value is drawn in the UI.
+    //
+    // Example: samples at t=10, 20, 30 with values 5, 7, 0.
+    //   BACKWARDS_LOOKING: 5 covers (-inf, 10], 7 covers (10, 20], 0 covers
+    //     (20, 30]; the UI draws 7 between t=10 and t=20.
+    //   FORWARDS_LOOKING:  5 covers [10, 20), 7 covers [20, 30), 0 covers
+    //     [30, +inf); the UI draws 5 between t=10 and t=20.
+    enum ValueDirection {
+      // Treated as BACKWARDS_LOOKING (the historical default).
+      VALUE_DIRECTION_UNSPECIFIED = 0;
+      // The value applies to the interval ending at this event's timestamp.
+      // This is the convention used by AGI and most existing GPU producers,
+      // where a sample reports what happened during the window leading up
+      // to the timestamp.
+      VALUE_DIRECTION_BACKWARDS_LOOKING = 1;
+      // The value applies to the interval starting at this event's
+      // timestamp, matching standard Perfetto counters. Producers that emit
+      // explicit zero samples to denote "no activity from here on" should
+      // use this so the zero is not back-propagated over earlier non-zero
+      // samples (https://github.com/google/perfetto/issues/5683).
+      VALUE_DIRECTION_FORWARDS_LOOKING = 2;
+    }
+    optional ValueDirection value_direction = 11;
   }
   repeated GpuCounterSpec specs = 1;
 

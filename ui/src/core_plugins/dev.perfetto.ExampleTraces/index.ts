@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {AppImpl} from '../../core/app_impl';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {Icons} from '../../base/semantic_icons';
 
 const EXAMPLE_ANDROID_TRACE_URL =

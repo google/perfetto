@@ -41,10 +41,10 @@ source_set("engine") {
     "../../core/dataframe",
     "../../core/plugin",
     "../../types",
+    "../../util:owned_sql_value",
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
-    "../preprocessor",
     "../tokenizer",
   ]
 
@@ -68,4 +68,19 @@ perfetto_unittest_source_set("unittests") {
     "../../sqlite",
     "../../util:stdlib",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":engine",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../base",
+      "../../containers",
+      "../../sqlite",
+    ]
+    sources = [ "perfetto_sql_connection_benchmark.cc" ]
+  }
 }

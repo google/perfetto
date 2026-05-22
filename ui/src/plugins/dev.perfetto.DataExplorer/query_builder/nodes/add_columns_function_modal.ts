@@ -16,12 +16,12 @@ import m from 'mithril';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Form, FormSection} from '../../../../widgets/form';
-import {FunctionList, FunctionWithModule} from '../function_list';
-import {FunctionArgBinding, NewColumn} from './add_columns_types';
-import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnInfo} from '../column_info';
+import {FunctionList, type FunctionWithModule} from '../function_list';
+import type {FunctionArgBinding, NewColumn} from './add_columns_types';
+import type {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
+import type {ColumnInfo} from '../column_info';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   parsePerfettoSqlTypeFromString,
   isQuantitativeType,
 } from '../../../../trace_processor/perfetto_sql_type';

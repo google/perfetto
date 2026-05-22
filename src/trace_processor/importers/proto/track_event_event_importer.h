@@ -647,7 +647,6 @@ class TrackEventEventImporter {
     // Tokenizer ensures that TYPE_COUNTER events are associated with counter
     // tracks and have values.
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationCounter());
-    PERFETTO_DCHECK(storage_->track_table().FindById(track_id));
     PERFETTO_DCHECK(event_.has_counter_value() ||
                     event_.has_double_counter_value());
 
@@ -747,8 +746,8 @@ class TrackEventEventImporter {
 
     // Also import thread_time and thread_instruction_count counters into
     // slice columns to simplify JSON export.
-    auto counter_track = storage_->track_table().FindById(track_id);
-    StringId counter_name = counter_track->name();
+    auto counter_track = storage_->track_table()[track_id];
+    StringId counter_name = counter_track.name();
     if (counter_name == parser_->counter_name_thread_time_id_) {
       thread_timestamp_ = static_cast<int64_t>(value);
     } else if (counter_name ==
@@ -768,13 +767,12 @@ class TrackEventEventImporter {
         ts_, track_id, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
     if (opt_slice_id.has_value()) {
-      auto rr =
-          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
+      auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
-        rr->set_thread_ts(*thread_timestamp_);
+        rr.set_thread_ts(*thread_timestamp_);
       }
       if (thread_instruction_count_) {
-        rr->set_thread_instruction_count(*thread_instruction_count_);
+        rr.set_thread_instruction_count(*thread_instruction_count_);
       }
       MaybeParseFlowEvents(opt_slice_id.value());
       MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
@@ -797,17 +795,8 @@ class TrackEventEventImporter {
     MaybeParseFlowEvents(*opt_slice_id);
     MaybeInsertTrackEventCallstack(*opt_slice_id, track_id);
     auto* thread_slices = storage_->mutable_slice_table();
-    auto opt_thread_slice_ref = thread_slices->FindById(*opt_slice_id);
-    if (!opt_thread_slice_ref) {
-      // This means that the end event did not match a corresponding track event
-      // begin packet so we likely closed the wrong slice. There's not much we
-      // can do about this beyond flag it as a stat.
-      context_->stats_tracker->IncrementStats(
-          stats::track_event_thread_invalid_end);
-      return base::OkStatus();
-    }
-
-    tables::SliceTable::RowReference slice_ref = *opt_thread_slice_ref;
+    tables::SliceTable::RowReference slice_ref =
+        (*thread_slices)[*opt_slice_id];
     std::optional<int64_t> tts = slice_ref.thread_ts();
     if (tts && thread_timestamp_) {
       int64_t delta = *thread_timestamp_ - *tts;
@@ -838,16 +827,14 @@ class TrackEventEventImporter {
         ts_, track_id, category_id_, name_id_, duration_ns,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
     if (opt_slice_id.has_value()) {
-      auto rr =
-          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
-      PERFETTO_CHECK(rr);
+      auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
-        rr->set_thread_ts(*thread_timestamp_);
-        rr->set_thread_dur(legacy_event_.thread_duration_us() * 1000);
+        rr.set_thread_ts(*thread_timestamp_);
+        rr.set_thread_dur(legacy_event_.thread_duration_us() * 1000);
       }
       if (thread_instruction_count_) {
-        rr->set_thread_instruction_count(*thread_instruction_count_);
-        rr->set_thread_instruction_delta(
+        rr.set_thread_instruction_count(*thread_instruction_count_);
+        rr.set_thread_instruction_delta(
             legacy_event_.thread_instruction_delta());
       }
       MaybeParseFlowEvents(opt_slice_id.value());
@@ -991,15 +978,14 @@ class TrackEventEventImporter {
       return base::OkStatus();
     }
     if (utid_) {
-      auto rr =
-          context_->storage->mutable_slice_table()->FindById(*opt_slice_id);
+      auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
-        rr->set_thread_ts(*thread_timestamp_);
-        rr->set_thread_dur(duration_ns);
+        rr.set_thread_ts(*thread_timestamp_);
+        rr.set_thread_dur(duration_ns);
       }
       if (thread_instruction_count_) {
-        rr->set_thread_instruction_count(*thread_instruction_count_);
-        rr->set_thread_instruction_delta(tidelta);
+        rr.set_thread_instruction_count(*thread_instruction_count_);
+        rr.set_thread_instruction_delta(tidelta);
       }
     }
     MaybeParseFlowEvents(opt_slice_id.value());

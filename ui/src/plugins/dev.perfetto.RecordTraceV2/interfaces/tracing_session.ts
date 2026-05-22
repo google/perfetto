@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Evt} from '../../../base/events';
-import {Result} from '../../../base/result';
-import {RecordingTarget} from './recording_target';
+import type {Evt} from '../../../base/events';
+import type {Result} from '../../../base/result';
+import type {RecordingTarget} from './recording_target';
 
 /**
  * The contract for the object returned by {@link RecordingTarget.startTracing}.

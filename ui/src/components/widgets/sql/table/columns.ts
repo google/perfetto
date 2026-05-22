@@ -15,8 +15,8 @@
 import m from 'mithril';
 import {sqliteString} from '../../../../base/string_utils';
 import {Duration, Time} from '../../../../base/time';
-import {Trace} from '../../../../public/trace';
-import {SqlValue, STR} from '../../../../trace_processor/query_result';
+import type {Trace} from '../../../../public/trace';
+import {type SqlValue, STR} from '../../../../trace_processor/query_result';
 import {
   asSchedSqlId,
   asThreadStateSqlId,
@@ -30,7 +30,7 @@ import {SchedRef} from '../../sched';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
 import {Timestamp} from '../../timestamp';
-import {
+import type {
   RenderedCell,
   TableColumn,
   RenderCellContext,
@@ -40,9 +40,9 @@ import {
   getStandardContextMenuItems,
   renderStandardCell,
 } from './render_cell_utils';
-import {SqlColumn, sqlColumnId, SqlExpression} from './sql_column';
+import {type SqlColumn, sqlColumnId, SqlExpression} from './sql_column';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
 import {parseJsonWithBigints} from '../../../../base/json_utils';
@@ -50,10 +50,13 @@ import {Anchor} from '../../../../widgets/anchor';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {Icons} from '../../../../base/semantic_icons';
 import {copyToClipboard} from '../../../../base/clipboard';
-import {Args} from '../../../sql_utils/args';
+import type {Args} from '../../../sql_utils/args';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 
-import {SqlTableDefinition, SqlTableDescription} from './table_description';
+import type {
+  SqlTableDefinition,
+  SqlTableDescription,
+} from './table_description';
 import {TrackEventRef} from '../../track_event_ref';
 
 // Converts a raw SqlTableDefinition (just data) into a SqlTableDescription

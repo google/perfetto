@@ -12,21 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/assert';
-
-// The 64-bit variant of TraceProcessor wasm is always built in all build
-// configurations and we can depend on it from typescript.
-import TraceProcessor64 from '../gen/trace_processor_memory64';
-
-// The 32-bit variant may or may not be part of the build, depending on whether
-// the user passes --only-wasm-memory64 to ui/build.mjs. When we are building
-// also the 32-bit (e.g., in production builds) the import below will be
-// redirected by rollup to '../gen/trace_processor' (The 32-bit module).
-import TraceProcessor32 from './trace_processor_32_stub';
-
-// For manual testing of the Memory32 build, we can disable the Memory64 check.
-const DISABLE_MEMORY64_FOR_MANUAL_TEST = false;
+import {
+  TraceProcessor32,
+  TraceProcessor64,
+  memory64Supported,
+} from '../trace_processor/wasm_modules';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the
@@ -45,51 +36,58 @@ const REQ_BUF_SIZE = 32 * 1024 * 1024;
 //             - [JS] onReply() (this file)
 //               - [JS] postMessage() (this file)
 export class WasmBridge {
-  private aborted: boolean;
-  private connection: TraceProcessor64.Module;
+  private aborted = false;
+  private connection?: TraceProcessor64.Module;
   private reqBufferAddr = 0;
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
-  private useMemory64: boolean;
+  private useMemory64 = false;
 
-  constructor() {
-    this.aborted = false;
-    const deferredRuntimeInitialized = defer<void>();
-    this.useMemory64 = hasMemory64Support();
+  // |precompiledModule| is compiled once on the main thread and shared with
+  // every worker so V8 reuses the same tiered-up wasm code. The port's
+  // onmessage is wired up only after init completes, so any RPC bytes that
+  // arrive in the meantime stay queued on the port.
+  async initialize(
+    port: MessagePort,
+    precompiledModule: WebAssembly.Module,
+  ): Promise<void> {
+    assertTrue(this.messagePort === undefined);
+    this.messagePort = port;
+    this.useMemory64 = memory64Supported();
+
     const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
-    this.connection = initModule({
+    const connection = await initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
-      onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
+      onRuntimeInitialized: () => {},
+      instantiateWasm: (imports, successCallback) => {
+        const instance = new WebAssembly.Instance(precompiledModule, imports);
+        successCallback(instance, precompiledModule);
+        return instance.exports;
+      },
     });
+    const fn = connection.addFunction(this.onReply.bind(this), 'vpi');
+    this.reqBufferAddr = this.wasmPtrCast(
+      connection.ccall(
+        'trace_processor_rpc_init',
+        /* return=*/ 'pointer',
+        /* args=*/ ['pointer', 'number'],
+        [fn, REQ_BUF_SIZE],
+      ),
+    );
+    this.connection = connection;
 
-    deferredRuntimeInitialized.then(() => {
-      const fn = this.connection.addFunction(this.onReply.bind(this), 'vpi');
-      this.reqBufferAddr = this.wasmPtrCast(
-        this.connection.ccall(
-          'trace_processor_rpc_init',
-          /* return=*/ 'pointer',
-          /* args=*/ ['pointer', 'number'],
-          [fn, REQ_BUF_SIZE],
-        ),
-      );
-    });
-  }
-
-  initialize(port: MessagePort) {
-    // Ensure that initialize() is called only once.
-    assertTrue(this.messagePort === undefined);
-    this.messagePort = port;
-    // Note: setting .onmessage implicitly calls port.start() and dispatches the
-    // queued messages. addEventListener('message') doesn't.
-    this.messagePort.onmessage = this.onMessage.bind(this);
+    // Setting .onmessage implicitly calls port.start() and flushes queued
+    // messages. addEventListener('message') doesn't.
+    port.onmessage = this.onMessage.bind(this);
   }
 
   onMessage(msg: MessageEvent) {
     if (this.aborted) {
       throw new Error('Wasm module crashed');
     }
+    const connection = assertExists(this.connection);
     assertTrue(msg.data instanceof Uint8Array);
     const data = msg.data as Uint8Array;
     let wrSize = 0;
@@ -99,10 +97,10 @@ export class WasmBridge {
     while (wrSize < data.length) {
       const sliceLen = Math.min(data.length - wrSize, REQ_BUF_SIZE);
       const dataSlice = data.subarray(wrSize, wrSize + sliceLen);
-      this.connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
+      connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
       wrSize += sliceLen;
       try {
-        this.connection.ccall(
+        connection.ccall(
           'trace_processor_on_rpc_request', // C function name.
           'void', // Return type.
           ['number'], // Arg types.
@@ -124,7 +122,10 @@ export class WasmBridge {
   // code while in the ccall(trace_processor_on_rpc_request).
   private onReply(heapPtrArg: bigint | number, size: number) {
     const heapPtr = this.wasmPtrCast(heapPtrArg);
-    const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
+    const data = assertExists(this.connection).HEAPU8.slice(
+      heapPtr,
+      heapPtr + size,
+    );
     assertExists(this.messagePort).postMessage(data, [data.buffer]);
   }
 
@@ -154,23 +155,5 @@ export class WasmBridge {
     // behaviour when used as an offset on HEAP8U.
     assertTrue(typeof val === 'number');
     return Number(val) >>> 0; // static_cast<uint32_t>
-  }
-}
-
-// Checks if the current environment supports Memory64.
-function hasMemory64Support() {
-  if (DISABLE_MEMORY64_FOR_MANUAL_TEST) {
-    return false;
-  }
-  // Compiled version of WAT program `(module (memory i64 0))` to WASM.
-  const memory64DetectProgram = new Uint8Array([
-    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x04,
-    0x00, 0x00, 0x08, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x02, 0x01, 0x00,
-  ]);
-  try {
-    new WebAssembly.Module(memory64DetectProgram);
-    return true;
-  } catch (e) {
-    return false;
   }
 }

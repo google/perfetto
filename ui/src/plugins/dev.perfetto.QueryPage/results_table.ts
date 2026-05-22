@@ -16,14 +16,14 @@ import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {Icons} from '../../base/semantic_icons';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
+import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
-import {
+import type {
   ColumnSchema,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import {Trace} from '../../public/trace';
-import {Row} from '../../trace_processor/query_result';
+import type {Trace} from '../../public/trace';
+import type {Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';

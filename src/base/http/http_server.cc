@@ -272,8 +272,10 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
 
   if (http_req.method == "OPTIONS") {
     HandleCorsPreflightRequest(http_req);
+  } else if (!http_req.origin.empty() && !IsOriginAllowed(http_req.origin)) {
+    // CSRF defense: reject cross-origin requests from outside the allowlist.
+    conn->SendResponseAndClose("403 Forbidden", {}, "Origin not allowed");
   } else {
-    // Let the HttpHandler handle the request.
     req_handler_->OnHttpRequest(http_req);
   }
 
