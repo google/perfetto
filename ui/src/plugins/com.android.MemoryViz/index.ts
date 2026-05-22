@@ -44,6 +44,8 @@ export default class MemoryViz implements PerfettoPlugin {
   static readonly dependencies = [StandardGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    if (!(await MemoryViz.isAndroidTrace(ctx))) return;
+
     const memoryGroup = ctx.plugins
       .getPlugin(StandardGroupsPlugin)
       .getOrCreateStandardGroup(ctx.defaultWorkspace, 'MEMORY');
@@ -97,6 +99,13 @@ export default class MemoryViz implements PerfettoPlugin {
         }
       },
     });
+  }
+
+  private static async isAndroidTrace(ctx: Trace): Promise<boolean> {
+    const result = await ctx.engine.query(`
+      SELECT 1 FROM process WHERE name = 'system_server' LIMIT 1
+    `);
+    return result.numRows() > 0;
   }
 
   private async addKswapdTrack(ctx: Trace, parent: TrackNode): Promise<void> {
