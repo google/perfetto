@@ -34,7 +34,6 @@ import type {Trace} from './trace';
 export interface App {
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
-  readonly sidePanel: SidePanelManager;
   readonly omnibox: OmniboxManager;
   readonly analytics: Analytics;
   readonly plugins: PluginManager;
@@ -63,6 +62,15 @@ export interface App {
    * Tracks async tasks for observability and idle detection.
    */
   readonly taskTracker: TaskTracker;
+
+  /**
+   * Manage the side panel tabs - a global side panel that appears on the right
+   * of all pages, adding tabs and switching between them.
+   *
+   * @experimental - This is a new API and may change or be removed in the
+   * future. Use with caution and be prepared for breaking changes.
+   */
+  readonly sidePanel: SidePanelManager;
 
   // True if the current user is an 'internal' user. E.g. a Googler on
   // ui.perfetto.dev. Plugins might use this to determine whether to show

@@ -22,6 +22,17 @@ export interface SidePanelTabDescriptor {
 }
 
 export interface SidePanelManager {
+  /**
+   * The title of the book.
+   * @experimental - This is a new API and may change or be removed in the
+   * future. Use with caution and be prepared for breaking changes.
+   */
   registerTab(tab: SidePanelTabDescriptor): Disposable;
+
+  /**
+   * Show a given tab in the side panel.
+   * @experimental - This is a new API and may change or be removed in the
+   * future. Use with caution and be prepared for breaking changes.
+   */
   showTab(uri: string): void;
 }
