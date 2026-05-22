@@ -54,10 +54,12 @@ export default class MemoryViz implements PerfettoPlugin {
       INCLUDE PERFETTO MODULE android.memory.lmk;
     `);
 
-    await this.addKswapdTrack(ctx, memoryGroup);
-    await this.addDirectReclaimTracks(ctx, memoryGroup);
-    await this.addMemcgReclaimTracks(ctx, memoryGroup);
-    await this.addLmkTracks(ctx, memoryGroup);
+    await Promise.all([
+      this.addKswapdTrack(ctx, memoryGroup),
+      this.addDirectReclaimTracks(ctx, memoryGroup),
+      this.addMemcgReclaimTracks(ctx, memoryGroup),
+      this.addLmkTracks(ctx, memoryGroup),
+    ]);
 
     ctx.commands.registerCommand({
       id: `com.android.visualizeMemory`,
