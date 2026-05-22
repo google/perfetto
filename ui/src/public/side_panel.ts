@@ -23,7 +23,15 @@ export interface SidePanelTabDescriptor {
 
 export interface SidePanelManager {
   /**
-   * The title of the book.
+   * Register a tab in the side panel.
+   *
+   * The tab becomes available in the side panel's tab list, keyed by its
+   * `uri`. Registering a tab does not make the side panel visible, nor does
+   * it switch to the new tab - use {@link showTab} for that. Disposing the
+   * returned `Disposable` unregisters the tab; if it was the currently
+   * displayed tab, the side panel clears its current selection (but stays
+   * open).
+   *
    * @experimental - This is a new API and may change or be removed in the
    * future. Use with caution and be prepared for breaking changes.
    */
@@ -31,6 +39,11 @@ export interface SidePanelManager {
 
   /**
    * Show a given tab in the side panel.
+   *
+   * Switches the side panel to the tab with the given `uri` and makes the
+   * side panel visible if it isn't already. If no tab with that uri is
+   * registered, this is a no-op (a warning is logged).
+   *
    * @experimental - This is a new API and may change or be removed in the
    * future. Use with caution and be prepared for breaking changes.
    */
