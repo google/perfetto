@@ -17,8 +17,8 @@ import {TracedWebsocketTarget} from './traced_websocket_target';
 import {PreflightCheckRenderer} from '../pages/preflight_check_renderer';
 import {closeModal, showModal} from '../../../widgets/modal';
 import {Button} from '../../../widgets/button';
-import {TracedWebsocketTargetProvider} from './traced_websocket_provider';
-import {defer, Deferred} from '../../../base/deferred';
+import type {TracedWebsocketTargetProvider} from './traced_websocket_provider';
+import {defer, type Deferred} from '../../../base/deferred';
 
 /**
  * Shows a dialog that allows to add a connection to another websocket endpoint

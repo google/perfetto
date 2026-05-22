@@ -45,5 +45,6 @@ source_set("tree_functions") {
     "../../sqlite",
     "../../storage",
     "../../types",
+    "../../util:owned_sql_value",
   ]
 }

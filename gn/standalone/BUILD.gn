@@ -267,8 +267,8 @@ config("default") {
     ]
   }
 
-  # Treat warnings as errors, but give up on fuzzer builds.
-  if (!is_fuzzer) {
+  # Treat warnings as errors, but give up on fuzzer and non-hermetic builds.
+  if (!is_fuzzer && is_hermetic_clang) {
     if (is_win) {
       cflags += [ "/WX" ]
     } else {

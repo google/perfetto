@@ -14,19 +14,23 @@
 
 import {
   expandProcessName,
-  BlockingCallMetricData,
-  MetricHandler,
+  type BlockingCallMetricData,
+  type MetricHandler,
 } from './metricUtils';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {
   addJankCUJDebugTrack,
   addLatencyCUJDebugTrack,
 } from '../../com.android.AndroidCujs';
 import {
   addDebugSliceTrack,
-  DebugSliceTrackArgs,
+  type DebugSliceTrackArgs,
 } from '../../../components/tracks/debug_tracks';
-import {LONG, QueryResult, Row} from '../../../trace_processor/query_result';
+import {
+  LONG,
+  type QueryResult,
+  type Row,
+} from '../../../trace_processor/query_result';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**

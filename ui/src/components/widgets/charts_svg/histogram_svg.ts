@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
-import type {HistogramAttrs, HistogramData} from '../charts/histogram';
+import type {HistogramAttrs} from '../charts/histogram';
 import {clamp} from '../../../base/math_utils';
 import {shortUuid} from '../../../base/uuid';
 import {
@@ -28,12 +28,7 @@ import {
 import {formatNumber} from '../charts/chart_utils';
 import {SvgChartFrame} from './svg_chart_frame';
 import {ChartTooltip} from './tooltip';
-
-export type {
-  HistogramAttrs,
-  HistogramData,
-  HistogramBucket,
-} from '../charts/histogram';
+import type {HistogramData} from '../charts/histogram_loader';
 
 const DEFAULT_BAR_COLOR = 'var(--pf-chart-color-1)';
 const SELECTION_COLOR = 'rgba(0, 120, 212, 0.45)';

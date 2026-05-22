@@ -15,28 +15,28 @@
 import m from 'mithril';
 import protos from '../../../protos';
 // import {Tooltip} from '../../../widgets/tooltip';
-import {
+import type {
   RecordSubpage,
   RecordProbe,
   ProbeSetting,
 } from '../config/config_interfaces';
-import {TraceConfigBuilder} from '../config/trace_config_builder';
+import type {TraceConfigBuilder} from '../config/trace_config_builder';
 import {Toggle} from './widgets/toggle';
 import {Section} from '../../../widgets/section';
 import {
   MultiSelect,
-  MultiSelectDiff,
-  MultiSelectOption,
+  type MultiSelectDiff,
+  type MultiSelectOption,
   PopupMultiSelect,
 } from '../../../widgets/multiselect';
-import {Result, unwrapResult} from '../../../base/result';
+import {type Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
 import {Stack} from '../../../widgets/stack';
 import {PopupPosition} from '../../../widgets/popup';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
-import {TargetPlatformId} from '../interfaces/target_platform';
+import type {TargetPlatformId} from '../interfaces/target_platform';
 import {Callout} from '../../../widgets/callout';
 import {Anchor} from '../../../widgets/anchor';
 

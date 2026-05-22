@@ -13,30 +13,30 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {
-  ChartConfig,
-  ChartType,
+  type ChartConfig,
+  type ChartType,
   generateChartId,
 } from '../query_builder/nodes/visualisation_node';
 import {
-  ChartColumnProvider,
-  ChartLoaderEntry,
+  type ChartColumnProvider,
+  type ChartLoaderEntry,
   buildLoaderCacheKey,
   createChartLoaders,
   disposeChartLoaders,
   renderChartByType,
 } from '../query_builder/charts/chart_renderers';
-import {ColumnInfo} from '../query_builder/column_info';
+import type {ColumnInfo} from '../query_builder/column_info';
 import {
-  DashboardBrushFilter,
-  DashboardDataSource,
-  DashboardItem,
+  type DashboardBrushFilter,
+  type DashboardDataSource,
+  type DashboardItem,
   getItemId,
   getLinkedSourceNodeIds,
 } from './dashboard_registry';
 import {ResultsPanelEmptyState} from '../query_builder/widgets';
-import {SqlValue} from '../../../trace_processor/query_result';
+import type {SqlValue} from '../../../trace_processor/query_result';
 import {isQuantitativeType} from '../../../trace_processor/perfetto_sql_type';
 
 export interface DashboardChartViewAttrs {

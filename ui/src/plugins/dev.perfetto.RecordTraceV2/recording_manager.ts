@@ -14,22 +14,22 @@
 
 import protos from '../../protos';
 import {assertFalse, assertTrue} from '../../base/assert';
-import {errResult, okResult, Result} from '../../base/result';
-import {App} from '../../public/app';
-import {RecordSubpage} from './config/config_interfaces';
+import {errResult, okResult, type Result} from '../../base/result';
+import type {App} from '../../public/app';
+import type {RecordSubpage} from './config/config_interfaces';
 import {ConfigManager} from './config/config_manager';
-import {RecordingTarget} from './interfaces/recording_target';
-import {RecordingTargetProvider} from './interfaces/recording_target_provider';
+import type {RecordingTarget} from './interfaces/recording_target';
+import type {RecordingTargetProvider} from './interfaces/recording_target_provider';
 import {
   PROBES_SESSION_SCHEMA,
   RECORD_PLUGIN_SCHEMA,
   RECORD_SESSION_SCHEMA,
-  RecordPluginSchema,
-  RecordSessionSchema,
-  SavedSessionSchema,
+  type RecordPluginSchema,
+  type RecordSessionSchema,
+  type SavedSessionSchema,
 } from './serialization_schema';
-import {TargetPlatformId} from './interfaces/target_platform';
-import {TracingSession} from './interfaces/tracing_session';
+import type {TargetPlatformId} from './interfaces/target_platform';
+import type {TracingSession} from './interfaces/tracing_session';
 import {uuidv4} from '../../base/uuid';
 import {Time, Timecode} from '../../base/time';
 import {base64Decode, base64Encode} from '../../base/string_utils';

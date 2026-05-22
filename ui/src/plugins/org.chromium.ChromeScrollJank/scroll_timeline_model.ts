@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {STR, STR_NULL} from '../../trace_processor/query_result';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {rows} from './utils';
 import {SCROLL_TIMELINE_TRACK} from './tracks';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
 /**

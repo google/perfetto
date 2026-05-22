@@ -19,13 +19,13 @@ import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
-  Connection,
-  Label,
-  Node,
+  type Connection,
+  type Label,
+  type Node,
   NodeGraph,
-  NodeGraphApi,
-  NodeGraphAttrs,
-  NodePort,
+  type NodeGraphApi,
+  type NodeGraphAttrs,
+  type NodePort,
 } from '../../../widgets/nodegraph';
 import {Combobox} from '../../../widgets/combobox';
 import {Select} from '../../../widgets/select';

@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 
 interface NotesManagerAttrs {
   readonly trace: TraceImpl;

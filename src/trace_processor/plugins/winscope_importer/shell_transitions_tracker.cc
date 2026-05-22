@@ -227,7 +227,7 @@ ShellTransitionsTracker::GetRowReference(int32_t transition_id) {
 
   auto* window_manager_shell_transitions_table =
       context_->storage->mutable_window_manager_shell_transitions_table();
-  return window_manager_shell_transitions_table->FindById(pos->second.row_id);
+  return (*window_manager_shell_transitions_table)[pos->second.row_id];
 }
 
 }  // namespace perfetto::trace_processor::winscope

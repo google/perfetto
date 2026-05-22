@@ -133,20 +133,7 @@ std::unique_ptr<SqliteConnection> SqliteConnection::Fork() {
   return std::make_unique<SqliteConnection>(database_);
 }
 
-SqliteConnection::~SqliteConnection() {
-  // It is important to unregister any functions that have been registered with
-  // the database before destroying it. This is because functions can hold onto
-  // prepared statements, which must be finalized before database destruction.
-  for (auto it = fn_ctx_.GetIterator(); it; ++it) {
-    int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
-                                         it.key().second, SQLITE_UTF8, nullptr,
-                                         nullptr, nullptr, nullptr, nullptr);
-    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
-      PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
-    }
-  }
-  fn_ctx_.Clear();
-}
+SqliteConnection::~SqliteConnection() = default;
 
 SqliteConnection::PreparedStatement SqliteConnection::PrepareStatement(
     SqlSource sql) {
@@ -186,7 +173,6 @@ base::Status SqliteConnection::RegisterFunction(const char* name,
         "Unable to register function with name %s: %s (SQLite error code: %d)",
         name, sqlite3_errmsg(db_.get()), ret);
   }
-  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
   return base::OkStatus();
 }
 
@@ -244,7 +230,6 @@ base::Status SqliteConnection::UnregisterFunction(const char* name, int argc) {
         "%d)",
         name, sqlite3_errmsg(db_.get()), ret);
   }
-  fn_ctx_.Erase({name, argc});
   return base::OkStatus();
 }
 
@@ -256,11 +241,6 @@ void SqliteConnection::RegisterVirtualTableModule(
   int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(), module,
                                      ctx, destructor);
   PERFETTO_CHECK(res == SQLITE_OK);
-}
-
-void* SqliteConnection::GetFunctionContext(const std::string& name, int argc) {
-  auto* res = fn_ctx_.Find(std::make_pair(name, argc));
-  return res ? *res : nullptr;
 }
 
 std::optional<uint32_t> SqliteConnection::GetErrorOffset() const {
@@ -278,9 +258,7 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
 
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                        SqlSource source)
-    : stmt_(std::move(stmt)),
-      expanded_sql_(sqlite3_expanded_sql(stmt_.get())),
-      sql_source_(std::move(source)) {}
+    : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
 
 bool SqliteConnection::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",
@@ -314,7 +292,10 @@ const char* SqliteConnection::PreparedStatement::original_sql() const {
   return sql_source_.original_sql().c_str();
 }
 
-const char* SqliteConnection::PreparedStatement::sql() const {
+const char* SqliteConnection::PreparedStatement::sql() {
+  if (!expanded_sql_) {
+    expanded_sql_.reset(sqlite3_expanded_sql(stmt_.get()));
+  }
   return expanded_sql_.get();
 }
 

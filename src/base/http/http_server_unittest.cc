@@ -100,6 +100,7 @@ class HttpServerTest : public ::testing::Test {
 };
 
 TEST_F(HttpServerTest, GET) {
+  srv_.AddAllowedOrigin("https://example.com");
   const int kIterations = 3;
   EXPECT_CALL(handler_, OnHttpRequest(_))
       .Times(kIterations)
@@ -130,6 +131,8 @@ TEST_F(HttpServerTest, GET) {
               "HTTP/1.1 200 OK\r\n"
               "Content-Length: 6\r\n"
               "Connection: close\r\n"
+              "Access-Control-Allow-Origin: https://example.com\r\n"
+              "Vary: Origin\r\n"
               "\r\n<html>");
   }
 }
@@ -151,6 +154,7 @@ TEST_F(HttpServerTest, GET_404) {
 }
 
 TEST_F(HttpServerTest, POST) {
+  srv_.AddAllowedOrigin("https://example.com");
   HttpCli cli(&task_runner_);
 
   EXPECT_CALL(handler_, OnHttpRequest(_)).WillOnce([&](const HttpRequest& req) {
@@ -170,7 +174,23 @@ TEST_F(HttpServerTest, POST) {
             "HTTP/1.1 200 OK\r\n"
             "Content-Length: 0\r\n"
             "Connection: close\r\n"
+            "Access-Control-Allow-Origin: https://example.com\r\n"
+            "Vary: Origin\r\n"
             "\r\n");
+}
+
+TEST_F(HttpServerTest, POST_DisallowedOrigin) {
+  HttpCli cli(&task_runner_);
+  EXPECT_CALL(handler_, OnHttpRequest(_)).Times(0);
+  EXPECT_CALL(handler_, OnHttpConnectionClosed(_));
+  cli.SendHttpReq({"POST /rpc HTTP/1.1", "Origin: https://evil.com"},
+                  "malicious body");
+  EXPECT_EQ(cli.RecvAndWaitConnClose(),
+            "HTTP/1.1 403 Forbidden\r\n"
+            "Content-Length: 18\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "Origin not allowed");
 }
 
 // An unhandled request should cause a HTTP 500.
@@ -295,11 +315,7 @@ TEST_F(HttpServerTest, Websocket_OriginNotAllowed) {
   auto close_checkpoint = task_runner_.CreateCheckpoint("close");
   EXPECT_CALL(handler_, OnHttpConnectionClosed(_))
       .WillOnce(InvokeWithoutArgs(close_checkpoint));
-  EXPECT_CALL(handler_, OnHttpRequest(_)).WillOnce([&](const HttpRequest& req) {
-    EXPECT_EQ(req.origin.ToStdString(), "http://notallowed.com");
-    EXPECT_TRUE(req.is_websocket_handshake);
-    req.conn->UpgradeToWebsocket(req);
-  });
+  EXPECT_CALL(handler_, OnHttpRequest(_)).Times(0);
 
   cli.SendHttpReq({
       "GET /websocket HTTP/1.1",                      //

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {UnionNode} from './union_node';
-import {QueryNode} from '../../query_node';
+import type {QueryNode} from '../../query_node';
 import {
   createMockNodeWithStructuredQuery,
   createColumnInfo,

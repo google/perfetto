@@ -13,8 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ProbeSetting} from '../../config/config_interfaces';
-import {MultiSelect, MultiSelectDiff} from '../../../../widgets/multiselect';
+import type {ProbeSetting} from '../../config/config_interfaces';
+import {
+  MultiSelect,
+  type MultiSelectDiff,
+} from '../../../../widgets/multiselect';
 
 export interface CheckboxesAttrs<T> {
   title?: string;

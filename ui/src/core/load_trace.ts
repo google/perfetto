@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/assert';
-import {time, Time, TimeSpan} from '../base/time';
+import {type time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from './metatracing';
 import {featureFlags} from './feature_flags';
-import {Engine, EngineBase} from '../trace_processor/engine';
+import type {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {
   LONG,
@@ -36,17 +36,17 @@ import {
   TraceHttpStream,
   TraceMultipleFilesStream,
 } from '../core/trace_stream';
-import {TraceStream} from '../public/stream';
+import type {TraceStream} from '../public/stream';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from './state_serialization';
-import {AppImpl} from './app_impl';
+import type {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
-import {TraceSource} from './trace_source';
+import type {TraceSource} from './trace_source';
 import {Router} from '../core/router';
-import {TraceInfoImpl} from './trace_info_impl';
+import type {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
 import {
   parseUrlCommands,

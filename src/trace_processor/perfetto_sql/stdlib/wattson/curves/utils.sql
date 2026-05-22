@@ -56,7 +56,8 @@ SELECT
   dc.active,
   dc.idle0,
   dc.idle1,
-  dc.static
+  dc.static,
+  dc.interconnect
 FROM _device_curves_2d AS dc
 JOIN _wattson_device AS device
   ON dc.device = device.name;
@@ -118,6 +119,25 @@ CREATE PERFETTO INDEX tpu_curves ON _tpu_filtered_curves(
   cluster,
   freq,
   requests
+);
+
+-- Device specific interconnect curves
+CREATE PERFETTO TABLE _filtered_curves_interconnect AS
+SELECT
+  dc.policy,
+  dc.freq_khz,
+  dc.dep_policy,
+  dc.dep_freq,
+  dc.interconnect AS curve_value
+FROM _filtered_curves_2d_raw AS dc
+WHERE
+  dc.interconnect > 0;
+
+CREATE PERFETTO INDEX freq_interconnect ON _filtered_curves_interconnect(
+  policy,
+  freq_khz,
+  dep_policy,
+  dep_freq
 );
 
 -- Constructs table specifying CPUs that are DSU dependent

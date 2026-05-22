@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './code_snippet.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {ButtonBar, ButtonVariant} from './button';

@@ -175,16 +175,21 @@ base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                std::make_shared<std::vector<uint32_t>>(std::move(permutation)));
 }
 
-void Dataframe::AddIndex(Index index) {
+Dataframe Dataframe::AddIndex(Index index) const {
   PERFETTO_CHECK(finalized_);
-  indexes_.emplace_back(std::move(index));
-  ++non_column_mutations_;
+  Dataframe result(*this);
+  result.indexes_.emplace_back(std::move(index));
+  ++result.non_column_mutations_;
+  return result;
 }
 
-void Dataframe::RemoveIndexAt(uint32_t index) {
+Dataframe Dataframe::RemoveIndexAt(uint32_t pos) const {
   PERFETTO_CHECK(finalized_);
-  indexes_.erase(indexes_.begin() + static_cast<std::ptrdiff_t>(index));
-  ++non_column_mutations_;
+  Dataframe result(*this);
+  result.indexes_.erase(result.indexes_.begin() +
+                        static_cast<std::ptrdiff_t>(pos));
+  ++result.non_column_mutations_;
+  return result;
 }
 
 void Dataframe::Finalize() {

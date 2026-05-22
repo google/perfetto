@@ -50,8 +50,9 @@ base::Status ElementCursor::Filter(
     SetAtEof();
     return base::OkStatus();
   }
-  auto session = *storage_->etm_v4_session_table().FindById(
-      storage_->etm_v4_chunk_table().FindById(*chunk_id)->session_id());
+  auto session =
+      storage_->etm_v4_session_table()[storage_->etm_v4_chunk_table()[*chunk_id]
+                                           .session_id()];
   RETURN_IF_ERROR(ResetDecoder(session.configuration_id()));
 
   reader_->SetTs(session.start_ts().value_or(0));

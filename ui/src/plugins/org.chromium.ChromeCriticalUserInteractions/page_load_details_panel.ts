@@ -19,8 +19,8 @@ import {
 } from '../../components/widgets/sql/details/details';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 
 export class PageLoadDetailsPanel implements TrackEventDetailsPanel {
   private data: Details;

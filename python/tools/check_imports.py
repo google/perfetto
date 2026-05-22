@@ -34,7 +34,10 @@ NODE_MODULES = '%node_modules%'  # placeholder to depend on any node module.
 # [a,b] -> [c,d] is equivalent to allowing a>c, a>d, b>c, b>d.
 DEPS_ALLOWLIST = [
     # Everything can depend on base/, protos and NPM packages.
-    ('*', ['/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES]),
+    ('*', [
+        '/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES,
+        'virtual:*'
+    ]),
 
     # Integration tests can depend on everything.
     ('/test/*', '*'),
@@ -98,7 +101,9 @@ DEPS_ALLOWLIST = [
     ('/base/proto_utils_wasm', '/gen/proto_utils'),
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
-    ('/engine/wasm_bridge', '/gen/trace_processor_memory*'),
+    ('/engine/wasm_bridge', '/trace_processor/wasm_modules'),
+    ('/engine_bench/worker', '/engine/wasm_bridge'),
+    ('/trace_processor/wasm_modules', '/gen/trace_processor*'),
     ('/trace_processor/sql_utils/*', '/trace_processor/*'),
     ('/protos/index', '/gen/protos'),
 

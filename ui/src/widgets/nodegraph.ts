@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './nodegraph.scss';
 /**
  * A component for displaying and interacting with a node-based graph.
  *

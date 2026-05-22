@@ -13,23 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, NodeContext, nextNodeId, NodeType} from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import protos from '../../../../protos';
+import {
+  type QueryNode,
+  type NodeContext,
+  nextNodeId,
+  NodeType,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
+import type protos from '../../../../protos';
 import {Button} from '../../../../widgets/button';
 import {
   StructuredQueryBuilder,
-  SortCriterion as BuilderSortCriterion,
+  type SortCriterion as BuilderSortCriterion,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {
   LabeledControl,
   DraggableItem,
   OutlinedMultiSelect,
-  MultiSelectOption,
-  MultiSelectDiff,
+  type MultiSelectOption,
+  type MultiSelectDiff,
 } from '../widgets';
-import {NodeDetailsAttrs, NodeModifyAttrs} from '../../node_types';
+import type {NodeDetailsAttrs, NodeModifyAttrs} from '../../node_types';
 import {loadNodeDoc} from '../node_doc_loader';
 import {createErrorSections} from '../widgets';
 import {NodeDetailsMessage} from '../node_styling_widgets';

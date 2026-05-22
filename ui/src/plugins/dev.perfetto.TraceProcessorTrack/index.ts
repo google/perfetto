@@ -25,13 +25,13 @@ import {sliceDistributionCellRenderers} from '../../components/details/slice_det
 import {openDistributionTab} from '../../components/distribution_panel';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
-import {MinimapRow} from '../../public/minimap';
-import {PerfettoPlugin} from '../../public/plugin';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import {Trace} from '../../public/trace';
+import type {MinimapRow} from '../../public/minimap';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -55,8 +55,8 @@ import {SliceSelectionAggregator} from './slice_selection_aggregator';
 import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
-import {TopLevelTrackGroup, TrackGroupSchema} from './types';
-import {Store} from '../../base/store';
+import type {TopLevelTrackGroup, TrackGroupSchema} from './types';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {
   createPerfettoIndex,

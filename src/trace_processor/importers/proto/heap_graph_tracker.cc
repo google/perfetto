@@ -83,9 +83,8 @@ struct ClassDescriptor {
 
 ClassDescriptor GetClassDescriptor(const TraceStorage& storage,
                                    ObjectTable::Id obj_id) {
-  auto obj_row_ref = *storage.heap_graph_object_table().FindById(obj_id);
-  auto type_row_ref =
-      *storage.heap_graph_class_table().FindById(obj_row_ref.type_id());
+  auto obj_row_ref = storage.heap_graph_object_table()[obj_id];
+  auto type_row_ref = storage.heap_graph_class_table()[obj_row_ref.type_id()];
   return {type_row_ref.name(), type_row_ref.location()};
 }
 
@@ -177,7 +176,7 @@ void SortRoots(TraceStorage* storage,
   auto* class_table = storage->mutable_heap_graph_class_table();
   for (ObjectTable::RowNumber root : roots) {
     auto obj_row = root.ToRowReference(object_table);
-    auto cls_row = *class_table->FindById(obj_row.type_id());
+    auto cls_row = (*class_table)[obj_row.type_id()];
     sorted_with_names.emplace_back(storage->GetString(cls_row.name()), root);
   }
   std::sort(sorted_with_names.begin(), sorted_with_names.end(),
@@ -821,7 +820,7 @@ std::optional<ObjectTable::Id> HeapGraphTracker::GetReferenceByFieldName(
     ObjectTable::Id obj,
     StringId field) {
   std::optional<ObjectTable::Id> referred;
-  auto obj_row_ref = *storage_->heap_graph_object_table().FindById(obj);
+  auto obj_row_ref = storage_->heap_graph_object_table()[obj];
   ForReferenceSet(reference_cursor_, obj_row_ref.reference_set_id(),
                   [&](ReferenceTable::Cursor& ref) -> bool {
                     if (ref.field_name() == field) {
@@ -902,7 +901,7 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
 
     int64_t native_size =
         GetSizeFromNativeAllocationRegistry(nar_size_it->second);
-    auto referent_row_ref = *objects_tbl.FindById(cleaner.referent);
+    auto referent_row_ref = objects_tbl[cleaner.referent];
     int64_t total_native_size = referent_row_ref.native_size() + native_size;
     referent_row_ref.set_native_size(total_native_size);
   }
@@ -955,8 +954,7 @@ void HeapGraphTracker::GetChildren(ObjectTable::RowReference object,
                                    std::vector<ObjectTable::Id>& children) {
   children.clear();
 
-  auto cls_row_ref =
-      *storage_->heap_graph_class_table().FindById(object.type_id());
+  auto cls_row_ref = storage_->heap_graph_class_table()[object.type_id()];
 
   StringId kind = cls_row_ref.kind();
 
@@ -1028,7 +1026,7 @@ void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
     GetChildren(cur_node, children);
     for (ObjectTable::Id child_node : children) {
       auto child_ref =
-          *storage_->mutable_heap_graph_object_table()->FindById(child_node);
+          (*storage_->mutable_heap_graph_object_table())[child_node];
       stack.push_back(child_ref);
     }
   }
@@ -1057,7 +1055,7 @@ void HeapGraphTracker::UpdateShortestPaths(
       GetChildren(cur_row_ref, children);
       for (ObjectTable::Id child_node : children) {
         auto child_row_ref =
-            *storage_->mutable_heap_graph_object_table()->FindById(child_node);
+            (*storage_->mutable_heap_graph_object_table())[child_node];
         int32_t child_distance = child_row_ref.root_distance();
         if (child_distance == -1 || child_distance > distance + 1)
           reach.emplace_back(distance + 1, child_row_ref);
@@ -1091,7 +1089,7 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
 
     ClassTable::Id type_id = object_row_ref.type_id();
 
-    auto type_row_ref = *storage_->heap_graph_class_table().FindById(type_id);
+    auto type_row_ref = storage_->heap_graph_class_table()[type_id];
     std::optional<StringId> opt_class_name_id =
         type_row_ref.deobfuscated_name();
     if (!opt_class_name_id) {
@@ -1154,7 +1152,7 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
       PERFETTO_CHECK(i < children.size());
       ObjectTable::Id child = children[i];
       auto child_row_ref =
-          *storage_->mutable_heap_graph_object_table()->FindById(child);
+          (*storage_->mutable_heap_graph_object_table())[child];
       if (++i == children.size())
         stack.pop_back();
 

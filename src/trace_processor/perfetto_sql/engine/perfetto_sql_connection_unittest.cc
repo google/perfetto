@@ -40,11 +40,13 @@ class PerfettoSqlConnectionTest : public ::testing::Test {
       PerfettoSqlConnection::CreateConnectionToNewDatabase(&pool_, true);
 };
 
+// Takes const char* literals (static storage) — RegisteredPackage stores
+// string_views, so the bodies must outlive every connection that holds it.
 sql_modules::RegisteredPackage CreateTestPackage(
-    const std::vector<std::pair<std::string, std::string>>& files) {
+    std::initializer_list<std::pair<const char*, const char*>> files) {
   sql_modules::RegisteredPackage result;
   for (const auto& file : files) {
-    result.modules[file.first] = file.second;
+    result.modules.Insert(file.first, std::string_view(file.second));
   }
   return result;
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './home_page.scss';
 import m from 'mithril';
 import {
   channelChanged,
@@ -32,7 +33,7 @@ import {Icon} from '../widgets/icon';
 import {classNames} from '../base/classnames';
 import {Router} from '../core/router';
 import {
-  KeyboardLayoutMap,
+  type KeyboardLayoutMap,
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from '../base/keyboard_layout_map';

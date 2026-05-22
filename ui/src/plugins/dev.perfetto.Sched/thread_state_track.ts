@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {HSLColor} from '../../base/color';
-import {ColorScheme} from '../../base/color_scheme';
+import type {ColorScheme} from '../../base/color_scheme';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {colorForThreadState} from './common';

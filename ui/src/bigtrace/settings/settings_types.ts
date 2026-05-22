@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
+import type {z} from 'zod';
 
 export type SettingCategory =
   | 'SETTING_CATEGORY_UNSPECIFIED'
@@ -35,8 +35,8 @@ export interface SettingDescriptor<T> {
   // A detailed description of what the setting does.
   readonly description: string;
 
-  // The type of the setting.
-  readonly type:
+  // The type of the setting. Defaults to 'string' if omitted.
+  readonly type?:
     | 'string'
     | 'number'
     | 'boolean'
