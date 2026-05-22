@@ -42,6 +42,7 @@ import {z} from 'zod';
 import CpuProfilePlugin from '../dev.perfetto.CpuProfile';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {createProfilingTrack} from '../dev.perfetto.CpuProfile/profiling_track';
+import {createPerfCallstackSlicesTrack} from './perf_callstack_slices_track';
 
 const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -76,6 +77,9 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     this.store = trace.mountStore(LinuxPerfPlugin.id, (init) =>
       this.migrateLinuxPerfPluginState(init),
+    );
+    await trace.engine.query(
+      'INCLUDE PERFETTO MODULE callstacks.stack_profile;',
     );
     const store = assertExists(this.store);
     await this.cacheCounterTypesPerSession(trace);
@@ -314,6 +318,124 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           },
         ),
       });
+      const slicesUri = `${uri}_slices`;
+      const tableName = `slices_${slicesUri.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      await trace.engine.query(`
+        CREATE TABLE ${tableName} AS
+        WITH samples AS (
+          SELECT
+            p.id AS sample_id,
+            ts,
+            LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (ORDER BY ts) - ts AS dur,
+            callsite_id
+          FROM perf_sample AS p
+          WHERE callsite_id IS NOT NULL
+            AND utid = ${utid}
+        ),
+        callstack_path AS (
+          SELECT
+            id AS callsite_id,
+            id AS current_callsite_id,
+            parent_id,
+            frame_id,
+            0 AS depth
+          FROM stack_profile_callsite
+          WHERE id IN (SELECT DISTINCT callsite_id FROM samples)
+
+          UNION ALL
+
+          SELECT
+            p.callsite_id,
+            c.id AS current_callsite_id,
+            c.parent_id,
+            c.frame_id,
+            p.depth + 1 AS depth
+          FROM callstack_path p
+          JOIN stack_profile_callsite c ON p.parent_id = c.id
+        ),
+        path_with_max_depth AS (
+          SELECT
+            callsite_id,
+            frame_id,
+            depth,
+            MAX(depth) OVER (PARTITION BY callsite_id) AS max_depth
+          FROM callstack_path
+        ),
+        raw_slices AS (
+          SELECT
+            s.ts,
+            s.dur,
+            f.name,
+            (p.max_depth - p.depth) AS depth,
+            s.callsite_id AS callsiteId
+          FROM samples s
+          JOIN path_with_max_depth p USING (callsite_id)
+          JOIN stack_profile_frame f ON p.frame_id = f.id
+        ),
+        islands AS (
+          SELECT
+            ts,
+            dur,
+            name,
+            depth,
+            callsiteId,
+            CASE
+              WHEN LAG(ts + dur) OVER (PARTITION BY depth, name ORDER BY ts) >= ts THEN 0
+              ELSE 1
+            END AS is_new_island
+          FROM raw_slices
+        ),
+        island_ids AS (
+          SELECT
+            ts,
+            dur,
+            name,
+            depth,
+            callsiteId,
+            SUM(is_new_island) OVER (PARTITION BY depth, name ORDER BY ts) AS island_id
+          FROM islands
+        )
+        SELECT
+          ROW_NUMBER() OVER (ORDER BY ts) AS id,
+          ts,
+          dur,
+          name,
+          depth,
+          callsiteId
+        FROM (
+          SELECT
+            MIN(ts) AS ts,
+            MAX(ts + dur) - MIN(ts) AS dur,
+            name,
+            depth,
+            MIN(callsiteId) AS callsiteId
+          FROM island_ids
+          GROUP BY depth, name, island_id
+        )
+      `);
+      await trace.engine.query(
+        `CREATE INDEX ${tableName}_id ON ${tableName}(id);`,
+      );
+      trace.tracks.registerTrack({
+        uri: slicesUri,
+        tags: {
+          kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
+          utid,
+          upid: upid ?? undefined,
+        },
+        renderer: await createPerfCallstackSlicesTrack(
+          trace,
+          slicesUri,
+          tableName,
+          `utid = ${utid}`,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
+        ),
+      });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
@@ -325,6 +447,13 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         sortOrder: -50,
       });
       group?.addChildInOrder(summaryTrack);
+      const summarySlicesTrack = new TrackNode({
+        uri: slicesUri,
+        name: `${threadName ?? 'Thread'} ${tid} callstack slices`,
+        headless: headless,
+        sortOrder: -49,
+      });
+      group?.addChildInOrder(summarySlicesTrack);
 
       // Nested tracks: one per counter being sampled on.
       for (const {cntrName, sessionId} of counters) {
@@ -357,6 +486,133 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           sortOrder: -50,
         });
         summaryTrack.addChildInOrder(track);
+
+        const nestedSlicesUri = `${uri}_slices`;
+        const nestedTableName = `slices_${nestedSlicesUri.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        await trace.engine.query(`
+          CREATE TABLE ${nestedTableName} AS
+          WITH samples AS (
+            SELECT
+              p.id AS sample_id,
+              ts,
+              LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (ORDER BY ts) - ts AS dur,
+              callsite_id
+            FROM perf_sample AS p
+            WHERE callsite_id IS NOT NULL
+              AND utid = ${utid}
+              AND perf_session_id = ${sessionId}
+          ),
+          callstack_path AS (
+            SELECT
+              id AS callsite_id,
+              id AS current_callsite_id,
+              parent_id,
+              frame_id,
+              0 AS depth
+            FROM stack_profile_callsite
+            WHERE id IN (SELECT DISTINCT callsite_id FROM samples)
+
+            UNION ALL
+
+            SELECT
+              p.callsite_id,
+              c.id AS current_callsite_id,
+              c.parent_id,
+              c.frame_id,
+              p.depth + 1 AS depth
+            FROM callstack_path p
+            JOIN stack_profile_callsite c ON p.parent_id = c.id
+          ),
+          path_with_max_depth AS (
+            SELECT
+              callsite_id,
+              frame_id,
+              depth,
+              MAX(depth) OVER (PARTITION BY callsite_id) AS max_depth
+            FROM callstack_path
+          ),
+          raw_slices AS (
+            SELECT
+              s.ts,
+              s.dur,
+              f.name,
+              (p.max_depth - p.depth) AS depth,
+              s.callsite_id AS callsiteId
+            FROM samples s
+            JOIN path_with_max_depth p USING (callsite_id)
+            JOIN stack_profile_frame f ON p.frame_id = f.id
+          ),
+          islands AS (
+            SELECT
+              ts,
+              dur,
+              name,
+              depth,
+              callsiteId,
+              CASE
+                WHEN LAG(ts + dur) OVER (PARTITION BY depth, name ORDER BY ts) >= ts THEN 0
+                ELSE 1
+              END AS is_new_island
+            FROM raw_slices
+          ),
+          island_ids AS (
+            SELECT
+              ts,
+              dur,
+              name,
+              depth,
+              callsiteId,
+              SUM(is_new_island) OVER (PARTITION BY depth, name ORDER BY ts) AS island_id
+            FROM islands
+          )
+          SELECT
+            ROW_NUMBER() OVER (ORDER BY ts) AS id,
+            ts,
+            dur,
+            name,
+            depth,
+            callsiteId
+          FROM (
+            SELECT
+              MIN(ts) AS ts,
+              MAX(ts + dur) - MIN(ts) AS dur,
+              name,
+              depth,
+              MIN(callsiteId) AS callsiteId
+            FROM island_ids
+            GROUP BY depth, name, island_id
+          )
+        `);
+        await trace.engine.query(
+          `CREATE INDEX ${nestedTableName}_id ON ${nestedTableName}(id);`,
+        );
+        trace.tracks.registerTrack({
+          uri: nestedSlicesUri,
+          tags: {
+            kinds: [PERF_SAMPLES_PROFILE_TRACK_KIND],
+            utid,
+            upid: upid ?? undefined,
+            perfSessionId: sessionId,
+          },
+          renderer: await createPerfCallstackSlicesTrack(
+            trace,
+            nestedSlicesUri,
+            nestedTableName,
+            `utid = ${utid} AND perf_session_id = ${sessionId}`,
+            store.state.detailsPanelFlamegraphState,
+            (state) => {
+              store.edit((draft) => {
+                draft.detailsPanelFlamegraphState = state;
+              });
+            },
+          ),
+        });
+        const nestedSlicesTrack = new TrackNode({
+          uri: nestedSlicesUri,
+          name: `${threadName ?? 'Thread'} ${tid} callstack slices ${cntrName}`,
+          sortOrder: -49,
+        });
+        summaryTrack.addChildInOrder(nestedSlicesTrack);
       }
     }
   }
