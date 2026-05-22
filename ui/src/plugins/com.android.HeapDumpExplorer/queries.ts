@@ -265,29 +265,25 @@ export async function getOverview(
   // of the per-process `oom_score_adj` counter at/before the dump ts, with
   // its bucket name from the stdlib oom adjuster module. Null when the trace
   // carries no oom_adj counter (e.g. a heap-only / non-Android capture).
+  await engine.query('INCLUDE PERFETTO MODULE android.oom_adjuster;');
+  const oomRes = await engine.query(`
+    SELECT
+      CAST(c.value AS INT) AS score,
+      android_oom_adj_score_to_bucket_name(CAST(c.value AS INT)) AS bucket
+    FROM counter c
+    JOIN process_counter_track t ON c.track_id = t.id
+    WHERE t.name = 'oom_score_adj'
+      AND t.upid = ${activeDump.upid}
+      AND c.ts <= ${activeDump.ts}
+    ORDER BY c.ts DESC
+    LIMIT 1
+  `);
+  const oomIt = oomRes.iter({score: NUM, bucket: STR});
   let oomScore: number | null = null;
   let oomBucket: string | null = null;
-  try {
-    await engine.query('INCLUDE PERFETTO MODULE android.oom_adjuster;');
-    const oomRes = await engine.query(`
-      SELECT
-        CAST(c.value AS INT) AS score,
-        android_oom_adj_score_to_bucket_name(CAST(c.value AS INT)) AS bucket
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      WHERE t.name = 'oom_score_adj'
-        AND t.upid = ${activeDump.upid}
-        AND c.ts <= ${activeDump.ts}
-      ORDER BY c.ts DESC
-      LIMIT 1
-    `);
-    const oomIt = oomRes.iter({score: NUM, bucket: STR});
-    if (oomIt.valid()) {
-      oomScore = oomIt.score;
-      oomBucket = oomIt.bucket;
-    }
-  } catch (_e) {
-    // No oom_adj data in this trace; leave the row out of the overview.
+  if (oomIt.valid()) {
+    oomScore = oomIt.score;
+    oomBucket = oomIt.bucket;
   }
 
   const heapRes = await engine.query(`
