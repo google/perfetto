@@ -72,6 +72,9 @@ class TrackEventParser {
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
   void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
   void AddActiveProcess(int64_t packet_timestamp, int32_t pid);
+  void MaybeExtractVideoFrame(int64_t ts,
+                              protozero::ConstBytes blob,
+                              TrackId track_id);
   DummyMemoryMapping* GetOrCreateInlineCallstackDummyMapping();
 
   // Reflection-based proto TrackEvent field parser.

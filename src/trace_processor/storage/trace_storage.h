@@ -516,6 +516,19 @@ class TraceStorage {
     return mutable_table<tables::AndroidUserListTable>();
   }
 
+  const tables::AndroidVideoFramesTable& video_frames_table() const {
+    return table<tables::AndroidVideoFramesTable>();
+  }
+  tables::AndroidVideoFramesTable* mutable_video_frames_table() {
+    return mutable_table<tables::AndroidVideoFramesTable>();
+  }
+  const std::vector<TraceBlobView>& video_frame_data() const {
+    return video_frame_data_;
+  }
+  std::vector<TraceBlobView>* mutable_video_frame_data() {
+    return &video_frame_data_;
+  }
+
   const tables::AndroidGameInterventionListTable&
   android_game_intervention_list_table() const {
     return table<tables::AndroidGameInterventionListTable>();
@@ -1083,6 +1096,9 @@ class TraceStorage {
 
   VirtualTrackSlices virtual_track_slices_;
   SqlStats sql_stats_;
+
+  // Video frame image data. Indexed by AndroidVideoFramesTable row id.
+  std::vector<TraceBlobView> video_frame_data_;
 
   // ETM tables
   // Indexed by tables::EtmV4ConfigurationTable::Id

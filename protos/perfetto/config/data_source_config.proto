@@ -35,6 +35,7 @@ import "protos/perfetto/config/android/pixel_modem_config.proto";
 import "protos/perfetto/config/android/protolog_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_layers_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_transactions_config.proto";
+import "protos/perfetto/config/android/surfaceflinger_video_config.proto";
 import "protos/perfetto/config/android/user_list_config.proto";
 import "protos/perfetto/config/android/windowmanager_config.proto";
 import "protos/perfetto/config/chrome/chrome_config.proto";
@@ -308,6 +309,10 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.surfaceflinger.video
+  optional SurfaceFlingerVideoConfig surfaceflinger_video_config = 142
+      [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

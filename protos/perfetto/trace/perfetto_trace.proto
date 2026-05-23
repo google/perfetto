@@ -1198,6 +1198,39 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/surfaceflinger_video_config.proto
+
+// Configuration for the "android.surfaceflinger.video" data source, which
+// captures what each physical display showed during the trace and emits it as
+// TrackEvent VideoFrames. See VIDEO_FRAMES_DESIGN.md in frameworks/base.
+message SurfaceFlingerVideoConfig {
+  // How the captured frames are encoded.
+  enum Format {
+    // Data source default (H264).
+    FORMAT_UNSPECIFIED = 0;
+    // 1, 2 were v1 still-image encodings (JPEG, WEBP), now removed.
+    reserved 1, 2;
+    // Hardware video (AVC).
+    FORMAT_H264 = 3;
+    // Hardware video (HEVC).
+    FORMAT_HEVC = 4;
+  }
+
+  // Upper bound on emitted frames/sec. Capture is frame-on-change (a mirror
+  // only recomposites when the source changes), so this only caps sustained
+  // motion; it does not poll. 0 = use the data source default.
+  optional uint32 fps = 1;
+
+  // Scale factor applied to each display's resolution before capture
+  // (e.g. 0.25 = quarter size). 0 = use the data source default.
+  optional float scale = 2;
+
+  // Hardware-video codec to use. Unspecified = the data source default (H264).
+  optional Format format = 3;
+}
+
+// End of protos/perfetto/config/android/surfaceflinger_video_config.proto
+
 // Begin of protos/perfetto/config/android/user_list_config.proto
 
 // Data source that lists details (such as version code) about users on an
@@ -4788,6 +4821,10 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.surfaceflinger.video
+  optional SurfaceFlingerVideoConfig surfaceflinger_video_config = 142
+      [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -15400,6 +15437,56 @@ message SourceLocation {
 
 // End of protos/perfetto/trace/track_event/source_location.proto
 
+// Begin of protos/perfetto/trace/android/video_frame.proto
+
+// A captured video frame from the device display.
+// Carried as a sub-field of TrackEvent. The track association (name, identity)
+// comes from the TrackDescriptor, not from fields in this message.
+//
+// Each display is captured as a hardware video elementary stream: one
+// codec_config-only message is emitted first per stream, then one message per
+// on-screen change carrying a single coded access unit (au_data). This avoids
+// any per-frame software image encode or GPU->CPU readback and gives
+// inter-frame compression; see VIDEO_FRAMES_DESIGN.md.
+// Every message is a single TYPE_INSTANT TrackEvent stamped with the boot-time
+// instant the screen changed, so each frame aligns on the timeline.
+message VideoFrame {
+  // Sequential frame number within the capture session.
+  optional uint64 frame_number = 1;
+
+  // 2, 3 were v1 still-image encodings (jpg_image, webp_image), now removed.
+  reserved 2, 3;
+
+  // Codec used for au_data / codec_config.
+  enum Codec {
+    CODEC_UNSPECIFIED = 0;
+    // AVC; codec_config carries avcC (SPS/PPS).
+    CODEC_H264 = 1;
+    // HEVC; codec_config carries hvcC (VPS/SPS/PPS).
+    CODEC_HEVC = 2;
+  }
+
+  // Out-of-band decoder configuration (avcC / hvcC), emitted once per stream
+  // in its own VideoFrame before any au_data. Required to decode au_data.
+  optional bytes codec_config = 4;
+
+  // One coded access unit (a single encoded frame) for this instant.
+  optional bytes au_data = 5;
+
+  // True if au_data is a key frame (IDR) and can be decoded standalone.
+  optional bool is_key_frame = 6;
+
+  // Codec presentation timestamp (microseconds) of au_data, for ordering and
+  // seeking within the elementary stream. Distinct from the TracePacket
+  // timestamp, which is the boot-time instant used for timeline placement.
+  optional uint64 pts_us = 7;
+
+  // Which codec au_data / codec_config are encoded with.
+  optional Codec codec = 8;
+}
+
+// End of protos/perfetto/trace/android/video_frame.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_active_processes.proto
 
 // A list of processes connected to the tracing service.
@@ -16163,7 +16250,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 57.
+// Next reserved id: 13 (up to 15). Next id: 58.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -16423,6 +16510,7 @@ message TrackEvent {
       43;
   optional ChromeActiveProcesses chrome_active_processes = 49;
   optional Screenshot screenshot = 50;
+  optional VideoFrame video_frame = 57;
 
   // This field is used only if the source location represents the function that
   // executes during this event.

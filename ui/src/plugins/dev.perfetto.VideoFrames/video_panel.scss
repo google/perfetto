@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Pulls in ambient declarations for `test`, `expect`, `describe`, `vi`, etc.
-// vitest.config.mjs has `globals: true` so these are available without
-// importing from 'vitest' in every *_unittest.ts file. Note: type aliases
-// like `Mock` and `Mocked` are NOT injected as globals — those must be
-// imported explicitly: `import type {Mock, Mocked} from 'vitest';`
-// / <reference types="vitest/globals" />
+.pf-video-frame-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 4px;
+}

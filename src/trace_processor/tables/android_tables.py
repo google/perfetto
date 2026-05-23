@@ -398,6 +398,42 @@ ANDROID_AFLAGS_TABLE = Table(
     ),
 )
 
+ANDROID_VIDEO_FRAMES_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidVideoFramesTable',
+    sql_name='__intrinsic_video_frames',
+    columns=[
+        C('ts',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('frame_number', CppInt64()),
+        C('track_id', CppTableId(TRACK_TABLE)),
+        C('codec', CppOptional(CppInt32())),
+        C('is_key_frame', CppOptional(CppInt32())),
+        C('pts_us', CppOptional(CppInt64())),
+        C('is_config', CppOptional(CppInt32())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Video frames captured from the device display. The payload bytes
+          (a JPEG/WEBP still for v1, or an H.264/HEVC access unit / decoder
+          config for v2) are stored separately and accessed via the
+          video_frame_image() SQL function.
+        ''',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the frame capture.',
+            'frame_number': 'Sequential frame number within the session.',
+            'track_id': 'Reference to the track table.',
+            'codec': 'VideoFrame.Codec for v2 video (1=H264, 2=HEVC); '
+                     'NULL for v1 still images.',
+            'is_key_frame': 'For v2 access units: 1 if a key frame (IDR).',
+            'pts_us': 'For v2 access units: codec presentation timestamp (us).',
+            'is_config': 'For v2: 1 if this row carries codec_config '
+                         '(decoder setup), not a displayable frame.',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_AFLAGS_TABLE,
@@ -409,4 +445,5 @@ ALL_TABLES = [
     ANDROID_LOG_TABLE,
     ANDROID_MOTION_EVENTS_TABLE,
     ANDROID_USER_LIST_TABLE,
+    ANDROID_VIDEO_FRAMES_TABLE,
 ]

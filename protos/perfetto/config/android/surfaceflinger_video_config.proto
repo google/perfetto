@@ -1,0 +1,48 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Configuration for the "android.surfaceflinger.video" data source, which
+// captures what each physical display showed during the trace and emits it as
+// TrackEvent VideoFrames. See VIDEO_FRAMES_DESIGN.md in frameworks/base.
+message SurfaceFlingerVideoConfig {
+  // How the captured frames are encoded.
+  enum Format {
+    // Data source default (H264).
+    FORMAT_UNSPECIFIED = 0;
+    // 1, 2 were v1 still-image encodings (JPEG, WEBP), now removed.
+    reserved 1, 2;
+    // Hardware video (AVC).
+    FORMAT_H264 = 3;
+    // Hardware video (HEVC).
+    FORMAT_HEVC = 4;
+  }
+
+  // Upper bound on emitted frames/sec. Capture is frame-on-change (a mirror
+  // only recomposites when the source changes), so this only caps sustained
+  // motion; it does not poll. 0 = use the data source default.
+  optional uint32 fps = 1;
+
+  // Scale factor applied to each display's resolution before capture
+  // (e.g. 0.25 = quarter size). 0 = use the data source default.
+  optional float scale = 2;
+
+  // Hardware-video codec to use. Unspecified = the data source default (H264).
+  optional Format format = 3;
+}

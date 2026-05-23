@@ -522,6 +522,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_image_video_frame_image",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -809,6 +810,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_image_video_frame_image",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -3866,6 +3868,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/user_list.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/version.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/video_frames.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/wakeups.sql",
     ],
 )
@@ -4918,6 +4921,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/utils_functions/utils_functions.cc",
         "src/trace_processor/plugins/utils_functions/utils_functions.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/video_frame_image:video_frame_image
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_video_frame_image_video_frame_image",
+    srcs = [
+        "src/trace_processor/plugins/video_frame_image/video_frame_image.cc",
+        "src/trace_processor/plugins/video_frame_image/video_frame_image.h",
     ],
 )
 
@@ -7526,6 +7538,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/protolog_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
+        "protos/perfetto/config/android/surfaceflinger_video_config.proto",
         "protos/perfetto/config/android/user_list_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
     ],
@@ -8495,6 +8508,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -10202,6 +10216,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_image_video_frame_image",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -10519,6 +10534,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_image_video_frame_image",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",

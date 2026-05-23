@@ -35,6 +35,7 @@ perfetto_proto_library("@TYPE@") {
     "protolog_config.proto",
     "surfaceflinger_layers_config.proto",
     "surfaceflinger_transactions_config.proto",
+    "surfaceflinger_video_config.proto",
     "user_list_config.proto",
     "windowmanager_config.proto",
   ]
