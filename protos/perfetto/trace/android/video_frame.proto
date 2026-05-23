@@ -1,0 +1,65 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// A captured video frame from the device display.
+// Carried as a sub-field of TrackEvent. The track association (name, identity)
+// comes from the TrackDescriptor, not from fields in this message.
+//
+// Each display is captured as a hardware video elementary stream: one
+// codec_config-only message is emitted first per stream, then one message per
+// on-screen change carrying a single coded access unit (au_data). This avoids
+// any per-frame software image encode or GPU->CPU readback and gives
+// inter-frame compression; see VIDEO_FRAMES_DESIGN.md.
+// Every message is a single TYPE_INSTANT TrackEvent stamped with the boot-time
+// instant the screen changed, so each frame aligns on the timeline.
+message VideoFrame {
+  // Sequential frame number within the capture session.
+  optional uint64 frame_number = 1;
+
+  // 2, 3 were v1 still-image encodings (jpg_image, webp_image), now removed.
+  reserved 2, 3;
+
+  // Codec used for au_data / codec_config.
+  enum Codec {
+    CODEC_UNSPECIFIED = 0;
+    // AVC; codec_config carries avcC (SPS/PPS).
+    CODEC_H264 = 1;
+    // HEVC; codec_config carries hvcC (VPS/SPS/PPS).
+    CODEC_HEVC = 2;
+  }
+
+  // Out-of-band decoder configuration (avcC / hvcC), emitted once per stream
+  // in its own VideoFrame before any au_data. Required to decode au_data.
+  optional bytes codec_config = 4;
+
+  // One coded access unit (a single encoded frame) for this instant.
+  optional bytes au_data = 5;
+
+  // True if au_data is a key frame (IDR) and can be decoded standalone.
+  optional bool is_key_frame = 6;
+
+  // Codec presentation timestamp (microseconds) of au_data, for ordering and
+  // seeking within the elementary stream. Distinct from the TracePacket
+  // timestamp, which is the boot-time instant used for timeline placement.
+  optional uint64 pts_us = 7;
+
+  // Which codec au_data / codec_config are encoded with.
+  optional Codec codec = 8;
+}

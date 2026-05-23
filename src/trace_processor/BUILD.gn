@@ -250,6 +250,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/tree_functions",
       "plugins/type_builder_functions",
       "plugins/utils_functions",
+      "plugins/video_frame_image",
       "plugins/wattson",
       "plugins/window_operator",
       "sqlite",
