@@ -543,7 +543,13 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
     return;
   }
   module_context_->PushFtraceEvent(
-      cpu, *timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
+      cpu, raw_ts,
+      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+                 /*insert_ftrace_event=*/true, /*parse_event=*/false});
+  module_context_->PushFtraceEvent(
+      cpu, *timestamp,
+      FtraceData{std::move(event), std::move(state), raw_ts,
+                 /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
 void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
@@ -569,7 +575,13 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
   auto timestamp =
       static_cast<int64_t>(thermal_exynos_acpm_bulk_event.timestamp());
   module_context_->PushFtraceEvent(
-      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
+      cpu, raw_ts,
+      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+                 /*insert_ftrace_event=*/true, /*parse_event=*/false});
+  module_context_->PushFtraceEvent(
+      cpu, timestamp,
+      FtraceData{std::move(event), std::move(state), raw_ts,
+                 /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
 void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
@@ -594,7 +606,13 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
   }
   int64_t timestamp = param_set_value_cpm_event.timestamp();
   module_context_->PushFtraceEvent(
-      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
+      cpu, raw_ts,
+      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+                 /*insert_ftrace_event=*/true, /*parse_event=*/false});
+  module_context_->PushFtraceEvent(
+      cpu, timestamp,
+      FtraceData{std::move(event), std::move(state), raw_ts,
+                 /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
 void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
@@ -620,7 +638,13 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
   int64_t timestamp =
       static_cast<int64_t>(fwtp_perfetto_counter_event.timestamp());
   module_context_->PushFtraceEvent(
-      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
+      cpu, raw_ts,
+      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+                 /*insert_ftrace_event=*/true, /*parse_event=*/false});
+  module_context_->PushFtraceEvent(
+      cpu, timestamp,
+      FtraceData{std::move(event), std::move(state), raw_ts,
+                 /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
 void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
@@ -646,7 +670,13 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
   int64_t timestamp =
       static_cast<int64_t>(fwtp_perfetto_slice_event.timestamp());
   module_context_->PushFtraceEvent(
-      cpu, timestamp, FtraceData{std::move(event), std::move(state), raw_ts});
+      cpu, raw_ts,
+      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+                 /*insert_ftrace_event=*/true, /*parse_event=*/false});
+  module_context_->PushFtraceEvent(
+      cpu, timestamp,
+      FtraceData{std::move(event), std::move(state), raw_ts,
+                 /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
 std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(

@@ -888,13 +888,19 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     }
 
     ConstBytes fld_bytes = fld.as_bytes();
-    if (fld.id() == FtraceEvent::kGenericFieldNumber) {
-      ParseLegacyGenericFtrace(ts, cpu, pid, fld_bytes);
-    } else if (GenericFtraceTracker::IsGenericFtraceEvent(fld.id())) {
-      ParseGenericFtrace(fld.id(), ts, cpu, pid, fld_bytes);
-    } else if (fld.id() != FtraceEvent::kSchedSwitchFieldNumber) {
-      // sched_switch parsing populates the raw table by itself
-      ParseTypedFtraceToRaw(fld.id(), ts, cpu, pid, fld_bytes, seq_state);
+
+    if (data.insert_ftrace_event) {
+      if (fld.id() == FtraceEvent::kGenericFieldNumber) {
+        ParseLegacyGenericFtrace(ts, cpu, pid, fld_bytes);
+      } else if (GenericFtraceTracker::IsGenericFtraceEvent(fld.id())) {
+        ParseGenericFtrace(fld.id(), ts, cpu, pid, fld_bytes);
+      } else if (fld.id() != FtraceEvent::kSchedSwitchFieldNumber) {
+        // sched_switch parsing populates the raw table by itself
+        ParseTypedFtraceToRaw(fld.id(), ts, cpu, pid, fld_bytes, seq_state);
+      }
+    }
+    if (!data.parse_event) {
+      return base::OkStatus();
     }
 
     // Skip everything besides the |raw| write if we're at the start of the

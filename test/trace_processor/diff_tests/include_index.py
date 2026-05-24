@@ -78,6 +78,7 @@ from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
+from diff_tests.parser.ftrace.thermal_exynos_tests import ThermalExynos
 from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
 from diff_tests.parser.ftrace.kernel_trackevent_tests import KernelTrackevent
 from diff_tests.parser.fuchsia.tests import Fuchsia
@@ -270,6 +271,7 @@ def fetch_all_diff_tests(
       BlockIo,
       FtraceCrop,
       Kprobes,
+      ThermalExynos,
       ParsingTracedStats,
       Zip,
       AndroidInputEvent,
