@@ -183,6 +183,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_service",
+        ":src_tracing_service_zlib_compressor",
         ":src_tracing_system_backend",
     ],
     hdrs = [
@@ -279,7 +280,7 @@ perfetto_cc_library(
         ":src_base_regex_regex",
         ":src_base_version",
         ":src_protovm_protovm",
-    ],
+    ] + PERFETTO_CONFIG.deps.zlib,
     linkstatic = True,
 )
 
@@ -1859,6 +1860,7 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_regex",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
+        "src/base/regex/regex_pcre2.h",
         "src/base/regex/regex_re2.h",
         "src/base/regex/regex_std.h",
     ],
@@ -9865,6 +9867,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_service",
+        ":src_tracing_service_zlib_compressor",
         ":src_tracing_system_backend",
     ],
     hdrs = [
@@ -9958,7 +9961,7 @@ perfetto_cc_library(
         ":src_base_regex_regex",
         ":src_base_version",
         ":src_protovm_protovm",
-    ],
+    ] + PERFETTO_CONFIG.deps.zlib,
     linkstatic = True,
 )
 
