@@ -50,6 +50,9 @@ interface DistinctValuesSubmenuAttrs {
   readonly field: string;
   readonly excludeNull?: boolean;
   readonly valueFormatter: (value: SqlValue) => string;
+  // Pre-checked at mount; read once in oninit so parent re-renders
+  // don't clobber in-flight edits.
+  readonly initialSelectedValues?: ReadonlyArray<SqlValue>;
   readonly onApply: (selectedValues: Set<SqlValue>) => void;
 }
 
@@ -57,8 +60,20 @@ export class DistinctValuesSubmenu
   implements m.ClassComponent<DistinctValuesSubmenuAttrs>
 {
   private selectedValues = new Set<SqlValue>();
+  // Initial selection captured at oninit; pinned to top of the idle
+  // layout so toggles don't shift items.
+  private pinned = new Set<SqlValue>();
   private searchQuery = '';
   private static readonly MAX_VISIBLE_ITEMS = 100;
+
+  oninit({attrs}: m.Vnode<DistinctValuesSubmenuAttrs>) {
+    if (attrs.initialSelectedValues !== undefined) {
+      for (const v of attrs.initialSelectedValues) {
+        this.selectedValues.add(v);
+        this.pinned.add(v);
+      }
+    }
+  }
 
   view({attrs}: m.Vnode<DistinctValuesSubmenuAttrs>) {
     const {datasource, field, excludeNull, valueFormatter, onApply} = attrs;
@@ -76,7 +91,7 @@ export class DistinctValuesSubmenu
     const distinctValues = excludeNull ? data.filter((v) => v !== null) : data;
 
     // Use fuzzy search to filter and get highlighted segments
-    const fuzzyResults = (() => {
+    const baseResults = (() => {
       if (this.searchQuery === '') {
         // No search - show all values without highlighting
         return distinctValues.map((value) => ({
@@ -93,6 +108,22 @@ export class DistinctValuesSubmenu
           segments: result.segments,
         }));
       }
+    })();
+
+    // Pin initial selection at top of idle layout; skip during search
+    // so fuzzy relevance wins.
+    const fuzzyResults = (() => {
+      if (this.searchQuery !== '') return baseResults;
+      const pinnedItems: typeof baseResults = [];
+      const rest: typeof baseResults = [];
+      for (const r of baseResults) {
+        if (this.pinned.has(r.value)) {
+          pinnedItems.push(r);
+        } else {
+          rest.push(r);
+        }
+      }
+      return [...pinnedItems, ...rest];
     })();
 
     // Limit the number of items rendered
@@ -202,6 +233,11 @@ export class DistinctValuesSubmenu
 interface TextFilterSubmenuAttrs {
   readonly placeholder?: string;
   readonly inputType: 'text' | 'number';
+  // Pre-fills input on mount; read once in oninit so re-renders don't
+  // clobber typing.
+  readonly initialValue?: string;
+  // Submit-button label; defaults to 'Add Filter' (edit-mode uses 'Save').
+  readonly submitLabel?: string;
   readonly onApply: (value: string | number) => void;
 }
 
@@ -210,8 +246,19 @@ export class TextFilterSubmenu
 {
   private inputValue = '';
 
+  oninit({attrs}: m.Vnode<TextFilterSubmenuAttrs>) {
+    if (attrs.initialValue !== undefined) {
+      this.inputValue = attrs.initialValue;
+    }
+  }
+
   view({attrs}: m.Vnode<TextFilterSubmenuAttrs>) {
-    const {placeholder = 'Enter value...', inputType, onApply} = attrs;
+    const {
+      placeholder = 'Enter value...',
+      inputType,
+      submitLabel = 'Add Filter',
+      onApply,
+    } = attrs;
 
     const applyFilter = () => {
       if (this.inputValue.trim().length > 0) {
@@ -233,7 +280,7 @@ export class TextFilterSubmenu
       Form,
       {
         className: 'pf-data-grid__text-filter-form',
-        submitLabel: 'Add Filter',
+        submitLabel,
         submitIcon: 'check',
         onSubmit: (e: Event) => {
           e.preventDefault();
@@ -579,5 +626,140 @@ function renderFilterMenuItems(config: FilterMenuAttrs): m.ChildArray {
     default:
       // When columnType is undefined, show all filters
       return renderUnknownTypeFilterMenuItems(config);
+  }
+}
+
+// Edit-mode counterpart of FilterMenu: renders submenu content directly
+// (so callers mount it inside a Popup) for changing an existing filter's
+// value. Op is locked, except for `=`/`!=` → `in`/`not in` promotion on
+// the multiselect path (matches add-mode's wire shape).
+
+export interface EditFilterMenuAttrs {
+  readonly datasource: DataSource;
+  readonly field: string;
+  readonly columnType: ColumnType | undefined;
+  readonly valueFormatter: (value: SqlValue) => string;
+  readonly initialFilter: FilterOpAndValue;
+  // Caller-side replace: this component doesn't know its index.
+  readonly onFilterReplace: (filter: FilterOpAndValue) => void;
+}
+
+// Uneditable: null-arity ops, or value-bearing ops with value=null
+// (legal per type but SQL `col = NULL` never matches).
+export function isEditableFilter(filter: FilterOpAndValue): boolean {
+  switch (filter.op) {
+    case 'is null':
+    case 'is not null':
+      return false;
+    case 'in':
+    case 'not in':
+      return true;
+    default:
+      return filter.value !== null;
+  }
+}
+
+export class EditFilterMenu implements m.ClassComponent<EditFilterMenuAttrs> {
+  view({attrs}: m.Vnode<EditFilterMenuAttrs>): m.Children {
+    const {
+      datasource,
+      field,
+      columnType,
+      valueFormatter,
+      initialFilter,
+      onFilterReplace,
+    } = attrs;
+
+    // Defense-in-depth: DataGrid also skips wiring onEdit for these
+    // filters so the popup normally never opens with one.
+    if (!isEditableFilter(initialFilter)) {
+      return null;
+    }
+
+    if (initialFilter.op === 'in' || initialFilter.op === 'not in') {
+      const op = initialFilter.op;
+      return m(DistinctValuesSubmenu, {
+        datasource,
+        field,
+        // Match add-mode: `in`/`not in` doesn't match NULL, use the null
+        // op instead.
+        excludeNull: true,
+        valueFormatter,
+        initialSelectedValues: initialFilter.value,
+        onApply: (selectedValues) => {
+          onFilterReplace({op, value: Array.from(selectedValues)});
+        },
+      });
+    }
+
+    // `=` / `!=` on text/identifier/unknown columns promote to
+    // `in` / `not in` on save — matches add-mode's wire shape.
+    if (initialFilter.op === '=' || initialFilter.op === '!=') {
+      const usesDistinctValues =
+        columnType === 'text' ||
+        columnType === 'identifier' ||
+        columnType === undefined;
+      if (usesDistinctValues) {
+        const promotedOp: 'in' | 'not in' =
+          initialFilter.op === '=' ? 'in' : 'not in';
+        return m(DistinctValuesSubmenu, {
+          datasource,
+          field,
+          excludeNull: true,
+          valueFormatter,
+          initialSelectedValues: [initialFilter.value],
+          onApply: (selectedValues) => {
+            onFilterReplace({
+              op: promotedOp,
+              value: Array.from(selectedValues),
+            });
+          },
+        });
+      }
+      const op = initialFilter.op;
+      return m(TextFilterSubmenu, {
+        placeholder: 'Enter value...',
+        inputType: 'number',
+        initialValue: String(initialFilter.value),
+        submitLabel: 'Save',
+        onApply: (value) => {
+          onFilterReplace({op, value});
+        },
+      });
+    }
+
+    if (
+      initialFilter.op === '<' ||
+      initialFilter.op === '<=' ||
+      initialFilter.op === '>' ||
+      initialFilter.op === '>='
+    ) {
+      const op = initialFilter.op;
+      return m(TextFilterSubmenu, {
+        placeholder: 'Enter number...',
+        inputType: 'number',
+        initialValue: String(initialFilter.value),
+        submitLabel: 'Save',
+        onApply: (value) => {
+          onFilterReplace({op, value});
+        },
+      });
+    }
+
+    if (initialFilter.op === 'glob' || initialFilter.op === 'not glob') {
+      const op = initialFilter.op;
+      return m(TextFilterSubmenu, {
+        placeholder: 'Enter glob pattern...',
+        inputType: 'text',
+        initialValue: String(initialFilter.value),
+        submitLabel: 'Save',
+        onApply: (value) => {
+          onFilterReplace({op, value});
+        },
+      });
+    }
+
+    // Exhaustiveness fall-through; FilterOpAndValue should be covered.
+    return null;
   }
 }
