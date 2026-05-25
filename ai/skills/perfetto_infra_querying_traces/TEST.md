@@ -40,7 +40,7 @@ trace_processor query dummy.pftrace "SELECT 1"
 **Prompt:** "Trace the wakeup chain backward from the main thread of the system-ui process starting at its first Choreographer#doFrame slice. Show thread names up to 3 levels deep."
 **Verify:**
 - Agent follows the **Execution Protocol** defined in `SKILL.md`.
-- Agent searches `references/perfetto-stdlib.md` for relevant modules and schemas.
+- Agent searches `__intrinsic_stdlib*` tables for relevant modules and schemas.
 - Agent drafts a query using a `RECURSIVE CTE` or methodical multi-step approach.
 - Agent uses `GLOB` for matching and prefixes all columns with aliases.
 - Agent uses `utid` and `upid` for joins to ensure stability.

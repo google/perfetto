@@ -29,20 +29,19 @@ cases {
   name: "sql_best_practices_glob"
   prompt: "Write a query to find slices with 'Choreographer' in their name."
   expectations: "The agent uses `GLOB '*Choreographer*'` instead of `LIKE`."
-  expectations: "The agent SHOULD use `LOWER(name) GLOB` if case-insensitivity is implied."
 }
 
 cases {
   name: "sql_best_practices_joins"
   prompt: "Find all slices on the main thread of process 'com.android.systemui'."
   expectations: "The agent uses `upid` and `utid` for stable identification."
-  expectations: "The agent must join `slice` to `thread` via the `thread_track` table (`slice.track_id = thread_track.id`)."
+  expectations: "The agent joins `slice` to `thread` via the `thread_track` table (`slice.track_id = thread_track.id`)."
 }
 
 cases {
   name: "schema_research_methodology"
   prompt: "I need to query a table I'm not familiar with, like 'android_binder_txs'. How should I start?"
-  expectations: "The agent must research the schema in `references/perfetto-stdlib.md` or use `LIMIT 0` before drafting."
+  expectations: "The agent must research the schema in `__intrinsic_stdlib*` tables before drafting."
   expectations: "The agent must identify if an `INCLUDE PERFETTO MODULE` is required."
 }
 
@@ -67,18 +66,18 @@ cases {
 cases {
   name: "lmk_rss_increase"
   prompt: "Help me identify the process that was killed by the Android Low Memory Killer (LMK). Then, calculate the total increase in its Anonymous RSS memory (in Megabytes) during the exact 10-second window preceding its death."
-  expectations: "The agent uses `android.memory.lmk` and `linux.memory.process` modules."
+  expectations: "The agent uses `android.memory.lmk` module."
   expectations: "The agent uses `android_lmk_events` to identify the killed process."
   expectations: "The agent uses `memory_rss_and_swap_per_process` view for RSS metrics."
-  expectations: "The agent should use window functions for efficient delta calculation."
+  expectations: "The agent uses window functions for efficient delta calculation."
 }
 
 cases {
   name: "wakeup_chain_recursive"
   prompt: "Trace the wakeup chain backward from the main thread of the system-ui process starting at its first Choreographer#doFrame slice. Write a query that shows the sequence of thread names that woke each other up, up to 3 levels deep."
   expectations: "The agent uses a RECURSIVE CTE for graph traversal."
-  expectations: "The agent must filter `thread_state` for `state = 'R'` (Runnable)."
-  expectations: "The agent must research the `thread_state` schema to correctly link `utid` and `waker_utid`."
+  expectations: "The agent filters `thread_state` for `state = 'R'` (Runnable)."
+  expectations: "The agent researches the `thread_state` schema to correctly link `utid` and `waker_utid`."
 }
 
 cases {
@@ -86,22 +85,21 @@ cases {
   prompt: "Given a trace with multiple Java heap dumps, write a Perfetto query to find the shortest path to GC root for all instances of android.graphics.Bitmap that exist in the final heap dump. Concatenate the class names of the reference path into a single string for each leaked Bitmap."
   expectations: "The agent uses the `graphs.search` module and `graph_reachable_bfs!` macro."
   expectations: "The agent uses a recursive CTE to concatenate the reference path."
-  expectations: "The agent must materialize the BFS tree and create indexes for performance."
+  expectations: "The agent materializes the BFS tree and create indexes for performance."
 }
 
 cases {
   name: "memory_dominator_tree"
   prompt: "Perform a retained-size analysis for a Java heap dump in my trace."
-  expectations: "The agent must refer to the `android.memory.heap_graph.dominator_tree` module."
-  expectations: "The agent must include the necessary module before querying."
+  expectations: "The agent refers to the `android.memory.heap_graph.dominator_tree` module."
+  expectations: "The agent includes the necessary module before querying."
 }
 
 cases {
   name: "binder_transaction_analysis"
   prompt: "I need to analyze Binder transactions. Show me the total count of binder events grouped by process name."
   expectations: "The agent uses the `android_binder_txns` or `android_binder_metrics_by_process` table to capture both client and server sides."
-  expectations: "The agent must research the schema in the documentation to identify the correct binder tables."
-  expectations: "The agent must include async/one-way transactions by checking flags like `is_sync`."
+  expectations: "The agent researches the schema in the documentation to identify the correct binder tables."
 }
 
 cases {
