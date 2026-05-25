@@ -18,6 +18,7 @@ import {Icons} from '../../base/semantic_icons';
 import type {QueryResponse} from '../../components/query_table/queries';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
+import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import {Box} from '../../widgets/box';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -83,9 +84,18 @@ export interface QueryPageAttrs {
   // draggedTabId is the tab being moved, beforeTabId is the tab it should be
   // placed before (or undefined if moved to the end).
   onTabReorder?(draggedTabId: string, beforeTabId: string | undefined): void;
+
+  readonly sidebarVisibleSetting: Setting<boolean>;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
+  // Whether the right-hand History/Tables sidebar is shown.
+  private sidebarVisible = true;
+
+  oninit({attrs}: m.CVnode<QueryPageAttrs>) {
+    this.sidebarVisible = attrs.sidebarVisibleSetting.get();
+  }
+
   // Map of tab ID to DataSource for each tab's query results
   private dataSources = new Map<string, DataSource>();
 
@@ -163,7 +173,23 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       onTabClose: (key) => attrs.onTabClose?.(key),
       onTabReorder: (draggedKey, beforeKey) =>
         attrs.onTabReorder?.(draggedKey, beforeKey),
-      onNewTab: () => attrs.onTabAdd?.(),
+      newTabContent: [
+        m(Button, {
+          icon: 'add',
+          className: 'pf-tabs__new-tab-btn',
+          onclick: () => attrs.onTabAdd?.(),
+        }),
+        m('.pf-query-page__tab-spacer'),
+        m(Button, {
+          icon: this.sidebarVisible ? 'right_panel_close' : 'right_panel_open',
+          title: this.sidebarVisible ? 'Hide sidebar' : 'Show sidebar',
+          onclick: () => {
+            this.sidebarVisible = !this.sidebarVisible;
+            attrs.sidebarVisibleSetting.set(this.sidebarVisible);
+          },
+          active: this.sidebarVisible,
+        }),
+      ],
     });
 
     const activeTab = editorTabs.find((t) => t.id === activeTabId);
@@ -198,6 +224,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         },
       ],
     });
+
+    if (!this.sidebarVisible) {
+      return m('.pf-query-page', leftPanel);
+    }
 
     return m(
       '.pf-query-page',
