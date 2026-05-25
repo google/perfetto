@@ -617,8 +617,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             }),
         ],
         filterChips: this.filters.map((filter, index) => {
-          // Filters that carry no editable value (null-arity ops, or
-          // malformed value-bearing ops with value=null) render as
+          // Filters that carry no editable value render as
           // remove-only chips with no edit popup.
           const editable = isEditableFilter(filter);
           const colInfo = getColumnInfo(schema, rootSchema, filter.field);

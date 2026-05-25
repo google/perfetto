@@ -50,8 +50,6 @@ interface DistinctValuesSubmenuAttrs {
   readonly field: string;
   readonly excludeNull?: boolean;
   readonly valueFormatter: (value: SqlValue) => string;
-  // Pre-checked at mount; read once in oninit so parent re-renders
-  // don't clobber in-flight edits.
   readonly initialSelectedValues?: ReadonlyArray<SqlValue>;
   readonly onApply: (selectedValues: Set<SqlValue>) => void;
 }
@@ -60,8 +58,7 @@ export class DistinctValuesSubmenu
   implements m.ClassComponent<DistinctValuesSubmenuAttrs>
 {
   private selectedValues = new Set<SqlValue>();
-  // Initial selection captured at oninit; pinned to top of the idle
-  // layout so toggles don't shift items.
+  // Initial selection captured at oninit; pinned to top of the idle layout.
   private pinned = new Set<SqlValue>();
   private searchQuery = '';
   private static readonly MAX_VISIBLE_ITEMS = 100;
@@ -233,10 +230,7 @@ export class DistinctValuesSubmenu
 interface TextFilterSubmenuAttrs {
   readonly placeholder?: string;
   readonly inputType: 'text' | 'number';
-  // Pre-fills input on mount; read once in oninit so re-renders don't
-  // clobber typing.
   readonly initialValue?: string;
-  // Submit-button label; defaults to 'Add Filter' (edit-mode uses 'Save').
   readonly submitLabel?: string;
   readonly onApply: (value: string | number) => void;
 }
@@ -644,8 +638,7 @@ export interface EditFilterMenuAttrs {
   readonly onFilterReplace: (filter: FilterOpAndValue) => void;
 }
 
-// Uneditable: null-arity ops, or value-bearing ops with value=null
-// (legal per type but SQL `col = NULL` never matches).
+// Uneditable: null-arity ops.
 export function isEditableFilter(filter: FilterOpAndValue): boolean {
   switch (filter.op) {
     case 'is null':
@@ -670,8 +663,6 @@ export class EditFilterMenu implements m.ClassComponent<EditFilterMenuAttrs> {
       onFilterReplace,
     } = attrs;
 
-    // Defense-in-depth: DataGrid also skips wiring onEdit for these
-    // filters so the popup normally never opens with one.
     if (!isEditableFilter(initialFilter)) {
       return null;
     }
@@ -681,8 +672,7 @@ export class EditFilterMenu implements m.ClassComponent<EditFilterMenuAttrs> {
       return m(DistinctValuesSubmenu, {
         datasource,
         field,
-        // Match add-mode: `in`/`not in` doesn't match NULL, use the null
-        // op instead.
+        // Match add-mode: `in`/`not in` doesn't match NULL.
         excludeNull: true,
         valueFormatter,
         initialSelectedValues: initialFilter.value,
@@ -759,7 +749,6 @@ export class EditFilterMenu implements m.ClassComponent<EditFilterMenuAttrs> {
       });
     }
 
-    // Exhaustiveness fall-through; FilterOpAndValue should be covered.
     return null;
   }
 }
