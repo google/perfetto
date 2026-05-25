@@ -40,6 +40,7 @@ import {PluginManagerImpl} from './plugin_manager';
 import {raf} from './raf_scheduler';
 import {Router} from './router';
 import type {SettingsManagerImpl} from './settings_manager';
+import {SidePanelManagerImpl} from './side_panel_manager';
 import {SidebarManagerImpl} from './sidebar_manager';
 import type {SerializedAppState} from './state_serialization_schema';
 import type {TraceImpl} from './trace_impl';
@@ -80,6 +81,7 @@ export class AppImpl implements App {
   readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
   readonly plugins: PluginManagerImpl;
+  readonly sidePanel = new SidePanelManagerImpl();
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();

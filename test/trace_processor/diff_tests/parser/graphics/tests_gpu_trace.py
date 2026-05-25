@@ -48,6 +48,24 @@ class GraphicsGpuTrace(TestSuite):
         34,0.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","Triangle/ms:ms"
         """))
 
+  def test_gpu_counters_forwards_looking(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counters_forwards_looking.py'),
+        query="""
+        SELECT ts, value
+        FROM counter
+        JOIN gpu_counter_track ON counter.track_id = gpu_counter_track.id
+        WHERE gpu_counter_track.name = 'forward_counter'
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","value"
+        10,100.000000
+        20,0.000000
+        30,0.000000
+        40,50.000000
+        """))
+
   def test_gpu_table(self):
     return DiffTestBlueprint(
         trace=Path('gpu_counters.py'),

@@ -500,3 +500,16 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
     "../base",
   ]
 }
+
+if (enable_perfetto_benchmarks && enable_perfetto_trace_processor_sqlite) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "trace_processor_benchmark.cc" ]
+    deps = [
+      ":lib",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
+      "../../include/perfetto/trace_processor",
+    ]
+  }
+}

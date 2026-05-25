@@ -604,3 +604,5 @@ vmscan/mm_vmscan_memcg_reclaim_begin
 vmscan/mm_vmscan_memcg_reclaim_end
 dpu/disp_frame_done_missing
 dpu/disp_frame_start_missing
+panel/panel_settings_full
+panel/panel_settings_lite
