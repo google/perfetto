@@ -18,6 +18,7 @@ import {Icons} from '../../base/semantic_icons';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
+import type {Column} from '../../components/widgets/datagrid/model';
 import type {
   ColumnSchema,
   SchemaRegistry,
@@ -92,6 +93,12 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
   // The selected table for linking ID column values.
   private selectedIdTable = ID_TABLE_OPTIONS[0].sqlTable;
 
+  // Owned column state for DataGrid's controlled-columns mode. Reset
+  // when the query changes; otherwise mutated via onColumnsChanged so
+  // sort/reorder/hide survive across redraws.
+  private columns?: readonly Column[];
+  private lastQuerySql?: string;
+
   view({attrs}: m.Vnode<ResultsTableAttrs>) {
     const {data, fillHeight} = attrs;
 
@@ -125,6 +132,13 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     attrs: ResultsTableAttrs,
     data: ResultsSuccess,
   ): m.Children {
+    // Reset columns when the query changes. Within a query, user mutations
+    // (sort, reorder, hide) are preserved via onColumnsChanged below.
+    if (data.lastStatementSql !== this.lastQuerySql) {
+      this.columns = data.columns.map((col) => ({id: col, field: col}));
+      this.lastQuerySql = data.lastStatementSql;
+    }
+
     const schema: SchemaRegistry = {};
     const rootSchema: ColumnSchema = {};
 
@@ -212,7 +226,10 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
       multiStatementWarning,
       m(DataGrid, {
         enablePivotControls: false, // In-memory datasource does not support pivoting
-        columns: data.columns.map((col) => ({id: col, field: col})),
+        columns: this.columns,
+        onColumnsChanged: (cols) => {
+          this.columns = cols;
+        },
         schema: schema,
         rootSchema: 'root',
         data: data.dataSource,
