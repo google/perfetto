@@ -95,6 +95,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventSessionObserver {
   // to emit track events from this callback.
   virtual void OnStop(const DataSourceBase::StopArgs&);
   // Called when the tracing service requests a Flush.
+  // FlushArgs::HandleFlushAsynchronously is not supported.
   virtual void OnFlush(const DataSourceBase::FlushArgs&);
   // Called when tracing muxer requests to clear incremental state.
   virtual void WillClearIncrementalState(
