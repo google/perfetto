@@ -92,43 +92,18 @@ Notes:
 
 PerfettoSQL ships with **intrinsic table-functions** for browsing the
 loaded standard library — modules, tables/views, functions, macros. Use
-these to find what's available.
+these to find what's available and to verify if a Standard Library module
+already provides the needed abstraction before drafting custom logic.
 
-**Mandatory Schema and Module Search:** For every table or view you plan to use,
-you MUST find its schema in [Perfetto
-Documentation](https://perfetto.dev/docs/analysis/stdlib-docs/).
-**Don't read the entire documentation file** - it consumes the context window.
-
-Follow this precise workflow:
-
-- **Discovery and Search:** Use available web fetching or browsing tools to
-  discover relevant views, tables or modules based on your problem domain and
-  high-level intents (for example, 'CPU time', 'running time', 'overlap',
-  'jank').
-  - **Why:** Searching solely for exact table names misses comprehensive,
-    pre-computed views built for these analyses.
-  - **Note:** You must verify if a Standard Library module already provides
-    the needed abstraction before drafting manual arithmetic or custom
-    functions.
-- **Targeted Bounded Reads:** Once you identify the relevant modules,
-  efficiently read the tables and views within that module section.
-- **Extract:** Extract only the schema, columns, and the exact `INCLUDE
-    PERFETTO MODULE` statements for the required object from the documentation.
-- **Verify:** Review the columns, types, and descriptions to ensure the table
-  matches your needs. a query, you MUST verify the schema of the tables or
-  views you plan to use. Do not guess column names. Use web retrieval tools on
-  [Perfetto Documentation](https://perfetto.dev/docs/analysis/stdlib-docs/) to
-  read the column schema of any specific table or view.
+**Mandatory Schema Check:** Do not guess column names or join keys. Always
+use a plain `LIMIT 0` query to read the exact column schema of any specific
+table, view, or query result before drafting your query.
 
 > **Intrinsic surface — not stable API.** The `__intrinsic_*` names below
 > are an implementation detail of trace processor. They're fair game for
 > an agent to use during a session because this skill is loaded, but
 > **don't bake `__intrinsic_*` names into committed scripts, dashboards,
 > or stdlib modules** — they can change without notice.
-
-> CRITICAL: If the __intrinsic_* tables do not exist, you MUST search the
-> web documentation at https://perfetto.dev/docs/analysis/stdlib-docs/.
-> Do not skip discovery.
 
 ```sql
 -- 1. List every stdlib module currently available.
@@ -168,6 +143,7 @@ Useful starting points for any trace:
 
 Static reference for the public surface (does not require a running
 trace_processor): <https://perfetto.dev/docs/analysis/sql-tables>.
+
 
 ## Using the standard library
 
@@ -231,16 +207,16 @@ reference linked above.
     a stable name (`thread.name`, `process.name`, `slice.name`) when reporting
     results to the user.
   - **Materialise expensive intermediate results.** `CREATE PERFETTO TABLE foo
-      AS SELECT ...` caches the result so subsequent queries don't redo the work.
+    AS SELECT ...` caches the result so subsequent queries don't redo the work.
     - *Note for `SPAN_JOIN`:* Intermediate tables fed into a `SPAN_JOIN` must
       be materialized using `CREATE PERFETTO TABLE`, not `CREATE VIEW`.
 - **Idempotency.** Ensure queries are idempotent to prevent "already exists"
   errors during multiple executions.
   - For Perfetto objects, always use `CREATE OR REPLACE`: `CREATE OR REPLACE
-        PERFETTO {TABLE|VIEW|MACRO|FUNCTION}`.
+    PERFETTO {TABLE|VIEW|MACRO|FUNCTION}`.
   - For SQLite Virtual Tables (such as `SPAN_JOIN`), `CREATE OR REPLACE` is
     not supported. Explicitly drop them first: `DROP TABLE IF EXISTS
-        my_table; CREATE VIRTUAL TABLE my_table USING SPAN_JOIN(...);`
+    my_table; CREATE VIRTUAL TABLE my_table USING SPAN_JOIN(...);`
   - For standard SQLite indexes, prepend `DROP INDEX IF EXISTS index_name;`.
 - **`SPAN_JOIN` safety.** `SPAN_JOIN` will crash if intervals **within the
   same input table** overlap. Always use the `PARTITIONED {column}` (for
@@ -250,17 +226,19 @@ reference linked above.
 - **Use `EXPLAIN QUERY PLAN` if a query is slow.** It shows whether SQLite is
   using indexes. Counter and slice tables have built-in indexes on `ts` and
   `track_id`; queries that don't filter on either will scan the whole table.
-- **Safe Argument Extraction.** Use `EXTRACT_ARG(arg_set_id, 'key')` to
-  extract dictionary or JSON-like properties from slices or tracks.
+- **Argument Extraction:** Use `EXTRACT_ARG(arg_set_id, 'key')` to fetch event
+  properties instead of manually joining the `args` table.
+- **JSON Parsing:** When dealing with JSON text, use standard SQLite JSON
+  functions (for example, `json_extract()`) to extract values.
 - **String Matching (Always use GLOB).** Use `GLOB` instead of `LIKE`. `LIKE`
   causes performance bottlenecks and treats underscores (`_`) as wildcards,
   leading to bugs.
   - **Exact matches:** Use `=`.
   - **Substring matches:** Use `GLOB` with `*` (for example, `name GLOB
-        '*RenderThread*'`).
+    '*RenderThread*'`).
   - **Case-insensitive matches:** Use `LOWER(name) GLOB` and make sure the
     search string is fully lowercase (for example, `LOWER(name) GLOB
-        '*renderthread*'`). Use this when dealing with inconsistent trace
+    '*renderthread*'`). Use this when dealing with inconsistent trace
     capitalization (for example, `WakeLock` versus `wakelock`).
 - **Alias Precision.** Always prefix column names with table or view alias,
   that is: `{alias}.{column_name}`.
@@ -269,20 +247,20 @@ reference linked above.
 
 - **Calculating Time Overlaps & CPU Time:**
   1.  **Primary Method (MANDATORY):** Always search the standard library first
-      before writing custom interval logic. For example, to find the exact CPU
-      execution time of a slice, do not calculate it manually; instead, search
-      the docs and use the `slices.cpu_time` module.
+    before writing custom interval logic. For example, to find the exact CPU
+    execution time of a slice, do not calculate it manually; instead, search
+    the docs and use the `slices.cpu_time` module.
   2.  **Fallback Method (Use ONLY if you have verified no stdlib module or
-      `SPAN_JOIN` applies):** If you must calculate custom overlap durations
-      between two different sets of time intervals `[start1, end1]` and
-      `[start2, end2]`:
-    - **Condition:** The intervals overlap if `start1 < end2` and `start2
-            < end1`.
-    - **Duration:** The overlap duration is calculated as `MIN(end1, end2)
-      - MAX(start1, start2)`.
-    - **Important:** Incomplete Perfetto slices have a duration of -1
-      (`dur = -1`). Always calculate the effective end time using `ts +
-            IIF(dur = -1, trace_end() - ts, dur)` before applying this logic.
+    `SPAN_JOIN` applies):** If you must calculate custom overlap durations
+    between two different sets of time intervals `[start1, end1]` and
+    `[start2, end2]`:
+  - **Condition:** The intervals overlap if `start1 < end2` and `start2
+      < end1`.
+  - **Duration:** The overlap duration is calculated as `MIN(end1, end2)
+    - MAX(start1, start2)`.
+  - **Important:** Incomplete Perfetto slices have a duration of -1
+    (`dur = -1`). Always calculate the effective end time using `ts +
+      IIF(dur = -1, trace_end() - ts, dur)` before applying this logic.
 - **Window Size:** When looking for events around a specific timestamp, start
   with 100ms as the window size.
 - **Total Duration:** To calculate the total time spent in slices matching a
@@ -292,8 +270,8 @@ reference linked above.
   an example query (note the safe handling of incomplete slices):
   ```sql
   SELECT
-    count(*) as total_count,
-    sum(IIF(slice.dur = -1, trace_end() - slice.ts, slice.dur)) / 1000000.0 as total_dur_ms
+  count(*) as total_count,
+  sum(IIF(slice.dur = -1, trace_end() - slice.ts, slice.dur)) / 1000000.0 as total_dur_ms
   FROM slice
   WHERE slice.name GLOB '*{name_pattern}*';
   ```
@@ -305,41 +283,38 @@ To ensure accuracy and efficiency, follow these steps:
 1. **Research & Dissection:** Identify the core question and required data
    points.
 2. **Mandatory Schema Validation:** Locate relevant tables via
-   `__intrinsic_stdlib_tables` or at
-   <https://perfetto.dev/docs/analysis/stdlib-docs/>. Verify column names
-   and types.
-    - **Intent Check:** You must verify if a stdlib module already provides
-      the needed abstraction before drafting manual arithmetic or custom joins.
-    - **IMPORTANT:** If your query requires calculating overlaps,
-      intersections, or boundaries between intervals, you MUST search the
-      stdlib documentation for pre-built views before writing `MIN()/MAX()`
-      or `IIF(dur = -1...)` logic.
+   `__intrinsic_stdlib_tables`. Verify column names and types.
+   - **Intent Check:** You must verify if a stdlib module already provides
+   the needed abstraction before drafting manual arithmetic or custom joins.
+  - **IMPORTANT:** If your query requires calculating overlaps,
+   intersections, or boundaries between intervals, you MUST search the
+   `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
+    writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
 3. **Draft & Validate Loop (Max 3 Iterations):**
-    - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
-      MODULE` is present for non-prelude modules.
-    - [ ] **Verify Idempotency:** Use `CREATE OR REPLACE` or `DROP TABLE IF
-      EXISTS` for virtual tables.
-    - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
-      `s.name`)? Are you joining on `utid`/`upid`?
-    - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
-    - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
-      and materialized?
-    - [ ] **Execute:** Run using `trace_processor query TRACE_FILE "QUERY"`.
+  - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
+    MODULE` is present for non-prelude modules.
+  - [ ] **Verify Idempotency:** Use `CREATE OR REPLACE` or `DROP TABLE IF
+    EXISTS` for virtual tables.
+  - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
+    `s.name`)? Are you joining on `utid`/`upid`?
+  - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
+  - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
+    and materialized?
+  - [ ] **Execute:** Run using `trace_processor query TRACE_FILE "QUERY"`.
 
    **Execution Rules:**
-    - **File Usage:** If you must create a SQL file to execute queries (for
-      example, due to query length or escaping issues), you must create them
-      in the `/tmp/` directory.
-    - **Failure Resilience:** Debug and fix SQL syntax and logic errors when
-      query fails. Don't simplify the analytical intent to pass validation.
-      For example, if requested to calculate an overlap or intersection, you
-      must fix the intersection math. Don't substitute with disjoint queries
-      (for example, returning independent total durations) as a workaround.
+  - **File Usage:** If you must create a SQL file to execute queries (for
+    example, due to query length or escaping issues), you must create them
+    in the `/tmp/` directory.
+  - **Failure Resilience:** Debug and fix SQL syntax and logic errors when
+    query fails. Don't simplify the analytical intent to pass validation.
+    For example, if requested to calculate an overlap or intersection, you
+    must fix the intersection math. Don't substitute with disjoint queries
+    (for example, returning independent total durations) as a workaround.
 4. **Cleanup & Finalize:**
-    - Explicitly return and state the final validated SQL and explain the
-      results to the user.
-    - Before finishing, delete any temporary SQL files created in `/tmp/`.
-
+  - Explicitly return and state the final validated SQL and explain the
+    results to the user.
+  - Before finishing, delete any temporary SQL files created in `/tmp/`.
 
 ## Where to look for more
 
