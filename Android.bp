@@ -1185,6 +1185,7 @@ cc_library_static {
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
+        ":perfetto_src_profiling_smaps_smaps",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
