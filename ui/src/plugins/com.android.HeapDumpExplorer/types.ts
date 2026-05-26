@@ -57,6 +57,12 @@ export interface OverviewData {
   oomScore: number | null;
   /** oom_adj bucket name from the stdlib (e.g. "cached"); null if unavailable. */
   oomBucket: string | null;
+  /** The anon RSS + swap size of the process (in bytes) at the time of the heap dump. */
+  anonRssAndSwapSize: bigint | null;
+  /** The dmabuf size of the process (in bytes) at the time of the heap dump. */
+  dmabufRssSize: bigint | null;
+  /** The process uptime at the time of the heap dump. */
+  processUptime: bigint | null;
 }
 
 export type PrimOrRef =

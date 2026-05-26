@@ -261,29 +261,39 @@ export async function getOverview(
   const unreachableInstanceCount = countIt.unreachable;
   const classCount = countIt.classes;
 
-  // Process oom_score_adj in effect at the dump instant: the latest value
-  // of the per-process `oom_score_adj` counter at/before the dump ts, with
-  // its bucket name from the stdlib oom adjuster module. Null when the trace
-  // carries no oom_adj counter (e.g. a heap-only / non-Android capture).
-  await engine.query('INCLUDE PERFETTO MODULE android.oom_adjuster;');
-  const oomRes = await engine.query(`
+  // Process stats at the dump instant. Null when the trace carries no such stats.
+  const statsRes = await engine.query(`
+    INCLUDE PERFETTO MODULE android.oom_adjuster;
+    INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
     SELECT
-      CAST(c.value AS INT) AS score,
-      android_oom_adj_score_to_bucket_name(CAST(c.value AS INT)) AS bucket
-    FROM counter c
-    JOIN process_counter_track t ON c.track_id = t.id
-    WHERE t.name = 'oom_score_adj'
-      AND t.upid = ${activeDump.upid}
-      AND c.ts <= ${activeDump.ts}
-    ORDER BY c.ts DESC
+      CAST(oom_score_adj AS INT) AS score,
+      android_oom_adj_score_to_bucket_name(CAST(oom_score_adj AS INT)) AS bucket,
+      anon_rss_and_swap_size AS anonRssAndSwapSize,
+      dmabuf_rss_size AS dmabufRssSize,
+      process_uptime AS processUptime
+    FROM android_heap_graph_stats
+    WHERE upid = ${activeDump.upid}
+      AND graph_sample_ts = ${activeDump.ts}
     LIMIT 1
   `);
-  const oomIt = oomRes.iter({score: NUM, bucket: STR});
+  const statsIt = statsRes.iter({
+    score: NUM_NULL,
+    bucket: STR_NULL,
+    anonRssAndSwapSize: LONG_NULL,
+    dmabufRssSize: LONG_NULL,
+    processUptime: LONG_NULL,
+  });
   let oomScore: number | null = null;
   let oomBucket: string | null = null;
-  if (oomIt.valid()) {
-    oomScore = oomIt.score;
-    oomBucket = oomIt.bucket;
+  let anonRssAndSwapSize: bigint | null = null;
+  let dmabufRssSize: bigint | null = null;
+  let processUptime: bigint | null = null;
+  if (statsIt.valid()) {
+    oomScore = statsIt.score;
+    oomBucket = statsIt.bucket;
+    anonRssAndSwapSize = statsIt.anonRssAndSwapSize;
+    dmabufRssSize = statsIt.dmabufRssSize;
+    processUptime = statsIt.processUptime;
   }
 
   const heapRes = await engine.query(`
@@ -500,6 +510,9 @@ export async function getOverview(
     hasFieldValues: hasPrimitives,
     oomScore,
     oomBucket,
+    anonRssAndSwapSize,
+    dmabufRssSize,
+    processUptime,
   };
 }
 

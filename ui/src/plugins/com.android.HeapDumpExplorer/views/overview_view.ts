@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Duration} from '../../../base/time';
 import type {SqlValue, Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
@@ -291,6 +292,14 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
         (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
       const infoRows: Row[] = [
         {property: 'Process', value: processLabel},
+        ...(overview.processUptime !== null
+          ? [
+              {
+                property: 'Uptime',
+                value: Duration.format(overview.processUptime),
+              },
+            ]
+          : []),
         ...(overview.oomBucket !== null
           ? [
               {
@@ -308,6 +317,22 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
           property: 'Unreachable instances',
           value: overview.unreachableInstanceCount.toLocaleString(),
         },
+        ...(overview.anonRssAndSwapSize !== null
+          ? [
+              {
+                property: 'Anon RSS + Swap',
+                value: fmtSize(Number(overview.anonRssAndSwapSize)),
+              },
+            ]
+          : []),
+        ...(overview.dmabufRssSize !== null
+          ? [
+              {
+                property: 'DMA Buffer RSS',
+                value: fmtSize(Number(overview.dmabufRssSize)),
+              },
+            ]
+          : []),
       ];
 
       return m('div', {class: 'pf-hde-view-scroll'}, [
