@@ -1,0 +1,22 @@
+{
+  "skills": [
+    {
+      "name": "perfetto-infra-getting-trace-processor",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "name": "perfetto-infra-querying-traces",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "name": "perfetto-workflow-android-heap-dump",
+      "files": [
+        "SKILL.md"
+      ]
+    }
+  ]
+}

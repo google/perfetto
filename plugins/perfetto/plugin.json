@@ -1,0 +1,5 @@
+{
+  "name": "perfetto",
+  "version": "v0.0.0-prototype",
+  "description": "Perfetto skills for trace analysis: query traces with PerfettoSQL, install trace_processor, and run guided investigation workflows."
+}
