@@ -403,13 +403,63 @@ TEST(GenProtoExtensionsTest, ValidateRegistryMissingScope) {
 TEST(GenProtoExtensionsTest, ValidateRegistryWrongScope) {
   Registry reg;
   reg.source_path = "test.json";
-  reg.scope = "perfetto.protos.TracePacket";
+  // Scopes other than TrackEvent / TracePacket / InternedData are rejected.
+  reg.scope = "perfetto.protos.SomeOtherType";
   reg.ranges = {{100, 199}};
   reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
 
   auto status = ValidateRegistry(reg);
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.message(), testing::HasSubstr("scope"));
+}
+
+TEST(GenProtoExtensionsTest, ValidateRegistryAcceptsTracePacketScope) {
+  Registry reg;
+  reg.source_path = "test.json";
+  reg.scope = "perfetto.protos.TracePacket";
+  reg.ranges = {{100, 199}};
+  reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
+
+  EXPECT_TRUE(ValidateRegistry(reg).ok());
+}
+
+TEST(GenProtoExtensionsTest, ValidateRegistryAcceptsInternedDataScope) {
+  Registry reg;
+  reg.source_path = "test.json";
+  reg.scope = "perfetto.protos.InternedData";
+  reg.ranges = {{100, 199}};
+  reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
+
+  EXPECT_TRUE(ValidateRegistry(reg).ok());
+}
+
+TEST(GenProtoExtensionsTest, ValidateScopesUniqueAccepts) {
+  Registry track_event;
+  track_event.source_path = "test.json";
+  track_event.scope = "perfetto.protos.TrackEvent";
+  Registry trace_packet;
+  trace_packet.source_path = "test.json";
+  trace_packet.scope = "perfetto.protos.TracePacket";
+  Registry interned_data;
+  interned_data.source_path = "test.json";
+  interned_data.scope = "perfetto.protos.InternedData";
+
+  EXPECT_TRUE(
+      ValidateScopesUnique({track_event, trace_packet, interned_data}).ok());
+}
+
+TEST(GenProtoExtensionsTest, ValidateScopesUniqueRejectsDuplicates) {
+  Registry first;
+  first.source_path = "test.json";
+  first.scope = "perfetto.protos.TrackEvent";
+  Registry second;
+  second.source_path = "test.json";
+  second.scope = "perfetto.protos.TrackEvent";
+
+  auto status = ValidateScopesUnique({first, second});
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.message(),
+              testing::HasSubstr("'perfetto.protos.TrackEvent'"));
 }
 
 TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
@@ -450,14 +500,14 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
               testing::HasSubstr("no extensions targeting"));
 }
 
-TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithTestProto) {
-  // This test uses the real test_extensions.proto from the repo.
-  // It requires proto include paths to work.
-  std::string proto_path = base::GetTestDataPath(
-      "protos/perfetto/trace/track_event/track_event_extensions.json");
+TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithUnifiedRegistry) {
+  // Drives the real protos/perfetto/trace/extensions.json against the
+  // in-repo proto files it references (test_extensions.proto,
+  // gpu_interned_data.proto, gpu_track_event.proto). Remote entries
+  // (chromium, android-internal) are skipped by the tool.
+  std::string proto_path =
+      base::GetTestDataPath("protos/perfetto/trace/extensions.json");
   auto result = GenerateExtensionDescriptors(proto_path, {"."}, ".");
-  // This should succeed for local protos (test_extensions.proto). Remote
-  // entries (chromium, android-internal) are skipped.
   ASSERT_TRUE(result.ok()) << result.status().message();
   // The output should be a non-empty FileDescriptorSet.
   EXPECT_GT(result->size(), 0u);
