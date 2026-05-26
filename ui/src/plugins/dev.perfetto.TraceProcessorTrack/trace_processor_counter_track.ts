@@ -130,7 +130,6 @@ export class TraceProcessorCounterTrack extends CounterTrack {
     return new CounterDetailsPanel(
       this.trace,
       this.trackName,
-      () => this.yMode,
       this.unit,
       this.rateUnit,
       this.sqlSource,

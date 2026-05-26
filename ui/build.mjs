@@ -87,6 +87,7 @@ const cfg = {
   verbose: false,
   debug: false,
   bigtrace: false,
+  engineBench: false,
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: undefined,
@@ -123,6 +124,8 @@ const RULES = [
   {r: /ui\/src\/assets\/index.html/, f: copyIndexHtml},
   {r: /ui\/src\/assets\/bigtrace.html/, f: copyBigtraceHtml},
   {r: /ui\/src\/open_perfetto_trace\/index.html/, f: copyOpenPerfettoTraceHtml},
+  // engine_bench page; no-op without --enable-engine-bench.
+  {r: /ui\/src\/engine_bench\/bench\.html$/, f: copyEngineBenchHtml},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/base-page\.json)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/examples\/(.*)[.]json)/, f: copyAssets},
@@ -212,6 +215,11 @@ Env-var overrides:
   parser.add_argument('--run-unittests', '-t', {action: 'store_true'});
   parser.add_argument('--debug', '-d', {action: 'store_true'});
   parser.add_argument('--bigtrace', {action: 'store_true'});
+  parser.add_argument('--enable-engine-bench', {
+    action: 'store_true',
+    help: 'Build the engine startup benchmark page (engine_bench.html) and ' +
+          'its dedicated worker bundle. Off by default.',
+  });
   parser.add_argument('--open-perfetto-trace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
   parser.add_argument('--rebaseline', '-r', {action: 'store_true'});
@@ -276,6 +284,7 @@ Env-var overrides:
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.bigtrace = !!args.bigtrace;
+  cfg.engineBench = !!args.enable_engine_bench;
   cfg.openPerfettoTrace = !!args.open_perfetto_trace;
   cfg.startHttpServer = args.serve;
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
@@ -392,6 +401,9 @@ Env-var overrides:
       scanDir('ui/src/open_perfetto_trace');
       tsProjects.push('ui/src/open_perfetto_trace');
     }
+    if (cfg.engineBench) {
+      scanDir('ui/src/engine_bench');
+    }
 
     if (cfg.check) {
       for (const prj of tsProjects) {
@@ -404,7 +416,11 @@ Env-var overrides:
       // the background and prints errors without killing the build.
       for (const prj of tsProjects) {
         if (cfg.watch) {
-          transpileTsProject(prj, {watch: true, noEmit: true, noErrCheck: true});
+          transpileTsProject(prj, {
+            watch: true,
+            noEmit: true,
+            noErrCheck: true,
+          });
         } else {
           transpileTsProject(prj, {noEmit: true});
         }
@@ -511,6 +527,26 @@ function copyOpenPerfettoTraceHtml(src) {
   if (cfg.openPerfettoTrace) {
     addTask(cp, [src, pjoin(cfg.outOpenPerfettoTraceDistDir, 'index.html')]);
   }
+}
+
+function copyEngineBenchHtml(src) {
+  if (!cfg.engineBench) return;
+  // Goes next to engine_bench_bundle.js so its relative <script> resolves.
+  addTask(cp, [src, pjoin(cfg.outDistDir, 'engine_bench.html')]);
+  addTask(makeEngineBenchRedirect, []);
+}
+
+function makeEngineBenchRedirect() {
+  const target = `${cfg.version}/engine_bench.html`;
+  // Redirect via JS so the bench knob query string is preserved.
+  const html =
+    '<!DOCTYPE html><meta charset="utf-8">' +
+    '<title>Perfetto engine bench (redirect)</title>' +
+    `<script>location.replace(${JSON.stringify(target)} + location.search + ` +
+    'location.hash);</script>' +
+    `<noscript><meta http-equiv="refresh" content="0; url=${target}">` +
+    `<p>Redirecting to <a href="${target}">${target}</a>.</p></noscript>\n`;
+  fs.writeFileSync(pjoin(cfg.outDistRootDir, 'engine_bench.html'), html);
 }
 
 function copyAssets(src, dst) {
@@ -754,26 +790,23 @@ function runVite() {
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
   const useDevServer = cfg.watch && cfg.startHttpServer;
-  const bundles = [
-    'engine',
-    'traceconv',
-    'service_worker',
-    'chrome_extension',
-  ];
+  const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
   if (!useDevServer) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
+  if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
   for (const bundle of bundles) {
-    const args = [
-      'build',
-      '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
-    ];
+    const args = ['build', '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs')];
     if (cfg.watch) args.push('--watch');
     if (!cfg.verbose) args.push('--logLevel', 'warn');
-    addTask(execModule, ['vite', args, {
-      async: cfg.watch,
-      env: {...baseEnv, BUNDLE: bundle},
-    }]);
+    addTask(execModule, [
+      'vite',
+      args,
+      {
+        async: cfg.watch,
+        env: {...baseEnv, BUNDLE: bundle},
+      },
+    ]);
   }
 }
 
@@ -817,10 +850,12 @@ async function startViteDevServer() {
   const {createServer} = await import('vite');
   const port = cfg.httpServerListenPort ?? DEFAULT_PORT;
 
-  const headers = cfg.crossOriginIsolation ? {
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Embedder-Policy': 'require-corp',
-  } : undefined;
+  const headers = cfg.crossOriginIsolation
+    ? {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      }
+    : undefined;
 
   const server = await createServer({
     configFile: pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
@@ -843,23 +878,27 @@ async function startViteDevServer() {
     // Vite's transformIndexHtml will then resolve /frontend/index.ts through
     // its module graph (with HMR client injected).
     let html = raw.replace(
-        /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
-        `script.src = '/frontend/index.ts';`);
+      /script\.src\s*=\s*version\s*\+\s*['"]\/frontend_bundle\.js['"];?/,
+      `script.src = '/frontend/index.ts';`,
+    );
     // Native ESM entry needs type="module". Vite also needs a global hint at
     // where versioned assets live (assetSrc()/getServingRoot() use it).
     html = html.replace(
-        /script\.async\s*=\s*true;?/,
-        `script.type = 'module'; window.__GLOBAL_ASSET_ROOT__ = version + '/';`);
+      /script\.async\s*=\s*true;?/,
+      `script.type = 'module'; window.__GLOBAL_ASSET_ROOT__ = version + '/';`,
+    );
     // Patch the version map (same job as cpHtml in prod). In dev there is
     // exactly one channel served from the root, version '.'.
     const versionMap = JSON.stringify({stable: cfg.version});
     html = html.replace(
-        /data-perfetto_version='[^']*'/,
-        `data-perfetto_version='${versionMap}'`);
+      /data-perfetto_version='[^']*'/,
+      `data-perfetto_version='${versionMap}'`,
+    );
     if (cfg.titleOverride) {
       html = html.replace(
-          /<title>[^<]*<\/title>/,
-          `<title>${cfg.titleOverride}</title>`);
+        /<title>[^<]*<\/title>/,
+        `<title>${cfg.titleOverride}</title>`,
+      );
     }
     return html;
   };
@@ -875,7 +914,10 @@ async function startViteDevServer() {
       return res.end('403');
     }
     fs.readFile(absPath, (err, data) => {
-      if (err) { res.statusCode = 404; return res.end(); }
+      if (err) {
+        res.statusCode = 404;
+        return res.end();
+      }
       res.end(data);
     });
   });
@@ -915,15 +957,16 @@ async function startViteDevServer() {
         fs.readFile(absPath, (rerr, data) => {
           if (rerr) return tryRoot(i + 1);
           const ext = url.split('.').pop();
-          const mime = {
-            wasm: 'application/wasm',
-            woff2: 'font/woff2',
-            png: 'image/png',
-            json: 'application/json',
-            css: 'text/css',
-            js: 'application/javascript',
-            html: 'text/html',
-          }[ext] || 'application/octet-stream';
+          const mime =
+            {
+              wasm: 'application/wasm',
+              woff2: 'font/woff2',
+              png: 'image/png',
+              json: 'application/json',
+              css: 'text/css',
+              js: 'application/javascript',
+              html: 'text/html',
+            }[ext] || 'application/octet-stream';
           res.setHeader('Content-Type', mime);
           res.end(data);
         });

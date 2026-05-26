@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './distribution_panel.scss';
 import m from 'mithril';
 import {QuerySlot} from '../base/query_slot';
 import {Icons} from '../base/semantic_icons';

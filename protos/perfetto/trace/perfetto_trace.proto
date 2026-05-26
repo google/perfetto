@@ -63,6 +63,35 @@ message GpuCounterDescriptor {
     repeated MeasureUnit denominator_units = 8;
     optional bool select_by_default = 9;
     repeated GpuCounterGroup groups = 10;
+
+    // Direction of the time interval that each emitted sample applies to.
+    // A GPU counter is sampled at discrete timestamps, but its value really
+    // represents a measurement over some interval around that timestamp
+    // (e.g. average GPU utilization over the sampling window). This field
+    // tells trace processor on which side of the timestamp that interval
+    // lies, which controls where the value is drawn in the UI.
+    //
+    // Example: samples at t=10, 20, 30 with values 5, 7, 0.
+    //   BACKWARDS_LOOKING: 5 covers (-inf, 10], 7 covers (10, 20], 0 covers
+    //     (20, 30]; the UI draws 7 between t=10 and t=20.
+    //   FORWARDS_LOOKING:  5 covers [10, 20), 7 covers [20, 30), 0 covers
+    //     [30, +inf); the UI draws 5 between t=10 and t=20.
+    enum ValueDirection {
+      // Treated as BACKWARDS_LOOKING (the historical default).
+      VALUE_DIRECTION_UNSPECIFIED = 0;
+      // The value applies to the interval ending at this event's timestamp.
+      // This is the convention used by AGI and most existing GPU producers,
+      // where a sample reports what happened during the window leading up
+      // to the timestamp.
+      VALUE_DIRECTION_BACKWARDS_LOOKING = 1;
+      // The value applies to the interval starting at this event's
+      // timestamp, matching standard Perfetto counters. Producers that emit
+      // explicit zero samples to denote "no activity from here on" should
+      // use this so the zero is not back-propagated over earlier non-zero
+      // samples (https://github.com/google/perfetto/issues/5683).
+      VALUE_DIRECTION_FORWARDS_LOOKING = 2;
+    }
+    optional ValueDirection value_direction = 11;
   }
   repeated GpuCounterSpec specs = 1;
 
@@ -627,7 +656,7 @@ message AndroidGameInterventionListConfig {
 //
 // NOTE: Input traces can only be taken on debuggable (userdebug/eng) builds!
 //
-// Next ID: 5
+// Next ID: 6
 message AndroidInputEventConfig {
   // Trace modes are tracing presets that are included in the system.
   enum TraceMode {
@@ -736,6 +765,10 @@ message AndroidInputEventConfig {
   // Trace details about which windows the system is sending each input event
   // to. All trace rules will apply.
   optional bool trace_dispatcher_window_dispatch = 4;
+
+  // Trace evdev events received from the kernel, including device additions and
+  // removals.
+  optional bool trace_evdev_events = 5;
 }
 
 // End of protos/perfetto/config/android/android_input_event_config.proto
@@ -1938,6 +1971,26 @@ message InterceptorConfig {
 }
 
 // End of protos/perfetto/config/interceptor_config.proto
+
+// Begin of protos/perfetto/config/linux/journald_config.proto
+
+// Configuration for the "linux.systemd_journald" data source.
+// Next field id: 4
+message SystemdJournaldConfig {
+  // Minimum syslog priority level to capture (inclusive).
+  // 0=EMERG, 1=ALERT, 2=CRIT, 3=ERR, 4=WARNING, 5=NOTICE, 6=INFO, 7=DEBUG.
+  // Default (0 / unset): capture all priorities (equivalent to 7).
+  optional uint32 min_prio = 1;
+
+  // If non-empty, only capture journal entries whose SYSLOG_IDENTIFIER
+  // matches one of these strings.
+  repeated string filter_identifiers = 2;
+
+  // If non-empty, only capture journal entries from these systemd unit names.
+  repeated string filter_units = 3;
+}
+
+// End of protos/perfetto/config/linux/journald_config.proto
 
 // Begin of protos/perfetto/config/power/android_power_config.proto
 
@@ -4732,6 +4785,9 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: linux.systemd_journald
+  optional SystemdJournaldConfig journald_config = 141 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -8746,9 +8802,7 @@ message StackWalkEtwEvent {
   optional uint64 callstack_iid = 2;
 }
 
-// Proto definition based on the `DiskIo_TypeGroup1` class definition.
-// Also used for DiskIo_TypeGroup2 and DiskIo_TypeGroup3 events,
-// because its fields a super set of those types' fields.
+// Proto definition based on the `DiskIo_TypeGroup1/2/3` class definitions.
 message DiskIoEtwEvent {
   optional uint32 disk_number = 1;
   optional uint32 irp_flags = 2;
@@ -8756,8 +8810,8 @@ message DiskIoEtwEvent {
   optional int64 byte_offset = 4;
   optional uint64 file_object = 5;
   optional uint64 irp_ptr = 6;
-  optional uint32 issuing_thread_id = 7;
-  optional int64 response_time = 8;
+  optional int64 response_time = 7;
+  optional uint32 issuing_thread_id = 8;
   optional uint32 opcode = 9;
 }
 
@@ -12457,6 +12511,25 @@ message GramCollisionFtraceEvent {
   optional int32 panel_index = 1;
   optional uint32 collision_cnt = 2;
 }
+message PanelSettingsFullFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 hbm = 2;
+  optional uint32 irc = 3;
+  optional uint32 h_pwm = 4;
+  optional uint32 fi_auto = 5;
+  optional uint32 fi_manual = 6;
+  optional uint32 early_exit = 7;
+  optional uint32 min_rr = 8;
+  optional uint32 max_rr = 9;
+  optional uint32 te_freq = 10;
+}
+message PanelSettingsLiteFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 vrr = 2;
+  optional uint32 min_rr = 3;
+  optional uint32 max_rr = 4;
+  optional uint32 te_freq = 5;
+}
 
 // End of protos/perfetto/trace/ftrace/panel.proto
 
@@ -14104,6 +14177,8 @@ message FtraceEvent {
     MmVmscanMemcgReclaimEndFtraceEvent mm_vmscan_memcg_reclaim_end = 608;
     DpuDispFrameDoneMissingFtraceEvent dpu_disp_frame_done_missing = 609;
     DpuDispFrameStartMissingFtraceEvent dpu_disp_frame_start_missing = 610;
+    PanelSettingsFullFtraceEvent panel_settings_full = 611;
+    PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
   }
 }
 
@@ -16657,6 +16732,58 @@ message AndroidJobName {
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
 
+// Begin of protos/perfetto/trace/linux/journald_event.proto
+
+// A journald log event packet, collected from the Linux systemd journal.
+// Emitted by the "linux.systemd_journald" data source in traced_probes.
+// Next field id: 13, statistics starting at 20
+message SystemdJournaldEvent {
+  // _PID: PID of the process that wrote the log entry (trusted).
+  optional uint32 pid = 1;
+
+  // _TID: thread ID of the logging thread (trusted, set by journald for
+  // native journal protocol entries). Absent for syslog, stdout-piped, and
+  // kernel entries.
+  optional uint32 tid = 2;
+
+  // _UID: user ID of the process (trusted).
+  optional uint32 uid = 3;
+
+  // _GID: group ID of the process (trusted).
+  optional uint32 gid = 4;
+
+  // PRIORITY: syslog priority level 0 (EMERG) .. 7 (DEBUG).
+  optional uint32 prio = 5;
+
+  // SYSLOG_IDENTIFIER: program name / tag, set by the logging application.
+  optional string tag = 6;
+
+  // MESSAGE: the human-readable log message text.
+  optional string message = 7;
+
+  // _COMM: short process name as known to the kernel (trusted).
+  optional string comm = 8;
+
+  // _EXE: full executable path (trusted).
+  optional string exe = 9;
+
+  // _SYSTEMD_UNIT: the systemd unit that owns this process (trusted).
+  optional string systemd_unit = 10;
+
+  // _HOSTNAME: hostname of the machine (trusted).
+  optional string hostname = 11;
+
+  // _TRANSPORT: how the entry was received by journald (trusted).
+  // Values: "audit", "driver", "syslog", "journal", "stdout", "kernel".
+  optional string transport = 12;
+
+  // These statistics emitted once on Flush()
+  optional uint64 num_total = 20;
+  optional uint64 num_failed = 21;
+}
+
+// End of protos/perfetto/trace/linux/journald_event.proto
+
 // Begin of protos/perfetto/trace/memory_graph.proto
 
 // Message definitions for app-reported memory breakdowns. At the moment, this
@@ -17101,6 +17228,16 @@ message PowerRails {
 
 // Begin of protos/perfetto/trace/profiling/art_process_metadata.proto
 
+message JavaFrame {
+  optional string method_name = 1;
+  optional string source_file = 2;
+  optional int32 line_number = 3;
+}
+
+message JavaStack {
+  repeated JavaFrame frames = 1;
+}
+
 message ArtProcessMetadata {
   optional int32 pid = 1;
   optional int32 uid = 2;
@@ -17108,6 +17245,16 @@ message ArtProcessMetadata {
   optional string process_name = 3;
   // Set by VMRuntime.setProcessPackageName
   optional string package_name = 4;
+
+  // OutOfMemoryError details (if heap dump was triggered by an OOM)
+  // The size of the allocation that ended up failing with OOME
+  optional uint64 oom_allocation_size = 5;
+  // Amount of free memory until the runtime would need to grow the heap
+  optional uint64 oom_total_bytes_free = 6;
+  // Amount of memory remaining until the max heap size supported
+  optional uint64 oom_free_bytes_until_oom = 7;
+  // Stacktrace for the thread doing the failing allocation
+  optional JavaStack oom_thread_java_stack = 8;
 }
 
 // End of protos/perfetto/trace/profiling/art_process_metadata.proto
@@ -18282,15 +18429,26 @@ message TestEvent {
   }
   optional TestPayload payload = 5;
 
-  // Simple ProtoVm patch and incremental state formats used for integration
-  // testing
+  // Simple ProtoVm patch and incremental state formats used for testing
+  message ProtoVmMessage {
+    message ProtoVmSubmessage {
+      optional uint32 single_int = 1;
+    }
+    optional uint32 id = 1;
+    optional ProtoVmSubmessage submessage = 2;
+  }
   message ProtoVmPatch {
     optional string string_to_merge = 1;
     optional int32 int_to_merge = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
+    repeated uint32 delete_message_ids = 5;
   }
   message ProtoVmIncrementalState {
     optional string string_merged = 1;
     optional int32 int_merged = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
   }
   optional ProtoVmPatch protovm_patch = 6;
   optional ProtoVmIncrementalState protovm_incremental_state = 7;
@@ -19052,7 +19210,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 132.
+// Next id: 133.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -19244,6 +19402,8 @@ message TracePacket {
     EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
+
+    SystemdJournaldEvent journald_event = 132;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

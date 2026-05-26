@@ -44,9 +44,7 @@ export default class MemoryViz implements PerfettoPlugin {
   static readonly dependencies = [StandardGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const memoryGroup = ctx.plugins
-      .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'MEMORY');
+    if (!(await MemoryViz.isAndroidTrace(ctx))) return;
 
     await ctx.engine.query(`
       INCLUDE PERFETTO MODULE intervals.overlap;
@@ -54,9 +52,22 @@ export default class MemoryViz implements PerfettoPlugin {
       INCLUDE PERFETTO MODULE android.memory.lmk;
     `);
 
-    await this.addKswapdTrack(ctx, memoryGroup);
-    await this.addDirectReclaimTracks(ctx, memoryGroup);
-    await this.addLmkTracks(ctx, memoryGroup);
+    const tracks = await Promise.all([
+      this.createKswapdTrack(ctx),
+      this.createDirectReclaimTracks(ctx),
+      this.createMemcgReclaimTracks(ctx),
+      this.createLmkTracks(ctx),
+    ]);
+
+    const activeTracks = tracks.filter((t) => t !== undefined);
+    if (activeTracks.length > 0) {
+      const memoryGroup = ctx.plugins
+        .getPlugin(StandardGroupsPlugin)
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'MEMORY');
+      for (const track of activeTracks) {
+        memoryGroup.addChildInOrder(track);
+      }
+    }
 
     ctx.commands.registerCommand({
       id: `com.android.visualizeMemory`,
@@ -96,7 +107,14 @@ export default class MemoryViz implements PerfettoPlugin {
     });
   }
 
-  private async addKswapdTrack(ctx: Trace, parent: TrackNode): Promise<void> {
+  private static async isAndroidTrace(ctx: Trace): Promise<boolean> {
+    const result = await ctx.engine.query(`
+      SELECT 1 FROM process WHERE name = 'system_server' LIMIT 1
+    `);
+    return result.numRows() > 0;
+  }
+
+  private async createKswapdTrack(ctx: Trace): Promise<TrackNode | undefined> {
     const tableName = 'memory_viz_kswapd';
     await createPerfettoTable({
       engine: ctx.engine,
@@ -117,7 +135,7 @@ export default class MemoryViz implements PerfettoPlugin {
       `SELECT COUNT(*) AS n FROM ${tableName}`,
     );
     if (rowCount.firstRow({n: NUM}).n === 0) {
-      return;
+      return undefined;
     }
 
     const uri = `${MemoryViz.id}#kswapd`;
@@ -135,15 +153,12 @@ export default class MemoryViz implements PerfettoPlugin {
         colorizer: () => KSWAPD_COLOR,
       }),
     });
-    parent.addChildInOrder(
-      new TrackNode({uri, name: 'Kswapd', sortOrder: 101}),
-    );
+    return new TrackNode({uri, name: 'Kswapd', sortOrder: 101});
   }
 
-  private async addDirectReclaimTracks(
+  private async createDirectReclaimTracks(
     ctx: Trace,
-    parent: TrackNode,
-  ): Promise<void> {
+  ): Promise<TrackNode | undefined> {
     const tableName = 'memory_viz_direct_reclaim';
     await createPerfettoTable({
       engine: ctx.engine,
@@ -159,15 +174,15 @@ export default class MemoryViz implements PerfettoPlugin {
       `SELECT COUNT(*) AS n FROM ${tableName}`,
     );
     if (rowCount.firstRow({n: NUM}).n === 0) {
-      return;
+      return undefined;
     }
 
     const breakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: 'Direct Reclaim',
-      description:
-        'Shows synchronous page reclaim events.' +
-        'This usually indicates severe memory pressure.',
+      description: `Shows synchronous page reclaim events. This usually indicates
+        severe system-wide memory pressure, forcing an app's own threads
+        to perform synchronous reclaim.`,
       aggregationType: BreakdownTrackAggType.COUNT,
       aggregation: {
         columns: ['process_name', 'thread_name'],
@@ -187,10 +202,61 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const directReclaimNode = await breakdowns.createTracks();
     directReclaimNode.sortOrder = 102;
-    parent.addChildInOrder(directReclaimNode);
+    return directReclaimNode;
   }
 
-  private async addLmkTracks(ctx: Trace, parent: TrackNode): Promise<void> {
+  private async createMemcgReclaimTracks(
+    ctx: Trace,
+  ): Promise<TrackNode | undefined> {
+    const tableName = 'memory_viz_memcg_reclaim';
+    await createPerfettoTable({
+      engine: ctx.engine,
+      name: tableName,
+      as: `
+        SELECT id, ts, dur, name,
+        COALESCE(process_name, 'Unknown Process') AS process_name,
+        COALESCE(thread_name, 'Unknown Thread') AS thread_name
+        FROM thread_slice
+        WHERE name GLOB 'mm_vmscan_memcg_reclaim*' AND dur > 0
+      `,
+    });
+
+    const rowCount = await ctx.engine.query(
+      `SELECT COUNT(*) AS n FROM ${tableName}`,
+    );
+    if (rowCount.firstRow({n: NUM}).n === 0) {
+      return undefined;
+    }
+
+    const breakdowns = new BreakdownTracks({
+      trace: ctx,
+      trackTitle: 'Memory Cgroup Reclaim',
+      description: `Shows memory cgroup reclaim events. This indicates
+        an app is allocating past its memory budget, forcing its own threads
+        to perform synchronous reclaim.`,
+      aggregationType: BreakdownTrackAggType.COUNT,
+      aggregation: {
+        columns: ['process_name', 'thread_name'],
+        tsCol: 'ts',
+        durCol: 'dur',
+        tableName,
+      },
+      slice: {
+        columns: ['name'],
+        tsCol: 'ts',
+        durCol: 'dur',
+        tableName,
+      },
+      sliceIdColumn: 'id',
+      sortTracks: true,
+    });
+
+    const memcgReclaimNode = await breakdowns.createTracks();
+    memcgReclaimNode.sortOrder = 103;
+    return memcgReclaimNode;
+  }
+
+  private async createLmkTracks(ctx: Trace): Promise<TrackNode | undefined> {
     const tableName = 'memory_viz_lmk_slices';
     await createPerfettoTable({
       engine: ctx.engine,
@@ -217,7 +283,7 @@ export default class MemoryViz implements PerfettoPlugin {
       ORDER BY oom_bucket
     `);
     if (buckets.numRows() === 0) {
-      return;
+      return undefined;
     }
 
     const lmkUri = `${MemoryViz.id}#lmk`;
@@ -252,7 +318,6 @@ export default class MemoryViz implements PerfettoPlugin {
       isSummary: true,
       sortOrder: 100,
     });
-    parent.addChildInOrder(lmkGroup);
 
     for (const it = buckets.iter({oom_bucket: STR}); it.valid(); it.next()) {
       const bucket = it.oom_bucket;
@@ -283,6 +348,8 @@ export default class MemoryViz implements PerfettoPlugin {
       });
       lmkGroup.addChildInOrder(new TrackNode({uri, name: bucket}));
     }
+
+    return lmkGroup;
   }
 
   private async createTrack(

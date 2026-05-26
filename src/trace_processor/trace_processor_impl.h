@@ -140,6 +140,12 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
+  // By-value RegisterMetric body. External callers go through the
+  // |RegisterMetric| override (which copies its const-ref args into our
+  // parameters); the constructor's amalgamated-metrics loop calls this
+  // directly so it can move the temporaries through without extra copies.
+  base::Status RegisterMetricImpl(std::string path, std::string sql);
+
   bool IsRootMetricField(const std::string& metric_name);
 
   void CacheBoundsAndBuildTable();

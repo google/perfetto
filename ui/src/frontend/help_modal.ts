@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './help_modal.scss';
 import m from 'mithril';
 import {assertExists} from '../base/assert';
 import {AppImpl} from '../core/app_impl';

@@ -38,7 +38,6 @@ import {
   counterDisplayUnit,
   counterValueExpression,
 } from '../../components/tracks/counter_track';
-import {assertUnreachable} from '../../base/assert';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)
@@ -64,7 +63,6 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   private readonly engine: Engine;
   private readonly sqlSource: string;
   private readonly trackName: string;
-  private readonly getMode: () => YMode;
   private readonly unit: string;
   private readonly rateUnit: string;
   private counterDetails?: CounterDetails;
@@ -72,7 +70,6 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   constructor(
     trace: Trace,
     trackName: string,
-    getMode: () => YMode,
     unit: string,
     rateUnit: string,
     sqlSource: string,
@@ -80,7 +77,6 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
     this.trace = trace;
     this.engine = trace.engine;
     this.trackName = trackName;
-    this.getMode = getMode;
     this.unit = unit;
     this.rateUnit = rateUnit;
     this.sqlSource = sqlSource;
@@ -102,42 +98,20 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderValueNodes(info: CounterDetails): m.Children {
-    const mode = this.getMode();
-    switch (mode) {
-      case 'value':
-        return [
-          m(TreeNode, {
-            left: 'Value',
-            right: this.formatWithUnit(info.value, 'value'),
-          }),
-          m(TreeNode, {
-            left: 'Delta',
-            right: this.formatWithUnit(info.delta, 'delta'),
-          }),
-          m(TreeNode, {
-            left: 'Rate',
-            right: this.formatWithUnit(info.rate, 'rate'),
-          }),
-        ];
-      case 'delta':
-        return [
-          m(TreeNode, {
-            left: 'Value',
-            right: this.formatWithUnit(info.value, 'value'),
-          }),
-          m(TreeNode, {
-            left: 'Delta',
-            right: this.formatWithUnit(info.delta, 'delta'),
-          }),
-        ];
-      case 'rate':
-        return m(TreeNode, {
-          left: 'Rate',
-          right: this.formatWithUnit(info.rate, 'rate'),
-        });
-      default:
-        assertUnreachable(mode);
-    }
+    return [
+      m(TreeNode, {
+        left: 'Value',
+        right: this.formatWithUnit(info.value, 'value'),
+      }),
+      m(TreeNode, {
+        left: 'Delta',
+        right: this.formatWithUnit(info.delta, 'delta'),
+      }),
+      m(TreeNode, {
+        left: 'Rate',
+        right: this.formatWithUnit(info.rate, 'rate'),
+      }),
+    ];
   }
 
   render() {

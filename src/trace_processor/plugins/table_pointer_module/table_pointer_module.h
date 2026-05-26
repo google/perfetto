@@ -56,7 +56,7 @@ namespace perfetto::trace_processor::table_pointer_module {
 // library.
 struct TablePointerModule : sqlite::Module<TablePointerModule> {
   static constexpr int kBindConstraint = SQLITE_INDEX_CONSTRAINT_FUNCTION + 1;
-  static constexpr int kBindableColumnCount = 16;
+  static constexpr int kBindableColumnCount = 32;
   static constexpr int kTableColumnIndex = kBindableColumnCount;
   static constexpr int kRowColumnIndex = kBindableColumnCount + 1;
   static constexpr int kTableArgvIndex = 1;

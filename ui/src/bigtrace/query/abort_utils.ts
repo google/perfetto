@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
-
-.pf-json-settings-editor {
-  width: 500px;
-
-  &__editor-section {
-    margin-bottom: 10px;
+// Forward `parent` aborts to `child`; returns a detacher (call in `finally`
+// to avoid leaking on long-lived parents). Already-aborted parent fires now.
+export function forwardAbort(
+  parent: AbortSignal,
+  child: AbortController,
+): () => void {
+  if (parent.aborted) {
+    child.abort(parent.reason);
+    return () => {};
   }
-
-  &__editor {
-    height: 200px;
-    width: 100%;
-  }
-
-  &__error {
-    margin-top: 10px;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-  }
-
-  &__actions {
-    margin-top: 10px;
-  }
+  const handler = () => child.abort(parent.reason);
+  parent.addEventListener('abort', handler, {once: true});
+  return () => parent.removeEventListener('abort', handler);
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../assets/theme";
 
 .pf-topbar {
   grid-area: topbar;
@@ -32,9 +32,15 @@
     }
   }
 
-  &__error-box {
+  &__right {
     position: absolute;
     right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__error-box {
     display: flex;
     align-items: center;
     font-size: var(--pf-font-size-xxl);

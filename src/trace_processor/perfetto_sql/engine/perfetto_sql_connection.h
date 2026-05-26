@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,6 +32,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -113,6 +115,32 @@ class PerfettoSqlConnection {
   // Returns an error if the execution of any statement failed or if there was
   // no valid SQL to run.
   base::StatusOr<ExecutionStats> Execute(SqlSource sql);
+
+  // Executes a single-statement parameterized SQL, binding |binds| to its
+  // |?| placeholders in order. Strings in |binds| must outlive the call.
+  // Bypasses the PerfettoSQL frontend: the SQL must be plain SQLite.
+  //
+  // Intended for hot internal loops where the same INSERT/UPDATE shape is
+  // run many times with different values. Each call still prepares and
+  // finalizes a fresh sqlite3_stmt (lookaside makes that cheap); wrap the
+  // loop in a |Transaction| to avoid per-call commits.
+  base::Status Execute(SqlSource sql,
+                       std::initializer_list<std::string_view> binds);
+
+  // RAII transaction. Issues BEGIN on construction and COMMIT on
+  // destruction. Use to batch a sequence of Execute() calls so SQLite does
+  // not implicitly commit after each statement.
+  class [[nodiscard]] Transaction {
+   public:
+    explicit Transaction(PerfettoSqlConnection*);
+    ~Transaction();
+
+    Transaction(const Transaction&) = delete;
+    Transaction& operator=(const Transaction&) = delete;
+
+   private:
+    PerfettoSqlConnection* conn_;
+  };
 
   // Executes all the statements in |sql| fully until the final statement and
   // returns a |ExecutionResult| object containing a |ScopedStmt| for the final
@@ -339,29 +367,30 @@ class PerfettoSqlConnection {
     kReturnResult  // Root frame completed with result
   };
 
-  // Represents the execution state for a single SQL source being executed.
+  // Auxiliary state for kInclude / kWildcard frames. Held via unique_ptr so
+  // kRoot frames don't pay the construction cost. |include_claim| owns the
+  // cross-connection slot for |include_key|: ReleaseSuccess on success,
+  // ReleasePoisoned on error so subsequent attempts short-circuit.
+  struct ExecutionFrameAux {
+    std::string include_key;
+    std::optional<SqlSource> traceback_sql;
+    PerfettoSqlDatabase::IncludeClaim include_claim;
+
+    // kWildcard: (key, sql) pairs to expand one at a time.
+    std::vector<std::pair<std::string, std::string>> wildcard_modules;
+    size_t wildcard_index = 0;
+    std::optional<SqlSource> wildcard_traceback_sql;
+  };
+
+  // Execution state for a single SQL source. The SqlSource lives inside
+  // |parser| (via Reset()) rather than on the frame. |parser| is null for
+  // kWildcard; |aux| is null for kRoot.
   struct ExecutionFrame {
     FrameType type = FrameType::kRoot;
-
-    // For root and include frames: the SQL being executed
-    SqlSource sql_source;
     std::unique_ptr<PerfettoSqlParser> parser;
     ExecutionStats accumulated_stats;
     std::optional<SqliteConnection::PreparedStatement> current_stmt;
-
-    // For include frames: metadata needed to complete the include.
-    // |include_claim| owns the cross-connection in-flight slot for the
-    // module key; ReleaseSuccess is called on clean completion, and the
-    // unwind path on error calls ReleasePoisoned so subsequent attempts
-    // short-circuit with the recorded reason.
-    std::string include_key;
-    SqlSource traceback_sql;
-    PerfettoSqlDatabase::IncludeClaim include_claim;
-
-    // For wildcard frames: (key, sql) pairs to expand one at a time.
-    std::vector<std::pair<std::string, std::string>> wildcard_modules;
-    size_t wildcard_index = 0;
-    SqlSource wildcard_traceback_sql;
+    std::unique_ptr<ExecutionFrameAux> aux;
   };
 
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
@@ -441,6 +470,13 @@ class PerfettoSqlConnection {
                                  std::string_view sql,
                                  const PerfettoSqlParser&);
 
+  // Pushes a fresh include frame onto |execution_stack_|. Caller must have
+  // already obtained |claim| from the database and verified there's no cycle.
+  void PushIncludeFrame(const std::string& key,
+                        std::string_view sql,
+                        SqlSource traceback_sql,
+                        PerfettoSqlDatabase::IncludeClaim claim);
+
   // Returns true iff |key| is the |include_key| of an active |kInclude|
   // frame on this connection's execution stack — i.e. a re-entry of |key|
   // would form an include cycle.
@@ -453,6 +489,16 @@ class PerfettoSqlConnection {
   // Processes a single iteration of the frame at the given index.
   // May push new frames onto the stack (for includes/wildcards).
   base::StatusOr<FrameResult> ProcessFrame(size_t frame_idx);
+
+  // Cold-path helper for non-SqliteSql parser statements (CREATE PERFETTO
+  // ..., DROP PERFETTO INDEX, INCLUDE PERFETTO MODULE). Runs the side
+  // effects and returns a dummy SqlSource that preserves the traceback.
+  base::StatusOr<SqlSource> ResolveExtensionStatement(size_t frame_idx);
+
+  // Returns a parser ready for use: |cached_parser_| if available (and
+  // Reset()ed by the caller), otherwise a freshly-allocated one. The cache
+  // is replenished only by Execute()'s top-level frame.
+  std::unique_ptr<PerfettoSqlParser> AcquireParser();
 
   // Called when a transaction is committed by SQLite; that is, the result of
   // running some SQL is considered "perm".
@@ -482,8 +528,9 @@ class PerfettoSqlConnection {
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
   // When an INCLUDE statement is encountered, the included module's SQL is
-  // pushed onto this stack and executed before continuing with the current SQL.
-  std::vector<ExecutionFrame> execution_stack_;
+  // pushed onto this stack and executed before continuing with the current
+  // SQL. Inline storage for one frame avoids a heap alloc on Execute().
+  base::SmallVector<ExecutionFrame, 1> execution_stack_;
 
   uint64_t function_count_ = 0;
   uint64_t aggregate_function_count_ = 0;
@@ -535,6 +582,11 @@ class PerfettoSqlConnection {
       fn_registry_;
 
   std::unique_ptr<SqliteConnection> connection_;
+
+  // Reused across Execute() calls via Reset() to avoid the syntaqlite
+  // create/destroy round-trip. Re-entrant Execute() and include frames
+  // allocate fresh parsers.
+  std::unique_ptr<PerfettoSqlParser> cached_parser_;
 };
 
 // The rest of this file is just implementation details which we need
