@@ -24,3 +24,94 @@ cases {
   expectations: "The agent mentions `__intrinsic_stdlib_modules` or listing tables for a module."
   expectations: "The agent mentions using `LIMIT 0` to read column schema."
 }
+
+cases {
+  name: "sql_best_practices_glob"
+  prompt: "Write a query to find slices with 'Choreographer' in their name."
+  expectations: "The agent uses `GLOB '*Choreographer*'` instead of `LIKE`."
+}
+
+cases {
+  name: "sql_best_practices_joins"
+  prompt: "Find all slices on the main thread of process 'com.android.systemui'."
+  expectations: "The agent uses `upid` and `utid` for stable identification."
+  expectations: "The agent joins `slice` to `thread` via the `thread_track` table (`slice.track_id = thread_track.id`)."
+}
+
+cases {
+  name: "schema_research_methodology"
+  prompt: "I need to query a table I'm not familiar with, like 'android_binder_txs'. How should I start?"
+  expectations: "The agent must research the schema in `__intrinsic_stdlib*` tables before drafting."
+  expectations: "The agent must identify if an `INCLUDE PERFETTO MODULE` is required."
+}
+
+# Analytical Intent Based Evals
+
+cases {
+  name: "cpu_time_function"
+  prompt: "Write me a reusable function that takes slice_id as input argument and returns the exact CPU time that slice spent executing on the core. Also, write me a SQL query to use this function."
+  expectations: "The agent uses `CREATE OR REPLACE PERFETTO FUNCTION` for idempotency."
+  expectations: "The agent uses `LONG` for nanosecond durations to avoid overflow."
+  expectations: "The agent uses the `slices.cpu_time` module or `thread_slice_cpu_time` view instead of manual interval math."
+}
+
+cases {
+  name: "ui_jank_cpu_frequency"
+  prompt: "I need you to help me correlate UI Jank with CPU frequency scaling. Write me a query that computes the average CPU frequency of the 'big' cores during the execution of every Choreographer#doFrame slice on the main thread of the youtube process."
+  expectations: "The agent uses `android.cpu.cluster_type` to filter for 'big' cores."
+  expectations: "The agent uses the `linux.cpu.frequency` module for time-weighted average frequency."
+  expectations: "The agent uses `is_main_thread = 1` and `GLOB '*youtube*'` for reliable thread/process matching."
+}
+
+cases {
+  name: "lmk_rss_increase"
+  prompt: "Help me identify the process that was killed by the Android Low Memory Killer (LMK). Then, calculate the total increase in its Anonymous RSS memory (in Megabytes) during the exact 10-second window preceding its death."
+  expectations: "The agent uses `android.memory.lmk` module."
+  expectations: "The agent uses `android_lmk_events` to identify the killed process."
+  expectations: "The agent uses `memory_rss_and_swap_per_process` view for RSS metrics."
+  expectations: "The agent uses window functions for efficient delta calculation."
+}
+
+cases {
+  name: "wakeup_chain_recursive"
+  prompt: "Trace the wakeup chain backward from the main thread of the system-ui process starting at its first Choreographer#doFrame slice. Write a query that shows the sequence of thread names that woke each other up, up to 3 levels deep."
+  expectations: "The agent uses a RECURSIVE CTE for graph traversal."
+  expectations: "The agent filters `thread_state` for `state = 'R'` (Runnable)."
+  expectations: "The agent researches the `thread_state` schema to correctly link `utid` and `waker_utid`."
+}
+
+cases {
+  name: "heap_graph_shortest_path"
+  prompt: "Given a trace with multiple Java heap dumps, write a Perfetto query to find the shortest path to GC root for all instances of android.graphics.Bitmap that exist in the final heap dump. Concatenate the class names of the reference path into a single string for each leaked Bitmap."
+  expectations: "The agent uses the `graphs.search` module and `graph_reachable_bfs!` macro."
+  expectations: "The agent uses a recursive CTE to concatenate the reference path."
+  expectations: "The agent materializes the BFS tree and create indexes for performance."
+}
+
+cases {
+  name: "memory_dominator_tree"
+  prompt: "Perform a retained-size analysis for a Java heap dump in my trace."
+  expectations: "The agent refers to the `android.memory.heap_graph.dominator_tree` module."
+  expectations: "The agent includes the necessary module before querying."
+}
+
+cases {
+  name: "binder_transaction_analysis"
+  prompt: "I need to analyze Binder transactions. Show me the total count of binder events grouped by process name."
+  expectations: "The agent uses the `android_binder_txns` or `android_binder_metrics_by_process` table to capture both client and server sides."
+  expectations: "The agent researches the schema in the documentation to identify the correct binder tables."
+}
+
+cases {
+  name: "foreground_duration_screen_on"
+  prompt: "Calculate the total duration each process spent in the foreground while the screen state was 'ON'. Show the top 10 process names by duration."
+  expectations: "The agent uses `android_screen_state` and `android_oom_adj_intervals` modules."
+  expectations: "The agent uses `SPAN_JOIN` for efficient interval intersection."
+  expectations: "The agent uses semantic filters like `bucket = 'foreground'` and `simple_screen_state = 'on'`."
+}
+
+cases {
+  name: "app_startup_analysis"
+  prompt: "Find the durations of all app startups in this trace."
+  expectations: "The agent uses the `android.startup.startups` module and the `android_startups` view instead of joining raw slices."
+}
