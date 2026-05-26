@@ -2482,6 +2482,98 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
       << "Packet 'c' should still be dropped (chunk incomplete)";
 }
 
+// Scrape → evict (no reads in between) → complete commit. This is the
+// realistic write_into_file scenario when buffer pressure beats the reader:
+// chunk-0 is scraped, never drained, the buffer wraps around it (its full
+// payload is "consumed" by kEraseMode), and the producer later commits the
+// chunk with more data taking the re-admit branch.
+//
+// Currently THIS TEST FAILS on TraceBufferV2 because EraseCurrentChunk
+// stores payload_size = total at eviction regardless of whether the bytes
+// had been delivered to the consumer; the re-admit then skips a+b on the
+// new chunk even though *none* of them had been read. 'a' and 'b' are
+// silently dropped and previous_packet_dropped fires on 'c'. This matches
+// the field fingerprint write_wrap_count=1, chunks_overwritten=1,
+// bytes_overwritten=4096, sequence_packet_loss=1.
+//
+// The assertions encode the expected post-fix behaviour: a+b+c+d are all
+// recovered in order with no previous_packet_dropped flag. A follow-up
+// commit fixes the buffer so the test passes.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_NoReadsBeforeWrap) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0 (incomplete) with [a, b, c]. Scraping drops 'c' (the
+  // last fragment), leaving payload_size = payload_avail = a + b.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Fill the rest of the buffer (no reads in between).
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(1))
+      .AddPacket(3568, 'x')
+      .CopyIntoTraceBuffer();
+
+  // A small follow-up write forces a wrap that evicts chunk 0 while every
+  // payload byte is still unread.
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(2))
+      .AddPacket(20, 'y')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+  // chunks_overwritten / bytes_overwritten reflect buffer pressure and
+  // remain set even with the fix; they are not consumer-visible drops.
+  EXPECT_EQ(1u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(512u, trace_buffer()->stats().bytes_overwritten());
+
+  // Producer commits chunk 0 with the full payload [a, b, c, d]. Re-admit
+  // path: was_incomplete=true and consumed_by_reads=0 < all_frags_size, so
+  // the new chunk is admitted with payload_avail covering all four packets.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .AddPacket(50, 'd')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Drain and verify: a, b, c, d all recovered in order with no spurious
+  // previous_packet_dropped. Track the dropped flag for 'a' specifically
+  // since that's the one a regression would flip.
+  trace_buffer()->BeginRead();
+  std::vector<std::vector<FakePacketFragment>> packets;
+  bool a_dropped = false;
+  for (;;) {
+    bool dropped = false;
+    auto p = ReadPacket(/*sequence_properties=*/nullptr, &dropped);
+    if (p.empty())
+      break;
+    if (p.size() == 1 && p[0] == FakePacketFragment(20, 'a'))
+      a_dropped = dropped;
+    packets.push_back(std::move(p));
+  }
+
+  bool found_a = false, found_b = false, found_c = false, found_d = false;
+  for (const auto& pkt : packets) {
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(40, 'c'))
+      found_c = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(50, 'd'))
+      found_d = true;
+  }
+  EXPECT_TRUE(found_a) << "Packet 'a' not found after re-admission";
+  EXPECT_TRUE(found_b) << "Packet 'b' not found after re-admission";
+  EXPECT_TRUE(found_c) << "Packet 'c' not found after re-admission";
+  EXPECT_TRUE(found_d) << "Packet 'd' not found after re-admission";
+  EXPECT_FALSE(a_dropped) << "Recovered 'a' falsely flagged as dropped — "
+                             "data_loss not cleared on successful re-admit.";
+}
+
 // Scrape → read → evict → producer completes chunk. The complete commit has
 // strictly more payload and must be re-admitted, recovering the previously-
 // dropped fragment and allowing cross-chunk reassembly.
