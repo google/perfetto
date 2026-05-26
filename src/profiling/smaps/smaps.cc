@@ -36,8 +36,8 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-static constexpr std::string_view kDeletedSuffix = " (deleted)";
-static constexpr std::string_view kDefaultReplacement = "<pf_redacted>";
+constexpr std::string_view kDeletedSuffix = " (deleted)";
+constexpr std::string_view kDefaultReplacement = "<pf_redacted>";
 
 class StringInterner {
  public:
@@ -59,7 +59,13 @@ class StringInterner {
     return index;
   }
 
-  std::deque<std::string>& MutableStrings() { return storage_; }
+  std::deque<std::string> ConsumeStringsAndReset() {
+    map_.Clear();
+    auto ret = std::move(storage_);
+    storage_.clear();
+    Intern(std::string_view{});
+    return ret;
+  }
 
  private:
   base::FlatHashMap<std::string_view, StringId> map_;
@@ -487,7 +493,8 @@ void ParseAndSerializeSmaps(FILE* file,
   // Serialise the proto:
 
   auto packed_smaps = packet->set_packed_entries();
-  SerializeStringTable(packed_smaps, interner.MutableStrings(),
+  auto string_table = interner.ConsumeStringsAndReset();
+  SerializeStringTable(packed_smaps, string_table,
                        config.name_redaction_rules());
 
   protozero::PackedVarInt packed;

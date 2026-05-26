@@ -23,7 +23,6 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/profiling/smaps_config.gen.h"
 #include "protos/perfetto/trace/profiling/smaps.gen.h"
-#include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "test/gtest_and_gmock.h"
