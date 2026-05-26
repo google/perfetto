@@ -184,11 +184,15 @@ struct SequenceState {
   // Snapshot of the last chunk that was erased (consumed or evicted) in this
   // sequence. Used to detect gaps between consecutive chunks and to decide
   // whether a re-committed chunk should be accepted or discarded.
-  // |payload_size| and |was_incomplete| capture the chunk's state at the time
-  // of consumption; see CopyChunkUntrusted() for how they are used.
+  // |payload_read| is the count of payload bytes that were read out of the
+  // chunk via ReadNextTracePacket before it left the buffer. It equals
+  // payload_size for a chunk drained by reads, and the prefix-read amount
+  // for a chunk evicted with unread bytes (the overwritten suffix is NOT
+  // counted). The re-admit path in CopyChunkUntrusted() skips this many
+  // bytes on the resubmitted chunk so the unread suffix is replayed.
   struct ConsumedChunkInfo {
     ChunkID chunk_id = 0;
-    uint16_t payload_size = 0;
+    uint16_t payload_read = 0;
     bool was_incomplete = false;
   };
   std::optional<ConsumedChunkInfo> last_chunk_consumed;
@@ -297,7 +301,11 @@ class ChunkSeqIterator {
   ChunkSeqIterator& operator=(const ChunkSeqIterator&) = default;
 
   TBChunk* NextChunkInSequence();
-  void EraseCurrentChunk();
+  // |bytes_overwritten_by_this_pass| is the count of payload bytes this
+  // pass overwrote in kEraseMode for the current chunk (zero in kReadMode).
+  // Used to derive payload_read = payload_size - bytes_overwritten_by_this_pass
+  // on the SequenceState's last_chunk_consumed entry.
+  void EraseCurrentChunk(uint16_t bytes_overwritten_by_this_pass);
   TBChunk* chunk() const { return chunk_; }
   bool sequence_gap_detected() const { return sequence_gap_detected_; }
   bool valid() const { return !!seq_ && !!chunk_; }
@@ -375,6 +383,12 @@ class ChunkSeqReader {
   TBChunk* iter_ = nullptr;
 
   FragIterator frag_iter_;
+
+  // Bytes of iter_'s payload that this pass has overwritten. Incremented
+  // by ConsumeFragment when mode_ == kEraseMode; stays 0 in kReadMode and
+  // is reset to 0 on every chunk transition. Passed to EraseCurrentChunk to
+  // derive payload_read = payload_size - bytes_overwritten_in_chunk_.
+  uint16_t bytes_overwritten_in_chunk_ = 0;
 };
 
 }  // namespace internal

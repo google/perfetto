@@ -2488,17 +2488,18 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
 // payload is "consumed" by kEraseMode), and the producer later commits the
 // chunk with more data taking the re-admit branch.
 //
-// Currently THIS TEST FAILS on TraceBufferV2 because EraseCurrentChunk
-// stores payload_size = total at eviction regardless of whether the bytes
-// had been delivered to the consumer; the re-admit then skips a+b on the
-// new chunk even though *none* of them had been read. 'a' and 'b' are
-// silently dropped and previous_packet_dropped fires on 'c'. This matches
-// the field fingerprint write_wrap_count=1, chunks_overwritten=1,
+// Pre-fix bug: EraseCurrentChunk stored payload_size = total at eviction
+// regardless of whether the bytes had been delivered to the consumer, so
+// the re-admit skipped a+b on the new chunk even though *none* of them
+// had been read. 'a' and 'b' were silently dropped and
+// previous_packet_dropped fired on 'c'. This matched the field
+// fingerprint write_wrap_count=1, chunks_overwritten=1,
 // bytes_overwritten=4096, sequence_packet_loss=1.
 //
-// The assertions encode the expected post-fix behaviour: a+b+c+d are all
-// recovered in order with no previous_packet_dropped flag. A follow-up
-// commit fixes the buffer so the test passes.
+// Post-fix: last_chunk_consumed records bytes-actually-delivered-by-reads
+// (0 here, since no reads ran), the re-admit replays a+b+c+d in full,
+// and the data_loss flag set during eviction is cleared because the bytes
+// that tripped it have been recovered.
 TEST_F(TraceBufferV2Test, RescrapeAfterEviction_NoReadsBeforeWrap) {
   ResetBuffer(4096);
   SuppressClientDchecksForTesting();

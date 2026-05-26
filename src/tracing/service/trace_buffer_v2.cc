@@ -232,14 +232,18 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   return next_chunk;
 }
 
-void ChunkSeqIterator::EraseCurrentChunk() {
+void ChunkSeqIterator::EraseCurrentChunk(
+    uint16_t bytes_overwritten_by_this_pass) {
   size_t chunk_off = buf_->OffsetOf(chunk_);
   TRACE_BUFFER_V2_DLOG("EraseChunk() id=%u off=%zu", chunk_->chunk_id,
                        chunk_off);
   const uint32_t chunk_size = chunk_->size;
   const bool was_incomplete = chunk_->flags & kChunkIncomplete;
+  PERFETTO_DCHECK(bytes_overwritten_by_this_pass <= chunk_->payload_size);
+  const uint16_t payload_read =
+      chunk_->payload_size - bytes_overwritten_by_this_pass;
   seq_->last_chunk_consumed = SequenceState::ConsumedChunkInfo{
-      chunk_->chunk_id, chunk_->payload_size, was_incomplete};
+      chunk_->chunk_id, payload_read, was_incomplete};
 
   auto& chunk_list = seq_->chunks;
 
@@ -339,7 +343,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         end_reached = true;
       } else {
         // We read all the fragments for the current chunk. Erase it.
-        seq_iter_.EraseCurrentChunk();
+        seq_iter_.EraseCurrentChunk(bytes_overwritten_in_chunk_);
       }
       if (end_reached)
         return false;  // We reached our target chunk (or an incomplete chunk).
@@ -348,6 +352,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         return false;  // There are no more chunks in the sequence.
       iter_ = next_chunk;
       frag_iter_ = FragIterator(next_chunk);
+      bytes_overwritten_in_chunk_ = 0;
       continue;
     }
 
@@ -451,6 +456,11 @@ void ChunkSeqReader::ConsumeFragment(TBChunk* chunk, Frag* frag) {
 
   PERFETTO_DCHECK(chunk->payload_avail >= frag->size_with_header());
   chunk->payload_avail -= frag->size_with_header();
+
+  // In kEraseMode the bytes we just consumed were overwritten, not read
+  // out. Track them so EraseCurrentChunk records the right payload_read.
+  if (mode_ == kEraseMode)
+    bytes_overwritten_in_chunk_ += frag->size_with_header();
 
   if (chunk->payload_avail == 0) {
     TRACE_BUFFER_V2_DLOG("  Fully consumed chunk @ %zu", buf_->OffsetOf(chunk));
@@ -767,18 +777,27 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   // Don't allow re-commit of chunks that have been consumed already, unless
   // the chunk was evicted while incomplete (scraped) and the new commit has
-  // strictly more payload. In that case we re-admit it so the previously-
-  // dropped fragments can be recovered. Keep this acceptance condition in
-  // sync with the re-admit branch of the gap check in ChunkSeqReader's ctor.
+  // strictly more payload than the consumer had already read before the
+  // eviction. In that case we re-admit it so the previously-evicted suffix
+  // (including any bytes that were overwritten without being read) is
+  // recovered. Keep this acceptance condition in sync with the re-admit
+  // branch of the gap check in ChunkSeqReader's ctor.
   //
-  // When re-admitting, |previously_consumed_payload| records how many payload
-  // bytes were already consumed before eviction, so we can skip them below.
+  // When re-admitting, |previously_consumed_payload| records how many
+  // payload bytes were already read before the eviction; we skip exactly
+  // that many on the re-admitted chunk so the unread suffix is replayed
+  // from the producer's resubmission.
   uint16_t previously_consumed_payload = 0;
   if (seq.last_chunk_consumed.has_value()) {
     int cmp = ChunkIdCompare(chunk_id, seq.last_chunk_consumed->chunk_id);
     if (cmp == 0 && seq.last_chunk_consumed->was_incomplete &&
-        seq.last_chunk_consumed->payload_size < all_frags_size) {
-      previously_consumed_payload = seq.last_chunk_consumed->payload_size;
+        seq.last_chunk_consumed->payload_read < all_frags_size) {
+      previously_consumed_payload = seq.last_chunk_consumed->payload_read;
+      // The eviction's data_loss signal (set by DeleteNextChunksFor on the
+      // overwritten suffix) is now stale: those bytes are about to be
+      // replayed from the resubmission. A later eviction on this sequence
+      // re-sets data_loss if real data is lost.
+      seq.data_loss = false;
       TRACE_BUFFER_V2_DLOG("  Re-admitting chunk %u (prev_payload=%u)",
                            chunk_id, previously_consumed_payload);
     } else if (cmp <= 0) {
