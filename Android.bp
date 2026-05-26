@@ -22407,6 +22407,7 @@ cc_test {
         "bionic_libc_platform_headers",
     ],
     data: [
+        "protos/perfetto/common/**/*",
         "protos/perfetto/trace/**/*",
         "protos/third_party/android/**/*",
         "src/profiling/memory/test/data/**/*",

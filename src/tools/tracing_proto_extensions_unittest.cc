@@ -501,13 +501,26 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
 }
 
 TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithUnifiedRegistry) {
-  // Drives the real protos/perfetto/trace/extensions.json against the
-  // in-repo proto files it references (test_extensions.proto,
-  // gpu_interned_data.proto, gpu_track_event.proto). Remote entries
-  // (chromium, android-internal) are skipped by the tool.
-  std::string proto_path =
-      base::GetTestDataPath("protos/perfetto/trace/extensions.json");
-  auto result = GenerateExtensionDescriptors(proto_path, {"."}, ".");
+  // End-to-end smoke test for GenerateExtensionDescriptors: feed it the
+  // real extensions.json and let it compile the in-repo protos it points at.
+  // Remote entries (chromium / android-internal) are skipped automatically.
+  //
+  // Both the -I include path and the registry root_dir need to be the
+  // perfetto repo root. Compute it from the JSON's resolved path so the
+  // test works regardless of cwd.
+  constexpr char kRel[] = "protos/perfetto/trace/extensions.json";
+  std::string json_path = base::GetTestDataPath(kRel);
+  ASSERT_GE(json_path.size(), std::char_traits<char>::length(kRel));
+  std::string repo_root = json_path.substr(
+      0, json_path.size() - std::char_traits<char>::length(kRel));
+  if (!repo_root.empty() && repo_root.back() == '/') {
+    repo_root.pop_back();
+  }
+  if (repo_root.empty()) {
+    repo_root = ".";
+  }
+
+  auto result = GenerateExtensionDescriptors(json_path, {repo_root}, repo_root);
   ASSERT_TRUE(result.ok()) << result.status().message();
   // The output should be a non-empty FileDescriptorSet.
   EXPECT_GT(result->size(), 0u);
