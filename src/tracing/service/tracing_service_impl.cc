@@ -462,10 +462,13 @@ void TracingServiceImpl::DisconnectProducer(ProducerID id) {
     }
 
     // Fire a disconnect trigger so pre-configured sessions can capture
-    // diagnostics when traced_probes crashes.
+    // diagnostics when the host traced_probes crashes. Skip producers
+    // relayed from another machine (e.g. a VM): they share the same
+    // producer name but their disconnects are expected on VM teardown.
     if constexpr (PERFETTO_FLAGS(
                       TRIGGER_PERFETTO_ON_TRACED_PROBES_DISCONNECT)) {
-      if (producer->name_ == "perfetto.traced_probes") {
+      if (producer->name_ == "perfetto.traced_probes" &&
+          producer->client_identity().machine_id() == kDefaultMachineID) {
         PERFETTO_ELOG("traced_probes disconnected, firing disconnect trigger");
         ActivateTriggers(id, {"perfetto.traced_probes.disconnect"});
       }

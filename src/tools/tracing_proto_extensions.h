@@ -30,7 +30,7 @@ namespace gen_proto_extensions {
 
 using Range = std::pair<int32_t, int32_t>;
 
-// Represents an allocation entry in a track_event_extensions.json file.
+// Represents an allocation entry in an extensions.json file.
 struct Allocation {
   std::string name;
   std::vector<Range> ranges;  // Each pair is [start, end] inclusive.
@@ -43,11 +43,11 @@ struct Allocation {
   std::string registry;  // Path to a sub-delegation .json file.
 };
 
-// Represents a parsed track_event_extensions.json file.
+// Represents a parsed extensions.json file.
 struct Registry {
-  // The fully-qualified proto message being extended. Currently only
-  // "perfetto.protos.TrackEvent" is supported. In the future this could be
-  // used to disambiguate TracePacket extensions from TrackEvent extensions.
+  // The fully-qualified proto message being extended. One of
+  // "perfetto.protos.TrackEvent", "perfetto.protos.TracePacket", or
+  // "perfetto.protos.InternedData".
   std::string scope;
   std::vector<Range> ranges;  // Each pair is [start, end] inclusive.
   std::vector<Allocation> allocations;
@@ -55,7 +55,7 @@ struct Registry {
   std::string source_path;
 };
 
-// Parses a track_event_extensions.json file with the {"extensions": [...]}
+// Parses an extensions.json file with the {"extensions": [...]}
 // format. Returns one Registry per entry in the array.
 base::StatusOr<std::vector<Registry>> ParseRegistryFile(
     const std::string& json_contents,
@@ -64,6 +64,12 @@ base::StatusOr<std::vector<Registry>> ParseRegistryFile(
 // Validates a registry: checks that allocations tile the ranges exactly
 // (no gaps or overlaps) and that constraints on proto/registry fields are met.
 base::Status ValidateRegistry(const Registry& registry);
+
+// Validates that no scope appears in more than one top-level Registry entry of
+// the parsed extensions.json. Combined with the per-entry ValidateRegistry
+// tile-exactness check, this guarantees that for each scope there is a single
+// canonical range and a single canonical allocation tiling.
+base::Status ValidateScopesUnique(const std::vector<Registry>& registries);
 
 // Recursively walks the registry tree starting from |root_json_path|,
 // compiles all referenced local .proto files, validates field numbers,

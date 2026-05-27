@@ -282,11 +282,6 @@ void Parse(FILE* file,
   }
 }
 
-bool EndsWith(std::string_view s, std::string_view suffix) {
-  return s.size() >= suffix.size() &&
-         !s.compare(s.size() - suffix.size(), suffix.size(), suffix);
-}
-
 bool MatchRedactionPattern(const char* name,
                            const protos::gen::RedactionRule& rule) {
   using RR = protos::gen::RedactionRule;
@@ -316,7 +311,9 @@ const std::string& MaybeRedactName(
   // Do the edit in-place as we're minimising allocations. We'll restore the
   // original string after matching.
   size_t deleted_suffix_pos = std::string_view::npos;
-  if (EndsWith(name, kDeletedSuffix)) {
+  if (name.size() >= kDeletedSuffix.size() &&
+      !name.compare(name.size() - kDeletedSuffix.size(), kDeletedSuffix.size(),
+                    kDeletedSuffix)) {
     deleted_suffix_pos = name.size() - kDeletedSuffix.size();
     name[deleted_suffix_pos] = '\0';
   }
