@@ -1,11 +1,14 @@
 ---
 name: perfetto-infra-getting-trace-processor
-description: Use when the user does not yet have `trace_processor`
-  installed, or has not set up the Python `perfetto` client used to
-  drive the long-running RPC mode. Covers fetching the prebuilt binary
-  and an opinionated venv-based install for the Python client. This is
-  the OSS / public path; teams in restricted environments may have
-  their own version of this skill that overrides it.
+description: Load whenever ANY other Perfetto skill is loaded in a
+  non-plugin install (no `trace_processor` is bundled here). Defines
+  how to fetch the prebuilt `trace_processor` binary and the `perfetto`
+  Python client so the shell commands in other Perfetto skills can
+  actually run. The plugin equivalent (`trace-processor-bundled`)
+  points at a pre-installed binary instead; this skill is the
+  OSS / fallback acquisition path. Teams in restricted environments
+  may ship their own variant that overrides it.
+targets: [fallback]
 ---
 
 # Getting `trace_processor` and the Python client

@@ -16,14 +16,15 @@ The `trace_processor` binary is what every other Perfetto analysis tool
 runs on top of, including the Perfetto UI. Reference docs:
 <https://perfetto.dev/docs/analysis/trace-processor>.
 
-> **Prerequisite — getting `trace_processor`.** This skill assumes
-> `trace_processor` is already on `PATH` (and, for the long-running RPC
-> mode below, that the Python client is installed). If neither is set
-> up, follow whatever skill the user's environment provides for
-> acquisition — typically `perfetto_infra_getting_trace_processor` for the
-> open-source path, or a team-specific variant inside Google or other
-> restricted environments. The rest of this skill is intentionally
-> orthogonal to *how* you got `trace_processor`.
+> **Prerequisite — `trace_processor` must be invokable.** Before
+> running any of the shell commands below, ensure your environment's
+> trace-processor-acquisition skill is loaded. There is always exactly
+> one (a plugin-bundled variant, the open-source fallback, or a
+> team-specific override). That skill tells you the exact invocation
+> form for `trace_processor` in this environment — substitute it for
+> every bare `trace_processor` reference below. Likewise, the
+> long-running RPC mode needs the `perfetto` Python client, whose
+> setup the acquisition skill also covers.
 
 ## Quickstart
 
@@ -40,8 +41,8 @@ Multiple statements separated by `;` are supported in one invocation.
 Reparsing a trace on every query is slow — for a multi-GB trace it's tens
 of seconds, every time. When you expect to run more than a couple of
 queries, start the shell once as an HTTP RPC server and drive it from
-the Python client. (If the Python client is not installed yet, see the
-`getting-trace-processor` skill or the team-specific equivalent.)
+the Python client. (If the Python client is not installed yet, the
+trace-processor-acquisition skill in your environment covers it.)
 
 ```sh
 # Terminal A: pick a random high port and start the server on it.
