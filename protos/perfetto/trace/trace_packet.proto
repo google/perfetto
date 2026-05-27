@@ -331,6 +331,10 @@ message TracePacket {
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 55;
 
+  // Reserved for future OOT extensions. New allocations are carved out of this
+  // range and registered in protos/perfetto/trace/extensions.json.
+  extensions 1000 to 1999;
+
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.
   //
