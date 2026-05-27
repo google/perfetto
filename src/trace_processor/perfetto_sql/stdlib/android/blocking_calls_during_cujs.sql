@@ -1,5 +1,5 @@
 --
--- Copyright 2024 The Android Open Source Project
+-- Copyright 2026 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -17,62 +17,17 @@ INCLUDE PERFETTO MODULE android.slices;
 
 INCLUDE PERFETTO MODULE android.binder;
 
-INCLUDE PERFETTO MODULE slices.with_context;
+INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 
 -- OPTIMIZED: Include CUJs module to filter by relevant processes
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
-CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth LONG)
-RETURNS BOOL
-AS
-SELECT
-  $name = 'measure'
-  OR $name = 'layout'
-  OR $name = 'configChanged'
-  OR $name = 'animation'
-  OR $name = 'input'
-  OR $name = 'traversal'
-  OR $name = 'Contending for pthread mutex'
-  OR $name = 'postAndWait'
-  OR $name GLOB 'monitor contention with*'
-  OR $name GLOB 'SuspendThreadByThreadId*'
-  OR $name GLOB 'LoadApkAssetsFd*'
-  OR $name GLOB '*binder transaction*'
-  OR $name GLOB 'inflate*'
-  OR $name GLOB 'Lock contention on*'
-  OR $name GLOB 'android.os.Handler: kotlinx.coroutines*'
-  OR $name GLOB 'relayoutWindow*'
-  OR $name GLOB 'ImageDecoder#decode*'
-  OR $name GLOB 'NotificationStackScrollLayout#onMeasure'
-  OR $name GLOB 'ExpNotRow#*'
-  OR $name GLOB 'GC: Wait For*'
-  OR $name GLOB 'Recomposer:*'
-  OR $name GLOB 'Compose:*'
-  OR $name GLOB 'draw-VRI*'
-  OR $name = 'CreateGraphicsPipeline'
-  OR $name GLOB 'drawLayer *'
-  OR $name GLOB 'DrawFrames*'
-  OR $name = 'flush layers'
-  OR $name = 'flush commands'
-  OR $name = 'queueBuffer'
-  OR $name GLOB 'Texture upload*'
-  OR (NOT ($name GLOB '*Choreographer*')
-  AND NOT ($name GLOB '*Input*')
-  AND NOT ($name GLOB '*input*')
-  AND NOT ($name GLOB 'android.os.Handler: #*')
-  AND (
-  -- Handler pattern heuristics
-  $name GLOB '*Handler: *$*'
-  OR $name GLOB '*.*.*: *$*'
-  OR $name GLOB '*.*$*: #*'));
 
 -- Extract critical blocking calls from processes that have CUJs.
 -- Materialized as a table, heavily optimized using CROSS JOIN to force index
--- and avoid scanning the global slice table.
+-- and avoid scanning the global row slice table.
 CREATE PERFETTO TABLE _android_blocking_calls_during_cujs AS
-WITH relevant_upids AS (
-  SELECT DISTINCT upid FROM android_jank_latency_cujs
-)
+WITH relevant_upids AS (SELECT DISTINCT upid FROM android_jank_latency_cujs)
 SELECT
   android_standardize_slice_name(slice.name) AS name,
   slice.ts,
@@ -82,11 +37,15 @@ SELECT
   thread.utid,
   process.upid,
   slice.ts + slice.dur AS ts_end
-FROM relevant_upids ru
-CROSS JOIN process ON process.upid = ru.upid
-CROSS JOIN thread ON thread.upid = process.upid
-CROSS JOIN thread_track ON thread_track.utid = thread.utid
-CROSS JOIN slice ON slice.track_id = thread_track.id
+FROM relevant_upids AS ru
+CROSS JOIN process
+  ON process.upid = ru.upid
+CROSS JOIN thread
+  ON thread.upid = process.upid
+CROSS JOIN thread_track
+  ON thread_track.utid = thread.utid
+CROSS JOIN slice
+  ON slice.track_id = thread_track.id
 WHERE
   _is_relevant_blocking_call(slice.name, slice.depth)
 UNION ALL
@@ -116,23 +75,9 @@ SELECT
   tx.client_utid AS utid,
   tx.client_upid AS upid,
   tx.client_ts + tx.client_dur AS ts_end
-FROM relevant_upids ru
-CROSS JOIN android_binder_txns tx ON tx.client_upid = ru.upid
+FROM relevant_upids AS ru
+CROSS JOIN android_binder_txns AS tx
+  ON tx.client_upid = ru.upid
 WHERE
   NOT (aidl_name IS NULL)
   AND is_sync = 1;
-
-CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
-  name STRING,
-  dur LONG
-)
-RETURNS BOOL
-AS
-SELECT
-  $name = 'NotificationStackScrollLayout#onMeasure'
-  AND $dur > 0
-  AND ($name GLOB 'NotificationStackScrollLayout#onMeasure'
-  OR $name GLOB 'NotificationToplineView#onMeasure'
-  OR $name GLOB 'ExpNotRow#*'
-  OR $name GLOB 'NotificationShadeWindowView#onMeasure'
-  OR $name GLOB 'ImageFloatingTextView#onMeasure');
