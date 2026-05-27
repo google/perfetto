@@ -34,8 +34,8 @@ cases {
 cases {
   name: "sql_best_practices_joins"
   prompt: "Find all slices on the main thread of process 'com.android.systemui'."
-  expectations: "The agent uses `upid` and `utid` for stable identification."
-  expectations: "The agent joins `slice` to `thread` via the `thread_track` table (`slice.track_id = thread_track.id`)."
+  expectations: "The agent uses the `slices.with_context` stdlib module (e.g., the `thread_slice` view, which already exposes `is_main_thread` and `process_name`) instead of manually joining `slice`, `thread_track`, `thread`, and `process`."
+  expectations: "The agent filters with `is_main_thread = 1` and matches the process via `process_name = 'com.android.systemui'`."
 }
 
 cases {
@@ -50,42 +50,40 @@ cases {
 cases {
   name: "cpu_time_function"
   prompt: "Write me a reusable function that takes slice_id as input argument and returns the exact CPU time that slice spent executing on the core. Also, write me a SQL query to use this function."
-  expectations: "The agent uses `CREATE OR REPLACE PERFETTO FUNCTION` for idempotency."
-  expectations: "The agent uses `LONG` for nanosecond durations to avoid overflow."
-  expectations: "The agent uses the `slices.cpu_time` module or `thread_slice_cpu_time` view instead of manual interval math."
+  expectations: "The agent uses `CREATE OR REPLACE PERFETTO FUNCTION` for idempotency, per the skill's idempotency guidance."
+  expectations: "The agent uses the `slices.cpu_time` module (or its `thread_slice_cpu_time` view) instead of manual interval math, per the skill's 'reach for stdlib first' rule for CPU-time calculations."
 }
 
 cases {
   name: "ui_jank_cpu_frequency"
   prompt: "I need you to help me correlate UI Jank with CPU frequency scaling. Write me a query that computes the average CPU frequency of the 'big' cores during the execution of every Choreographer#doFrame slice on the main thread of the youtube process."
-  expectations: "The agent uses `android.cpu.cluster_type` to filter for 'big' cores."
-  expectations: "The agent uses the `linux.cpu.frequency` module for time-weighted average frequency."
-  expectations: "The agent uses `is_main_thread = 1` and `GLOB '*youtube*'` for reliable thread/process matching."
+  expectations: "The agent discovers stdlib modules via `__intrinsic_stdlib_modules` / `__intrinsic_stdlib_tables` and uses dedicated stdlib helpers for CPU cluster classification and time-weighted CPU frequency (e.g., `android.cpu.cluster_type` and `linux.cpu.frequency`) rather than aggregating raw `counter` rows by hand."
+  expectations: "The agent reaches the main-thread Choreographer slices via the `slices.with_context` module (e.g., the `thread_slice` view with `is_main_thread = 1`) instead of manually joining `slice`, `thread_track`, `thread`, and `process`."
+  expectations: "The agent matches the process and slice names with `GLOB '*youtube*'` / `GLOB '*Choreographer*'` (not `LIKE`), per the skill's string-matching guidance."
 }
 
 cases {
   name: "lmk_rss_increase"
   prompt: "Help me identify the process that was killed by the Android Low Memory Killer (LMK). Then, calculate the total increase in its Anonymous RSS memory (in Megabytes) during the exact 10-second window preceding its death."
-  expectations: "The agent uses `android.memory.lmk` module."
-  expectations: "The agent uses `android_lmk_events` to identify the killed process."
-  expectations: "The agent uses `memory_rss_and_swap_per_process` view for RSS metrics."
-  expectations: "The agent uses window functions for efficient delta calculation."
+  expectations: "The agent identifies the killed process via a dedicated stdlib LMK module (e.g., `android.memory.lmk` / `android_lmk_events`) discovered through `__intrinsic_stdlib_modules`, instead of grepping raw slices for kill events."
+  expectations: "The agent computes the RSS delta from a stdlib RSS view (e.g., `memory_rss_and_swap_per_process`) rather than aggregating raw `counter` rows, consistent with the skill's 'reach for stdlib first' rule."
+  expectations: "The agent reports the killed process by `process.name` (not raw `upid`), per the skill's stable-identifier guidance."
 }
 
 cases {
   name: "wakeup_chain_recursive"
   prompt: "Trace the wakeup chain backward from the main thread of the system-ui process starting at its first Choreographer#doFrame slice. Write a query that shows the sequence of thread names that woke each other up, up to 3 levels deep."
-  expectations: "The agent uses a RECURSIVE CTE for graph traversal."
-  expectations: "The agent filters `thread_state` for `state = 'R'` (Runnable)."
-  expectations: "The agent researches the `thread_state` schema to correctly link `utid` and `waker_utid`."
+  expectations: "Before drafting, the agent validates the `thread_state` schema with `SELECT * FROM thread_state LIMIT 0` (or `__intrinsic_stdlib_tables`) to confirm the columns that link `utid` and `waker_utid`, per the skill's mandatory schema-check rule."
+  expectations: "The agent reaches the starting Choreographer slice via the `slices.with_context` module (e.g., `thread_slice` with `is_main_thread = 1` and `GLOB '*system_ui*'` / `GLOB '*Choreographer*'`), not by manually joining `slice`/`thread_track`/`thread`."
+  expectations: "The agent walks the chain with a recursive CTE that joins on stable IDs (`utid` / `waker_utid`) and filters on `thread_state.state = 'R'`, then reports the result by `thread.name` rather than raw `utid`."
 }
 
 cases {
   name: "heap_graph_shortest_path"
   prompt: "Given a trace with multiple Java heap dumps, write a Perfetto query to find the shortest path to GC root for all instances of android.graphics.Bitmap that exist in the final heap dump. Concatenate the class names of the reference path into a single string for each leaked Bitmap."
-  expectations: "The agent uses the `graphs.search` module and `graph_reachable_bfs!` macro."
-  expectations: "The agent uses a recursive CTE to concatenate the reference path."
-  expectations: "The agent materializes the BFS tree and create indexes for performance."
+  expectations: "The agent discovers and uses a stdlib graph-search helper (e.g., the `graphs.search` module and the `graph_reachable_bfs!` macro) via `__intrinsic_stdlib_modules` / `__intrinsic_stdlib_macros`, instead of writing the BFS by hand."
+  expectations: "The agent materializes intermediate results with `CREATE PERFETTO TABLE` (per the skill's materialization guidance) before recursing over them to concatenate the reference path."
+  expectations: "The agent reports the path using `heap_graph_class.name` strings, not raw object / class IDs."
 }
 
 cases {
@@ -98,16 +96,16 @@ cases {
 cases {
   name: "binder_transaction_analysis"
   prompt: "I need to analyze Binder transactions. Show me the total count of binder events grouped by process name."
-  expectations: "The agent uses the `android_binder_txns` or `android_binder_metrics_by_process` table to capture both client and server sides."
-  expectations: "The agent researches the schema in the documentation to identify the correct binder tables."
+  expectations: "The agent discovers binder helpers via `__intrinsic_stdlib_modules` / `__intrinsic_stdlib_tables` and uses a stdlib binder view (e.g., `android_binder_txns` or `android_binder_metrics_by_process`) that already captures both client and server sides, instead of grepping raw `slice` rows."
+  expectations: "The agent groups by `process.name` (stable identifier) rather than raw `upid`, per the skill's stable-identifier guidance."
 }
 
 cases {
   name: "foreground_duration_screen_on"
   prompt: "Calculate the total duration each process spent in the foreground while the screen state was 'ON'. Show the top 10 process names by duration."
-  expectations: "The agent uses `android_screen_state` and `android_oom_adj_intervals` modules."
-  expectations: "The agent uses `SPAN_JOIN` for efficient interval intersection."
-  expectations: "The agent uses semantic filters like `bucket = 'foreground'` and `simple_screen_state = 'on'`."
+  expectations: "The agent discovers and uses stdlib interval views for screen state and process foreground (e.g., `android_screen_state` and `android_oom_adj_intervals`), validating their schemas with `LIMIT 0` before filtering on the appropriate semantic columns, rather than reconstructing the intervals from raw events."
+  expectations: "The agent intersects the intervals with `SPAN_JOIN`, materializing the inputs via `CREATE PERFETTO TABLE` and partitioning correctly, per the skill's SPAN_JOIN safety guidance."
+  expectations: "The agent reports the top 10 by `process.name` (stable identifier), not raw `upid`."
 }
 
 cases {
