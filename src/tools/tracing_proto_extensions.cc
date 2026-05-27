@@ -465,12 +465,14 @@ base::StatusOr<std::vector<Registry>> ParseRegistryFile(
 }
 
 base::Status ValidateRegistry(const Registry& reg) {
-  // Currently only TrackEvent extensions are supported. In the future, this
-  // field could be used to disambiguate TracePacket extensions.
-  if (reg.scope != "perfetto.protos.TrackEvent") {
+  if (reg.scope != "perfetto.protos.TrackEvent" &&
+      reg.scope != "perfetto.protos.TracePacket" &&
+      reg.scope != "perfetto.protos.InternedData") {
     return base::ErrStatus(
-        "'scope' must be \"perfetto.protos.TrackEvent\" in '%s'",
-        reg.source_path.c_str());
+        "Invalid scope '%s' in '%s'; expected one of: "
+        "perfetto.protos.TrackEvent, perfetto.protos.TracePacket, "
+        "perfetto.protos.InternedData",
+        reg.scope.c_str(), reg.source_path.c_str());
   }
 
   if (reg.ranges.empty()) {
@@ -544,13 +546,25 @@ base::Status ValidateRegistry(const Registry& reg) {
     // we don't validate remote entries.
     if (!has_repo && !has_proto && !has_registry) {
       return base::ErrStatus(
-          "Allocation '%s' must have 'proto' or 'registry' in '%s'",
+          "Allocation '%s' must have 'proto', 'registry', or (for remote "
+          "sources) 'repo' in '%s'",
           alloc.name.c_str(), reg.source_path.c_str());
     }
     if (has_proto && has_registry) {
       return base::ErrStatus(
           "Allocation '%s' has both 'proto' and 'registry' in '%s'",
           alloc.name.c_str(), reg.source_path.c_str());
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status ValidateScopesUnique(const std::vector<Registry>& registries) {
+  std::set<std::string> seen;
+  for (const auto& reg : registries) {
+    if (!seen.insert(reg.scope).second) {
+      return base::ErrStatus("Scope '%s' appears more than once in '%s'",
+                             reg.scope.c_str(), reg.source_path.c_str());
     }
   }
   return base::OkStatus();
@@ -606,7 +620,10 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
   ASSIGN_OR_RETURN(auto extensions,
                    ParseRegistryFile(root_contents, root_json_path));
 
-  // 2. Recursively collect all local proto entries from each registry.
+  // 2. Reject duplicate top-level scopes before any per-entry walking.
+  RETURN_IF_ERROR(ValidateScopesUnique(extensions));
+
+  // 3. Recursively collect all local proto entries from each registry.
   std::vector<ProtoEntry> entries;
   for (const auto& reg : extensions) {
     RETURN_IF_ERROR(ValidateRegistry(reg));
@@ -620,7 +637,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     return fds.SerializeAsArray();
   }
 
-  // 2. Set up protoc importer.
+  // 4. Set up protoc importer.
   protozero::MultiFileErrorCollectorImpl error_collector;
   google::protobuf::compiler::DiskSourceTree source_tree;
   for (const auto& path : proto_paths) {
@@ -631,7 +648,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
   // Track which files we've already added to avoid duplicates.
   std::set<std::string> added_files;
 
-  // 3. Compile each proto and collect descriptors.
+  // 5. Compile each proto and collect descriptors.
   protozero::HeapBuffered<pbzero::FileDescriptorSet> fds;
 
   for (const auto& entry : entries) {

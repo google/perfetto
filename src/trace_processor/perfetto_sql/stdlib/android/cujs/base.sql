@@ -165,7 +165,7 @@ WHERE
 
 -- Track all distinct frames that overlap with the CUJ slice. In this table two frames are considered
 -- distinct if they have different frame_id/vsync.
-CREATE PERFETTO VIEW _android_distinct_frames_in_cuj AS
+CREATE PERFETTO TABLE _android_distinct_frames_in_cuj AS
 -- Captures all frames in the CUJ boundary. In cases where there are multiple actual frames, there
 -- can be multiple rows with the same frame_id.
 SELECT
