@@ -561,6 +561,38 @@ TEST(SmapsParserTest, NameRedactionFirstMatchingRuleWins) {
                           "[vdso]"));             //
 }
 
+TEST(SmapsParserTest, NameUniquenessPreservedInAggregatedMode) {
+  protos::gen::SmapsConfig config;
+
+  auto* rule = config.add_name_redaction_rules();
+  rule->set_match_mode(protos::gen::RedactionRule::MATCH_MODE_PREFIX);
+  rule->set_pattern("/system");
+  rule->set_keep_path_elements(1);
+  rule->set_keep_file_extension(true);
+
+  auto packet = ParseAndGetGenPacket(kTestSmaps, config);
+  const auto& packed = packet.packed_entries();
+
+  // Redaction is applied after aggregation, so the two originally-distinct
+  // /system/*.oat mappings stay distinct when serialised.
+  // The string_table is not guaranteed to be as dense as possible.
+  EXPECT_THAT(packed.string_table(),
+              ElementsAre("", "[anon:dalvik-Boot image reservation]",
+                          "/system/<pf_redacted>.oat",
+                          "/system/<pf_redacted>.oat", "[anon:.bss]"));
+
+  // aggregated -> name_id not written
+  EXPECT_THAT(packed.name_id(), IsEmpty());
+
+  // Aggregation was done under the original name: boot-apache-xml.oat had a
+  // single mapping, boot-framework.oat had two.
+  EXPECT_THAT(packed.aggregate_count(), ElementsAre(1u, 2u, 1u, 2u, 1u));
+
+  // Value fields are summed under the original name.
+  EXPECT_THAT(packed.size_kb(), ElementsAre(10476u, 24u, 16u, 8564u, 4u));
+  EXPECT_THAT(packed.rss_kb(), ElementsAre(0u, 0u, 0u, 7984u, 4u));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
