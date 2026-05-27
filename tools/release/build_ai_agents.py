@@ -94,7 +94,8 @@ def _emit_skills(targets: Sequence[str], dest_dir: Path) -> List[str]:
     if not skill_md.is_file():
       continue
     skill_targets = _parse_targets(skill_md)
-    if skill_targets is not None and not any(t in targets for t in skill_targets):
+    if skill_targets is not None and not any(t in targets
+                                             for t in skill_targets):
       continue
     dashed = slug.replace('_', '-')
     out_dir = dest_dir / dashed
@@ -124,8 +125,8 @@ def _write_index(skills_dir: Path) -> None:
         rel = Path(root, f).relative_to(sub)
         files.append(str(rel))
     skills.append({'name': d, 'files': sorted(files)})
-  (skills_dir / 'index.json').write_text(
-      json.dumps({'skills': skills}, indent=2) + '\n')
+  (skills_dir /
+   'index.json').write_text(json.dumps({'skills': skills}, indent=2) + '\n')
 
 
 def _rewrite_version(manifest_path: Path, new_version: str) -> None:
@@ -136,8 +137,8 @@ def _rewrite_version(manifest_path: Path, new_version: str) -> None:
 
 
 def _main_sha() -> str:
-  return subprocess.check_output(['git', '-C', str(REPO_ROOT), 'rev-parse',
-                                  'HEAD']).decode().strip()
+  return subprocess.check_output(
+      ['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD']).decode().strip()
 
 
 def build(output: Path, version: str) -> None:
@@ -170,13 +171,16 @@ def build(output: Path, version: str) -> None:
 
   # Branch metadata.
   meta = {
-      'main_sha': _main_sha(),
-      'tag': version,
+      'main_sha':
+          _main_sha(),
+      'tag':
+          version,
       'built_at':
-          datetime.datetime.now(
-              datetime.UTC).isoformat().replace('+00:00', 'Z'),
+          datetime.datetime.now(datetime.UTC
+                               ).isoformat().replace('+00:00', 'Z'),
   }
-  (output / 'BRANCH_METADATA.json').write_text(json.dumps(meta, indent=2) + '\n')
+  (output /
+   'BRANCH_METADATA.json').write_text(json.dumps(meta, indent=2) + '\n')
 
   # Rewrite the version sentinel in every manifest that carries one.
   manifest_paths = [
@@ -189,7 +193,8 @@ def build(output: Path, version: str) -> None:
     _rewrite_version(p, version)
 
   print(f'Built ai-agents tree at {output}')
-  print(f'  plugin skills ({len(plugin_skills)}):    {", ".join(plugin_skills)}')
+  print(
+      f'  plugin skills ({len(plugin_skills)}):    {", ".join(plugin_skills)}')
   print(f'  fallback skills ({len(fallback_skills)}): '
         f'{", ".join(fallback_skills)}')
   print(f'  main_sha:  {meta["main_sha"]}')
@@ -199,10 +204,11 @@ def build(output: Path, version: str) -> None:
 def commit(output: Path, message: str) -> None:
   subprocess.check_call(['git', 'init', '-q', '-b', 'ai-agents'], cwd=output)
   subprocess.check_call(['git', 'add', '.'], cwd=output)
-  user_name = subprocess.check_output(
-      ['git', 'config', 'user.name']).decode().strip() or 'ai-agents-builder'
-  user_email = subprocess.check_output(
-      ['git', 'config', 'user.email']).decode().strip() or 'noreply@perfetto.dev'
+  user_name = subprocess.check_output(['git', 'config', 'user.name'
+                                      ]).decode().strip() or 'ai-agents-builder'
+  user_email = subprocess.check_output([
+      'git', 'config', 'user.email'
+  ]).decode().strip() or 'noreply@perfetto.dev'
   subprocess.check_call([
       'git', '-c', f'user.email={user_email}', '-c', f'user.name={user_name}',
       'commit', '-q', '-m', message
@@ -211,17 +217,19 @@ def commit(output: Path, message: str) -> None:
 
 
 def main() -> int:
-  ap = argparse.ArgumentParser(description=__doc__,
-                               formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument('--output',
-                  type=Path,
-                  default=Path('/tmp/ai-agents-tree'),
-                  help='Directory to write the assembled tree into '
-                  '(will be removed if it exists).')
-  ap.add_argument('--version',
-                  default=VERSION_SENTINEL,
-                  help='Value to write into every manifest version field. '
-                  'Use the release tag (e.g. v54.0) at release time.')
+  ap = argparse.ArgumentParser(
+      description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+  ap.add_argument(
+      '--output',
+      type=Path,
+      default=Path('/tmp/ai-agents-tree'),
+      help='Directory to write the assembled tree into '
+      '(will be removed if it exists).')
+  ap.add_argument(
+      '--version',
+      default=VERSION_SENTINEL,
+      help='Value to write into every manifest version field. '
+      'Use the release tag (e.g. v54.0) at release time.')
   ap.add_argument(
       '--commit-and-git-init',
       action='store_true',
