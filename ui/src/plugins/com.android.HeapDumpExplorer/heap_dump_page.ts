@@ -15,14 +15,16 @@
 import m from 'mithril';
 import {Time} from '../../base/time';
 import {Spinner} from '../../widgets/spinner';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
+
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
-import {formatDuration} from '../../components/time_utils';
+
 import type {NavState, NavView} from './nav_state';
+import type {Engine} from '../../trace_processor/engine';
+
+import {EmptyState} from '../../widgets/empty_state';
 import type {OverviewData} from './types';
-import type * as queries from './queries';
+import * as queries from './queries';
 import OverviewView from './views/overview_view';
 import DominatorsView from './views/dominators_view';
 import ObjectView from './views/object_view';
@@ -35,6 +37,22 @@ import FlamegraphObjectsView from './views/flamegraph_objects_view';
 import FlamegraphView from './views/flamegraph_view';
 import type {HeapDumpExplorerSession} from './session';
 
+import {
+  baselineDumpFilterSql,
+  dispose as disposeBaseline,
+  getActiveBaseline,
+  getMode,
+  isDiffActive,
+} from './baseline/state';
+import {TopBar} from './top_bar';
+import ClassesDiffView from './views/diff/classes_diff_view';
+import StringsDiffView from './views/diff/strings_diff_view';
+import ArraysDiffView from './views/diff/arrays_diff_view';
+import BitmapsDiffView from './views/diff/bitmaps_diff_view';
+import DominatorsDiffView from './views/diff/dominators_diff_view';
+import AllObjectsDiffView from './views/diff/all_objects_diff_view';
+import ObjectDiffView from './views/diff/object_diff_view';
+
 interface HeapDumpPageAttrs {
   readonly session: HeapDumpExplorerSession;
   readonly subpage: string | undefined;
@@ -42,6 +60,29 @@ interface HeapDumpPageAttrs {
 
 const FG_KEY_PREFIX = 'fg-';
 const INSTANCE_KEY_PREFIX = 'inst-';
+
+// Overview cache keyed on (engine identity, filter SQL): two engines
+// may share (upid, ts) values, and one engine serves several dumps
+// over the page's lifetime.
+const overviewCache = new Map<string, OverviewData>();
+const overviewLoadingFor = new Set<string>();
+
+let nextEngineUid = 1;
+const engineUid = new WeakMap<Engine, number>();
+function engineKey(engine: Engine, filterSql: string): string {
+  let id = engineUid.get(engine);
+  if (id === undefined) {
+    id = nextEngineUid++;
+    engineUid.set(engine, id);
+  }
+  return `${id}:${filterSql}`;
+}
+
+export function resetCachedOverview(): void {
+  overviewCache.clear();
+  overviewLoadingFor.clear();
+}
+let lastTabContext: string | null = null;
 
 function fgTabKey(id: number): string {
   return `${FG_KEY_PREFIX}${id}`;
@@ -109,10 +150,15 @@ function buildTabs(
   activeDump: queries.HeapDump,
   state: NavState,
   overview: OverviewData,
+  baselineOverview: OverviewData | undefined,
+  baselineLoading: boolean,
 ): TabsTab[] {
   const {engine, trace, navigateWithTabs, clearNavParam} = session;
   const hideExplanationSetting = session.hideDefaultChangedHint;
   const hideHint = hideExplanationSetting.get();
+  const diffActive = isDiffActive();
+  const activeBaseline = getActiveBaseline();
+  const baselineEngine = activeBaseline?.trace.engine;
   const tabs: TabsTab[] = [
     {
       key: 'overview',
@@ -120,6 +166,9 @@ function buildTabs(
       content: m(OverviewView, {
         overview,
         activeDump,
+        diffActive,
+        baselineOverview: diffActive ? baselineOverview : undefined,
+        baselineLoading: diffActive && baselineLoading,
         navigate: navigateWithTabs,
         showDefaultChangedHint: session.autoNavigated && !hideHint,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
@@ -142,77 +191,136 @@ function buildTabs(
             upid: activeDump.upid,
             ts: activeDump.ts,
           }),
+        // For SAME-trace diff, leave baselineEngine unset → SQL JOIN path.
+        // For CROSS-trace diff, pass the baseline engine → FlamegraphView
+        // pairs in JS and writes paired rows back into the cur engine.
+        baseline:
+          diffActive && activeBaseline?.dump
+            ? {
+                upid: activeBaseline.dump.upid,
+                ts: Time.fromRaw(activeBaseline.dump.ts),
+              }
+            : undefined,
+        baselineEngine:
+          diffActive && activeBaseline?.trace.disposable === true
+            ? activeBaseline.trace.engine
+            : undefined,
       }),
     },
     {
       key: 'classes',
       title: 'Classes',
-      content: m(ClassesView, {
-        engine,
-        activeDump,
-        navigate: navigateWithTabs,
-        clearNavParam,
-        initialRootClass:
-          state.view === 'classes' ? state.params.rootClass : undefined,
-      }),
+      content:
+        diffActive && baselineEngine
+          ? m(ClassesDiffView, {
+              currentEngine: engine,
+              baselineEngine,
+              navigate: navigateWithTabs,
+            })
+          : m(ClassesView, {
+              engine,
+              activeDump,
+              navigate: navigateWithTabs,
+              clearNavParam,
+              initialRootClass:
+                state.view === 'classes' ? state.params.rootClass : undefined,
+            }),
     },
     {
       key: 'objects',
       title: 'Objects',
-      content: m(AllObjectsView, {
-        engine,
-        activeDump,
-        navigate: navigateWithTabs,
-        clearNavParam,
-        initialClass: state.view === 'objects' ? state.params.cls : undefined,
-      }),
+      content:
+        diffActive && baselineEngine
+          ? m(AllObjectsDiffView, {
+              currentEngine: engine,
+              baselineEngine,
+              cls: state.view === 'objects' ? state.params.cls : undefined,
+              navigate: navigateWithTabs,
+            })
+          : m(AllObjectsView, {
+              engine,
+              activeDump,
+              navigate: navigateWithTabs,
+              clearNavParam,
+              initialClass:
+                state.view === 'objects' ? state.params.cls : undefined,
+            }),
     },
     {
       key: 'dominators',
       title: 'Dominators',
-      content: m(DominatorsView, {
-        engine,
-        activeDump,
-        navigate: navigateWithTabs,
-      }),
+      content:
+        diffActive && baselineEngine
+          ? m(DominatorsDiffView, {
+              currentEngine: engine,
+              baselineEngine,
+              navigate: navigateWithTabs,
+            })
+          : m(DominatorsView, {
+              engine,
+              activeDump,
+              navigate: navigateWithTabs,
+            }),
     },
     {
       key: 'bitmaps',
       title: 'Bitmaps',
-      content: m(BitmapGalleryView, {
-        engine,
-        activeDump,
-        navigate: navigateWithTabs,
-        clearNavParam,
-        hasFieldValues: overview.hasFieldValues,
-        filterKey:
-          state.view === 'bitmaps' ? state.params.filterKey : undefined,
-      }),
+      content:
+        diffActive && baselineEngine
+          ? m(BitmapsDiffView, {
+              currentEngine: engine,
+              baselineEngine,
+              navigate: navigateWithTabs,
+            })
+          : m(BitmapGalleryView, {
+              engine,
+              activeDump,
+              navigate: navigateWithTabs,
+              clearNavParam,
+              hasFieldValues: overview.hasFieldValues,
+              filterKey:
+                state.view === 'bitmaps' ? state.params.filterKey : undefined,
+            }),
     },
     {
       key: 'strings',
       title: 'Strings',
-      content: m(StringsView, {
-        engine,
-        activeDump,
-        navigate: navigateWithTabs,
-        clearNavParam,
-        initialQuery: state.view === 'strings' ? state.params.q : undefined,
-        hasFieldValues: overview.hasFieldValues,
-      }),
+      content:
+        diffActive && baselineEngine
+          ? m(StringsDiffView, {
+              currentEngine: engine,
+              baselineEngine,
+              navigate: navigateWithTabs,
+            })
+          : m(StringsView, {
+              engine,
+              activeDump,
+              navigate: navigateWithTabs,
+              clearNavParam,
+              initialQuery:
+                state.view === 'strings' ? state.params.q : undefined,
+              hasFieldValues: overview.hasFieldValues,
+            }),
     },
     {
       key: 'arrays',
       title: 'Arrays',
-      content: m(ArraysView, {
-        engine,
-        activeDump,
-        navigate: navigateWithTabs,
-        clearNavParam,
-        initialArrayHash:
-          state.view === 'arrays' ? state.params.arrayHash : undefined,
-        hasFieldValues: overview.hasFieldValues,
-      }),
+      content:
+        diffActive && baselineEngine
+          ? m(ArraysDiffView, {
+              currentEngine: engine,
+              baselineEngine,
+              navigate: navigateWithTabs,
+            })
+          : m(ArraysView, {
+              engine,
+              activeDump,
+              navigate: navigateWithTabs,
+              clearNavParam,
+              initialArrayHash:
+                state.view === 'arrays' ? state.params.arrayHash : undefined,
+              hasFieldValues: overview.hasFieldValues,
+            }),
     },
   ];
 
@@ -239,59 +347,28 @@ function buildTabs(
       key: instanceTabKey(obj.id),
       title: obj.label,
       closeButton: true,
-      content: m(ObjectView, {
-        engine,
-        activeDump,
-        heaps: overview.heaps,
-        navigate: navigateWithTabs,
-        openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
-        params: {id: obj.objId},
-      }),
+      content:
+        diffActive && baselineEngine
+          ? m(ObjectDiffView, {
+              currentEngine: engine,
+              baselineEngine,
+              activeDump,
+              currentId: obj.currentId,
+              baselineId: obj.baselineId,
+              navigate: navigateWithTabs,
+            })
+          : m(ObjectView, {
+              engine,
+              activeDump,
+              heaps: overview.heaps,
+              navigate: navigateWithTabs,
+              openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
+              params: {id: obj.objId},
+            }),
     });
   }
 
   return tabs;
-}
-
-function processLabel(d: queries.HeapDump): string {
-  return d.processName !== null
-    ? `${d.processName} (pid ${d.pid})`
-    : `pid ${d.pid}`;
-}
-
-function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
-  const allDumps = session.dumps;
-  const active = session.activeDump;
-  if (allDumps.length <= 1 || active === null) return null;
-
-  return m(
-    'div',
-    {class: 'pf-hde-dump-selector'},
-    m('span', {class: 'pf-hde-dump-selector__label'}, 'Heap dump:'),
-    m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          label: processLabel(active),
-          icon: 'memory',
-          rightIcon: 'arrow_drop_down',
-          variant: ButtonVariant.Outlined,
-          compact: true,
-        }),
-      },
-      allDumps.map((d) => {
-        const offset = Time.diff(
-          Time.fromRaw(d.ts),
-          session.trace.traceInfo.start,
-        );
-        return m(MenuItem, {
-          label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
-          active: d === active,
-          onclick: () => session.selectDump(d),
-        });
-      }),
-    ),
-  );
 }
 
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
@@ -306,36 +383,136 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     attrs.session.setNavigateCallback(undefined);
   }
 
+  private kickOverviewLoadFor(engine: Engine | null, filterSql: string): void {
+    if (!engine) return;
+    const key = engineKey(engine, filterSql);
+    if (overviewCache.has(key) || overviewLoadingFor.has(key)) return;
+    overviewLoadingFor.add(key);
+    queries
+      .getOverview(engine, filterSql)
+      .then((data) => {
+        overviewCache.set(key, data);
+      })
+      .catch((err) => {
+        console.error('Failed to load overview:', err);
+      })
+      .finally(() => {
+        overviewLoadingFor.delete(key);
+        m.redraw();
+      });
+  }
+
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
     const {session, subpage} = attrs;
     session.syncFromSubpage(subpage);
     session.syncInstanceTabFromNav();
 
     const active = session.activeDump;
-    const overview = session.cachedOverview;
-    if (active === null || overview === null) {
+    if (active === null) {
       return m(
         'div',
         {class: 'pf-hde-page'},
-        renderDumpSelector(session),
+        m(EmptyState, {
+          icon: 'memory',
+          title: 'No heap graph data in this trace',
+          fillHeight: true,
+        }),
+      );
+    }
+
+    const topBar = m(TopBar, {
+      trace: session.trace,
+      session,
+      onDumpChanged: () => {},
+    });
+
+    const mode = getMode();
+    const baseline = getActiveBaseline();
+    const activeIsBaseline = mode === 'baseline' && baseline !== null;
+    queries.setDumpFilterOverride(activeIsBaseline ? baseline!.dump : null);
+    queries.setActiveDumpForDiff(session.activeDump);
+
+    const diffActive = isDiffActive();
+    const tabContext = diffActive
+      ? 'diff'
+      : activeIsBaseline
+        ? 'baseline'
+        : 'primary';
+    if (lastTabContext !== null && lastTabContext !== tabContext) {
+      session.clearInstanceTabs();
+    }
+    lastTabContext = tabContext;
+
+    const overviewEngine = activeIsBaseline
+      ? baseline!.trace.engine
+      : session.engine;
+    // Always filter to the dump the user is actually viewing — passing
+    // `undefined` here relies on dumpFilterOverride, which is null in
+    // diff mode and produces '1=1' (aggregates across every dump in the
+    // engine). On a same-trace fixture with two dumps that surfaced as
+    // "Current" showing the sum of both dumps; the Δ row was still
+    // numerically right (sum − baseline = current) but the labelled
+    // "Current" value was misleading.
+    const overviewDump = activeIsBaseline ? baseline!.dump : active;
+    const overviewFilter = queries.dumpFilterSql(overviewDump, 'o');
+    this.kickOverviewLoadFor(overviewEngine, overviewFilter);
+    const overview = overviewCache.get(
+      engineKey(overviewEngine, overviewFilter),
+    );
+
+    const baselineEngine = baseline?.trace.engine ?? null;
+    const baselineFilter = baselineDumpFilterSql('o');
+    if (baselineEngine && mode === 'diff') {
+      this.kickOverviewLoadFor(baselineEngine, baselineFilter);
+    }
+    const baselineCacheKey =
+      baselineEngine !== null
+        ? engineKey(baselineEngine, baselineFilter)
+        : null;
+    const baselineOverview =
+      baselineCacheKey !== null
+        ? overviewCache.get(baselineCacheKey)
+        : undefined;
+    const baselineLoading =
+      baselineCacheKey !== null &&
+      baselineOverview === undefined &&
+      overviewLoadingFor.has(baselineCacheKey);
+
+    if (!overview) {
+      return m(
+        'div',
+        {class: 'pf-hde-page'},
+        topBar,
         m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
       );
     }
 
-    // Keyed so Mithril remounts views (and their SQLDataSources) on
-    // dump switch.
-    const tabsKey = `${active.upid}:${active.ts}`;
+    // Key the Tabs widget on (primary dump, baseline dump, mode) — mode
+    // changes swap engines / filters used by standard views, which only
+    // capture them at oninit. Remount forces re-fetch.
+    const primaryKey = `${active.upid}:${active.ts}`;
+    const baselineKey = baseline
+      ? `${baseline.trace.id}:${baseline.dump.upid}:${baseline.dump.ts}`
+      : 'none';
+    const tabsKey = `${primaryKey}|${baselineKey}|${mode}`;
 
     return m(
       'div',
       {class: 'pf-hde-page'},
-      renderDumpSelector(session),
+      topBar,
       m(
         'main',
         {class: 'pf-hde-main'},
         m(Tabs, {
           key: tabsKey,
-          tabs: buildTabs(session, active, session.nav, overview),
+          tabs: buildTabs(
+            session,
+            active,
+            session.nav,
+            overview,
+            baselineOverview,
+            baselineLoading,
+          ),
           activeTabKey: activeTabKey(session),
           onTabChange: (key: string) => handleTabChange(session, key),
           onTabClose: (key: string) => handleTabClose(session, key),
@@ -344,3 +521,6 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     );
   }
 }
+
+/** Re-exported convenience for index.ts so it can dispose on trace change. */
+export {disposeBaseline};
