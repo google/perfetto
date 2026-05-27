@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "perfetto",
+  "version": "0.0.0-dev",
+  "description": "Perfetto skills for Claude Code: query traces with PerfettoSQL, install trace_processor, and run guided investigation workflows.",
+  "owner": {
+    "name": "Perfetto",
+    "email": "perfetto-dev@googlegroups.com",
+    "url": "https://perfetto.dev"
+  },
+  "plugins": [
+    {
+      "name": "perfetto",
+      "description": "Perfetto skills for trace analysis.",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/google/perfetto.git",
+        "ref": "ai-agents",
+        "path": "./plugins/perfetto"
+      },
+      "category": "development"
+    }
+  ]
+}
