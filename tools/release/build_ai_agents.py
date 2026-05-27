@@ -33,10 +33,13 @@ The branch layout produced:
         <dashed-slug>/SKILL.md          ← fallback-target skill set
     BRANCH_METADATA.json                ← main_sha, tag, built_at
 
-Two skill sets are produced because plugin-style agents (Claude, Codex,
-Antigravity) consume the in-tree subdirectory while clone-and-walk
-agents (Pi, OpenCode, fallback) consume the root `skills/`. The split
-is driven by the `targets:` field in each SKILL.md frontmatter.
+Two skill sets are produced because plugin-style agents (Claude, Codex)
+consume the in-tree subdirectory while fallback-style agents (Pi,
+OpenCode, Antigravity, and generic fallback installs) consume the root
+`skills/`. Antigravity is intentionally treated as a fallback consumer,
+not a plugin consumer, because the release branch cannot currently pin
+`agy plugin install` to a non-default git ref. The split is driven by the
+`targets:` field in each SKILL.md frontmatter.
 
 Local usage:
     tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
@@ -55,7 +58,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
@@ -63,9 +66,9 @@ EXTENSIONS_SRC = REPO_ROOT / 'ai' / 'extensions'
 TRACE_PROCESSOR_SRC = REPO_ROOT / 'tools' / 'trace_processor'
 VERSION_SENTINEL = '0.0.0-dev'
 
-# Which target each consumer's skill set is built against.
-PLUGIN_TARGET = 'claude-code'
-FALLBACK_TARGET = 'fallback'
+# Which targets each consumer's skill set is built against.
+PLUGIN_TARGETS = ('claude-code', 'codex')
+FALLBACK_TARGETS = ('fallback',)
 
 
 def _parse_targets(skill_md: Path) -> Optional[List[str]]:
@@ -79,8 +82,8 @@ def _parse_targets(skill_md: Path) -> Optional[List[str]]:
   return [t.strip() for t in tm.group(1).split(',') if t.strip()]
 
 
-def _emit_skills(target: str, dest_dir: Path) -> List[str]:
-  """Copy every skill whose `targets:` includes `target` into dest_dir.
+def _emit_skills(targets: Sequence[str], dest_dir: Path) -> List[str]:
+  """Copy every skill whose `targets:` overlaps with `targets` into dest_dir.
 
   Skills with no `targets:` field are included for every target.
   Returns the list of dashed slug names emitted.
@@ -90,8 +93,8 @@ def _emit_skills(target: str, dest_dir: Path) -> List[str]:
     skill_md = SKILLS_SRC / slug / 'SKILL.md'
     if not skill_md.is_file():
       continue
-    targets = _parse_targets(skill_md)
-    if targets is not None and target not in targets:
+    skill_targets = _parse_targets(skill_md)
+    if skill_targets is not None and not any(t in targets for t in skill_targets):
       continue
     dashed = slug.replace('_', '-')
     out_dir = dest_dir / dashed
@@ -160,9 +163,9 @@ def build(output: Path, version: str) -> None:
   (output / 'bin' / 'trace_processor').chmod(0o755)
 
   # Two skill sets per the per-consumer split.
-  plugin_skills = _emit_skills(PLUGIN_TARGET,
+  plugin_skills = _emit_skills(PLUGIN_TARGETS,
                                output / 'plugins' / 'perfetto' / 'skills')
-  fallback_skills = _emit_skills(FALLBACK_TARGET, output / 'skills')
+  fallback_skills = _emit_skills(FALLBACK_TARGETS, output / 'skills')
   _write_index(output / 'skills')
 
   # Branch metadata.

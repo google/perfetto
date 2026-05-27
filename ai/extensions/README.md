@@ -45,10 +45,11 @@ no per-agent manifest on the branch:
   `pi install git:github.com/google/perfetto@ai-agents` (it
   auto-discovers from the cloned root `skills/` directory) or have
   the fallback installer write into `~/.agents/skills/`.
-- **Antigravity CLI** auto-discovers skills from its skills
-  directory; the fallback installer populates it. Antigravity's
-  native `agy plugin install` is not used because as of 2026-05 it
-  has no syntax for pinning a non-default git ref.
+- **Antigravity** is a fallback consumer: it uses the root `skills/`
+  layout, not the `plugins/perfetto/` plugin layout. The fallback
+  installer populates its skills directory; native `agy plugin install`
+  is not used because as of 2026-05 it has no syntax for pinning a
+  non-default git ref.
 
 The fallback path also serves any agent that reads
 `~/.claude/skills/`, `~/.codex/skills/`, etc. without needing a

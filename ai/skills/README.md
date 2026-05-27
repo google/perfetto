@@ -39,7 +39,9 @@ The directory is **flat**: every skill is a direct child of
 `ai/skills/`. This matches the discovery rules of every supported
 agent (`<root>/<slug>/SKILL.md`), so the same tree drops into
 `~/.claude/skills/`, `~/.gemini/skills/`, or `~/.agents/skills/`
-without any flattening step.
+without any flattening step. Antigravity uses this fallback/root
+`skills/` layout; it is not a consumer of the plugin-bundled skill
+layout under `plugins/perfetto/`.
 
 ```
 ai/skills/
