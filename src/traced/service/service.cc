@@ -172,14 +172,6 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   }
 #endif
 
-  std::string android_relay_socket;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // On Android, a relay-only producer socket can be configured via system
-  // property — e.g. when perf data is forwarded from guest VMs or the
-  // hypervisor into the host's traced. The named socket is appended to the
-  // producer endpoint list below and marked relay-capable.
-  android_relay_socket = base::GetAndroidProp("traced.relay_producer_port");
-#endif
   svc = ServiceIPCHost::CreateInstance(&task_runner, init_opts);
 
   // When built as part of the Android tree, the two socket are created and
@@ -195,15 +187,22 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #else
     ListenEndpoint consumer_ep(base::ScopedFile(atoi(env_cons)));
     std::list<ListenEndpoint> producer_eps;
-    // The init-bound FD is the local producer socket. The relay endpoint, if
-    // any, is the separate socket named by traced.relay_producer_port (added
-    // below), never this one.
+    // The init-bound FD is the local producer socket; it never carries the
+    // relay endpoint.
     producer_eps.emplace_back(ListenEndpoint(base::ScopedFile(atoi(env_prod))));
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    // On Android, a relay-only producer socket can be configured via system
+    // property — e.g. when perf data is forwarded from guest VMs or the
+    // hypervisor into the host's traced. It is a separate socket from the
+    // init-bound local producer socket above and is always relay-capable.
+    std::string android_relay_socket =
+        base::GetAndroidProp("traced.relay_producer_port");
     if (!android_relay_socket.empty()) {
       ListenEndpoint relay_ep(android_relay_socket);
       relay_ep.expose_relay_endpoint = true;
       producer_eps.emplace_back(std::move(relay_ep));
     }
+#endif
     started = svc->Start(std::move(producer_eps), std::move(consumer_ep));
 #endif
   } else {
