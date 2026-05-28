@@ -109,10 +109,9 @@ def _load_targets() -> dict:
   missing = available - declared
   extra = declared - available
   if missing or extra:
-    raise RuntimeError(
-        f'{TARGETS_JSON} is out of sync with ai/skills/: '
-        f'missing entries for {sorted(missing)}; '
-        f'unknown entries {sorted(extra)}')
+    raise RuntimeError(f'{TARGETS_JSON} is out of sync with ai/skills/: '
+                       f'missing entries for {sorted(missing)}; '
+                       f'unknown entries {sorted(extra)}')
   return out
 
 
