@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#include <chrono>
 #include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "perfetto/ext/base/unix_socket.h"
@@ -404,7 +402,6 @@ TEST(TracedRelayIntegrationTest, HighVolumeProducer) {
     producer_thread->producer()->ProduceEventBatch(
         [&task_runner, done] { task_runner.PostTask(done); });
     task_runner.RunUntilCheckpoint(cp);
-    std::this_thread::sleep_for(std::chrono::milliseconds(3));
   }
 
   auto sync_done = task_runner.CreateCheckpoint("perfetto.FakeProducer.sync");
