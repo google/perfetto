@@ -114,10 +114,16 @@ int StaticTableFunctionModule::Connect(sqlite3* db,
                                        int argc,
                                        const char* const* argv,
                                        sqlite3_vtab** vtab,
-                                       char**) {
+                                       char** pzErr) {
   PERFETTO_CHECK(argc == 3);
 
   auto* vtab_state = GetContext(raw_ctx)->OnConnect(argc, argv);
+  if (!vtab_state) {
+    *pzErr = sqlite3_mprintf(
+        "table '%s' could not be connected to because it could not be found",
+        argv[2]);
+    return SQLITE_ERROR;
+  }
   auto* state = sqlite::ModuleStateManager<StaticTableFunctionModule>::GetState(
       vtab_state);
   uint32_t args_count = state->function->GetArgumentCount();

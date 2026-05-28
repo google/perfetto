@@ -14,24 +14,24 @@
 
 import m from 'mithril';
 import {
-  QueryNode,
+  type QueryNode,
   nextNodeId,
   NodeType,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
-import {ColumnInfo, legacyDeserializeType} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {Switch} from '../../../../widgets/switch';
 import {
   StructuredQueryBuilder,
-  JoinCondition,
+  type JoinCondition,
 } from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeTitle} from '../node_styling_widgets';
 import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
 import {ResizableSqlEditor} from '../widgets';
@@ -438,34 +438,5 @@ export class JoinNode implements QueryNode {
     });
 
     return sq;
-  }
-
-  static deserializeState(attrs: JoinNodeAttrs): JoinNodeAttrs {
-    // Migrate legacy columnName field and string types
-    const migrateColumns = (
-      cols?: (ColumnInfo & {columnName?: string})[],
-    ): ColumnInfo[] =>
-      (cols ?? []).map((c) => ({
-        name: c.columnName ?? c.name,
-        type: legacyDeserializeType(c.type),
-        checked: c.checked,
-        alias: c.alias,
-        typeUserModified: c.typeUserModified,
-      }));
-
-    return {
-      ...attrs,
-      conditionType: attrs.conditionType ?? 'equality',
-      joinType: attrs.joinType ?? 'INNER',
-      leftColumn: attrs.leftColumn ?? '',
-      rightColumn: attrs.rightColumn ?? '',
-      sqlExpression: attrs.sqlExpression ?? '',
-      leftColumns: migrateColumns(
-        attrs.leftColumns as (ColumnInfo & {columnName?: string})[],
-      ),
-      rightColumns: migrateColumns(
-        attrs.rightColumns as (ColumnInfo & {columnName?: string})[],
-      ),
-    };
   }
 }

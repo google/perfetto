@@ -52,6 +52,10 @@ if (enable_perfetto_tools) {
   _misc_unittests_targets += [ "src/tools:unittests" ]
 }
 
+if (enable_perfetto_protovm_compiler) {
+  _misc_unittests_targets += [ "src/protovm/compiler:unittests" ]
+}
+
 if (enable_perfetto_ipc) {
   _base_unittests_targets += [ "src/ipc:unittests" ]
   _tracing_unittests_targets += [ "src/tracing/ipc:unittests" ]
@@ -69,6 +73,12 @@ if (enable_perfetto_platform_services) {
       "src/kallsyms:unittests",
     ]
   }
+}
+
+# TODO(rsavitski): re-enable test on embedder builds once chromium build bot
+# failure is resolved.
+if ((is_linux || is_android) && !perfetto_build_with_embedder) {
+  _profiling_unittests_targets += [ "src/profiling/smaps:unittests" ]
 }
 
 if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {

@@ -37,9 +37,11 @@ data_sources: {
 ```
 
 Traces include a `gpu_id` field to distinguish between GPUs and a `machine_id`
-field to distinguish between machines in multi-machine setups. GPU hardware
-metadata (name, vendor, architecture, UUID, PCI BDF) is recorded via the
-[GpuInfo](/protos/perfetto/trace/system_info/gpu_info.proto) trace packet.
+field to distinguish between machines in
+[multi-machine setups](/docs/deployment/multi-machine-architecture.md).
+GPU hardware metadata (name, vendor, architecture, UUID, PCI BDF) is recorded
+via the [GpuInfo](/protos/perfetto/trace/system_info/gpu_info.proto) trace
+packet.
 
 ## Android
 
@@ -354,3 +356,132 @@ gpu_render_stage_event {
     name: "matmul_kernel"
 }
 ```
+
+## UI plugins
+
+The Perfetto UI ships several plugins that consume GPU trace data. They
+register tracks, groups, and detail panes under the standard `GPU` group in
+the workspace tree (and, for per-process plugins, under each process group).
+
+### dev.perfetto.Gpu
+
+The base plugin that lays out a `GPU` group per GPU and populates it with
+the leaf and summary tracks for everything in the `gpu_counter_track`,
+`gpu_render_stage`, `gpu_log`, `vulkan_events`, and `graphics_frame_event`
+families. Multi-GPU and multi-machine traces are split into per-GPU
+sub-groups (with machine labels appended when more than one machine is
+present); custom counter groups declared in `GpuCounterDescriptor` /
+`GpuCounterGroupSpec` show up as collapsible sub-groups under `Counters`.
+
+![](/docs/images/gpu-tracks.png)
+
+### dev.perfetto.GpuByProcess
+
+Surfaces GPU concepts that are scoped to a single process and don't have a
+meaningful global representation. A CUDA stream, for example, is a
+per-process handle: the same numeric `stream` ID in two different processes
+refers to two unrelated streams, so showing all streams under a single
+shared `GPU` group would be misleading. This plugin places those tracks
+under each owning process instead.
+
+For traces whose GPU slices carry `device` and `stream` launch args (e.g.
+CUDA, HIP), it nests `gpu_render_stage` slices under each process as
+`<API> → Device #N → Context #N → Stream #N`, collapsing any level that
+only has a single value. Slices that don't carry those args fall back to
+one track per `hw_queue_id`, named after the source hardware-queue track
+(typically `"Channel #N"`). When a process spans multiple GPUs the leaf
+tracks are nested under per-GPU sub-groups.
+
+![](/docs/images/gpu-by-process.png)
+
+### com.meta.GpuCompute
+
+Compute-kernel deep dive. Adds three tabs that are populated whenever a
+compute `gpu_render_stage` slice (i.e. `gpu_slice.render_stage_category =
+COMPUTE`) is selected:
+
+- **Summary** — table of every kernel launch in the trace, sortable by
+  duration, occupancy, and other hardware metrics. Double-click jumps to
+  the details view for that kernel.
+- **Details** — per-section metric tables (Speed-of-Light, Launch
+  Statistics, Occupancy, Workload Analysis), with optional baseline
+  comparison between two kernels.
+- **Toolbar** — kernel selector, baseline pin, terminology switch
+  (CUDA / OpenCL / vendor-supplied), and automatic unit conversion
+  (bytes → KB, ns → s, etc.).
+
+The core plugin ships CUDA and AMD support; additional vendors are added
+by companion plugins that register terminologies, metric sections,
+well-known metric IDs, and analysis providers. See
+[com.meta.GpuCompute/README.md](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.meta.GpuCompute/README.md)
+for the extension API.
+
+![](/docs/images/gpu-compute-summary.png)
+
+![](/docs/images/gpu-compute-details.png)
+
+## Example queries
+
+### Top 5 longest-running kernels with time-weighted utilization
+
+This query ranks compute kernels by duration and, for each one, computes
+the time-weighted average of the GPU `Utilization` counter over the
+kernel's execution window. `counter_leading_intervals` turns the sparse
+counter samples into `(ts, dur, value)` intervals (each sample's value
+holds until the next sample), and `_interval_intersect` clips those
+intervals against each kernel's `[ts, ts + dur)` window so the average is
+weighted by how long each counter value was actually in effect during the
+kernel.
+
+```sql
+INCLUDE PERFETTO MODULE counters.intervals;
+INCLUDE PERFETTO MODULE intervals.intersect;
+
+WITH
+  -- The GPU Utilization counter, expanded into (ts, dur, value) intervals.
+  -- Carries ugpu so the intersect can match each kernel to its own GPU.
+  utilization AS (
+    SELECT u.id, u.ts, u.dur, u.value, gct.ugpu
+    FROM counter_leading_intervals!((
+      SELECT c.id, c.ts, c.track_id, c.value
+      FROM counter c
+      JOIN gpu_counter_track gct ON gct.id = c.track_id
+      WHERE gct.name = 'Utilization'
+    )) u
+    JOIN gpu_counter_track gct ON gct.id = u.track_id
+  ),
+  -- The 5 longest compute kernels (render_stage_category 2 = COMPUTE).
+  top_kernels AS (
+    SELECT
+      s.id, s.ts, s.dur, s.name,
+      extract_arg(t.dimension_arg_set_id, 'ugpu') AS ugpu
+    FROM gpu_slice s
+    JOIN gpu_track t ON s.track_id = t.id
+    WHERE s.render_stage_category = 2 AND s.dur > 0
+    ORDER BY s.dur DESC
+    LIMIT 5
+  )
+SELECT
+  k.name AS kernel,
+  g.name AS gpu_name,
+  k.dur AS dur_ns,
+  -- Time-weighted average: sum(value * overlap_dur) / kernel_dur.
+  SUM(u.value * ii.dur) / k.dur AS avg_utilization
+FROM top_kernels k
+LEFT JOIN gpu g ON g.id = k.ugpu
+JOIN _interval_intersect!((top_kernels, utilization), (ugpu)) ii
+  ON ii.id_0 = k.id
+JOIN utilization u ON u.id = ii.id_1
+GROUP BY k.id, k.name, g.name, k.dur
+ORDER BY k.dur DESC;
+```
+
+Example output (two-GPU training trace):
+
+| kernel | gpu\_name | dur\_ns | avg\_utilization |
+|---|---|---|---|
+| matmul\_bwd\_kernel | NVIDIA A100-SXM4-80GB #1 | 180000 | 78.27 |
+| matmul\_bwd\_kernel | NVIDIA A100-SXM4-80GB #2 | 180000 | 77.25 |
+| matmul\_kernel     | NVIDIA A100-SXM4-80GB #1 | 125000 | 78.70 |
+| matmul\_kernel     | NVIDIA A100-SXM4-80GB #2 | 125000 | 78.83 |
+| softmax\_bwd\_kernel | NVIDIA A100-SXM4-80GB #1 | 110000 | 73.76 |

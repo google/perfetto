@@ -30,7 +30,7 @@ class FtraceModule : public ProtoImporterModule {
 
   virtual void ParseFtraceEventData(uint32_t cpu,
                                     int64_t ts,
-                                    const TracePacketData& data);
+                                    const FtraceData& data);
 
   virtual void ParseInlineSchedSwitch(uint32_t cpu,
                                       int64_t ts,

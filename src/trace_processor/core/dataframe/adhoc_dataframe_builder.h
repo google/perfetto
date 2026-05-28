@@ -111,6 +111,12 @@ struct AdhocDataframeBuilderOptions {
 
   // Indicates the default option for nullable columns to be converted to.
   NullabilityType nullability_type = NullabilityType::kSparseNull;
+
+  // If true, `Build()` appends a synthetic `_auto_id` Id column that holds the
+  // row index and acts as an implicit primary key. Set to false when the
+  // resulting dataframe is consumed somewhere that supplies its own primary
+  // key (e.g. `StaticTableFunctionModule` adds a HIDDEN `_auto_id`).
+  bool emit_auto_id = true;
 };
 
 class AdhocDataframeBuilder {
@@ -467,6 +473,7 @@ class AdhocDataframeBuilder {
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
   bool did_declare_types_ = false;
+  bool emit_auto_id_ = true;
   base::Status current_status_ = base::OkStatus();
   core::BitVector duplicate_bit_vector_;
 };

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceFile, TraceFileAnalyzed} from './multi_trace_types';
+import type {TraceFile, TraceFileAnalyzed} from './multi_trace_types';
 import {uuidv4} from '../../base/uuid';
-import {TraceAnalyzer} from './trace_analyzer';
+import type {TraceAnalyzer} from './trace_analyzer';
 
 function getErrorMessage(e: unknown): string {
   const err = e instanceof Error ? e.message : `${e}`;

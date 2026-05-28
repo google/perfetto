@@ -83,6 +83,12 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
     all_data_sources_registered_cb_ = std::move(cb);
   }
 
+  // Wired up to base::Watchdog as the fatal handler: when the watchdog is
+  // about to crash the process, this is called (on the producer's task runner)
+  // so we can flush ftrace data before the actual crash, to better debug
+  // traced_probes' wdog crashes.
+  void FlushForWatchdogAndCrash(base::WatchdogCrashInfo);
+
  private:
   static ProbesProducer* instance_;
 

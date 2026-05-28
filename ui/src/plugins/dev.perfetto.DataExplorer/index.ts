@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
-import {Store} from '../../base/store';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {Store} from '../../base/store';
 import {shortUuid} from '../../base/uuid';
 import {getErrorMessage} from '../../base/errors';
 import {debounce} from '../../base/rate_limiters';
@@ -23,8 +24,8 @@ import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {
   DataExplorer,
-  DataExplorerState,
-  DataExplorerTab,
+  type DataExplorerState,
+  type DataExplorerTab,
 } from './data_explorer';
 import {nodeRegistry} from './query_builder/node_registry';
 import {deserializeState, serializeState} from './json_handler';

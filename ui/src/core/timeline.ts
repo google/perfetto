@@ -15,16 +15,16 @@
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {assertUnreachable} from '../base/assert';
-import {Time, time, timezoneOffsetMap} from '../base/time';
-import {Setting} from '../public/settings';
+import {Time, type time, timezoneOffsetMap} from '../base/time';
+import type {Setting} from '../public/settings';
 import {
-  DurationPrecision,
-  PanInstantIntoViewOptions,
-  PanIntoViewOptions,
-  Timeline,
+  type DurationPrecision,
+  type PanInstantIntoViewOptions,
+  type PanIntoViewOptions,
+  type Timeline,
   TimestampFormat,
 } from '../public/timeline';
-import {TraceInfo} from '../public/trace_info';
+import type {TraceInfo} from '../public/trace_info';
 import {raf} from './raf_scheduler';
 
 /**

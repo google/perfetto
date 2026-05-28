@@ -17,14 +17,15 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 
 -- View tracking the number of IO operations remaining in the kernel IO queue or
 -- a block device
-CREATE PERFETTO VIEW linux_active_block_io_operations_by_device (
+CREATE PERFETTO VIEW linux_active_block_io_operations_by_device(
   -- timestamp when block_io_start or block_io_done happened
   ts LONG,
   -- the number of IO operations in the kernel queue or the device
   ops_in_queue_or_device LONG,
   -- the device processing the IO operations
   dev LONG
-) AS
+)
+AS
 WITH
   block_io_slice AS (
     SELECT
@@ -33,46 +34,28 @@ WITH
       extract_arg(track.dimension_arg_set_id, 'block_device') AS dev
     FROM slice
     JOIN track
-      ON slice.track_id = track.id AND track.type = 'block_io'
+      ON slice.track_id = track.id
+      AND track.type = 'block_io'
   )
-SELECT
-  ts,
-  value AS ops_in_queue_or_device,
-  group_name AS dev
+SELECT ts, value AS ops_in_queue_or_device, group_name AS dev
 FROM intervals_overlap_count_by_group!(block_io_slice, ts, dur, dev);
 
 -- Extracts the major id from a device id
 CREATE PERFETTO FUNCTION linux_device_major_id(
-    -- device id (userland dev_t value)
-    dev LONG
+  -- device id (userland dev_t value)
+  dev LONG
 )
 -- 12 bits major id
-RETURNS LONG AS
-SELECT
-  (
-    $dev >> 8
-  ) & (
-    (
-      1 << 12
-    ) - 1
-  );
+RETURNS LONG
+AS
+SELECT ($dev >> 8) & ((1 << 12) - 1);
 
 -- Extracts the minor id from a device id
 CREATE PERFETTO FUNCTION linux_device_minor_id(
-    -- device id (userland dev_t value)
-    dev LONG
+  -- device id (userland dev_t value)
+  dev LONG
 )
 -- 20 bits minor id
-RETURNS LONG AS
-SELECT
-  (
-    $dev & (
-      (
-        1 << 8
-      ) - 1
-    )
-  ) | (
-    (
-      $dev >> 20
-    ) << 8
-  );
+RETURNS LONG
+AS
+SELECT ($dev & ((1 << 8) - 1)) | (($dev >> 20) << 8);

@@ -23,14 +23,17 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/build_id.h"
 #include "test/gtest_and_gmock.h"
 
@@ -53,6 +56,12 @@ class JitTrackerTest : public testing::Test {
     context_.storage.reset(new TraceStorage());
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
+    context_.global_stats_tracker.reset(
+        new GlobalStatsTracker(context_.storage.get()));
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_.stats_tracker.reset(new StatsTracker(&context_));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
@@ -97,7 +106,7 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
                                  JitCache::SourceLocation{source_file, 10},
                                  TraceBlobView());
 
-  auto code = *context_.storage->jit_code_table().FindById(code_id);
+  auto code = context_.storage->jit_code_table()[code_id];
   EXPECT_THAT(code.create_ts(), Eq(create_ts));
   EXPECT_THAT(code.estimated_delete_ts(), Eq(std::nullopt));
   EXPECT_THAT(code.utid(), Eq(utid));
@@ -108,16 +117,12 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
 
   auto frame_id = mapping.InternFrame(50, "");
 
-  auto frame =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+  auto frame = context_.storage->stack_profile_frame_table()[frame_id];
   EXPECT_THAT(frame.name(), Eq(function_name));
 
-  auto row = context_.storage->jit_frame_table().FindById(
-      tables::JitFrameTable::Id(0));
-  ASSERT_THAT(row, Ne(std::nullopt));
-
-  EXPECT_THAT(row->jit_code_id(), Eq(code_id));
-  EXPECT_THAT(row->frame_id(), Eq(frame_id));
+  auto row = context_.storage->jit_frame_table()[tables::JitFrameTable::Id(0)];
+  EXPECT_THAT(row.jit_code_id(), Eq(code_id));
+  EXPECT_THAT(row.frame_id(), Eq(frame_id));
 }
 
 TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
@@ -143,8 +148,8 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
       JitCache::SourceLocation{source_file, 10}, TraceBlobView());
   EXPECT_THAT(code_id_1, Ne(code_id_2));
 
-  auto code_1 = *context_.storage->jit_code_table().FindById(code_id_1);
-  auto code_2 = *context_.storage->jit_code_table().FindById(code_id_2);
+  auto code_1 = context_.storage->jit_code_table()[code_id_1];
+  auto code_2 = context_.storage->jit_code_table()[code_id_2];
 
   // Code 1 has been deleted
   EXPECT_THAT(code_1.create_ts(), Eq(create_ts_1));
@@ -156,24 +161,21 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
 
   // No frame should mention code 1
   FrameId frame_id = mapping.InternFrame(50, "");
-  auto frame_a =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+  auto frame_a = context_.storage->stack_profile_frame_table()[frame_id];
   EXPECT_THAT(frame_a.name(), Eq(function_name_2));
   ASSERT_THAT(context_.storage->jit_frame_table().row_count(), Eq(1u));
-  auto row = context_.storage->jit_frame_table().FindById(
-      tables::JitFrameTable::Id(0));
-  EXPECT_THAT(row->jit_code_id(), Eq(code_id_2));
-  EXPECT_THAT(row->frame_id(), Eq(frame_id));
+  auto row = context_.storage->jit_frame_table()[tables::JitFrameTable::Id(0)];
+  EXPECT_THAT(row.jit_code_id(), Eq(code_id_2));
+  EXPECT_THAT(row.frame_id(), Eq(frame_id));
 
   // Frames for the old code 1 must fail to resolve to a jitted function but
   // still generate a frame.
-  EXPECT_THAT(context_.storage->stats().at(stats::jit_unknown_frame).value,
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame),
               Eq(0));
   frame_id = mapping.InternFrame(0, "custom");
-  EXPECT_THAT(context_.storage->stats().at(stats::jit_unknown_frame).value,
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame),
               Eq(1));
-  auto frame_b =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+  auto frame_b = context_.storage->stack_profile_frame_table()[frame_id];
   EXPECT_THAT(frame_a.id(), Ne(frame_b.id()));
   EXPECT_THAT(context_.storage->GetString(frame_b.name()), Eq("custom"));
   EXPECT_THAT(context_.storage->jit_frame_table().row_count(), Eq(1u));

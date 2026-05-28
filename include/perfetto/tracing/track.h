@@ -117,7 +117,8 @@ struct PERFETTO_EXPORT_COMPONENT Track {
     // per-proccess and the same pointer value can be used in different
     // processes. If you hit this check but are providing no |parent| track,
     // verify that Tracing::Initialize() was called for the current process.
-    PERFETTO_DCHECK(parent.uuid != Track().uuid);
+    PERFETTO_DCHECK(parent.uuid != Track().uuid ||
+                    MakeProcessTrack().uuid == 0);
 
     return Track(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
                  parent);
@@ -217,7 +218,8 @@ class NamedTrackImpl : public Track {
   static Derived FromPointer(TrackEventName&& name,
                              const void* ptr,
                              Track parent = MakeProcessTrack()) {
-    PERFETTO_DCHECK(parent.uuid != Track().uuid);
+    PERFETTO_DCHECK(parent.uuid != Track().uuid ||
+                    MakeProcessTrack().uuid == 0);
     return Derived(std::forward<TrackEventName>(name),
                    static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
                    parent);

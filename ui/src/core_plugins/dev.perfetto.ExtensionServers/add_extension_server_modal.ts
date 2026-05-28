@@ -17,11 +17,11 @@ import {AsyncLimiter} from '../../base/async_limiter';
 import {Button} from '../../widgets/button';
 import {showModal} from '../../widgets/modal';
 import {TextInput} from '../../widgets/text_input';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {Select} from '../../widgets/select';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
-import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
-import {ExtensionServer, UserInput} from './types';
+import {MultiSelect, type MultiSelectDiff} from '../../widgets/multiselect';
+import type {ExtensionServer, UserInput} from './types';
 import {defer} from '../../base/deferred';
 import {loadManifest} from './extension_server';
 import {normalizeHttpsUrl} from './url_utils';
@@ -29,6 +29,7 @@ import {Icon} from '../../widgets/icon';
 import {Anchor} from '../../widgets/anchor';
 import {Popup} from '../../widgets/popup';
 import {EmptyState} from '../../widgets/empty_state';
+import {Intent} from '../../widgets/common';
 import {debounce} from '../../base/rate_limiters';
 
 type GithubUserInput = Extract<UserInput, {type: 'github'}>;
@@ -50,7 +51,8 @@ type LoadedState = OkLoadedState | ErrorLoadedState;
 const PAT_HELP_URL =
   'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens';
 
-class AddExtensionServerModal {
+// Exported for unit testing only.
+export class AddExtensionServerModal {
   private readonly fetchLimiter = new AsyncLimiter();
   private readonly debouncedFetch = debounce(
     () => this.scheduleManifestFetch(),
@@ -59,13 +61,30 @@ class AddExtensionServerModal {
   private userInput: UserInput;
   private loadedState?: LoadedState;
   private readonly isEmbedderManaged: boolean;
+  private awaitingConfirmation = false;
+  private deferredInitialModules?: ReadonlyArray<string>;
 
   constructor(server?: ExtensionServer, prefill?: ExtensionServer) {
     this.userInput = createInitial(server ?? prefill);
     this.isEmbedderManaged = server?.origin === 'embedder_managed';
-    this.scheduleManifestFetch(
-      server?.enabledModules ?? prefill?.enabledModules,
-    );
+    const initialModules = server?.enabledModules ?? prefill?.enabledModules;
+    if (prefill !== undefined && server === undefined) {
+      // Prefill is untrusted: require an explicit click before contacting
+      // the server.
+      this.awaitingConfirmation = true;
+      this.deferredInitialModules = initialModules;
+    } else {
+      this.scheduleManifestFetch(initialModules);
+    }
+  }
+
+  private confirmLoad(): void {
+    const modules = this.deferredInitialModules;
+    this.deferredInitialModules = undefined;
+    // Clicking "Load modules" is the only thing that may contact a server
+    // configured from an untrusted prefill. Clear the gate before scheduling.
+    this.awaitingConfirmation = false;
+    this.scheduleManifestFetch(modules);
   }
 
   view() {
@@ -122,29 +141,32 @@ class AddExtensionServerModal {
   }
 
   private renderServerTypePicker(): m.Children {
-    return m(SegmentedButtons, {
-      options: [
-        {label: 'GitHub', icon: 'link'},
-        {label: 'HTTPS', icon: 'public'},
-      ],
-      selectedOption: this.userInput.type === 'github' ? 0 : 1,
-      disabled: this.isEmbedderManaged,
-      onOptionSelected: (idx: number) => {
-        if (idx === 0 && this.userInput.type !== 'github') {
-          this.userInput = {
-            type: 'github',
-            repo: '',
-            ref: 'main',
-            path: '',
-            auth: {type: 'none'},
-          };
-          this.scheduleManifestFetch();
-        } else if (idx === 1 && this.userInput.type !== 'https') {
-          this.userInput = {type: 'https', url: '', auth: {type: 'none'}};
-          this.scheduleManifestFetch();
-        }
+    return m(
+      RadioGroup,
+      {
+        selectedValue: this.userInput.type,
+        disabled: this.isEmbedderManaged,
+        onValueChange: (value) => {
+          if (value === 'github' && this.userInput.type !== 'github') {
+            this.userInput = {
+              type: 'github',
+              repo: '',
+              ref: 'main',
+              path: '',
+              auth: {type: 'none'},
+            };
+            this.scheduleManifestFetch();
+          } else if (value === 'https' && this.userInput.type !== 'https') {
+            this.userInput = {type: 'https', url: '', auth: {type: 'none'}};
+            this.scheduleManifestFetch();
+          }
+        },
       },
-    });
+      [
+        m(RadioGroup.Button, {value: 'github', icon: 'link'}, 'GitHub'),
+        m(RadioGroup.Button, {value: 'https', icon: 'public'}, 'HTTPS'),
+      ],
+    );
   }
 
   private renderGithubFields(input: GithubUserInput): m.Children {
@@ -416,6 +438,7 @@ class AddExtensionServerModal {
 
   private renderModuleSection(): m.Children {
     const showRefresh =
+      !this.awaitingConfirmation &&
       !this.isEmptyInput() &&
       (this.loadedState?.type === 'ok' || this.loadedState?.type === 'error');
     return m(
@@ -435,6 +458,9 @@ class AddExtensionServerModal {
   }
 
   private renderModuleContent(): m.Children {
+    if (this.awaitingConfirmation) {
+      return this.renderLoadConfirmation();
+    }
     if (this.isEmptyInput()) {
       return m(EmptyState, {
         icon: 'extension',
@@ -478,9 +504,40 @@ class AddExtensionServerModal {
     });
   }
 
+  private renderLoadConfirmation(): m.Children {
+    return m(
+      '.pf-add-extension-server-modal__confirm',
+      m(Icon, {
+        icon: 'shield',
+        className: 'pf-add-extension-server-modal__confirm-icon',
+      }),
+      m(
+        '.pf-add-extension-server-modal__confirm-title',
+        'Confirm before contacting this server',
+      ),
+      m(
+        '.pf-add-extension-server-modal__confirm-body',
+        'This configuration was opened from a shared link. No request has been sent yet. Review the details above, then load the module list to continue.',
+      ),
+      m(Button, {
+        label: 'Load modules from this server',
+        icon: 'cloud_download',
+        intent: Intent.Primary,
+        onclick: () => this.confirmLoad(),
+      }),
+    );
+  }
+
   private scheduleManifestFetch(
     preserveEnabledModules?: ReadonlyArray<string>,
   ): void {
+    // Never contact the server while waiting for the user to confirm an
+    // untrusted prefilled configuration (from a shared link). Edits to the
+    // form (which trigger debouncedFetch) and server-type switches must not
+    // bypass the consent gate; only confirmLoad() clears it.
+    if (this.awaitingConfirmation) {
+      return;
+    }
     this.loadedState = undefined;
     this.fetchLimiter.schedule(() => this.loadManifest(preserveEnabledModules));
   }

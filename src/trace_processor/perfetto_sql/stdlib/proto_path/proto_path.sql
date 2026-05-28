@@ -16,11 +16,12 @@
 -- Creates a Stack consisting of one frame for a path in the
 -- EXPERIMENTAL_PROTO_PATH table.
 CREATE PERFETTO FUNCTION _proto_path_to_frame(
-    -- Id of the path in EXPERIMENTAL_PROTO_PATH.
-    path_id LONG
+  -- Id of the path in EXPERIMENTAL_PROTO_PATH.
+  path_id LONG
 )
 -- Stack with one frame
-RETURNS BYTES AS
+RETURNS BYTES
+AS
 SELECT
   cat_stacks(
     'event.name:' || extract_arg(arg_set_id, 'event.name'),
@@ -35,11 +36,12 @@ WHERE
 -- Creates a Stack following the parent relations in EXPERIMENTAL_PROTO_PATH
 -- table starting at the given path_id.
 CREATE PERFETTO FUNCTION _proto_path_to_stack(
-    -- Id of the path in EXPERIMENTAL_PROTO_PATH that will be the leaf in the returned stack.
-    path_id LONG
+  -- Id of the path in EXPERIMENTAL_PROTO_PATH that will be the leaf in the returned stack.
+  path_id LONG
 )
 -- Stack
-RETURNS BYTES AS
+RETURNS BYTES
+AS
 WITH
   r AS (
     -- Starting at the given path_id generate a stack
@@ -61,8 +63,4 @@ WITH
 -- Select only the last row in the recursion (the one that stopped it because
 -- it had no parent, i.e. the root) as this will be the row that has the full
 -- stack. All the others will only have partial stacks.
-SELECT
-  stack
-FROM r
-WHERE
-  parent_id IS NULL;
+SELECT stack FROM r WHERE parent_id IS NULL;

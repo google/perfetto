@@ -57,6 +57,13 @@ class SqlSource {
   // implementation detail of trace processor.
   static SqlSource FromTraceProcessorImplementation(std::string sql);
 
+  // Creates a SqlSource instance wrapping the post-substitution body of a
+  // PerfettoSQL macro expansion.  Used as the "rewrite" SqlSource fed to
+  // SqlSource::Rewriter so that SQLite-side errors traceback through the
+  // macro's expansion back to the call site.
+  static SqlSource FromMacroExpansion(std::string sql,
+                                      const std::string& macro);
+
   // Returns this SqlSource instance as a string which can be appended as a
   // "traceback" frame to an error message. Callers should pass an |offset|
   // parameter which indicates the exact location of the error in the SQL
@@ -86,7 +93,7 @@ class SqlSource {
   SqlSource RewriteAllIgnoreExisting(SqlSource source) const;
 
   // Returns the SQL string backing this SqlSource instance;
-  const std::string& sql() const { return root_.rewritten_sql; }
+  const std::string& sql() const { return root_.rewritten_sql(); }
 
   // Returns the original SQL string backing this SqlSource instance;
   const std::string& original_sql() const { return root_.original_sql; }
@@ -160,9 +167,18 @@ class SqlSource {
     std::vector<Rewrite> rewrites;
 
     // The SQL string which is the result of applying |rewrites| to
-    // |original_sql|. See |SqlSource::ApplyRewrites| for details on how this is
-    // computed.
-    std::string rewritten_sql;
+    // |original_sql|. See |SqlSource::ApplyRewrites| for details on how this
+    // is computed. Only populated when |rewrites| is non-empty; otherwise
+    // the rewritten form is identical to |original_sql| and we avoid the
+    // copy by returning |original_sql| from |rewritten_sql()|.
+    std::optional<std::string> rewritten_sql_storage;
+
+    // Accessor for the rewritten SQL. Returns |original_sql| if no rewrites
+    // have been materialized; otherwise the cached rewritten string.
+    const std::string& rewritten_sql() const {
+      return rewritten_sql_storage.has_value() ? *rewritten_sql_storage
+                                               : original_sql;
+    }
 
     // Returns the "traceback" for this node and all recursive nodes. See
     // |SqlSource::AsTraceback| for details.
@@ -176,7 +192,7 @@ class SqlSource {
     Node Substr(uint32_t rewritten_offset, uint32_t rewritten_len) const;
 
     bool IsRewritten() const {
-      PERFETTO_CHECK(rewrites.empty() == (original_sql == rewritten_sql));
+      PERFETTO_CHECK(rewrites.empty() == !rewritten_sql_storage.has_value());
       return !rewrites.empty();
     }
 

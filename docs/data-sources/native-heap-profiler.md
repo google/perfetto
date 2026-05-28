@@ -24,10 +24,10 @@ started with heapprofd.
 ## UI
 
 Dumps from heapprofd are shown as flamegraphs in the UI after clicking on the
-diamond. Each diamond corresponds to a snapshot of the allocations and
-callstacks collected at that point in time.
+corresponding slice. Each slice represents a summary of the allocations and
+callstacks collected during the lifetime of that slice.
 
-![heapprofd snapshots in the UI tracks](/docs/images/profile-diamond.png)
+![heapprofd snapshots in the UI tracks](/docs/images/profile-slice-malloc.png)
 
 ![heapprofd flamegraph](/docs/images/native-heap-prof.png)
 
@@ -65,19 +65,24 @@ make sure you are using the
 [latest version](
 https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile).
 
-You can target processes either by name (`-n com.example.myapp`) or by PID
-(`-p 1234`). In the first case, the heap profile will be initiated on both on
-already-running processes that match the package name and new processes launched
-after the profiling session is started.
+The script has two subcommands:
+
+* `heap_profile android` - profile a process on a connected Android device
+  via `adb` (default if no subcommand is given, preserving the historical
+  invocation).
+* `heap_profile host` - profile a local Linux process; see
+  [(non-Android) Linux support](#non-android-linux-support) below.
+
+For Android, you can target processes either by name (`-n com.example.myapp`)
+or by PID (`-p 1234`). In the first case, the heap profile will be initiated
+on both already-running processes that match the package name and new
+processes launched after the profiling session is started.
 For the full arguments list see the
 [heap_profile cmdline reference page](/docs/reference/heap_profile-cli).
 
 You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
 Upload the `raw-trace` file in your output directory. You will see all heap
-dumps as diamonds on the timeline, click any of them to get a flamegraph.
-
-Alternatively [Speedscope](https://speedscope.app) can be used to visualize
-the gzipped protos, but will only show the "Unreleased malloc size" view.
+dumps as slices on the timeline, click any of them to get a flamegraph.
 
 #### Using the Recording page of Perfetto UI
 
@@ -89,24 +94,18 @@ Windows.
 
 ## Viewing the data
 
-![Profile Diamond](/docs/images/profile-diamond.png)
+![Profile slice](/docs/images/profile-slice-malloc.png)
 
-The resulting profile proto contains four views on the data, for each diamond.
+The resulting profile proto contains four views on the data, for each slice.
 
 * **Unreleased malloc size**: how many bytes were allocated but not freed at
-  this callstack, from the moment the recording was started until the timestamp
-  of the diamond.
-* **Total malloc size**: how many bytes were allocated (including ones freed at
-  the moment of the dump) at this callstack, from the moment the recording was
-  started until the timestamp of the diamond.
+  this callstack, throughout the duration of the slice.
+* **Total malloc size**: how many bytes were allocated (including ones with matching
+  frees) at this callstack, throughout the duration of the slice.
 * **Unreleased malloc count**: how many allocations without matching frees were
-  done at this callstack, from the moment the recording was started until the
-  timestamp of the diamond.
+  done at this callstack, throughout the duration of the slice.
 * **Total malloc count**: how many allocations (including ones with matching
-  frees) were done at this callstack, from the moment the recording was started
-  started until the timestamp of the diamond.
-
-_(Googlers: You can also open the gzipped protos using http://pprof/)_
+  frees) were done at this callstack, throughout the duration of the slice.
 
 TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
 
@@ -115,7 +114,7 @@ TIP: Click Left Heavy on the top left for a good visualization.
 ## Continuous dumps
 
 By default, the heap profiler captures all the allocations from the beginning of
-the recording and stores a single snapshot, shown as a single diamond in the UI,
+the recording and stores a single snapshot, shown as a single slice in the UI,
 which summarizes all allocations/frees.
 
 It is possible to configure the heap profiler to periodically (not just at the
@@ -131,13 +130,13 @@ end of the trace) store snapshots (continuous dumps), for example every 5000ms
   in the
   [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
 * By adding `-c 5000` to the invocation of
-  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+  [`tools/heap_profile android`](/docs/reference/heap_profile-cli) (or
+  `tools/heap_profile host` for local Linux processes).
 
 ![Continuous dump flamegraph](/docs/images/heap_prof_continuous.png)
 
-The resulting visualization shows multiple diamonds. Clicking on each diamond
-shows a summary of the allocations/frees from the beginning of the trace until
-that point (i.e. the summary is cumulative).
+The resulting visualization shows multiple slices. Clicking on each slice
+shows a summary of the allocations/frees during that slice. You can drag & select multiple consecutive slices to summarize allocations during that window of time.
 
 ## Sampling interval
 
@@ -265,7 +264,7 @@ Heapprofd can be configured to track Java allocations instead of native ones.
 * By setting adding `heaps: "com.android.art"` in
   [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
 * By adding `--heaps com.android.art` to the invocation of
-  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+  [`tools/heap_profile android`](/docs/reference/heap_profile-cli).
 
 Unlike java heap dumps (which show the retention graph of a snapshot of the live
 objects) but like native heap profiles, java heap samples show callstacks of
@@ -324,7 +323,8 @@ for the full workflow, including the legacy `PERFETTO_BINARY_PATH` /
 If the rate of allocations is too high for heapprofd to keep up, the profiling
 session will end early due to a buffer overrun. If the buffer overrun is
 caused by a transient spike in allocations, increasing the shared memory buffer
-size (passing `--shmem-size` to `tools/heap_profile`) can resolve the issue.
+size (passing `--shmem-size` to `tools/heap_profile android` /
+`tools/heap_profile host`) can resolve the issue.
 Otherwise the sampling interval can be increased (at the expense of lower
 accuracy in the resulting profile) by passing `--interval=16000` or higher.
 
@@ -351,49 +351,53 @@ For "could not find library", Build ID mismatches and "only one frame shown"
 problems, see the troubleshooting section in
 [Symbolization and deobfuscation](/docs/learning-more/symbolization.md#troubleshooting).
 
-## (non-Android) Linux support
+## {#non-android-linux-support} (non-Android) Linux support
 
-NOTE: Do not use this for production purposes.
-
-You can use a standalone library to profile memory allocations on Linux.
-First [build Perfetto](/docs/contributing/build-instructions.md). You only need
-to do this once.
-
+```bash
+tools/heap_profile host -- ./my_binary --some-flag
 ```
+
+The script:
+
+1. Auto-downloads `tracebox` and `libheapprofd_glibc_preload.so` (linux-amd64
+   / arm / arm64) into `~/.local/share/perfetto/prebuilts/` on first run.
+2. Starts a bundled `traced` daemon via `tracebox --system-sockets`.
+3. Launches the target binary with `LD_PRELOAD` pointing at the preload
+   library and `PERFETTO_HEAPPROFD_BLOCKING_INIT=1` set. By default
+   heapprofd initializes lazily to avoid blocking the main thread, which
+   means startup allocations can be missed; setting this variable instead
+   blocks the very first `malloc` until heapprofd has fully attached, so
+   every allocation is correctly tracked.
+4. Waits for the target to exit (or `Ctrl-C` from you), then runs
+   `traceconv` to produce gzipped pprof files alongside the raw trace.
+
+If `-n` / `--name` is omitted, the process name defaults to the basename of
+the binary you passed after `--`.
+
+When the run completes the script prints the output directory:
+
+```text
+Wrote profiles to /tmp/heap_profile-XXXXXX (symlink /tmp/heap_profile-latest)
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
+```
+
+Upload the `raw-trace` file to the [Perfetto UI](https://ui.perfetto.dev).
+
+### Using a custom-built preload library
+
+If the prebuilt is not yet available for your platform, build the library
+from a Perfetto checkout
+([build instructions](/docs/contributing/build-instructions.md)) and pass
+it via `--preload-library`:
+
+```bash
 tools/setup_all_configs.py
-ninja -C out/linux_clang_release
+tools/ninja -C out/linux_clang_release heapprofd_glibc_preload
+
+tools/heap_profile host \
+  --preload-library out/linux_clang_release/libheapprofd_glibc_preload.so \
+  -- ./my_binary --some-flag
 ```
-
-Then, run traced
-
-```
-out/linux_clang_release/traced
-```
-
-Start the profile (e.g. targeting trace_processor_shell)
-
-```
-tools/heap_profile -n trace_processor_shell --print-config  | \
-out/linux_clang_release/perfetto \
-  -c - --txt \
-  -o ~/heapprofd-trace
-```
-
-Finally, run your target (e.g. trace_processor_shell) with LD_PRELOAD
-
-```
-LD_PRELOAD=out/linux_clang_release/libheapprofd_glibc_preload.so out/linux_clang_release/trace_processor_shell <trace>
-```
-
-Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
-[Perfetto UI](https://ui.perfetto.dev).
-
-NOTE: by default, heapprofd lazily initalizes to avoid blocking your program's
-main thread. However, if your program makes memory allocations on startup,
-these can be missed. To avoid this from happening, set the enironment variable
-`PERFETTO_HEAPPROFD_BLOCKING_INIT=1`; on the first malloc, your program will
-be blocked until heapprofd initializes fully but means every allocation will
-be correctly tracked.
 
 ## Known Issues
 
@@ -492,10 +496,8 @@ you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
-<!-- You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap dumps
-in a trace into the [pprof](https://github.com/google/pprof) format. These can
-then be viewed using the pprof CLI or a UI (e.g. Speedscope, or Google-internal
-pprof/). -->
+You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap
+dumps in a trace into the [pprof](https://github.com/google/pprof) format:
 
 ```bash
 tools/traceconv profile /tmp/profile

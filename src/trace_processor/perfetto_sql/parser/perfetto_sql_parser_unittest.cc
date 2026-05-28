@@ -16,15 +16,18 @@
 
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_test_utils.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "test/gtest_and_gmock.h"
@@ -47,7 +50,8 @@ class PerfettoSqlParserTest : public ::testing::Test {
  protected:
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
       SqlSource sql) {
-    PerfettoSqlParser parser(std::move(sql), macros_);
+    PerfettoSqlParser parser(macros_);
+    parser.Reset(std::move(sql));
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
       results.push_back(parser.statement());
@@ -58,7 +62,34 @@ class PerfettoSqlParserTest : public ::testing::Test {
     return results;
   }
 
-  base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
+  // Registers a user-defined macro visible to `Parse()`, as if it had been
+  // declared via `CREATE PERFETTO MACRO`.  `param_names` are bare names
+  // (no `$` prefix); inside `body`, placeholders are written as `$name`.
+  void RegisterMacro(const std::string& name,
+                     std::vector<std::string> param_names,
+                     const std::string& body) {
+    macros_.Insert(name, PerfettoSqlParser::Macro{
+                             /*replace=*/false,
+                             name,
+                             std::move(param_names),
+                             SqlSource::FromTraceProcessorImplementation(body),
+                         });
+  }
+
+  // Parses `sql` as a single statement and returns its `statement_sql()`.
+  // The caller is responsible for asserting `sql` is syntactically well-formed
+  // and produces exactly one statement; failures abort the test.
+  SqlSource ParseOne(SqlSource sql) {
+    PerfettoSqlParser parser(macros_);
+    parser.Reset(std::move(sql));
+    PERFETTO_CHECK(parser.Next());
+    PERFETTO_CHECK(parser.status().ok());
+    SqlSource out = parser.statement_sql();
+    PERFETTO_CHECK(!parser.Next());
+    return out;
+  }
+
+  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
 TEST_F(PerfettoSqlParserTest, Empty) {
@@ -67,7 +98,8 @@ TEST_F(PerfettoSqlParserTest, Empty) {
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   SqlSource res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "SELECT * FROM slice"));
@@ -76,7 +108,8 @@ TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
@@ -89,7 +122,8 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
@@ -191,7 +225,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1; select foo()");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   CreateFn fn{
       false,
@@ -340,7 +375,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo(a1 Expr, b1 TableOrSubquery,c3_d "
       "TableOrSubquery2 ) returns TableOrSubquery3 as random sql snippet");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -360,7 +396,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create or replace perfetto macro foo() returns Expr as 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{true,
                                                       FindSubstr(res, "foo"),
@@ -374,7 +411,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo() returns sql1 as random sql snippet; "
       "select 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{
                                     false,
@@ -392,7 +430,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     false,
@@ -406,7 +445,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     true,
@@ -420,7 +460,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     false,
@@ -434,7 +475,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateTable{
@@ -448,7 +490,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo USING DATAFRAME AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateTable{
@@ -459,7 +502,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -476,7 +520,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -493,7 +538,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoViewAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -514,7 +560,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo(foo STRING, bar INT) AS SELECT 'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateView{
@@ -536,7 +583,8 @@ TEST_F(PerfettoSqlParserTest, ParseComplexArgumentType) {
       "CREATE PERFETTO VIEW foo(foo JOINID(foo.bar), bar LONG) AS SELECT "
       "'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateView{
@@ -551,6 +599,102 @@ TEST_F(PerfettoSqlParserTest, ParseComplexArgumentType) {
                     "CREATE VIEW foo AS SELECT 'a' as foo, 42 AS bar"),
             }));
   ASSERT_FALSE(parser.Next());
+}
+
+// ---------------------------------------------------------------------------
+// Macro expansion tests.
+//
+// The rest of the suite never invokes a macro (`macros_` stays empty), so the
+// MacroRewriteBuilder code paths (`BuildForRewrite`, `BuildForUserMacro`,
+// `BuildForArg`, `AuthoredSourceOf`, intrinsic dispatch) go uncovered there.
+// These tests register macros directly and assert on the rewritten
+// `statement_sql()`.  The `original_sql()` side asserts that the rewrite tree
+// preserves the authored form of the statement (what `AsTraceback` would walk).
+// ---------------------------------------------------------------------------
+
+TEST_F(PerfettoSqlParserTest, ExpandsSimpleUserMacro) {
+  RegisterMacro("one", {"x"}, "SELECT $x AS col");
+  SqlSource out = ParseOne(SqlSource::FromExecuteQuery("one!(42)"));
+  EXPECT_EQ(out.sql(), "SELECT 42 AS col");
+  EXPECT_EQ(out.original_sql(), "one!(42)");
+}
+
+TEST_F(PerfettoSqlParserTest, ExpandsMacroWithMultipleParams) {
+  RegisterMacro("pair", {"a", "b"}, "$a + $b + $a");
+  SqlSource out = ParseOne(SqlSource::FromExecuteQuery("SELECT pair!(x, y)"));
+  EXPECT_EQ(out.sql(), "SELECT x + y + x");
+  EXPECT_EQ(out.original_sql(), "SELECT pair!(x, y)");
+}
+
+TEST_F(PerfettoSqlParserTest, ExpandsNestedLiteralMacroCall) {
+  // `my_wrap`'s body literally contains a call to `my_inc` — exercises the
+  // body-rooted nested-call path in BuildForUserMacro.
+  RegisterMacro("my_inc", {"x"}, "($x + 1)");
+  RegisterMacro("my_wrap", {"y"}, "SELECT $y + my_inc!(10)");
+  SqlSource out = ParseOne(SqlSource::FromExecuteQuery("my_wrap!(5)"));
+  EXPECT_EQ(out.sql(), "SELECT 5 + (10 + 1)");
+}
+
+TEST_F(PerfettoSqlParserTest, ExpandsMacroInsideArg) {
+  // `my_wrap` receives a macro call `my_double!(5)` as its arg — exercises
+  // the BuildForArg path: a child whose call-site lives inside a $param
+  // substitution of the parent.
+  RegisterMacro("my_double", {"x"}, "($x * 2)");
+  RegisterMacro("my_wrap", {"y"}, "SELECT $y");
+  SqlSource out =
+      ParseOne(SqlSource::FromExecuteQuery("my_wrap!(my_double!(5))"));
+  EXPECT_EQ(out.sql(), "SELECT (5 * 2)");
+}
+
+TEST_F(PerfettoSqlParserTest, ExpandsParamChainThroughMultipleMacros) {
+  // `$a` in `my_ident` is substituted with `$b` from `my_wrap`, which is
+  // itself substituted with `7` from the authored call site.  When we build
+  // a SqlSource for the final `7`, AuthoredSourceOf must drill through the
+  // chain my_ident ← my_wrap ← source.
+  RegisterMacro("my_ident", {"a"}, "$a");
+  RegisterMacro("my_wrap", {"b"}, "SELECT my_ident!($b)");
+  SqlSource out = ParseOne(SqlSource::FromExecuteQuery("my_wrap!(7)"));
+  EXPECT_EQ(out.sql(), "SELECT 7");
+  // AsTraceback should reach all the way back to the authored "7" position
+  // in the original source, not name an intermediate macro expansion buffer.
+  std::string tb = out.AsTraceback(static_cast<uint32_t>(out.sql().find('7')));
+  EXPECT_THAT(tb, testing::HasSubstr("my_wrap!(7)"));
+}
+
+TEST_F(PerfettoSqlParserTest, ExpandsMacroWithSubsumedParamSegment) {
+  // `my_wrap`'s body calls `my_parens!($x)` — the `$x` $param segment's
+  // body range is *inside* the literal `my_parens!(...)` body-call range.
+  // The subsumption filter in BuildForUserMacro must drop the segment to
+  // keep the Rewriter's invariant (no overlapping rewrites) satisfied.
+  RegisterMacro("my_parens", {"y"}, "($y)");
+  RegisterMacro("my_wrap", {"x"}, "SELECT my_parens!($x)");
+  SqlSource out = ParseOne(SqlSource::FromExecuteQuery("my_wrap!(42)"));
+  EXPECT_EQ(out.sql(), "SELECT (42)");
+}
+
+TEST_F(PerfettoSqlParserTest, ExpandsStringifyIntrinsic) {
+  SqlSource out = ParseOne(
+      SqlSource::FromExecuteQuery("SELECT __intrinsic_stringify!(foo bar)"));
+  EXPECT_EQ(out.sql(), "SELECT 'foo bar'");
+}
+
+TEST_F(PerfettoSqlParserTest, ExpandsTokenApplyIntrinsic) {
+  // token_apply!(m, (a, b, c)) -> m!(a), m!(b), m!(c)
+  RegisterMacro("wrap", {"x"}, "WRAP($x)");
+  SqlSource out = ParseOne(SqlSource::FromExecuteQuery(
+      "SELECT __intrinsic_token_apply!(wrap, (1, 2, 3))"));
+  EXPECT_EQ(out.sql(), "SELECT WRAP(1), WRAP(2), WRAP(3)");
+}
+
+TEST_F(PerfettoSqlParserTest, UnknownMacroSurfacesError) {
+  auto parsed = Parse(SqlSource::FromExecuteQuery("undefined!(1)"));
+  ASSERT_FALSE(parsed.status().ok());
+}
+
+TEST_F(PerfettoSqlParserTest, WrongMacroArgCountSurfacesError) {
+  RegisterMacro("binary", {"a", "b"}, "$a + $b");
+  auto parsed = Parse(SqlSource::FromExecuteQuery("binary!(1)"));
+  ASSERT_FALSE(parsed.status().ok());
 }
 
 }  // namespace

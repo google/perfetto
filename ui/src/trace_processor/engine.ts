@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import protos from '../protos';
-import {defer, Deferred} from '../base/deferred';
+import {defer, type Deferred} from '../base/deferred';
 import {assertExists, assertTrue, assertUnreachable} from '../base/assert';
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
   QueryError,
-  QueryResult,
-  WritableQueryResult,
+  type QueryResult,
+  type WritableQueryResult,
 } from './query_result';
 import TPM = protos.TraceProcessorRpc.TraceProcessorMethod;
 import {exists} from '../base/utils';
-import {errResult, okResult, Result} from '../base/result';
+import {errResult, okResult, type Result} from '../base/result';
 
 export type EngineMode = 'WASM' | 'HTTP_RPC';
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
@@ -48,9 +48,10 @@ export interface TraceProcessorConfig {
   forceFullSort: boolean;
 }
 
-const QUERY_LOG_BUFFER_SIZE = 100;
+const QUERY_LOG_BUFFER_SIZE = 1024;
 
-interface QueryLog {
+export interface QueryLog {
+  readonly id: number;
   readonly tag?: string;
   readonly query: string;
   readonly startTime: number;
@@ -67,6 +68,9 @@ export interface Engine {
    * times and success status (if completed).
    */
   readonly queryLog: ReadonlyArray<QueryLog>;
+
+  /** Clear the query log. In-flight queries are removed too. */
+  clearQueryLog(): void;
 
   /**
    * Execute a query against the database, returning a promise that resolves
@@ -172,9 +176,14 @@ export abstract class EngineBase implements Engine, Disposable {
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
   private _queryLog: Array<QueryLog> = [];
+  private _nextQueryLogId = 0;
 
   get queryLog(): ReadonlyArray<QueryLog> {
     return this._queryLog;
+  }
+
+  clearQueryLog(): void {
+    this._queryLog = [];
   }
 
   // TraceController sets this to raf.scheduleFullRedraw().
@@ -577,7 +586,12 @@ export abstract class EngineBase implements Engine, Disposable {
     success?: boolean;
   } {
     const startTime = performance.now();
-    const queryLog: QueryLog = {query, tag, startTime};
+    const queryLog: QueryLog = {
+      id: this._nextQueryLogId++,
+      query,
+      tag,
+      startTime,
+    };
     this._queryLog.push(queryLog);
     if (this._queryLog.length > QUERY_LOG_BUFFER_SIZE) {
       this._queryLog.shift();
@@ -786,6 +800,10 @@ export class EngineProxy implements Engine, Disposable {
 
   get queryLog() {
     return this.engine.queryLog;
+  }
+
+  clearQueryLog(): void {
+    this.engine.clearQueryLog();
   }
 
   constructor(engine: EngineBase, tag: string) {

@@ -18,13 +18,13 @@ import {Icons} from '../../base/semantic_icons';
 import {PivotTable} from '../../components/widgets/sql/pivot_table/pivot_table';
 import {PivotTableState} from '../../components/widgets/sql/pivot_table/pivot_table_state';
 import {
-  AreaSelection,
+  type AreaSelection,
   areaSelectionsEqual,
-  AreaSelectionTab,
+  type AreaSelectionTab,
 } from '../../public/selection';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Button} from '../../widgets/button';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {extensions} from '../../components/extensions';
 import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';
 import {resolveTableDefinition} from '../../components/widgets/sql/table/columns';

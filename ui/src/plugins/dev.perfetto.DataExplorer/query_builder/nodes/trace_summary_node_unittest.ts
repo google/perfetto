@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {TraceSummaryNode} from './trace_summary_node';
-import {MetricsNode, MetricsNodeAttrs} from './metrics_node';
+import {MetricsNode, type MetricsNodeAttrs} from './metrics_node';
 import {NodeType} from '../../query_node';
 import {
   createMockNode,

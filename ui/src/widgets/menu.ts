@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './menu.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {hasChildren} from '../base/mithril_utils';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {Icon} from './icon';
-import {Popup, PopupAttrs, PopupPosition} from './popup';
+import {Popup, type PopupAttrs, PopupPosition} from './popup';
 
 export interface MenuItemAttrs extends HTMLAttrs {
   // Text to display on the menu button.

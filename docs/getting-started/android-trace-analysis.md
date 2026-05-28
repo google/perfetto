@@ -214,7 +214,7 @@ Demonstrates:
 - SQL aggregation.
 
 Thread tracks show a
-[thread’s state](/docs/data-sources/cpu-scheduling.md#decoding-code-end_state-code-),
+[thread’s state](/docs/data-sources/cpu-scheduling.md#decoding-end-state),
 such as if it’s running, is runnable but not running, sleeping, etc. A common
 source of performance problems is when application threads enter
 “uninterruptible sleep”, i.e. call a kernel function that blocks on an

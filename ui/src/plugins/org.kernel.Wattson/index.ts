@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import {addWattsonThreadTrack} from './wattson_thread_utils';
-import {App} from '../../public/app';
+import type {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
-import {RouteArgs} from '../../public/route_schema';
+import type {RouteArgs} from '../../public/route_schema';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {
   WattsonCpuPackageSelectionAggregator,
@@ -60,17 +61,33 @@ export default class Wattson implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
-    const cpuSupported = await hasWattsonCpuSupport(ctx.engine);
-    const gpuSupported = await hasWattsonGpuSupport(ctx.engine);
-    const tpuSupported = await hasWattsonTpuSupport(ctx.engine);
-    const realCpuIdleCounters = await hasCpuIdleCounters(ctx.engine);
+    const [
+      markersSupported,
+      cpuSupported,
+      gpuSupported,
+      tpuSupported,
+      realCpuIdleCounters,
+    ] = await Promise.all([
+      hasWattsonMarkersSupport(ctx.engine),
+      hasWattsonCpuSupport(ctx.engine),
+      hasWattsonGpuSupport(ctx.engine),
+      hasWattsonTpuSupport(ctx.engine),
+      hasCpuIdleCounters(ctx.engine),
+    ]);
+
     const missingEvents = markersSupported
       ? await missingWattsonCpuConfigs(ctx.engine)
       : [];
 
     // Short circuit if Wattson is not supported for this Perfetto trace
-    if (!(markersSupported || cpuSupported || gpuSupported)) return;
+    if (!(markersSupported || cpuSupported || gpuSupported || tpuSupported)) {
+      return;
+    }
+
+    // Register selection aggregators that are common to all subsystems.
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
+    );
 
     const group = new TrackNode({name: 'Wattson', isSummary: true});
     ctx.defaultWorkspace.addChildInOrder(group);
@@ -170,78 +187,60 @@ function makeWattsonEstimateTrack(
 }
 
 async function hasCpuIdleCounters(engine: Engine): Promise<boolean> {
-  const checkValue = await engine.query(`
-      INCLUDE PERFETTO MODULE wattson.cpu.idle;
-      SELECT COUNT(*) as numRows from _wattson_cpuidle_counters_exist
+  const result = await engine.query(`
+    SELECT EXISTS (
+      SELECT 1
+      FROM cpu_counter_track
+      WHERE type = 'cpu_idle'
+    ) AS supported
   `);
-  return checkValue.firstRow({numRows: NUM}).numRows > 0;
+  return !!result.firstRow({supported: NUM}).supported;
 }
 
 async function hasWattsonMarkersSupport(engine: Engine): Promise<boolean> {
-  const checkValue = await engine.query(`
-      INCLUDE PERFETTO MODULE wattson.windows;
-      SELECT COUNT(*) as numRows from wattson_window_markers
+  const result = await engine.query(`
+    INCLUDE PERFETTO MODULE wattson.windows;
+    SELECT EXISTS (
+      SELECT 1 FROM wattson_window_markers
+    ) AS supported
   `);
-  return checkValue.firstRow({numRows: NUM}).numRows > 0;
+  return !!result.firstRow({supported: NUM}).supported;
 }
 
 async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
-  // These tables are hard requirements and are the bare minimum needed for
-  // Wattson to run, so check that these tables are populated
-  const queryChecks: string[] = [
-    `
+  const result = await engine.query(`
     INCLUDE PERFETTO MODULE wattson.device_infos;
-    SELECT COUNT(*) as numRows FROM _wattson_device
-    `,
-    `
-    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_frequency'
-    `,
-    `
-    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_idle'
-    `,
-  ];
-  for (const queryCheck of queryChecks) {
-    const checkValue = await engine.query(queryCheck);
-    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
-  }
-
-  return true;
+    SELECT
+      EXISTS (SELECT 1 FROM _wattson_device) as device,
+      EXISTS (SELECT 1 FROM cpu_counter_track WHERE type = 'cpu_frequency') as freq,
+      EXISTS (SELECT 1 FROM cpu_counter_track WHERE type = 'cpu_idle') as idle
+  `);
+  const row = result.firstRow({device: NUM, freq: NUM, idle: NUM});
+  return !!row.device && !!row.freq && !!row.idle;
 }
 
 async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
-  // These tables are hard requirements and are the bare minimum needed for
-  // Wattson to run, so check that these tables are populated
-  const queryChecks: string[] = [
-    `
+  const result = await engine.query(`
     INCLUDE PERFETTO MODULE android.gpu.frequency;
-    SELECT COUNT(*) as numRows FROM android_gpu_frequency
-    `,
-    `
     INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
-    SELECT COUNT(*) as numRows FROM _gpu_power_state
-    `,
-  ];
-  for (const queryCheck of queryChecks) {
-    const checkValue = await engine.query(queryCheck);
-    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
-  }
-
-  return true;
+    INCLUDE PERFETTO MODULE wattson.curves.utils;
+    SELECT
+      EXISTS (SELECT 1 FROM android_gpu_frequency) as freq,
+      EXISTS (SELECT 1 FROM _gpu_power_state) as idle,
+      EXISTS (SELECT 1 FROM _gpu_filtered_curves) as has_curves
+  `);
+  const row = result.firstRow({freq: NUM, idle: NUM, has_curves: NUM});
+  return !!row.freq && !!row.idle && !!row.has_curves;
 }
 
 async function hasWattsonTpuSupport(engine: Engine): Promise<boolean> {
-  const queryChecks: string[] = [
-    `
+  const result = await engine.query(`
     INCLUDE PERFETTO MODULE wattson.tpu.freq_idle;
-    SELECT COUNT(*) as numRows FROM _tpu_freq WHERE dur IS NOT NULL
-    `,
-  ];
-  for (const queryCheck of queryChecks) {
-    const checkValue = await engine.query(queryCheck);
-    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
-  }
-
-  return true;
+    SELECT EXISTS (
+      SELECT 1 FROM _tpu_freq WHERE dur IS NOT NULL
+    ) AS supported
+  `);
+  return !!result.firstRow({supported: NUM}).supported;
 }
 
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
@@ -315,11 +314,8 @@ async function addWattsonCpuElements(
   group.addChildInOrder(new TrackNode({uri, name: `DSU/SCU${estimateSuffix}`}));
 
   // Register selection aggregators.
-  // NOTE: the registration order matters because the laste two aggregators
-  // depend on views created by the first two.
-  ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
-  );
+  // NOTE: The registration order matters because subsequent aggregators
+  // (Process, Package) depend on views created by Thread aggregator
   ctx.selection.registerAreaSelectionTab(
     createAggregationTab(ctx, new WattsonThreadSelectionAggregator(ctx)),
   );

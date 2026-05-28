@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- All thread slices with data about thread, thread track and process.
-CREATE PERFETTO VIEW thread_slice (
+CREATE PERFETTO VIEW thread_slice(
   -- Slice
   id ID(slice.id),
   -- Alias for `slice.ts`.
@@ -53,7 +53,8 @@ CREATE PERFETTO VIEW thread_slice (
   thread_ts TIMESTAMP,
   -- Alias for `slice.thread_dur`.
   thread_dur LONG
-) AS
+)
+AS
 SELECT
   slice.id,
   slice.ts,
@@ -77,13 +78,11 @@ SELECT
 FROM slice
 JOIN thread_track
   ON slice.track_id = thread_track.id
-JOIN thread
-  USING (utid)
-LEFT JOIN process
-  USING (upid);
+JOIN thread USING (utid)
+LEFT JOIN process USING (upid);
 
 -- All process slices with data about process track and process.
-CREATE PERFETTO VIEW process_slice (
+CREATE PERFETTO VIEW process_slice(
   -- Slice
   id ID(slice.id),
   -- Alias for `slice.ts`.
@@ -114,7 +113,8 @@ CREATE PERFETTO VIEW process_slice (
   thread_ts TIMESTAMP,
   -- Alias for `slice.thread_dur`.
   thread_dur LONG
-) AS
+)
+AS
 SELECT
   slice.id,
   slice.ts,
@@ -134,12 +134,11 @@ SELECT
 FROM slice
 JOIN process_track
   ON slice.track_id = process_track.id
-JOIN process
-  USING (upid);
+JOIN process USING (upid);
 
 -- All the slices in the trace associated to a thread or a process along
 -- with contextual information about them (e.g. thread name, process name, tid etc).
-CREATE PERFETTO VIEW thread_or_process_slice (
+CREATE PERFETTO VIEW thread_or_process_slice(
   -- Slice
   id JOINID(slice.id),
   -- Alias for `slice.ts`.
@@ -172,7 +171,8 @@ CREATE PERFETTO VIEW thread_or_process_slice (
   parent_id JOINID(slice.id),
   -- Alias for `slice.arg_set_id`.
   arg_set_id ARGSETID
-) AS
+)
+AS
 SELECT
   slice.id,
   slice.ts,
@@ -193,10 +193,8 @@ SELECT
 FROM slice
 JOIN thread_track
   ON slice.track_id = thread_track.id
-JOIN thread
-  USING (utid)
-LEFT JOIN process
-  USING (upid)
+JOIN thread USING (utid)
+LEFT JOIN process USING (upid)
 UNION ALL
 SELECT
   slice.id,
@@ -218,5 +216,4 @@ SELECT
 FROM slice
 JOIN process_track
   ON slice.track_id = process_track.id
-JOIN process
-  USING (upid);
+JOIN process USING (upid);

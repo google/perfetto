@@ -137,7 +137,7 @@ selecting a CPU slice:
 
 ![](/docs/images/latency.png "Scheduling wake-up events in the UI")
 
-### Decoding `end_state`
+### {#decoding-end-state} Decoding `end_state`
 
 The [sched_slice](/docs/analysis/sql-tables.autogen#sched_slice) table contains
 information on scheduling activity of the system:

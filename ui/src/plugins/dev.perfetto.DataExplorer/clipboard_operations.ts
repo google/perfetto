@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode} from './query_node';
+import type {QueryNode} from './query_node';
 import {getAllNodes, addConnection} from './query_builder/graph_utils';
 
 // Clipboard entry stores a cloned node with its relative position for paste.

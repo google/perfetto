@@ -14,8 +14,11 @@
 
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
-import type {SqlValue} from '../../../trace_processor/query_result';
-import type {Row} from '../../../trace_processor/query_result';
+import {
+  STR,
+  type Row,
+  type SqlValue,
+} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {
@@ -34,17 +37,30 @@ import {
   Section,
   PrimOrRefCell,
   BitmapImage,
+  COL_INFO,
+  colHeader,
 } from '../components';
 import * as queries from '../queries';
+import type {HeapDump} from '../queries';
 
 export interface ObjectParams {
   readonly id: number;
 }
 
+// Open the flamegraph pivoted at the given path. Routed through the
+// session so flamegraph state has a single owner.
+export type OpenFlamegraphPivotedAt = (
+  pathHash: string,
+  label: string,
+  isDominator: boolean,
+) => void;
+
 interface ObjectViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
+  readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
 }
 
@@ -159,21 +175,38 @@ function arrayElemToRow(e: ArrayElemRow, elemTypeName: string): Row {
 function nullableSizeRenderer(value: SqlValue): CellRenderResult {
   if (value === null) {
     return {
-      content: m('span', {class: 'ah-mono ah-opacity-60'}, '\u2026'),
+      content: m('span', {class: 'pf-hde-mono pf-hde-opacity-60'}, '\u2026'),
       align: 'right',
     };
   }
   return {
-    content: m('span', {class: 'ah-mono'}, fmtSize(Number(value ?? 0))),
+    content: m('span', {class: 'pf-hde-mono'}, fmtSize(Number(value ?? 0))),
     align: 'right',
   };
 }
+
+// Per-row info for the Object Size grid; the row label carries the metric.
+const METRIC_INFO: Record<string, string> = {
+  Shallow: 'Memory used by this object alone, excluding referenced objects.',
+  Retained:
+    'Memory exclusively held by this object (dominator subtree, self ' +
+    'inclusive). The Native column is often zero in multi-rooted graphs ' +
+    'where Bitmaps are reachable via multiple paths — see Reachable below.',
+  Reachable:
+    "Memory reachable from this object along the heap graph's BFS " +
+    'shortest-path tree. Includes objects also reachable via other paths.',
+};
 
 const SIZE_SCHEMA: SchemaRegistry = {
   query: {
     metric: {
       title: 'Metric',
       columnType: 'text',
+      cellRenderer: (value: SqlValue): CellRenderResult => {
+        const label = String(value ?? '');
+        const info = METRIC_INFO[label];
+        return {content: info ? colHeader(label, info) : label};
+      },
     },
     java: {
       title: 'Java',
@@ -191,14 +224,18 @@ const SIZE_SCHEMA: SchemaRegistry = {
       cellRenderer: (value: SqlValue): CellRenderResult => {
         if (value === null) {
           return {
-            content: m('span', {class: 'ah-mono ah-opacity-60'}, '\u2026'),
+            content: m(
+              'span',
+              {class: 'pf-hde-mono pf-hde-opacity-60'},
+              '\u2026',
+            ),
             align: 'right',
           };
         }
         return {
           content: m(
             'span',
-            {class: 'ah-mono'},
+            {class: 'pf-hde-mono'},
             Number(value).toLocaleString(),
           ),
           align: 'right',
@@ -223,7 +260,7 @@ function makeInstanceSchema(navigate: NavFn): SchemaRegistry {
             m(
               'button',
               {
-                class: 'ah-link',
+                class: 'pf-hde-link',
                 onclick: () =>
                   navigate('object', {id, label: str ? `"${str}"` : display}),
               },
@@ -232,7 +269,7 @@ function makeInstanceSchema(navigate: NavFn): SchemaRegistry {
             str
               ? m(
                   'span',
-                  {class: 'ah-str-badge'},
+                  {class: 'pf-hde-str-badge'},
                   ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
                 )
               : null,
@@ -240,42 +277,50 @@ function makeInstanceSchema(navigate: NavFn): SchemaRegistry {
         },
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_count: {
-        title: 'Retained #',
+        title: colHeader('Retained #', COL_INFO.retainedCount),
+        titleString: 'Retained #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
       reachable_size: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -306,7 +351,7 @@ function makeFieldSchema(navigate: NavFn): SchemaRegistry {
             return m(
               'button',
               {
-                class: 'ah-link',
+                class: 'pf-hde-link',
                 onclick: () =>
                   navigate('object', {
                     id: Number(row.ref_id),
@@ -338,41 +383,48 @@ function makeFieldSchema(navigate: NavFn): SchemaRegistry {
               navigate,
             });
           }
-          return m('span', {class: 'ah-mono'}, String(value ?? ''));
+          return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
         },
       },
       shallow: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       shallow_native: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -402,7 +454,7 @@ function makeArraySchema(
         title: 'Index',
         columnType: 'quantitative',
         cellRenderer: (value: SqlValue): CellRenderResult => ({
-          content: m('span', {class: 'ah-mono'}, String(value ?? 0)),
+          content: m('span', {class: 'pf-hde-mono'}, String(value ?? 0)),
           align: 'right',
         }),
       },
@@ -421,41 +473,48 @@ function makeArraySchema(
               navigate,
             });
           }
-          return m('span', {class: 'ah-mono'}, String(value ?? ''));
+          return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
         },
       },
       shallow: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       shallow_native: {
-        title: 'Shallow Native',
+        title: colHeader('Shallow Native', COL_INFO.shallowNative),
+        titleString: 'Shallow Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained: {
-        title: 'Retained',
+        title: colHeader('Retained', COL_INFO.retained),
+        titleString: 'Retained',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       retained_native: {
-        title: 'Retained Native',
+        title: colHeader('Retained Native', COL_INFO.retainedNative),
+        titleString: 'Retained Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable: {
-        title: 'Reachable',
+        title: colHeader('Reachable', COL_INFO.reachable),
+        titleString: 'Reachable',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_native: {
-        title: 'Reachable Native',
+        title: colHeader('Reachable Native', COL_INFO.reachableNative),
+        titleString: 'Reachable Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       reachable_count: {
-        title: 'Reachable #',
+        title: colHeader('Reachable #', COL_INFO.reachableCount),
+        titleString: 'Reachable #',
         columnType: 'quantitative',
         cellRenderer: countRenderer,
       },
@@ -486,7 +545,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
     prevId = attrs.params.id;
     const seq = ++fetchSeq;
     queries
-      .getInstance(attrs.engine, attrs.params.id)
+      .getInstance(attrs.engine, attrs.activeDump, attrs.params.id)
       .then((d) => {
         if (!alive || seq !== fetchSeq) return;
         detail = d;
@@ -542,26 +601,48 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
       const {navigate, params} = vnode.attrs;
 
       if (detail === 'loading') {
-        return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
+        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
       }
       if (!detail) {
         return m(
           'div',
-          {class: 'ah-error-text'},
+          {class: 'pf-hde-error-text'},
           'No object with id ' + fmtHex(params.id),
         );
       }
 
       const {row} = detail;
 
-      return m('div', {class: 'ah-view-scroll ah-view-stack'}, [
+      const flamegraphAction = (isDominator: boolean) =>
+        row.className
+          ? m(
+              'button',
+              {
+                class: 'pf-hde-link',
+                title: isDominator
+                  ? 'Open in Flamegraph pivoted on this dominator path'
+                  : 'Open in Flamegraph pivoted on this shortest path',
+                onclick: () =>
+                  openInFlamegraph(
+                    vnode.attrs.engine,
+                    row.id,
+                    row.className,
+                    isDominator,
+                    vnode.attrs.openFlamegraphPivotedAt,
+                  ),
+              },
+              'View in Flamegraph',
+            )
+          : null;
+
+      return m('div', {class: 'pf-hde-view-scroll pf-hde-view-stack'}, [
         m('div', [
           m(
             'h2',
-            {class: 'ah-view-heading ah-view-heading--tight'},
+            {class: 'pf-hde-view-heading pf-hde-view-heading--tight'},
             'Object ' + fmtHex(row.id),
           ),
-          m('div', {class: 'ah-action-row'}, [
+          m('div', {class: 'pf-hde-action-row'}, [
             m(InstanceLink, {row, navigate}),
           ]),
         ]),
@@ -574,7 +655,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                 format: detail.bitmap.format,
                 data: detail.bitmap.data,
               }),
-              m('div', {class: 'ah-bitmap-meta ah-mt-1'}, [
+              m('div', {class: 'pf-hde-bitmap-meta pf-hde-mt-1'}, [
                 m(
                   'span',
                   detail.bitmap.width +
@@ -587,7 +668,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                 m(
                   'button',
                   {
-                    class: 'ah-download-link',
+                    class: 'pf-hde-download-link',
                     onclick: () => {
                       if (
                         detail === null ||
@@ -612,42 +693,76 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
         m(
           Section,
           {
-            title: detail.isUnreachablePath
-              ? 'Sample Path'
-              : 'Sample Path from GC Root',
+            title: 'Shortest Path from GC Root',
+            actions: detail.shortestPath ? flamegraphAction(false) : null,
           },
-          detail.pathFromRoot
+          detail.shortestPath
             ? m(
                 'div',
-                {class: 'ah-view-stack--tight'},
-                detail.pathFromRoot.map((pe, i) =>
+                {class: 'pf-hde-view-stack--tight'},
+                detail.shortestPath.map((pe, i) =>
                   m(
                     'div',
                     {
                       key: i,
-                      class: `ah-path-entry${pe.isDominator ? ' ah-semibold' : ''}`,
-                      style: {'--ah-depth': String(i)},
+                      class: 'pf-hde-path-entry',
+                      style: {'--pf-hde-depth': String(i)},
                     },
                     [
                       m(
                         'span',
-                        {class: 'ah-path-arrow'},
+                        {class: 'pf-hde-path-arrow'},
                         i === 0 ? '' : '\u2192',
                       ),
                       m(InstanceLink, {row: pe.row, navigate}),
                       pe.field
-                        ? m('span', {class: 'ah-path-field'}, pe.field)
+                        ? m('span', {class: 'pf-hde-path-field'}, pe.field)
                         : null,
                     ],
                   ),
                 ),
               )
-            : m('p', {class: 'ah-muted'}, 'No path to GC root.'),
+            : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
+        ),
+
+        m(
+          Section,
+          {
+            title: 'Dominator Tree Path',
+            actions: detail.dominatorPath ? flamegraphAction(true) : null,
+          },
+          detail.dominatorPath
+            ? m(
+                'div',
+                {class: 'pf-hde-view-stack--tight'},
+                detail.dominatorPath.map((pe, i) =>
+                  m(
+                    'div',
+                    {
+                      key: i,
+                      class: `pf-hde-path-entry${pe.isDominator ? ' pf-hde-semibold' : ''}`,
+                      style: {'--pf-hde-depth': String(i)},
+                    },
+                    [
+                      m(
+                        'span',
+                        {class: 'pf-hde-path-arrow'},
+                        i === 0 ? '' : '\u2192',
+                      ),
+                      m(InstanceLink, {row: pe.row, navigate}),
+                      pe.field
+                        ? m('span', {class: 'pf-hde-path-field'}, pe.field)
+                        : null,
+                    ],
+                  ),
+                ),
+              )
+            : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
         ),
 
         m(Section, {title: 'Object Info'}, [
-          m('div', {class: 'ah-info-grid'}, [
-            m('span', {class: 'ah-info-grid__label'}, 'Class:'),
+          m('div', {class: 'pf-hde-info-grid'}, [
+            m('span', {class: 'pf-hde-info-grid__label'}, 'Class:'),
             m(
               'span',
               detail.classObjRow
@@ -657,11 +772,11 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                   })
                 : '???',
             ),
-            m('span', {class: 'ah-info-grid__label'}, 'Heap:'),
+            m('span', {class: 'pf-hde-info-grid__label'}, 'Heap:'),
             m('span', row.heap),
             ...(row.isRoot
               ? [
-                  m('span', {class: 'ah-info-grid__label'}, 'Root Types:'),
+                  m('span', {class: 'pf-hde-info-grid__label'}, 'Root Types:'),
                   m('span', row.rootTypeNames?.join(', ')),
                 ]
               : []),
@@ -714,9 +829,9 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
         detail.isClassObj
           ? m(Section, {title: 'Class Info'}, [
-              m('div', {class: 'ah-info-grid ah-mb-3'}, [
-                m('span', {class: 'ah-info-grid__label'}, 'Instance Size:'),
-                m('span', {class: 'ah-mono'}, String(detail.instanceSize)),
+              m('div', {class: 'pf-hde-info-grid pf-hde-mb-3'}, [
+                m('span', {class: 'pf-hde-info-grid__label'}, 'Instance Size:'),
+                m('span', {class: 'pf-hde-mono'}, String(detail.instanceSize)),
               ]),
             ])
           : null,
@@ -743,7 +858,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
               {title: 'Fields'},
               detail.instanceFields.length > 0
                 ? renderFieldsGrid(detail.instanceFields, navigate)
-                : m('p', {class: 'ah-muted'}, 'No instance fields.'),
+                : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
             )
           : null,
 
@@ -804,7 +919,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                 ],
                 showExportButton: true,
               })
-            : m('p', {class: 'ah-muted'}, 'No references to this object.'),
+            : m('p', {class: 'pf-hde-muted'}, 'No references to this object.'),
         ),
 
         m(
@@ -838,7 +953,11 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                 ],
                 showExportButton: true,
               })
-            : m('p', {class: 'ah-muted'}, 'No immediately dominated objects.'),
+            : m(
+                'p',
+                {class: 'pf-hde-muted'},
+                'No immediately dominated objects.',
+              ),
         ),
       ]);
     },
@@ -847,7 +966,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
 
 function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
   if (fields.length === 0) {
-    return m('div', {class: 'ah-info-grid__label'}, 'No fields');
+    return m('div', {class: 'pf-hde-info-grid__label'}, 'No fields');
   }
   return m(DataGrid, {
     schema: makeFieldSchema(navigate),
@@ -891,18 +1010,18 @@ function renderArrayGrid(
 
   return m('div', [
     onDownloadBytes || elems.length > 0
-      ? m('div', {class: 'ah-action-row ah-mb-2'}, [
+      ? m('div', {class: 'pf-hde-action-row pf-hde-mb-2'}, [
           onDownloadBytes
             ? m(
                 'button',
-                {class: 'ah-download-link', onclick: onDownloadBytes},
+                {class: 'pf-hde-download-link', onclick: onDownloadBytes},
                 'Download bytes',
               )
             : null,
           elems.length > 0
             ? m(
                 'button',
-                {class: 'ah-download-link', onclick: copyTsv},
+                {class: 'pf-hde-download-link', onclick: copyTsv},
                 'Copy as TSV',
               )
             : null,
@@ -931,6 +1050,33 @@ function renderArrayGrid(
   ]);
 }
 
+// Look up the object's path_hash in the chosen tree (BFS or dominator)
+// and open the flamegraph pivoted on it with the matching metric. The
+// hash is tree-specific so the tree dictates both. No-op if the object
+// has no entry (e.g. unreachable garbage).
+async function openInFlamegraph(
+  engine: Engine,
+  id: number,
+  cls: string,
+  isDominator: boolean,
+  openFlamegraphPivotedAt: OpenFlamegraphPivotedAt,
+): Promise<void> {
+  const moduleName = isDominator
+    ? 'android.memory.heap_graph.dominator_class_tree'
+    : 'android.memory.heap_graph.class_tree';
+  const table = isDominator
+    ? '_heap_graph_dominator_path_hashes'
+    : '_heap_graph_path_hashes';
+  await engine.query(`INCLUDE PERFETTO MODULE ${moduleName};`);
+  const res = await engine.query(
+    `SELECT CAST(path_hash AS TEXT) AS path_hash
+       FROM ${table} WHERE id = ${id} LIMIT 1`,
+  );
+  const it = res.iter({path_hash: STR});
+  if (!it.valid()) return;
+  openFlamegraphPivotedAt(it.path_hash, shortClassName(cls), isDominator);
+}
+
 // `java.lang.Class<Foo>` has no useful subclasses in heap_graph_class; the
 // meaningful filter target is `Foo`.
 const CLASS_OBJ_PREFIX = 'java.lang.Class<';
@@ -945,7 +1091,7 @@ function classFilterLink(className: string, navigate: NavFn): m.Child {
   return m(
     'button',
     {
-      class: 'ah-link',
+      class: 'pf-hde-link',
       title: 'Open subclasses of this class',
       onclick: () =>
         navigate('classes', {rootClass: subclassFilterTarget(className)}),
@@ -961,17 +1107,17 @@ function renderClassHierarchy(
   const topDown = hierarchy.slice().reverse();
   return m(
     'div',
-    {class: 'ah-view-stack--tight'},
+    {class: 'pf-hde-view-stack--tight'},
     topDown.map((className, i) =>
       m(
         'div',
         {
           key: className,
-          class: `ah-path-entry${i === topDown.length - 1 ? ' ah-semibold' : ''}`,
-          style: {'--ah-depth': String(i)},
+          class: `pf-hde-path-entry${i === topDown.length - 1 ? ' pf-hde-semibold' : ''}`,
+          style: {'--pf-hde-depth': String(i)},
         },
         [
-          m('span', {class: 'ah-path-arrow'}, i === 0 ? '' : '→'),
+          m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '→'),
           classFilterLink(className, navigate),
         ],
       ),

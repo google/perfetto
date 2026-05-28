@@ -36,6 +36,7 @@
 #include "protos/perfetto/trace/memory_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -145,7 +146,7 @@ void MemoryTrackerSnapshotParser::ReadProtoSnapshot(
           entries.emplace_back(entry.name().ToStdString(), unit,
                                entry.value_string().ToStdString());
         } else {
-          context_->storage->IncrementStats(
+          context_->stats_tracker->IncrementStats(
               stats::memory_snapshot_parser_failure);
         }
       }
@@ -300,7 +301,7 @@ MemoryTrackerSnapshotParser::EmitNode(
           .id;
 
   auto* node_table = context_->storage->mutable_memory_snapshot_node_table();
-  auto rr = *node_table->FindById(node_row_id);
+  auto rr = (*node_table)[node_row_id];
   ArgsTracker args_tracker(context_);
   ArgsTracker::BoundInserter args = args_tracker.AddArgsTo(node_row_id);
 

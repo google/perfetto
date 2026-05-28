@@ -39,6 +39,7 @@ ALLOWED_PREFIXES = {
     'linux': ['cpu', 'memory'],
     'stacks': ['cpu_profiling'],
     'std/gpu': ['gpu'],
+    'std/metasql': ['metasql'],
 }
 
 # Allows for nonstandard object names.
@@ -72,6 +73,8 @@ COLUMN_TYPES = [
 MACRO_ARG_TYPES = [
     'TABLEORSUBQUERY',
     'EXPR',
+    'EXPRLIST',
+    'UNPARENEXPRLIST',
     'COLUMNNAME',
     'COLUMNNAMELIST',
     # Internal macro arg types for advanced use cases
@@ -125,7 +128,7 @@ CREATE_FUNCTION_PATTERN = update_pattern(
     fr" \( ({ARGS}) \)"
     # Type: word after RETURNS.
     fr"({COMMENTS})"
-    fr" RETURNS ({TYPE}) AS ")
+    fr" RETURNS ({TYPE}) (?:AS|DELEGATES TO) ")
 
 CREATE_TABLE_FUNCTION_PATTERN = update_pattern(
     fr"CREATE (OR REPLACE)? PERFETTO FUNCTION ({NAME}) "

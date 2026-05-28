@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
 import {Cpu} from '../../components/cpu';
-import {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
-import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
+import type {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
+import {FtraceExplorer, type FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
 const VERSION = 1;

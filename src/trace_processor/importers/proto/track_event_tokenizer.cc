@@ -41,10 +41,12 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/v8_profile_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
@@ -398,7 +400,11 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
     bool use_synthetic_tid) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state.SetThreadDescriptor(thread, use_synthetic_tid);
+  state.thread_descriptor().Set(thread, use_synthetic_tid);
+  state.GetCustomState<TrackEventSequenceState>()->SetReferenceTimestamps(
+      thread.reference_timestamp_us() * 1000,
+      thread.reference_thread_time_us() * 1000,
+      thread.reference_thread_instruction_count());
 }
 
 ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
@@ -418,6 +424,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
   int64_t timestamp;
   TrackEventData data(std::move(*packet_blob), state);
+  auto* track_event = state->GetCustomState<TrackEventSequenceState>();
 
   // TODO(eseckler): Remove handling of timestamps relative to ThreadDescriptors
   // once all producers have switched to clock-domain timestamps (e.g.
@@ -426,13 +433,13 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   if (event.has_timestamp_delta_us()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
-    if (!state->track_event_timestamps_valid()) {
+    if (!track_event->timestamps_valid()) {
       RecordTokenizationErrorWithSeqId(
           stats::track_event_skipped_timestamp_delta_without_valid_state,
           packet.trusted_packet_sequence_id(), &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
-    timestamp = state->IncrementAndGetTrackEventTimeNs(
+    timestamp = track_event->IncrementAndGetTrackEventTimeNs(
         event.timestamp_delta_us() * 1000);
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
@@ -467,7 +474,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       base::Status status = TokenizeLegacySampleEvent(
           event, leg, *data.trace_packet_data.sequence_state);
       if (!status.ok()) {
-        context_->storage->IncrementStats(
+        context_->stats_tracker->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_sample);
       }
     }
@@ -476,13 +483,13 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   if (event.has_thread_time_delta_us()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
-    if (!state->track_event_timestamps_valid()) {
+    if (!track_event->timestamps_valid()) {
       RecordTokenizationErrorWithSeqId(
           stats::track_event_skipped_thread_time_delta_without_valid_state,
           packet.trusted_packet_sequence_id(), &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
-    data.thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
+    data.thread_timestamp = track_event->IncrementAndGetTrackEventThreadTimeNs(
         event.thread_time_delta_us() * 1000);
   } else if (event.has_thread_time_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
@@ -492,7 +499,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   if (event.has_thread_instruction_count_delta()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
-    if (!state->track_event_timestamps_valid()) {
+    if (!track_event->timestamps_valid()) {
       RecordTokenizationErrorWithSeqId(
           stats::
               track_event_skipped_thread_instruction_delta_without_valid_state,
@@ -500,7 +507,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       return ModuleResult::Handled();
     }
     data.thread_instruction_count =
-        state->IncrementAndGetTrackEventThreadInstructionCount(
+        track_event->IncrementAndGetTrackEventThreadInstructionCount(
             event.thread_instruction_count_delta());
   } else if (event.has_thread_instruction_count_absolute()) {
     // One-off absolute timestamps don't affect delta computation.
@@ -648,6 +655,7 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     const protos::pbzero::TrackEvent::Decoder& event,
     const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy,
     PacketSequenceStateGeneration& state) {
+  const auto& thread = state.thread_descriptor();
   for (auto it = event.debug_annotations(); it; ++it) {
     protos::pbzero::DebugAnnotation::Decoder da(*it);
     auto* interned_name = state.LookupInternedMessage<
@@ -669,7 +677,7 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
           *profile.start_time * 1000);
       if (ts) {
         v8_tracker_->SetStartTsForSessionAndPid(
-            legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), *ts);
+            legacy.unscoped_id(), static_cast<uint32_t>(thread.pid()), *ts);
       } else {
         return base::ErrStatus(
             "v8 legacy profile: failed to convert startTime to trace time");
@@ -682,10 +690,10 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
                                  : base::StringView();
       base::StringView function_name(node.call_frame.function_name);
       base::Status status = v8_tracker_->AddCallsite(
-          legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node.id,
+          legacy.unscoped_id(), static_cast<uint32_t>(thread.pid()), node.id,
           node.parent, url, function_name, node.children);
       if (!status.ok()) {
-        context_->storage->IncrementStats(
+        context_->stats_tracker->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_callsite);
         continue;
       }
@@ -697,11 +705,11 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     for (uint32_t i = 0; i < profile.samples.size(); ++i) {
       ASSIGN_OR_RETURN(int64_t ts, v8_tracker_->AddDeltaAndGetTs(
                                        legacy.unscoped_id(),
-                                       static_cast<uint32_t>(state.pid()),
+                                       static_cast<uint32_t>(thread.pid()),
                                        profile.time_deltas[i] * 1000));
       v8_stream_->Push(
-          ts, {legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
-               static_cast<uint32_t>(state.tid()), profile.samples[i]});
+          ts, {legacy.unscoped_id(), static_cast<uint32_t>(thread.pid()),
+               static_cast<uint32_t>(thread.tid()), profile.samples[i]});
     }
   }
   return base::OkStatus();

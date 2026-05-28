@@ -313,6 +313,16 @@ void ConsumerEndpointImpl::QueryServiceState(
     producer->set_uid(static_cast<int32_t>(kv.second->uid()));
     producer->set_pid(static_cast<int32_t>(kv.second->pid()));
     producer->set_frozen(kv.second->IsAndroidProcessFrozen());
+    // We only surface machine info for non-host producers (those connected
+    // through traced_relay). The IPC layer fills in machine_name with the
+    // host's sysname for every locally-connected producer too, so guarding on
+    // machine_id is what tells host vs. relay apart.
+    if (kv.second->client_identity().has_non_default_machine_id()) {
+      producer->set_machine_id(kv.second->client_identity().machine_id());
+      if (!kv.second->machine_name_.empty()) {
+        producer->set_machine_name(kv.second->machine_name_);
+      }
+    }
   }
 
   for (const auto& kv : service_->data_sources_) {
@@ -484,16 +494,15 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
   }
   PERFETTO_DCHECK(shmem_abi_.is_valid());
   for (const auto& entry : req_untrusted.chunks_to_move()) {
-    const uint32_t page_idx = entry.page();
-    if (page_idx >= shmem_abi_.num_pages())
-      continue;  // A buggy or malicious producer.
-
     SharedMemoryABI::Chunk chunk;
     bool commit_data_over_ipc = entry.has_data();
     bool chunk_complete = true;
     if (PERFETTO_UNLIKELY(commit_data_over_ipc)) {
       // Chunk data is passed over the wire. Create a chunk using the serialized
-      // protobuf message.
+      // protobuf message. In this path entry.page() is informational only: the
+      // chunk's payload comes from entry.data(), so we do not need to validate
+      // page() against the service-side SMB which can be smaller than the
+      // producer-side emulated SMB (issue #6051).
       const std::string& data = entry.data();
       if (data.size() > SharedMemoryABI::Chunk::kMaxSize) {
         PERFETTO_DFATAL("IPC data commit too large: %zu", data.size());
@@ -506,8 +515,15 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
           static_cast<uint16_t>(entry.data().size()),
           static_cast<uint8_t>(entry.chunk()));
       chunk_complete = !entry.chunk_incomplete();
-    } else
+    } else {
+      // Real-shmem path: entry.page() indexes into the service's SMB and must
+      // be in range. (This check is only meaningful for the non-IPC path: the
+      // commit_data_over_ipc branch above never touches shmem_abi_.)
+      const uint32_t page_idx = entry.page();
+      if (page_idx >= shmem_abi_.num_pages())
+        continue;  // A buggy or malicious producer.
       chunk = shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
+    }
     if (!chunk.is_valid()) {
       PERFETTO_DLOG("Asked to move chunk %u:%u, but it's not complete",
                     entry.page(), entry.chunk());

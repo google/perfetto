@@ -14,7 +14,7 @@
 
 import {AsyncLazy} from './async_lazy';
 import {defer} from './deferred';
-import {errResult, okResult, Result} from './result';
+import {errResult, okResult, type Result} from './result';
 
 async function slowFactory(res: number): Promise<Result<number>> {
   const barrier = defer<void>();

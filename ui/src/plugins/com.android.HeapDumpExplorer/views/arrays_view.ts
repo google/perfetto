@@ -28,24 +28,29 @@ import {
   countRenderer,
   shortClassName,
   RowCounter,
+  COL_INFO,
+  colHeader,
 } from '../components';
-import {clearNavParam} from '../nav_state';
+import {dumpFilterSql, type HeapDump} from '../queries';
 
-const QUERY = `
-  SELECT
-    o.id,
-    ifnull(c.deobfuscated_name, c.name) AS cls,
-    o.self_size,
-    o.native_size,
-    od.array_element_count AS element_count,
-    ifnull(o.heap_type, 'default') AS heap,
-    CAST(od.array_data_hash AS TEXT) AS array_hash
-  FROM heap_graph_object o
-  JOIN heap_graph_class c ON o.type_id = c.id
-  LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-  WHERE o.reachable != 0
-    AND od.array_data_hash IS NOT NULL
-`;
+function buildQuery(activeDump: HeapDump): string {
+  return `
+    SELECT
+      o.id,
+      ifnull(c.deobfuscated_name, c.name) AS cls,
+      o.self_size,
+      o.native_size,
+      od.array_element_count AS element_count,
+      ifnull(o.heap_type, 'default') AS heap,
+      CAST(od.array_data_hash AS TEXT) AS array_hash
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+    WHERE o.reachable != 0
+      AND ${dumpFilterSql(activeDump, 'o')}
+      AND od.array_data_hash IS NOT NULL
+  `;
+}
 
 function makeUiSchema(navigate: NavFn): SchemaRegistry {
   return {
@@ -60,7 +65,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
           return m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('object', {id, label: display}),
             },
             display,
@@ -72,12 +77,14 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
         columnType: 'text',
       },
       self_size: {
-        title: 'Shallow',
+        title: colHeader('Shallow', COL_INFO.shallow),
+        titleString: 'Shallow',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
       native_size: {
-        title: 'Native',
+        title: colHeader('Native', COL_INFO.shallowNative),
+        titleString: 'Native',
         columnType: 'quantitative',
         cellRenderer: sizeRenderer,
       },
@@ -100,7 +107,9 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
 
 interface ArraysViewAttrs {
   readonly engine: Engine;
+  readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly clearNavParam: (key: string) => void;
   readonly initialArrayHash?: string;
   readonly hasFieldValues?: boolean;
 }
@@ -110,7 +119,10 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
-  function applyNavFilter(ah: string | undefined) {
+  function applyNavFilter(
+    ah: string | undefined,
+    clearNavParam: (key: string) => void,
+  ) {
     if (!ah) return;
     filters = [{field: 'array_hash', op: '=' as const, value: ah}];
     counter.onFiltersChanged(filters);
@@ -119,17 +131,18 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine} = vnode.attrs;
+      const {engine, activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(QUERY),
+        sqlSchema: createSimpleSchema(query),
         rootSchemaName: 'query',
       });
-      counter.init(engine, QUERY);
-      applyNavFilter(vnode.attrs.initialArrayHash);
+      counter.init(engine, query);
+      applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialArrayHash);
+      applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -143,8 +156,8 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Arrays')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Arrays')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           rootSchema: 'query',

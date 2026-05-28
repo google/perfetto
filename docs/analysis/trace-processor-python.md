@@ -1,6 +1,6 @@
 # Trace Processor (Python)
 
-The trace processor Python API is built on the trace procesor
+The trace processor Python API is built on the trace processor
 [C++ library](/docs/analysis/trace-processor.md). By integrating with Python,
 the library allows using Python's rich data analysis ecosystem to process
 traces.

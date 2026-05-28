@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {Mock, Mocked} from 'vitest';
 import {CleanupManager} from './cleanup_manager';
-import {QueryExecutionService} from './query_execution_service';
-import {QueryNode} from '../query_node';
+import type {QueryExecutionService} from './query_execution_service';
+import type {QueryNode} from '../query_node';
 import {TableSourceNode} from './nodes/sources/table_source';
-import {Trace} from '../../../public/trace';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {Trace} from '../../../public/trace';
+import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 
 describe('CleanupManager', () => {
-  let mockQueryExecutionService: jest.Mocked<QueryExecutionService>;
+  let mockQueryExecutionService: Mocked<QueryExecutionService>;
   let cleanupManager: CleanupManager;
   let mockTrace: Trace;
   let mockSqlModules: SqlModules;
@@ -42,11 +43,11 @@ describe('CleanupManager', () => {
 
     // Create a mock QueryExecutionService
     mockQueryExecutionService = {
-      getEngine: jest.fn(),
-      materializeNode: jest.fn(),
-      dropAllMaterializations: jest.fn().mockResolvedValue(undefined),
-      removeNode: jest.fn(),
-    } as unknown as jest.Mocked<QueryExecutionService>;
+      getEngine: vi.fn(),
+      materializeNode: vi.fn(),
+      dropAllMaterializations: vi.fn().mockResolvedValue(undefined),
+      removeNode: vi.fn(),
+    } as unknown as Mocked<QueryExecutionService>;
 
     cleanupManager = new CleanupManager(mockQueryExecutionService);
   });
@@ -64,7 +65,7 @@ describe('CleanupManager', () => {
   describe('cleanupNode', () => {
     it('should handle errors gracefully in dispose', () => {
       const node = createTestNode('1') as QueryNode & {dispose: () => void};
-      node.dispose = jest.fn().mockImplementation(() => {
+      node.dispose = vi.fn().mockImplementation(() => {
         throw new Error('Dispose failed');
       });
 
@@ -118,7 +119,7 @@ describe('CleanupManager', () => {
     ): QueryNode & {dispose: () => void} {
       const baseNode = createTestNode(id);
       const disposable = baseNode as QueryNode & {dispose: () => void};
-      disposable.dispose = jest.fn();
+      disposable.dispose = vi.fn();
       return disposable;
     }
 
@@ -138,7 +139,7 @@ describe('CleanupManager', () => {
 
     it('should continue cleanup even if dispose throws', () => {
       const disposableNode = createDisposableNode('1');
-      (disposableNode.dispose as jest.Mock).mockImplementation(() => {
+      (disposableNode.dispose as Mock).mockImplementation(() => {
         throw new Error('Dispose failed');
       });
 

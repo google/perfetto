@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {ByteStream} from '../../interfaces/byte_stream';
-import {AdbWebusbDevice} from './adb_webusb_device';
+import type {AdbWebusbDevice} from './adb_webusb_device';
 
 export class AdbWebusbStream extends ByteStream {
   private state: 'CONNECTED' | 'CLOSING' | 'CLOSED' = 'CONNECTED';

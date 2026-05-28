@@ -48,6 +48,24 @@ class GraphicsGpuTrace(TestSuite):
         34,0.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","Triangle/ms:ms"
         """))
 
+  def test_gpu_counters_forwards_looking(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counters_forwards_looking.py'),
+        query="""
+        SELECT ts, value
+        FROM counter
+        JOIN gpu_counter_track ON counter.track_id = gpu_counter_track.id
+        WHERE gpu_counter_track.name = 'forward_counter'
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","value"
+        10,100.000000
+        20,0.000000
+        30,0.000000
+        40,50.000000
+        """))
+
   def test_gpu_table(self):
     return DiffTestBlueprint(
         trace=Path('gpu_counters.py'),
@@ -595,4 +613,83 @@ class GraphicsGpuTrace(TestSuite):
           "slice_name","gpu_api"
           "cuLaunchKernel","GPU_API_CUDA"
           "vkCmdDispatch","GPU_API_VULKAN"
+        '''))
+
+  def test_gpu_compute_kernel(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_compute_kernel.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'kernel_name') AS kernel_name,
+            extract_arg(s.arg_set_id, 'kernel_demangled_name')
+              AS kernel_demangled_name,
+            extract_arg(s.arg_set_id, 'arch') AS arch
+          FROM gpu_slice s
+          WHERE extract_arg(s.arg_set_id, 'kernel_name') IS NOT NULL
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","kernel_name","kernel_demangled_name","arch"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+          "Kernel","_Z6matMulPfS_S_ii","matMul(float*, float*, float*, int, int)","sm_80"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+        '''))
+
+  def test_gpu_compute_launch(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_compute_launch.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'kernel_name') AS kernel_name,
+            extract_arg(s.arg_set_id, 'launch.grid_size.x') AS grid_x,
+            extract_arg(s.arg_set_id, 'launch.grid_size.y') AS grid_y,
+            extract_arg(s.arg_set_id, 'launch.grid_size.z') AS grid_z,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.x') AS wg_x,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.y') AS wg_y,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.z') AS wg_z,
+            extract_arg(s.arg_set_id, 'registers_per_thread') AS regs,
+            extract_arg(s.arg_set_id, 'shared_mem_dynamic') AS shmem
+          FROM gpu_slice s
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","kernel_name","grid_x","grid_y","grid_z","wg_x","wg_y","wg_z","regs","shmem"
+          "vectorAdd","_Z9vectorAddPfS_S_i",256,1,1,128,1,1,32,4096
+        '''))
+
+  def test_gpu_frequency_event(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            timestamp: 1000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 1500000
+            }
+          }
+          packet {
+            timestamp: 2000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 2100000
+            }
+          }
+        """),
+        query='''
+          SELECT
+            t.name AS track_name,
+            t.type AS track_type,
+            c.ts,
+            c.value
+          FROM counter c
+          JOIN counter_track t ON c.track_id = t.id
+          WHERE t.type = 'gpu_frequency'
+          ORDER BY c.ts;
+        ''',
+        out=Csv('''
+          "track_name","track_type","ts","value"
+          "gpufreq","gpu_frequency",1000,1500000.000000
+          "gpufreq","gpu_frequency",2000,2100000.000000
         '''))

@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './icon.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {classForIntent, HTMLAttrs, Intent} from './common';
+import {classForIntent, type HTMLAttrs, Intent} from './common';
 
 export interface IconAttrs extends HTMLAttrs {
   // The material icon name.

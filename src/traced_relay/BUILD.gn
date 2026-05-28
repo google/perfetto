@@ -65,15 +65,17 @@ perfetto_unittest_source_set("unittests") {
   ]
 }
 
-source_set("integrationtests") {
-  testonly = true
-  deps = [
-    ":lib",
-    "../../gn:default_deps",
-    "../../gn:gtest_and_gmock",
-    "../../test:test_helper",
-    "../base",
-    "../base:test_support",
-  ]
-  sources = [ "relay_service_integrationtest.cc" ]
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtests") {
+    testonly = true
+    deps = [
+      ":lib",
+      "../../gn:default_deps",
+      "../../gn:gtest_and_gmock",
+      "../../test:test_helper",
+      "../base",
+      "../base:test_support",
+    ]
+    sources = [ "relay_service_integrationtest.cc" ]
+  }
 }

@@ -14,18 +14,22 @@
 
 import {assertUnreachable} from '../../../base/assert';
 import {
-  QueryResult,
+  type QueryResult,
   QuerySlot,
   SerialTaskQueue,
 } from '../../../base/query_slot';
 import {maybeUndefined} from '../../../base/utils';
 import {shortUuid} from '../../../base/uuid';
-import {Engine} from '../../../trace_processor/engine';
-import {Row, SqlValue, UNKNOWN} from '../../../trace_processor/query_result';
-import {DataSource, DataSourceModel, DataSourceRows} from './data_source';
+import type {Engine} from '../../../trace_processor/engine';
+import {
+  type Row,
+  type SqlValue,
+  UNKNOWN,
+} from '../../../trace_processor/query_result';
+import type {DataSource, DataSourceModel, DataSourceRows} from './data_source';
 import {
   isSQLExpressionDef,
-  SQLSchemaRegistry,
+  type SQLSchemaRegistry,
   SQLSchemaResolver,
 } from './sql_schema';
 import {SQLDataSourceFlat} from './sql_data_source/flat';
@@ -99,23 +103,28 @@ export class SQLDataSource implements DataSource {
    * Fetch rows for the current model state.
    */
   useRows(model: DataSourceModel): DataSourceRows {
-    const {isPending: preamblePending} = this.usePreamble();
+    try {
+      const {isPending: preamblePending} = this.usePreamble();
 
-    // Don't trigger any other queries until the preamble has completed
-    if (preamblePending) {
-      return {isPending: true};
-    }
+      // Don't trigger any other queries until the preamble has completed
+      if (preamblePending) {
+        return {isPending: true};
+      }
 
-    const mode = model.mode;
-    switch (mode) {
-      case 'flat':
-        return this.flatEngine.getRows(model);
-      case 'pivot':
-        return this.pivotEngine.getRows(model);
-      case 'tree':
-        return this.treeEngine.getRows(model);
-      default:
-        assertUnreachable(mode);
+      const mode = model.mode;
+      switch (mode) {
+        case 'flat':
+          return this.flatEngine.getRows(model);
+        case 'pivot':
+          return this.pivotEngine.getRows(model);
+        case 'tree':
+          return this.treeEngine.getRows(model);
+        default:
+          assertUnreachable(mode);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return {isPending: false, error: msg};
     }
   }
 

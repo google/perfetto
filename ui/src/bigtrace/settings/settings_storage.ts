@@ -1,0 +1,97 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import {z} from 'zod';
+import type {
+  Setting,
+  SettingDescriptor,
+  SettingsManager,
+} from '../../public/settings';
+import {LocalStorage} from '../../core/local_storage';
+import m from 'mithril';
+import {SettingImpl} from './setting_impl';
+
+export const BIGTRACE_SETTINGS_STORAGE_KEY = 'bigtraceSettings';
+
+export class LocalSettingsStorage implements SettingsManager {
+  private settings = new Map<string, Setting<unknown>>();
+  private initialValues = new Map<string, unknown>();
+  private storage: LocalStorage;
+
+  constructor(storage: LocalStorage) {
+    this.storage = storage;
+  }
+
+  register<T>(descriptor: SettingDescriptor<T>): Setting<T> {
+    const setting = new SettingImpl(this, {
+      id: descriptor.id,
+      name: descriptor.name,
+      description: descriptor.description,
+      schema: descriptor.schema,
+      defaultValue: descriptor.defaultValue,
+      requiresReload: descriptor.requiresReload,
+    });
+    this.settings.set(descriptor.id, setting as unknown as Setting<unknown>);
+    this.initialValues.set(descriptor.id, setting.get());
+    return setting as unknown as Setting<T>;
+  }
+
+  get<T>(id: string): Setting<T> | undefined {
+    return this.settings.get(id) as Setting<T> | undefined;
+  }
+
+  getAllSettings(): ReadonlyArray<Setting<unknown>> {
+    return Array.from(this.settings.values());
+  }
+
+  getStoredValue(id: string): unknown {
+    return this.storage.load()[id];
+  }
+
+  setStoredValue(id: string, value: unknown): void {
+    const data = this.storage.load();
+    data[id] = value;
+    this.storage.save(data);
+  }
+
+  resetAll(): void {
+    this.storage.save({});
+    m.redraw();
+  }
+
+  isReloadRequired(): boolean {
+    for (const setting of this.settings.values()) {
+      if (setting.requiresReload) {
+        const current = setting.get();
+        const initial = this.initialValues.get(setting.id);
+        if (current !== initial) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+}
+
+export const settingsStorage = new LocalSettingsStorage(
+  new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
+);
+
+settingsStorage.register({
+  id: 'theme',
+  name: 'UI Theme',
+  description: 'Changes the color palette used throughout the UI.',
+  schema: z.enum(['light', 'dark']),
+  defaultValue: 'light',
+});

@@ -16,13 +16,17 @@
 
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
 
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/trace/generic_kernel/generic_gpu_frequency.pbzero.h"
 #include "protos/perfetto/trace/generic_kernel/generic_power.pbzero.h"
 #include "protos/perfetto/trace/generic_kernel/generic_task.pbzero.h"
 
@@ -142,7 +146,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
   switch (state) {
     case TaskStateEnum::TASK_STATE_CREATED: {
       if (context_->process_tracker->GetThreadOrNull(tid)) {
-        context_->storage->IncrementStats(
+        context_->stats_tracker->IncrementStats(
             stats::generic_task_state_invalid_order);
         return std::nullopt;
       }
@@ -179,7 +183,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
         is_invalid_order |= state == TaskStateEnum::TASK_STATE_RUNNING &&
                             prev_state_id == running_string_id_;
         if (is_invalid_order) {
-          context_->storage->IncrementStats(
+          context_->stats_tracker->IncrementStats(
               stats::generic_task_state_invalid_order);
           return std::nullopt;
         }
@@ -193,7 +197,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
     }
     case TaskStateEnum::TASK_STATE_UNKNOWN:
     default: {
-      context_->storage->IncrementStats(stats::task_state_invalid);
+      context_->stats_tracker->IncrementStats(stats::task_state_invalid);
       return std::nullopt;
     }
   }
@@ -337,6 +341,18 @@ void GenericKernelParser::ParseGenericCpuFrequencyEvent(
       tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu_freq_event.cpu()));
   context_->event_tracker->PushCounter(
       ts, static_cast<double>(cpu_freq_event.freq_hz()) / 1000.0, track);
+}
+
+void GenericKernelParser::ParseGenericGpuFrequencyEvent(
+    int64_t ts,
+    protozero::ConstBytes data) {
+  protos::pbzero::GenericGpuFrequencyEvent::Decoder event(data);
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(event.gpu_id());
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, event.gpu_id()));
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(event.frequency_khz()), track);
 }
 
 }  // namespace perfetto::trace_processor

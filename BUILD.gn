@@ -50,6 +50,9 @@ if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
     all_targets += [ "src/bigtrace/worker:worker_main" ]
   }
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
+  if (perfetto_build_standalone) {
+    all_targets += [ "src/trace_processor/perfetto_sql/pfsql" ]
+  }
 }
 
 if (enable_perfetto_trace_processor) {
@@ -74,6 +77,10 @@ if (enable_perfetto_traceconv) {
       "src/proto_utils($host_toolchain)",
     ]
   }
+}
+
+if (enable_perfetto_protovm_compiler) {
+  all_targets += [ "src/protovm/compiler:protovm_compiler" ]
 }
 
 if (enable_perfetto_heapprofd) {
@@ -198,11 +205,15 @@ if (perfetto_build_standalone) {
     # Checks that the "fake" backend implementations build.
     "src/tracing:client_api_no_backends_compile_test",
   ]
-  if (is_linux || is_android || is_mac) {
+  if (is_linux || is_android || is_mac || is_freebsd) {
     all_targets += [ "src/tracebox" ]
   }
+}
 
-  # This is needed by `tools/gen_c_protos`.
+# Needed by `tools/gen_c_protos` (standalone) and `tools/gen_android_bp`
+# (generator), which lists the host target in default_targets so Soong gets a
+# cc_binary_host for Android-tree .pzc.h codegen.
+if (perfetto_build_standalone || is_perfetto_build_generator) {
   all_targets += [ "src/protozero/protoc_plugin:protozero_c_plugin" ]
 }
 
@@ -261,6 +272,12 @@ if (!build_with_chromium) {
       "gn:default_deps",
       "src/tracing:client_api",
     ]
+
+    # Additional /ext/ target exposed exclusively to the perfetto_hprof ART
+    # plugin in the android platform.
+    if (perfetto_build_with_android) {
+      public_deps += [ "src/profiling/smaps:smaps" ]
+    }
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "gn:protobuf_lite" ]
 

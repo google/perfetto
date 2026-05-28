@@ -15,7 +15,11 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
-import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
+import {
+  EChartView,
+  type EChartEventHandler,
+  type EChartClickParams,
+} from './echart_view';
 import {buildTooltipOption} from './chart_option_builder';
 
 /**

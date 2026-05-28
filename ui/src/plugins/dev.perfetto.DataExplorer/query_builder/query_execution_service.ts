@@ -14,8 +14,8 @@
 
 import {uuidv4Sql} from '../../../base/uuid';
 import protos from '../../../protos';
-import {Engine} from '../../../trace_processor/engine';
-import {Query, QueryNode} from '../query_node';
+import type {Engine} from '../../../trace_processor/engine';
+import type {Query, QueryNode} from '../query_node';
 
 /**
  * Returns an Error if the error string is non-empty, otherwise undefined.

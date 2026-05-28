@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../../protos';
-import {errResult, okResult, Result} from '../../../../base/result';
-import {PreflightCheck} from '../../interfaces/connection_check';
-import {RecordingTarget} from '../../interfaces/recording_target';
-import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
+import type protos from '../../../../protos';
+import {errResult, okResult, type Result} from '../../../../base/result';
+import type {PreflightCheck} from '../../interfaces/connection_check';
+import type {RecordingTarget} from '../../interfaces/recording_target';
+import type {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {
   createAdbTracingSession,
@@ -24,10 +24,9 @@ import {
 } from '../adb_tracing_session';
 import {AdbWebsocketDevice} from '../websocket/adb_websocket_device';
 import {AsyncLazy} from '../../../../base/async_lazy';
-import {WdpDevice} from './wdp_schema';
+import type {WdpDevice} from './wdp_schema';
 import {showPopupWindow} from '../../../../base/popup_window';
 import {defer} from '../../../../base/deferred';
-import {RecordTraceV2Settings} from '../../settings';
 
 export class WebDeviceProxyTarget implements RecordingTarget {
   readonly kind = 'LIVE_RECORDING';
@@ -39,7 +38,6 @@ export class WebDeviceProxyTarget implements RecordingTarget {
   constructor(
     private wsUrl: string,
     private devJson: WdpDevice,
-    private readonly settings: RecordTraceV2Settings,
   ) {
     this.id = this.devJson.serialNumber;
     this.updateWdpState(devJson);
@@ -93,7 +91,7 @@ export class WebDeviceProxyTarget implements RecordingTarget {
       status: this.deviceReady(),
     };
     if (this.adbDevice.value === undefined) return;
-    yield* checkAndroidTarget(this.adbDevice.value, this.settings);
+    yield* checkAndroidTarget(this.adbDevice.value);
   }
 
   private async connectIfNeeded(): Promise<Result<AdbWebsocketDevice>> {
@@ -143,7 +141,7 @@ export class WebDeviceProxyTarget implements RecordingTarget {
     if (this.adbDevice.value === undefined) {
       return errResult('WebSocket transport disconnected');
     }
-    return getAdbTracingServiceState(this.adbDevice.value, this.settings);
+    return getAdbTracingServiceState(this.adbDevice.value);
   }
 
   async startTracing(
@@ -151,10 +149,6 @@ export class WebDeviceProxyTarget implements RecordingTarget {
   ): Promise<Result<ConsumerIpcTracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(
-      adbDeviceStatus.value,
-      traceConfig,
-      this.settings,
-    );
+    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
   }
 }

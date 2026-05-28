@@ -89,6 +89,17 @@ void LockFreeTaskRunner::PostTask(std::function<void()> closure) {
     Slab* slab = tail_.load();
     PERFETTO_DCHECK(slab);  // The tail_ must be always valid.
     ScopedRefcount scoped_refcount(this, slab);
+    // After incrementing the refcount, re-verify that `slab` is still the
+    // current tail. If it isn't, the slab might have been deleted between
+    // our tail_.load() above and the refcount inc (the reader's check on
+    // refcount==0 may have happened before our inc). Retry with the new tail.
+    // If the second tail.load() returns the same slab, in seq_cst order
+    // any subsequent CAS that replaces tail_ comes after this load, hence
+    // any reader's later refcount check is also after our inc and will
+    // observe refcount > 0.
+    if (PERFETTO_UNLIKELY(tail_.load() != slab)) {
+      continue;
+    }
 
     // Now that we have a slab, try appending a task to it (if there is space).
     // We have 3 cases:

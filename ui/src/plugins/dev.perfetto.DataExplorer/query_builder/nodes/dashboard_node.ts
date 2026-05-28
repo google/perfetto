@@ -13,17 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import protos from '../../../../protos';
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
-import {ColumnInfo} from '../column_info';
+import type protos from '../../../../protos';
+import {
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
 import {NodeIssues} from '../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {loadNodeDoc} from '../node_doc_loader';
 import {NodeTitle} from '../node_styling_widgets';
 import {InlineField, ResultsPanelEmptyState} from '../widgets';
 import {
   dashboardRegistry,
-  DashboardDataSource,
+  type DashboardDataSource,
 } from '../../dashboard/dashboard_registry';
 
 // Serializable node configuration.

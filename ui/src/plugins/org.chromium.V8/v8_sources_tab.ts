@@ -14,13 +14,18 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import {Filter} from '../../components/widgets/datagrid/model';
+import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {Filter} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
-import {Tab} from '../../public/tab';
-import {Trace} from '../../public/trace';
-import {NUM, Row, SqlValue, STR} from '../../trace_processor/query_result';
+import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {Tab} from '../../public/tab';
+import type {Trace} from '../../public/trace';
+import {
+  NUM,
+  type Row,
+  type SqlValue,
+  STR,
+} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {Editor} from '../../widgets/editor';

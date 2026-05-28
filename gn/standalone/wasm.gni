@@ -36,12 +36,26 @@ template("wasm_lib") {
   _lib_name = invoker.name
   _is_memory64 = defined(invoker.is_memory64) && invoker.is_memory64
   if (is_wasm) {
-    _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'HEAPU8']"
+    # Defaults: worker-only, no Emscripten FS. Callers opt in via
+    # enable_web_environment / enable_filesystem.
+    _enable_web = defined(invoker.enable_web_environment) &&
+                  invoker.enable_web_environment
+    _enable_fs = defined(invoker.enable_filesystem) && invoker.enable_filesystem
+    if (_enable_web) {
+      _environment = "web,worker"
+    } else {
+      _environment = "worker"
+    }
+    if (_enable_fs) {
+      _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'HEAPU8']"
+    } else {
+      _exports = "['ccall', 'callMain', 'addFunction', 'HEAPU8']"
+    }
     _target_ldflags = [
       "-s",
       "WASM=1",
       "-s",
-      "ENVIRONMENT=web,worker",
+      "ENVIRONMENT=${_environment}",
       "-s",
       "DISABLE_EXCEPTION_CATCHING=1",
       "-s",
@@ -55,15 +69,12 @@ template("wasm_lib") {
       "-s",
       "STACK_SIZE=2MB",
       "-s",
-      "WASM_ASYNC_COMPILATION=0",
+
+      # Required for the Module.instantiateWasm hook used by
+      # wasm_engine_proxy.ts to share a precompiled Module across workers.
+      "WASM_ASYNC_COMPILATION=1",
       "-s",
       "EXPORTED_RUNTIME_METHODS=" + _exports,
-
-      # This forces the MEMFS filesystem library to always use typed arrays
-      # instead of building strings/arrays when appending to a file. This allows
-      # to deal with pseudo-files larger than 128 MB when calling traceconv.
-      "-s",
-      "MEMFS_APPEND_TO_TYPED_ARRAYS=1",
 
       # Reduces global namespace pollution.
       "-s",
@@ -73,9 +84,21 @@ template("wasm_lib") {
       # JS that overrides the same global variable (var Module = ...)
       "-s",
       "EXPORT_NAME=${target_name}",
-
-      "-lworkerfs.js",  # For FS.filesystems.WORKERFS
     ]
+    if (_enable_fs) {
+      _target_ldflags += [
+        # Forces MEMFS to use typed arrays — traceconv needs this for
+        # pseudo-files >128 MB.
+        "-s",
+        "MEMFS_APPEND_TO_TYPED_ARRAYS=1",
+        "-lworkerfs.js",  # For FS.filesystems.WORKERFS
+      ]
+    } else {
+      _target_ldflags += [
+        "-s",
+        "FILESYSTEM=0",
+      ]
+    }
     if (is_debug) {
       _target_ldflags += [
         "-s",
@@ -93,6 +116,12 @@ template("wasm_lib") {
         "ASSERTIONS=1",
         "-g2",  # Required for getting C++ symbol names.
         "-O3",
+
+        # Closure-compile the JS glue. Will silently rename any dynamic
+        # Module.* lookups, so any JS-side caller must only use exported
+        # methods.
+        "--closure",
+        "1",
       ]
     }
 

@@ -5,6 +5,9 @@
   "version": "0.0.0.20",
   "manifest_version": 3,
   "minimum_chrome_version": "116.0.0.0",
+  // The Perfetto extension is allowlisted for access to the DevTools browser
+  // target in Chrome. When developing locally by loading an unpacked extension,
+  // this requires passing --allow-unpacked-perfetto-extension to Chrome.
   "permissions": [
     "declarativeContent",
     "debugger"

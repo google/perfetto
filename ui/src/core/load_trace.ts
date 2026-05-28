@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/assert';
-import {time, Time, TimeSpan} from '../base/time';
+import {type time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from './metatracing';
 import {featureFlags} from './feature_flags';
-import {Engine, EngineBase} from '../trace_processor/engine';
+import type {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {
   LONG,
@@ -36,21 +36,26 @@ import {
   TraceHttpStream,
   TraceMultipleFilesStream,
 } from '../core/trace_stream';
-import {TraceStream} from '../public/stream';
+import type {TraceStream} from '../public/stream';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
 } from './state_serialization';
-import {AppImpl} from './app_impl';
+import type {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
-import {TraceSource} from './trace_source';
+import type {TraceSource} from './trace_source';
 import {Router} from '../core/router';
-import {TraceInfoImpl} from './trace_info_impl';
+import type {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
-import {parseUrlCommands} from './command_manager';
+import {
+  parseUrlCommands,
+  StartupCommandNotAllowedError,
+} from './command_manager';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {sha1} from '../base/hash';
+import {showModal} from '../widgets/modal';
+import m from 'mithril';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -249,7 +254,6 @@ async function loadTraceIntoEngine(
   trace.timeline.setVisibleWindow(newViewport);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);
@@ -263,6 +267,11 @@ async function loadTraceIntoEngine(
   await app.plugins.onTraceLoad(trace, (id) => {
     updateStatus(app, `Running plugin: ${id}`);
   });
+
+  // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
+  // request that the app navigate somewhere other than /viewer.
+  const initialRoute = trace.initialPage.getWinner() ?? '/viewer';
+  Router.navigate(`#!${initialRoute}?local_cache_key=${cacheUuid}`);
 
   decideTabs(trace);
 
@@ -328,6 +337,8 @@ async function loadTraceIntoEngine(
       app.commands.setExecutingStartupCommands(true);
     }
 
+    const blocked: string[] = [];
+    const failed: Array<{id: string; error: unknown}> = [];
     try {
       for (const command of allStartupCommands) {
         try {
@@ -335,20 +346,64 @@ async function loadTraceIntoEngine(
           // commands.
           await app.commands.runCommand(command.id, ...command.args);
         } catch (error) {
-          // TODO(stevegolton): Add a mechanism to notify users of startup
-          // command errors. This will involve creating a notification UX
-          // similar to VSCode where there are popups on the bottom right
-          // of the UI.
-          console.warn(`Startup command ${command.id} failed:`, error);
+          if (error instanceof StartupCommandNotAllowedError) {
+            blocked.push(error.commandId);
+          } else {
+            failed.push({id: command.id, error});
+          }
         }
       }
     } finally {
       // Always restore default (allow all) behavior when done
       app.commands.setExecutingStartupCommands(false);
     }
+
+    if (blocked.length > 0 || failed.length > 0) {
+      showStartupCommandIssuesDialog(blocked, failed);
+    }
   }
 
   return trace;
+}
+
+function showStartupCommandIssuesDialog(
+  blocked: ReadonlyArray<string>,
+  failed: ReadonlyArray<{id: string; error: unknown}>,
+) {
+  const uniqueBlocked = Array.from(new Set(blocked));
+  showModal({
+    title: 'Some startup commands did not run',
+    content: () =>
+      m(
+        '.pf-startup-command-issues',
+        uniqueBlocked.length > 0 &&
+          m(
+            'section',
+            m(
+              'p',
+              'These commands were blocked because they are not on the ',
+              "allowlist. Disable 'Enforce startup command allowlist' in ",
+              'settings to run them anyway.',
+            ),
+            m(
+              'ul',
+              uniqueBlocked.map((id) => m('li', m('code', id))),
+            ),
+          ),
+        failed.length > 0 &&
+          m(
+            'section',
+            m('p', 'These commands threw an error while executing:'),
+            m(
+              'ul',
+              failed.map(({id, error}) =>
+                m('li', m('code', id), ': ', String(error)),
+              ),
+            ),
+          ),
+      ),
+    buttons: [{text: 'Dismiss', primary: true}],
+  });
 }
 
 function decideTabs(trace: TraceImpl) {

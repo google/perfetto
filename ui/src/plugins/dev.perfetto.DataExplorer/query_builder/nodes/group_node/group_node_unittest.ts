@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {GroupNode, ExternalGroupConnection} from '.';
+import {GroupNode, type ExternalGroupConnection} from '.';
 import {NodeType} from '../../../query_node';
 import {
   createMockNode,
   connectNodes,
   STANDARD_TABLE_COLUMNS,
+  expectValidationSuccess,
 } from '../../testing/test_utils';
 import {createGroupFromSelection} from '../../graph_utils';
 import {unwrapResult} from '../../../../../base/result';
@@ -95,7 +96,7 @@ describe('GroupNode', () => {
       const a = createMockNode({nodeId: 'a', validate: () => true});
       const b = createMockNode({nodeId: 'b', validate: () => true});
       const group = new GroupNode({}, {}, [a, b], b, []);
-      expect(group.validate()).toBe(true);
+      expectValidationSuccess(group);
     });
 
     it('should return false when any inner node fails validation', () => {

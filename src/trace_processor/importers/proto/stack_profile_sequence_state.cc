@@ -30,9 +30,11 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
+#include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -63,34 +65,39 @@ StackProfileSequenceState::StackProfileSequenceState(
 StackProfileSequenceState::~StackProfileSequenceState() = default;
 
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
+    PacketSequenceStateGeneration* state,
     uint64_t iid) {
-  if (pid_and_tid_valid()) {
+  const auto& thread = state->thread_descriptor();
+  if (thread.valid()) {
     return FindOrInsertMappingImpl(
+        state,
         context_->process_tracker->GetOrCreateProcess(
-            static_cast<uint32_t>(pid())),
+            static_cast<uint32_t>(thread.pid())),
         iid);
   }
 
-  return FindOrInsertMappingImpl(std::nullopt, iid);
+  return FindOrInsertMappingImpl(state, std::nullopt, iid);
 }
 
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
+    PacketSequenceStateGeneration* state,
     std::optional<UniquePid> upid,
     uint64_t iid) {
   if (VirtualMemoryMapping** ptr = cached_mappings_.Find({upid, iid}); ptr) {
     return *ptr;
   }
-  auto* decoder =
-      LookupInternedMessage<protos::pbzero::InternedData::kMappingsFieldNumber,
-                            protos::pbzero::Mapping>(iid);
+  auto* decoder = state->LookupInternedMessage<
+      protos::pbzero::InternedData::kMappingsFieldNumber,
+      protos::pbzero::Mapping>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return nullptr;
   }
 
   std::vector<base::StringView> path_components;
   for (auto it = decoder->path_string_ids(); it; ++it) {
-    std::optional<base::StringView> str = LookupInternedMappingPath(*it);
+    std::optional<base::StringView> str = LookupInternedMappingPath(state, *it);
     if (!str) {
       // For backward compatibility reasons we do not return an error but
       // instead stop adding path components.
@@ -101,7 +108,7 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
 
   CreateMappingParams params;
   std::optional<base::StringView> build_id =
-      LookupInternedBuildId(decoder->build_id());
+      LookupInternedBuildId(state, decoder->build_id());
   if (!build_id) {
     return nullptr;
   }
@@ -138,17 +145,20 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
 }
 
 std::optional<base::StringView>
-StackProfileSequenceState::LookupInternedBuildId(uint64_t iid) {
+StackProfileSequenceState::LookupInternedBuildId(
+    PacketSequenceStateGeneration* state,
+    uint64_t iid) {
   // This should really be an error (value not set) or at the very least return
   // a null string, but for backward compatibility use an empty string instead.
   if (iid == 0) {
     return "";
   }
-  auto* decoder =
-      LookupInternedMessage<protos::pbzero::InternedData::kBuildIdsFieldNumber,
-                            protos::pbzero::InternedString>(iid);
+  auto* decoder = state->LookupInternedMessage<
+      protos::pbzero::InternedData::kBuildIdsFieldNumber,
+      protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -156,12 +166,15 @@ StackProfileSequenceState::LookupInternedBuildId(uint64_t iid) {
 }
 
 std::optional<base::StringView>
-StackProfileSequenceState::LookupInternedMappingPath(uint64_t iid) {
-  auto* decoder = LookupInternedMessage<
+StackProfileSequenceState::LookupInternedMappingPath(
+    PacketSequenceStateGeneration* state,
+    uint64_t iid) {
+  auto* decoder = state->LookupInternedMessage<
       protos::pbzero::InternedData::kMappingPathsFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -169,23 +182,25 @@ StackProfileSequenceState::LookupInternedMappingPath(uint64_t iid) {
 }
 
 std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
+    PacketSequenceStateGeneration* state,
     std::optional<UniquePid> upid,
     uint64_t iid) {
   if (CallsiteId* id = cached_callstacks_.Find({upid, iid}); id) {
     return *id;
   }
-  auto* decoder = LookupInternedMessage<
+  auto* decoder = state->LookupInternedMessage<
       protos::pbzero::InternedData::kCallstacksFieldNumber,
       protos::pbzero::Callstack>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_callstack_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_callstack_id);
     return std::nullopt;
   }
 
   std::optional<CallsiteId> parent_callsite_id;
   uint32_t depth = 0;
   for (auto it = decoder->frame_ids(); it; ++it) {
-    std::optional<FrameId> frame_id = FindOrInsertFrame(upid, *it);
+    std::optional<FrameId> frame_id = FindOrInsertFrame(state, upid, *it);
     if (!frame_id) {
       return std::nullopt;
     }
@@ -195,7 +210,8 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
   }
 
   if (!parent_callsite_id) {
-    context_->storage->IncrementStats(stats::stackprofile_empty_callstack);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_empty_callstack);
     return std::nullopt;
   }
 
@@ -205,23 +221,25 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
 }
 
 std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
+    PacketSequenceStateGeneration* state,
     std::optional<UniquePid> upid,
     uint64_t iid) {
   if (FrameId* id = cached_frames_.Find({upid, iid}); id) {
     return *id;
   }
-  auto* decoder =
-      LookupInternedMessage<protos::pbzero::InternedData::kFramesFieldNumber,
-                            protos::pbzero::Frame>(iid);
+  auto* decoder = state->LookupInternedMessage<
+      protos::pbzero::InternedData::kFramesFieldNumber, protos::pbzero::Frame>(
+      iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_frame_id);
     return std::nullopt;
   }
 
   base::StringView function_name;
   if (decoder->function_name_id() != 0) {
     std::optional<base::StringView> func =
-        LookupInternedFunctionName(decoder->function_name_id());
+        LookupInternedFunctionName(state, decoder->function_name_id());
     if (!func) {
       return std::nullopt;
     }
@@ -231,7 +249,7 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
   // Extract source file and line number (used by both dummy and regular frames)
   std::optional<base::StringView> source_file;
   if (decoder->has_source_path_iid()) {
-    source_file = LookupInternedSourcePath(decoder->source_path_iid());
+    source_file = LookupInternedSourcePath(state, decoder->source_path_iid());
     if (!source_file) {
       return std::nullopt;
     }
@@ -260,7 +278,7 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
 
   // Regular frame with a real mapping
   VirtualMemoryMapping* mapping =
-      FindOrInsertMappingImpl(upid, decoder->mapping_id());
+      FindOrInsertMappingImpl(state, upid, decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
   }
@@ -278,17 +296,20 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
 }
 
 std::optional<base::StringView>
-StackProfileSequenceState::LookupInternedFunctionName(uint64_t iid) {
+StackProfileSequenceState::LookupInternedFunctionName(
+    PacketSequenceStateGeneration* state,
+    uint64_t iid) {
   // This should really be an error (value not set) or at the very least return
   // a null string, but for backward compatibility use an empty string instead.
   if (iid == 0) {
     return "";
   }
-  auto* decoder = LookupInternedMessage<
+  auto* decoder = state->LookupInternedMessage<
       protos::pbzero::InternedData::kFunctionNamesFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -296,15 +317,18 @@ StackProfileSequenceState::LookupInternedFunctionName(uint64_t iid) {
 }
 
 std::optional<base::StringView>
-StackProfileSequenceState::LookupInternedSourcePath(uint64_t iid) {
+StackProfileSequenceState::LookupInternedSourcePath(
+    PacketSequenceStateGeneration* state,
+    uint64_t iid) {
   if (iid == 0) {
     return std::nullopt;
   }
-  auto* decoder = LookupInternedMessage<
+  auto* decoder = state->LookupInternedMessage<
       protos::pbzero::InternedData::kSourcePathsFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 

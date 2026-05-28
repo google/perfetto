@@ -35,12 +35,14 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -72,6 +74,29 @@ uint32_t AddCounterSet(TraceProcessorContext* context,
     table->Insert(row);
   }
   return set_id;
+}
+
+struct InternedSmapsPath {
+  StringId path_id = kNullStringId;
+  StringId trimmed_path_id = kNullStringId;
+  bool is_deleted = false;
+};
+
+// Interns the mapping name, and a variant with any " (deleted)" suffix
+// stripped as that's how the kernel reports file-backed mappings where the file
+// has since been deleted.
+InternedSmapsPath InternSmapsPath(TraceProcessorContext* context,
+                                  base::StringView path) {
+  static const base::StringView kDeletedSuffix(" (deleted)");
+  InternedSmapsPath ret;
+  ret.path_id = context->storage->InternString(path);
+  base::StringView trimmed = path;
+  if (path.EndsWith(kDeletedSuffix)) {
+    trimmed = path.substr(0, path.size() - kDeletedSuffix.size());
+    ret.is_deleted = true;
+  }
+  ret.trimmed_path_id = context->storage->InternString(trimmed);
+  return ret;
 }
 
 }  // namespace
@@ -149,8 +174,8 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // pid/tid are resolved correctly during parsing), we forward the packet as a
   // whole through the sorter, using the "root" timestamp of the packet, i.e.
   // the current timestamp of the packet sequence.
-  auto packet_ts =
-      sequence_state->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
+  auto* track_event = sequence_state->GetCustomState<TrackEventSequenceState>();
+  auto packet_ts = track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
       ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), packet_ts);
   if (trace_ts)
@@ -159,7 +184,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // Increment the sequence's timestamp by all deltas.
   for (auto timestamp_it = decoder.timestamp_delta_us(); timestamp_it;
        ++timestamp_it) {
-    sequence_state->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
+    track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
   }
 
   module_context_->trace_packet_stream->Push(
@@ -180,8 +205,9 @@ void ProfileModule::ParseStreamingProfilePacket(
   StackProfileSequenceState& stack_profile_sequence_state =
       *sequence_state->GetCustomState<StackProfileSequenceState>();
 
-  uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
-  uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
+  const auto& thread = sequence_state->thread_descriptor();
+  uint32_t pid = static_cast<uint32_t>(thread.pid());
+  uint32_t tid = static_cast<uint32_t>(thread.tid());
   const UniqueTid utid = procs->UpdateThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 
@@ -190,16 +216,16 @@ void ProfileModule::ParseStreamingProfilePacket(
   for (auto callstack_it = packet.callstack_iid(); callstack_it;
        ++callstack_it, ++timestamp_it) {
     if (!timestamp_it) {
-      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
       PERFETTO_ELOG(
           "StreamingProfilePacket has less callstack IDs than timestamps!");
       break;
     }
 
-    auto opt_cs_id =
-        stack_profile_sequence_state.FindOrInsertCallstack(upid, *callstack_it);
+    auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+        sequence_state, upid, *callstack_it);
     if (!opt_cs_id) {
-      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
       continue;
     }
 
@@ -230,7 +256,7 @@ void ProfileModule::ParsePerfSample(
   if (sample.kernel_records_lost() > 0) {
     PERFETTO_DCHECK(sample.pid() == 0);
 
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::perf_cpu_lost_records, static_cast<int>(sample.cpu()),
         static_cast<int64_t>(sample.kernel_records_lost()));
     return;
@@ -245,7 +271,7 @@ void ProfileModule::ParsePerfSample(
     PerfSample::ProducerEvent::Decoder producer_event(sample.producer_event());
     if (producer_event.source_stop_reason() ==
         PerfSample::ProducerEvent::PROFILER_STOP_GUARDRAIL) {
-      context_->storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
           stats::perf_guardrail_stop_ts,
           static_cast<int>(sampling_stream.perf_session_id.value), ts);
     }
@@ -261,10 +287,11 @@ void ProfileModule::ParsePerfSample(
         break;
       case (PerfSample::PROFILER_SKIP_READ_STAGE):
       case (PerfSample::PROFILER_SKIP_UNWIND_STAGE):
-        context_->storage->IncrementStats(stats::perf_samples_skipped);
+        context_->stats_tracker->IncrementStats(stats::perf_samples_skipped);
         break;
       case (PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE):
-        context_->storage->IncrementStats(stats::perf_samples_skipped_dataloss);
+        context_->stats_tracker->IncrementStats(
+            stats::perf_samples_skipped_dataloss);
         break;
       default:
         break;
@@ -312,8 +339,8 @@ void ProfileModule::ParsePerfSample(
       *sequence_state->GetCustomState<StackProfileSequenceState>();
   if (sample.has_callstack_iid()) {
     uint64_t callstack_iid = sample.callstack_iid();
-    cs_id =
-        stack_profile_sequence_state.FindOrInsertCallstack(upid, callstack_iid);
+    cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+        sequence_state, upid, callstack_iid);
   }
 
   using protos::pbzero::Profiling;
@@ -383,47 +410,47 @@ void ProfileModule::ParseProfilePacket(
     int64_t timestamp = *maybe_timestamp;
 
     int pid = static_cast<int>(entry.pid());
-    context_->storage->SetIndexedStats(stats::heapprofd_last_profile_timestamp,
-                                       pid, ts);
+    context_->stats_tracker->SetIndexedStats(
+        stats::heapprofd_last_profile_timestamp, pid, ts);
 
     if (entry.disconnected())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_client_disconnected, pid);
     if (entry.buffer_corrupted())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_buffer_corrupted, pid);
     if (entry.buffer_overran() ||
         entry.client_error() ==
             protos::pbzero::ProfilePacket::ProcessHeapSamples::
                 CLIENT_ERROR_HIT_TIMEOUT) {
-      context_->storage->IncrementIndexedStats(stats::heapprofd_buffer_overran,
-                                               pid);
+      context_->stats_tracker->IncrementIndexedStats(
+          stats::heapprofd_buffer_overran, pid);
     }
     if (entry.client_error()) {
-      context_->storage->SetIndexedStats(stats::heapprofd_client_error, pid,
-                                         entry.client_error());
+      context_->stats_tracker->SetIndexedStats(stats::heapprofd_client_error,
+                                               pid, entry.client_error());
     }
     if (entry.rejected_concurrent())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_rejected_concurrent, pid);
     if (entry.hit_guardrail())
-      context_->storage->IncrementIndexedStats(stats::heapprofd_hit_guardrail,
-                                               pid);
+      context_->stats_tracker->IncrementIndexedStats(
+          stats::heapprofd_hit_guardrail, pid);
     if (entry.orig_sampling_interval_bytes()) {
-      context_->storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
           stats::heapprofd_sampling_interval_adjusted, pid,
           static_cast<int64_t>(entry.sampling_interval_bytes()) -
               static_cast<int64_t>(entry.orig_sampling_interval_bytes()));
     }
 
     protos::pbzero::ProfilePacket::ProcessStats::Decoder stats(entry.stats());
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_unwind_time_us, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.total_unwinding_time_us()));
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_unwind_samples, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.heap_samples()));
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_client_spinlock_blocked, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.client_spinlock_blocked_us()));
 
@@ -463,7 +490,7 @@ void ProfileModule::ParseProfilePacket(
     }
   }
   if (!packet.continued()) {
-    profile_packet_sequence_state.FinalizeProfile();
+    profile_packet_sequence_state.FinalizeProfile(sequence_state);
   }
 }
 
@@ -477,7 +504,8 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   auto mappings =
       context_->mapping_tracker->FindMappings(module_symbols.path(), build_id);
   if (mappings.empty()) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return;
   }
   for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
@@ -515,14 +543,15 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
 
       for (const FrameId frame_id : frame_ids) {
         auto* frames = context_->storage->mutable_stack_profile_frame_table();
-        auto rr = *frames->FindById(frame_id);
+        auto rr = (*frames)[frame_id];
         rr.set_symbol_set_id(symbol_set_id);
         frame_found = true;
       }
     }
 
     if (!frame_found) {
-      context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+      context_->stats_tracker->IncrementStats(
+          stats::stackprofile_invalid_frame_id);
       continue;
     }
   }
@@ -532,10 +561,23 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
   protos::pbzero::SmapsPacket::Decoder sp(blob.data, blob.size);
   auto upid = context_->process_tracker->GetOrCreateProcess(sp.pid());
 
+  // Newer structure-of-arrays encoding of smaps.
+  if (sp.has_packed_entries()) {
+    ParsePackedSmaps(ts, upid, sp.packed_entries());
+    return;
+  }
+
   for (auto it = sp.entries(); it; ++it) {
     protos::pbzero::SmapsEntry::Decoder e(*it);
+    InternedSmapsPath interned =
+        InternSmapsPath(context_, base::StringView(e.path()));
     context_->storage->mutable_profiler_smaps_table()->Insert(
-        {upid, ts, context_->storage->InternString(e.path()),
+        {upid,
+         ts,
+         interned.path_id,
+         /*path_trimmed=*/interned.trimmed_path_id,
+         /*aggregate_count=*/1u,
+         /*is_deleted=*/interned.is_deleted ? 1u : 0u,
          static_cast<int64_t>(e.size_kb()),
          static_cast<int64_t>(e.private_dirty_kb()),
          static_cast<int64_t>(e.swap_kb()),
@@ -549,7 +591,164 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
          static_cast<int64_t>(e.shared_dirty_resident_kb()),
          static_cast<int64_t>(e.shared_clean_resident_kb()),
          static_cast<int64_t>(e.locked_kb()),
-         static_cast<int64_t>(e.proportional_resident_kb())});
+         static_cast<int64_t>(e.proportional_resident_kb()),
+         /*rss_kb=*/int64_t{0},
+         /*anonymous_kb=*/int64_t{0},
+         /*pss_dirty_kb=*/int64_t{0},
+         /*swap_pss_kb=*/int64_t{0}});
+  }
+}
+
+void ProfileModule::ParsePackedSmaps(int64_t ts,
+                                     UniquePid upid,
+                                     ConstBytes blob) {
+  protos::pbzero::PackedSmaps::Decoder packed(blob.data, blob.size);
+
+  // Intern path names while keeping the list ordered.
+  std::vector<InternedSmapsPath> string_table;
+  for (auto it = packed.string_table(); it; ++it) {
+    string_table.push_back(
+        InternSmapsPath(context_, base::StringView((*it).data, (*it).size)));
+  }
+
+  // Two possible encodings, based on the config:
+  // * aggregated: aggregate_count written, name_id is not (implicitly the
+  //   string_table order).
+  // * unaggregated: name_id indexes into string_table, aggregate_count not
+  //   written.
+  bool aggregated = packed.has_aggregate_count();
+
+  bool parse_error = false;
+  auto name_id_it = packed.name_id(&parse_error);
+  auto agg_count_it = packed.aggregate_count(&parse_error);
+  auto size_kb_it = packed.size_kb(&parse_error);
+  auto rss_kb_it = packed.rss_kb(&parse_error);
+  auto anonymous_kb_it = packed.anonymous_kb(&parse_error);
+  auto swap_kb_it = packed.swap_kb(&parse_error);
+  auto shared_clean_kb_it = packed.shared_clean_kb(&parse_error);
+  auto shared_dirty_kb_it = packed.shared_dirty_kb(&parse_error);
+  auto private_clean_kb_it = packed.private_clean_kb(&parse_error);
+  auto private_dirty_kb_it = packed.private_dirty_kb(&parse_error);
+  auto locked_kb_it = packed.locked_kb(&parse_error);
+  auto pss_kb_it = packed.pss_kb(&parse_error);
+  auto pss_dirty_kb_it = packed.pss_dirty_kb(&parse_error);
+  auto swap_pss_kb_it = packed.swap_pss_kb(&parse_error);
+  const bool has_size_kb = static_cast<bool>(size_kb_it);
+  const bool has_rss_kb = static_cast<bool>(rss_kb_it);
+  const bool has_anonymous_kb = static_cast<bool>(anonymous_kb_it);
+  const bool has_swap_kb = static_cast<bool>(swap_kb_it);
+  const bool has_shared_clean_kb = static_cast<bool>(shared_clean_kb_it);
+  const bool has_shared_dirty_kb = static_cast<bool>(shared_dirty_kb_it);
+  const bool has_private_clean_kb = static_cast<bool>(private_clean_kb_it);
+  const bool has_private_dirty_kb = static_cast<bool>(private_dirty_kb_it);
+  const bool has_locked_kb = static_cast<bool>(locked_kb_it);
+  const bool has_pss_kb = static_cast<bool>(pss_kb_it);
+  const bool has_pss_dirty_kb = static_cast<bool>(pss_dirty_kb_it);
+  const bool has_swap_pss_kb = static_cast<bool>(swap_pss_kb_it);
+
+  auto* table = context_->storage->mutable_profiler_smaps_table();
+
+  // Walk the N packed repeated fields, ensuring that all iterators are valid on
+  // every iteration, but accounting for the fact that not all value fields
+  // might be set at all.
+  size_t i = 0;
+  for (;
+       (aggregated || name_id_it) && (!aggregated || agg_count_it) &&
+       (!has_size_kb || size_kb_it) && (!has_rss_kb || rss_kb_it) &&
+       (!has_anonymous_kb || anonymous_kb_it) && (!has_swap_kb || swap_kb_it) &&
+       (!has_shared_clean_kb || shared_clean_kb_it) &&
+       (!has_shared_dirty_kb || shared_dirty_kb_it) &&
+       (!has_private_clean_kb || private_clean_kb_it) &&
+       (!has_private_dirty_kb || private_dirty_kb_it) &&
+       (!has_locked_kb || locked_kb_it) && (!has_pss_kb || pss_kb_it) &&
+       (!has_pss_dirty_kb || pss_dirty_kb_it) &&
+       (!has_swap_pss_kb || swap_pss_kb_it);
+       ++i) {
+    size_t name_idx = 0;
+    if (aggregated) {
+      name_idx = i;
+    } else {
+      name_idx = *name_id_it;
+      ++name_id_it;
+    }
+    if (PERFETTO_UNLIKELY(name_idx >= string_table.size())) {
+      parse_error = true;
+      break;
+    }
+
+    tables::ProfilerSmapsTable::Row row;
+    row.upid = upid;
+    row.ts = ts;
+    row.path = string_table[name_idx].path_id;
+    row.path_trimmed = string_table[name_idx].trimmed_path_id;
+    row.is_deleted = string_table[name_idx].is_deleted ? 1u : 0u;
+    row.aggregate_count = 1u;
+    if (aggregated) {
+      row.aggregate_count = *agg_count_it;
+      ++agg_count_it;
+    }
+    if (has_size_kb) {
+      row.size_kb = static_cast<int64_t>(*size_kb_it);
+      ++size_kb_it;
+    }
+    if (has_rss_kb) {
+      row.rss_kb = static_cast<int64_t>(*rss_kb_it);
+      ++rss_kb_it;
+    }
+    if (has_anonymous_kb) {
+      row.anonymous_kb = static_cast<int64_t>(*anonymous_kb_it);
+      ++anonymous_kb_it;
+    }
+    if (has_swap_kb) {
+      row.swap_kb = static_cast<int64_t>(*swap_kb_it);
+      ++swap_kb_it;
+    }
+    if (has_shared_clean_kb) {
+      row.shared_clean_resident_kb = static_cast<int64_t>(*shared_clean_kb_it);
+      ++shared_clean_kb_it;
+    }
+    if (has_shared_dirty_kb) {
+      row.shared_dirty_resident_kb = static_cast<int64_t>(*shared_dirty_kb_it);
+      ++shared_dirty_kb_it;
+    }
+    if (has_private_clean_kb) {
+      row.private_clean_resident_kb =
+          static_cast<int64_t>(*private_clean_kb_it);
+      ++private_clean_kb_it;
+    }
+    if (has_private_dirty_kb) {
+      row.private_dirty_kb = static_cast<int64_t>(*private_dirty_kb_it);
+      ++private_dirty_kb_it;
+    }
+    if (has_locked_kb) {
+      row.locked_kb = static_cast<int64_t>(*locked_kb_it);
+      ++locked_kb_it;
+    }
+    if (has_pss_kb) {
+      row.proportional_resident_kb = static_cast<int64_t>(*pss_kb_it);
+      ++pss_kb_it;
+    }
+    if (has_pss_dirty_kb) {
+      row.pss_dirty_kb = static_cast<int64_t>(*pss_dirty_kb_it);
+      ++pss_dirty_kb_it;
+    }
+    if (has_swap_pss_kb) {
+      row.swap_pss_kb = static_cast<int64_t>(*swap_pss_kb_it);
+      ++swap_pss_kb_it;
+    }
+    table->Insert(row);
+  }
+
+  // Validate that all packed fields that were set had the same number of
+  // elements.
+  const bool sizes_match =
+      !name_id_it && !agg_count_it && !size_kb_it && !rss_kb_it &&
+      !anonymous_kb_it && !swap_kb_it && !shared_clean_kb_it &&
+      !shared_dirty_kb_it && !private_clean_kb_it && !private_dirty_kb_it &&
+      !locked_kb_it && !pss_kb_it && !pss_dirty_kb_it && !swap_pss_kb_it &&
+      (!aggregated || i == string_table.size());
+  if (parse_error || !sizes_match) {
+    context_->stats_tracker->IncrementStats(stats::smaps_parser_errors);
   }
 }
 
@@ -560,7 +759,7 @@ void ProfileModule::OnEventsFullyExtracted() {
     NullTermStringView build_id = context_->storage->GetString(it.build_id());
 
     if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::symbolization_tmp_build_id_not_found);
     }
   }

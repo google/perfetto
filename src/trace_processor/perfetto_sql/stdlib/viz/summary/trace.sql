@@ -15,12 +15,14 @@
 
 -- Returns whether a machine is running a Linux kernel.
 CREATE PERFETTO FUNCTION _is_linux_machine(
-    -- Machine id.
-    machine_id JOINID(machine.id)
+  -- Machine id.
+  machine_id JOINID(machine.id)
 )
-RETURNS LONG AS
-SELECT
-  count() = 1
+RETURNS LONG
+AS
+SELECT count() = 1
 FROM metadata
 WHERE
-  name = 'system_name' AND str_value = 'Linux' AND machine_id = $machine_id;
+  name = 'system_name'
+  AND str_value = 'Linux'
+  AND machine_id = $machine_id;

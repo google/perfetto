@@ -18,7 +18,7 @@ import {assertTrue} from '../../base/assert';
 import {Card, CardStack} from '../../widgets/card';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 import {serializeState} from './json_handler';
 import {getAllNodes} from './query_builder/graph_utils';
 

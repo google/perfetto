@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './datagrid.scss';
 import m from 'mithril';
 import {intersperse} from '../../../base/array_utils';
 import {classNames} from '../../../base/classnames';
@@ -19,15 +20,17 @@ import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
 import {shortUuid} from '../../../base/uuid';
 import {exists, isNumeric, maybeUndefined} from '../../../base/utils';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
 import {
   Grid,
-  GridApi,
+  type GridApi,
   GridCell,
-  GridColumn,
+  type GridColumn,
   GridHeaderCell,
   renderSortMenuItems,
 } from '../../../widgets/grid';
@@ -42,7 +45,7 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {
+import type {
   DataSource,
   DataSourceModel,
   DataSourceRows,
@@ -51,7 +54,7 @@ import {
   TreeModel,
 } from './data_source';
 import {
-  SchemaRegistry,
+  type SchemaRegistry,
   getColumnInfo,
   getDefaultVisibleColumns,
   isCellRenderResult,
@@ -68,15 +71,15 @@ import {
 } from './export_utils';
 import {InMemoryDataSource} from './in_memory_data_source';
 import {
-  AggregateColumn,
-  AggregateFunction,
-  Column,
+  type AggregateColumn,
+  type AggregateFunction,
+  type Column,
   DEFAULT_GROUP_DISPLAY,
-  Filter,
-  GroupPath,
-  IdBasedTree,
-  Pivot,
-  SortDirection,
+  type Filter,
+  type GroupPath,
+  type IdBasedTree,
+  type Pivot,
+  type SortDirection,
 } from './model';
 
 // Compare two SqlValues for equality, handling nulls, undefined, and different types.
@@ -491,6 +494,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
+
+    if (rowsResult.error) {
+      return m(
+        '.pf-data-grid',
+        {
+          className: classNames(
+            fillHeight && 'pf-data-grid--fill-height',
+            className,
+          ),
+        },
+        m(Callout, {icon: 'error', intent: Intent.Danger}, rowsResult.error),
+      );
+    }
+
     const aggregateSummariesResult = datasource.useAggregateSummaries(model);
 
     // Expose the API
@@ -1631,6 +1648,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           return m(
             GridCell,
             {
+              actionButtons: colInfo?.actions?.(value, row),
               align: isRich ? rendered.align ?? 'left' : getAligment(value),
               nullish: isRich
                 ? rendered.nullish ?? value === null
@@ -2300,7 +2318,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 }
 
-export function renderCell(value: SqlValue, columnName: string) {
+export function renderCell(value: SqlValue, columnName?: string) {
   if (value === undefined) {
     return '';
   } else if (value instanceof Uint8Array) {
@@ -2310,7 +2328,7 @@ export function renderCell(value: SqlValue, columnName: string) {
         icon: Icons.Download,
         onclick: () =>
           download({
-            fileName: `${columnName}.blob`,
+            fileName: `${columnName ?? 'untitled'}.bin`,
             content: value,
           }),
       },

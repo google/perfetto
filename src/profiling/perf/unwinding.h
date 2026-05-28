@@ -75,7 +75,7 @@ class Unwinder {
  public:
   friend class UnwinderHandle;
 
-  enum class UnwindMode { kUnwindStack, kFramePointer };
+  enum class UnwindMode { kUnwindStack, kFramePointer, kKernelFramePointer };
 
   // Callbacks from the unwinder to the primary producer thread.
   class Delegate {
@@ -196,9 +196,17 @@ class Unwinder {
                                bool pid_unwound_before,
                                UnwindMode unwind_mode);
 
-  // Returns a list of symbolized kernel frames in the sample (if any).
+  // Returns symbolized kernel frames from the kernel-supplied callchain.
   std::vector<unwindstack::FrameData> SymbolizeKernelCallchain(
       const ParsedSample& sample);
+
+  // Returns frames for the userspace portion of the kernel-supplied callchain
+  // (i.e. the section after the PERF_CONTEXT_USER marker). Only relevant when
+  // sampling with |UnwindMode::kKernelFramePointer|. Returns an empty vector
+  // for kernel threads (no user section) or if |user_state| is null.
+  std::vector<unwindstack::FrameData> SymbolizeKernelSuppliedUserFrames(
+      const ParsedSample& sample,
+      UnwindingMetadata* user_state);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we
@@ -308,9 +316,10 @@ class UnwinderHandle {
                                         Unwinder*)> initializer,
                      Unwinder::Delegate* delegate) {
     base::MaybeLockFreeTaskRunner task_runner;
-    Unwinder unwinder(delegate, &task_runner);
+    // Can't use make_unique because ctor is private.
+    std::unique_ptr<Unwinder> unwinder(new Unwinder(delegate, &task_runner));
     task_runner.PostTask(
-        std::bind(std::move(initializer), &task_runner, &unwinder));
+        std::bind(std::move(initializer), &task_runner, unwinder.get()));
     task_runner.Run();
   }
 

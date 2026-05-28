@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertIsInstance} from './assert';
 
 // Check if a mithril component vnode has children
 export function hasChildren<T>({children}: m.Vnode<T>): boolean {
@@ -276,4 +277,168 @@ export function createContext<T>(initialValue?: T): {
       },
     },
   };
+}
+
+/**
+ * Options for {@link startDragGesture}.
+ */
+export interface DragOptions {
+  // The pointerdown event that initiates the drag. Its `currentTarget` must
+  // be an HTMLElement and is the element that captures the pointer for the
+  // duration of the gesture.
+  readonly e: PointerEvent;
+
+  // The distance in pixels the pointer must move from its initial position
+  // before the drag is considered started. Defaults to 0px (i.e. dragging
+  // starts immediately on pointerdown).
+  readonly deadzonePx?: number;
+
+  // Called once when the pointer first moves beyond `deadzonePx`. May
+  // return per-gesture handlers that take precedence over the top-level
+  // `onDrag`/`onDragEnd` for the rest of this gesture — useful when the
+  // drag needs to capture state at the moment it starts. If you don't need
+  // to initialize anything, omit this and use `onDrag`/`onDragEnd` directly.
+  readonly onDragStart?: (e: PointerEvent) => {
+    readonly onDrag?: (e: PointerEvent) => void;
+    readonly onDragEnd?: (e: PointerEvent) => void;
+  } | void;
+
+  // Called for each pointermove after the deadzone is crossed. Ignored for
+  // a given gesture if `onDragStart` returned its own `onDrag`.
+  readonly onDrag?: (e: PointerEvent) => void;
+
+  // Called when the gesture ends (pointerup/pointercancel) after the
+  // deadzone was crossed. Ignored for a given gesture if `onDragStart`
+  // returned its own `onDragEnd`.
+  readonly onDragEnd?: (e: PointerEvent) => void;
+
+  // Called if the pointer is released before crossing the deadzone — i.e.
+  // the gesture turned out to be a click rather than a drag. `onDragStart`
+  // will not have been invoked when this fires.
+  readonly onDragFailed?: (e: PointerEvent) => void;
+}
+
+/**
+ * Turns a pointerdown event into a deadzone-gated drag gesture.
+ *
+ * Captures the pointer on `e.currentTarget`, then waits for movement to
+ * exceed `deadzonePx` before invoking `onDragStart`. Subsequent pointermove
+ * events are routed to `onDrag`; pointerup/pointercancel ends the
+ * gesture and invokes `onDragEnd`. If the pointer is released before the
+ * deadzone is crossed, `onDragFailed` is invoked instead — useful for
+ * distinguishing clicks from drags on the same element.
+ *
+ * Pointer capture is released and all listeners are removed automatically
+ * when the gesture ends, regardless of how it ends.
+ *
+ * @example
+ * m('.draggable', {
+ *   onpointerdown: (e: PointerEvent) => {
+ *     startDragGesture({
+ *       e,
+ *       deadzonePx: 5,
+ *       onDrag: (ev) => console.log('moved to', ev.clientX, ev.clientY),
+ *       onDragEnd: () => console.log('drag ended'),
+ *       onDragFailed: () => console.log('was a click, not a drag'),
+ *     });
+ *   },
+ * });
+ *
+ * Use `onDragStart` instead when the gesture needs to capture state at the
+ * moment dragging actually begins (e.g. clone a node):
+ *
+ * @example
+ * startDragGesture({
+ *   e,
+ *   deadzonePx: 5,
+ *   onDragStart: (ev) => {
+ *     const cloned = element.cloneNode();
+ *     return {
+ *       onDrag: (e2) => cloned.style.transform = `translate(...)`,
+ *       onDragEnd: () => cloned.remove(),
+ *     };
+ *   },
+ * });
+ */
+export function startDragGesture(options: DragOptions): void {
+  const {
+    e,
+    deadzonePx = 0,
+    onDragStart,
+    onDragFailed,
+    onDrag,
+    onDragEnd,
+  } = options;
+  const el = assertIsInstance(e.currentTarget, HTMLElement);
+  const startX = e.clientX;
+  const startY = e.clientY;
+  el.setPointerCapture(e.pointerId);
+
+  let started = false;
+  let handlers: {
+    onDrag?: (e: PointerEvent) => void;
+    onDragEnd?: (e: PointerEvent) => void;
+  } = {};
+
+  function teardown() {
+    el.removeEventListener('pointermove', onPointerMove);
+    el.removeEventListener('pointerup', onPointerUp);
+    el.removeEventListener('pointercancel', onPointerUp);
+    el.removeEventListener('contextmenu', onContextMenu);
+    if (el.hasPointerCapture(e.pointerId)) {
+      el.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  // Suppress the context menu for the duration of the gesture. Right-click
+  // drags otherwise pop up the browser menu over the dragged element. We
+  // also can't rely on the menu cleaning up our state for us: Chrome does
+  // not fire `pointercancel` (or `lostpointercapture` until the next pointer
+  // move after the menu closes) when a native context menu opens over a
+  // captured pointer, so a drag started with the right button can be left
+  // stuck if we don't preventDefault here. See w3c/pointerevents#408.
+  function onContextMenu(ev: Event) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+
+  function start(ev: PointerEvent) {
+    started = true;
+    const perGesture = onDragStart?.(ev);
+    handlers = {
+      onDrag: perGesture?.onDrag ?? onDrag,
+      onDragEnd: perGesture?.onDragEnd ?? onDragEnd,
+    };
+  }
+
+  function onPointerMove(ev: PointerEvent) {
+    m.redraw();
+    if (!started) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (Math.hypot(dx, dy) < deadzonePx) return;
+      start(ev);
+    } else {
+      handlers.onDrag?.(ev);
+    }
+  }
+
+  function onPointerUp(ev: PointerEvent) {
+    m.redraw();
+    teardown();
+    if (started) {
+      handlers.onDragEnd?.(ev);
+    } else {
+      onDragFailed?.(ev);
+    }
+  }
+
+  el.addEventListener('pointermove', onPointerMove);
+  el.addEventListener('pointerup', onPointerUp);
+  el.addEventListener('pointercancel', onPointerUp);
+  el.addEventListener('contextmenu', onContextMenu);
+
+  // With a zero deadzone the gesture starts immediately on pointerdown, so
+  // even a click-without-moving counts as a drag (no `onDragFailed` path).
+  if (deadzonePx === 0) start(e);
 }

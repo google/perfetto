@@ -36,6 +36,7 @@ graph TD
     B --> C["<a href='#android-developers'>Android App/Platform Developer</a>"];
     B --> D["<a href='#linux-kernel-developers'>Linux Kernel Developer</a>"];
     B --> E["<a href='#c-cpp-developers'>C/C++ Developer (non-Android)</a>"];
+    B --> E2["<a href='#rust-developers'>Rust Developer</a>"];
     B --> F["<a href='#chromium-developers'>Chromium Developer</a>"];
     B --> G["<a href='#trace-like-data'>I have trace-like data</a>"];
     B --> H["<a href='#not-listed'>None of the above</a>"];
@@ -363,6 +364,24 @@ Here’s how Perfetto can help:
     [Recording Memory Profiles (Native Heap Profiling)](/docs/getting-started/memory-profiling.md)
   - **Reference**:
     [Native Heap Profiler Data Source](/docs/data-sources/native-heap-profiler.md)
+
+## {#rust-developers} Rust Developers
+
+If you're developing Rust applications, the community-maintained Perfetto
+Rust SDK allows you to instrument your code with trace points, record
+traces, and integrate with the Perfetto tracing service. It supports the
+standard Rust `tracing` crate as well as direct Perfetto track event
+macros.
+
+- **How can I add Perfetto tracing to my Rust application?** The Rust SDK
+  provides track event macros, a `#[tracefn]` proc macro for automatic
+  function instrumentation, and a `tracing-subscriber` Layer for bridging
+  the Rust `tracing` ecosystem to Perfetto.
+
+  - **Tutorial**:
+    [Recording Traces with the Rust SDK](/docs/getting-started/rust-sdk.md)
+  - **Reference**:
+    [Rust SDK on crates.io](https://crates.io/crates/perfetto-sdk)
 
 ## {#chromium-developers} Chromium Developers
 

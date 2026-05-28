@@ -19,11 +19,11 @@
 -- The input rel_pc is the relative address to be symbolized.
 -- Currently also includes mapping_id and address as a way to join back symbolization results to original data.
 CREATE PERFETTO MACRO _callstack_frame_symbolize(
-    -- A subquery which returns a table with columns "file_name", "rel_pc", "mapping_id", and "address".
-    frames TableOrSubquery
+  -- A subquery which returns a table with columns "file_name", "rel_pc", "mapping_id", and "address".
+  frames TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS function_name,
     c1 AS file_name,

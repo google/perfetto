@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../../protos';
-import {errResult, okResult, Result} from '../../../../base/result';
-import {PreflightCheck} from '../../interfaces/connection_check';
-import {RecordingTarget} from '../../interfaces/recording_target';
-import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
+import type protos from '../../../../protos';
+import {errResult, okResult, type Result} from '../../../../base/result';
+import type {PreflightCheck} from '../../interfaces/connection_check';
+import type {RecordingTarget} from '../../interfaces/recording_target';
+import type {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {
   createAdbTracingSession,
@@ -24,7 +24,6 @@ import {
 } from '../adb_tracing_session';
 import {AdbWebsocketDevice} from './adb_websocket_device';
 import {AsyncLazy} from '../../../../base/async_lazy';
-import {RecordTraceV2Settings} from '../../settings';
 
 export class AdbWebsocketTarget implements RecordingTarget {
   readonly kind = 'LIVE_RECORDING';
@@ -37,7 +36,6 @@ export class AdbWebsocketTarget implements RecordingTarget {
     private wsUrl: string,
     private serial: string,
     private model: string,
-    private readonly settings: RecordTraceV2Settings,
   ) {}
 
   get id(): string {
@@ -62,7 +60,7 @@ export class AdbWebsocketTarget implements RecordingTarget {
       })(),
     };
     if (this.adbDevice.value === undefined) return;
-    yield* checkAndroidTarget(this.adbDevice.value, this.settings);
+    yield* checkAndroidTarget(this.adbDevice.value);
   }
 
   private async connectIfNeeded(): Promise<Result<AdbWebsocketDevice>> {
@@ -84,7 +82,7 @@ export class AdbWebsocketTarget implements RecordingTarget {
     if (this.adbDevice.value === undefined) {
       return errResult('WebSocket transport disconnected');
     }
-    return getAdbTracingServiceState(this.adbDevice.value, this.settings);
+    return getAdbTracingServiceState(this.adbDevice.value);
   }
 
   async startTracing(
@@ -92,10 +90,6 @@ export class AdbWebsocketTarget implements RecordingTarget {
   ): Promise<Result<ConsumerIpcTracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(
-      adbDeviceStatus.value,
-      traceConfig,
-      this.settings,
-    );
+    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
   }
 }

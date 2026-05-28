@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, TimeSpan} from '../../base/time';
-import {Trace} from '../../public/trace';
-import {Engine} from '../../trace_processor/engine';
+import type {duration, TimeSpan} from '../../base/time';
+import type {Trace} from '../../public/trace';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM_NULL,
@@ -24,7 +24,7 @@ import {
 } from '../../trace_processor/query_result';
 import {TreeNode} from '../../widgets/tree';
 import {DurationWidget} from '../widgets/duration';
-import {Utid} from '../sql_utils/core_types';
+import type {Utid} from '../sql_utils/core_types';
 
 // An individual node of the thread state breakdown tree.
 class Node {

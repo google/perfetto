@@ -1,7 +1,6 @@
 # NOTE: eslint.config.js and ui/format-sources also depend on this file.
 node_modules
 src/service_worker
-src/bigtrace
 src/gen
 src/test/diff_viewer
 out
@@ -10,3 +9,4 @@ build.js
 eslint.config.js
 **/*.grammar.js
 **/*.grammar.terms.js
+**/vite.d.ts

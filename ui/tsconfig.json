@@ -5,7 +5,6 @@
     "./node_modules/",
     "./src/test/diff_viewer/",
     "./src/service_worker/",
-    "./src/bigtrace/",
     "./src/gen/",
     "./out"
   ],
@@ -14,6 +13,7 @@
     "lib": [
       "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.
       "es2022",                            // Need this to use Promise.allSettled, replaceAll, etc
+      "dom.iterable",                      // For using for..of loops on NodeListOf<Element>
     ],
     "paths": {
       "*" : ["*", "./node_modules/@tsundoku/micromodal_types/*"]

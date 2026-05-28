@@ -18,16 +18,19 @@ import {
   NUM,
   NUM_NULL,
   STR,
+  STR_NULL,
 } from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {Time} from '../../base/time';
-import {App} from '../../public/app';
-import {RouteArgs} from '../../public/route_schema';
+import type {App} from '../../public/app';
+import type {RouteArgs} from '../../public/route_schema';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import {AnrDetailsPanel} from './details_panel';
+import {findMainThreadTrackUri, scrollToTrackAndSelect} from './navigate';
 
 const ANR_TRACK_URI = '/android_anrs';
 
@@ -102,15 +105,26 @@ export default class AndroidAnr implements PerfettoPlugin {
             ts: LONG,
             dur: LONG_NULL,
             name: STR,
+            upid: NUM_NULL,
+            process_name: STR,
+            pid: NUM_NULL,
+            anr_type: STR,
+            subject: STR_NULL,
           },
           src: `
             SELECT
               ts - coalesce(anr_dur_ms, default_anr_dur_ms, 0) * 1000000 AS ts,
               coalesce(anr_dur_ms, default_anr_dur_ms, 0) * 1000000 AS dur,
-              process_name || ' ' || pid || ' : ' || anr_type AS name
+              process_name || ' ' || pid || ' : ' || anr_type AS name,
+              upid,
+              process_name,
+              pid,
+              anr_type,
+              subject
             FROM android_anrs
           `,
         }),
+        detailsPanel: () => new AnrDetailsPanel(ctx),
       }),
     });
 
@@ -200,6 +214,8 @@ export default class AndroidAnr implements PerfettoPlugin {
 
     this.pinAnrTrack(ctx);
 
+    const startTime = Time.fromRaw(BigInt(anrInfo.ts));
+
     ctx.onTraceReady.addListener(async () => {
       const group = (
         ctx.plugins.getPlugin(
@@ -212,72 +228,21 @@ export default class AndroidAnr implements PerfettoPlugin {
       }
       group.expand();
 
-      const processTrackUri = group.uri;
-      const tracksToSelect = [];
+      const tracksToSelect: string[] = [];
       if (anrInfo.mainThreadTrackId !== null) {
-        const mainThreadTrackNode = ctx.currentWorkspace.flatTracks.find(
-          (track) => {
-            if (!track.uri) {
-              return false;
-            }
-            const trackDesc = ctx.tracks.getTrack(track.uri);
-            return trackDesc?.tags?.trackIds?.includes(
-              anrInfo.mainThreadTrackId!,
-            );
-          },
-        );
-        if (mainThreadTrackNode?.uri) {
-          tracksToSelect.push(mainThreadTrackNode.uri);
+        const uri = findMainThreadTrackUri(ctx, anrInfo.mainThreadTrackId);
+        if (uri) {
+          tracksToSelect.push(uri);
         }
       }
 
-      this.scrollToAndSelect(
+      scrollToTrackAndSelect(
         ctx,
-        processTrackUri,
+        group.uri,
         tracksToSelect,
-        anrInfo.ts,
+        startTime,
         anrInfo.dur,
       );
     });
-  }
-
-  private scrollToAndSelect(
-    ctx: Trace,
-    trackToScroll: string,
-    tracksToSelect: string[],
-    ts: bigint,
-    dur: bigint,
-  ) {
-    const startTime = Time.fromRaw(BigInt(ts));
-    const endTime = Time.fromRaw(BigInt(ts + dur));
-
-    ctx.scrollTo({
-      track: {
-        uri: trackToScroll,
-        expandGroup: true,
-      },
-      time:
-        dur > 0n
-          ? {
-              start: startTime,
-              end: endTime,
-              behavior: {viewPercentage: 0.8},
-            }
-          : {
-              start: startTime,
-              behavior: 'focus',
-            },
-    });
-
-    ctx.selection.selectArea(
-      {
-        start: startTime,
-        end: endTime,
-        trackUris: tracksToSelect,
-      },
-      {
-        switchToCurrentSelectionTab: true,
-      },
-    );
   }
 }

@@ -18,14 +18,40 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 # Amalgamated C tokenizer + parser generated from `perfetto.y` (grammar)
 # and `perfetto.synq` (AST node definitions) by `tools/gen_syntaqlite_parser`.
+_syntaqlite_sources = [
+  "syntaqlite_perfetto.c",
+  "syntaqlite_perfetto.h",
+]
+
 source_set("syntaqlite") {
-  sources = [
-    "syntaqlite_perfetto.c",
-    "syntaqlite_perfetto.h",
-  ]
+  sources = _syntaqlite_sources + [
+              "inline_dispatch.h",
+              "utils.h",
+            ]
+
+  # Inline the dialect dispatch macros instead of going through dialect
+  # function pointers. Drops call_indirect on the parser hot path.
+  defines = [ "SYNTAQLITE_INLINE_DIALECT_DISPATCH=\"src/trace_processor/perfetto_sql/syntaqlite/inline_dispatch.h\"" ]
   deps = [ "../../../../gn:default_deps" ]
   visibility = [
-    "../parser",
+    "../../util:sql_module_doc_parser",
+    "../lineage_resolver:lineage_resolver",
+    "../parser:*",
     "../tokenizer",
   ]
+}
+
+# Loadable dialect library consumed by `syntaqlite fmt --dialect`. Links the
+# same amalgamated sources as `source_set("syntaqlite")` as a shared library so
+# the prebuilt syntaqlite CLI can dlopen it when formatting `.sql` files. Not
+# used at runtime by any Perfetto binary.
+if (perfetto_build_standalone) {
+  shared_library("perfetto_fmt_dialect") {
+    sources = _syntaqlite_sources
+    deps = [ "../../../../gn:default_deps" ]
+    defines = [ "SYNTAQLITE_SHARED" ]
+    if (is_mac) {
+      ldflags = [ "-Wl,-undefined,dynamic_lookup" ]
+    }
+  }
 }
