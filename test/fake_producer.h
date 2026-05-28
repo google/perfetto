@@ -109,7 +109,8 @@ class FakeProducer : public Producer {
   uint32_t message_size_ = 0;
   uint32_t message_count_ = 0;
   uint32_t max_messages_per_second_ = 0;
-  BufferExhaustedPolicy buffer_exhausted_policy_ = BufferExhaustedPolicy::kStall;
+  BufferExhaustedPolicy buffer_exhausted_policy_ =
+      BufferExhaustedPolicy::kStall;
   std::function<void()> on_connect_;
   std::function<void()> on_setup_data_source_instance_;
   std::function<void()> on_create_data_source_instance_;
