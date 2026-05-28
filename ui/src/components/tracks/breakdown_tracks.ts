@@ -171,17 +171,47 @@ export class BreakdownTracks {
   private modulesClause: string;
   private sliceJoinClause?: string;
   private pivotJoinClause?: string;
+  // Counter tracks defer their CREATE PERFETTO TABLE here on the legacy
+  // (non-projected) path; flushed in one batched engine.query at end of
+  // createTracks(). Unused on the projected path.
+  private pendingTableCreates: string[] = [];
+
+  // Projected-path state. When useProjectedPath is true, createTracks builds
+  // one (id, ts, dur, k0..kN, s0..sN) projection plus one self-intersect
+  // segments table, and per-track renderers query those instead of running
+  // intervals_overlap_count! per node. Eliminates the O(N_tracks) macro
+  // multiplier that dominates trace load for big hierarchies.
+  private readonly useProjectedPath: boolean;
+  private projectedTableName?: string;
+  private segmentsTableName?: string;
+  private projectedAggColNames?: readonly string[];
+  private projectedSliceColNames?: readonly string[];
 
   constructor(props: BreakdownTrackProps) {
     this.props = props;
     this.uri = `/breakdown_tracks_${this.props.aggregation.tableName}`;
+    this.useProjectedPath = BreakdownTracks.shouldUseProjectedPath(props);
 
     this.modulesClause = props.modules
       ? props.modules.map((m) => `INCLUDE PERFETTO MODULE ${m};`).join('\n')
       : '';
 
     if (this.props.aggregationType === BreakdownTrackAggType.COUNT) {
-      this.modulesClause += `\nINCLUDE PERFETTO MODULE intervals.overlap;`;
+      this.modulesClause += this.useProjectedPath
+        ? `\nINCLUDE PERFETTO MODULE intervals.intersect;`
+        : `\nINCLUDE PERFETTO MODULE intervals.overlap;`;
+    }
+
+    if (this.useProjectedPath) {
+      const unique = uuidv4().replace(/-/g, '_');
+      this.projectedTableName = `_breakdown_projected_${unique}`;
+      this.segmentsTableName = `_breakdown_segments_${unique}`;
+      this.projectedAggColNames = this.props.aggregation.columns.map(
+        (_, i) => `k${i}`,
+      );
+      this.projectedSliceColNames = (this.props.slice?.columns ?? []).map(
+        (_, i) => `s${i}`,
+      );
     }
 
     if (this.props.slice?.joins !== undefined) {
@@ -193,7 +223,33 @@ export class BreakdownTracks {
     }
   }
 
+  private static shouldUseProjectedPath(props: BreakdownTrackProps): boolean {
+    return (
+      props.aggregationType === BreakdownTrackAggType.COUNT &&
+      props.aggregation.joins === undefined &&
+      props.slice?.joins === undefined &&
+      props.pivots === undefined
+    );
+  }
+
   private getAggregationQuery(filtersClause: string) {
+    if (this.useProjectedPath) {
+      // Query the shared self-intersect segments table. One row per
+      // (atomic segment, original interval) pair, plus an end-marker row at
+      // each interval's end. SUM(IIF(NOT interval_ends_at_ts, 1, 0)) per
+      // group_id counts active intervals at each segment; end-markers
+      // contribute 0 so the counter naturally drops on segment boundaries
+      // where intervals end.
+      return `
+        SELECT MIN(ts) AS ts,
+               SUM(IIF(interval_ends_at_ts = FALSE, 1, 0)) AS value
+        FROM ${this.segmentsTableName}
+        ${filtersClause}
+        GROUP BY group_id
+        ORDER BY ts
+      `;
+    }
+
     if (this.props.aggregationType === BreakdownTrackAggType.COUNT) {
       return `
         intervals_overlap_count
@@ -251,12 +307,58 @@ export class BreakdownTracks {
       .join('\n');
   }
 
+  // Build the two tables that drive the projected path:
+  //   _breakdown_projected: (id, ts, dur, k0..kN, s0..sN) — one row per source
+  //     row, with the user-supplied agg/slice column expressions pre-evaluated
+  //     under stable names. Filters everywhere downstream become raw column
+  //     equality on this table.
+  //   _breakdown_segments: per-atomic-segment, per-active-id rows from
+  //     interval_self_intersect, denormalized with the agg cols inline so
+  //     per-track counter renderers don't need to JOIN back.
+  private async buildProjectedTables() {
+    const {tsCol, durCol, tableName} = this.props.aggregation;
+    const aggCols = this.props.aggregation.columns;
+    const sliceCols = this.props.slice?.columns ?? [];
+    const idExpr = this.props.sliceIdColumn ?? 'ROW_NUMBER() OVER ()';
+
+    const projectedSelect = [
+      `${idExpr} AS id`,
+      `${tsCol} AS ts`,
+      `${durCol} AS dur`,
+      ...aggCols.map((col, i) => `${col} AS k${i}`),
+      ...sliceCols.map((col, i) => `${col} AS s${i}`),
+    ].join(', ');
+
+    const denormAggCols = this.projectedAggColNames!.map((n) => `p.${n}`).join(
+      ', ',
+    );
+
+    await this.props.trace.engine.query(`
+      CREATE PERFETTO TABLE ${this.projectedTableName} AS
+      SELECT ${projectedSelect}
+      FROM ${tableName};
+
+      CREATE PERFETTO TABLE ${this.segmentsTableName} AS
+      SELECT
+        iss.ts,
+        iss.group_id,
+        iss.interval_ends_at_ts,
+        ${denormAggCols}
+      FROM interval_self_intersect!((
+        SELECT id, ts, dur FROM ${this.projectedTableName}
+      )) iss
+      JOIN ${this.projectedTableName} p USING(id);
+    `);
+  }
+
   async createTracks() {
     if (this.modulesClause !== '') {
       await this.props.trace.engine.query(this.modulesClause);
     }
 
-    if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
+    if (this.useProjectedPath) {
+      await this.buildProjectedTables();
+    } else if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
       await this.props.trace.engine.query(`
         CREATE OR REPLACE PERFETTO FUNCTION _ui_dev_perfetto_breakdown_tracks_is_spans_overlapping(
           ts1 LONG,
@@ -276,8 +378,16 @@ export class BreakdownTracks {
       [],
     );
 
-    const aggColNames = this.props.aggregation.columns;
-    const sliceColNames = this.props.slice?.columns ?? [];
+    // Column names used by the hierarchy walk to read group-by results and
+    // build per-track filters. On the projected path these are the stable
+    // projected names (k0..kN, s0..sN); on the legacy path they are the
+    // original column expressions.
+    const aggColNames = this.useProjectedPath
+      ? [...this.projectedAggColNames!]
+      : this.props.aggregation.columns;
+    const sliceColNames = this.useProjectedPath
+      ? [...this.projectedSliceColNames!]
+      : this.props.slice?.columns ?? [];
     const pivotColNames = this.props.pivots?.columns ?? [];
 
     const allColNames = [];
@@ -285,13 +395,19 @@ export class BreakdownTracks {
     allColNames.push(...sliceColNames);
     allColNames.push(...pivotColNames);
 
-    const query = `
-      SELECT ${allColNames.join(', ')}
-      FROM ${this.props.aggregation.tableName}
-      ${this.sliceJoinClause ?? ''}
-      ${this.pivotJoinClause ?? ''}
-      GROUP BY ${allColNames.join(', ')}
-    `;
+    const query = this.useProjectedPath
+      ? `
+        SELECT ${allColNames.join(', ')}
+        FROM ${this.projectedTableName}
+        GROUP BY ${allColNames.join(', ')}
+      `
+      : `
+        SELECT ${allColNames.join(', ')}
+        FROM ${this.props.aggregation.tableName}
+        ${this.sliceJoinClause ?? ''}
+        ${this.pivotJoinClause ?? ''}
+        GROUP BY ${allColNames.join(', ')}
+      `;
     const res = await this.props.trace.engine.query(query);
 
     await this.createBreakdownHierarchy(
@@ -302,7 +418,16 @@ export class BreakdownTracks {
       pivotColNames,
     );
 
+    await this.flushPendingTableCreates();
+
     return rootTrackNode;
+  }
+
+  private async flushPendingTableCreates() {
+    if (this.pendingTableCreates.length === 0) return;
+    const batch = this.pendingTableCreates.join('\n');
+    this.pendingTableCreates = [];
+    await this.props.trace.engine.query(batch);
   }
 
   private async createBreakdownHierarchy(
@@ -422,7 +547,29 @@ export class BreakdownTracks {
     return await this.createTrackNode(
       title,
       newFilters,
-      async (uri: string, filtersClause: string) => {
+      (uri: string, filtersClause: string) => {
+        // On the projected path, source from the pre-computed projection:
+        // id/ts/dur are already aliased there, and the slice column is
+        // stored under sN, so the per-track query is a cheap raw-eq filter.
+        // shouldUseProjectedPath excludes joins+pivots, so trackType is
+        // always SLICE here.
+        const src = this.useProjectedPath
+          ? `
+              SELECT id, ts, dur,
+                     ${this.projectedSliceColNames![columnIndex]} AS name
+              FROM ${this.projectedTableName}
+              ${filtersClause}
+            `
+          : `
+              SELECT
+                ${this.props.sliceIdColumn ? this.props.sliceIdColumn : 'ROW_NUMBER() OVER()'} AS id,
+                ${sqlInfo.tsCol} AS ts,
+                ${sqlInfo.durCol} AS dur,
+                ${sqlInfo.columns[columnIndex]} AS name
+              FROM ${this.props.aggregation.tableName}
+              ${joinClause}
+              ${filtersClause}
+            `;
         return SliceTrack.create({
           trace: this.props.trace,
           uri,
@@ -433,16 +580,7 @@ export class BreakdownTracks {
               dur: LONG,
               name: STR,
             },
-            src: `
-              SELECT
-                ${this.props.sliceIdColumn ? this.props.sliceIdColumn : 'ROW_NUMBER() OVER()'} AS id,
-                ${sqlInfo.tsCol} AS ts,
-                ${sqlInfo.durCol} AS dur,
-                ${sqlInfo.columns[columnIndex]} AS name
-              FROM ${this.props.aggregation.tableName}
-              ${joinClause}
-              ${filtersClause}
-            `,
+            src,
           }),
           detailsPanel: this.props.detailsPanel
             ? () => this.props.detailsPanel!(this.props.trace)
@@ -466,13 +604,30 @@ export class BreakdownTracks {
       name,
       newFilters,
       (uri: string, filtersClause: string) => {
-        return CounterTrack.createMaterialized({
+        const sqlSource = `SELECT ts, value FROM (${this.getAggregationQuery(filtersClause)})`;
+        if (this.useProjectedPath) {
+          // Lazy: the per-render macro work that would dominate trace load
+          // never happens here — getAggregationQuery returns a cheap filter
+          // over the shared self-intersect segments table, and CounterTrack's
+          // useData fires it only on render.
+          return CounterTrack.create({
+            trace: this.props.trace,
+            uri,
+            sqlSource,
+          });
+        }
+        // Legacy: defer the CREATE PERFETTO TABLE so all counter tables in
+        // this BreakdownTracks instance flush in one batched engine.query at
+        // end of createTracks(). The renderer holds the chosen table name;
+        // the table is materialized before createTracks() returns.
+        const tableName = `_breakdown_counter_${uuidv4().replace(/-/g, '_')}`;
+        this.pendingTableCreates.push(
+          `CREATE PERFETTO TABLE ${tableName} AS ${sqlSource};`,
+        );
+        return CounterTrack.create({
           trace: this.props.trace,
           uri,
-          sqlSource: `
-            SELECT ts, value
-            FROM (${this.getAggregationQuery(filtersClause)})
-          `,
+          sqlSource: tableName,
         });
       },
       (filterClause) => this.getCounterTrackSortOrder(filterClause),
@@ -482,14 +637,14 @@ export class BreakdownTracks {
   private async createTrackNode(
     name: string,
     filters: Filter[],
-    createTrack: (uri: string, filtersClause: string) => Promise<TrackRenderer>,
+    createTrack: (uri: string, filtersClause: string) => TrackRenderer,
     getSortOrder?: (filterClause: string) => Promise<number>,
   ) {
     const filtersClause =
       filters.length > 0 ? `\nWHERE ${buildFilterSqlClause(filters)}` : '';
     const uri = `${this.uri}_${uuidv4()}`;
 
-    const renderer = await createTrack(uri, filtersClause);
+    const renderer = createTrack(uri, filtersClause);
 
     this.props.trace.tracks.registerTrack({
       uri,
