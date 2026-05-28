@@ -25,6 +25,10 @@
 
 #include "src/tracing/core/in_process_shared_memory.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include "src/tracing/service/zlib_compressor.h"
+#endif
+
 // TODO(primiano): When the in-process backend is used, we should never end up
 // in a situation where the thread where the TracingService and Producer live
 // writes a packet and hence can get into the GetNewChunk() stall.
@@ -68,7 +72,16 @@ TracingService* InProcessTracingBackend::GetOrCreateService(
   if (!service_) {
     std::unique_ptr<InProcessSharedMemory::Factory> shm(
         new InProcessSharedMemory::Factory());
-    service_ = TracingService::CreateInstance(std::move(shm), task_runner);
+    TracingService::InitOpts init_opts = {};
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+    // Wire the zlib compressor so TraceConfig.compression_type =
+    // COMPRESSION_TYPE_DEFLATE takes effect on the in-process backend's
+    // service, mirroring what src/traced/service/service.cc does for the
+    // system backend.
+    init_opts.compressor_fn = &ZlibCompressFn;
+#endif
+    service_ =
+        TracingService::CreateInstance(std::move(shm), task_runner, init_opts);
     service_->SetSMBScrapingEnabled(true);
   }
   return service_.get();

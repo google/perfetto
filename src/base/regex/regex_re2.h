@@ -17,6 +17,12 @@
 #ifndef SRC_BASE_REGEX_REGEX_RE2_H_
 #define SRC_BASE_REGEX_REGEX_RE2_H_
 
+#include "perfetto/base/build_config.h"
+
+// Guarded because gen_amalgamated inlines the body even when the include
+// site in regex.cc is preprocessed out.
+#if PERFETTO_BUILDFLAG(PERFETTO_RE2)
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -117,5 +123,7 @@ class RegexRe2 {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_RE2)
 
 #endif  // SRC_BASE_REGEX_REGEX_RE2_H_

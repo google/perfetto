@@ -17,6 +17,11 @@
 #ifndef SRC_BASE_REGEX_REGEX_PCRE2_H_
 #define SRC_BASE_REGEX_REGEX_PCRE2_H_
 
+#include "perfetto/base/build_config.h"
+
+// See note in regex_re2.h.
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+
 #include <limits>
 #include <memory>
 #include <string>
@@ -192,5 +197,7 @@ class RegexPcre2 {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
 
 #endif  // SRC_BASE_REGEX_REGEX_PCRE2_H_
