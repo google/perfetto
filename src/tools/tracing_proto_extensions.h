@@ -78,10 +78,16 @@ base::Status ValidateScopesUnique(const std::vector<Registry>& registries);
 //
 // |proto_paths| are the -I include directories for protoc.
 // |root_dir| is the base directory for resolving relative paths in the JSON.
+// |base_descriptor_paths|, if non-empty, are paths to prebuilt binary
+// FileDescriptorSet files (e.g. perfetto's trace.descriptor). Imports of the
+// leaf protos are resolved from these first, falling back to compiling from
+// |proto_paths|. This lets callers avoid materializing the entire core proto
+// closure as source just to compile a handful of extension protos.
 base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     const std::string& root_json_path,
     const std::vector<std::string>& proto_paths,
-    const std::string& root_dir);
+    const std::string& root_dir,
+    const std::vector<std::string>& base_descriptor_paths = {});
 
 }  // namespace gen_proto_extensions
 }  // namespace perfetto

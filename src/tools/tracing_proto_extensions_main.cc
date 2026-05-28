@@ -45,6 +45,10 @@ validates extension field numbers, and generates a merged FileDescriptorSet.
 
 -j, --json:            Path to the root extensions.json file.
 -I, --proto_path:      Proto include directory (can be specified multiple times).
+-b, --base-descriptor: Path to a prebuilt binary FileDescriptorSet whose protos
+                       satisfy the leaf protos' imports (e.g. trace.descriptor).
+                       May be specified multiple times. Optional; without it all
+                       imports are compiled from the -I source tree.
 -o, --descriptor-out:  Output path for the binary FileDescriptorSet.
     --gzip:            Gzip-compress the output.
 -h, --help:            Show this help.
@@ -93,18 +97,20 @@ int Main(int argc, char** argv) {
       {"version", no_argument, nullptr, 'v'},
       {"json", required_argument, nullptr, 'j'},
       {"proto_path", required_argument, nullptr, 'I'},
+      {"base-descriptor", required_argument, nullptr, 'b'},
       {"descriptor-out", required_argument, nullptr, 'o'},
       {"gzip", no_argument, nullptr, 'g'},
       {nullptr, 0, nullptr, 0}};
 
   std::string json_path;
   std::vector<std::string> proto_paths;
+  std::vector<std::string> base_descriptor_paths;
   std::string output_path;
   bool use_gzip = false;
   bool has_args = false;
 
   for (;;) {
-    int option = getopt_long(argc, argv, "hvj:I:o:", long_options, nullptr);
+    int option = getopt_long(argc, argv, "hvj:I:b:o:", long_options, nullptr);
     if (option == -1)
       break;
 
@@ -125,6 +131,10 @@ int Main(int argc, char** argv) {
     }
     if (option == 'I') {
       proto_paths.emplace_back(optarg);
+      continue;
+    }
+    if (option == 'b') {
+      base_descriptor_paths.emplace_back(optarg);
       continue;
     }
     if (option == 'o') {
@@ -162,7 +172,8 @@ int Main(int argc, char** argv) {
   // relative paths in the JSON.
   const std::string& root_dir = proto_paths[0];
 
-  auto result = GenerateExtensionDescriptors(json_path, proto_paths, root_dir);
+  auto result = GenerateExtensionDescriptors(json_path, proto_paths, root_dir,
+                                             base_descriptor_paths);
   if (!result.ok()) {
     PERFETTO_ELOG("Error: %s", result.status().message().c_str());
     return 1;

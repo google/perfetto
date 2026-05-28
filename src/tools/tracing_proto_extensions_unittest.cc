@@ -16,6 +16,8 @@
 
 #include "src/tools/tracing_proto_extensions.h"
 
+#include <google/protobuf/descriptor.pb.h>
+
 #include "perfetto/base/status.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/base/test/utils.h"
@@ -524,6 +526,74 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithUnifiedRegistry) {
   ASSERT_TRUE(result.ok()) << result.status().message();
   // The output should be a non-empty FileDescriptorSet.
   EXPECT_GT(result->size(), 0u);
+}
+
+TEST(GenProtoExtensionsTest,
+     GenerateExtensionDescriptorsResolvesViaBaseDescriptor) {
+  // The extended type (perfetto.protos.TrackEvent) is provided ONLY via a
+  // prebuilt FileDescriptorSet, never as source. The leaf extension proto
+  // imports and extends it, and must still compile against the base
+  // descriptor.
+  base::TmpDirTree tmp;
+
+  // Build a base descriptor containing perfetto.protos.TrackEvent with an
+  // extension range, and write it to disk as a binary FileDescriptorSet.
+  google::protobuf::FileDescriptorSet base_set;
+  {
+    auto* f = base_set.add_file();
+    f->set_name("protos/perfetto/trace/track_event/track_event.proto");
+    f->set_syntax("proto2");
+    f->set_package("perfetto.protos");
+    auto* m = f->add_message_type();
+    m->set_name("TrackEvent");
+    auto* er = m->add_extension_range();
+    er->set_start(9900);
+    er->set_end(10000);  // end is exclusive.
+  }
+  tmp.AddFile("base.descriptor", base_set.SerializeAsString());
+
+  // Leaf extension proto. Note: track_event.proto is NOT present as source.
+  tmp.AddDir("protos");
+  tmp.AddDir("protos/perfetto");
+  tmp.AddDir("protos/perfetto/trace");
+  tmp.AddDir("protos/perfetto/trace/track_event");
+  tmp.AddFile("protos/perfetto/trace/track_event/leaf.proto", R"(
+    syntax = "proto2";
+    package test;
+    import "protos/perfetto/trace/track_event/track_event.proto";
+    message LeafExt {
+      extend perfetto.protos.TrackEvent {
+        optional int32 leaf_field = 9900;
+      }
+    }
+  )");
+  tmp.AddFile("registry.json", R"({
+    "extensions": [
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [9900, 9999],
+        "allocations": [
+          {
+            "name": "test",
+            "range": [9900, 9999],
+            "proto": "protos/perfetto/trace/track_event/leaf.proto"
+          }
+        ]
+      }
+    ]
+  })");
+
+  // With the base descriptor: the import resolves and compilation succeeds.
+  auto ok = GenerateExtensionDescriptors(tmp.AbsolutePath("registry.json"),
+                                         {tmp.path()}, tmp.path(),
+                                         {tmp.AbsolutePath("base.descriptor")});
+  ASSERT_TRUE(ok.ok()) << ok.status().message();
+  EXPECT_GT(ok->size(), 0u);
+
+  // Without it: fails, because track_event.proto is not available as source.
+  auto err = GenerateExtensionDescriptors(tmp.AbsolutePath("registry.json"),
+                                          {tmp.path()}, tmp.path());
+  EXPECT_FALSE(err.ok());
 }
 
 }  // namespace

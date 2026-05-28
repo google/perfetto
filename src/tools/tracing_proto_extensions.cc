@@ -27,6 +27,7 @@
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
+#include <google/protobuf/descriptor_database.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -49,6 +50,38 @@ using trace_processor::json::FieldResult;
 using trace_processor::json::SimpleJsonParser;
 
 namespace {
+
+// Collects type-resolution errors from the DescriptorPool (e.g. "X is not
+// defined"). The DiskSourceTree only reports parse errors via the
+// MultiFileErrorCollector; cross-file resolution errors surface here, so
+// without this collector they would be swallowed and FindFileByName would
+// just return null with no explanation.
+class PoolErrorCollector
+    : public google::protobuf::DescriptorPool::ErrorCollector {
+ public:
+  ~PoolErrorCollector() override = default;
+#if GOOGLE_PROTOBUF_VERSION >= 4022000
+  void RecordError(std::string_view filename,
+                   std::string_view element_name,
+                   const google::protobuf::Message*,
+                   ErrorLocation,
+                   std::string_view message) override {
+    PERFETTO_ELOG("Error %.*s (%.*s): %.*s", static_cast<int>(filename.size()),
+                  filename.data(), static_cast<int>(element_name.size()),
+                  element_name.data(), static_cast<int>(message.size()),
+                  message.data());
+  }
+#else
+  void AddError(const std::string& filename,
+                const std::string& element_name,
+                const google::protobuf::Message*,
+                ErrorLocation,
+                const std::string& message) override {
+    PERFETTO_ELOG("Error %s (%s): %s", filename.c_str(), element_name.c_str(),
+                  message.c_str());
+  }
+#endif
+};
 
 // Sorts ranges by start and checks for validity (start <= end, no internal
 // overlaps).
@@ -611,7 +644,8 @@ base::Status CollectProtosFromRegistry(const Registry& reg,
 base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     const std::string& root_json_path,
     const std::vector<std::string>& proto_paths,
-    const std::string& root_dir) {
+    const std::string& root_dir,
+    const std::vector<std::string>& base_descriptor_paths) {
   // 1. Read and parse the root registry file (uses the "extensions" wrapper).
   std::string root_contents;
   if (!base::ReadFile(root_json_path, &root_contents)) {
@@ -637,13 +671,52 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     return fds.SerializeAsArray();
   }
 
-  // 4. Set up protoc importer.
+  // 4. Set up the descriptor source. Leaf .proto files are compiled from the
+  // DiskSourceTree; their imports of core perfetto protos resolve from the
+  // optional prebuilt base FileDescriptorSet(s) (e.g. trace.descriptor) first,
+  // so callers don't have to materialize the entire trace proto closure as
+  // source just to compile a few extension protos.
   protozero::MultiFileErrorCollectorImpl error_collector;
   google::protobuf::compiler::DiskSourceTree source_tree;
   for (const auto& path : proto_paths) {
     source_tree.MapPath("", path);
   }
-  google::protobuf::compiler::Importer importer(&source_tree, &error_collector);
+  google::protobuf::compiler::SourceTreeDescriptorDatabase source_db(
+      &source_tree);
+  source_db.RecordErrorsTo(&error_collector);
+
+  // Load the prebuilt base descriptors (if any) into a database that the pool
+  // consults before falling back to source.
+  google::protobuf::SimpleDescriptorDatabase base_db;
+  for (const auto& base_path : base_descriptor_paths) {
+    std::string base_contents;
+    if (!base::ReadFile(base_path, &base_contents)) {
+      return base::ErrStatus("Failed to read base descriptor '%s'",
+                             base_path.c_str());
+    }
+    google::protobuf::FileDescriptorSet base_set;
+    if (!base_set.ParseFromString(base_contents)) {
+      return base::ErrStatus("Failed to parse base descriptor '%s'",
+                             base_path.c_str());
+    }
+    for (const auto& file : base_set.file()) {
+      // A shared dependency may appear in more than one base set; keep the
+      // first definition and ignore later duplicates (Add() rejects dupes).
+      google::protobuf::FileDescriptorProto existing;
+      if (!base_db.FindFileByName(file.name(), &existing)) {
+        base_db.Add(file);
+      }
+    }
+  }
+
+  // Prefer the prebuilt base descriptors, fall back to compiling from source.
+  // The leaf extension protos are never in the base set, so they always come
+  // from the source tree.
+  std::vector<google::protobuf::DescriptorDatabase*> dbs = {&base_db,
+                                                            &source_db};
+  google::protobuf::MergedDescriptorDatabase merged_db(dbs);
+  PoolErrorCollector pool_error_collector;
+  google::protobuf::DescriptorPool pool(&merged_db, &pool_error_collector);
 
   // Track which files we've already added to avoid duplicates.
   std::set<std::string> added_files;
@@ -662,7 +735,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
       proto_import_path = proto_import_path.substr(root_dir.size() + 1);
     }
 
-    const auto* file_desc = importer.Import(proto_import_path);
+    const auto* file_desc = pool.FindFileByName(proto_import_path);
     if (!file_desc) {
       return base::ErrStatus("Failed to compile proto '%s'",
                              proto_import_path.c_str());

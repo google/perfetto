@@ -910,8 +910,7 @@ class TrackEventEventImporter {
     }
     constexpr uint32_t kGpuCorrelationFieldId =
         protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber;
-    protozero::ProtoDecoder event_decoder(blob_);
-    auto gpu_field = event_decoder.FindField(kGpuCorrelationFieldId);
+    auto gpu_field = event_.GetExtensionSlowly(kGpuCorrelationFieldId);
     if (gpu_field.valid()) {
       protos::pbzero::GpuCorrelation::Decoder gpu(gpu_field.as_bytes());
       for (auto it = gpu.render_stage_submission_event_ids(); it; ++it) {

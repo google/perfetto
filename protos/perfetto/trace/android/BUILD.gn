@@ -25,7 +25,6 @@ perfetto_proto_library("@TYPE@") {
     "android_game_intervention_list.proto",
     "android_log.proto",
     "android_system_property.proto",
-    "app_wakelock_data.proto",
     "bluetooth_trace.proto",
     "camera_event.proto",
     "cpu_per_uid_data.proto",

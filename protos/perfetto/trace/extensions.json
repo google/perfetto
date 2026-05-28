@@ -88,8 +88,19 @@
     },
     {
       "scope": "perfetto.protos.TracePacket",
-      "range": [1000, 1999],
+      "ranges": [[116, 116], [1000, 1999]],
       "allocations": [
+        {
+          "name": "android_frameworks_base",
+          "description": "frameworks/base TracePacket extensions",
+          "comment": [
+            "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto.",
+            "Wrapper: FrameworksBaseTracePacket."
+          ],
+          "range": [116, 116],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
         {
           "name": "unallocated",
           "comment": ["The next allocation goes here. Shrink and take from here."],
@@ -99,8 +110,19 @@
     },
     {
       "scope": "perfetto.protos.InternedData",
-      "range": [1000, 9999],
+      "ranges": [[42, 42], [1000, 9999]],
       "allocations": [
+        {
+          "name": "android_frameworks_base",
+          "description": "frameworks/base InternedData extensions",
+          "comment": [
+            "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto.",
+            "Wrapper: FrameworksBaseInternedData."
+          ],
+          "range": [42, 42],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
         {
           "name": "perfetto_gpu",
           "range": [1000, 1099],
