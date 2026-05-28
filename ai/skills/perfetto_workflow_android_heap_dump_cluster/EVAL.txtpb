@@ -1,0 +1,19 @@
+# proto-file: learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# proto-message: EvalSuite
+# txtpbfmt: wrap_strings_after_newlines
+
+suite_name: "perfetto_workflow_android_heap_dump_cluster"
+timeout_seconds: 300
+
+cases {
+  name: "explain_clustering"
+  prompt: "I have 50 heap dumps from YouTube. How do I cluster them to reduce noise?"
+  expectations: "The agent explains the mental model of preprocessing paths and using TF-IDF with K-Means."
+  expectations: "The agent recommends invoking `scripts/cluster_paths.py`."
+}
+
+cases {
+  name: "summarize_clusters"
+  prompt: "I ran the clustering script and got `clustered_output.csv`. What's the next step?"
+  expectations: "The agent recommends running `scripts/summarize_clusters.py` to generate a report."
+}
