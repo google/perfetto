@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
+// frameworks/base InternedData extensions. Source of truth lives at
+// frameworks/base/proto/tracing/ in the Android tree.
+
 syntax = "proto2";
 
-package perfetto.protos;
+import public "protos/perfetto/trace/interned_data/interned_data.proto";
+
+package com.android.internal;
 
 // AppWakelockInfo describes the time-independent properties of a wakelock, such
 // as the owning package or wakelock tag. This is interned to reduce trace size.
@@ -41,18 +46,8 @@ message AppWakelockInfo {
   optional int32 work_uid = 6;
 }
 
-// AppWakelockBundle describes one or more wakelock events. Events are written
-// in two paired array, such that the details for event i are in intern_id[i]
-// and encoded_ts[i].
-message AppWakelockBundle {
-  // The interned id for the WakelockInfo of the event.
-  repeated uint32 intern_id = 1 [packed = true];
-
-  // The timestamp and event type, encoded as:
-  //   (event_time - packet_time) << 1 | (acquired ? 1 : 0)
-  repeated uint64 encoded_ts = 2 [packed = true];
-
-  // For writing single packets (mainly by tokenization).
-  optional AppWakelockInfo info = 3;
-  optional bool acquired = 4;
+message FrameworksBaseInternedData {
+  extend perfetto.protos.InternedData {
+    repeated AppWakelockInfo app_wakelock_info = 42;
+  }
 }
