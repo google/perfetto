@@ -959,6 +959,45 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/display_video_config.proto
+
+// Configuration for the "android.display.video" data source, which captures
+// what each display showed during the trace and emits it as top-level
+// TracePacket VideoFrames.
+message DisplayVideoConfig {
+  // Hardware video codec used to encode the captured frames.
+  enum Format {
+    // Data source default (H.264).
+    FORMAT_UNSPECIFIED = 0;
+    FORMAT_H264 = 1;
+    FORMAT_HEVC = 2;
+  }
+
+  // Scale factor applied to each display's resolution before capture
+  // (e.g. 0.25 = quarter size). 0 = use the producer's default.
+  optional float scale = 1;
+
+  // Hardware-video codec to use. Unspecified = the data source default
+  // (H.264).
+  optional Format format = 2;
+
+  // Encoder GOP size in seconds (keyframe every N seconds). Smaller =
+  // snappier UI scrubbing, larger trace. Larger = smaller trace, slower
+  // seek between keyframes. 0 = use the producer's default.
+  optional uint32 key_frame_interval_secs = 3;
+
+  // Per-stream cap (one stream = one captured display) on the total payload
+  // bytes (codec_config + au_data) the producer will emit. Once reached,
+  // further access units are dropped on that stream and the truncation is
+  // reported via a VideoFrameStats packet. On multi-display devices total
+  // bytes can be N * max_stream_size_bytes (the cap is per stream, mirroring
+  // HeapprofdConfig.max_heapprofd_memory_kb which is per process). 0 = use
+  // the producer's default.
+  optional uint64 max_stream_size_bytes = 4;
+}
+
+// End of protos/perfetto/config/android/display_video_config.proto
+
 // Begin of protos/perfetto/config/android/inputmethod_config.proto
 
 // Custom configuration for the "android.inputmethod" data source.
@@ -4642,7 +4681,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 142
+// Next id: 143
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4885,6 +4924,9 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.display.video
+  optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -7964,6 +8006,113 @@ message AndroidUserList {
 }
 
 // End of protos/perfetto/trace/android/user_list.proto
+
+// Begin of protos/perfetto/trace/android/video_frame.proto
+
+// A captured video frame from the device display.
+//
+// Top-level TracePacket message (TracePacket.video_frame = 133). Each display
+// is captured as a hardware video elementary stream: one codec_config-only
+// VideoFrame is emitted first per stream, then one VideoFrame per on-screen
+// change carrying a single coded access unit (au_data). display_id
+// identifies the source display; display_name and codec_string are set on
+// the codec_config packet only.
+message VideoFrame {
+  // Per-session display index assigned by the producer (0, 1, ... for the
+  // displays captured in this session). Used by the UI to group frames into
+  // per-display tracks and as the `idx` for the android_video_* entries in
+  // the global stats table; must therefore fit in int32.
+  optional uint32 display_id = 1;
+
+  // Sequential frame number within the capture session.
+  optional uint64 frame_number = 2;
+
+  // Codec used for au_data / codec_config.
+  enum Codec {
+    CODEC_UNSPECIFIED = 0;
+    CODEC_H264 = 1;
+    CODEC_HEVC = 2;
+  }
+  optional Codec codec = 3;
+
+  // Out-of-band decoder configuration, emitted once per stream in its own
+  // VideoFrame before any au_data. Annex-B bytes (start codes + SPS/PPS for
+  // H.264; VPS/SPS/PPS for HEVC). Required to decode au_data.
+  optional bytes codec_config = 4;
+
+  // One coded access unit (a single encoded frame) for this instant.
+  // Annex-B bytes.
+  optional bytes au_data = 5;
+
+  // True if au_data is a key frame (IDR) and can be decoded standalone.
+  optional bool is_key_frame = 6;
+
+  // Codec presentation timestamp (microseconds) of au_data, for ordering and
+  // seeking within the elementary stream. Distinct from the TracePacket
+  // timestamp, which is the boot-time instant used for timeline placement.
+  optional uint64 pts_us = 7;
+
+  // Human-readable name of the source display. Set on the codec_config packet
+  // only; the UI labels the per-display track with this string.
+  optional string display_name = 8;
+
+  // RFC 6381 codec string (e.g. "avc1.42c00b", "hev1.1.6.L93.B0"). Set on the
+  // codec_config packet only. The producer knows the profile / level /
+  // constraints directly from MediaCodec; consumers (e.g. WebCodecs
+  // VideoDecoder.configure) consume it as-is, so neither the trace processor
+  // nor the UI has to parse SPS NALs to reconstruct it.
+  optional string codec_string = 9;
+}
+
+// Per-stream failure indicator. The producer emits one VideoFrameError per
+// failure event on a stream (cap hit, codec crash, source display removed,
+// or failure to start). Clean streams produce no VideoFrameError packets.
+//
+// Carried as top-level TracePacket.video_frame_error (field 134). Trace
+// processor mirrors each reason to a kIndexed entry in the global stats
+// table (android_video_size_cap_hit / _codec_error / _display_gone /
+// _start_failed, indexed by display_id) -- same shape as ftrace's per-cpu
+// stats and heapprofd's hit_guardrail.
+message VideoFrameError {
+  // Stream the failure happened on. Matches VideoFrame.display_id.
+  optional uint32 display_id = 1;
+
+  // What failed. Names point at the specific producer-side condition so
+  // reviewers can triage from the stats table alone, without reading
+  // logcat. Trace processor mirrors each value to its own kIndexed entry
+  // in the global stats table (one per reason, keyed by display_id).
+  enum Reason {
+    REASON_UNKNOWN = 0;
+    // Producer stopped writing because the stream hit
+    // DisplayVideoConfig.max_stream_size_bytes. Encoder torn down.
+    SIZE_CAP_HIT = 1;
+    // MediaCodec.Callback.onError fired (codec crash, resource preempt,
+    // OOM, malformed bitstream...). Encoder torn down.
+    CODEC_ERROR = 2;
+    // Source physical display was removed mid-session
+    // (DisplayManager.DisplayListener.onDisplayRemoved). Stream torn down.
+    DISPLAY_GONE = 3;
+    // Device has no MediaCodec encoder for the requested format
+    // (MediaCodecList.findEncoderForFormat returned null). Permanent for
+    // this device/build; software fallback or skipping capture is the
+    // only recourse.
+    NO_ENCODER = 4;
+    // DisplayManager.getDisplay(displayId) returned null at session
+    // start: the physical display was removed in the window between the
+    // listener notification and start().
+    DISPLAY_NOT_FOUND = 5;
+    // MediaCodec.createEncoderByType / configure / createInputSurface /
+    // start threw. Usually a bad config (resolution, bitrate, frame
+    // rate). Specifics in logcat.
+    ENCODER_SETUP_FAILED = 6;
+    // DisplayManager.createVirtualDisplay returned null: permission
+    // denied or VirtualDisplay resource exhausted.
+    VIRTUAL_DISPLAY_FAILED = 7;
+  }
+  optional Reason reason = 2;
+}
+
+// End of protos/perfetto/trace/android/video_frame.proto
 
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
@@ -19276,7 +19425,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 133.
+// Next id: 135.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -19468,6 +19617,18 @@ message TracePacket {
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
+
+    // One captured video frame from a device display (top-level so it is not
+    // coupled to TrackEvent's interning machinery). The message is
+    // self-identifying via VideoFrame.display_id. See
+    // protos/perfetto/trace/android/video_frame.proto.
+    VideoFrame video_frame = 133;
+
+    // Per-stream failure indicator emitted when a VideoFrame stream
+    // experiences a producer-side failure (cap hit, codec crash, source
+    // display removed, encoder start failure). See
+    // protos/perfetto/trace/android/video_frame.proto.
+    VideoFrameError video_frame_error = 134;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

@@ -290,3 +290,204 @@ class AndroidParser(TestSuite):
           "ScreenState",0,1000,2.000000
           "ScreenState",1,2000,1.000000
         """))
+
+  # android.display.video data source: top-level TracePacket.video_frame
+  # (field 133). The codec_config packet carries display_name + codec_string;
+  # subsequent au_data packets inherit both via the importer's per-uuid map.
+  def test_video_frame_basic(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          video_frame {
+            display_id: 100
+            display_name: "Built-in Screen"
+            codec_string: "avc1.42c00b"
+            codec: CODEC_H264
+            codec_config: "\x00\x00\x00\x01sps\x00\x00\x00\x01pps"
+          }
+        }
+        packet {
+          timestamp: 1000016000
+          video_frame {
+            display_id: 100
+            codec: CODEC_H264
+            is_key_frame: true
+            pts_us: 0
+            frame_number: 0
+            au_data: "\x00\x00\x00\x01\x65idr"
+          }
+        }
+        packet {
+          timestamp: 1000033000
+          video_frame {
+            display_id: 100
+            codec: CODEC_H264
+            pts_us: 16667
+            frame_number: 1
+            au_data: "\x00\x00\x00\x01\x61p1"
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.video_frames;
+        SELECT ts, display_id, display_name, codec_string, frame_number,
+               codec, is_key_frame, pts_us, is_config
+        FROM android_video_frames
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","display_id","display_name","codec_string","frame_number","codec","is_key_frame","pts_us","is_config"
+        1000000000,100,"Built-in Screen","avc1.42c00b",0,1,"[NULL]","[NULL]",1
+        1000016000,100,"Built-in Screen","avc1.42c00b",0,1,1,0,"[NULL]"
+        1000033000,100,"Built-in Screen","avc1.42c00b",1,1,0,16667,"[NULL]"
+        """))
+
+  # __intrinsic_video_frame_au_data(id) returns the encoded payload as a BLOB,
+  # zero-copy from the original trace blob held in TraceStorage.
+  def test_video_frame_au_data_blob(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          video_frame {
+            display_id: 100
+            display_name: "Display"
+            codec: CODEC_H264
+            codec_config: "CFG"
+          }
+        }
+        packet {
+          timestamp: 1000000001
+          video_frame {
+            display_id: 100
+            codec: CODEC_H264
+            is_key_frame: true
+            au_data: "IDR-BYTES"
+          }
+        }
+        """),
+        query="""
+        SELECT id,
+               length(__intrinsic_video_frame_au_data(id)) AS byte_length,
+               CAST(__intrinsic_video_frame_au_data(id) AS TEXT) AS bytes
+        FROM __intrinsic_video_frames
+        ORDER BY id;
+        """,
+        out=Csv("""
+        "id","byte_length","bytes"
+        0,3,"CFG"
+        1,9,"IDR-BYTES"
+        """))
+
+  # Two displays in the same trace -> two streams, identified by display_id.
+  def test_video_frame_multi_display(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          video_frame {
+            display_id: 1
+            display_name: "Front"
+            codec: CODEC_H264
+            codec_config: "C1"
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          video_frame {
+            display_id: 2
+            display_name: "Rear"
+            codec: CODEC_HEVC
+            codec_config: "C2"
+          }
+        }
+        packet {
+          timestamp: 1000016000
+          video_frame {
+            display_id: 1
+            codec: CODEC_H264
+            is_key_frame: true
+            au_data: "F1"
+          }
+        }
+        packet {
+          timestamp: 1000016000
+          video_frame {
+            display_id: 2
+            codec: CODEC_HEVC
+            is_key_frame: true
+            au_data: "R1"
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.video_frames;
+        SELECT display_id, display_name, COUNT(*) AS rows
+        FROM android_video_frames
+        GROUP BY display_id
+        ORDER BY display_id;
+        """,
+        out=Csv("""
+        "display_id","display_name","rows"
+        1,"Front",2
+        2,"Rear",2
+        """))
+
+  # VideoFrameError: producer emits one packet per per-stream failure. The
+  # importer routes each reason to its own kIndexed entry in the global
+  # `stats` table keyed by display_id (ftrace per-cpu shape). Healthy
+  # streams produce no entries.
+  def test_video_frame_error(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          video_frame_error { display_id: 0 reason: SIZE_CAP_HIT }
+        }
+        packet {
+          timestamp: 2000000000
+          video_frame_error { display_id: 1 reason: CODEC_ERROR }
+        }
+        packet {
+          timestamp: 3000000000
+          video_frame_error { display_id: 2 reason: DISPLAY_GONE }
+        }
+        packet {
+          timestamp: 4000000000
+          video_frame_error { display_id: 3 reason: NO_ENCODER }
+        }
+        packet {
+          timestamp: 5000000000
+          video_frame_error { display_id: 4 reason: DISPLAY_NOT_FOUND }
+        }
+        packet {
+          timestamp: 6000000000
+          video_frame_error { display_id: 5 reason: ENCODER_SETUP_FAILED }
+        }
+        packet {
+          timestamp: 7000000000
+          video_frame_error { display_id: 6 reason: VIRTUAL_DISPLAY_FAILED }
+        }
+        # Second cap hit on display 0 -> counter increments to 2.
+        packet {
+          timestamp: 8000000000
+          video_frame_error { display_id: 0 reason: SIZE_CAP_HIT }
+        }
+        """),
+        query="""
+        SELECT name, idx, value
+        FROM stats
+        WHERE name LIKE 'android_video_%'
+        ORDER BY name, idx;
+        """,
+        out=Csv("""
+        "name","idx","value"
+        "android_video_codec_error",1,1
+        "android_video_display_gone",2,1
+        "android_video_display_not_found",4,1
+        "android_video_encoder_setup_failed",5,1
+        "android_video_no_encoder",3,1
+        "android_video_size_cap_hit",0,2
+        "android_video_virtual_display_failed",6,1
+        """))
