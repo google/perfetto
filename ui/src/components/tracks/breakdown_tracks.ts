@@ -171,17 +171,59 @@ export class BreakdownTracks {
   private modulesClause: string;
   private sliceJoinClause?: string;
   private pivotJoinClause?: string;
+  // Counter tracks defer their CREATE PERFETTO TABLE here on the legacy
+  // (non-projected) path; flushed in one batched engine.query at end of
+  // createTracks(). Unused on the projected path.
+  private pendingTableCreates: string[] = [];
+
+  // Projected-path state. When useProjectedPath is true, createTracks builds
+  // one (id, ts, dur, k0..kN, s0..sN) projection plus one self-intersect
+  // segments table, and per-track renderers query those instead of running
+  // intervals_overlap_count! per node. Eliminates the O(N_tracks) macro
+  // multiplier that dominates trace load for big hierarchies.
+  private readonly useProjectedPath: boolean;
+  private projectedTableName?: string;
+  private segmentsTableName?: string;
+  private projectedAggColNames?: readonly string[];
+  private projectedSliceColNames?: readonly string[];
+
+  // Sort-order pre-computation (only when useProjectedPath && sortTracks).
+  // perGroupTableName: materialized (k0..kN, group_id, cnt) so we can run
+  // K+1 cheap MAX-by-prefix queries from a stable pre-aggregated source.
+  // sortOrderMap: '<level>SEPv0SEPv1...' -> MAX(cnt) for that filter prefix.
+  // Populated once before the hierarchy walk; the walk then looks up
+  // sortOrder synchronously instead of awaiting N per-node MAX queries.
+  private perGroupTableName?: string;
+  private sortOrderMap?: Map<string, number>;
 
   constructor(props: BreakdownTrackProps) {
     this.props = props;
     this.uri = `/breakdown_tracks_${this.props.aggregation.tableName}`;
+    this.useProjectedPath = BreakdownTracks.shouldUseProjectedPath(props);
 
     this.modulesClause = props.modules
       ? props.modules.map((m) => `INCLUDE PERFETTO MODULE ${m};`).join('\n')
       : '';
 
     if (this.props.aggregationType === BreakdownTrackAggType.COUNT) {
-      this.modulesClause += `\nINCLUDE PERFETTO MODULE intervals.overlap;`;
+      this.modulesClause += this.useProjectedPath
+        ? `\nINCLUDE PERFETTO MODULE intervals.intersect;`
+        : `\nINCLUDE PERFETTO MODULE intervals.overlap;`;
+    }
+
+    if (this.useProjectedPath) {
+      const unique = uuidv4().replace(/-/g, '_');
+      this.projectedTableName = `_breakdown_projected_${unique}`;
+      this.segmentsTableName = `_breakdown_segments_${unique}`;
+      this.projectedAggColNames = this.props.aggregation.columns.map(
+        (_, i) => `k${i}`,
+      );
+      this.projectedSliceColNames = (this.props.slice?.columns ?? []).map(
+        (_, i) => `s${i}`,
+      );
+      if (this.props.sortTracks) {
+        this.perGroupTableName = `_breakdown_per_group_${unique}`;
+      }
     }
 
     if (this.props.slice?.joins !== undefined) {
@@ -193,7 +235,33 @@ export class BreakdownTracks {
     }
   }
 
+  private static shouldUseProjectedPath(props: BreakdownTrackProps): boolean {
+    return (
+      props.aggregationType === BreakdownTrackAggType.COUNT &&
+      props.aggregation.joins === undefined &&
+      props.slice?.joins === undefined &&
+      props.pivots === undefined
+    );
+  }
+
   private getAggregationQuery(filtersClause: string) {
+    if (this.useProjectedPath) {
+      // Query the shared self-intersect segments table. One row per
+      // (atomic segment, original interval) pair, plus an end-marker row at
+      // each interval's end. SUM(IIF(NOT interval_ends_at_ts, 1, 0)) per
+      // group_id counts active intervals at each segment; end-markers
+      // contribute 0 so the counter naturally drops on segment boundaries
+      // where intervals end.
+      return `
+        SELECT MIN(ts) AS ts,
+               SUM(IIF(interval_ends_at_ts = FALSE, 1, 0)) AS value
+        FROM ${this.segmentsTableName}
+        ${filtersClause}
+        GROUP BY group_id
+        ORDER BY ts
+      `;
+    }
+
     if (this.props.aggregationType === BreakdownTrackAggType.COUNT) {
       return `
         intervals_overlap_count
@@ -251,12 +319,150 @@ export class BreakdownTracks {
       .join('\n');
   }
 
+  // Build the tables that drive the projected path:
+  //   _breakdown_projected: (id, ts, dur, k0..kN, s0..sN) — one row per source
+  //     row, with the user-supplied agg/slice column expressions pre-evaluated
+  //     under stable names. Filters everywhere downstream become raw column
+  //     equality on this table.
+  //   _breakdown_segments: per-atomic-segment, per-active-id rows from
+  //     interval_self_intersect, denormalized with the agg cols inline so
+  //     per-track counter renderers don't need to JOIN back.
+  //   _breakdown_per_group (sortTracks only): (k0..kN, group_id, cnt) —
+  //     pre-aggregated active-interval counts per atomic segment per full
+  //     filter path. Stable source for buildSortOrderMap's K+1 cheap
+  //     MAX-by-prefix queries.
+  private async buildProjectedTables() {
+    const {tsCol, durCol, tableName} = this.props.aggregation;
+    const aggCols = this.props.aggregation.columns;
+    const sliceCols = this.props.slice?.columns ?? [];
+    const idExpr = this.props.sliceIdColumn ?? 'ROW_NUMBER() OVER ()';
+
+    const projectedSelect = [
+      `${idExpr} AS id`,
+      `${tsCol} AS ts`,
+      `${durCol} AS dur`,
+      ...aggCols.map((col, i) => `${col} AS k${i}`),
+      ...sliceCols.map((col, i) => `${col} AS s${i}`),
+    ].join(', ');
+
+    const aggColNamesCsv = this.projectedAggColNames!.join(', ');
+    const denormAggCols = this.projectedAggColNames!.map((n) => `p.${n}`).join(
+      ', ',
+    );
+
+    const perGroupCreate = this.perGroupTableName
+      ? `
+        CREATE PERFETTO TABLE ${this.perGroupTableName} AS
+        SELECT ${aggColNamesCsv}, group_id,
+               SUM(IIF(interval_ends_at_ts = FALSE, 1, 0)) AS cnt
+        FROM ${this.segmentsTableName}
+        GROUP BY ${aggColNamesCsv}, group_id;
+      `
+      : '';
+
+    await this.props.trace.engine.query(`
+      CREATE PERFETTO TABLE ${this.projectedTableName} AS
+      SELECT ${projectedSelect}
+      FROM ${tableName};
+
+      CREATE PERFETTO TABLE ${this.segmentsTableName} AS
+      SELECT
+        iss.ts,
+        iss.group_id,
+        iss.interval_ends_at_ts,
+        ${denormAggCols}
+      FROM interval_self_intersect!((
+        SELECT id, ts, dur FROM ${this.projectedTableName}
+      )) iss
+      JOIN ${this.projectedTableName} p USING(id);
+
+      ${perGroupCreate}
+    `);
+  }
+
+  // Pre-compute, for every (k0..kL) prefix at every level L = 0..K, the
+  // MAX active-interval count over time. One batched UNION ALL of K+1
+  // queries against _breakdown_per_group, walked into a JS Map keyed by
+  // the filter prefix's values. The hierarchy walk then resolves sortOrder
+  // synchronously, dropping the sort phase from O(N_tracks) sequential
+  // MAX queries to one batched query.
+  //
+  // At each level we must SUM cnt across the *deeper* k columns per
+  // (prefix, group_id) first, then MAX over segments — otherwise a
+  // prefix with N concurrent intervals split across distinct deeper
+  // keys would be reported at MAX 1 instead of N. The inner aggregation
+  // matches the per-render SUM(IIF) shape that fires for each track.
+  private async buildSortOrderMap() {
+    if (!this.perGroupTableName) return;
+    const ks = this.projectedAggColNames!;
+    const K = ks.length;
+
+    const branches: string[] = [];
+    for (let level = 0; level <= K; level++) {
+      const filled = ks.slice(0, level);
+      const nulled = ks.slice(level);
+      const filledCsv = filled.join(', ');
+
+      const innerSelect =
+        filled.length > 0
+          ? `SELECT ${filledCsv}, group_id, SUM(cnt) AS level_cnt FROM ${this.perGroupTableName} GROUP BY ${filledCsv}, group_id`
+          : `SELECT group_id, SUM(cnt) AS level_cnt FROM ${this.perGroupTableName} GROUP BY group_id`;
+
+      const selectCols = [
+        `${level} AS level`,
+        ...filled,
+        ...nulled.map((k) => `NULL AS ${k}`),
+        'MAX(level_cnt) AS max_value',
+      ].join(', ');
+      const outerGroupBy = filled.length > 0 ? `GROUP BY ${filledCsv}` : '';
+      branches.push(
+        `SELECT ${selectCols} FROM (${innerSelect}) ${outerGroupBy}`,
+      );
+    }
+
+    const res = await this.props.trace.engine.query(
+      branches.join('\nUNION ALL\n'),
+    );
+    this.sortOrderMap = new Map();
+    const it = res.iter({});
+    for (; it.valid(); it.next()) {
+      const level = Number(it.get('level'));
+      const max = Number(it.get('max_value'));
+      const values: string[] = [];
+      for (let i = 0; i < level; i++) {
+        const v = it.get(ks[i]);
+        values.push(v === null ? 'NULL' : String(v));
+      }
+      this.sortOrderMap.set(BreakdownTracks.makeSortOrderKey(values), max);
+    }
+  }
+
+  // Encode the filter prefix as a stable string key. Includes the level so
+  // an empty filter (root) doesn't collide with a level-1 entry whose value
+  // happens to be empty.
+  private static makeSortOrderKey(values: readonly string[]): string {
+    return `${values.length}${values.join('')}`;
+  }
+
+  private getCachedSortOrder(filters: Filter[]): number | undefined {
+    if (!this.sortOrderMap) return undefined;
+    const key = BreakdownTracks.makeSortOrderKey(
+      filters.map((f) => f.value ?? ''),
+    );
+    return this.sortOrderMap.get(key);
+  }
+
   async createTracks() {
     if (this.modulesClause !== '') {
       await this.props.trace.engine.query(this.modulesClause);
     }
 
-    if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
+    if (this.useProjectedPath) {
+      await this.buildProjectedTables();
+      if (this.perGroupTableName) {
+        await this.buildSortOrderMap();
+      }
+    } else if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
       await this.props.trace.engine.query(`
         CREATE OR REPLACE PERFETTO FUNCTION _ui_dev_perfetto_breakdown_tracks_is_spans_overlapping(
           ts1 LONG,
@@ -276,8 +482,16 @@ export class BreakdownTracks {
       [],
     );
 
-    const aggColNames = this.props.aggregation.columns;
-    const sliceColNames = this.props.slice?.columns ?? [];
+    // Column names used by the hierarchy walk to read group-by results and
+    // build per-track filters. On the projected path these are the stable
+    // projected names (k0..kN, s0..sN); on the legacy path they are the
+    // original column expressions.
+    const aggColNames = this.useProjectedPath
+      ? [...this.projectedAggColNames!]
+      : this.props.aggregation.columns;
+    const sliceColNames = this.useProjectedPath
+      ? [...this.projectedSliceColNames!]
+      : this.props.slice?.columns ?? [];
     const pivotColNames = this.props.pivots?.columns ?? [];
 
     const allColNames = [];
@@ -285,13 +499,19 @@ export class BreakdownTracks {
     allColNames.push(...sliceColNames);
     allColNames.push(...pivotColNames);
 
-    const query = `
-      SELECT ${allColNames.join(', ')}
-      FROM ${this.props.aggregation.tableName}
-      ${this.sliceJoinClause ?? ''}
-      ${this.pivotJoinClause ?? ''}
-      GROUP BY ${allColNames.join(', ')}
-    `;
+    const query = this.useProjectedPath
+      ? `
+        SELECT ${allColNames.join(', ')}
+        FROM ${this.projectedTableName}
+        GROUP BY ${allColNames.join(', ')}
+      `
+      : `
+        SELECT ${allColNames.join(', ')}
+        FROM ${this.props.aggregation.tableName}
+        ${this.sliceJoinClause ?? ''}
+        ${this.pivotJoinClause ?? ''}
+        GROUP BY ${allColNames.join(', ')}
+      `;
     const res = await this.props.trace.engine.query(query);
 
     await this.createBreakdownHierarchy(
@@ -302,7 +522,16 @@ export class BreakdownTracks {
       pivotColNames,
     );
 
+    await this.flushPendingTableCreates();
+
     return rootTrackNode;
+  }
+
+  private async flushPendingTableCreates() {
+    if (this.pendingTableCreates.length === 0) return;
+    const batch = this.pendingTableCreates.join('\n');
+    this.pendingTableCreates = [];
+    await this.props.trace.engine.query(batch);
   }
 
   private async createBreakdownHierarchy(
@@ -422,7 +651,29 @@ export class BreakdownTracks {
     return await this.createTrackNode(
       title,
       newFilters,
-      async (uri: string, filtersClause: string) => {
+      (uri: string, filtersClause: string) => {
+        // On the projected path, source from the pre-computed projection:
+        // id/ts/dur are already aliased there, and the slice column is
+        // stored under sN, so the per-track query is a cheap raw-eq filter.
+        // shouldUseProjectedPath excludes joins+pivots, so trackType is
+        // always SLICE here.
+        const src = this.useProjectedPath
+          ? `
+              SELECT id, ts, dur,
+                     ${this.projectedSliceColNames![columnIndex]} AS name
+              FROM ${this.projectedTableName}
+              ${filtersClause}
+            `
+          : `
+              SELECT
+                ${this.props.sliceIdColumn ? this.props.sliceIdColumn : 'ROW_NUMBER() OVER()'} AS id,
+                ${sqlInfo.tsCol} AS ts,
+                ${sqlInfo.durCol} AS dur,
+                ${sqlInfo.columns[columnIndex]} AS name
+              FROM ${this.props.aggregation.tableName}
+              ${joinClause}
+              ${filtersClause}
+            `;
         return SliceTrack.create({
           trace: this.props.trace,
           uri,
@@ -433,16 +684,7 @@ export class BreakdownTracks {
               dur: LONG,
               name: STR,
             },
-            src: `
-              SELECT
-                ${this.props.sliceIdColumn ? this.props.sliceIdColumn : 'ROW_NUMBER() OVER()'} AS id,
-                ${sqlInfo.tsCol} AS ts,
-                ${sqlInfo.durCol} AS dur,
-                ${sqlInfo.columns[columnIndex]} AS name
-              FROM ${this.props.aggregation.tableName}
-              ${joinClause}
-              ${filtersClause}
-            `,
+            src,
           }),
           detailsPanel: this.props.detailsPanel
             ? () => this.props.detailsPanel!(this.props.trace)
@@ -466,30 +708,51 @@ export class BreakdownTracks {
       name,
       newFilters,
       (uri: string, filtersClause: string) => {
-        return CounterTrack.createMaterialized({
+        const sqlSource = `SELECT ts, value FROM (${this.getAggregationQuery(filtersClause)})`;
+        if (this.useProjectedPath) {
+          // Lazy: the per-render macro work that would dominate trace load
+          // never happens here — getAggregationQuery returns a cheap filter
+          // over the shared self-intersect segments table, and CounterTrack's
+          // useData fires it only on render.
+          return CounterTrack.create({
+            trace: this.props.trace,
+            uri,
+            sqlSource,
+          });
+        }
+        // Legacy: defer the CREATE PERFETTO TABLE so all counter tables in
+        // this BreakdownTracks instance flush in one batched engine.query at
+        // end of createTracks(). The renderer holds the chosen table name;
+        // the table is materialized before createTracks() returns.
+        const tableName = `_breakdown_counter_${uuidv4().replace(/-/g, '_')}`;
+        this.pendingTableCreates.push(
+          `CREATE PERFETTO TABLE ${tableName} AS ${sqlSource};`,
+        );
+        return CounterTrack.create({
           trace: this.props.trace,
           uri,
-          sqlSource: `
-            SELECT ts, value
-            FROM (${this.getAggregationQuery(filtersClause)})
-          `,
+          sqlSource: tableName,
         });
       },
+      // Legacy async fallback: only used if the projected path didn't
+      // pre-populate sortOrderMap. createTrackNode prefers cachedSortOrder.
       (filterClause) => this.getCounterTrackSortOrder(filterClause),
+      this.getCachedSortOrder(newFilters),
     );
   }
 
   private async createTrackNode(
     name: string,
     filters: Filter[],
-    createTrack: (uri: string, filtersClause: string) => Promise<TrackRenderer>,
+    createTrack: (uri: string, filtersClause: string) => TrackRenderer,
     getSortOrder?: (filterClause: string) => Promise<number>,
+    cachedSortOrder?: number,
   ) {
     const filtersClause =
       filters.length > 0 ? `\nWHERE ${buildFilterSqlClause(filters)}` : '';
     const uri = `${this.uri}_${uuidv4()}`;
 
-    const renderer = await createTrack(uri, filtersClause);
+    const renderer = createTrack(uri, filtersClause);
 
     this.props.trace.tracks.registerTrack({
       uri,
@@ -500,7 +763,7 @@ export class BreakdownTracks {
 
     let sortOrder: number | undefined;
     if (this.props.sortTracks) {
-      sortOrder = await getSortOrder?.(filtersClause);
+      sortOrder = cachedSortOrder ?? (await getSortOrder?.(filtersClause));
     }
 
     return new TrackNode({
