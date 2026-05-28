@@ -16070,6 +16070,14 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero/text_to_proto:unittests
+filegroup {
+    name: "perfetto_src_protozero_text_to_proto_unittests",
+    srcs: [
+        "src/protozero/text_to_proto/text_to_proto_unittest.cc",
+    ],
+}
+
 // GN: //src/protozero:unittests
 filegroup {
     name: "perfetto_src_protozero_unittests",
@@ -21911,6 +21919,7 @@ cc_test {
         ":perfetto_src_protozero_testing_messages_subpackage_zero_gen",
         ":perfetto_src_protozero_testing_messages_zero_gen",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
+        ":perfetto_src_protozero_text_to_proto_unittests",
         ":perfetto_src_protozero_unittests",
         ":perfetto_src_shared_lib_for_testing",
         ":perfetto_src_shared_lib_shared_lib",

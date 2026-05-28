@@ -21,6 +21,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -252,12 +253,22 @@ bool DescriptorPool::DescriptorsStructurallyEqual(
 }
 
 base::Status DescriptorPool::AddExtensionField(
-    const std::string& package_name,
-    protozero::ConstBytes field_desc_proto,
+    const ExtensionInfo& extension,
     std::vector<ExtensionTypeCheck>* extension_type_checks) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  FieldDescriptorProto::Decoder f_decoder(field_desc_proto);
+  FieldDescriptorProto::Decoder f_decoder(extension.field_desc_proto);
   auto field = CreateFieldFromDecoder(f_decoder, true);
+
+  std::string_view scope = extension.parent_full_name.empty()
+                               ? extension.package_name
+                               : extension.parent_full_name;
+  PERFETTO_DCHECK(!scope.empty() && scope[0] == '.');
+  scope.remove_prefix(1);
+  std::string extension_full_name(scope);
+  if (!scope.empty())
+    extension_full_name.push_back('.');
+  extension_full_name.append(field.name());
+  field.set_extension_full_name(extension_full_name);
 
   std::string extendee_name = f_decoder.extendee().ToStdString();
   if (extendee_name.empty()) {
@@ -266,7 +277,7 @@ base::Status DescriptorPool::AddExtensionField(
 
   if (extendee_name[0] != '.') {
     // Only prepend if the extendee is not fully qualified
-    extendee_name = package_name + "." + extendee_name;
+    extendee_name = extension.package_name + "." + extendee_name;
   }
   std::optional<uint32_t> extendee = FindDescriptorIdx(extendee_name);
   if (!extendee.has_value()) {
@@ -332,7 +343,8 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
                                               merge_existing_messages));
   }
   for (auto ext_it = decoder.extension(); ext_it; ++ext_it) {
-    extensions->emplace_back(package_name, *ext_it);
+    extensions->push_back(
+        {package_name, proto_descriptor.full_name(), *ext_it});
   }
   return base::OkStatus();
 }
@@ -410,14 +422,13 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
           file_name, package, std::nullopt, *enum_it, merge_existing_messages));
     }
     for (auto ext_it = file.extension(); ext_it; ++ext_it) {
-      extensions.emplace_back(package, *ext_it);
+      extensions.push_back({package, /*parent_full_name=*/"", *ext_it});
     }
   }
 
   // Second pass: Add extension fields to the real protos.
   for (const auto& extension : extensions) {
-    RETURN_IF_ERROR(AddExtensionField(extension.first, extension.second,
-                                      &extension_type_checks));
+    RETURN_IF_ERROR(AddExtensionField(extension, &extension_type_checks));
   }
 
   // Third pass: resolve the types of all the fields.
