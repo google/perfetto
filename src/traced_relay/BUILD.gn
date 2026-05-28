@@ -76,9 +76,6 @@ if (enable_perfetto_integration_tests) {
       "../base",
       "../base:test_support",
     ]
-    sources = [
-      "relay_data_drop_integrationtest.cc",
-      "relay_service_integrationtest.cc",
-    ]
+    sources = [ "relay_service_integrationtest.cc" ]
   }
 }
