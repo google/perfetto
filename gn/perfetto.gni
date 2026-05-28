@@ -472,6 +472,9 @@ declare_args() {
   perfetto_use_system_sqlite = false
 
   perfetto_use_system_zlib = false
+
+  # Drops zlib/re2 link deps; consumer brings their own.
+  perfetto_amalgamated_sdk = false
 }
 
 if (is_win) {

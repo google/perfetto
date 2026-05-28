@@ -104,6 +104,31 @@ int main(int argc, char** argv) {
 
 You are now ready to instrument your app with trace events.
 
+## Optional features
+
+The amalgamated SDK ships two optional features. They are off by default;
+opt in by dropping a header named `perfetto_sdk_config.h` on the SDK's
+include path and defining the matching macro inside it:
+
+```C++
+// perfetto_sdk_config.h
+#define PERFETTO_SDK_ENABLE_ZLIB 1   // optional
+#define PERFETTO_SDK_ENABLE_RE2  1   // optional
+```
+
+`build_config.h` detects the file via `__has_include` and reads the macros
+from there; no cflag plumbing is required. The two features are
+independent — set either, both, or neither.
+
+| Macro | Link | System header | What it does |
+| --- | --- | --- | --- |
+| `PERFETTO_SDK_ENABLE_ZLIB` | `-lz` | `zlib.h` | Honors `TraceConfig.compression_type = COMPRESSION_TYPE_DEFLATE` on the in-process backend so `.pftrace` files written via `TracingSession::Setup(cfg, fd)` are zlib-compressed. Without the macro the field is silently ignored. |
+| `PERFETTO_SDK_ENABLE_RE2` | `-lre2` | `re2/re2.h` | Replaces the default `std::regex` backend used by `base::Regex` (e.g. for `TraceConfig` data-source/producer name filtering) with [RE2](https://github.com/google/re2), which is significantly faster on large input. |
+
+When opting in, the matching system header must also be reachable from the
+include path; on Debian/Ubuntu that's `zlib1g-dev` / `libre2-dev`, on
+Fedora `zlib-devel` / `re2-devel`.
+
 ## Custom data sources vs Track events
 
 The SDK offers two abstraction layers to inject tracing data, built on top of
