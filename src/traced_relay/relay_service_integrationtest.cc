@@ -374,15 +374,18 @@ TEST(TracedRelayIntegrationTest, HighVolumeProducer) {
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
 
-  constexpr uint32_t kMessagesPerBatch = 200;
-  constexpr uint32_t kIterations = 200;
+  // Sized to comfortably exceed the service-side SMB's 64-page count
+  // (1000 * 1 KiB packets ≈ 250 chunks at default 4 KiB chunk size) while
+  // still finishing well under the test timeout on slow debug builds.
+  constexpr uint32_t kMessagesPerBatch = 100;
+  constexpr uint32_t kIterations = 10;
   constexpr uint32_t kMessageSize = 1024;
   constexpr uint32_t kSeed = 42;
 
   TraceConfig trace_config;
   trace_config.set_trace_all_machines(true);
   auto* buf_cfg = trace_config.add_buffers();
-  buf_cfg->set_size_kb(64 * 1024);
+  buf_cfg->set_size_kb(8 * 1024);
   buf_cfg->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
