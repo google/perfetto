@@ -142,6 +142,10 @@ source_set("traceconv_lib") {
 if (enable_perfetto_ui) {
   wasm_lib("traceconv_wasm") {
     name = "traceconv"
+
+    # Loaded from main thread; uses MEMFS + WORKERFS to ingest trace files.
+    enable_web_environment = true
+    enable_filesystem = true
     deps = [
       ":main",
       "../../gn:default_deps",

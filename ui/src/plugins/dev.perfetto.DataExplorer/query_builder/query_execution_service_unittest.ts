@@ -18,9 +18,10 @@ import {TableSourceNode} from './nodes/sources/table_source';
 import type {Trace} from '../../../public/trace';
 import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import type {Engine} from '../../../trace_processor/engine';
+import type {Mocked} from 'vitest';
 
 describe('QueryExecutionService', () => {
-  let mockEngine: jest.Mocked<Engine>;
+  let mockEngine: Mocked<Engine>;
   let service: QueryExecutionService;
   let mockTrace: Trace;
   let mockSqlModules: SqlModules;
@@ -42,11 +43,11 @@ describe('QueryExecutionService', () => {
 
     // Create a mock Engine
     mockEngine = {
-      query: jest.fn().mockResolvedValue({
+      query: vi.fn().mockResolvedValue({
         firstRow: () => ({count: 0}),
         columns: () => [],
       }),
-    } as unknown as jest.Mocked<Engine>;
+    } as unknown as Mocked<Engine>;
 
     service = new QueryExecutionService(mockEngine);
   });
@@ -65,12 +66,12 @@ describe('QueryExecutionService', () => {
   // Sets wasUpdated=true (stale after sync) but querySummarizer returns a valid
   // result, so the full execution path succeeds.
   function mockSuccessfulExecution(nodeId: string) {
-    mockEngine.createSummarizer = jest.fn().mockResolvedValue({error: ''});
-    mockEngine.updateSummarizerSpec = jest.fn().mockResolvedValue({
+    mockEngine.createSummarizer = vi.fn().mockResolvedValue({error: ''});
+    mockEngine.updateSummarizerSpec = vi.fn().mockResolvedValue({
       error: '',
       queries: [{queryId: nodeId, wasUpdated: true, error: ''}],
     });
-    mockEngine.querySummarizer = jest.fn().mockResolvedValue({
+    mockEngine.querySummarizer = vi.fn().mockResolvedValue({
       exists: true,
       tableName: 'test_table',
       sql: 'SELECT 1',
@@ -338,12 +339,12 @@ describe('QueryExecutionService', () => {
   describe('initializedNodes / skip path', () => {
     // Stale mock: node needs re-materialization (wasUpdated=true, exists=false).
     function mockInitialLoad(nodeId: string) {
-      mockEngine.createSummarizer = jest.fn().mockResolvedValue({error: ''});
-      mockEngine.updateSummarizerSpec = jest.fn().mockResolvedValue({
+      mockEngine.createSummarizer = vi.fn().mockResolvedValue({error: ''});
+      mockEngine.updateSummarizerSpec = vi.fn().mockResolvedValue({
         error: '',
         queries: [{queryId: nodeId, wasUpdated: true, error: ''}],
       });
-      mockEngine.querySummarizer = jest.fn().mockResolvedValue({
+      mockEngine.querySummarizer = vi.fn().mockResolvedValue({
         exists: false,
       });
     }
@@ -352,12 +353,12 @@ describe('QueryExecutionService', () => {
     // This populates justExecutedNodes after the initial load, so the next
     // !manual call is correctly classified as column discovery (not user edit).
     function mockFreshNode(nodeId: string) {
-      mockEngine.createSummarizer = jest.fn().mockResolvedValue({error: ''});
-      mockEngine.updateSummarizerSpec = jest.fn().mockResolvedValue({
+      mockEngine.createSummarizer = vi.fn().mockResolvedValue({error: ''});
+      mockEngine.updateSummarizerSpec = vi.fn().mockResolvedValue({
         error: '',
         queries: [{queryId: nodeId, wasUpdated: false, error: ''}],
       });
-      mockEngine.querySummarizer = jest.fn().mockResolvedValue({
+      mockEngine.querySummarizer = vi.fn().mockResolvedValue({
         exists: true,
         tableName: 'test_table',
         sql: 'SELECT 1',

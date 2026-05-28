@@ -84,7 +84,8 @@ SELECT
   )
   + static_1d AS static_mw,
   l3_lut.l3_hit,
-  l3_lut.l3_miss
+  l3_lut.l3_miss,
+  iif(base.suspended, 0, interconnect_lut.curve_value) AS interconnect_mw
 FROM _w_dependent_cpus_unique AS base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d AS lut0
@@ -130,7 +131,12 @@ LEFT JOIN _filtered_curves_2d AS lut7
 LEFT JOIN _filtered_curves_l3 AS l3_lut
   ON l3_lut.freq_khz = base.freq_0
   AND l3_lut.dep_policy = base.dep_policy_0
-  AND l3_lut.dep_freq = base.dep_freq_0;
+  AND l3_lut.dep_freq = base.dep_freq_0
+LEFT JOIN _filtered_curves_interconnect AS interconnect_lut
+  ON interconnect_lut.freq_khz = base.freq_0
+  AND interconnect_lut.dep_policy = base.dep_policy_0
+  AND interconnect_lut.dep_freq = base.dep_freq_0
+  AND interconnect_lut.policy = 0;
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
@@ -138,19 +144,24 @@ CREATE PERFETTO TABLE _cpu_estimates_mw AS
 SELECT
   slices.ts,
   slices.dur,
-  base.cpu0_mw,
-  base.cpu1_mw,
-  base.cpu2_mw,
-  base.cpu3_mw,
-  base.cpu4_mw,
-  base.cpu5_mw,
-  base.cpu6_mw,
-  base.cpu7_mw,
-  base.static_mw
-  + (coalesce(slices.l3_hit_count * base.l3_hit, 0)
-  + coalesce(slices.l3_miss_count * base.l3_miss, 0))
-  * 1000
-  / slices.dur AS dsu_scu_mw
+  iif(slices.suspended = 1, 0, base.cpu0_mw) AS cpu0_mw,
+  iif(slices.suspended = 1, 0, base.cpu1_mw) AS cpu1_mw,
+  iif(slices.suspended = 1, 0, base.cpu2_mw) AS cpu2_mw,
+  iif(slices.suspended = 1, 0, base.cpu3_mw) AS cpu3_mw,
+  iif(slices.suspended = 1, 0, base.cpu4_mw) AS cpu4_mw,
+  iif(slices.suspended = 1, 0, base.cpu5_mw) AS cpu5_mw,
+  iif(slices.suspended = 1, 0, base.cpu6_mw) AS cpu6_mw,
+  iif(slices.suspended = 1, 0, base.cpu7_mw) AS cpu7_mw,
+  iif(
+    slices.suspended = 1,
+    0,
+    base.static_mw
+    + (coalesce(slices.l3_hit_count * base.l3_hit, 0)
+    + coalesce(slices.l3_miss_count * base.l3_miss, 0))
+    * 1000
+    / slices.dur
+    + coalesce(base.interconnect_mw, 0)
+  ) AS dsu_scu_mw
 FROM _w_independent_cpus_calc AS slices
 JOIN _unique_estimates_mw AS base USING (config_hash)
 WHERE

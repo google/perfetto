@@ -214,39 +214,39 @@ base::Status RegisterAllProtoBuilderFunctions(
   return base::OkStatus();
 }
 
-void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
-  char* error = nullptr;
-  sqlite3_exec(db, "DELETE FROM _trace_bounds", nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error deleting from bounds table: %s", error);
-    sqlite3_free(error);
+void BuildBoundsTable(PerfettoSqlConnection* engine,
+                      std::pair<int64_t, int64_t> bounds) {
+  auto del = engine->Execute(
+      SqlSource::FromTraceProcessorImplementation("DELETE FROM _trace_bounds"));
+  if (!del.ok()) {
+    PERFETTO_ELOG("Error deleting from bounds table: %s",
+                  del.status().c_message());
     return;
   }
-
   base::StackString<1024> sql("INSERT INTO _trace_bounds VALUES(%" PRId64
                               ", %" PRId64 ")",
                               bounds.first, bounds.second);
-  sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error inserting bounds table: %s", error);
-    sqlite3_free(error);
+  auto ins = engine->Execute(
+      SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
+  if (!ins.ok()) {
+    PERFETTO_ELOG("Error inserting bounds table: %s", ins.status().c_message());
   }
 }
 
+// Module bodies are string_views into |package|; the caller must keep
+// |package| alive for the lifetime of the result.
 base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
     const SqlPackage& package) {
   const std::string& name = package.name;
   sql_modules::RegisteredPackage new_package;
-  for (auto const& module_name_and_sql : package.modules) {
-    const std::string& module_name = module_name_and_sql.first;
-    // Module name must start with package name as prefix (and be longer)
+  for (const auto& [module_name, sql] : package.modules) {
     if (!sql_modules::IsPackagePrefixOf(name, module_name) ||
         name == module_name) {
       return base::ErrStatus(
           "Module name '%s' must start with package name '%s.' as prefix.",
           module_name.c_str(), name.c_str());
     }
-    new_package.modules.Insert(module_name, module_name_and_sql.second);
+    new_package.modules.Insert(module_name, std::string_view(sql));
   }
   return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }
@@ -264,27 +264,14 @@ std::vector<std::string> SanitizeMetricMountPaths(
   return sanitized;
 }
 
-void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
-  char* insert_sql = sqlite3_mprintf(
-      "INSERT INTO _trace_metrics(name) VALUES('%q')", metric_name.c_str());
-  char* insert_error = nullptr;
-  sqlite3_exec(db, insert_sql, nullptr, nullptr, &insert_error);
-  sqlite3_free(insert_sql);
-  if (insert_error) {
-    PERFETTO_ELOG("Error registering table: %s", insert_error);
-    sqlite3_free(insert_error);
+void InsertIntoTraceMetricsTable(PerfettoSqlConnection* engine,
+                                 const std::string& metric_name) {
+  auto s = engine->Execute(SqlSource::FromTraceProcessorImplementation(
+                               "INSERT INTO _trace_metrics(name) VALUES(?)"),
+                           {metric_name});
+  if (!s.ok()) {
+    PERFETTO_ELOG("Error registering table: %s", s.c_message());
   }
-}
-
-sql_modules::NameToPackage GetStdlibPackages() {
-  sql_modules::NameToPackage packages;
-  for (const auto& file_to_sql : SqlBundle(stdlib::kStdlib)) {
-    std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
-    std::string package_name = sql_modules::GetPackageName(module_name);
-    packages.Insert(package_name, {})
-        .first->emplace_back(module_name, file_to_sql.sql_view());
-  }
-  return packages;
 }
 
 // Aggregates GetBoundsMutationCount across all plugins.
@@ -513,16 +500,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     PERFETTO_CHECK(status.ok());
   }
 
-  // Register stdlib packages.
-  auto packages = GetStdlibPackages();
-  for (auto package = packages.GetIterator(); package; ++package) {
-    registered_sql_packages_.emplace_back<SqlPackage>({
-        /*name=*/package.key(),
-        /*modules=*/package.value(),
-        /*allow_override=*/false,
-    });
-  }
-
   // Compute initial trace bounds before any tables are finalized.
   cached_trace_bounds_ = AggregatePluginTimestampBounds(plugins_);
 
@@ -547,11 +524,14 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                 config_.skip_builtin_metric_paths.end(),
                                 "") != config_.skip_builtin_metric_paths.end();
   if (!skip_all_sql) {
+    // Wrap the per-metric INSERTs in one transaction; otherwise SQLite
+    // implicitly commits after each statement.
+    PerfettoSqlConnection::Transaction txn(engine_.get());
     for (const auto& file_to_sql :
          SqlBundle(sql_metrics::kAmalgamatedSqlMetrics)) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
-      RegisterMetric(file_to_sql.path, std::string(file_to_sql.sql_view()));
+      RegisterMetricImpl(file_to_sql.path, std::string(file_to_sql.sql_view()));
     }
   }
 }
@@ -604,10 +584,26 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   CacheBoundsAndBuildTable();
 
   // Stage 3: reduce memory usage by both destroying parser context *and*
-  // finalizing dataframes.
+  // finalizing dataframes; once finalized, attach any indexes that were
+  // declared at registration time.
   TraceProcessorStorageImpl::DestroyContext();
   for (const auto& df : plugin_dataframes_) {
     df.dataframe->Finalize();
+    for (const auto& idx_col_names : df.indexes) {
+      std::vector<uint32_t> col_idxs;
+      col_idxs.reserve(idx_col_names.size());
+      const auto& col_names = df.dataframe->column_names();
+      for (const auto& name : idx_col_names) {
+        auto it = std::find(col_names.begin(), col_names.end(), name);
+        PERFETTO_CHECK(it != col_names.end());
+        col_idxs.push_back(
+            static_cast<uint32_t>(std::distance(col_names.begin(), it)));
+      }
+      auto idx_or = df.dataframe->BuildIndex(col_idxs.data(),
+                                             col_idxs.data() + col_idxs.size());
+      PERFETTO_CHECK(idx_or.ok());
+      *df.dataframe = df.dataframe->AddIndex(std::move(*idx_or));
+    }
   }
 
   // Stage 4: prepare the connection for queries.
@@ -624,7 +620,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
   }
   bounds_tables_mutations_ = mutations;
   cached_trace_bounds_ = AggregatePluginTimestampBounds(plugins_);
-  BuildBoundsTable(engine_->sqlite_connection()->db(), cached_trace_bounds_);
+  BuildBoundsTable(engine_.get(), cached_trace_bounds_);
 }
 
 // =================================================================
@@ -650,45 +646,29 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   const std::string& name = sql_package.name;
 
-  // Check for prefix clashes with existing packages
-  std::optional<size_t> same_package_idx;
-  for (size_t i = 0; i < registered_sql_packages_.size(); ++i) {
-    const std::string& existing_name = registered_sql_packages_[i].name;
-    bool is_same_package = (name == existing_name);
-    bool has_prefix_clash =
-        sql_modules::IsPackagePrefixOf(name, existing_name) ||
-        sql_modules::IsPackagePrefixOf(existing_name, name);
-
-    if (is_same_package) {
-      // Same package name: only allow if allow_override is set
-      if (!sql_package.allow_override) {
-        return base::ErrStatus(
-            "Package '%s' is already registered. Choose a different name.\n"
-            "If you want to replace the existing package using trace processor "
-            "shell, you need to pass the --dev flag and use "
-            "--override-sql-package to pass the module path.",
-            name.c_str());
-      }
-      same_package_idx = i;
-    } else if (has_prefix_clash) {
-      // Prefix clash with DIFFERENT package: always fail
-      return base::ErrStatus(
-          "Package '%s' clashes with existing package '%s'. "
-          "Package names cannot be prefixes of each other.",
-          name.c_str(), existing_name.c_str());
-    }
+  // Same-name gate. The engine holds both stdlib and previously-registered
+  // user packages, so a single lookup covers both.
+  if (engine_->FindPackage(name) != nullptr && !sql_package.allow_override) {
+    return base::ErrStatus(
+        "Package '%s' is already registered. Choose a different name.\n"
+        "If you want to replace the existing package using trace processor "
+        "shell, you need to pass the --dev flag and use "
+        "--override-sql-package to pass the module path.",
+        name.c_str());
   }
 
+  // Validate module names. The returned string_views point into |sql_package|
+  // and stay valid through the std::move below: std::vector's move ctor
+  // preserves element addresses.
   ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
 
-  // If overriding same package, remove old one first
-  if (same_package_idx.has_value()) {
-    registered_sql_packages_.erase(registered_sql_packages_.begin() +
-                                   static_cast<ptrdiff_t>(*same_package_idx));
+  auto it = std::find_if(registered_sql_packages_.begin(),
+                         registered_sql_packages_.end(),
+                         [&](const SqlPackage& p) { return p.name == name; });
+  if (it != registered_sql_packages_.end()) {
+    registered_sql_packages_.erase(it);
     engine_->ErasePackage(name);
   }
-
-  // Save the name before moving sql_package
   std::string pkg_name = name;
   registered_sql_packages_.emplace_back(std::move(sql_package));
   return engine_->RegisterPackage(pkg_name, std::move(new_package));
@@ -859,13 +839,18 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 
 base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
+  return RegisterMetricImpl(path, sql);
+}
+
+base::Status TraceProcessorImpl::RegisterMetricImpl(std::string path,
+                                                    std::string sql) {
   // Check if the metric with the given path already exists and if it does,
   // just update the SQL associated with it.
   auto it = std::find_if(
       sql_metrics_.begin(), sql_metrics_.end(),
       [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
   if (it != sql_metrics_.end()) {
-    it->sql = sql;
+    it->sql = std::move(sql);
     return base::OkStatus();
   }
 
@@ -880,13 +865,13 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   auto no_ext_name = basename.substr(0, sql_idx);
 
   metrics::SqlMetricFile metric;
-  metric.path = path;
-  metric.sql = sql;
 
   if (IsRootMetricField(no_ext_name)) {
     metric.proto_field_name = no_ext_name;
     metric.output_table_name = no_ext_name + "_output";
 
+    // proto_field_to_sql_metric_path_ stores |path| by value: this is the
+    // one unavoidable copy on the root-metric path.
     auto field_it_and_inserted =
         proto_field_to_sql_metric_path_.emplace(*metric.proto_field_name, path);
     if (!field_it_and_inserted.second) {
@@ -903,13 +888,11 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
           "and %s are both trying to output the proto field %s",
           prev_path.c_str(), path.c_str(), metric.proto_field_name->c_str());
     }
+    InsertIntoTraceMetricsTable(engine_.get(), *metric.proto_field_name);
   }
-
-  if (metric.proto_field_name) {
-    InsertIntoTraceMetricsTable(engine_->sqlite_connection()->db(),
-                                *metric.proto_field_name);
-  }
-  sql_metrics_.emplace_back(metric);
+  metric.path = std::move(path);
+  metric.sql = std::move(sql);
+  sql_metrics_.emplace_back(std::move(metric));
   return base::OkStatus();
 }
 
@@ -1039,7 +1022,37 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     }
   }
 
-  // Reregister manually added stdlib packages.
+  // Stream stdlib straight from rodata into the connection. The bundle is
+  // sorted by path so package entries are contiguous: flush whenever the
+  // package name changes. Bodies stay as string_views into kStdlib.
+  {
+    auto flush = [&](const std::string& pkg,
+                     sql_modules::RegisteredPackage rp) {
+      auto status = connection->RegisterPackage(pkg, std::move(rp));
+      if (!status.ok()) {
+        PERFETTO_FATAL("%s", status.c_message());
+      }
+    };
+    std::string current_pkg;
+    std::optional<sql_modules::RegisteredPackage> rp;
+    for (const auto& f : SqlBundle(stdlib::kStdlib)) {
+      std::string include_key = sql_modules::GetIncludeKey(f.path);
+      std::string pkg = sql_modules::GetPackageName(include_key);
+      if (pkg != current_pkg) {
+        if (rp.has_value()) {
+          flush(current_pkg, *std::move(rp));
+        }
+        rp = sql_modules::RegisteredPackage();
+        current_pkg = std::move(pkg);
+      }
+      rp->modules.Insert(std::move(include_key), f.sql_view());
+    }
+    if (rp.has_value()) {
+      flush(current_pkg, *std::move(rp));
+    }
+  }
+
+  // Re-register user-added packages.
   for (const auto& package : packages) {
     auto new_package = ToRegisteredPackage(package);
     if (!new_package.ok()) {
@@ -1063,13 +1076,17 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     IncludeAfterEofPrelude(connection.get());
   }
 
-  sqlite3* db = connection->sqlite_connection()->db();
-  for (const auto& metric : sql_metrics) {
-    if (metric.proto_field_name) {
-      InsertIntoTraceMetricsTable(db, *metric.proto_field_name);
+  // Same batching as the constructor: wrap the per-metric INSERTs in one
+  // transaction.
+  {
+    PerfettoSqlConnection::Transaction txn(connection.get());
+    for (const auto& metric : sql_metrics) {
+      if (metric.proto_field_name) {
+        InsertIntoTraceMetricsTable(connection.get(), *metric.proto_field_name);
+      }
     }
   }
-  BuildBoundsTable(db, cached_trace_bounds);
+  BuildBoundsTable(connection.get(), cached_trace_bounds);
   return connection;
 }
 

@@ -250,7 +250,7 @@ std::vector<FocusedState> ComputeFocusedState(
       auto current = parent_id;
       // Mark all parent nodes as focused
       while (current.has_value()) {
-        auto c = *table.FindById(*current);
+        auto c = table[*current];
         uint32_t current_idx = c.ToRowNumber().row_number();
         if (focused[current_idx] != FocusedState::kNotFocused) {
           // We have already visited these nodes, skip
@@ -259,10 +259,9 @@ std::vector<FocusedState> ComputeFocusedState(
         focused[current_idx] = FocusedState::kFocusedNotPropagating;
         current = c.parent_id();
       }
-    } else if (parent_id.has_value() && focused[table.FindById(*parent_id)
-                                                    ->ToRowNumber()
-                                                    .row_number()] ==
-                                            FocusedState::kFocusedPropagating) {
+    } else if (parent_id.has_value() &&
+               focused[table[*parent_id].ToRowNumber().row_number()] ==
+                   FocusedState::kFocusedPropagating) {
       // Focus cascades downwards.
       focused[i] = FocusedState::kFocusedPropagating;
     } else {
@@ -306,8 +305,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> FocusTable(
 
     auto parent_id = rr.parent_id();
     if (parent_id.has_value()) {
-      uint32_t parent_row =
-          in->FindById(*parent_id)->ToRowNumber().row_number();
+      uint32_t parent_row = (*in)[*parent_id].ToRowNumber().row_number();
       auto& parent_cumulatives = node_to_cumulatives[parent_row];
       parent_cumulatives.size += cumulatives.size;
       parent_cumulatives.count += cumulatives.count;
@@ -329,8 +327,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> FocusTable(
     // identifier.
     auto original_parent_id = it.parent_id();
     if (original_parent_id.has_value()) {
-      auto original_idx =
-          in->FindById(*original_parent_id)->ToRowNumber().row_number();
+      auto original_idx = (*in)[*original_parent_id].ToRowNumber().row_number();
       alloc_row.parent_id = node_to_id[original_idx];
     }
 

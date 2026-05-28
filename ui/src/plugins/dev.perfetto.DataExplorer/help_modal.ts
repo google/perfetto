@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../../frontend/help_modal.scss';
 import m from 'mithril';
 import type {Hotkey} from '../../base/hotkeys';
 import {HotkeyGlyphs, Keycap} from '../../widgets/hotkey_glyphs';

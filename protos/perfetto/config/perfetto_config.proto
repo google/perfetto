@@ -63,6 +63,35 @@ message GpuCounterDescriptor {
     repeated MeasureUnit denominator_units = 8;
     optional bool select_by_default = 9;
     repeated GpuCounterGroup groups = 10;
+
+    // Direction of the time interval that each emitted sample applies to.
+    // A GPU counter is sampled at discrete timestamps, but its value really
+    // represents a measurement over some interval around that timestamp
+    // (e.g. average GPU utilization over the sampling window). This field
+    // tells trace processor on which side of the timestamp that interval
+    // lies, which controls where the value is drawn in the UI.
+    //
+    // Example: samples at t=10, 20, 30 with values 5, 7, 0.
+    //   BACKWARDS_LOOKING: 5 covers (-inf, 10], 7 covers (10, 20], 0 covers
+    //     (20, 30]; the UI draws 7 between t=10 and t=20.
+    //   FORWARDS_LOOKING:  5 covers [10, 20), 7 covers [20, 30), 0 covers
+    //     [30, +inf); the UI draws 5 between t=10 and t=20.
+    enum ValueDirection {
+      // Treated as BACKWARDS_LOOKING (the historical default).
+      VALUE_DIRECTION_UNSPECIFIED = 0;
+      // The value applies to the interval ending at this event's timestamp.
+      // This is the convention used by AGI and most existing GPU producers,
+      // where a sample reports what happened during the window leading up
+      // to the timestamp.
+      VALUE_DIRECTION_BACKWARDS_LOOKING = 1;
+      // The value applies to the interval starting at this event's
+      // timestamp, matching standard Perfetto counters. Producers that emit
+      // explicit zero samples to denote "no activity from here on" should
+      // use this so the zero is not back-propagated over earlier non-zero
+      // samples (https://github.com/google/perfetto/issues/5683).
+      VALUE_DIRECTION_FORWARDS_LOOKING = 2;
+    }
+    optional ValueDirection value_direction = 11;
   }
   repeated GpuCounterSpec specs = 1;
 
@@ -627,7 +656,7 @@ message AndroidGameInterventionListConfig {
 //
 // NOTE: Input traces can only be taken on debuggable (userdebug/eng) builds!
 //
-// Next ID: 5
+// Next ID: 6
 message AndroidInputEventConfig {
   // Trace modes are tracing presets that are included in the system.
   enum TraceMode {
@@ -736,6 +765,10 @@ message AndroidInputEventConfig {
   // Trace details about which windows the system is sending each input event
   // to. All trace rules will apply.
   optional bool trace_dispatcher_window_dispatch = 4;
+
+  // Trace evdev events received from the kernel, including device additions and
+  // removals.
+  optional bool trace_evdev_events = 5;
 }
 
 // End of protos/perfetto/config/android/android_input_event_config.proto
@@ -1364,6 +1397,8 @@ message EtwConfig {
   repeated string file_provider_events = 4;
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
+  // Provides events relating to disk I/O.
+  repeated string disk_provider_events = 6;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -1937,6 +1972,26 @@ message InterceptorConfig {
 
 // End of protos/perfetto/config/interceptor_config.proto
 
+// Begin of protos/perfetto/config/linux/journald_config.proto
+
+// Configuration for the "linux.systemd_journald" data source.
+// Next field id: 4
+message SystemdJournaldConfig {
+  // Minimum syslog priority level to capture (inclusive).
+  // 0=EMERG, 1=ALERT, 2=CRIT, 3=ERR, 4=WARNING, 5=NOTICE, 6=INFO, 7=DEBUG.
+  // Default (0 / unset): capture all priorities (equivalent to 7).
+  optional uint32 min_prio = 1;
+
+  // If non-empty, only capture journal entries whose SYSLOG_IDENTIFIER
+  // matches one of these strings.
+  repeated string filter_identifiers = 2;
+
+  // If non-empty, only capture journal entries from these systemd unit names.
+  repeated string filter_units = 3;
+}
+
+// End of protos/perfetto/config/linux/journald_config.proto
+
 // Begin of protos/perfetto/config/power/android_power_config.proto
 
 message AndroidPowerConfig {
@@ -2268,6 +2323,93 @@ message HeapprofdConfig {
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto
 
+// Begin of protos/perfetto/config/profiling/smaps_config.proto
+
+// Config for collecting /proc/pid/smaps.
+message SmapsConfig {
+  enum VmaField {
+    VMA_FIELD_UNKNOWN = 0;
+    VMA_FIELD_SIZE = 1;
+    VMA_FIELD_RSS = 2;
+    VMA_FIELD_ANONYMOUS = 3;
+    VMA_FIELD_SWAP = 4;
+    VMA_FIELD_SHARED_CLEAN = 5;
+    VMA_FIELD_SHARED_DIRTY = 6;
+    VMA_FIELD_PRIVATE_CLEAN = 7;
+    VMA_FIELD_PRIVATE_DIRTY = 8;
+    VMA_FIELD_LOCKED = 9;
+    VMA_FIELD_PSS = 10;
+    VMA_FIELD_PSS_DIRTY = 11;
+    VMA_FIELD_SWAP_PSS = 12;
+  }
+
+  // Set of fields to collect.
+  // If unset, defaults to: size, rss, anonymous, swap.
+  repeated VmaField vma_fields = 1;
+
+  // If false, mappings are aggregated by their path name.
+  // If true, each mapping is serialised separately.
+  optional bool unaggregated = 2;
+
+  // Optional ordered list of redaction rules for the name of the mapping.
+  // Note that all mappings will still be emitted, these rules only affect the
+  // emitted name.
+  // If unset, all names are written as is.
+  // If set, the first matching rule decides on the action.
+  // If no rules match, the name is written as is.
+  repeated RedactionRule name_redaction_rules = 3;
+}
+
+message RedactionRule {
+  // How to match |pattern| against the name of the mapping.
+  // Note for future extensions: unrecognised enums are treated as always
+  // matching.
+  enum MatchMode {
+    MATCH_MODE_UNKNOWN = 0;
+    // The pattern matches if it is a prefix of the mapping name.
+    MATCH_MODE_PREFIX = 1;
+    // The pattern is matched against the mapping name as a pathname glob
+    // (see "man 7 glob" and FNM_PATHNAME in "man 3 fnmatch").
+    // The key distinction is that path separators in the name are *not* matched
+    // against wildcards. So a pattern of the form "/usr/*/llvm" would match
+    // "/usr/lib/llvm" but not "/usr/lib/nested/llvm".
+    // Note: any "(deleted)" suffix is excluded before matching.
+    MATCH_MODE_GLOB_PATH = 2;
+    // The pattern is matched against the mapping name without special-casing
+    // path separators. So a pattern of the form "/usr/*/llvm" would match
+    // both "/usr/lib/llvm" and "/usr/lib/nested/llvm".
+    // Note: any "(deleted)" suffix is excluded before matching.
+    MATCH_MODE_GLOB_STRING = 3;
+  }
+
+  // The pattern to match against.
+  optional string pattern = 1;
+  optional MatchMode match_mode = 2;
+
+  // If the pattern matches, keep the entire name. In other words, do not
+  // redact. This option exists since the rules are evaluated in order, so a
+  // more specific allow rule with keep_full can match before a more general
+  // deny rule. This option is mutually exclusive with |keep_file_extension| and
+  // |keep_path_elements|.
+  optional bool keep_full = 3;
+
+  // If the pattern matches, replace the name with this string (defaulting to
+  // <pf_redacted> if unset). The final emitted name might be further augmented
+  // by the options below keeping parts of the original name.
+  optional string replacement_name = 4;
+
+  // If the pattern matches, keep the file extension, if any.
+  // Can be combined with |keep_path_elements|.
+  optional bool keep_file_extension = 5;
+
+  // If the pattern matches, keep the first N path elements (as separated by
+  // '/'). If the name is not a path, this option does nothing. Can be combined
+  // with |keep_file_extension|.
+  optional uint32 keep_path_elements = 6;
+}
+
+// End of protos/perfetto/config/profiling/smaps_config.proto
+
 // Begin of protos/perfetto/config/profiling/java_hprof_config.proto
 
 // Configuration for managed app heap graph snapshots.
@@ -2334,7 +2476,14 @@ message JavaHprofConfig {
   // * start with /vendor
   // * start with /data/app
   // * contain "extracted in memory from Y", where Y matches any of the above
+  //
+  // Superseded by |smaps_config| in perfetto v58+.
   optional bool dump_smaps = 5;
+
+  // If set, include /proc/self/smaps memory mappings.
+  //
+  // Added in perfetto v58.
+  optional SmapsConfig smaps_config = 8;
 
   // Exclude objects of the following types from the profile. This can be
   // useful if lots of uninteresting objects, e.g. "sun.misc.Cleaner".
@@ -4730,6 +4879,9 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: linux.systemd_journald
+  optional SystemdJournaldConfig journald_config = 141 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

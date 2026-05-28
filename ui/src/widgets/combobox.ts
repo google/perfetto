@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './combobox.scss';
 import m from 'mithril';
 import {Popup, PopupPosition} from './popup';
 import {TextInput} from './text_input';

@@ -1859,12 +1859,30 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   }
 
   context_.storage->mutable_profiler_smaps_table()->Insert(
-      {upid, kTimestamp, kNullStringId, kSizeKb, kPrivateDirtyKb, kSwapKb,
-       context_.storage->InternString(kFileName), kStartAddress,
-       kModuleTimestamp, context_.storage->InternString(kModuleDebugid),
-       context_.storage->InternString(kModuleDebugPath), kProtectionFlags,
-       kPrivateCleanResidentKb, kSharedDirtyResidentKb, kSharedCleanResidentKb,
-       0, kProportionalResidentKb});
+      {upid,
+       kTimestamp,
+       kNullStringId,
+       /*path_trimmed=*/kNullStringId,
+       /*aggregate_count=*/0u,
+       /*is_deleted=*/0u,
+       kSizeKb,
+       kPrivateDirtyKb,
+       kSwapKb,
+       context_.storage->InternString(kFileName),
+       kStartAddress,
+       kModuleTimestamp,
+       context_.storage->InternString(kModuleDebugid),
+       context_.storage->InternString(kModuleDebugPath),
+       kProtectionFlags,
+       kPrivateCleanResidentKb,
+       kSharedDirtyResidentKb,
+       kSharedCleanResidentKb,
+       0,
+       kProportionalResidentKb,
+       /*rss_kb=*/0,
+       /*anonymous_kb=*/0,
+       /*pss_dirty_kb=*/0,
+       /*swap_pss_kb=*/0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");

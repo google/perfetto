@@ -185,26 +185,26 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
     std::optional<std::string>& location) {
   auto* storage = context_->trace_processor_context_->storage.get();
   auto* protolog_table = storage->mutable_protolog_table();
-  auto row = protolog_table->FindById(table_row_id).value();
+  auto row = (*protolog_table)[table_row_id];
 
   StringPool::Id level = log_level_unknown_string_id_;
   switch (log_level) {
-    case ProtoLogLevel::DEBUG:
+    case ProtoLogLevel::PROTOLOG_LEVEL_DEBUG:
       level = log_level_debug_string_id_;
       break;
-    case ProtoLogLevel::VERBOSE:
+    case ProtoLogLevel::PROTOLOG_LEVEL_VERBOSE:
       level = log_level_verbose_string_id_;
       break;
-    case ProtoLogLevel::INFO:
+    case ProtoLogLevel::PROTOLOG_LEVEL_INFO:
       level = log_level_info_string_id_;
       break;
-    case ProtoLogLevel::WARN:
+    case ProtoLogLevel::PROTOLOG_LEVEL_WARN:
       level = log_level_warn_string_id_;
       break;
-    case ProtoLogLevel::ERROR:
+    case ProtoLogLevel::PROTOLOG_LEVEL_ERROR:
       level = log_level_error_string_id_;
       break;
-    case ProtoLogLevel::WTF:
+    case ProtoLogLevel::PROTOLOG_LEVEL_WTF:
       level = log_level_wtf_string_id_;
       break;
   }

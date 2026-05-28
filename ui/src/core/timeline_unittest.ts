@@ -24,9 +24,9 @@ function t(n: number): time {
 }
 
 // Mock raf scheduler
-jest.mock('./raf_scheduler', () => ({
+vi.mock('./raf_scheduler', () => ({
   raf: {
-    scheduleCanvasRedraw: jest.fn(),
+    scheduleCanvasRedraw: vi.fn(),
   },
 }));
 

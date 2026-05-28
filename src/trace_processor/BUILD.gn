@@ -427,7 +427,6 @@ perfetto_unittest_source_set("unittests") {
     deps += [
       "perfetto_sql/engine:unittests",
       "perfetto_sql/parser:unittests",
-      "perfetto_sql/preprocessor:unittests",
       "perfetto_sql/tokenizer:unittests",
       "plugins/ancestor:unittests",
       "plugins/connected_flow:unittests",
@@ -500,4 +499,17 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
     "../../gn:default_deps",
     "../base",
   ]
+}
+
+if (enable_perfetto_benchmarks && enable_perfetto_trace_processor_sqlite) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "trace_processor_benchmark.cc" ]
+    deps = [
+      ":lib",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
+      "../../include/perfetto/trace_processor",
+    ]
+  }
 }

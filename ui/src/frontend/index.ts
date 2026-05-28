@@ -15,7 +15,8 @@
 // Keep this import first.
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
-import '../assets/perfetto.scss';
+import '../assets/typefaces.scss';
+import '../assets/common.scss';
 import z from 'zod';
 import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
 import CORE_PLUGINS from 'virtual:perfetto/all_core_plugins';
@@ -23,7 +24,7 @@ import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {featureFlags} from '../core/feature_flags';
-import {initLiveReload} from '../core/live_reload';
+import {initViteLiveReload} from '../core/vite_live_reload';
 import {raf} from '../core/raf_scheduler';
 import {warmupWasmWorker} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
@@ -439,7 +440,7 @@ function onCssLoaded(app: AppImpl) {
     !app.embeddedMode &&
     !app.testingMode
   ) {
-    initLiveReload();
+    initViteLiveReload();
   }
 
   // Will update the chip on the sidebar footer that notifies that the RPC is

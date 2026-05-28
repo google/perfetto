@@ -23,9 +23,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::winscope {
@@ -34,12 +31,12 @@ inline constexpr std::string_view kCollisionGroupTag = "COLLISION_GROUP";
 inline constexpr std::string_view kUnknownGroupTag = "UNKNOWN_GROUP";
 
 enum ProtoLogLevel : int32_t {
-  DEBUG = 1,
-  VERBOSE = 2,
-  INFO = 3,
-  WARN = 4,
-  ERROR = 5,
-  WTF = 6,
+  PROTOLOG_LEVEL_DEBUG = 1,
+  PROTOLOG_LEVEL_VERBOSE = 2,
+  PROTOLOG_LEVEL_INFO = 3,
+  PROTOLOG_LEVEL_WARN = 4,
+  PROTOLOG_LEVEL_ERROR = 5,
+  PROTOLOG_LEVEL_WTF = 6,
 };
 
 struct DecodedMessage {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {Mock} from 'vitest';
 import {assertExists} from '../../base/assert';
 import {MultiTraceController} from './multi_trace_controller';
 import type {
@@ -97,15 +98,15 @@ function createMockFile(name: string): File {
 describe('MultiTraceController', () => {
   let controller: MultiTraceController;
   let fakeAnalyzer: FakeTraceAnalyzer;
-  let onStateChanged: jest.Mock;
-  let onAnalysisStarted: jest.Mock;
-  let onAnalysisCompleted: jest.Mock;
+  let onStateChanged: Mock;
+  let onAnalysisStarted: Mock;
+  let onAnalysisCompleted: Mock;
 
   beforeEach(() => {
     fakeAnalyzer = new FakeTraceAnalyzer();
-    onStateChanged = jest.fn();
-    onAnalysisStarted = jest.fn();
-    onAnalysisCompleted = jest.fn();
+    onStateChanged = vi.fn();
+    onAnalysisStarted = vi.fn();
+    onAnalysisCompleted = vi.fn();
     controller = new MultiTraceController(
       fakeAnalyzer,
       onStateChanged,

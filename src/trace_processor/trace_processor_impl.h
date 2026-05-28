@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <list>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -139,6 +140,12 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
+  // By-value RegisterMetric body. External callers go through the
+  // |RegisterMetric| override (which copies its const-ref args into our
+  // parameters); the constructor's amalgamated-metrics loop calls this
+  // directly so it can move the temporaries through without extra copies.
+  base::Status RegisterMetricImpl(std::string path, std::string sql);
+
   bool IsRootMetricField(const std::string& metric_name);
 
   void CacheBoundsAndBuildTable();
@@ -147,7 +154,7 @@ class TraceProcessorImpl : public TraceProcessor,
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
-    const std::vector<SqlPackage>& packages;
+    const std::list<SqlPackage>& packages;
     std::vector<metrics::SqlMetricFile>& sql_metrics;
     const DescriptorPool* metrics_descriptor_pool;
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path;
@@ -178,7 +185,9 @@ class TraceProcessorImpl : public TraceProcessor,
   DescriptorPool metrics_descriptor_pool_;
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
-  std::vector<SqlPackage> registered_sql_packages_;
+  // list (not vector) for stable element addresses: RegisteredPackage holds
+  // string_views into these std::strings.
+  std::list<SqlPackage> registered_sql_packages_;
 
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;

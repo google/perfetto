@@ -114,11 +114,10 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
       return base::ErrStatus(
           "v8 profile parent id does not exist: cannot insert callsite");
     }
-    auto row =
-        context_->storage->stack_profile_callsite_table().FindById(*parent_id);
+    auto row = context_->storage->stack_profile_callsite_table()[*parent_id];
     callsite_id = context_->stack_profile_tracker->InternCallsite(
-        *parent_id, frame_id, row->depth() + 1);
-    depth = row->depth() + 1;
+        *parent_id, frame_id, row.depth() + 1);
+    depth = row.depth() + 1;
   } else {
     callsite_id = context_->stack_profile_tracker->InternCallsite(std::nullopt,
                                                                   frame_id, 0);
@@ -150,11 +149,10 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
       continue;
     }
     auto row =
-        context_->storage->mutable_stack_profile_callsite_table()->FindById(
-            *child_callsite_id);
-    PERFETTO_CHECK(row);
-    row->set_depth(depth + 1);
-    row->set_parent_id(callsite_id);
+        (*context_->storage
+              ->mutable_stack_profile_callsite_table())[*child_callsite_id];
+    row.set_depth(depth + 1);
+    row.set_parent_id(callsite_id);
   }
   return base::OkStatus();
 }

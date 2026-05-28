@@ -79,6 +79,10 @@ if (enable_perfetto_traceconv) {
   }
 }
 
+if (enable_perfetto_protovm_compiler) {
+  all_targets += [ "src/protovm/compiler:protovm_compiler" ]
+}
+
 if (enable_perfetto_heapprofd) {
   all_targets += [ "src/profiling/memory:heapprofd" ]
 
@@ -268,6 +272,12 @@ if (!build_with_chromium) {
       "gn:default_deps",
       "src/tracing:client_api",
     ]
+
+    # Additional /ext/ target exposed exclusively to the perfetto_hprof ART
+    # plugin in the android platform.
+    if (perfetto_build_with_android) {
+      public_deps += [ "src/profiling/smaps:smaps" ]
+    }
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "gn:protobuf_lite" ]
 

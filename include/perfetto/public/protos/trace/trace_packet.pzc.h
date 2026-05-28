@@ -96,6 +96,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingFree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingProfilePacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SysStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SystemInfo);
+PERFETTO_PB_MSG_DECL(perfetto_protos_SystemdJournaldEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TestEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ThreadDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceAttributes);
@@ -621,6 +622,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_AndroidUserList,
                   user_list,
                   123);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_SystemdJournaldEvent,
+                  journald_event,
+                  132);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

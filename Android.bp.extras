@@ -339,3 +339,28 @@ filegroup {
         "src/android_sdk/jni/ravenwood-perfetto-policies.txt",
     ],
 }
+
+// Host-only stubs for the small set of Android classes the perfetto Java
+// SDK references that are missing from Soong's host module_current
+// classpath (dalvik.annotation.optimization.{Critical,Fast}Native and
+// android.system.SystemCleaner; plus android.util.{ArraySet,Log} and
+// android.os.Process). Linked into the host variant of
+// perfetto_trace_lib_java_defaults as a libs: dep so the stubs are visible
+// to javac but not bundled into the jar; the Android variant continues
+// to use the real platform classes from module_current.
+java_library_host {
+    name: "perfetto_trace_lib_host_stubs",
+    srcs: [
+        "src/android_sdk/java/host_stubs/**/*.java",
+    ],
+    // androidx/** is a test-only shim (AndroidJUnit4) for the standalone host
+    // JUnit runner (tools/run_android_sdk_host_test), which compiles host_stubs
+    // with JUnit on the classpath. It is not one of the SDK host shims this
+    // library is meant to provide (see the comment above) and pulling it in here
+    // drags in org.junit, which this library does not depend on -- breaking the
+    // Soong host build. The Soong host/ravenwood build uses the real
+    // androidx.test, so exclude it.
+    exclude_srcs: [
+        "src/android_sdk/java/host_stubs/androidx/**/*.java",
+    ],
+}

@@ -138,6 +138,9 @@ namespace perfetto::trace_processor::stats {
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "ETW Disk IO tracker encountered an event with an opcode for which it " \
+        "didn't have a name."),                                                \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
@@ -175,6 +178,10 @@ namespace perfetto::trace_processor::stats {
   F(stackprofile_invalid_frame_id,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_invalid_callstack_id,    kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_parser_error,            kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(smaps_parser_errors,                  kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "Count of malformed PackedSmaps packets. Data in smaps tables unreliable."),                      \
+  F(systemd_journal_num_failed,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(systemd_journal_num_total,            kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(systrace_parse_failure,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(task_state_invalid,                   kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(traced_buf_abi_violations,            kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,    ""), \

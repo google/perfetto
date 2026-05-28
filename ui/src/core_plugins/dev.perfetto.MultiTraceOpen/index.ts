@@ -26,7 +26,7 @@ function openFilePickerAndShowModal() {
   input.style.display = 'none';
   input.addEventListener('change', async () => {
     if (!input.files) return;
-    const files = [...input.files];
+    const files = Array.from(input.files);
     if (files.length > 0) {
       showMultiTraceModal(files);
     }

@@ -53,7 +53,7 @@ export default class implements PerfettoPlugin {
         } else {
           return m(ConnectionPage, {
             onConnected: (result) => {
-              session = new LiveSession(result);
+              session = new LiveSession(app, result);
               session.onSnapshot(() => m.redraw());
             },
           });

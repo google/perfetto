@@ -159,6 +159,16 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Display',
   },
   {
+    type: 'panel_settings_full',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
+    type: 'panel_settings_lite',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
     type: 'drm_sched_ring',
     topLevelGroup: 'HARDWARE',
     group: 'DRM Sched Ring',
@@ -340,6 +350,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
           ),
         ]);
     },
+  },
+  {
+    type: 'etw_diskio',
+    topLevelGroup: 'IO',
+    group: 'ETW Disk I/O',
   },
   {
     type: 'etw_fileio',

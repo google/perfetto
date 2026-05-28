@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './perf_manager.scss';
 import m from 'mithril';
 import {raf} from './raf_scheduler';
 import {

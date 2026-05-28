@@ -932,6 +932,23 @@ def CheckShellIncludeViolations(changed_files: List[str]) -> List[str]:
   ]
 
 
+def CheckExtensionManifests(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/check_extension_manifests.py'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=['ai/extensions/*', 'ai/extensions/*/*', tool_rel_path])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT)
+  except FileNotFoundError:
+    return [f'Tool not found: {tool}']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout or ""}\n{e.stderr or ""}'.rstrip()]
+  return []
+
+
 def CheckUiImports(changed_files: List[str]) -> List[str]:
   tool_rel_path = 'tools/check_imports'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
@@ -1043,6 +1060,7 @@ def main():
       (CheckAbsolutePathsInGn, [changed_files]),
       (CheckUiImports, [changed_files]),
       (CheckUiRatchet, [changed_files]),
+      (CheckExtensionManifests, [changed_files]),
   ]
 
   with ThreadPoolExecutor() as executor:

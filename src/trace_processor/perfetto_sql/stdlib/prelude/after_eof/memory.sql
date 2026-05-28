@@ -20,8 +20,6 @@
 -- including heap graphs for Android Runtime (ART) and memory snapshots
 -- for detailed memory profiling.
 
-INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
-
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Stores class information within ART heap graphs. It represents Java/Kotlin

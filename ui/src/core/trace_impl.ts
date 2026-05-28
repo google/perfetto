@@ -54,6 +54,8 @@ import {MinimapManagerImpl} from './minimap_manager';
 import {InitialPageManagerImpl} from './initial_page_manager';
 import type {TraceStream} from '../public/stream';
 import type {OmniboxModeDescriptor} from '../public/omnibox';
+import type {SidePanelManagerImpl} from './side_panel_manager';
+import type {SidePanelTabDescriptor} from '../public/side_panel';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -185,6 +187,14 @@ export class TraceImpl implements Trace, Disposable {
         return disposable;
       },
     });
+
+    this.sidePanelProxy = createProxy(app.sidePanel, {
+      registerTab: (tab: SidePanelTabDescriptor) => {
+        const disposable = app.sidePanel.registerTab(tab);
+        this.trash.use(disposable);
+        return disposable;
+      },
+    });
   }
 
   // This method wires up changes to selection to side effects on search and
@@ -211,6 +221,7 @@ export class TraceImpl implements Trace, Disposable {
 
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
+  private readonly sidePanelProxy: SidePanelManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
   private readonly omniboxProxy: OmniboxManagerImpl;
@@ -266,6 +277,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get sidebar(): SidebarManagerImpl {
     return this.sidebarProxy;
+  }
+
+  get sidePanel(): SidePanelManagerImpl {
+    return this.sidePanelProxy;
   }
 
   get pages(): PageManager {

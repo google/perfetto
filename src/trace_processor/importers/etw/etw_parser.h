@@ -21,6 +21,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/sched_event_state.h"
+#include "src/trace_processor/importers/etw/disk_io_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -55,6 +56,8 @@ class EtwParser {
   StringId anonymized_process_string_id_;
 
   SchedEventState sched_event_state_;
+
+  DiskIoTracker disk_io_tracker_;
 };
 
 }  // namespace trace_processor

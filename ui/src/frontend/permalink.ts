@@ -23,6 +23,7 @@ import {
   MIME_BINARY,
   MIME_JSON,
   GcsUploader,
+  isValidGcsFileName,
 } from '../base/gcs_uploader';
 import {
   SERIALIZED_STATE_VERSION,
@@ -146,6 +147,11 @@ export async function createPermalink(
  * PERMALINK_SCHEMA.
  */
 export async function loadPermalink(gcsFileName: string): Promise<void> {
+  if (!isValidGcsFileName(gcsFileName)) {
+    throw new Error(
+      `Invalid permalink id: ${gcsFileName}. Expected a 40-char hex hash.`,
+    );
+  }
   // Otherwise, this is a request to load the permalink.
   const url = `https://storage.googleapis.com/${BUCKET_NAME}/${gcsFileName}`;
   const response = await fetch(url);
