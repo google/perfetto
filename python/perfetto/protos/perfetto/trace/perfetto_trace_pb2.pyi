@@ -4175,8 +4175,72 @@ class HeapprofdConfig(_message.Message):
     disable_vfork_detection: bool
     def __init__(self, sampling_interval_bytes: _Optional[int] = ..., adaptive_sampling_shmem_threshold: _Optional[int] = ..., adaptive_sampling_max_sampling_interval_bytes: _Optional[int] = ..., process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., heaps: _Optional[_Iterable[str]] = ..., exclude_heaps: _Optional[_Iterable[str]] = ..., stream_allocations: bool = ..., heap_sampling_intervals: _Optional[_Iterable[int]] = ..., all_heaps: bool = ..., all: bool = ..., min_anonymous_memory_kb: _Optional[int] = ..., max_heapprofd_memory_kb: _Optional[int] = ..., max_heapprofd_cpu_secs: _Optional[int] = ..., skip_symbol_prefix: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[HeapprofdConfig.ContinuousDumpConfig, _Mapping]] = ..., shmem_size_bytes: _Optional[int] = ..., block_client: bool = ..., block_client_timeout_us: _Optional[int] = ..., no_startup: bool = ..., no_running: bool = ..., dump_at_max: bool = ..., disable_fork_teardown: bool = ..., disable_vfork_detection: bool = ...) -> None: ...
 
+class SmapsConfig(_message.Message):
+    __slots__ = ("vma_fields", "unaggregated", "name_redaction_rules")
+    class VmaField(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        VMA_FIELD_UNKNOWN: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_SIZE: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_RSS: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_ANONYMOUS: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_SWAP: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_SHARED_CLEAN: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_SHARED_DIRTY: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_PRIVATE_CLEAN: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_PRIVATE_DIRTY: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_LOCKED: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_PSS: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_PSS_DIRTY: _ClassVar[SmapsConfig.VmaField]
+        VMA_FIELD_SWAP_PSS: _ClassVar[SmapsConfig.VmaField]
+    VMA_FIELD_UNKNOWN: SmapsConfig.VmaField
+    VMA_FIELD_SIZE: SmapsConfig.VmaField
+    VMA_FIELD_RSS: SmapsConfig.VmaField
+    VMA_FIELD_ANONYMOUS: SmapsConfig.VmaField
+    VMA_FIELD_SWAP: SmapsConfig.VmaField
+    VMA_FIELD_SHARED_CLEAN: SmapsConfig.VmaField
+    VMA_FIELD_SHARED_DIRTY: SmapsConfig.VmaField
+    VMA_FIELD_PRIVATE_CLEAN: SmapsConfig.VmaField
+    VMA_FIELD_PRIVATE_DIRTY: SmapsConfig.VmaField
+    VMA_FIELD_LOCKED: SmapsConfig.VmaField
+    VMA_FIELD_PSS: SmapsConfig.VmaField
+    VMA_FIELD_PSS_DIRTY: SmapsConfig.VmaField
+    VMA_FIELD_SWAP_PSS: SmapsConfig.VmaField
+    VMA_FIELDS_FIELD_NUMBER: _ClassVar[int]
+    UNAGGREGATED_FIELD_NUMBER: _ClassVar[int]
+    NAME_REDACTION_RULES_FIELD_NUMBER: _ClassVar[int]
+    vma_fields: _containers.RepeatedScalarFieldContainer[SmapsConfig.VmaField]
+    unaggregated: bool
+    name_redaction_rules: _containers.RepeatedCompositeFieldContainer[RedactionRule]
+    def __init__(self, vma_fields: _Optional[_Iterable[_Union[SmapsConfig.VmaField, str]]] = ..., unaggregated: bool = ..., name_redaction_rules: _Optional[_Iterable[_Union[RedactionRule, _Mapping]]] = ...) -> None: ...
+
+class RedactionRule(_message.Message):
+    __slots__ = ("pattern", "match_mode", "keep_full", "replacement_name", "keep_file_extension", "keep_path_elements")
+    class MatchMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        MATCH_MODE_UNKNOWN: _ClassVar[RedactionRule.MatchMode]
+        MATCH_MODE_PREFIX: _ClassVar[RedactionRule.MatchMode]
+        MATCH_MODE_GLOB_PATH: _ClassVar[RedactionRule.MatchMode]
+        MATCH_MODE_GLOB_STRING: _ClassVar[RedactionRule.MatchMode]
+    MATCH_MODE_UNKNOWN: RedactionRule.MatchMode
+    MATCH_MODE_PREFIX: RedactionRule.MatchMode
+    MATCH_MODE_GLOB_PATH: RedactionRule.MatchMode
+    MATCH_MODE_GLOB_STRING: RedactionRule.MatchMode
+    PATTERN_FIELD_NUMBER: _ClassVar[int]
+    MATCH_MODE_FIELD_NUMBER: _ClassVar[int]
+    KEEP_FULL_FIELD_NUMBER: _ClassVar[int]
+    REPLACEMENT_NAME_FIELD_NUMBER: _ClassVar[int]
+    KEEP_FILE_EXTENSION_FIELD_NUMBER: _ClassVar[int]
+    KEEP_PATH_ELEMENTS_FIELD_NUMBER: _ClassVar[int]
+    pattern: str
+    match_mode: RedactionRule.MatchMode
+    keep_full: bool
+    replacement_name: str
+    keep_file_extension: bool
+    keep_path_elements: int
+    def __init__(self, pattern: _Optional[str] = ..., match_mode: _Optional[_Union[RedactionRule.MatchMode, str]] = ..., keep_full: bool = ..., replacement_name: _Optional[str] = ..., keep_file_extension: bool = ..., keep_path_elements: _Optional[int] = ...) -> None: ...
+
 class JavaHprofConfig(_message.Message):
-    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "dump_smaps", "ignored_types")
+    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "dump_smaps", "smaps_config", "ignored_types")
     class ContinuousDumpConfig(_message.Message):
         __slots__ = ("dump_phase_ms", "dump_interval_ms", "scan_pids_only_on_start")
         DUMP_PHASE_MS_FIELD_NUMBER: _ClassVar[int]
@@ -4192,6 +4256,7 @@ class JavaHprofConfig(_message.Message):
     CONTINUOUS_DUMP_CONFIG_FIELD_NUMBER: _ClassVar[int]
     MIN_ANONYMOUS_MEMORY_KB_FIELD_NUMBER: _ClassVar[int]
     DUMP_SMAPS_FIELD_NUMBER: _ClassVar[int]
+    SMAPS_CONFIG_FIELD_NUMBER: _ClassVar[int]
     IGNORED_TYPES_FIELD_NUMBER: _ClassVar[int]
     process_cmdline: _containers.RepeatedScalarFieldContainer[str]
     pid: _containers.RepeatedScalarFieldContainer[int]
@@ -4199,8 +4264,9 @@ class JavaHprofConfig(_message.Message):
     continuous_dump_config: JavaHprofConfig.ContinuousDumpConfig
     min_anonymous_memory_kb: int
     dump_smaps: bool
+    smaps_config: SmapsConfig
     ignored_types: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., dump_smaps: bool = ..., ignored_types: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., dump_smaps: bool = ..., smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., ignored_types: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class PerfEvents(_message.Message):
     __slots__ = ()
@@ -20813,6 +20879,7 @@ class UiState(_message.Message):
 
 class TracePacket(_message.Message):
     __slots__ = ("timestamp", "timestamp_clock_id", "track_event", "track_descriptor", "generic_kernel_task_state_event", "generic_kernel_cpu_freq_event", "generic_kernel_task_rename_event", "generic_kernel_process_tree", "generic_gpu_frequency_event", "process_tree", "track_event_range_of_interest", "process_stats", "inode_file_map", "chrome_events", "clock_snapshot", "sys_stats", "trace_uuid", "trace_config", "ftrace_stats", "trace_stats", "profile_packet", "streaming_allocation", "streaming_free", "battery", "power_rails", "android_log", "system_info", "trigger", "chrome_trigger", "packages_list", "chrome_benchmark_metadata", "perfetto_metatrace", "chrome_metadata", "gpu_counter_event", "gpu_render_stage_event", "streaming_profile_packet", "art_process_metadata", "heap_graph", "graphics_frame_event", "vulkan_memory_event", "gpu_log", "vulkan_api_event", "perf_sample", "cpu_info", "smaps_packet", "service_event", "initial_display_state", "gpu_mem_total_event", "memory_tracker_snapshot", "frame_timeline_event", "android_energy_estimation_breakdown", "ui_state", "android_camera_frame_event", "android_camera_session_stats", "translation_table", "android_game_intervention_list", "statsd_atom", "android_system_property", "entity_state_residency", "trace_provenance", "protovms", "trace_attributes", "android_aflags", "gpu_info", "interrupt_info", "module_symbols", "deobfuscation_mapping", "process_descriptor", "thread_descriptor", "ftrace_events", "synchronization_marker", "compressed_packets", "extension_descriptor", "network_packet", "network_packet_bundle", "surfaceflinger_layers_snapshot", "surfaceflinger_transactions", "shell_transition", "shell_handler_mappings", "protolog_message", "protolog_viewer_config", "winscope_extensions", "etw_events", "v8_js_code", "v8_internal_code", "v8_wasm_code", "v8_reg_exp_code", "v8_code_move", "remote_clock_sync", "pixel_modem_events", "pixel_modem_token_database", "clone_snapshot_trigger", "bluetooth_trace_event", "kernel_wakelock_data", "app_wakelock_bundle", "cpu_per_uid_data", "evdev_event", "user_list", "journald_event", "for_testing", "trusted_uid", "trusted_packet_sequence_id", "trusted_pid", "interned_data", "sequence_flags", "incremental_state_cleared", "trace_packet_defaults", "previous_packet_dropped", "first_packet_on_sequence", "machine_id")
+    Extensions: _python_message._ExtensionDict
     class SequenceFlags(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         SEQ_UNSPECIFIED: _ClassVar[TracePacket.SequenceFlags]

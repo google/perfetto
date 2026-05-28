@@ -16,6 +16,8 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/config/profiling/smaps_config.proto";
+
 package perfetto.protos;
 
 // Configuration for managed app heap graph snapshots.
@@ -82,7 +84,14 @@ message JavaHprofConfig {
   // * start with /vendor
   // * start with /data/app
   // * contain "extracted in memory from Y", where Y matches any of the above
+  //
+  // Superseded by |smaps_config| in perfetto v58+.
   optional bool dump_smaps = 5;
+
+  // If set, include /proc/self/smaps memory mappings.
+  //
+  // Added in perfetto v58.
+  optional SmapsConfig smaps_config = 8;
 
   // Exclude objects of the following types from the profile. This can be
   // useful if lots of uninteresting objects, e.g. "sun.misc.Cleaner".

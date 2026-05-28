@@ -44,6 +44,9 @@ message SmapsEntry {
 // Structure-of-arrays style smaps packet of a single process. All packed
 // repeated fields, if set, must have the same length.
 message PackedSmaps {
+  // Table of path names. Notes:
+  // * first element is the empty string, serialised explicitly.
+  // * the table might contain duplicates.
   repeated string string_table = 1;
 
   // Interned file paths as an index into |string_table|.

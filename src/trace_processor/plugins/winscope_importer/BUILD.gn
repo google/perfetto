@@ -116,6 +116,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/perfetto/trace/android:winscope_regular_cpp",
     "../../../../src/protozero",
     "../../importers/common",
+    "../../storage",
   ]
   sources = [
     "surfaceflinger_layers_extractor_unittest.cc",

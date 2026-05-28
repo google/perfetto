@@ -5,7 +5,7 @@ INCLUDE PERFETTO MODULE graphs.scan;
 INCLUDE PERFETTO MODULE graphs.hierarchy;
 
 CREATE OR REPLACE PERFETTO TABLE _top_class_nodes AS
-SELECT id FROM _heap_graph_dominator_class_tree ORDER BY self_size DESC LIMIT 50;
+SELECT id FROM _heap_graph_dominator_class_tree ORDER BY self_size DESC LIMIT 1;
 
 CREATE OR REPLACE PERFETTO TABLE _class_ancestor_ids AS
 SELECT id

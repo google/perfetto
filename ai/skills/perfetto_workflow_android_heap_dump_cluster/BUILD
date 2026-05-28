@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//third_party/perfetto/bazel:rules.bzl", "perfetto_agent_skill", "perfetto_validate_skill_test")
-load("//third_party/perfetto/google:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+load("@perfetto//bazel:rules.bzl", "perfetto_agent_skill", "perfetto_validate_skill_test")
 
 package(
     default_applicable_licenses = [PERFETTO_CONFIG.root + ":license"],

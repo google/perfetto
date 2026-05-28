@@ -49,9 +49,12 @@ Ensure you have a CSV containing the extracted heap dump paths across your
 traces. The expected CSV columns are
 `trace_uuid,process_name,path,class_name,self_size`.
 
-If the user provides raw traces, you can extract these columns by running the
-standard dominator tree query from the `perfetto_workflow_android_heap_dump`
-skill across each trace.
+If the user provides raw traces, run the standard dominator tree query
+(`scripts/triage_dominator_path.sql` from the `perfetto_workflow_android_heap_dump`
+skill) on each trace and prepend a `trace_uuid` column yourself when assembling
+the CSV — that query returns `process_name, path, class_name, self_size` but
+does NOT carry the trace identifier. Use the trace file name (or any stable
+identifier you have for each trace) as the `trace_uuid` value.
 
 ## Step 2 — Execute the Clustering Script
 

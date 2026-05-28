@@ -54,7 +54,7 @@ good, not working, or inconclusive.
     > likely to be, search for {process name} and find the source code for the
     > app in order to help identify where the leak may be. Use that source code
     > to assist in generating a hypothesis for the leak. If you can't find the
-    > source code, tell the user that the source code can't be fond so the leak
+    > source code, tell the user that the source code can't be found so the leak
     > can't be identified. If {class_name} is a primitive array like "byte[]"
     > and the path begins with "[ROOT_JNI_GLOBAL]", tell the user they likely
     > have a JNI reference leak. If you have a likely hypothesis for the leak,
