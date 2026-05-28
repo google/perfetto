@@ -1,6 +1,11 @@
 Unreleased:
   Tracing service and probes:
-   *
+    * Scoped the RelayPort IPC service so it is only exposed on producer
+      sockets explicitly opted-in. Added `--enable-relay-endpoint-on=<sock>`
+      as a narrower variant of `--enable-relay-endpoint` that turns RelayPort
+      on only for the named producer sockets listed in
+      `PERFETTO_PRODUCER_SOCK_NAME`. `--enable-relay-endpoint` retains its
+      existing semantics for the common single-socket multi-machine setup.
   Trace Processor:
    *
   UI:
