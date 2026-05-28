@@ -38,8 +38,9 @@ consume the in-tree subdirectory while fallback-style agents (Pi,
 OpenCode, Antigravity, and generic fallback installs) consume the root
 `skills/`. Antigravity is intentionally treated as a fallback consumer,
 not a plugin consumer, because the release branch cannot currently pin
-`agy plugin install` to a non-default git ref. The split is driven by the
-`targets:` field in each SKILL.md frontmatter.
+`agy plugin install` to a non-default git ref. The split is driven by
+`ai/skills/targets.json`, which lists every skill explicitly with the
+targets it ships to.
 
 Local usage:
     tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
@@ -53,57 +54,78 @@ import argparse
 import datetime
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
+TARGETS_JSON = SKILLS_SRC / 'targets.json'
 EXTENSIONS_SRC = REPO_ROOT / 'ai' / 'extensions'
 TRACE_PROCESSOR_SRC = REPO_ROOT / 'tools' / 'trace_processor'
 VERSION_SENTINEL = '0.0.0-dev'
 
-# Which targets each consumer's skill set is built against.
 PLUGIN_TARGETS = ('claude-code', 'codex')
 FALLBACK_TARGETS = ('fallback',)
+VALID_TARGETS = frozenset(PLUGIN_TARGETS + FALLBACK_TARGETS)
 
 
-def _parse_targets(skill_md: Path) -> Optional[List[str]]:
-  text = skill_md.read_text()
-  m = re.search(r'^---\n(.*?)\n---', text, flags=re.S)
-  if not m:
-    return None
-  tm = re.search(r'^targets:\s*\[(.*?)\]', m.group(1), flags=re.M)
-  if not tm:
-    return None
-  return [t.strip() for t in tm.group(1).split(',') if t.strip()]
+def _skill_slugs() -> List[str]:
+  out = []
+  for d in sorted(os.listdir(SKILLS_SRC)):
+    if (SKILLS_SRC / d / 'SKILL.md').is_file():
+      out.append(d)
+  return out
 
 
-def _emit_skills(targets: Sequence[str], dest_dir: Path) -> List[str]:
-  """Copy every skill whose `targets:` overlaps with `targets` into dest_dir.
+def _load_targets() -> dict:
+  data = json.loads(TARGETS_JSON.read_text())
+  entries = data.get('skills')
+  if not isinstance(entries, list):
+    raise RuntimeError(f'{TARGETS_JSON}: top-level "skills" must be an array')
+  out = {}
+  for i, entry in enumerate(entries):
+    name = entry.get('name')
+    targets = entry.get('targets')
+    if not isinstance(name, str) or not name:
+      raise RuntimeError(f'{TARGETS_JSON}: skills[{i}] missing "name"')
+    if name in out:
+      raise RuntimeError(f'{TARGETS_JSON}: duplicate entry for {name!r}')
+    if not isinstance(targets, list) or not targets:
+      raise RuntimeError(
+          f'{TARGETS_JSON}: skills[{i}] ({name}) "targets" must be a '
+          f'non-empty array')
+    bad = [t for t in targets if t not in VALID_TARGETS]
+    if bad:
+      raise RuntimeError(
+          f'{TARGETS_JSON}: skills[{i}] ({name}) has unknown targets {bad}; '
+          f'valid: {sorted(VALID_TARGETS)}')
+    out[name] = list(targets)
 
-  Skills with no `targets:` field are included for every target.
-  Returns the list of dashed slug names emitted.
-  """
+  available = {slug.replace('_', '-') for slug in _skill_slugs()}
+  declared = set(out)
+  missing = available - declared
+  extra = declared - available
+  if missing or extra:
+    raise RuntimeError(
+        f'{TARGETS_JSON} is out of sync with ai/skills/: '
+        f'missing entries for {sorted(missing)}; '
+        f'unknown entries {sorted(extra)}')
+  return out
+
+
+def _emit_skills(targets_map: dict, build_targets: Sequence[str],
+                 dest_dir: Path) -> List[str]:
   emitted = []
-  for slug in sorted(os.listdir(SKILLS_SRC)):
-    skill_md = SKILLS_SRC / slug / 'SKILL.md'
-    if not skill_md.is_file():
-      continue
-    skill_targets = _parse_targets(skill_md)
-    if skill_targets is not None and not any(t in targets
-                                             for t in skill_targets):
-      continue
+  for slug in _skill_slugs():
     dashed = slug.replace('_', '-')
+    if not any(t in build_targets for t in targets_map[dashed]):
+      continue
     out_dir = dest_dir / dashed
     out_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(skill_md, out_dir / 'SKILL.md')
-    # Copy any non-SKILL.md files that ship with the skill (references/,
-    # scripts/, assets/). Skip BUILD / OWNERS / EVAL.txtpb — those are
-    # build-system / eval metadata, not part of the shipped skill.
+    shutil.copy(SKILLS_SRC / slug / 'SKILL.md', out_dir / 'SKILL.md')
     for extra in ('references', 'assets', 'scripts'):
       src_extra = SKILLS_SRC / slug / extra
       if src_extra.is_dir():
@@ -163,10 +185,11 @@ def build(output: Path, version: str) -> None:
     shutil.copy(src, dst)
   (output / 'bin' / 'trace_processor').chmod(0o755)
 
-  # Two skill sets per the per-consumer split.
-  plugin_skills = _emit_skills(PLUGIN_TARGETS,
+  targets_map = _load_targets()
+  plugin_skills = _emit_skills(targets_map, PLUGIN_TARGETS,
                                output / 'plugins' / 'perfetto' / 'skills')
-  fallback_skills = _emit_skills(FALLBACK_TARGETS, output / 'skills')
+  fallback_skills = _emit_skills(targets_map, FALLBACK_TARGETS,
+                                 output / 'skills')
   _write_index(output / 'skills')
 
   # Branch metadata.

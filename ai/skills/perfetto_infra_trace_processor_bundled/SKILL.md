@@ -8,7 +8,6 @@ description: Load whenever ANY other Perfetto skill is loaded in a
   with so commands actually find the binary. The fallback equivalent
   (`getting-trace-processor`) is the OSS curl-install path used only
   when no plugin is installed.
-targets: [claude-code, codex]
 ---
 
 # Bundled `trace_processor` — exact invocation

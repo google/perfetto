@@ -9,7 +9,6 @@ description: Load whenever ANY other Perfetto skill is loaded in a
   at a pre-installed binary instead; this skill is the OSS / fallback
   acquisition path. Teams in restricted environments may ship their own
   variant that overrides it.
-targets: [fallback]
 ---
 
 # Getting `trace_processor` and the Python client
