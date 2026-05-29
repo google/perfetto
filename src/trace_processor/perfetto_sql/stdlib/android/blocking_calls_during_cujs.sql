@@ -19,6 +19,9 @@ INCLUDE PERFETTO MODULE android.binder;
 
 INCLUDE PERFETTO MODULE slices.with_context;
 
+-- OPTIMIZED: Include CUJs module to filter by relevant processes
+INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+
 CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth LONG)
 RETURNS BOOL
 AS
@@ -63,21 +66,29 @@ SELECT
   OR $name GLOB '*.*.*: *$*'
   OR $name GLOB '*.*$*: #*'));
 
---Extract critical blocking calls from all processes.
-CREATE PERFETTO TABLE _android_critical_blocking_calls AS
+-- Extract critical blocking calls from processes that have CUJs.
+-- Materialized as a table, heavily optimized using CROSS JOIN to force index
+-- and avoid scanning the global slice table.
+CREATE PERFETTO TABLE _android_blocking_calls_during_cujs AS
+WITH relevant_upids AS (
+  SELECT DISTINCT upid FROM android_jank_latency_cujs
+)
 SELECT
-  android_standardize_slice_name(s.name) AS name,
-  s.ts,
-  s.dur,
-  s.id,
-  s.process_name,
+  android_standardize_slice_name(slice.name) AS name,
+  slice.ts,
+  slice.dur,
+  slice.id,
+  process.name AS process_name,
   thread.utid,
-  s.upid,
-  s.ts + s.dur AS ts_end
-FROM thread_slice AS s
-JOIN thread USING (utid)
+  process.upid,
+  slice.ts + slice.dur AS ts_end
+FROM relevant_upids ru
+CROSS JOIN process ON process.upid = ru.upid
+CROSS JOIN thread ON thread.upid = process.upid
+CROSS JOIN thread_track ON thread_track.utid = thread.utid
+CROSS JOIN slice ON slice.track_id = thread_track.id
 WHERE
-  _is_relevant_blocking_call(s.name, s.depth)
+  _is_relevant_blocking_call(slice.name, slice.depth)
 UNION ALL
 -- Add a summation of all drawLayer slices without the individual layer name
 SELECT
@@ -105,7 +116,8 @@ SELECT
   tx.client_utid AS utid,
   tx.client_upid AS upid,
   tx.client_ts + tx.client_dur AS ts_end
-FROM android_binder_txns AS tx
+FROM relevant_upids ru
+CROSS JOIN android_binder_txns tx ON tx.client_upid = ru.upid
 WHERE
   NOT (aidl_name IS NULL)
   AND is_sync = 1;

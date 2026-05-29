@@ -17,7 +17,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
-INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+INCLUDE PERFETTO MODULE android.blocking_calls_during_cujs;
 
 DROP TABLE IF EXISTS process_info;
 CREATE TABLE process_info AS
@@ -40,7 +40,7 @@ SELECT
   upid,
   process_name
 FROM
-  _android_critical_blocking_calls
+  _android_blocking_calls_during_cujs
 GROUP BY name, upid, process_name;
 
 DROP TABLE IF EXISTS filtered_processes_with_non_zero_blocking_calls;
@@ -49,7 +49,7 @@ SELECT pi.upid,
   pi.process_name,
   pi.process_metadata
 FROM process_info pi WHERE pi.upid IN
-  (SELECT DISTINCT upid FROM _android_critical_blocking_calls);
+  (SELECT DISTINCT upid FROM _android_blocking_calls_during_cujs);
 
 
 DROP TABLE IF EXISTS filtered_processes_with_non_zero_blocking_calls;
@@ -58,7 +58,7 @@ SELECT pi.upid,
   pi.process_name,
   pi.process_metadata
 FROM process_info pi WHERE pi.upid IN
-  (SELECT DISTINCT upid FROM _android_critical_blocking_calls);
+  (SELECT DISTINCT upid FROM _android_blocking_calls_during_cujs);
 
 DROP VIEW IF EXISTS android_blocking_calls_unagg_output;
 CREATE PERFETTO VIEW android_blocking_calls_unagg_output AS
