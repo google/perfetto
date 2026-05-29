@@ -2975,4 +2975,88 @@ TEST_F(TraceBufferV2Test, Override_ReCommitIncompleteOnFullBuffer) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+// An incomplete chunk that was scraped and then fully drained by the reader
+// leaves an "empty shell" sitting in the buffer (payload_avail=0 but
+// kChunkIncomplete prevents it from being erased to padding). If the
+// producer never commits the chunk and the buffer wraps over it, the chunk
+// gets evicted by DeleteNextChunksFor. In that case there is nothing
+// unconsumed in the chunk: every fragment that was visible has already been
+// delivered to the consumer, so the eviction must NOT be reported as data
+// loss for the sequence — neither in the overwrite stats (which would
+// double-count fragments already credited as bytes_read) nor in
+// previous_packet_dropped on the next packet of that sequence.
+TEST_F(TraceBufferV2Test, ScrapeWithLateRecommitAfterRead) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0 of seq A. The kFragBegin 'c' gets dropped by the scrape
+  // (last fragment of an incomplete chunk, plus kContOnNextChunk is cleared).
+  // Visible payload: [a, b]. The chunk is padded to 512B so the buffer can
+  // accept further commits in this slot.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(1))
+      .AddPacket(1024 - 16, 'd')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(2))
+      .AddPacket(1024 - 16, 'e')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(3))
+      .AddPacket(1024 - 16, 'f')
+      .CopyIntoTraceBuffer();
+
+  // Drain the visible packets. After this the chunk has payload_avail=0 but
+  // is NOT erased to padding because kChunkIncomplete + kReadMode skips the
+  // EraseCurrentChunk step in ReadNextPacketInSeqOrder. The "empty shell" is
+  // now sitting in the buffer.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'd')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'e')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'f')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  ASSERT_EQ(0u, trace_buffer()->stats().chunks_overwritten());
+
+  // Now wrap and overwrite. The overwrite should not trigger any data loss
+  // because all the chunks were consumed and empty.
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(4))
+      .AddPacket(1024 - 16, 'g')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(5))
+      .AddPacket(1024 - 16, 'h')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  TraceBuffer::PacketSequenceProperties psp{};
+  bool dropped = false;
+  ASSERT_THAT(ReadPacket(&psp, &dropped),
+              ElementsAre(FakePacketFragment(1024 - 16, 'g')));
+  ASSERT_FALSE(dropped);
+
+  ASSERT_THAT(ReadPacket(&psp, &dropped),
+              ElementsAre(FakePacketFragment(1024 - 16, 'h')));
+  ASSERT_FALSE(dropped);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Now commit the chunk long time after it has been read. We should still
+  // remember where we were left and only read the last fragment.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  dropped = false;
+  ASSERT_THAT(ReadPacket(&psp, &dropped),
+              ElementsAre(FakePacketFragment(10, 'c')));
+  ASSERT_FALSE(dropped);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 }  // namespace perfetto
