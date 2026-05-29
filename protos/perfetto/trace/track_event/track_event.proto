@@ -159,6 +159,11 @@ message TrackEvent {
     // that most other TrackEvent fields (e.g. categories, name, ..) are not
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
+
+    // Event that provides a string value for a state track. |track_uuid| should
+    // refer to a state track and the state value is carried in the |name| or
+    // |name_iid| field. An empty or unset name field indicates "no state".
+    TYPE_STATE = 5;
   }
   optional Type type = 9;
 
@@ -377,6 +382,14 @@ message TrackEvent {
   optional ChromeMojoEventInfo chrome_mojo_event_info = 38;
 
   // New argument types go here :)
+
+  message State {
+    oneof value {
+      string string_value = 1;
+    }
+    extensions 10 to 9999;
+  }
+  optional State state = 57;
 
   // Extension range for typed events defined in external projects.
   // See protos/perfetto/trace/extensions.json for the allocation registry and
