@@ -17,7 +17,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
-INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+INCLUDE PERFETTO MODULE android.blocking_calls_during_cujs;
 INCLUDE PERFETTO MODULE android.render_thread;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
@@ -44,7 +44,7 @@ SELECT
     s.process_name,
     s.upid,
     s.utid
-FROM _android_critical_blocking_calls s
+FROM _android_blocking_calls_during_cujs s
     JOIN  android_jank_latency_cujs cuj
     -- only when there is an overlap
     ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
