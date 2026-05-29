@@ -16214,7 +16214,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 57.
+// Next reserved id: 13 (up to 15). Next id: 58.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -16272,8 +16272,9 @@ message TrackEvent {
     TYPE_COUNTER = 4;
 
     // Event that provides a state value update for a state track. |track_uuid|
-    // should refer to a state track, and the state value update is carried in the
-    // |state| field. An empty or unset state field indicates "no state" / "idle".
+    // should refer to a state track, and the state value update is carried in
+    // the |state| field. An empty or unset state field indicates "no state" /
+    // "idle".
     TYPE_STATE = 5;
   }
   optional Type type = 9;
@@ -16492,17 +16493,20 @@ message TrackEvent {
   optional ChromeMessagePump chrome_message_pump = 35;
   optional ChromeMojoEventInfo chrome_mojo_event_info = 38;
 
-  // New argument types go here :)
-
   // Represents the state value for a state track.
   message State {
     oneof value {
       string string_value = 1;
     }
-    extensions 10 to 9999;
+    // Extension range for typed events defined in external projects.
+    // See protos/perfetto/trace/extensions.json for the allocation registry and
+    // docs/instrumentation/extensions.md for more details.
+    extensions 1000 to 9999;
   }
   // State update value. Only supported/set when type is TYPE_STATE.
   optional State state = 57;
+
+  // New argument types go here :)
 
   // Extension range for typed events defined in external projects.
   // See protos/perfetto/trace/extensions.json for the allocation registry and
@@ -18831,6 +18835,16 @@ message CounterDescriptor {
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
 
+// Begin of protos/perfetto/trace/track_event/state_descriptor.proto
+
+// Descriptor for a state track.
+message StateDescriptor {
+  // For now, this message is empty. It is used to identify a track as a state
+  // track.
+}
+
+// End of protos/perfetto/trace/track_event/state_descriptor.proto
+
 // Begin of protos/perfetto/trace/track_event/track_descriptor.proto
 
 // Defines a track for TrackEvents. Slices and instant events on the same track
@@ -18846,7 +18860,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 18.
+// Next id: 19.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -19152,12 +19166,6 @@ message TrackDescriptor {
     string sibling_merge_key = 16;
     uint64 sibling_merge_key_int = 17;
   }
-}
-
-// Descriptor for a state track.
-message StateDescriptor {
-  // For now, this message is empty. It is used to identify a track as a state
-  // track.
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

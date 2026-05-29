@@ -20667,6 +20667,10 @@ class CounterDescriptor(_message.Message):
     y_axis_share_key: str
     def __init__(self, type: _Optional[_Union[CounterDescriptor.BuiltinCounterType, str]] = ..., categories: _Optional[_Iterable[str]] = ..., unit: _Optional[_Union[CounterDescriptor.Unit, str]] = ..., unit_name: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., is_incremental: bool = ..., y_axis_share_key: _Optional[str] = ...) -> None: ...
 
+class StateDescriptor(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
 class TrackDescriptor(_message.Message):
     __slots__ = ("uuid", "parent_uuid", "name", "static_name", "atrace_name", "description", "process", "chrome_process", "thread", "chrome_thread", "counter", "state", "disallow_merging_with_system_tracks", "child_ordering", "sibling_order_rank", "sibling_merge_behavior", "sibling_merge_key", "sibling_merge_key_int")
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -20726,10 +20730,6 @@ class TrackDescriptor(_message.Message):
     sibling_merge_key: str
     sibling_merge_key_int: int
     def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., state: _Optional[_Union[StateDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ..., sibling_merge_key_int: _Optional[int] = ...) -> None: ...
-
-class StateDescriptor(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
 
 class TranslationTable(_message.Message):
     __slots__ = ("chrome_histogram", "chrome_user_event", "chrome_performance_mark", "slice_name", "process_track_name", "chrome_study")

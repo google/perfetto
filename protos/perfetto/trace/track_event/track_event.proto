@@ -103,7 +103,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 57.
+// Next reserved id: 13 (up to 15). Next id: 58.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -161,8 +161,9 @@ message TrackEvent {
     TYPE_COUNTER = 4;
 
     // Event that provides a state value update for a state track. |track_uuid|
-    // should refer to a state track, and the state value update is carried in the
-    // |state| field. An empty or unset state field indicates "no state" / "idle".
+    // should refer to a state track, and the state value update is carried in
+    // the |state| field. An empty or unset state field indicates "no state" /
+    // "idle".
     TYPE_STATE = 5;
   }
   optional Type type = 9;
@@ -381,17 +382,20 @@ message TrackEvent {
   optional ChromeMessagePump chrome_message_pump = 35;
   optional ChromeMojoEventInfo chrome_mojo_event_info = 38;
 
-  // New argument types go here :)
-
   // Represents the state value for a state track.
   message State {
     oneof value {
       string string_value = 1;
     }
-    extensions 10 to 9999;
+    // Extension range for typed events defined in external projects.
+    // See protos/perfetto/trace/extensions.json for the allocation registry and
+    // docs/instrumentation/extensions.md for more details.
+    extensions 1000 to 9999;
   }
   // State update value. Only supported/set when type is TYPE_STATE.
   optional State state = 57;
+
+  // New argument types go here :)
 
   // Extension range for typed events defined in external projects.
   // See protos/perfetto/trace/extensions.json for the allocation registry and
