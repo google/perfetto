@@ -290,6 +290,13 @@ class StringPool {
   }
 
   // Sets the locking mode of the string pool.
+  //
+  // With locking enabled, any number of threads may read (Get/GetId/...) and
+  // intern concurrently. Interns are serialized by |mutex_|. Get() of an
+  // already interned small string is lock-free and safe against concurrent
+  // interns: |blocks_| never reallocates, a new block lands in a different slot
+  // than the one being read, and a block's bytes are written once before its
+  // Id is published. Large strings are always read and written under |mutex_|.
   void set_locking(bool should_lock) { should_acquire_mutex_ = should_lock; }
 
  private:

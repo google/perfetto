@@ -52,6 +52,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../include/perfetto/protozero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
+    "../util:concurrency_stress_test_util",
   ]
 }
 
