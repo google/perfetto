@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
 source_set("storage") {
   sources = [
@@ -29,5 +30,16 @@ source_set("storage") {
     "../core/dataframe",
     "../tables",
     "../types",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "trace_storage_unittest.cc" ]
+  deps = [
+    ":storage",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../util:concurrency_stress_test_util",
   ]
 }

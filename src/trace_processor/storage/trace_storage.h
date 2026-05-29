@@ -27,6 +27,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -177,7 +178,13 @@ class TraceStorage {
     uint32_t RecordQueryBegin(const std::string& query, int64_t time_started);
     void RecordQueryFirstNext(uint32_t row, int64_t time_first_next);
     void RecordQueryEnd(uint32_t row, int64_t time_end);
-    size_t size() const { return queries_.size(); }
+    size_t size() const {
+      std::lock_guard<std::mutex> lock(mutex_);
+      return queries_.size();
+    }
+    // Direct deque accessors. NOT synchronized against concurrent RecordQuery*;
+    // only safe when no recording can run concurrently. Concurrent readers must
+    // use GetSnapshot() instead.
     const std::deque<std::string>& queries() const { return queries_; }
     const std::deque<int64_t>& times_started() const { return times_started_; }
     const std::deque<int64_t>& times_first_next() const {
@@ -185,7 +192,23 @@ class TraceStorage {
     }
     const std::deque<int64_t>& times_ended() const { return times_ended_; }
 
+    // A consistent, owned copy of all recorded rows, taken atomically under the
+    // internal lock. Readers that may run concurrently with recording (e.g. the
+    // sql_stats table) must use this rather than the deque accessors above.
+    struct Snapshot {
+      std::vector<std::string> queries;
+      std::vector<int64_t> times_started;
+      std::vector<int64_t> times_first_next;
+      std::vector<int64_t> times_ended;
+    };
+    Snapshot GetSnapshot() const;
+
    private:
+    // Guards all members below. Under the multi-connection design every query
+    // thread calls RecordQuery* concurrently on the same shared TraceStorage, so
+    // the deque mutations must be serialized. Uncontended in the single-threaded
+    // case (3 lock/unlocks per query, not per row).
+    mutable std::mutex mutex_;
     uint32_t popped_queries_ = 0;
 
     std::deque<std::string> queries_;
