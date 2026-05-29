@@ -937,7 +937,10 @@ def CheckExtensionManifests(changed_files: List[str]) -> List[str]:
   tool = os.path.join(REPO_ROOT, tool_rel_path)
   files_to_check_list = filter_files(
       changed_files,
-      files_to_check=['ai/extensions/*', 'ai/extensions/*/*', tool_rel_path])
+      files_to_check=[
+          'ai/extensions/*', 'ai/extensions/*/*', 'ai/skills/*',
+          'ai/skills/*/*', tool_rel_path
+      ])
   if not files_to_check_list:
     return []
   try:

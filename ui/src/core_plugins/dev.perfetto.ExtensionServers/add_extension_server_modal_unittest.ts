@@ -88,4 +88,19 @@ describe('AddExtensionServerModal', () => {
     await flushAsync();
     expect(mockFetch).toHaveBeenCalled();
   });
+
+  test('editing the form does not bypass the confirmation gate', async () => {
+    const modal = new AddExtensionServerModal(undefined, PREFILL);
+    await flushAsync();
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    // Simulate an edit to an input field: onInput handlers route through
+    // debouncedFetch -> scheduleManifestFetch. While awaiting confirmation
+    // this must not contact the server.
+    (
+      modal as unknown as {scheduleManifestFetch(): void}
+    ).scheduleManifestFetch();
+    await flushAsync();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });

@@ -53,6 +53,9 @@ PROFILER_SMAPS_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('path', CppString()),
+        C('path_trimmed', CppString()),
+        C('aggregate_count', CppUint32()),
+        C('is_deleted', CppBool()),
         C(
             'size_kb',
             CppInt64(),
@@ -132,6 +135,10 @@ PROFILER_SMAPS_TABLE = Table(
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('rss_kb', CppInt64()),
+        C('anonymous_kb', CppInt64()),
+        C('pss_dirty_kb', CppInt64()),
+        C('swap_pss_kb', CppInt64()),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -147,7 +154,14 @@ PROFILER_SMAPS_TABLE = Table(
                 '''Timestamp of the snapshot. Multiple rows will have the same
                 timestamp.''',
             'path':
-                '''The mmaped file, as per /proc/pid/smaps.''',
+                '''The name of the mapping, as per /proc/pid/smaps.''',
+            'path_trimmed':
+                '''Same as `path` but with any trailing " (deleted)" suffix
+                removed.''',
+            'aggregate_count':
+                '''''',
+            'is_deleted':
+                '''''',
             'size_kb':
                 '''Total size of the mapping.''',
             'private_dirty_kb':
@@ -175,7 +189,15 @@ PROFILER_SMAPS_TABLE = Table(
             'locked_kb':
                 '''''',
             'proportional_resident_kb':
-                ''''''
+                '''''',
+            'rss_kb':
+                '''''',
+            'anonymous_kb':
+                '''''',
+            'pss_dirty_kb':
+                '''''',
+            'swap_pss_kb':
+                '''''',
         }))
 
 PACKAGE_LIST_TABLE = Table(
