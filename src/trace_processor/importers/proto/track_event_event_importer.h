@@ -673,7 +673,6 @@ class TrackEventEventImporter {
 
   base::Status ParseStateEvent() {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationState());
-    PERFETTO_DCHECK(storage_->track_table().FindById(track_id));
 
     StringId state_id = kNullStringId;
     if (event_.has_name_iid()) {
