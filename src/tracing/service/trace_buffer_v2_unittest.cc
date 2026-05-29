@@ -1720,6 +1720,45 @@ TEST_F(TraceBufferV2Test, PacketDropOnOverwrite) {
   ASSERT_TRUE(previous_packet_dropped);
 }
 
+// A chunk is overwritten while it still has unread packets, and the next
+// chunk that survives has the immediately following chunk_id. Because the
+// chunk_ids are consecutive, the gap between them looks like no gap at all,
+// so the drop can only be reported from the flag recorded when the chunk was
+// overwritten. We read chunk 0 fully first so that the overwritten chunk is
+// the one the next read compares against.
+TEST_F(TraceBufferV2Test, PacketDropOnOverwrite_ContiguousChunkId) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // chunk 0: read it to completion so last_chunk_consumed = {id:0}.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(10, 'a')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());  // erases chunk 0 -> last = {0}.
+
+  // chunk 1: large, never read.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(2000, 'b')
+      .CopyIntoTraceBuffer();
+
+  // chunk 2: large enough to wrap and overwrite chunk 1 while it's unread.
+  // After this, last_chunk_consumed = {id:1, had_unread_on_evict:true}.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(3000, 'c')
+      .CopyIntoTraceBuffer();
+
+  // Reading chunk 2: chunk_id 2 == last(1)+1, so the id-gap check is silent.
+  // The drop is reported only via had_unread_on_evict.
+  bool previous_packet_dropped = false;
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(3000, 'c')));
+  EXPECT_TRUE(previous_packet_dropped)
+      << "overwrite of contiguous-id chunk 1 not reported as a drop";
+}
+
 TEST_F(TraceBufferV2Test, Clone_NoFragments) {
   ResetBuffer(4096);
   const char kNumWriters = 3;
@@ -2480,6 +2519,124 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
   EXPECT_FALSE(found_a) << "Packet 'a' duplicated after rescrape re-admission";
   EXPECT_FALSE(found_c)
       << "Packet 'c' should still be dropped (chunk incomplete)";
+}
+
+// Scrape → evict (no reads) → complete commit. When buffer pressure wraps
+// over a scraped chunk before the consumer drains it, the chunk's whole
+// payload is overwritten unread. A later complete commit of the same
+// chunk_id must be re-admitted in full, recovering every packet. Since the
+// consumer never saw any of the evicted bytes, no drop is reported.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_NoReadsBeforeWrap) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0 (incomplete) with [a, b, c]. Scraping drops 'c' (the
+  // last fragment), leaving payload_size = payload_avail = a + b.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Fill the rest of the buffer (no reads in between).
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(1))
+      .AddPacket(3568, 'x')
+      .CopyIntoTraceBuffer();
+
+  // A small follow-up write forces a wrap that evicts chunk 0 while every
+  // payload byte is still unread.
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(2))
+      .AddPacket(20, 'y')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+  // chunks_overwritten / bytes_overwritten track buffer pressure, not
+  // consumer-visible drops, so they are expected to be set here.
+  EXPECT_EQ(1u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(512u, trace_buffer()->stats().bytes_overwritten());
+
+  // Producer commits chunk 0 with the full payload [a, b, c, d]. The chunk
+  // was evicted while incomplete with nothing read, so it is re-admitted
+  // with all four packets available.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .AddPacket(50, 'd')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Drain and verify: a, b, c, d all recovered, none flagged as dropped.
+  trace_buffer()->BeginRead();
+  bool found_a = false, found_b = false, found_c = false, found_d = false;
+  bool a_dropped = false;
+  for (;;) {
+    bool dropped = false;
+    auto p = ReadPacket(/*sequence_properties=*/nullptr, &dropped);
+    if (p.empty())
+      break;
+    if (p.size() != 1)
+      continue;
+    if (p[0] == FakePacketFragment(20, 'a')) {
+      found_a = true;
+      a_dropped = dropped;
+    } else if (p[0] == FakePacketFragment(30, 'b')) {
+      found_b = true;
+    } else if (p[0] == FakePacketFragment(40, 'c')) {
+      found_c = true;
+    } else if (p[0] == FakePacketFragment(50, 'd')) {
+      found_d = true;
+    }
+  }
+  EXPECT_TRUE(found_a) << "Packet 'a' not found after re-admission";
+  EXPECT_TRUE(found_b) << "Packet 'b' not found after re-admission";
+  EXPECT_TRUE(found_c) << "Packet 'c' not found after re-admission";
+  EXPECT_TRUE(found_d) << "Packet 'd' not found after re-admission";
+  EXPECT_FALSE(a_dropped)
+      << "recovered 'a' should not be flagged as a dropped packet";
+}
+
+// A chunk holding the BEGIN of a fragmented packet is overwritten while the
+// chunk holding the continuation (END) survives. During the eviction pass the
+// reader reassembles the packet across both chunks, consuming the continuation
+// fragment that lives in the later chunk. The byte accounting that backs
+// payload_read must charge the evicted chunk only for its own payload, not for
+// the continuation bytes of the surviving chunk.
+TEST_F(TraceBufferV2Test,
+       PacketDropOnOverwrite_FragmentedAcrossSurvivingChunk) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // chunk 0: 'a' whole + 'b' begin (continues into chunk 1). Unread.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(100, 'b', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+
+  // chunk 1: 'b' end (continuation). Unread, and survives the wrap below.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(100, 'b', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+
+  // Filler on a different sequence, sized so the next write wraps and evicts
+  // chunk 0 (whose packet 'b' continues into the still-present chunk 1).
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
+      .AddPacket(3790, 'x')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(1))
+      .AddPacket(20, 'y')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+
+  // The eviction of chunk 0 reassembled 'b' across chunks 0 and 1. We should
+  // be able to drain the buffer without tripping any internal accounting
+  // check, and the surviving data must read back cleanly.
+  trace_buffer()->BeginRead();
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+  }
 }
 
 // Scrape → read → evict → producer completes chunk. The complete commit has

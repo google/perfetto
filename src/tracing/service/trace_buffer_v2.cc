@@ -232,14 +232,17 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   return next_chunk;
 }
 
-void ChunkSeqIterator::EraseCurrentChunk() {
+void ChunkSeqIterator::EraseCurrentChunk(uint16_t bytes_overwritten_in_chunk) {
   size_t chunk_off = buf_->OffsetOf(chunk_);
   TRACE_BUFFER_V2_DLOG("EraseChunk() id=%u off=%zu", chunk_->chunk_id,
                        chunk_off);
   const uint32_t chunk_size = chunk_->size;
   const bool was_incomplete = chunk_->flags & kChunkIncomplete;
+  PERFETTO_DCHECK(bytes_overwritten_in_chunk <= chunk_->payload_size);
+  const uint16_t payload_read =
+      chunk_->payload_size - bytes_overwritten_in_chunk;
   seq_->last_chunk_consumed = SequenceState::ConsumedChunkInfo{
-      chunk_->chunk_id, chunk_->payload_size, was_incomplete};
+      chunk_->chunk_id, payload_read, was_incomplete};
 
   auto& chunk_list = seq_->chunks;
 
@@ -291,14 +294,20 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
 
   if (seq_->last_chunk_consumed.has_value()) {
     const auto& last = *seq_->last_chunk_consumed;
-    // Re-admit: an incomplete chunk that was evicted has been re-committed
-    // with strictly more payload. The chunk_id is unchanged, so the +1
-    // successor check below would fire spuriously even though the re-admit
-    // recovered the deferred fragments without losing data. Keep this
-    // predicate in sync with the re-admit acceptance check in
+    // Re-admit: the same incomplete chunk_id was evicted and then re-committed
+    // with more payload. The producer is replaying the bytes we overwrote, so
+    // this is a recovery, not a loss, and the checks below must skip it. Keep
+    // this predicate in sync with the re-admit acceptance check in
     // TraceBufferV2::CopyChunkUntrusted.
     bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
-    if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
+    // Otherwise, report a data loss in two cases:
+    // 1) a chunk_id discontinuity: one or more chunks in between were dropped.
+    // 2) the chunk_ids are contiguous, but the previous chunk was overwritten
+    //    with packets still unread. The chunk_id arithmetic alone cannot see
+    //    this, because eviction advances last_chunk_consumed.chunk_id, making
+    //    the successor look contiguous.
+    if (!readmit &&
+        (iter_->chunk_id != last.chunk_id + 1 || last.had_unread_on_evict)) {
       seq_->data_loss = true;
     }
   }
@@ -339,7 +348,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         end_reached = true;
       } else {
         // We read all the fragments for the current chunk. Erase it.
-        seq_iter_.EraseCurrentChunk();
+        seq_iter_.EraseCurrentChunk(bytes_overwritten_in_chunk_);
       }
       if (end_reached)
         return false;  // We reached our target chunk (or an incomplete chunk).
@@ -348,6 +357,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         return false;  // There are no more chunks in the sequence.
       iter_ = next_chunk;
       frag_iter_ = FragIterator(next_chunk);
+      bytes_overwritten_in_chunk_ = 0;
       continue;
     }
 
@@ -451,6 +461,14 @@ void ChunkSeqReader::ConsumeFragment(TBChunk* chunk, Frag* frag) {
 
   PERFETTO_DCHECK(chunk->payload_avail >= frag->size_with_header());
   chunk->payload_avail -= frag->size_with_header();
+
+  // In kEraseMode the bytes we just consumed were overwritten, not read
+  // out. Track them so EraseCurrentChunk records the right payload_read.
+  // Only count fragments of iter_, the chunk we are about to erase: fragment
+  // reassembly also consumes continuation fragments from later chunks, and
+  // those bytes don't belong to iter_'s payload.
+  bytes_overwritten_in_chunk_ +=
+      (mode_ == kEraseMode && chunk == iter_) ? frag->size_with_header() : 0;
 
   if (chunk->payload_avail == 0) {
     TRACE_BUFFER_V2_DLOG("  Fully consumed chunk @ %zu", buf_->OffsetOf(chunk));
@@ -767,18 +785,22 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   // Don't allow re-commit of chunks that have been consumed already, unless
   // the chunk was evicted while incomplete (scraped) and the new commit has
-  // strictly more payload. In that case we re-admit it so the previously-
-  // dropped fragments can be recovered. Keep this acceptance condition in
-  // sync with the re-admit branch of the gap check in ChunkSeqReader's ctor.
+  // strictly more payload than the consumer had already read before the
+  // eviction. In that case we re-admit it so the previously-evicted suffix
+  // (including any bytes that were overwritten without being read) is
+  // recovered. Keep this acceptance condition in sync with the re-admit
+  // branch of the gap check in ChunkSeqReader's ctor.
   //
-  // When re-admitting, |previously_consumed_payload| records how many payload
-  // bytes were already consumed before eviction, so we can skip them below.
+  // When re-admitting, |previously_consumed_payload| records how many
+  // payload bytes were already read before the eviction; we skip exactly
+  // that many on the re-admitted chunk so the unread suffix is replayed
+  // from the producer's resubmission.
   uint16_t previously_consumed_payload = 0;
   if (seq.last_chunk_consumed.has_value()) {
     int cmp = ChunkIdCompare(chunk_id, seq.last_chunk_consumed->chunk_id);
     if (cmp == 0 && seq.last_chunk_consumed->was_incomplete &&
-        seq.last_chunk_consumed->payload_size < all_frags_size) {
-      previously_consumed_payload = seq.last_chunk_consumed->payload_size;
+        seq.last_chunk_consumed->payload_read < all_frags_size) {
+      previously_consumed_payload = seq.last_chunk_consumed->payload_read;
       TRACE_BUFFER_V2_DLOG("  Re-admitting chunk %u (prev_payload=%u)",
                            chunk_id, previously_consumed_payload);
     } else if (cmp <= 0) {
@@ -1006,10 +1028,14 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
       has_cleared_unconsumed_fragments = true;
     }
 
-    // In future this branch should become "&& !protovm_has_consumed_packet"
-    // We shouldn't report a data loss if ProtoVM merged the outgoing packet.
-    if (has_cleared_unconsumed_fragments) {
-      csr.seq()->data_loss = true;
+    // We overwrote a chunk that still held undelivered packets. Mark it on
+    // the just-erased chunk; ChunkSeqReader's ctor turns this into a data
+    // loss unless the chunk is re-admitted with the same chunk_id.
+    // In future this condition should become "&& !protovm_has_consumed_packet"
+    // as we shouldn't report a loss if ProtoVM merged the outgoing packet.
+    if (has_cleared_unconsumed_fragments &&
+        csr.seq()->last_chunk_consumed.has_value()) {
+      csr.seq()->last_chunk_consumed->had_unread_on_evict = true;
     }
 
     // ChunkSeqReader(kEraseMode) must delete the chunk once
