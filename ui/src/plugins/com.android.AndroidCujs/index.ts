@@ -43,7 +43,7 @@ export async function addJankCUJDebugTrack(
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/jank/android_jank_cuj_init.sql');
-  INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+  INCLUDE PERFETTO MODULE android.blocking_calls_during_cujs;
 `;
 
 /**
@@ -216,7 +216,7 @@ const BLOCKING_CALLS_DURING_CUJS_QUERY = `
       s.upid,
       s.utid,
       'slice' AS table_name
-    FROM _android_critical_blocking_calls s
+    FROM _android_blocking_calls_during_cujs s
       JOIN  android_jank_cuj cuj
       -- only when there is an overlap
       ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end

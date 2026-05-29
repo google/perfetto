@@ -39,7 +39,7 @@ perfetto_sql_source_set("android") {
     "binder_breakdown.sql",
     "bitmaps.sql",
     "broadcasts.sql",
-    "critical_blocking_calls.sql",
+    "blocking_calls_during_cujs.sql",
     "desktop_mode.sql",
     "device.sql",
     "dvfs.sql",
