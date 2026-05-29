@@ -19,8 +19,10 @@
 
 #include "perfetto/base/build_config.h"
 
-// See note in regex_re2.h.
-#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+// See note in regex_re2.h. Also honor PERFETTO_REGEX_FORCE_STD: targets that
+// define it (e.g. libperfetto_client_experimental) opt out of the optional
+// backends and must not pull in <pcre2.h>, even when PERFETTO_PCRE2 is set.
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2) && !defined(PERFETTO_REGEX_FORCE_STD)
 
 #include <limits>
 #include <memory>
@@ -198,6 +200,7 @@ class RegexPcre2 {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_PCRE2) &&
+        // !defined(PERFETTO_REGEX_FORCE_STD)
 
 #endif  // SRC_BASE_REGEX_REGEX_PCRE2_H_
