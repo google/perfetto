@@ -54,8 +54,6 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, SiblingMergeBehavior){
         3,
 };
 
-PERFETTO_PB_MSG(perfetto_protos_StateDescriptor);
-
 PERFETTO_PB_MSG(perfetto_protos_TrackDescriptor);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor, VARINT, uint64_t, uuid, 1);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
