@@ -675,6 +675,24 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
+  static bool IsIntegerFieldType(uint32_t type) {
+    switch (type) {
+      case 3:   // TYPE_INT64
+      case 4:   // TYPE_UINT64
+      case 5:   // TYPE_INT32
+      case 6:   // TYPE_FIXED64
+      case 7:   // TYPE_FIXED32
+      case 13:  // TYPE_UINT32
+      case 15:  // TYPE_SFIXED32
+      case 16:  // TYPE_SFIXED64
+      case 17:  // TYPE_SINT32
+      case 18:  // TYPE_SINT64
+        return true;
+      default:
+        return false;
+    }
+  }
+
   std::optional<std::string> FormatStateValue(ConstBytes state_bytes) {
     protozero::ProtoDecoder decoder(state_bytes.data, state_bytes.size);
 
@@ -694,66 +712,37 @@ class TrackEventEventImporter {
         value = field.as_std_string();
         break;
       }
-      if (field.id() >= 10 && state_desc) {
-        const FieldDescriptor* field_desc =
-            state_desc->FindFieldByTag(field.id());
-        if (field_desc) {
-          has_value = true;
-          // If it is an enum, look up the string name!
-          if (field_desc->type() == 14 /* TYPE_ENUM */) {
-            auto enum_idx = context_->descriptor_pool_->FindDescriptorIdx(
-                field_desc->resolved_type_name());
-            if (enum_idx) {
-              const ProtoDescriptor* enum_desc =
-                  &context_->descriptor_pool_->descriptors()[*enum_idx];
-              auto enum_name = enum_desc->FindEnumString(field.as_int32());
-              if (enum_name) {
-                value = *enum_name;
-                break;
-              }
-            }
-            value = std::to_string(field.as_int32());
-            break;
-          }
-          // For standard scalar types:
-          if (field_desc->type() == 9 /* TYPE_STRING */) {
-            value = field.as_std_string();
-            break;
-          }
-          if (field_desc->type() == 8 /* TYPE_BOOL */) {
-            value = field.as_bool() ? "true" : "false";
-            break;
-          }
-          if (field_desc->type() == 1 /* TYPE_DOUBLE */) {
-            value = std::to_string(field.as_double());
-            break;
-          }
-          if (field_desc->type() == 2 /* TYPE_FLOAT */) {
-            value = std::to_string(field.as_float());
-            break;
-          }
-          // For generic integers:
-          if (field_desc->type() == 3 /* TYPE_INT64 */ ||
-              field_desc->type() == 5 /* TYPE_INT32 */ ||
-              field_desc->type() == 17 /* TYPE_SINT32 */ ||
-              field_desc->type() == 18 /* TYPE_SINT64 */) {
-            value = std::to_string(field.as_int64());
-            break;
-          }
-          if (field_desc->type() == 4 /* TYPE_UINT64 */ ||
-              field_desc->type() == 13 /* TYPE_UINT32 */ ||
-              field_desc->type() == 7 /* TYPE_FIXED32 */ ||
-              field_desc->type() == 6 /* TYPE_FIXED64 */) {
-            value = std::to_string(field.as_uint64());
-            break;
-          }
-          // If it's a sub-message:
-          if (field_desc->type() == 11 /* TYPE_MESSAGE */) {
-            value = field_desc->name() + " (message)";
-            break;
-          }
-        }
+      const FieldDescriptor* field_desc =
+          state_desc ? state_desc->FindFieldByTag(field.id()) : nullptr;
+      if (field_desc && field_desc->is_extension()) {
         has_value = true;
+        // 1. For enums, look up the string name!
+        if (field_desc->type() == 14 /* TYPE_ENUM */) {
+          auto enum_idx = context_->descriptor_pool_->FindDescriptorIdx(
+              field_desc->resolved_type_name());
+          if (enum_idx) {
+            const ProtoDescriptor* enum_desc =
+                &context_->descriptor_pool_->descriptors()[*enum_idx];
+            auto enum_name = enum_desc->FindEnumString(field.as_int32());
+            if (enum_name) {
+              value = *enum_name;
+              break;
+            }
+          }
+          value = std::to_string(field.as_int32());
+          break;
+        }
+        // 2. For strings, get the string directly!
+        if (field_desc->type() == 9 /* TYPE_STRING */) {
+          value = field.as_std_string();
+          break;
+        }
+        // 3. For all integer and numeric types:
+        if (IsIntegerFieldType(field_desc->type())) {
+          value = std::to_string(field.as_int64());
+          break;
+        }
+        // Fallback:
         value = "Field " + std::to_string(field.id());
         break;
       }
