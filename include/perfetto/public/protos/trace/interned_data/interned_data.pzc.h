@@ -26,7 +26,6 @@
 #include "perfetto/public/pb_macros.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidJobName);
-PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Callstack);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DebugAnnotationName);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DebugAnnotationValueTypeName);
@@ -224,11 +223,6 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_InternedString,
                   viewcapture_text,
                   46);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_AppWakelockInfo,
-                  app_wakelock_info,
-                  42);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedString,

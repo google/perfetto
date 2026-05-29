@@ -19,6 +19,8 @@ import("../../../gn/protozero_descriptor_diff.gni")
 perfetto_proto_library("android_extensions_@TYPE@") {
   sources = [ "android_extensions.proto" ]
   public_deps = [
+    "frameworks/base/proto/tracing:frameworks_base_interned_data_@TYPE@",
+    "frameworks/base/proto/tracing:frameworks_base_trace_packet_@TYPE@",
     "frameworks/base/proto/tracing:frameworks_base_track_event_@TYPE@",
     "frameworks/native/tracing:frameworks_native_track_event_@TYPE@",
   ]
@@ -31,5 +33,5 @@ protozero_descriptor_diff("extension_descriptor") {
   minuend_descriptor_name = "android_extensions.descriptor"
   subtrahend_descriptor_target = "../../perfetto/trace:descriptor"
   subtrahend_descriptor_name = "trace.descriptor"
-  generate_descriptor = "android_extensions_extension.descriptor"
+  generate_descriptor = "android_extension.descriptor"
 }
