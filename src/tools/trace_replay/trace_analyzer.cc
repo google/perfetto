@@ -74,23 +74,45 @@ bool IteratePackets(const uint8_t* data, size_t size, Visit&& visit) {
   return true;
 }
 
-// Field IDs that traced injects on the consumption path and that the
-// PacketStreamValidator rejects when present at top-level on the producer
-// side (see src/tracing/service/packet_stream_validator.cc). When we replay
-// the captured TracePacket bytes, we must strip these or the entire packet
-// gets dropped.
+// Top-level TracePacket fields that the replay tool must NOT pass through.
+// Two reasons for the same answer:
+//
+//   1. Service-rejected on the producer side. The PacketStreamValidator
+//      (src/tracing/service/packet_stream_validator.cc) drops any TracePacket
+//      whose top-level fields contain a service-only one — every replayed
+//      packet carrying one of these would be dropped wholesale.
+//
+//   2. Re-written by traced anyway. tracing_service_impl.cc emits these
+//      fields itself (clock_snapshot, trace_uuid, system_info, etc.) at
+//      session setup/teardown and on every consumed packet. Re-emitting
+//      from the producer side is at best wasted bytes and at worst a
+//      duplicate that confuses downstream tools.
 bool IsReservedTopLevelField(uint32_t id) {
   using TP = protos::pbzero::TracePacket;
-  return id == TP::kTrustedUidFieldNumber ||
-         id == TP::kTrustedPacketSequenceIdFieldNumber ||
-         id == TP::kTraceConfigFieldNumber ||
-         id == TP::kTraceStatsFieldNumber ||
-         id == TP::kCompressedPacketsFieldNumber ||
-         id == TP::kSynchronizationMarkerFieldNumber ||
-         id == TP::kTrustedPidFieldNumber || id == TP::kMachineIdFieldNumber ||
-         id == TP::kServiceEventFieldNumber ||
-         id == TP::kTraceProvenanceFieldNumber ||
-         id == TP::kProtovmsFieldNumber;
+  // (1) PacketStreamValidator's kReservedFieldIds.
+  if (id == TP::kTrustedUidFieldNumber ||
+      id == TP::kTrustedPacketSequenceIdFieldNumber ||
+      id == TP::kTraceConfigFieldNumber ||
+      id == TP::kTraceStatsFieldNumber ||
+      id == TP::kCompressedPacketsFieldNumber ||
+      id == TP::kSynchronizationMarkerFieldNumber ||
+      id == TP::kTrustedPidFieldNumber || id == TP::kMachineIdFieldNumber ||
+      id == TP::kServiceEventFieldNumber ||
+      id == TP::kTraceProvenanceFieldNumber ||
+      id == TP::kProtovmsFieldNumber) {
+    return true;
+  }
+  // (2) Additional fields written by traced itself in tracing_service_impl.cc.
+  // `timestamp` is intentionally NOT here — producers legitimately set it
+  // on every packet. `buffer_index_for_stats` is in-memory only and not in
+  // the wire format, so nothing to strip.
+  return id == TP::kClockSnapshotFieldNumber ||
+         id == TP::kPreviousPacketDroppedFieldNumber ||
+         id == TP::kSystemInfoFieldNumber || id == TP::kTriggerFieldNumber ||
+         id == TP::kExtensionDescriptorFieldNumber ||
+         id == TP::kTraceUuidFieldNumber ||
+         id == TP::kRemoteClockSyncFieldNumber ||
+         id == TP::kCloneSnapshotTriggerFieldNumber;
 }
 
 // Walks the inner TracePacket bytes and copies fields into `out`, skipping

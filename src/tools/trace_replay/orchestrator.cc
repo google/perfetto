@@ -569,14 +569,31 @@ int RunOrchestrator(const OrchestratorOptions& opts) {
                                     opts.monitor_interval_ms));
       monitor->Start();
     }
+    // perf record (sampling + callstacks) or perf stat (counters only).
+    // We sample on `task-clock` rather than `cycles` so this works in
+    // environments without a hardware PMU (containers, VMs).
     std::unique_ptr<base::Subprocess> perf;
     if (opts.capture_perf && backend.traced_pid > 0) {
-      perf.reset(new base::Subprocess({"perf", "record", "-F", "99", "-g", "-p",
-                                       std::to_string(backend.traced_pid), "-o",
-                                       iter_dir + "/perf.data"}));
+      perf.reset(new base::Subprocess(
+          {"perf", "record", "-e", "task-clock", "-F", "4999", "-g", "-p",
+           std::to_string(backend.traced_pid), "-o",
+           iter_dir + "/perf.data"}));
       perf->args.stdout_mode = base::Subprocess::OutputMode::kInherit;
       perf->args.stderr_mode = base::Subprocess::OutputMode::kInherit;
       perf->Start();
+    }
+    std::unique_ptr<base::Subprocess> perf_stat;
+    if (opts.capture_perf_stat && backend.traced_pid > 0) {
+      perf_stat.reset(new base::Subprocess(
+          {"perf", "stat", "-e",
+           "task-clock,context-switches,cpu-migrations,page-faults,"
+           "minor-faults,major-faults,cycles,instructions,branch-misses,"
+           "cache-references,cache-misses",
+           "-p", std::to_string(backend.traced_pid), "-o",
+           iter_dir + "/perf.stat.txt"}));
+      perf_stat->args.stdout_mode = base::Subprocess::OutputMode::kInherit;
+      perf_stat->args.stderr_mode = base::Subprocess::OutputMode::kInherit;
+      perf_stat->Start();
     }
 
     // Launch perfetto consumer.
@@ -663,6 +680,10 @@ int RunOrchestrator(const OrchestratorOptions& opts) {
     if (perf) {
       perf->Kill(SIGINT);
       perf->Wait(10000);
+    }
+    if (perf_stat) {
+      perf_stat->Kill(SIGINT);
+      perf_stat->Wait(10000);
     }
     if (monitor)
       monitor->Stop();

@@ -34,7 +34,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/tracing.h"
+#include "perfetto/tracing/backend_type.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/data_source.h"
+#include "perfetto/tracing/tracing.h"
 
 #include "src/tools/trace_replay/replay_file.h"
 

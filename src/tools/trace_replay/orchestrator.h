@@ -30,6 +30,8 @@ struct OrchestratorOptions {
   bool use_tracebox = false;
   bool capture_perf = false;
   uint32_t monitor_interval_ms = 250;
+  // perf stat (counters only, no sampling) attached to traced per iteration.
+  bool capture_perf_stat = false;
   bool ignore_orphan_writers = false;
   uint32_t max_buffers = 32;
 

@@ -49,7 +49,10 @@ void PrintUsage(const char* argv0) {
       "                            TRACE_BUFFER_V2.\n"
       "  --use-tracebox            Spawn our own traced via tracebox\n"
       "                            instead of using the system one.\n"
-      "  --perf                    Run `perf record` on traced.\n"
+      "  --perf                    Run `perf record -g` on traced (callstack\n"
+      "                            sampling).\n"
+      "  --perf-stat               Run `perf stat` on traced (counters only,\n"
+      "                            no callstacks). Cheaper than --perf.\n"
       "  --monitor-interval-ms N   /proc poll interval (default 250).\n"
       "  --ignore-orphan-writers   Drop packets whose sequence_id is\n"
       "                            missing from trace_stats.writer_stats.\n"
@@ -91,6 +94,7 @@ int main(int argc, char** argv) {
       {"zero-delay", no_argument, nullptr, 1008},
       {"iterations", required_argument, nullptr, 1009},
       {"use-trace-buffer-v2", no_argument, nullptr, 1010},
+      {"perf-stat", no_argument, nullptr, 1011},
       {"replay-worker", required_argument, nullptr, 1100},
       {"ready-fd", required_argument, nullptr, 1101},
       {"help", no_argument, nullptr, 'h'},
@@ -137,6 +141,9 @@ int main(int argc, char** argv) {
         break;
       case 1010:
         oo.use_trace_buffer_v2 = true;
+        break;
+      case 1011:
+        oo.capture_perf_stat = true;
         break;
       case 1100:
         is_worker = true;
