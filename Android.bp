@@ -25266,3 +25266,12 @@ java_library_host {
         "src/android_sdk/java/host_stubs/androidx/**/*.java",
     ],
 }
+
+filegroup {
+    name: "wattson_power_curves",
+    srcs: [
+        "src/trace_processor/plugins/wattson/data/**/*.csv",
+    ],
+    path: "src/trace_processor/plugins/wattson/data",
+    visibility: ["//visibility:public"],
+}
