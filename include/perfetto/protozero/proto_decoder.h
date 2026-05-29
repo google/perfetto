@@ -344,6 +344,43 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
     return fields_[0];
   }
 
+  // Like Get(), but also resolves "extension" fields whose id exceeds the
+  // highest field id known in-tree at compile time (i.e. id >= num_fields_,
+  // which is MAX_FIELD_ID + 1). Such fields are NOT stored by ParseAllFields()
+  // -- e.g. fields carved out of TracePacket's `extensions 1000 to 1999`
+  // range. For in-tree ids this delegates to Get(); for extension ids it falls
+  // back to a linear re-scan of the buffer.
+  //
+  // NOTE: for *repeated* fields the slow path returns the FIRST occurrence
+  // (FindField semantics), whereas Get() returns the last. All current
+  // extension fields are singular submessages, so this is not observable today.
+  //
+  // TODO: make extension lookups fast without re-scanning the buffer. The
+  // blocker is that fields_ is indexed directly by field id (on_stack_storage_,
+  // or heap_storage_ after ExpandHeapStorage()), so it must be sized to the
+  // largest field id. That is fine for the densely-numbered in-tree fields, but
+  // extension ids are sparse and can be arbitrarily high (the OOT range starts
+  // at 1000), so indexing by id would waste / unbound memory. Proposed design:
+  //   - Replace the flat array with a two-level sparse map. Level 1 is a set of
+  //     id ranges built dynamically while decoding (these need not match the
+  //     static extensions.json allocations), e.g. tracked with a bitset. Level
+  //     2 maps an id within a matched range to a compact slot index.
+  //   - Back the slots with an object pool so repeated decodes reuse storage
+  //     and allocate ~zero: only a few decoders are live at any time, so the
+  //     pool stays small.
+  // This costs memory proportional to the extension fields actually present
+  // rather than to the max field id, and keeps the decode hot path
+  // allocation-free.
+  Field GetExtensionSlowly(uint32_t id) const {
+    if (PERFETTO_LIKELY(id < num_fields_))
+      return Get(id);
+    // Slow path: id is in the extension range; re-scan the original buffer.
+    // Use a throwaway ProtoDecoder so this method stays const (FindField
+    // mutates the read cursor).
+    return ProtoDecoder(begin_, static_cast<size_t>(end_ - begin_))
+        .FindField(id);
+  }
+
   // Returns an object that allows to iterate over all instances of a repeated
   // field given its id. Example usage:
   //   for (auto it = decoder.GetRepeated<int32_t>(N); it; ++it) { ... }
@@ -527,6 +564,27 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
     } else {
       // Otherwise use the slowpath Get() which will do a runtime check.
       return Get(FIELD_ID);
+    }
+  }
+
+  // Keep the runtime base-class overload visible: declaring the templated
+  // GetExtensionSlowly() below would otherwise hide it (C++ name hiding is
+  // per-name, not per-signature).
+  using TypedProtoDecoderBase::GetExtensionSlowly;
+
+  // Templated analog of TypedProtoDecoderBase::GetExtensionSlowly() for when
+  // the field id is known at compile time (the common case: extension field
+  // numbers come from generated kFooFieldNumber constants). Because
+  // MAX_FIELD_ID is known here, the in-tree vs extension decision is made at
+  // compile time: in-tree ids (<= MAX_FIELD_ID) take the at<>() fast path,
+  // while extension ids beyond the in-tree range fall back to the base
+  // class's buffer re-scan.
+  template <uint32_t FIELD_ID>
+  Field GetExtensionSlowly() const {
+    if constexpr (FIELD_ID <= MAX_FIELD_ID) {
+      return at<FIELD_ID>();
+    } else {
+      return TypedProtoDecoderBase::GetExtensionSlowly(FIELD_ID);
     }
   }
 
