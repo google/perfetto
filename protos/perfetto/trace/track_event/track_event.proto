@@ -383,6 +383,14 @@ message TrackEvent {
 
   // New argument types go here :)
 
+  message State {
+    oneof value {
+      string string_value = 1;
+    }
+    extensions 10 to 9999;
+  }
+  optional State state = 57;
+
   // Extension range for typed events defined in external projects.
   // See protos/perfetto/trace/extensions.json for the allocation registry and
   // docs/instrumentation/extensions.md for more details.

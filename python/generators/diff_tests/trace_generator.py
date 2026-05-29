@@ -134,7 +134,9 @@ def generate_trace_file(test_case: Any, trace_descriptor_path: str,
                              'perfetto.protos.Trace')()
     assert isinstance(test_case.blueprint.trace, TextProto)
     text_format.Merge(test_case.blueprint.trace.contents, proto)
+
     gen_trace_file.write(proto.SerializeToString())
+
     gen_trace_file.flush()
 
   elif test_case.blueprint.is_trace_simpleperf_proto():

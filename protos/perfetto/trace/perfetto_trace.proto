@@ -16537,6 +16537,15 @@ message TrackEvent {
 
   // New argument types go here :)
 
+  message State {
+    oneof value {
+      string string_value = 1;
+    }
+    extensions 10 to 9999;
+  }
+  optional State state = 57;
+
+
   // Extension range for typed events defined in external projects.
   // See protos/perfetto/trace/extensions.json for the allocation registry and
   // docs/instrumentation/extensions.md for more details.
@@ -19188,7 +19197,8 @@ message TrackDescriptor {
 
 // Descriptor for a state track.
 message StateDescriptor {
-  // For now, this message is empty. It is used to identify a track as a state track.
+  // For now, this message is empty. It is used to identify a track as a state
+  // track.
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

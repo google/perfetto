@@ -87,6 +87,20 @@
       ]
     },
     {
+      "scope": "perfetto.protos.TrackEvent.State",
+      "range": [10, 9999],
+      "allocations": [
+        {
+          "name": "perfetto_tests",
+          "range": [9000, 9999],
+          "contact": "perfetto-dev@googlegroups.com",
+          "description": "Reserved for Perfetto unit and integration tests",
+          "proto": "protos/perfetto/trace/test_extensions.proto"
+        }
+      ]
+    },
+
+    {
       "scope": "perfetto.protos.TracePacket",
       "range": [1000, 1999],
       "allocations": [

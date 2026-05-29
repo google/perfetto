@@ -31,7 +31,26 @@ CREATE PERFETTO VIEW counter(
 AS
 SELECT id, ts, track_id, value, arg_set_id FROM __intrinsic_counter;
 
+-- Contains updatable state tracking slices.
+CREATE PERFETTO VIEW state(
+  -- Unique id of a state slice
+  id ID,
+  -- The start timestamp of the state slice in nanoseconds.
+  ts TIMESTAMP,
+  -- The duration of the state slice in nanoseconds.
+  dur DURATION,
+  -- The track this state slice belongs to.
+  track_id JOINID(track.id),
+  -- The string value/name of the state.
+  value STRING,
+  -- Additional information about the state.
+  arg_set_id ARGSETID
+)
+AS
+SELECT id, ts, dur, track_id, value, arg_set_id FROM __intrinsic_state;
+
 -- Contains slices from userspace which explains what threads were doing
+
 -- during the trace.
 CREATE PERFETTO VIEW slice(
   -- The id of the slice.

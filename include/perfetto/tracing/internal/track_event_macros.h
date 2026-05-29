@@ -167,6 +167,31 @@
     }                                                                          \
   } while (false)
 
+#define PERFETTO_INTERNAL_TRACK_STATE(category, ...)                           \
+  do {                                                                         \
+    namespace tns = PERFETTO_TRACK_EVENT_NAMESPACE;                            \
+    PERFETTO_INTERNAL_STATIC_FOR_MSVC constexpr size_t PERFETTO_UID(           \
+        kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =               \
+        PERFETTO_GET_CATEGORY_INDEX(category);                                 \
+    if (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(         \
+            category)) {                                                       \
+      tns::TrackEvent::CallIfEnabled(                                          \
+          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
+            tns::TrackEvent::TraceState(instances, category, ##__VA_ARGS__);   \
+          });                                                                  \
+    } else {                                                                   \
+      tns::TrackEvent::CallIfCategoryEnabled(                                  \
+          PERFETTO_UID(kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_), \
+          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
+            tns::TrackEvent::TraceState(                                       \
+                instances,                                                     \
+                PERFETTO_UID(                                                  \
+                    kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_),    \
+                ##__VA_ARGS__);                                                \
+          });                                                                  \
+    }                                                                          \
+  } while (false)
+
 // C++17 doesn't like a move constructor being defined for the EventFinalizer
 // class but C++11 and MSVC doesn't compile without it being defined so support
 // both.
