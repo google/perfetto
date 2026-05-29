@@ -56,6 +56,11 @@ struct LogicalPlan;
 // - Efficient query execution with optimized bytecode generation
 // - Support for serializable query plans that separate planning from execution
 // - Memory-efficient storage with support for specialized column types
+//
+// A finalized Dataframe is safe for concurrent reads from multiple threads as
+// long as each thread uses its own cursor: PlanQuery, PrepareCursor and cursor
+// iteration touch no shared mutable state. Mutating operations (Insert*,
+// SetCell*, Clear, Finalize) are not thread-safe and must not race with reads.
 class Dataframe {
  public:
   // QueryPlan encapsulates an executable, serializable representation of a
