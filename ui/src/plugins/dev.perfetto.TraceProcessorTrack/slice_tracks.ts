@@ -381,4 +381,34 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     topLevelGroup: 'HARDWARE',
     group: 'Pixel Firmware',
   },
+  {
+    type: 'global_state_track_event',
+    topLevelGroup: undefined,
+    group: undefined,
+  },
+  {
+    type: 'thread_state_track_event',
+    topLevelGroup: 'THREAD',
+    group: undefined,
+  },
+  {
+    type: 'process_state_track_event',
+    topLevelGroup: 'PROCESS',
+    group: undefined,
+  },
+  {
+    type: 'global_state_merged_track_event',
+    topLevelGroup: undefined,
+    group: undefined,
+  },
+  {
+    type: 'thread_state_merged_track_event',
+    topLevelGroup: 'THREAD',
+    group: undefined,
+  },
+  {
+    type: 'process_state_merged_track_event',
+    topLevelGroup: 'PROCESS',
+    group: undefined,
+  },
 ];

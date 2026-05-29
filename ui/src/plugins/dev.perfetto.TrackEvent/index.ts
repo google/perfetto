@@ -98,6 +98,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           ifnull(g.upid, t.upid) as upid,
           g.utid,
           g.parent_id as parentId,
+          (select name from track where id = g.parent_id) as parentName,
           g.is_counter AS isCounter,
           g.name,
           g.description,
@@ -140,6 +141,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       upid: NUM_NULL,
       utid: NUM_NULL,
       parentId: NUM_NULL,
+      parentName: STR_NULL,
       isCounter: NUM,
       name: STR_NULL,
       description: STR_NULL,
@@ -173,6 +175,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         upid,
         utid,
         parentId,
+        parentName,
         isCounter,
         name,
         description,
@@ -297,6 +300,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         processGroupsPlugin,
         trackIdToTrackNode,
         parentId ?? undefined,
+        parentName ?? undefined,
         upid ?? undefined,
         utid ?? undefined,
         hasChildren,
@@ -450,11 +454,25 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     processGroupsPlugin: ProcessThreadGroupsPlugin,
     trackIdToTrackNode: Map<number, TrackNode>,
     parentId: number | undefined,
+    parentName: string | undefined,
     upid: number | undefined,
     utid: number | undefined,
     hasChildren: number,
   ): TrackNode {
     if (parentId !== undefined) {
+      const cached = trackIdToTrackNode.get(parentId);
+      if (cached !== undefined) {
+        return cached;
+      }
+      if (parentName !== undefined) {
+        const existingParent = ctx.defaultWorkspace.tracks.children.find(
+          (x) => x.name === parentName && x.isSummary === true,
+        );
+        if (existingParent !== undefined) {
+          trackIdToTrackNode.set(parentId, existingParent);
+          return existingParent;
+        }
+      }
       return assertExists(trackIdToTrackNode.get(parentId));
     }
     if (utid !== undefined) {
