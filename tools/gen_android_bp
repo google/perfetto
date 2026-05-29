@@ -1271,8 +1271,7 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
 
 
 def create_transitive_proto_filegroup(blueprint: Blueprint, gn: GnParser,
-                                      filegroup_name: str,
-                                      gn_target_name: str):
+                                      filegroup_name: str, gn_target_name: str):
   """Emit a filegroup with the transitive .proto closure of a GN target.
 
   Used by `transitive_proto_filegroups` (see top of file) to expose a single
@@ -1287,8 +1286,7 @@ def create_transitive_proto_filegroup(blueprint: Blueprint, gn: GnParser,
   for dep in target.transitive_proto_deps():
     srcs.update(gn_utils.label_to_path(s) for s in dep.sources)
   module = Module('filegroup', filegroup_name, gn_target_name)
-  module.comment = (
-      f'GN: transitive .proto closure of {gn_target_name}')
+  module.comment = (f'GN: transitive .proto closure of {gn_target_name}')
   module.srcs = srcs
   blueprint.add_module(module)
 
