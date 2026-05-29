@@ -631,6 +631,9 @@ std::vector<std::string> ReadSlicesFromTrace(
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
         slice += "C";
         break;
+      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
+        slice += "S";
+        break;
       default:
         ADD_FAILURE();
     }
@@ -2859,6 +2862,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
         EXPECT_EQ(packet.timestamp(), kInstantEventTime);
         break;
+      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
         ADD_FAILURE();
@@ -2893,6 +2897,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestampNoLambda) {
       case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
         EXPECT_EQ(packet.timestamp(), kEndEventTime);
         break;
+      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
