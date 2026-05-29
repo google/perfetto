@@ -50,6 +50,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -69,6 +70,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "perfetto/ext/base/base64.h"
@@ -207,6 +209,10 @@ class TrackEventEventImporter {
     // a track_id_ and should instead go through the switch below.
     if (event_.type() == TrackEvent::TYPE_COUNTER) {
       return ParseCounterEvent();
+    }
+
+    if (event_.type() == TrackEvent::TYPE_STATE) {
+      return ParseStateEvent();
     }
 
     // TODO(eseckler): Replace phase with type and remove handling of
@@ -520,6 +526,17 @@ class TrackEventEventImporter {
                         : std::nullopt));
   }
 
+  base::StatusOr<TrackId> ParseTrackAssociationState() {
+    if (!track_uuid_ && fallback_to_legacy_pid_tid_tracks_) {
+      return ParseTrackAssociationInternal(std::nullopt);
+    }
+    return ParseTrackAssociationInternal(
+        track_event_tracker_->InternDescriptorTrackState(
+            track_uuid_, name_id_,
+            track_uuid_ ? std::make_optional(packet_sequence_id_)
+                        : std::nullopt));
+  }
+
   base::StatusOr<TrackId> ParseTrackAssociationForLegacy() {
     if (!track_uuid_ && fallback_to_legacy_pid_tid_tracks_) {
       return ParseTrackAssociationInternal(std::nullopt);
@@ -655,6 +672,134 @@ class TrackEventEventImporter {
     context_->event_tracker->PushCounter(
         ts_, static_cast<double>(event_data_->counter_value), track_id,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    return base::OkStatus();
+  }
+
+  std::optional<std::string> FormatStateValue(ConstBytes state_bytes) {
+    protozero::ProtoDecoder decoder(state_bytes.data, state_bytes.size);
+
+    auto state_idx = context_->descriptor_pool_->FindDescriptorIdx(
+        ".perfetto.protos.TrackEvent.State");
+    const ProtoDescriptor* state_desc =
+        state_idx ? &context_->descriptor_pool_->descriptors()[*state_idx]
+                  : nullptr;
+
+    bool has_value = false;
+    std::string value;
+
+    for (auto field = decoder.ReadField(); field.valid();
+         field = decoder.ReadField()) {
+      if (field.id() == 1) {  // string_value
+        has_value = true;
+        value = field.as_std_string();
+        break;
+      }
+      if (field.id() >= 10 && state_desc) {
+        const FieldDescriptor* field_desc =
+            state_desc->FindFieldByTag(field.id());
+        if (field_desc) {
+          has_value = true;
+          // If it is an enum, look up the string name!
+          if (field_desc->type() == 14 /* TYPE_ENUM */) {
+            auto enum_idx = context_->descriptor_pool_->FindDescriptorIdx(
+                field_desc->resolved_type_name());
+            if (enum_idx) {
+              const ProtoDescriptor* enum_desc =
+                  &context_->descriptor_pool_->descriptors()[*enum_idx];
+              auto enum_name = enum_desc->FindEnumString(field.as_int32());
+              if (enum_name) {
+                value = *enum_name;
+                break;
+              }
+            }
+            value = std::to_string(field.as_int32());
+            break;
+          }
+          // For standard scalar types:
+          if (field_desc->type() == 9 /* TYPE_STRING */) {
+            value = field.as_std_string();
+            break;
+          }
+          if (field_desc->type() == 8 /* TYPE_BOOL */) {
+            value = field.as_bool() ? "true" : "false";
+            break;
+          }
+          if (field_desc->type() == 1 /* TYPE_DOUBLE */) {
+            value = std::to_string(field.as_double());
+            break;
+          }
+          if (field_desc->type() == 2 /* TYPE_FLOAT */) {
+            value = std::to_string(field.as_float());
+            break;
+          }
+          // For generic integers:
+          if (field_desc->type() == 3 /* TYPE_INT64 */ ||
+              field_desc->type() == 5 /* TYPE_INT32 */ ||
+              field_desc->type() == 17 /* TYPE_SINT32 */ ||
+              field_desc->type() == 18 /* TYPE_SINT64 */) {
+            value = std::to_string(field.as_int64());
+            break;
+          }
+          if (field_desc->type() == 4 /* TYPE_UINT64 */ ||
+              field_desc->type() == 13 /* TYPE_UINT32 */ ||
+              field_desc->type() == 7 /* TYPE_FIXED32 */ ||
+              field_desc->type() == 6 /* TYPE_FIXED64 */) {
+            value = std::to_string(field.as_uint64());
+            break;
+          }
+          // If it's a sub-message:
+          if (field_desc->type() == 11 /* TYPE_MESSAGE */) {
+            value = field_desc->name() + " (message)";
+            break;
+          }
+        }
+        has_value = true;
+        value = "Field " + std::to_string(field.id());
+        break;
+      }
+    }
+
+    if (has_value) {
+      return value;
+    }
+    return std::nullopt;
+  }
+
+  base::Status ParseStateEvent() {
+    ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationState());
+
+    StringId state_id = kNullStringId;
+    bool is_termination = true;
+
+    if (event_.has_state()) {
+      auto formatted = FormatStateValue(event_.state());
+      if (formatted.has_value()) {
+        is_termination = false;
+        state_id = storage_->InternString(base::StringView(*formatted));
+      }
+    } else {
+      if (event_.has_name_iid()) {
+        auto* decoder = sequence_state_->LookupInternedMessage<
+            protos::pbzero::InternedData::kEventNamesFieldNumber,
+            protos::pbzero::EventName>(event_.name_iid());
+        if (decoder) {
+          is_termination = false;
+          state_id = storage_->InternString(decoder->name());
+        }
+      } else if (event_.has_name()) {
+        is_termination = false;
+        state_id = storage_->InternString(event_.name());
+      }
+    }
+
+    if (is_termination) {
+      context_->state_tracker->UpdateState(ts_, track_id, kNullStringId);
+    } else {
+      context_->state_tracker->UpdateState(
+          ts_, track_id, state_id,
+          [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    }
+
     return base::OkStatus();
   }
 

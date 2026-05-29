@@ -1085,3 +1085,320 @@ class TrackEvent(TestSuite):
         "name"
         "First Name"
         """))
+
+  def test_track_event_simple_state(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            name: "MyStateTrack"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 10
+            type: 5
+            state {
+              string_value: "state_active"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            track_uuid: 10
+            type: 5
+            state {
+              string_value: "state_idle"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          track_event {
+            track_uuid: 10
+            type: 5
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dur, value, track.name AS track_name
+        FROM state
+        JOIN track ON track.id = state.track_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","value","track_name"
+        1000,2000,"state_active","MyStateTrack"
+        3000,1000,"state_idle","MyStateTrack"
+        """))
+
+  def test_track_event_custom_proto_state(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            name: "MyCustomStateTrack"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          extension_descriptor {
+            extension_set {
+              file {
+                package: "perfetto.protos"
+                name: "test_state_extensions.proto"
+                dependency: "protos/perfetto/trace/track_event/track_event.proto"
+                message_type {
+                  name: "TestStateExtension"
+                  extension {
+                    name: "test_state_enum_value"
+                    extendee: ".perfetto.protos.TrackEvent.State"
+                    number: 9900
+                    type: TYPE_ENUM
+                    type_name: ".perfetto.protos.TestStateEnum"
+                  }
+                }
+                enum_type {
+                  name: "TestStateEnum"
+                  value {
+                    name: "TEST_STATE_UNKNOWN"
+                    number: 0
+                  }
+                  value {
+                    name: "TEST_STATE_ACTIVE"
+                    number: 1
+                  }
+                  value {
+                    name: "TEST_STATE_INACTIVE"
+                    number: 2
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 10
+            type: 5
+            state {
+              [perfetto.protos.TestStateExtension.test_state_enum_value]: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            track_uuid: 10
+            type: 5
+            state {
+              [perfetto.protos.TestStateExtension.test_state_enum_value]: 2
+            }
+          }
+        }
+
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          track_event {
+            track_uuid: 10
+            type: 5
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dur, value, track.name AS track_name, args.key, args.display_value
+        FROM state
+        JOIN track ON track.id = state.track_id
+        LEFT JOIN args USING(arg_set_id)
+        ORDER BY ts, args.key;
+        """,
+        out=Csv("""
+        "ts","dur","value","track_name","key","display_value"
+        1000,2000,"TEST_STATE_ACTIVE","MyCustomStateTrack","state.test_state_enum_value","TEST_STATE_ACTIVE"
+        3000,1000,"TEST_STATE_INACTIVE","MyCustomStateTrack","state.test_state_enum_value","TEST_STATE_INACTIVE"
+        """))
+
+  def test_state_track_ui_auto_discovery(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            name: "MyStateTrack"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 10
+            type: 5
+            state {
+              string_value: "state_active"
+            }
+          }
+        }
+        """),
+        query="""
+        include perfetto module viz.summary.slices;
+        include perfetto module viz.summary.states;
+
+
+        -- Define the UI's max depth function inline!
+        CREATE PERFETTO FUNCTION __max_layout_depth(track_count INT, track_ids STRING)
+        RETURNS INT AS
+        SELECT iif(
+          $track_count = 1,
+          (
+            SELECT max_depth
+            FROM _slice_track_summary
+            WHERE id = cast($track_ids AS int)
+          ),
+          (
+            SELECT max(layout_depth)
+            FROM experimental_slice_layout($track_ids)
+          )
+        );
+
+        -- The exact discovery query from the UI!
+        WITH grouped AS (
+          SELECT
+            t.type,
+            MIN(t.name) as name,
+            COUNT() as trackCount,
+            GROUP_CONCAT(t.id) as trackIds
+          FROM _state_track_summary s
+          JOIN track t USING (id)
+          GROUP BY type, t.track_group_id, IFNULL(t.track_group_id, t.id)
+        )
+        SELECT
+          name,
+          trackCount,
+          trackIds,
+          -- This would return NULL without the UI's ifnull fix!
+          ifnull(__max_layout_depth(trackCount, trackIds), 0) AS maxDepth
+        FROM grouped;
+
+
+        """,
+        out=Csv("""
+        "name","trackCount","trackIds","maxDepth"
+        "MyStateTrack",1,"0",0
+        """))
+
+  def test_state_track_sibling_merge(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "ParentFolder"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 10
+            parent_uuid: 1
+            name: "StateTrackA"
+            sibling_merge_behavior: 3  # BY_SIBLING_MERGE_KEY
+            sibling_merge_key: "state_sibling_group"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 11
+            parent_uuid: 1
+            name: "StateTrackB"
+            sibling_merge_behavior: 3  # BY_SIBLING_MERGE_KEY
+            sibling_merge_key: "state_sibling_group"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 10
+            type: 5
+            state {
+              string_value: "Active"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            track_uuid: 11
+            type: 5
+            state {
+              string_value: "Running"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            track_uuid: 10
+            type: 5
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          track_event {
+            track_uuid: 11
+            type: 5
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.id,
+          t.name,
+          t.type,
+          t.parent_id,
+          t.track_group_id IS NOT NULL AS has_group_id
+        FROM track t
+        ORDER BY t.id;
+        """,
+        out=Csv("""
+        "id","name","type","parent_id","has_group_id"
+        0,"ParentFolder","global_merged_track_event","[NULL]",1
+        1,"StateTrackA","global_state_merged_track_event",0,1
+        2,"StateTrackB","global_state_merged_track_event",0,1
+        """))

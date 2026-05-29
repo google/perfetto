@@ -69,6 +69,7 @@ using ArgSetId = uint32_t;
 using TrackId = tables::TrackTable_Id;
 
 using CounterId = tables::CounterTable_Id;
+using StateId = tables::StateTable_Id;
 
 using SliceId = tables::SliceTable_Id;
 
@@ -312,6 +313,12 @@ class TraceStorage {
   }
   tables::CounterTable* mutable_counter_table() {
     return mutable_table<tables::CounterTable>();
+  }
+  const tables::StateTable& state_table() const {
+    return table<tables::StateTable>();
+  }
+  tables::StateTable* mutable_state_table() {
+    return mutable_table<tables::StateTable>();
   }
 
   const SqlStats& sql_stats() const { return sql_stats_; }

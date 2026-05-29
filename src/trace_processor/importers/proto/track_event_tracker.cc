@@ -86,6 +86,23 @@ constexpr auto kGlobalTrackBlueprint = tracks::SliceBlueprint(
     tracks::DimensionBlueprints(tracks::LongDimensionBlueprint("track_uuid")),
     tracks::DynamicNameBlueprint());
 
+constexpr auto kThreadStateTrackBlueprint = tracks::StateBlueprint(
+    "thread_state_track_event",
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kProcessStateTrackBlueprint = tracks::StateBlueprint(
+    "process_state_track_event",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kGlobalStateTrackBlueprint = tracks::StateBlueprint(
+    "global_state_track_event",
+    tracks::DimensionBlueprints(tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
 constexpr auto kThreadTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
     "thread_merged_track_event",
     tracks::DimensionBlueprints(
@@ -111,6 +128,35 @@ constexpr auto kGlobalTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::UintDimensionBlueprint("merge_key_type"),
         tracks::StringIdDimensionBlueprint("merge_key_value")),
     tracks::DynamicNameBlueprint());
+
+constexpr auto kThreadStateTrackMergedBlueprint =
+    TrackCompressor::StateBlueprint(
+        "thread_state_merged_track_event",
+        tracks::DimensionBlueprints(
+            tracks::kThreadDimensionBlueprint,
+            tracks::LongDimensionBlueprint("parent_track_uuid"),
+            tracks::UintDimensionBlueprint("merge_key_type"),
+            tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::DynamicNameBlueprint());
+
+constexpr auto kProcessStateTrackMergedBlueprint =
+    TrackCompressor::StateBlueprint(
+        "process_state_merged_track_event",
+        tracks::DimensionBlueprints(
+            tracks::kProcessDimensionBlueprint,
+            tracks::LongDimensionBlueprint("parent_track_uuid"),
+            tracks::UintDimensionBlueprint("merge_key_type"),
+            tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::DynamicNameBlueprint());
+
+constexpr auto kGlobalStateTrackMergedBlueprint =
+    TrackCompressor::StateBlueprint(
+        "global_state_merged_track_event",
+        tracks::DimensionBlueprints(
+            tracks::LongDimensionBlueprint("parent_track_uuid"),
+            tracks::UintDimensionBlueprint("merge_key_type"),
+            tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::DynamicNameBlueprint());
 
 std::pair<uint32_t, StringId> GetMergeKey(
     const TrackEventTracker::DescriptorTrackReservation& reservation,
@@ -300,7 +346,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
           *reservation.tid, *reservation.pid);
       PERFETTO_CHECK(updated_utid == utid);
     }
-    return ResolvedDescriptorTrack::Thread(utid, reservation.is_counter, true);
+    return ResolvedDescriptorTrack::Thread(utid, reservation.is_counter,
+                                           reservation.is_state, true);
   }
 
   if (reservation.pid) {
@@ -325,24 +372,26 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
           std::nullopt, std::nullopt, *reservation.pid, kNullStringId,
           ThreadNamePriority::kTrackDescriptor);
     }
-    return ResolvedDescriptorTrack::Process(upid, reservation.is_counter, true);
+    return ResolvedDescriptorTrack::Process(upid, reservation.is_counter,
+                                            reservation.is_state, true);
   }
 
   if (parent_resolved_track) {
     switch (parent_resolved_track->scope()) {
       case ResolvedDescriptorTrack::Scope::kThread:
-        return ResolvedDescriptorTrack::Thread(parent_resolved_track->utid(),
-                                               reservation.is_counter,
-                                               false /* is_root */);
+        return ResolvedDescriptorTrack::Thread(
+            parent_resolved_track->utid(), reservation.is_counter,
+            reservation.is_state, false /* is_root */);
       case ResolvedDescriptorTrack::Scope::kProcess:
-        return ResolvedDescriptorTrack::Process(parent_resolved_track->upid(),
-                                                reservation.is_counter,
-                                                false /* is_root*/);
+        return ResolvedDescriptorTrack::Process(
+            parent_resolved_track->upid(), reservation.is_counter,
+            reservation.is_state, false /* is_root*/);
       case ResolvedDescriptorTrack::Scope::kGlobal:
         break;
     }
   }
-  return ResolvedDescriptorTrack::Global(reservation.is_counter);
+  return ResolvedDescriptorTrack::Global(reservation.is_counter,
+                                         reservation.is_state);
 }
 
 std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
@@ -423,6 +472,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
   }
 
   StringId name = reservation->name.is_null() ? event_name : reservation->name;
+
   // Don't capture anything by reference in these functions as they are
   // persisted in the case of merged tracks.
   auto set_parent_id = [this, parent_track_id](TrackId id) {
@@ -432,6 +482,71 @@ TrackEventTracker::InternDescriptorTrackImpl(
     }
   };
   using M = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;
+
+  if (resolved->is_state()) {
+    if (reservation->sibling_merge_behavior == M::kNone) {
+      TrackId id;
+      switch (resolved->scope()) {
+        case ResolvedDescriptorTrack::Scope::kThread:
+          id = context_->track_tracker->InternTrack(
+              kThreadStateTrackBlueprint,
+              tracks::Dimensions(resolved->utid(), static_cast<int64_t>(uuid)),
+              tracks::DynamicName(name), args_fn_root);
+          break;
+        case ResolvedDescriptorTrack::Scope::kProcess:
+          id = context_->track_tracker->InternTrack(
+              kProcessStateTrackBlueprint,
+              tracks::Dimensions(resolved->upid(), static_cast<int64_t>(uuid)),
+              tracks::DynamicName(name), args_fn_root);
+          break;
+        case ResolvedDescriptorTrack::Scope::kGlobal:
+          id = context_->track_tracker->InternTrack(
+              kGlobalStateTrackBlueprint,
+              tracks::Dimensions(static_cast<int64_t>(uuid)),
+              tracks::DynamicName(name), args_fn_root);
+          break;
+      }
+      if (parent_track_id) {
+        auto rr = (*context_->storage->mutable_track_table())[id];
+        rr.set_parent_id(parent_track_id);
+      }
+      return id;
+    }
+
+    auto [type, key] = GetMergeKey(*reservation, name);
+    switch (resolved->scope()) {
+      case ResolvedDescriptorTrack::Scope::kThread:
+        return context_->track_compressor->CreateTrackFactory(
+            kThreadStateTrackMergedBlueprint,
+            tracks::Dimensions(resolved->utid(),
+                               static_cast<int64_t>(reservation->parent_uuid),
+                               type, key),
+            tracks::DynamicName(name), args_fn_non_root,
+            parent_resolved_track && parent_resolved_track->is_root()
+                ? std::function<void(TrackId)>()
+                : set_parent_id);
+      case ResolvedDescriptorTrack::Scope::kProcess:
+        return context_->track_compressor->CreateTrackFactory(
+            kProcessStateTrackMergedBlueprint,
+            tracks::Dimensions(resolved->upid(),
+                               static_cast<int64_t>(reservation->parent_uuid),
+                               type, key),
+            tracks::DynamicName(name), args_fn_non_root,
+            parent_resolved_track && parent_resolved_track->is_root()
+                ? std::function<void(TrackId)>()
+                : set_parent_id);
+      case ResolvedDescriptorTrack::Scope::kGlobal:
+        return context_->track_compressor->CreateTrackFactory(
+            kGlobalStateTrackMergedBlueprint,
+            tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid),
+                               type, key),
+            tracks::DynamicName(name), args_fn_non_root,
+            parent_resolved_track && parent_resolved_track->is_root()
+                ? std::function<void(TrackId)>()
+                : set_parent_id);
+    }
+  }
+
   if (parent_track_id) {
     // If we have the track id, we should also always have the resolved track
     // too.
@@ -695,10 +810,12 @@ void TrackEventTracker::RecordTrackError(size_t stat_key, uint64_t track_uuid) {
 TrackEventTracker::ResolvedDescriptorTrack
 TrackEventTracker::ResolvedDescriptorTrack::Process(UniquePid upid,
                                                     bool is_counter,
+                                                    bool is_state,
                                                     bool is_root) {
   ResolvedDescriptorTrack track;
   track.scope_ = Scope::kProcess;
   track.is_counter_ = is_counter;
+  track.is_state_ = is_state;
   track.upid_ = upid;
   track.is_root_ = is_root;
   return track;
@@ -707,20 +824,24 @@ TrackEventTracker::ResolvedDescriptorTrack::Process(UniquePid upid,
 TrackEventTracker::ResolvedDescriptorTrack
 TrackEventTracker::ResolvedDescriptorTrack::Thread(UniqueTid utid,
                                                    bool is_counter,
+                                                   bool is_state,
                                                    bool is_root) {
   ResolvedDescriptorTrack track;
   track.scope_ = Scope::kThread;
   track.is_counter_ = is_counter;
+  track.is_state_ = is_state;
   track.utid_ = utid;
   track.is_root_ = is_root;
   return track;
 }
 
 TrackEventTracker::ResolvedDescriptorTrack
-TrackEventTracker::ResolvedDescriptorTrack::Global(bool is_counter) {
+TrackEventTracker::ResolvedDescriptorTrack::Global(bool is_counter,
+                                                   bool is_state) {
   ResolvedDescriptorTrack track;
   track.scope_ = Scope::kGlobal;
   track.is_counter_ = is_counter;
+  track.is_state_ = is_state;
   track.is_root_ = false;
   return track;
 }

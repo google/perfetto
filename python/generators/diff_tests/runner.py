@@ -150,6 +150,7 @@ class DiffTestsRunner:
         self.config.winscope_extensions, self.config.gpu_extensions,
         self.config.gpu_interned_data_extensions
     ]
+
     gen_trace_file = generate_trace_file(test, trace_descriptor_path,
                                          extension_descriptor_paths,
                                          self.config.simpleperf_descriptor)

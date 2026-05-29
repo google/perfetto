@@ -35,7 +35,9 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/state_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
+
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -135,6 +137,10 @@ class ArgsTracker {
 
   BoundInserter AddArgsTo(SliceId id) {
     return AddArgsTo(context_->storage->mutable_slice_table(), id);
+  }
+
+  BoundInserter AddArgsTo(tables::StateTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_state_table(), id);
   }
 
   BoundInserter AddArgsTo(tables::FlowTable::Id id) {

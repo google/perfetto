@@ -40,7 +40,9 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/sched_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/slice_tables_py.h"     // IWYU pragma: keep
+#include "src/trace_processor/tables/state_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
+
 #include "src/trace_processor/tables/track_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
