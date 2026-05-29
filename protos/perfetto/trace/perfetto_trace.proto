@@ -16271,9 +16271,9 @@ message TrackEvent {
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
 
-    // Event that provides a string value for a state track. |track_uuid| should
-    // refer to a state track and the state value is carried in the |name| or
-    // |name_iid| field. An empty or unset name field indicates "no state".
+    // Event that provides a state value update for a state track. |track_uuid|
+    // should refer to a state track, and the state value update is carried in the
+    // |state| field. An empty or unset state field indicates "no state" / "idle".
     TYPE_STATE = 5;
   }
   optional Type type = 9;
@@ -16494,12 +16494,14 @@ message TrackEvent {
 
   // New argument types go here :)
 
+  // Represents the state value for a state track.
   message State {
     oneof value {
       string string_value = 1;
     }
     extensions 10 to 9999;
   }
+  // State update value. Only supported/set when type is TYPE_STATE.
   optional State state = 57;
 
   // Extension range for typed events defined in external projects.
