@@ -188,6 +188,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     deps = [
       ":io",
       ":metatrace",
+      ":parallel_query_config",
       ":storage_minimal",
       "../../gn:default_deps",
       "../../protos/perfetto/common:zero",
@@ -395,17 +396,26 @@ if (enable_perfetto_trace_processor_sqlite) {
   }
 }  # if (enable_perfetto_trace_processor_sqlite)
 
+# Header-only helper for resolving the parallel-query kill-switch. Top-level
+# (not under the sqlite guard) so both :lib and the unittests can depend on it.
+source_set("parallel_query_config") {
+  sources = [ "parallel_query_config.h" ]
+  deps = [ "../../gn:default_deps" ]
+}
+
 perfetto_unittest_source_set("top_level_unittests") {
   testonly = true
 
   sources = [
     "forwarding_trace_parser_unittest.cc",
     "local_file_system_unittest.cc",
+    "parallel_query_config_unittest.cc",
     "ref_counted_unittest.cc",
     "trace_blob_unittest.cc",
   ]
   deps = [
     ":local_file_system",
+    ":parallel_query_config",
     ":storage_minimal",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",

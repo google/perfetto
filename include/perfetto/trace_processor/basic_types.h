@@ -220,6 +220,19 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // TraceProcessor platform. Disabled by default. Do not enable this when
   // executing untrusted SQL.
   bool enable_sql_file_access = false;
+
+  // When set to true, trace processor may execute independent queries
+  // concurrently on a pool of worker threads (each with its own SQLite
+  // connection), instead of serially on the calling thread. Off by default
+  // while the feature is stabilized; the PERFETTO_TP_PARALLEL_QUERIES
+  // environment variable, when set, overrides this ("0" forces off, any other
+  // value forces on) and acts as a runtime kill-switch.
+  bool enable_parallel_queries = false;
+
+  // Number of worker threads to use when |enable_parallel_queries| is on. 0
+  // means "auto" (derive from the hardware concurrency). Ignored when parallel
+  // queries are disabled.
+  uint32_t query_thread_count = 0;
 };
 
 // Represents a dynamically typed value returned by SQL.

@@ -20,6 +20,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -86,6 +87,7 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
+#include "src/trace_processor/parallel_query_config.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
@@ -335,7 +337,11 @@ std::string NormalizeExecuteQuerySql(const std::string& sql) {
 TraceProcessorImpl::TraceProcessorImpl(
     const Config& cfg,
     TraceProcessor::PlatformInterface* platform)
-    : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
+    : TraceProcessorStorageImpl(cfg, platform),
+      config_(cfg),
+      parallel_queries_enabled_(ResolveParallelQueriesEnabled(
+          cfg.enable_parallel_queries,
+          getenv("PERFETTO_TP_PARALLEL_QUERIES"))) {
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that
