@@ -88,7 +88,7 @@
     },
     {
       "scope": "perfetto.protos.TrackEvent.State",
-      "range": [10, 9999],
+      "range": [1000, 9999],
       "allocations": [
         {
           "name": "perfetto_tests",
