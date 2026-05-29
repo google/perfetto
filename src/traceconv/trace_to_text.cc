@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
+#include "src/traceconv/android_extension.descriptor.h"
 #include "src/traceconv/trace.descriptor.h"
 #include "src/traceconv/utils.h"
 #include "src/traceconv/winscope.descriptor.h"
@@ -57,6 +58,8 @@ class OnlineTraceToText {
                                    kTraceDescriptor.size());
     pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
                                    kWinscopeDescriptor.size());
+    pool_.AddFromFileDescriptorSet(kAndroidExtensionDescriptor.data(),
+                                   kAndroidExtensionDescriptor.size());
   }
   OnlineTraceToText(const OnlineTraceToText&) = delete;
   OnlineTraceToText& operator=(const OnlineTraceToText&) = delete;

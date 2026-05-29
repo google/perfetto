@@ -225,4 +225,33 @@
 //   added to the amalgamated headers.
 #include "perfetto_build_flags.h"  // no-include-violation-check
 
+// In the amalgamated SDK, optional features (zlib, re2) are opt-in. The
+// consumer drops a header named "perfetto_sdk_config.h" somewhere on their
+// include path; inside it they `#define PERFETTO_SDK_ENABLE_ZLIB 1` /
+// `#define PERFETTO_SDK_ENABLE_RE2 1` to opt in. Setting the macro to 0 (or
+// omitting the file entirely) keeps the feature off.
+#if PERFETTO_BUILDFLAG(PERFETTO_AMALGAMATED_SDK)
+
+#if defined(__has_include)
+#if __has_include("perfetto_sdk_config.h")
+#include "perfetto_sdk_config.h"  // no-include-violation-check gen_amalgamated:keep
+#endif
+#endif
+
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB
+#if defined(PERFETTO_SDK_ENABLE_ZLIB) && (PERFETTO_SDK_ENABLE_ZLIB == 1)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 0
+#endif
+
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2
+#if defined(PERFETTO_SDK_ENABLE_RE2) && (PERFETTO_SDK_ENABLE_RE2 == 1)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2() 0
+#endif
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_AMALGAMATED_SDK)
+
 #endif  // INCLUDE_PERFETTO_BASE_BUILD_CONFIG_H_

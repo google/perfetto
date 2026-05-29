@@ -75,6 +75,7 @@ from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.etw.tests import Etw
 from diff_tests.parser.fs.tests import Fs
+from diff_tests.parser.ftrace.adreno_cmdbatch_tests import AdrenoCmdbatch
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
@@ -90,6 +91,7 @@ from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
 from diff_tests.parser.gzip.tests import Gzip
 from diff_tests.parser.instruments.tests import Instruments
 from diff_tests.parser.json.tests import JsonParser
+from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
@@ -229,6 +231,7 @@ def fetch_all_diff_tests(
       GraphicsParser,
       JsonParser,
       KernelTrackevent,
+      Linux,
       MemoryParser,
       NetworkParser,
       BatteryStats,
@@ -270,6 +273,7 @@ def fetch_all_diff_tests(
       ParsingRssStats,
       ParsingSysStats,
       ParsingMemoryCounters,
+      AdrenoCmdbatch,
       BlockIo,
       FtraceCrop,
       Kprobes,

@@ -192,6 +192,15 @@ void TypedProtoDecoderBase::ParseAllFields() {
     PERFETTO_DCHECK(res.parse_res == ParseFieldResult::kOk);
     PERFETTO_DCHECK(res.field.valid());
     auto field_id = res.field.id();
+    // Fields with an id beyond the highest field id known in-tree at compile
+    // time are out-of-tree "extension" fields (e.g. carved out of TracePacket's
+    // `extensions 1000 to 1999` range). They are intentionally not stored here
+    // because fields_ is indexed directly by field id, and extension ids are
+    // sparse and potentially very high. Callers that need them must use
+    // TypedProtoDecoderBase::GetExtensionSlowly().
+    // TODO: store extensions in a sparse, object-pooled side table so they stay
+    // accessible without a buffer re-scan. See GetExtensionSlowly() for the
+    // proposed design.
     if (PERFETTO_UNLIKELY(field_id >= num_fields_))
       continue;
 
