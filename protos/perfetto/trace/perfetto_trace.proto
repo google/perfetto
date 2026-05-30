@@ -17310,6 +17310,8 @@ message ArtProcessMetadata {
   optional uint64 oom_free_bytes_until_oom = 7;
   // Stacktrace for the thread doing the failing allocation
   optional JavaStack oom_thread_java_stack = 8;
+  // Full OOME exception message
+  optional string oom_error_msg = 9;
 }
 
 // End of protos/perfetto/trace/profiling/art_process_metadata.proto
