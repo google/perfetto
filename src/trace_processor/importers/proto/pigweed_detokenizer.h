@@ -38,9 +38,9 @@ struct Arg {
   std::string format;
   size_t begin;
   size_t end;
-  // Whether the field width and/or precision use the '*' wildcard. Each wildcard
-  // consumes an extra integer argument from the payload that must be resolved
-  // before the value itself is formatted.
+  // Whether the field width and/or precision use the '*' wildcard. Each
+  // wildcard consumes an extra integer argument from the payload that must be
+  // resolved before the value itself is formatted.
   bool width_star = false;
   bool precision_star = false;
 };

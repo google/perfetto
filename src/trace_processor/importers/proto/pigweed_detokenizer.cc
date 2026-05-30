@@ -145,7 +145,8 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
   auto read_varint = [&](int64_t* out) -> bool {
     uint64_t raw;
     const uint8_t* old_ptr = ptr;
-    ptr = protozero::proto_utils::ParseVarInt(ptr, bytes.data + bytes.size, &raw);
+    ptr =
+        protozero::proto_utils::ParseVarInt(ptr, bytes.data + bytes.size, &raw);
     if (old_ptr == ptr) {
       return false;
     }

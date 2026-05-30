@@ -35,8 +35,8 @@ void AppendUint32(std::vector<uint8_t>* out, uint32_t value) {
 
 // Encodes a signed integer the way Pigweed does: zigzag, then varint.
 void AppendZigZagVarInt(std::vector<uint8_t>* out, int64_t value) {
-  uint64_t zigzag = (static_cast<uint64_t>(value) << 1) ^
-                    static_cast<uint64_t>(value >> 63);
+  uint64_t zigzag =
+      (static_cast<uint64_t>(value) << 1) ^ static_cast<uint64_t>(value >> 63);
   do {
     uint8_t byte = static_cast<uint8_t>(zigzag & 0x7F);
     zigzag >>= 7;
@@ -53,8 +53,8 @@ std::vector<uint8_t> BuildDatabase(uint32_t token, const std::string& format) {
   // Header.
   const char magic[] = {'T', 'O', 'K', 'E', 'N', 'S'};
   db.insert(db.end(), magic, magic + sizeof(magic));
-  db.push_back(0);  // version low
-  db.push_back(0);  // version high
+  db.push_back(0);       // version low
+  db.push_back(0);       // version high
   AppendUint32(&db, 1);  // entry_count
   AppendUint32(&db, 0);  // reserved
   // Entry: {token, date_removed}. 0xFFFFFFFF means "live".
