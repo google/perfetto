@@ -19486,7 +19486,7 @@ class JavaStack(_message.Message):
     def __init__(self, frames: _Optional[_Iterable[_Union[JavaFrame, _Mapping]]] = ...) -> None: ...
 
 class ArtProcessMetadata(_message.Message):
-    __slots__ = ("pid", "uid", "process_name", "package_name", "oom_allocation_size", "oom_total_bytes_free", "oom_free_bytes_until_oom", "oom_thread_java_stack")
+    __slots__ = ("pid", "uid", "process_name", "package_name", "oom_allocation_size", "oom_total_bytes_free", "oom_free_bytes_until_oom", "oom_thread_java_stack", "oom_error_msg")
     PID_FIELD_NUMBER: _ClassVar[int]
     UID_FIELD_NUMBER: _ClassVar[int]
     PROCESS_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -19495,6 +19495,7 @@ class ArtProcessMetadata(_message.Message):
     OOM_TOTAL_BYTES_FREE_FIELD_NUMBER: _ClassVar[int]
     OOM_FREE_BYTES_UNTIL_OOM_FIELD_NUMBER: _ClassVar[int]
     OOM_THREAD_JAVA_STACK_FIELD_NUMBER: _ClassVar[int]
+    OOM_ERROR_MSG_FIELD_NUMBER: _ClassVar[int]
     pid: int
     uid: int
     process_name: str
@@ -19503,7 +19504,8 @@ class ArtProcessMetadata(_message.Message):
     oom_total_bytes_free: int
     oom_free_bytes_until_oom: int
     oom_thread_java_stack: JavaStack
-    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., process_name: _Optional[str] = ..., package_name: _Optional[str] = ..., oom_allocation_size: _Optional[int] = ..., oom_total_bytes_free: _Optional[int] = ..., oom_free_bytes_until_oom: _Optional[int] = ..., oom_thread_java_stack: _Optional[_Union[JavaStack, _Mapping]] = ...) -> None: ...
+    oom_error_msg: str
+    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., process_name: _Optional[str] = ..., package_name: _Optional[str] = ..., oom_allocation_size: _Optional[int] = ..., oom_total_bytes_free: _Optional[int] = ..., oom_free_bytes_until_oom: _Optional[int] = ..., oom_thread_java_stack: _Optional[_Union[JavaStack, _Mapping]] = ..., oom_error_msg: _Optional[str] = ...) -> None: ...
 
 class ObfuscatedMember(_message.Message):
     __slots__ = ("obfuscated_name", "deobfuscated_name", "obfuscated_line_start", "obfuscated_line_end", "source_line_start", "source_line_end")
