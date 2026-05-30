@@ -1058,6 +1058,7 @@ cc_library {
         "perfetto_defaults",
     ],
     cflags: [
+        "-DPERFETTO_FORCE_DISABLE_ZLIB",
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DPERFETTO_SHLIB_SDK_IMPLEMENTATION",
         "-DZLIB_IMPLEMENTATION",
@@ -1067,7 +1068,6 @@ cc_library {
         android: {
             shared_libs: [
                 "liblog",
-                "libz",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
@@ -1076,7 +1076,6 @@ cc_library {
         host: {
             static_libs: [
                 "liblog",
-                "libz",
             ],
         },
         windows: {
@@ -1362,6 +1361,7 @@ cc_library_static {
         "perfetto_defaults",
     ],
     cflags: [
+        "-DPERFETTO_FORCE_DISABLE_ZLIB",
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DZLIB_IMPLEMENTATION",
     ],
@@ -1372,16 +1372,8 @@ cc_library_static {
     min_sdk_version: "30",
     target: {
         android: {
-            shared_libs: [
-                "libz",
-            ],
             static_libs: [
                 "perfetto_flags_c_lib",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libz",
             ],
         },
     },
@@ -2224,16 +2216,8 @@ cc_library_static {
     ],
     target: {
         android: {
-            shared_libs: [
-                "libz",
-            ],
             static_libs: [
                 "perfetto_flags_c_lib",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libz",
             ],
         },
     },
@@ -3495,16 +3479,8 @@ cc_test {
     test_config: "PerfettoIntegrationTests.xml",
     target: {
         android: {
-            shared_libs: [
-                "libz",
-            ],
             static_libs: [
                 "perfetto_flags_c_lib",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libz",
             ],
         },
     },
