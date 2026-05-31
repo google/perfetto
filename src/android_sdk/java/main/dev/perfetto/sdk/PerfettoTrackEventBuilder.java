@@ -19,20 +19,14 @@ package dev.perfetto.sdk;
 import com.google.errorprone.annotations.CompileTimeConstant;
 
 import java.util.ArrayList;
-import java.util.function.Supplier;
 
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace.Category;
-import dev.perfetto.sdk.PerfettoTrackEventExtra.Arg;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Counter;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.CounterTrack;
-import dev.perfetto.sdk.PerfettoTrackEventExtra.Field;
-import dev.perfetto.sdk.PerfettoTrackEventExtra.FieldContainer;
-import dev.perfetto.sdk.PerfettoTrackEventExtra.FieldNested;
-import dev.perfetto.sdk.PerfettoTrackEventExtra.Flow;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.NamedTrack;
+import dev.perfetto.sdk.PerfettoTrackEventExtra.NestedTracks;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.PerfettoPointer;
-import dev.perfetto.sdk.PerfettoTrackEventExtra.Proto;
 
 /** Builder for Perfetto track event extras. */
 public final class PerfettoTrackEventBuilder {
@@ -47,89 +41,61 @@ public final class PerfettoTrackEventBuilder {
   private boolean mIsBuilt = false;
   private boolean mIsDebug = false;
 
-  private PerfettoTrackEventBuilder mParent;
-  private FieldContainer mCurrentContainer;
-
   private PerfettoNativeMemoryCleaner mNativeMemoryCleaner;
   private static final PerfettoNativeMemoryCleaner.AllocationStats sNativeAllocationStats =
       new AllocationStats();
 
-  private static final class ObjectsPool {
-    public final Pool<Field> mFieldPool;
-    public final Pool<FieldNested> mFieldNestedPool;
-    public final Pool<Proto> mProtoPool;
-    public final Pool<Flow> mFlowPool;
-    public final Pool<Flow> mTerminatingFlowPool;
-
-    public ObjectsPool(int capacity) {
-      mFieldPool = new Pool<>(capacity);
-      mFieldNestedPool = new Pool<>(capacity);
-      mProtoPool = new Pool<>(capacity);
-      mFlowPool = new Pool<>(capacity);
-      mTerminatingFlowPool = new Pool<>(capacity);
-    }
-
-    public void reset() {
-      mFieldPool.reset();
-      mFieldNestedPool.reset();
-      mProtoPool.reset();
-      mFlowPool.reset();
-      mTerminatingFlowPool.reset();
-    }
-  }
-
-  private static final class ObjectsCache {
-    public final RingBuffer<NamedTrack> mNamedTrackCache;
-    public final RingBuffer<CounterTrack> mCounterTrackCache;
-    public final RingBuffer<Arg> mArgCache;
-
-    public ObjectsCache(int capacity) {
-      mNamedTrackCache = new RingBuffer<>(capacity);
-      mCounterTrackCache = new RingBuffer<>(capacity);
-      mArgCache = new RingBuffer<>(capacity);
-    }
-  }
-
-  private static final class LazyInitObjects {
-    private Counter mCounter = null;
-
-    private final PerfettoNativeMemoryCleaner mNativeMemoryCleaner;
-
-    private LazyInitObjects(PerfettoNativeMemoryCleaner memoryCleaner) {
-      this.mNativeMemoryCleaner = memoryCleaner;
-    }
-
-    public Counter getCounter() {
-      if (mCounter == null) {
-        mCounter = new Counter(mNativeMemoryCleaner);
-      }
-      return mCounter;
-    }
-  }
-
-  private Pool<PerfettoTrackEventBuilder> mChildBuildersCache;
-  private ObjectsPool mObjectsPool;
+  // Content cache for the flat track sugar (usingProcessNamedTrack /
+  // usingCounterTrack etc.), which builds a fresh handle per emit. Keyed by
+  // PerfettoTrack.flatCacheKey (folds in the counter flag, so a counter and a
+  // same-named track never collide). The usingTrack(PerfettoTrack) path needs no
+  // cache -- the handle owns its native track.
+  private RingBuffer<NestedTracks> mTrackCache;
   private ObjectsCache mObjectsCache;
-  private LazyInitObjects mLazyInitObjects;
 
   private final boolean mIsCategoryEnabled;
 
   private ArrayList<PerfettoPointer> mPendingPointers;
 
-  private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
-      () -> new PerfettoTrackEventBuilder(true, this);
-  private final Supplier<FieldNested> fieldNestedSupplier =
-      () -> new FieldNested(mNativeMemoryCleaner);
-  private final Supplier<Proto> protoSupplier = () -> new Proto(mNativeMemoryCleaner);
-  private final Supplier<Field> fieldSupplier = () -> new Field(mNativeMemoryCleaner);
-  private final Supplier<Flow> flowSupplier = () -> new Flow(mNativeMemoryCleaner);
+  // Tracks whether the builder is between a beginProto() and its endProto(), so
+  // the debug-only state checks can validate that field operations are scoped to
+  // a proto block. Plain proto fields are written straight into the body; the
+  // depth count gates endNested() back-fills.
+  private boolean mInProto;
+  private int mProtoDepth;
+
+  // Whether this event carries any interned proto field. Interned strings can't
+  // be Java-encoded -- their iids are assigned per-sequence by the native
+  // interning tables -- so addFieldWithInterning() hands them to the RawBody
+  // extra, which carries them as CSTR_INTERNED fields alongside the body. This
+  // flag makes emit() register RawBody even when the body itself is empty.
+  private boolean mHasInterned;
+
+  // The TrackEvent body: debug annotations, flows, counter value and plain proto
+  // fields are encoded here, then handed to native as one raw proto field. Owned
+  // by the root builder (already thread-local), so the hot path does no per-call
+  // ThreadLocal lookup. Reset at the start of each event.
+  private ProtoWriter mBody;
+
+  // Reused extra that copies the encoded body into its own native buffer and
+  // carries it to native as one raw proto field.
+  private PerfettoTrackEventExtra.RawBody mRawBody;
+
+  // Single reused native counter extra, created on first use. A counter value
+  // has no identity to cache, so one object per (thread-local) builder suffices
+  // -- no pool or ring buffer. It stays native (not body-encoded) because a
+  // CriticalNative value-set is cheaper than routing one tiny field through the
+  // body. Flows differ: an event may carry several, so re-adding them would need
+  // a Flow pool, and they stay body-encoded instead.
+  private Counter mCounter;
+
 
   private static final PerfettoTrackEventBuilder NO_OP_BUILDER =
-      new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false, /* parent= */ null);
+      new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false);
 
   public static final ThreadLocal<PerfettoTrackEventBuilder> sThreadLocalBuilder =
       ThreadLocal.withInitial(
-          () -> new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null));
+          () -> new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true));
 
   public static PerfettoTrackEventBuilder newEvent(
       int traceType, Category category, boolean isDebug) {
@@ -139,28 +105,18 @@ public final class PerfettoTrackEventBuilder {
     return NO_OP_BUILDER;
   }
 
-  private PerfettoTrackEventBuilder(boolean isCategoryEnabled, PerfettoTrackEventBuilder parent) {
+  private PerfettoTrackEventBuilder(boolean isCategoryEnabled) {
     mIsCategoryEnabled = isCategoryEnabled;
     if (!mIsCategoryEnabled) {
       // No fields of this builder will be used, no need to initialize them.
       return;
     }
-    if (parent == null) {
-      // We are creating a root builder which will be saved in thread local storage.
-      mParent = null;
-      mNativeMemoryCleaner = new PerfettoNativeMemoryCleaner(null);
-      mChildBuildersCache = new Pool<>(DEFAULT_EXTRA_CACHE_SIZE);
-      mObjectsPool = new ObjectsPool(DEFAULT_EXTRA_CACHE_SIZE);
-      mObjectsCache = new ObjectsCache(DEFAULT_EXTRA_CACHE_SIZE);
-      mLazyInitObjects = new LazyInitObjects(mNativeMemoryCleaner);
-      mPendingPointers = new ArrayList<>(DEFAULT_PENDING_POINTERS_LIST_SIZE);
-    } else {
-      // We are create a child builder for proto fields, read all cache fields from the parent.
-      mParent = parent;
-      mNativeMemoryCleaner = parent.mNativeMemoryCleaner;
-      readAllCacheFieldsFromParent(parent);
-    }
-
+    mNativeMemoryCleaner = new PerfettoNativeMemoryCleaner(null);
+    mTrackCache = new RingBuffer<>(DEFAULT_EXTRA_CACHE_SIZE);
+    mObjectsCache = new ObjectsCache(DEFAULT_EXTRA_CACHE_SIZE);
+    mPendingPointers = new ArrayList<>(DEFAULT_PENDING_POINTERS_LIST_SIZE);
+    mBody = new ProtoWriter();
+    mRawBody = new PerfettoTrackEventExtra.RawBody(mNativeMemoryCleaner);
     mExtra = new PerfettoTrackEventExtra(mNativeMemoryCleaner);
   }
 
@@ -174,8 +130,20 @@ public final class PerfettoTrackEventBuilder {
     }
 
     mIsBuilt = true;
+    int bodyLen = mBody.position();
+    if (bodyLen > 0 || mHasInterned) {
+      // mRawBody is a permanent field of this (thread-local) builder, so it can
+      // never be GC'd mid-emit and does not need mPendingPointers tracking
+      // (which exists only to keep transiently-referenced extras alive across
+      // the native call). Register it on the extra directly. It also carries any
+      // interned fields, so it must ride even when the body is empty.
+      mExtra.addPerfettoPointer(mRawBody);
+    }
+    // One JNI crossing: native_emit copies the heap-encoded body into the
+    // RawBody's native buffer (when bodyLen > 0) and emits in the same call.
     PerfettoTrackEventExtra.native_emit(
-        mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
+        mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr(),
+        mRawBody.bodyPtr(), mBody.buffer(), bodyLen);
   }
 
   /** Initialize the builder for a new trace event. */
@@ -185,7 +153,6 @@ public final class PerfettoTrackEventBuilder {
       return this;
     }
     mIsBuilt = false;
-    mParent = null;
     mIsDebug = isDebug;
     updateNativeMemoryCleanerForDebug(mIsDebug);
     mTraceType = traceType;
@@ -193,24 +160,12 @@ public final class PerfettoTrackEventBuilder {
     mEventName = "";
 
     mExtra.reset();
-    mChildBuildersCache.reset();
-    mObjectsPool.reset();
     mPendingPointers.clear();
-    mCurrentContainer = null;
+    mInProto = false;
+    mProtoDepth = 0;
+    mHasInterned = false;
+    mBody.reset();
 
-    return this;
-  }
-
-  private PerfettoTrackEventBuilder initChildBuilderForProto(
-      PerfettoTrackEventBuilder parent, FieldContainer fieldContainer) {
-    mIsBuilt = false;
-    mParent = parent;
-    mIsDebug = parent.mIsDebug;
-    updateNativeMemoryCleanerForDebug(mIsDebug);
-
-    readAllCacheFieldsFromParent(parent);
-
-    mCurrentContainer = fieldContainer;
     return this;
   }
 
@@ -234,14 +189,6 @@ public final class PerfettoTrackEventBuilder {
     }
   }
 
-  private void readAllCacheFieldsFromParent(PerfettoTrackEventBuilder parent) {
-    mChildBuildersCache = parent.mChildBuildersCache;
-    mObjectsPool = parent.mObjectsPool;
-    mObjectsCache = parent.mObjectsCache;
-    mLazyInitObjects = parent.mLazyInitObjects;
-    mPendingPointers = parent.mPendingPointers;
-  }
-
   /** Sets the event name for the track event. */
   public PerfettoTrackEventBuilder setEventName(String eventName) {
     mEventName = eventName;
@@ -256,13 +203,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
-    if (arg == null || !arg.getName().equals(name)) {
-      arg = new Arg(name, mNativeMemoryCleaner);
-      mObjectsCache.mArgCache.put(name.hashCode(), arg);
-    }
-    arg.setValueInt64(val);
-    addPerfettoPointerToExtra(arg);
+    PerfettoTrackEventEncoder.addArg(mBody, name, val);
     return this;
   }
 
@@ -274,13 +215,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
-    if (arg == null || !arg.getName().equals(name)) {
-      arg = new Arg(name, mNativeMemoryCleaner);
-      mObjectsCache.mArgCache.put(name.hashCode(), arg);
-    }
-    arg.setValueBool(val);
-    addPerfettoPointerToExtra(arg);
+    PerfettoTrackEventEncoder.addArg(mBody, name, val);
     return this;
   }
 
@@ -292,13 +227,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
-    if (arg == null || !arg.getName().equals(name)) {
-      arg = new Arg(name, mNativeMemoryCleaner);
-      mObjectsCache.mArgCache.put(name.hashCode(), arg);
-    }
-    arg.setValueDouble(val);
-    addPerfettoPointerToExtra(arg);
+    PerfettoTrackEventEncoder.addArg(mBody, name, val);
     return this;
   }
 
@@ -310,13 +239,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Arg arg = mObjectsCache.mArgCache.get(name.hashCode());
-    if (arg == null || !arg.getName().equals(name)) {
-      arg = new Arg(name, mNativeMemoryCleaner);
-      mObjectsCache.mArgCache.put(name.hashCode(), arg);
-    }
-    arg.setValueString(val);
-    addPerfettoPointerToExtra(arg);
+    PerfettoTrackEventEncoder.addArg(mBody, name, val);
     return this;
   }
 
@@ -333,9 +256,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Flow flow = mObjectsPool.mFlowPool.get(flowSupplier);
-    flow.setProcessFlow(id);
-    addPerfettoPointerToExtra(flow);
+    PerfettoTrackEventEncoder.addFlow(mBody, id);
     return this;
   }
 
@@ -352,18 +273,20 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Flow terminatingFlow = mObjectsPool.mTerminatingFlowPool.get(flowSupplier);
-    terminatingFlow.setProcessTerminatingFlow(id);
-    addPerfettoPointerToExtra(terminatingFlow);
+    PerfettoTrackEventEncoder.addTerminatingFlow(mBody, id);
     return this;
   }
 
   /**
    * Emits this event on {@code track}, a (possibly nested) named track. The
-   * descriptor for each level of the chain is emitted once per sequence; the
-   * native side derives the per-level uuids. The handle owns its native track
-   * (built once on first use, reused for its lifetime), so a reused {@code track}
-   * -- the intended {@code static final} usage -- is allocation-free.
+   * descriptor for each level of the chain is emitted once per sequence. The
+   * native side derives the per-level uuids; nothing is hardcoded here. The
+   * {@link NestedTracks} wrapper is cached per {@link PerfettoTrack}, so this is
+   * allocation-free after the first use of a given track.
+   *
+   * <p>This is the single named/nested track entry point. The flat {@code
+   * usingProcessNamedTrack} / {@code usingThreadNamedTrack} helpers below are
+   * thin sugar over it.
    */
   public PerfettoTrackEventBuilder usingTrack(PerfettoTrack track) {
     if (!mIsCategoryEnabled) {
@@ -544,16 +467,19 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /** Sets a long counter value on the event. */
-  public PerfettoTrackEventBuilder setCounter(long val) {
+
+    public PerfettoTrackEventBuilder setCounter(long val) {
     if (!mIsCategoryEnabled) {
       return this;
     }
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Counter counter = mLazyInitObjects.getCounter();
-    counter.setValueInt64(val);
-    addPerfettoPointerToExtra(counter);
+    if (mCounter == null) {
+      mCounter = new Counter(mNativeMemoryCleaner);
+    }
+    mCounter.setValueInt64(val);
+    addPerfettoPointerToExtra(mCounter);
     return this;
   }
 
@@ -565,9 +491,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Counter counter = mLazyInitObjects.getCounter();
-    counter.setValueDouble(val);
-    addPerfettoPointerToExtra(counter);
+    if (mCounter == null) {
+      mCounter = new Counter(mNativeMemoryCleaner);
+    }
+    mCounter.setValueDouble(val);
+    addPerfettoPointerToExtra(mCounter);
     return this;
   }
 
@@ -579,9 +507,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueInt64(id, val);
-    addFieldToContainer(field);
+    PerfettoTrackEventEncoder.protoVarInt(mBody, (int) id, val);
     return this;
   }
 
@@ -593,9 +519,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueDouble(id, val);
-    addFieldToContainer(field);
+    PerfettoTrackEventEncoder.protoDouble(mBody, (int) id, val);
     return this;
   }
 
@@ -607,16 +531,16 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueString(id, val);
-    addFieldToContainer(field);
+    PerfettoTrackEventEncoder.protoString(mBody, (int) id, val);
     return this;
   }
 
   /**
-   * Adds a proto field with field id { @code id} and value { @code val}.
-   * { @code internedTypeId} must be non-zero, in which case the string { @code val} will be interned
-   * with the given type ID. If { @code internedTypeId} is zero, the string is dropped silently.
+   * Adds a proto field with field id {@code id} whose string {@code val} is
+   * interned under {@code internedTypeId} (an InternedData field number). The
+   * string is interned natively (its iid is assigned per-sequence), riding on the
+   * event's raw-body extra alongside the encoded body. {@code internedTypeId}
+   * must be non-zero.
    */
   public PerfettoTrackEventBuilder addFieldWithInterning(long id, String val, long internedTypeId) {
     if (!mIsCategoryEnabled) {
@@ -625,9 +549,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-    field.setValueWithInterning(id, val, internedTypeId);
-    addFieldToContainer(field);
+    if (internedTypeId == 0) {
+      return this;
+    }
+    mRawBody.addInterned(id, val, internedTypeId);
+    mHasInterned = true;
     return this;
   }
 
@@ -645,12 +571,8 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Proto proto = mObjectsPool.mProtoPool.get(protoSupplier);
-    proto.clearFields();
-    addPerfettoPointerToExtra(proto);
-    return mChildBuildersCache
-        .get(perfettoTrackEventBuilderSupplier)
-        .initChildBuilderForProto(this, proto);
+    mInProto = true;
+    return this;
   }
 
   /** Ends a proto field. */
@@ -661,7 +583,8 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkMatchingBeginProto();
     }
-    return mParent;
+    mInProto = false;
+    return this;
   }
 
   /**
@@ -675,12 +598,9 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    FieldNested field = mObjectsPool.mFieldNestedPool.get(fieldNestedSupplier);
-    field.setId(id);
-    addFieldToContainer(field);
-    return mChildBuildersCache
-        .get(perfettoTrackEventBuilderSupplier)
-        .initChildBuilderForProto(this, field);
+    PerfettoTrackEventEncoder.protoBeginNested(mBody, (int) id);
+    mProtoDepth++;
+    return this;
   }
 
   /** Ends a nested proto field. */
@@ -688,24 +608,17 @@ public final class PerfettoTrackEventBuilder {
     if (!mIsCategoryEnabled) {
       return this;
     }
-
     if (mIsDebug) {
       checkMatchingBeginNested();
     }
-
-    return mParent;
-  }
-
-  private void addFieldToContainer(PerfettoPointer field) {
-    // Keep reference to the java object, `mCurrentContainer` uses a native part of the field
-    // object.
-    mPendingPointers.add(field);
-    mCurrentContainer.addField(field);
+    mProtoDepth--;
+    PerfettoTrackEventEncoder.protoEndNested(mBody);
+    return this;
   }
 
   private void addPerfettoPointerToExtra(PerfettoPointer arg) {
-    // Keep reference to the java object, `mCurrentContainer` uses a native part of the field
-    // object.
+    // Keep a reference to the Java object; the extra holds a native pointer into
+    // the object.
     mPendingPointers.add(arg);
     mExtra.addPerfettoPointer(arg);
   }
@@ -748,31 +661,6 @@ public final class PerfettoTrackEventBuilder {
     }
   }
 
-  private static final class Pool<T> {
-    private final int mCapacity;
-    private final T[] mValueArray;
-    private int mIdx = 0;
-
-    Pool(int capacity) {
-      mCapacity = capacity;
-      mValueArray = (T[]) new Object[capacity];
-    }
-
-    public void reset() {
-      mIdx = 0;
-    }
-
-    public T get(Supplier<T> supplier) {
-      if (mIdx >= mCapacity) {
-        return supplier.get();
-      }
-      if (mValueArray[mIdx] == null) {
-        mValueArray[mIdx] = supplier.get();
-      }
-      return mValueArray[mIdx++];
-    }
-  }
-
   private void checkState() {
     if (mIsBuilt) throwStateError();
   }
@@ -783,26 +671,9 @@ public final class PerfettoTrackEventBuilder {
         "This builder has already been used. Create a new builder for another event.");
   }
 
-  private boolean isBuildingTopLevelExtra() {
-    return mParent == null && mCurrentContainer == null;
-  }
-
-  private boolean isBuildingProto() {
-    return (mParent != null && mParent.isBuildingTopLevelExtra()) && mCurrentContainer != null;
-  }
-
-  private boolean isBuildingNestedProto() {
-    return (mParent != null && (mParent.isBuildingProtoOrNestedProto()))
-        && mCurrentContainer != null;
-  }
-
-  private boolean isBuildingProtoOrNestedProto() {
-    return isBuildingProto() || isBuildingNestedProto();
-  }
-
   private void checkNotBuildingProto() {
     checkState();
-    if (isBuildingProtoOrNestedProto()) throwNotBuildingProtoError();
+    if (mInProto) throwNotBuildingProtoError();
   }
 
   /** Outlined to keep the caller method small and more likely to be inlined. */
@@ -812,7 +683,7 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkBuildingProto() {
     checkState();
-    if (isBuildingTopLevelExtra()) throwBuildingProtoError();
+    if (!mInProto) throwBuildingProtoError();
   }
 
   /** Outlined to keep the caller method small and more likely to be inlined. */
@@ -822,7 +693,7 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkMatchingBeginNested() {
     checkState();
-    if (!isBuildingNestedProto()) throwMatchingBeginNestedError();
+    if (mProtoDepth == 0) throwMatchingBeginNestedError();
   }
 
   /** Outlined to keep the caller method small and more likely to be inlined. */
@@ -832,11 +703,21 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkMatchingBeginProto() {
     checkState();
-    if (!isBuildingProto()) throwMatchingBeginProtoError();
+    if (!mInProto || mProtoDepth > 0) throwMatchingBeginProtoError();
   }
 
   /** Outlined to keep the caller method small and more likely to be inlined. */
   private static void throwMatchingBeginProtoError() {
     throw new IllegalStateException("No matching beginProto call.");
+  }
+
+  private static final class ObjectsCache {
+    public final RingBuffer<NamedTrack> mNamedTrackCache;
+    public final RingBuffer<CounterTrack> mCounterTrackCache;
+
+    public ObjectsCache(int capacity) {
+      mNamedTrackCache = new RingBuffer<>(capacity);
+      mCounterTrackCache = new RingBuffer<>(capacity);
+    }
   }
 }

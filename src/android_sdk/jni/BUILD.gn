@@ -10,6 +10,7 @@ SOURCE_SET_SOURCES = [
   "dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
   "dev_perfetto_sdk_PerfettoTrackEventExtra.h",
   "macros.h",
+  "string_buffer.h",
 ]
 
 #TODO(ktimofeev): use builtin 'nativehelper' lib when building in AOSP.

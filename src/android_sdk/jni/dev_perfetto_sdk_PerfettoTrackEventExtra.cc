@@ -498,13 +498,59 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit(JNIEnv* env,
                                                           jint type,
                                                           jlong cat_ptr,
                                                           jstring name,
-                                                          jlong extra_ptr) {
+                                                          jlong extra_ptr,
+                                                          jlong raw_body_ptr,
+                                                          jbyteArray body,
+                                                          jint body_len) {
+  auto* raw_body = toPointer<sdk_for_jni::RawBody>(raw_body_ptr);
+  if (body_len > 0) {
+    uint8_t* dst = raw_body->reserve_body(static_cast<size_t>(body_len));
+    env->GetByteArrayRegion(body, 0, body_len, reinterpret_cast<jbyte*>(dst));
+  }
   sdk_for_jni::Category* category = toPointer<sdk_for_jni::Category>(cat_ptr);
   trace_event(type, category->get(),
               StringBuffer::utf16_to_ascii(env, name).data(),
               toPointer<sdk_for_jni::Extra>(extra_ptr));
   StringBuffer::reset();
+  raw_body->reset_after_emit();
 }
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_init(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(new sdk_for_jni::RawBody());
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_delete(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(&sdk_for_jni::RawBody::delete_raw_body);
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_get_extra_ptr(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  return toJLong(toPointer<sdk_for_jni::RawBody>(ptr)->get());
+}
+
+static void dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_add_interned(
+    JNIEnv* env,
+    jclass,
+    jlong ptr,
+    jlong id,
+    jstring val,
+    jlong interned_type_id) {
+  toPointer<sdk_for_jni::RawBody>(ptr)->add_interned(
+      static_cast<uint32_t>(id), StringBuffer::utf16_to_ascii(env, val).data(),
+      static_cast<uint32_t>(interned_type_id));
+}
+
+static const JNINativeMethod gRawBodyMethods[] = {
+    {"native_init", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_init},
+    {"native_add_interned", "(JJLjava/lang/String;J)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_add_interned},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_delete},
+    {"native_get_extra_ptr", "(J)J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraRawBody_get_extra_ptr}};
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_init(
     PERFETTO_JNI_HOST_PARAMS) {
@@ -544,7 +590,7 @@ static const JNINativeMethod gExtraMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_add_arg},
     {"native_clear_args", "(J)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_clear_args},
-    {"native_emit", "(IJLjava/lang/String;J)V",
+    {"native_emit", "(IJLjava/lang/String;JJ[BI)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit}};
 
 static const JNINativeMethod gProtoMethods[] = {
@@ -723,6 +769,12 @@ int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
       gCounterTrackMethods, NELEM(gCounterTrackMethods));
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$RawBody"),
+      gRawBodyMethods, NELEM(gRawBodyMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register raw body native methods.");
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register counter track native methods.");
 

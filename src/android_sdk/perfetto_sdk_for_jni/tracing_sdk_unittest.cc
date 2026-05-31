@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cstring>
+
 #include "test/gtest_and_gmock.h"
 
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
@@ -117,25 +119,18 @@ TEST(TracingSdkForJniTest, mySimpleTest) {
 
   auto tracing_session = StartTracing();
 
-  // In this test we generate a named slice with an additional payload
-
-  sdk_for_jni::DebugArg player_number_extra("player_number");
-  player_number_extra.get()->arg_int64.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64;
-  player_number_extra.get()->arg_int64.name = player_number_extra.name();
-  player_number_extra.get()->arg_int64.value = 42;
-
-  sdk_for_jni::DebugArg player_alive_extra("player_alive");
-  player_alive_extra.get()->arg_bool.header.type =
-      PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL;
-  player_alive_extra.get()->arg_bool.name = player_alive_extra.name();
-  player_alive_extra.get()->arg_bool.value = true;
+  // Debug args / proto fields are now encoded into the body on the Java side and
+  // handed to native via RawBody, which splices them verbatim onto the event as
+  // one RAW proto field. Here we hand RawBody the wire bytes of
+  // `debug_annotations { int_value: 42 }` (TrackEvent field 4, length 2, holding
+  // DebugAnnotation field 4 = int_value, varint 42).
+  static const uint8_t kBody[] = {0x22, 0x02, 0x20, 0x2a};
+  sdk_for_jni::RawBody body;
+  std::memcpy(body.reserve_body(sizeof(kBody)), kBody, sizeof(kBody));
 
   sdk_for_jni::Extra extra;
   extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
-      &player_number_extra.get()->arg_int64));
-  extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
-      &player_alive_extra.get()->arg_bool));
+      const_cast<PerfettoTeHlExtraProtoFields*>(body.get())));
   trace_event(PERFETTO_TE_TYPE_SLICE_BEGIN, category.get(), "DrawPlayer",
               &extra);
 
@@ -153,8 +148,8 @@ TEST(TracingSdkForJniTest, mySimpleTest) {
   }
 
   const char* actual = R"(packet {
-data { categories: [rendering] names: [DrawPlayer], debug_annotation_names: [player_number, player_alive] }
-event { type: 1, debug_annotations: [int: 42, bool: 1] }
+data { categories: [rendering] names: [DrawPlayer], debug_annotation_names: [] }
+event { type: 1, debug_annotations: [int: 42] }
 }
 packet {
 event { type: 2, debug_annotations: [] }

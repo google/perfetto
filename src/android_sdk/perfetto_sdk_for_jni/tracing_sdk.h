@@ -261,6 +261,90 @@ class Counter {
   PerfettoTeHlExtraCounterUnion counter_;
 };
 
+// The single extra carrying everything the Java side encodes for a track event:
+// the pre-serialized body (debug args, flows, counter value, plain proto fields)
+// spliced in verbatim as one RAW proto field, plus any interned string fields.
+// All ride one PROTO_FIELDS extra. The body bytes are copied once, on the
+// Java->native crossing, into this object's own native buffer under a @FastNative
+// method (which skips the JNI thread-state transition that dominates a small
+// copy). Interned fields can't live in the verbatim body -- their iid is
+// per-sequence native state -- so they are carried as CSTR_INTERNED fields here
+// and interned natively at emit time, alongside the raw body.
+class RawBody {
+ public:
+  RawBody() {
+    raw_.header.type = PERFETTO_TE_HL_PROTO_TYPE_RAW;
+    raw_.header.id = 0;
+    raw_.buf = nullptr;
+    raw_.len = 0;
+    proto_.header.type = PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS;
+    rebuild();
+  }
+
+  // Ensures the native buffer can hold len bytes, sets raw_.len, and returns a
+  // writable pointer the JNI copy fills from the Java byte[]. raw_.buf is kept
+  // in sync with the (possibly reallocated) buffer.
+  uint8_t* reserve_body(size_t len) {
+    if (len > buf_.size()) {
+      buf_.resize(len);
+    }
+    raw_.buf = buf_.data();
+    raw_.len = len;
+    return buf_.data();
+  }
+
+  // Adds an interned string proto field carried alongside the raw body and
+  // interned natively at emit time. Interned fields are rare, so this per-field
+  // crossing is fine; events without one pay nothing.
+  void add_interned(uint32_t id, const char* str, uint32_t interned_type_id) {
+    interned_strs_.emplace_back(str);
+    PerfettoTeHlProtoFieldCstrInterned field{};
+    field.header.type = PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED;
+    field.header.id = id;
+    field.interned_type_id = interned_type_id;
+    interned_.push_back(field);
+    rebuild();
+  }
+
+  // Clears per-event state after the emit consumes it. Cheap on the common path
+  // (no interned fields): a single store plus an empty check.
+  void reset_after_emit() {
+    raw_.len = 0;
+    if (!interned_.empty()) {
+      interned_.clear();
+      interned_strs_.clear();
+      rebuild();
+    }
+  }
+
+  static void delete_raw_body(RawBody* raw_body) { delete raw_body; }
+
+  const PerfettoTeHlExtraProtoFields* get() const { return &proto_; }
+
+ private:
+  // Rebuilds the NULL-terminated field list (the raw body field, then each
+  // interned field). Re-derives every pointer from current storage, so it is
+  // safe after a vector reallocation.
+  void rebuild() {
+    fields_.clear();
+    fields_.push_back(&raw_.header);
+    for (size_t i = 0; i < interned_.size(); ++i) {
+      interned_[i].str = interned_strs_[i].c_str();
+      fields_.push_back(&interned_[i].header);
+    }
+    fields_.push_back(nullptr);
+    proto_.fields = fields_.data();
+  }
+
+  DISALLOW_COPY_AND_ASSIGN(RawBody);
+  PerfettoTeHlExtraProtoFields proto_;
+  PerfettoTeHlProtoFieldRaw raw_;
+  std::vector<uint8_t> buf_;
+  std::vector<PerfettoTeHlProtoFieldCstrInterned> interned_;
+  std::vector<std::string> interned_strs_;
+  std::vector<PerfettoTeHlProtoField*> fields_;
+};
+
 /**
  * @brief Represents a debug argument for a trace event.
  */

@@ -47,6 +47,10 @@ enum PerfettoTeHlProtoFieldType {
   PERFETTO_TE_HL_PROTO_TYPE_DOUBLE = 6,
   PERFETTO_TE_HL_PROTO_TYPE_FLOAT = 7,
   PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED = 8,
+  // Pre-serialized protobuf appended verbatim into the enclosing message (no
+  // field-id wrapper). Lets a caller batch-encode several fields on its own side
+  // and hand them over as one blob. `header.id` is ignored.
+  PERFETTO_TE_HL_PROTO_TYPE_RAW = 9,
 };
 
 // Common header for all the proto fields.
@@ -77,6 +81,14 @@ struct PerfettoTeHlProtoFieldCstrInterned {
 // PERFETTO_TE_HL_PROTO_TYPE_BYTES
 struct PerfettoTeHlProtoFieldBytes {
   struct PerfettoTeHlProtoField header;
+  const void* buf;
+  size_t len;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_RAW
+struct PerfettoTeHlProtoFieldRaw {
+  struct PerfettoTeHlProtoField header;
+  // Pre-serialized protobuf, appended verbatim (no field-id/length wrapper).
   const void* buf;
   size_t len;
 };
@@ -122,6 +134,7 @@ struct PerfettoTeHlProtoFieldFloat {
 union PerfettoTeHlProtoFieldUnion {
   struct PerfettoTeHlProtoFieldCstr field_cstr;
   struct PerfettoTeHlProtoFieldBytes field_bytes;
+  struct PerfettoTeHlProtoFieldRaw field_raw;
   struct PerfettoTeHlProtoFieldNested field_nested;
   struct PerfettoTeHlProtoFieldVarInt field_varint;
   struct PerfettoTeHlProtoFieldFixed64 field_fixed64;

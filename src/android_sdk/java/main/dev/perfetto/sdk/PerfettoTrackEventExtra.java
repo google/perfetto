@@ -61,7 +61,8 @@ final class PerfettoTrackEventExtra {
   private static native void native_clear_args(long ptr);
 
   @FastNative
-  public static native void native_emit(int type, long tag, String name, long ptr);
+  public static native void native_emit(
+      int type, long tag, String name, long ptr, long rawBodyPtr, byte[] body, int bodyLen);
 
   /** Represents a native pointer to a Perfetto C SDK struct. E.g. PerfettoTeHlExtra. */
   interface PerfettoPointer {
@@ -473,5 +474,52 @@ final class PerfettoTrackEventExtra {
 
     @CriticalNative
     private static native void native_set_id(long ptr, long id);
+  }
+
+  static final class RawBody implements PerfettoPointer {
+    private final long mPtr;
+    private final long mExtraPtr;
+
+    RawBody(PerfettoNativeMemoryCleaner memoryCleaner) {
+      mPtr = native_init();
+      mExtraPtr = native_get_extra_ptr(mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
+    }
+
+    @Override
+    public long getPtr() {
+      return mExtraPtr;
+    }
+
+    /**
+     * Native RawBody pointer. The body bytes are copied into this object's
+     * buffer inside the {@code native_emit} call (one JNI crossing for copy and
+     * emit together), so there is no separate set-body crossing.
+     */
+    long bodyPtr() {
+      return mPtr;
+    }
+
+    /**
+     * Adds an interned string proto field that rides alongside the body and is
+     * interned natively at emit time (its iid is per-sequence native state the
+     * verbatim body can't carry).
+     */
+    void addInterned(long id, String val, long internedTypeId) {
+      native_add_interned(mPtr, id, val, internedTypeId);
+    }
+
+    @CriticalNative
+    private static native long native_init();
+
+    @FastNative
+    private static native void native_add_interned(
+        long ptr, long id, String val, long internedTypeId);
+
+    @CriticalNative
+    private static native long native_delete();
+
+    @CriticalNative
+    private static native long native_get_extra_ptr(long ptr);
   }
 }
