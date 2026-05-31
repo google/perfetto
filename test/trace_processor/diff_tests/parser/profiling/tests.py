@@ -214,7 +214,7 @@ class Profiling(TestSuite):
         }
 
         packet {
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
           incremental_state_cleared: true
           trusted_packet_sequence_id: 1
           timestamp: 0
@@ -418,7 +418,7 @@ class Profiling(TestSuite):
             }
           }
           trusted_packet_sequence_id: 4
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           interned_data {
@@ -531,7 +531,7 @@ class Profiling(TestSuite):
             }
           }
           trusted_packet_sequence_id: 4
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           interned_data {

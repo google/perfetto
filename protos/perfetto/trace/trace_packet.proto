@@ -405,7 +405,7 @@ message TracePacket {
   // packet on this sequence (regardless of SEQ_NEEDS_INCREMENTAL_STATE).
   optional TracePacketDefaults trace_packet_defaults = 59;
 
-  // Flag set by the service if, for the current packet sequence (see
+  // Set by the service if, for the current packet sequence (see
   // |trusted_packet_sequence_id|), either:
   // * this is the first packet, or
   // * one or multiple packets were dropped since the last packet that the
@@ -413,10 +413,18 @@ message TracePacket {
   //   buffer are overridden before the consumer could read them when the trace
   //   is configured in ring buffer mode.
   //
+  // 0 means not dropped, nonzero means dropped. When set by TraceBufferV2 the
+  // value is a bitmask identifying the cause(s):
+  //   1 = read gap, 2 = chunk corrupted, 4 = orphan continuation,
+  //   8 = reassembly gap, 16 = reassembly broken chain, 32 = overwrite,
+  //   64 = trace-writer drop.
+  // TraceBufferV1 and producer-signalled drops set 1 (dropped, cause not
+  // attributed).
+  //
   // When packet loss occurs, incrementally emitted data (including interned
   // data) on the sequence should be considered invalid up until the next packet
   // with SEQ_INCREMENTAL_STATE_CLEARED set.
-  optional bool previous_packet_dropped = 42;
+  optional uint32 previous_packet_dropped = 42;
 
   // Flag set by a producer (starting from SDK v29) if, for the current packet
   // sequence (see |trusted_packet_sequence_id|), this is the first packet.

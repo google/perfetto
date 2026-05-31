@@ -54,7 +54,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 6
   trusted_pid: 932
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }
 packet {
   first_packet_on_sequence: true
@@ -64,7 +64,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 10
   trusted_pid: 932
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }
 packet {
   first_packet_on_sequence: true
@@ -75,7 +75,7 @@ packet {
   trusted_uid: 10222
   trusted_packet_sequence_id: 12
   trusted_pid: 6295
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }
 packet {
   first_packet_on_sequence: true
@@ -96,5 +96,5 @@ packet {
   trusted_uid: 10222
   trusted_packet_sequence_id: 13
   trusted_pid: 6295
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }

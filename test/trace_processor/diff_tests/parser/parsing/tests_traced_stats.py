@@ -26,7 +26,7 @@ class ParsingTracedStats(TestSuite):
         trace=TextProto(r"""
         packet {
           trusted_packet_sequence_id: 2
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           trusted_packet_sequence_id: 2
@@ -36,33 +36,33 @@ class ParsingTracedStats(TestSuite):
         }
         packet {
           trusted_packet_sequence_id: 3
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           trusted_packet_sequence_id: 3
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           trusted_packet_sequence_id: 3
         }
         packet {
           trusted_packet_sequence_id: 4
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           trusted_packet_sequence_id: 4
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           trusted_packet_sequence_id: 4
         }
         packet {
           trusted_packet_sequence_id: 5
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           trusted_packet_sequence_id: 5
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           trusted_packet_sequence_id: 5
@@ -110,7 +110,7 @@ class ParsingTracedStats(TestSuite):
         trace=TextProto('''
         packet {
           trusted_packet_sequence_id: 2
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
           first_packet_on_sequence: true
           sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
         }
@@ -163,4 +163,45 @@ class ParsingTracedStats(TestSuite):
         "idx","value"
         0,0
         1,2
+        '''))
+
+  # Check that the TraceBufferV2 data-loss attribution fields in BufferStats
+  # are reflected into the corresponding traced_buf_* stats, indexed by buffer.
+  def test_data_loss_attribution_stats(self):
+    return DiffTestBlueprint(
+        trace=TextProto('''
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            buffer_stats {
+              data_loss_read_gap: 1
+              data_loss_chunk_corrupted: 3
+              data_loss_orphan_continuation: 5
+              data_loss_overwrite: 41
+              data_loss_missing_chunks: 7
+            }
+            buffer_stats {
+              data_loss_reassembly_gap: 2
+              data_loss_reassembly_broken_chain: 1
+            }
+          }
+        }
+        '''),
+        query='''
+          SELECT name, idx, value
+          FROM stats
+          WHERE name GLOB 'traced_buf_data_loss_*'
+            AND value > 0
+          ORDER BY name, idx;
+        ''',
+        out=Csv('''
+        "name","idx","value"
+        "traced_buf_data_loss_chunk_corrupted",0,3
+        "traced_buf_data_loss_missing_chunks",0,7
+        "traced_buf_data_loss_orphan_continuation",0,5
+        "traced_buf_data_loss_overwrite",0,41
+        "traced_buf_data_loss_read_gap",0,1
+        "traced_buf_data_loss_reassembly_broken_chain",1,1
+        "traced_buf_data_loss_reassembly_gap",1,2
         '''))

@@ -86,11 +86,11 @@ class TraceBufferV2Test : public testing::Test {
   static std::vector<FakePacketFragment> ReadPacket(
       const std::unique_ptr<TraceBuffer>& buf,
       TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
-      bool* previous_packet_dropped = nullptr) {
+      uint32_t* previous_packet_dropped = nullptr) {
     std::vector<FakePacketFragment> fragments;
     TracePacket packet;
     TraceBuffer::PacketSequenceProperties ignored_sequence_properties{};
-    bool ignored_previous_packet_dropped;
+    uint32_t ignored_previous_packet_dropped;
     if (!buf->ReadNextTracePacket(
             &packet,
             sequence_properties ? sequence_properties
@@ -106,7 +106,7 @@ class TraceBufferV2Test : public testing::Test {
 
   std::vector<FakePacketFragment> ReadPacket(
       TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
-      bool* previous_packet_dropped = nullptr) {
+      uint32_t* previous_packet_dropped = nullptr) {
     return ReadPacket(trace_buffer_, sequence_properties,
                       previous_packet_dropped);
   }
@@ -927,7 +927,7 @@ TEST_F(TraceBufferV2Test, PendingPatchesDataLossOnOverwrite) {
   // The pending chunks should have been overwritten. When we read the next
   // chunk in the sequence, we should see a data loss because chunks 0-1
   // (which were pending patches) were overwritten before being completed.
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(2000, 'c')));
@@ -938,6 +938,162 @@ TEST_F(TraceBufferV2Test, PendingPatchesDataLossOnOverwrite) {
   EXPECT_FALSE(previous_packet_dropped);  // No data loss for this packet
 
   ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// ----------------------------
+// Data-loss attribution tests
+// ----------------------------
+
+// A read-time ChunkID gap (a chunk went missing between two reads) is
+// attributed to data_loss_read_gap, surfaces as previous_packet_dropped, and
+// adds its magnitude to data_loss_missing_chunks.
+TEST_F(TraceBufferV2Test, DataLoss_ReadGap) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
+
+  // ChunkID 1 never arrives; ChunkID 2 does. Reading it must detect the gap.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(32, 'b')
+      .CopyIntoTraceBuffer();
+  uint32_t previous_packet_dropped = 0;
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'b')));
+  // The drop is reported with its cause bits (DataLossReason).
+  EXPECT_EQ(static_cast<uint32_t>(internal::kDataLossReadGap),
+            previous_packet_dropped);
+
+  const auto& stats = trace_buffer()->stats();
+  EXPECT_EQ(1u, stats.data_loss_read_gap());
+  EXPECT_EQ(1u, stats.data_loss_missing_chunks());  // ChunkID 1 missing.
+  EXPECT_EQ(0u, stats.data_loss_overwrite());
+}
+
+// Overwriting several unread chunks of one sequence before reading is a single
+// loss (the per-sequence flag is set once), even though many chunks are lost
+// and only one previous_packet_dropped surfaces. This is exactly why a reported
+// packet-loss of 1 can hide an arbitrary number of lost chunks.
+TEST_F(TraceBufferV2Test, DataLoss_OverwriteVsChunkCount) {
+  ResetBuffer(4096);
+  const auto& stats = trace_buffer()->stats();
+  // One sequence, written until the ring wraps and overwrites several of its
+  // own unread chunks. Every eviction happens before any read, so they all
+  // collapse into a single loss on the sequence.
+  for (ChunkID c = 0; c < 16; c++) {
+    CreateChunk(ProducerID(1), WriterID(1), c)
+        .AddPacket(400, 'x')
+        .CopyIntoTraceBuffer();
+  }
+  ASSERT_LE(2u, stats.chunks_overwritten());  // Several chunks lost...
+
+  trace_buffer()->BeginRead();
+  uint32_t previous_packet_dropped = 0;
+  bool first = true;
+  while (!ReadPacket(nullptr, &previous_packet_dropped).empty()) {
+    // Only the first survivor is flagged, and with the overwrite cause.
+    EXPECT_EQ(first ? static_cast<uint32_t>(internal::kDataLossOverwrite) : 0u,
+              previous_packet_dropped);
+    first = false;
+  }
+
+  EXPECT_EQ(1u, stats.data_loss_overwrite());  // ...but counted as one loss.
+  EXPECT_EQ(0u, stats.data_loss_read_gap());   // Survivors are contiguous.
+}
+
+// A loss is attributed (data_loss_overwrite) even when it never surfaces as
+// previous_packet_dropped: if every chunk of a sequence is evicted and that
+// sequence is never read again, the flag has no packet to ride out on. This is
+// why the per-cause counters can exceed traced_buf_sequence_packet_loss on a
+// heavily-wrapping ring buffer.
+TEST_F(TraceBufferV2Test, DataLoss_OverwriteNotReported) {
+  ResetBuffer(4096);
+  const auto& stats = trace_buffer()->stats();
+  // Sequence (1,1): a single, oldest chunk that will be the first thing evicted
+  // when the ring wraps.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(400, 'a')
+      .CopyIntoTraceBuffer();
+  // A different sequence (1,2) fills the ring until the wrap evicts (1,1)'s
+  // only chunk. Stop as soon as that happens, before (1,2) overwrites itself,
+  // so (1,1) is the *only* sequence with a loss and it has no surviving chunk.
+  ChunkID c = 0;
+  while (stats.chunks_overwritten() == 0) {
+    CreateChunk(ProducerID(1), WriterID(2), c++)
+        .AddPacket(400, 'b')
+        .CopyIntoTraceBuffer();
+    ASSERT_LT(c, 100u);  // Safety: the ring must wrap well before this.
+  }
+  EXPECT_EQ(1u, stats.data_loss_overwrite());  // (1,1)'s loss was attributed.
+
+  trace_buffer()->BeginRead();
+  uint32_t previous_packet_dropped = 0;
+  while (!ReadPacket(nullptr, &previous_packet_dropped).empty()) {
+    // (1,1) has no surviving chunk; (1,2) was never overwritten. Nothing
+    // surfaces the loss, so it is never reported to the consumer.
+    EXPECT_FALSE(previous_packet_dropped);
+  }
+}
+
+// A continuation/end fragment with no preceding begin fragment (the begin chunk
+// was lost) is attributed to data_loss_orphan_continuation.
+TEST_F(TraceBufferV2Test, DataLoss_OrphanContinuation) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a', kContFromPrevChunk)  // kFragEnd with no begin.
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  const auto& stats = trace_buffer()->stats();
+  EXPECT_EQ(1u, stats.data_loss_orphan_continuation());
+}
+
+// A multi-chunk packet whose chain is broken even though ChunkIDs are
+// contiguous (the continuation chunk is a whole packet, not a continue/end) is
+// attributed to data_loss_reassembly_broken_chain. The following whole packet
+// is still readable and carries the dropped flag.
+TEST_F(TraceBufferV2Test, DataLoss_ReassemblyBrokenChain) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a', kContOnNextChunk)  // begin, expects a continuation.
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(32, 'b')  // whole packet, not a continuation: chain broken.
+      .CopyIntoTraceBuffer();
+
+  uint32_t previous_packet_dropped = 0;
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'b')));
+  EXPECT_TRUE(previous_packet_dropped);
+
+  const auto& stats = trace_buffer()->stats();
+  EXPECT_EQ(1u, stats.data_loss_reassembly_broken_chain());
+  EXPECT_EQ(0u, stats.data_loss_read_gap());  // ChunkIDs were contiguous.
+}
+
+// A ChunkID gap in the middle of a fragmented packet is attributed to
+// data_loss_reassembly_gap.
+TEST_F(TraceBufferV2Test, DataLoss_ReassemblyGap) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a', kContOnNextChunk)  // begin.
+      .CopyIntoTraceBuffer();
+  // ChunkID 1 (the continuation) is missing; ChunkID 2 is the tail.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(32, 'b', kContFromPrevChunk)  // end.
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  const auto& stats = trace_buffer()->stats();
+  EXPECT_EQ(1u, stats.data_loss_reassembly_gap());
 }
 
 // ---------------------
@@ -1661,7 +1817,7 @@ TEST_F(TraceBufferV2Test, NoDataLossIfReaderCatchesUp) {
         .AddPacket(1000, 'b')
         .CopyIntoTraceBuffer();
 
-    bool previous_packet_dropped = false;
+    uint32_t previous_packet_dropped = 0;
     trace_buffer()->BeginRead();
     ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
                 ElementsAre(FakePacketFragment(2000, 'a')));
@@ -1698,7 +1854,7 @@ TEST_F(TraceBufferV2Test, PacketDropOnOverwrite) {
       .AddPacket(10, 'a')
       .CopyIntoTraceBuffer();
 
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(10, 'a')));
@@ -1887,7 +2043,7 @@ TEST_F(TraceBufferV2Test, ChunkGaps_WithinSameReadCycle) {
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'a')));
 
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(32 - 16, 'c')));
   EXPECT_TRUE(previous_packet_dropped);
@@ -1917,7 +2073,7 @@ TEST_F(TraceBufferV2Test, ChunkGaps_AcrossReadCycles) {
   ASSERT_EQ(32u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
                      .AddPacket(32 - 16, 'b')
                      .CopyIntoTraceBuffer());
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(32 - 16, 'b')));
@@ -1972,7 +2128,7 @@ TEST_F(TraceBufferV2Test, ChunkGaps_EvenIfSequenceDisappears) {
   ASSERT_EQ(32u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
                      .AddPacket(32 - 16, 'b')
                      .CopyIntoTraceBuffer());
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(32 - 16, 'b')));
@@ -2343,7 +2499,7 @@ TEST_F(TraceBufferV2Test, SequenceGaps_DetectionWithChunkIdWrap) {
       .AddPacket(32, 'c')
       .CopyIntoTraceBuffer();
 
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
               ElementsAre(FakePacketFragment(32, 'b')));
@@ -2454,9 +2610,9 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
   // ChunkSeqReader must treat that as gapless rather than firing spuriously.
   trace_buffer()->BeginRead();
   std::vector<std::vector<FakePacketFragment>> packets;
-  bool b_dropped = false;
+  uint32_t b_dropped = 0;
   for (;;) {
-    bool dropped = false;
+    uint32_t dropped = 0;
     auto p = ReadPacket(/*sequence_properties=*/nullptr, &dropped);
     if (p.empty())
       break;
@@ -2668,7 +2824,7 @@ TEST_F(TraceBufferV2Test, ScrapeRecommitPreservesIncomplete) {
   // Read cycle 3: 'a' and 'b' were already consumed. We should get the
   // reassembled fragmented packet ['c','d'] and then 'e'. No data loss.
   trace_buffer()->BeginRead();
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
 
   ASSERT_THAT(
       ReadPacket(nullptr, &previous_packet_dropped),
@@ -2903,7 +3059,7 @@ TEST_F(TraceBufferV2Test, NoOverwriteCountIfReaderCatchesUp) {
   // is not signalled any data loss — confirming that the increment above (if
   // it fires) is bogus rather than a real overwrite reported elsewhere.
   trace_buffer()->BeginRead();
-  bool dropped = false;
+  uint32_t dropped = 0;
   ASSERT_THAT(ReadPacket(nullptr, &dropped),
               ElementsAre(FakePacketFragment(1000, 'b')));
   EXPECT_FALSE(dropped);
@@ -2964,7 +3120,7 @@ TEST_F(TraceBufferV2Test, Override_ReCommitIncompleteOnFullBuffer) {
   // packets; 'x', 'y', 'z' from the filler sequence follow. No data loss is
   // signalled.
   trace_buffer()->BeginRead();
-  bool dropped = false;
+  uint32_t dropped = 0;
   ASSERT_THAT(ReadPacket(nullptr, &dropped),
               ElementsAre(FakePacketFragment(10, 'b')));
   EXPECT_FALSE(dropped);
@@ -3033,7 +3189,7 @@ TEST_F(TraceBufferV2Test, ScrapeWithLateRecommitAfterRead) {
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties psp{};
-  bool dropped = false;
+  uint32_t dropped = 0;
   ASSERT_THAT(ReadPacket(&psp, &dropped),
               ElementsAre(FakePacketFragment(1024 - 16, 'g')));
   ASSERT_FALSE(dropped);

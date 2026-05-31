@@ -2730,7 +2730,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     while (!did_hit_threshold) {
       TracePacket packet;
       TraceBuffer::PacketSequenceProperties sequence_properties{};
-      bool previous_packet_dropped;
+      uint32_t previous_packet_dropped;
       if (!tbuf.ReadNextTracePacket(&packet, &sequence_properties,
                                     &previous_packet_dropped)) {
         break;

@@ -129,7 +129,7 @@ packet {
     vsync_id: 24776
   }
   trusted_packet_sequence_id: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }
 
 # Processed (patch applied) by the ProtoVM

@@ -79,6 +79,13 @@ int ChunkIdCompare(ChunkID a, ChunkID b) {
   return (static_cast<int32_t>(a - b) < 0) ? -1 : 1;
 }
 
+// Number of missing ChunkID(s) strictly between |older| and |newer| in modular
+// order. Returns 0 if |newer| does not come strictly after |older| (e.g. a
+// reorder), so we never report a huge wrapped value as a gap magnitude.
+uint32_t ChunkIdGap(ChunkID newer, ChunkID older) {
+  return ChunkIdCompare(newer, older) > 0 ? newer - older - 1 : 0;
+}
+
 // The number of the latest empty SequenceState(s) to keep around.
 constexpr size_t kKeepLastEmptySeq = 1024;
 
@@ -299,7 +306,8 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
     // TraceBufferV2::CopyChunkUntrusted.
     bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
     if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
-      seq_->data_loss = true;
+      buf_->AddSeqDataLoss(seq_, kDataLossReadGap,
+                           ChunkIdGap(iter_->chunk_id, last.chunk_id));
     }
   }
 }
@@ -327,7 +335,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
       bool end_reached = iter_ == end_;
 
       if (frag_iter_.chunk_corrupted()) {
-        seq_->data_loss = true;
+        buf_->AddSeqDataLoss(seq_, kDataLossChunkCorrupted, 0);
       }
 
       // If a chunk is incomplete, this is the point where we stop processing
@@ -375,15 +383,15 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         // should iterate over the Continue/End in ReassembleFragmentedPacket(),
         // which performs the lookahead. If we hit this code path, either a
         // producer emitted a chunk sequence like [kWholePacket],[kFragEnd]
-        // or, more realistically, we had a data losss and missed the chunk with
+        // or, more realistically, we had a data loss and missed the chunk with
         // the kFragBegin.
-        seq_->data_loss = true;
+        buf_->AddSeqDataLoss(seq_, kDataLossOrphanContinuation, 0);
         ConsumeFragment(iter_, &frag);
         break;  // Break the switch, continue the loop.
 
       case Frag::kFragBegin:
-        auto reassembly_res = ReassembleFragmentedPacket(out_packet, &frag);
-        if (reassembly_res == FragReassemblyResult::kSuccess) {
+        auto reassembly = ReassembleFragmentedPacket(out_packet, &frag);
+        if (reassembly.status == FragReassemblyResult::kSuccess) {
           buf_->stats_.set_readaheads_succeeded(
               buf_->stats_.readaheads_succeeded() + 1);
 
@@ -398,12 +406,13 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
           return true;
         }
 
-        // If we get here reassembly_res is either kNotEnoughData or kDataLoss.
+        // If we get here reassembly.status is either kNotEnoughData or
+        // kDataLoss.
 
         buf_->stats_.set_readaheads_failed(buf_->stats_.readaheads_failed() +
                                            1);
 
-        if (reassembly_res == FragReassemblyResult::kNotEnoughData &&
+        if (reassembly.status == FragReassemblyResult::kNotEnoughData &&
             mode_ == kReadMode) {
           // If we got no more chunks, there is no point insisting with this
           // chunk, give up and let the caller try other chunks in buffer order.
@@ -421,21 +430,29 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         // In either case we want to continue the loop and let the prologue of
         // the next loop iteration do EraseCurrentChunk().
         PERFETTO_DCHECK(
-            reassembly_res == FragReassemblyResult::kDataLoss ||
-            (reassembly_res == FragReassemblyResult::kNotEnoughData &&
+            reassembly.status == FragReassemblyResult::kDataLoss ||
+            (reassembly.status == FragReassemblyResult::kNotEnoughData &&
              mode_ == kEraseMode));
 
-        // If we detect a data loss, ReassembleFragmentedPacket() consumes all
-        // fragments up until the discontinuity point, so they don't trigger
-        // further error stats when we iterate over them again.
-        // The break below will continue with the next chunk in sequence, if
-        // any. Keep this case in mind here:
-        // - We start the read cycle
-        // - On the first chunk we find there are prior in-sequence chunks,
-        //   so we rewind (we go back on the sequence's chunk list).
+        // On a data loss, ReassembleFragmentedPacket() consumes all fragments
+        // up until the discontinuity point, so they don't trigger further error
+        // stats when we iterate over them again.
+        // The break below continues with the next chunk in sequence, if any.
+        // Keep this case in mind here:
+        // - We start the read cycle.
+        // - On the first chunk we find there are prior in-sequence chunks, so
+        //   we rewind (we go back on the sequence's chunk list).
         // - Then we find that, in this sequence, there is a "broken" packet.
-        // We should keep going on the same sequence and mark the data loss.
-        seq_->data_loss = true;
+        // We should keep going on the same sequence and mark the data loss:
+        // kDataLoss carries the specific cause; kNotEnoughData here can only be
+        // kEraseMode, i.e. discarding un-reassemblable fragments while
+        // overwriting.
+        if (reassembly.status == FragReassemblyResult::kDataLoss) {
+          buf_->AddSeqDataLoss(seq_, reassembly.loss_cause,
+                               reassembly.chunks_lost);
+        } else {
+          buf_->AddSeqDataLoss(seq_, kDataLossOverwrite, 0);
+        }
         break;  // case kFragBegin
     }  // switch(frag.type)
   }  // for(;;)
@@ -469,7 +486,7 @@ void ChunkSeqReader::ConsumeFragment(TBChunk* chunk, Frag* frag) {
 // Tries to reassemble the packet following the chunks in sequence order (by
 // cloning the ChunkSeqIterator). If there is a data loss, it consumes anyways
 // the fragments. If there isn't enough data, leaves the fragments untouched.
-ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
+ChunkSeqReader::ReassemblyOutcome ChunkSeqReader::ReassembleFragmentedPacket(
     TracePacket* out_packet,
     Frag* initial_frag) {
   PERFETTO_DCHECK(initial_frag->type == Frag::kFragBegin);
@@ -485,19 +502,22 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
   ChunkSeqIterator chunk_iter = seq_iter_;  // Make copy.
 
   // Iterate over chunks using the linked list, unless the chunk needs patching
-  // in which case we skip down with res = kNotEnoughData.
-  FragReassemblyResult res = FragReassemblyResult::kNotEnoughData;
+  // in which case we skip down with status = kNotEnoughData.
+  ReassemblyOutcome outcome;  // Defaults to kNotEnoughData.
   const bool chunk_needs_patching = initial_chunk->flags & kChunkNeedsPatch;
   while (!chunk_needs_patching) {
     PERFETTO_DCHECK((chunk_iter.valid()));
+    ChunkID prev_chunk_id = chunk_iter.chunk()->chunk_id;
     TBChunk* next_chunk = chunk_iter.NextChunkInSequence();
     if (!next_chunk || next_chunk->flags & kChunkNeedsPatch) {
-      res = FragReassemblyResult::kNotEnoughData;
+      outcome.status = FragReassemblyResult::kNotEnoughData;
       break;
     }
     if (chunk_iter.sequence_gap_detected()) {
       // There is a gap in the sequence ID.
-      res = FragReassemblyResult::kDataLoss;
+      outcome.status = FragReassemblyResult::kDataLoss;
+      outcome.loss_cause = kDataLossReassemblyGap;
+      outcome.chunks_lost = ChunkIdGap(next_chunk->chunk_id, prev_chunk_id);
       break;
     }
     FragIterator frag_iter = FragIterator(next_chunk);
@@ -512,7 +532,8 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     std::optional<Frag> frag = frag_iter.NextFragmentInChunk();
     if (!frag.has_value()) {
       if (frag_iter.chunk_corrupted()) {
-        res = FragReassemblyResult::kDataLoss;
+        outcome.status = FragReassemblyResult::kDataLoss;
+        outcome.loss_cause = kDataLossChunkCorrupted;
         break;
       }
       // This can happen if a chunk in the middle of a sequence is empty. Rare
@@ -528,7 +549,7 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     if (frag_type == Frag::kFragEnd) {
       frags.emplace_back(*frag, next_chunk);
 
-      res = FragReassemblyResult::kSuccess;
+      outcome.status = FragReassemblyResult::kSuccess;
       break;
     }
     // else: kFragBegin or kFragWholePacket
@@ -538,23 +559,25 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     // to us. The next ReadNextPacketInSeqOrder calls will deal with them. Our
     // job here is to consume only fragments for the packet we are trying to
     // reassemble.
-    res = FragReassemblyResult::kDataLoss;
+    outcome.status = FragReassemblyResult::kDataLoss;
+    outcome.loss_cause = kDataLossReassemblyBrokenChain;
     break;
   }  // for (chunk in list)
 
   for (FragAndChunk& fc : frags) {
     Frag& f = fc.frag;
-    if (res == FragReassemblyResult::kSuccess && f.size > 0) {
+    if (outcome.status == FragReassemblyResult::kSuccess && f.size > 0) {
       if (out_packet)
         out_packet->AddSlice(f.begin, f.size);
     }
-    if (res == FragReassemblyResult::kSuccess ||
-        res == FragReassemblyResult::kDataLoss ||
-        (res == FragReassemblyResult::kNotEnoughData && mode_ == kEraseMode)) {
+    if (outcome.status == FragReassemblyResult::kSuccess ||
+        outcome.status == FragReassemblyResult::kDataLoss ||
+        (outcome.status == FragReassemblyResult::kNotEnoughData &&
+         mode_ == kEraseMode)) {
       ConsumeFragment(fc.chunk, &f);
     }
   }
-  return res;
+  return outcome;
 }
 
 }  // namespace internal
@@ -610,9 +633,9 @@ void TraceBufferV2::BeginRead() {
 bool TraceBufferV2::ReadNextTracePacket(
     TracePacket* out_packet,
     PacketSequenceProperties* sequence_properties,
-    bool* previous_packet_on_sequence_dropped) {
+    uint32_t* previous_packet_on_sequence_dropped) {
   *sequence_properties = {0, ClientIdentity(), 0};
-  *previous_packet_on_sequence_dropped = false;
+  *previous_packet_on_sequence_dropped = 0;
 
   // When reading back chunks, we visit the buffer in two layers
   // (see /docs/design-docs/trace-buffer.md):
@@ -650,8 +673,8 @@ bool TraceBufferV2::ReadNextTracePacket(
       if (chunk_seq_reader_->ReadNextPacketInSeqOrder(out_packet)) {
         SequenceState& s = *chunk_seq_reader_->seq();
         *sequence_properties = {s.producer_id, s.client_identity, s.writer_id};
-        *previous_packet_on_sequence_dropped = s.data_loss;
-        s.data_loss = false;
+        *previous_packet_on_sequence_dropped = s.data_loss_reasons;
+        s.data_loss_reasons = internal::kDataLossNone;
         return true;
       }
       // If ReadNextPacketInSeqOrder rans out of data, skip to the block below
@@ -762,7 +785,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   SequenceState& seq = seq_it->second;
   if (trace_writer_data_drop) {
     stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() + 1);
-    seq.data_loss = true;
+    AddSeqDataLoss(&seq, internal::kDataLossTraceWriter, 0);
   }
 
   // Don't allow re-commit of chunks that have been consumed already, unless
@@ -1009,7 +1032,7 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     // In future this branch should become "&& !protovm_has_consumed_packet"
     // We shouldn't report a data loss if ProtoVM merged the outgoing packet.
     if (has_cleared_unconsumed_fragments) {
-      csr.seq()->data_loss = true;
+      AddSeqDataLoss(csr.seq(), internal::kDataLossOverwrite, 0);
     }
 
     // ChunkSeqReader(kEraseMode) must delete the chunk once
@@ -1032,6 +1055,54 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
                                        pad_chunk->outer_size());
     }
     off += chunk->outer_size();
+  }
+}
+
+void TraceBufferV2::AddSeqDataLoss(SequenceState* seq,
+                                   internal::DataLossReason reason,
+                                   uint32_t chunks_lost) {
+  PERFETTO_DCHECK(reason != internal::kDataLossNone);
+  // Count each cause once until the loss is reported (the bitmask then resets).
+  // This also gates the chunks_lost sum, so data_loss_missing_chunks is a lower
+  // bound, but a single gap re-checked across reads can't inflate it.
+  if (seq->data_loss_reasons & reason)
+    return;
+
+  seq->data_loss_reasons =
+      static_cast<uint8_t>(seq->data_loss_reasons | reason);
+
+  // |chunks_lost| (the ChunkID gap magnitude) only applies to the gap causes.
+  switch (reason) {
+    case internal::kDataLossReadGap:
+      stats_.set_data_loss_read_gap(stats_.data_loss_read_gap() + 1);
+      stats_.set_data_loss_missing_chunks(stats_.data_loss_missing_chunks() +
+                                          chunks_lost);
+      break;
+    case internal::kDataLossReassemblyGap:
+      stats_.set_data_loss_reassembly_gap(stats_.data_loss_reassembly_gap() +
+                                          1);
+      stats_.set_data_loss_missing_chunks(stats_.data_loss_missing_chunks() +
+                                          chunks_lost);
+      break;
+    case internal::kDataLossChunkCorrupted:
+      stats_.set_data_loss_chunk_corrupted(stats_.data_loss_chunk_corrupted() +
+                                           1);
+      break;
+    case internal::kDataLossOrphanContinuation:
+      stats_.set_data_loss_orphan_continuation(
+          stats_.data_loss_orphan_continuation() + 1);
+      break;
+    case internal::kDataLossReassemblyBrokenChain:
+      stats_.set_data_loss_reassembly_broken_chain(
+          stats_.data_loss_reassembly_broken_chain() + 1);
+      break;
+    case internal::kDataLossOverwrite:
+      stats_.set_data_loss_overwrite(stats_.data_loss_overwrite() + 1);
+      break;
+    case internal::kDataLossTraceWriter:
+      // No dedicated counter; trace_writer_packet_loss already tracks it.
+    case internal::kDataLossNone:
+      break;
   }
 }
 

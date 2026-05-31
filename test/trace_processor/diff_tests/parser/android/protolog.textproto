@@ -2,7 +2,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
   sequence_flags: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1716
   first_packet_on_sequence: true
 }
@@ -47,7 +47,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
   sequence_flags: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1716
   first_packet_on_sequence: true
 }
@@ -164,7 +164,7 @@ packet {
 packet {
   trusted_uid: 10224
   trusted_packet_sequence_id: 10
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 2063
   first_packet_on_sequence: true
   protolog_viewer_config {
