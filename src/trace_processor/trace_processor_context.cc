@@ -42,9 +42,8 @@
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/state_tracker.h"
-
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
@@ -75,7 +74,6 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
   context->track_compressor = Ptr<TrackCompressor>::MakeRoot(context);
   context->slice_tracker = Ptr<SliceTracker>::MakeRoot(context);
   context->state_tracker = Ptr<StateTracker>::MakeRoot(context);
-
   context->slice_translation_table =
       Ptr<SliceTranslationTable>::MakeRoot(context->storage.get());
   context->file_io_tracker = Ptr<FileIoTracker>::MakeRoot(context);

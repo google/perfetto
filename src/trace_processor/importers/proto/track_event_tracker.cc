@@ -409,9 +409,6 @@ TrackEventTracker::InternDescriptorTrackImpl(
 
   DescriptorTrackReservation* reservation = &state->reservation;
 
-  StringId translated_name =
-      reservation->name.is_null() ? event_name : reservation->name;
-
   // Try to resolve any parent tracks recursively, too.
   std::optional<TrackId> parent_track_id;
   std::optional<ResolvedDescriptorTrack> parent_resolved_track;
@@ -420,39 +417,6 @@ TrackEventTracker::InternDescriptorTrackImpl(
         reservation->parent_uuid, kNullStringId, packet_sequence_id);
     parent_resolved_track = ResolveDescriptorTrack(reservation->parent_uuid);
   }
-
-  // Resolve Track Scope (Child tracks inherit their parent's scope)
-  auto target_resolved =
-      parent_resolved_track ? *parent_resolved_track : *resolved;
-  ResolvedDescriptorTrack::Scope scope = target_resolved.scope();
-
-  if (scope == ResolvedDescriptorTrack::Scope::kProcess) {
-    translated_name = context_->process_track_translation_table->TranslateName(
-        translated_name);
-  }
-
-  // Don't capture anything by reference in these functions as they are
-  // persisted in the case of merged tracks.
-  auto set_parent_id = [this, parent_track_id](TrackId id) {
-    if (parent_track_id) {
-      auto rr = (*context_->storage->mutable_track_table())[id];
-      rr.set_parent_id(parent_track_id);
-    }
-  };
-  auto set_parent_cb = parent_resolved_track && parent_resolved_track->is_root()
-                           ? std::function<void(TrackId)>()
-                           : set_parent_id;
-  using M = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;
-
-  // 1. Resolve Track Properties
-  bool is_counter = resolved->is_counter() || reservation->is_counter;
-  bool is_state = resolved->is_state() || reservation->is_state;
-
-  // 3. Resolve Merging Behavior
-  bool sibling_merge = !resolved->is_root() && !is_counter &&
-                       reservation->sibling_merge_behavior != M::kNone;
-
-  bool is_root_in_scope = uuid == kDefaultDescriptorTrackUuid;
 
   // Don't capture anything by reference in these functions as they are
   // persisted in the case of merged tracks.
@@ -470,148 +434,192 @@ TrackEventTracker::InternDescriptorTrackImpl(
         AddTrackArgs(uuid, packet_sequence_id, state->reservation,
                      false /* is_root*/, inserter);
       };
-
-  // Intern flat, non-merged tracks.
-  if (!sibling_merge) {
-    TrackId id = [&]() -> TrackId {
-      switch (scope) {
-        case ResolvedDescriptorTrack::Scope::kThread: {
-          UniqueTid utid = target_resolved.utid();
-          if (resolved->is_root() && !reservation->use_separate_track &&
-              !is_counter && !is_state) {
-            return context_->track_tracker->InternThreadTrack(utid);
-          }
-          if (is_counter) {
-            return context_->track_tracker->InternTrack(
-                kThreadCounterTrackBlueprint,
-                tracks::Dimensions(utid, static_cast<int64_t>(uuid)),
-                tracks::DynamicName(reservation->name), args_fn_root,
-                tracks::DynamicUnit(reservation->counter_details->unit));
-          }
-          if (is_state) {
-            return context_->track_tracker->InternTrack(
-                kThreadStateTrackBlueprint,
-                tracks::Dimensions(utid, static_cast<int64_t>(uuid)),
-                tracks::DynamicName(translated_name), args_fn_root);
-          }
+  if (resolved->is_root()) {
+    switch (resolved->scope()) {
+      case ResolvedDescriptorTrack::Scope::kThread:
+        if (resolved->is_counter()) {
           return context_->track_tracker->InternTrack(
-              kThreadTrackBlueprint,
-              tracks::Dimensions(utid, static_cast<int64_t>(uuid)),
-              tracks::DynamicName(translated_name),
-              is_root_in_scope ? args_fn_root : args_fn_non_root);
-        }
-        case ResolvedDescriptorTrack::Scope::kProcess: {
-          UniquePid upid = target_resolved.upid();
-          if (is_counter) {
-            return context_->track_tracker->InternTrack(
-                kProcessCounterTrackBlueprint,
-                tracks::Dimensions(upid, static_cast<int64_t>(uuid)),
-                tracks::DynamicName(translated_name), args_fn_root,
-                tracks::DynamicUnit(reservation->counter_details->unit));
-          }
-          if (is_state) {
-            return context_->track_tracker->InternTrack(
-                kProcessStateTrackBlueprint,
-                tracks::Dimensions(upid, static_cast<int64_t>(uuid)),
-                tracks::DynamicName(translated_name), args_fn_root);
-          }
+              kThreadCounterTrackBlueprint,
+              tracks::Dimensions(resolved->utid(), static_cast<int64_t>(uuid)),
+              tracks::DynamicName(reservation->name), args_fn_root,
+              tracks::DynamicUnit(reservation->counter_details->unit));
+        } else if (reservation->use_separate_track) {
           return context_->track_tracker->InternTrack(
-              kProcessTrackBlueprint,
-              tracks::Dimensions(upid, static_cast<int64_t>(uuid)),
-              tracks::DynamicName(translated_name), args_fn_root);
+              resolved->is_state() ? kThreadStateTrackBlueprint
+                                   : kThreadTrackBlueprint,
+              tracks::Dimensions(resolved->utid(), static_cast<int64_t>(uuid)),
+              tracks::DynamicName(reservation->name), args_fn_root);
         }
-        case ResolvedDescriptorTrack::Scope::kGlobal: {
-          if (is_counter) {
-            return context_->track_tracker->InternTrack(
-                kGlobalCounterTrackBlueprint,
-                tracks::Dimensions(static_cast<int64_t>(uuid)),
-                tracks::DynamicName(reservation->name),
-                is_root_in_scope ? args_fn_root : args_fn_non_root,
-                tracks::DynamicUnit(reservation->counter_details->unit));
-          }
-          if (is_state) {
-            return context_->track_tracker->InternTrack(
-                kGlobalStateTrackBlueprint,
-                tracks::Dimensions(static_cast<int64_t>(uuid)),
-                tracks::DynamicName(translated_name),
-                is_root_in_scope ? args_fn_root : args_fn_non_root);
-          }
+        return context_->track_tracker->InternThreadTrack(resolved->utid());
+      case ResolvedDescriptorTrack::Scope::kProcess: {
+        StringId translated_name =
+            context_->process_track_translation_table->TranslateName(
+                reservation->name);
+        if (reservation->is_counter) {
           return context_->track_tracker->InternTrack(
-              kGlobalTrackBlueprint,
-              tracks::Dimensions(static_cast<int64_t>(uuid)),
-              tracks::DynamicName(translated_name),
-              is_root_in_scope ? args_fn_root : args_fn_non_root);
+              kProcessCounterTrackBlueprint,
+              tracks::Dimensions(resolved->upid(), static_cast<int64_t>(uuid)),
+              tracks::DynamicName(translated_name), args_fn_root,
+              tracks::DynamicUnit(reservation->counter_details->unit));
         }
+        return context_->track_tracker->InternTrack(
+            resolved->is_state() ? kProcessStateTrackBlueprint
+                                 : kProcessTrackBlueprint,
+            tracks::Dimensions(resolved->upid(), static_cast<int64_t>(uuid)),
+            tracks::DynamicName(translated_name), args_fn_root);
       }
-      PERFETTO_FATAL("Invalid scope");
-    }();
-    // If the parent has a process descriptor set, promote this track
-    // to also be a root thread level track. This is necessary for
-    // backcompat reasons: see the comment on parent_uuid in
-    // TrackDescriptor.
-    if (parent_track_id && (!parent_resolved_track->is_root() || is_counter)) {
-      set_parent_id(id);
+      case ResolvedDescriptorTrack::Scope::kGlobal:
+        PERFETTO_FATAL("Should never happen");
     }
+  }
+
+  StringId name = reservation->name.is_null() ? event_name : reservation->name;
+  // Don't capture anything by reference in these functions as they are
+  // persisted in the case of merged tracks.
+  auto set_parent_id = [this, parent_track_id](TrackId id) {
+    if (parent_track_id) {
+      auto rr = (*context_->storage->mutable_track_table())[id];
+      rr.set_parent_id(parent_track_id);
+    }
+  };
+  using M = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;
+  if (parent_track_id) {
+    // If we have the track id, we should also always have the resolved track
+    // too.
+    PERFETTO_CHECK(parent_resolved_track);
+    switch (parent_resolved_track->scope()) {
+      case ResolvedDescriptorTrack::Scope::kThread: {
+        // If parent is a thread track, create another thread-associated track.
+        if (reservation->is_counter) {
+          TrackId id = context_->track_tracker->InternTrack(
+              kThreadCounterTrackBlueprint,
+              tracks::Dimensions(parent_resolved_track->utid(),
+                                 static_cast<int64_t>(uuid)),
+              tracks::DynamicName(reservation->name), args_fn_non_root,
+              tracks::DynamicUnit(reservation->counter_details->unit));
+          // If the parent has a process descriptor set, promote this track
+          // to also be a root thread level track. This is necessary for
+          // backcompat reasons: see the comment on parent_uuid in
+          // TrackDescriptor.
+          if (!parent_resolved_track->is_root()) {
+            set_parent_id(id);
+          }
+          return id;
+        }
+        if (reservation->sibling_merge_behavior == M::kNone) {
+          TrackId id = context_->track_tracker->InternTrack(
+              reservation->is_state ? kThreadStateTrackBlueprint
+                                    : kThreadTrackBlueprint,
+              tracks::Dimensions(parent_resolved_track->utid(),
+                                 static_cast<int64_t>(uuid)),
+              tracks::DynamicName(name), args_fn_non_root);
+          // If the parent has a process descriptor set, promote this track
+          // to also be a root thread level track. This is necessary for
+          // backcompat reasons: see the comment on parent_uuid in
+          // TrackDescriptor.
+          if (!parent_resolved_track->is_root()) {
+            set_parent_id(id);
+          }
+          return id;
+        }
+        auto [type, key] = GetMergeKey(*reservation, name);
+        return context_->track_compressor->CreateTrackFactory(
+            reservation->is_state ? kThreadStateTrackMergedBlueprint
+                                  : kThreadTrackMergedBlueprint,
+            tracks::Dimensions(parent_resolved_track->utid(),
+                               static_cast<int64_t>(reservation->parent_uuid),
+                               type, key),
+            tracks::DynamicName(name), args_fn_non_root,
+            parent_resolved_track->is_root() ? std::function<void(TrackId)>()
+                                             : set_parent_id);
+      }
+      case ResolvedDescriptorTrack::Scope::kProcess: {
+        // If parent is a process track, create another process-associated
+        // track.
+        if (reservation->is_counter) {
+          StringId translated_name =
+              context_->process_track_translation_table->TranslateName(
+                  reservation->name);
+          TrackId id = context_->track_tracker->InternTrack(
+              kProcessCounterTrackBlueprint,
+              tracks::Dimensions(parent_resolved_track->upid(),
+                                 static_cast<int64_t>(uuid)),
+              tracks::DynamicName(translated_name), args_fn_non_root,
+              tracks::DynamicUnit(reservation->counter_details->unit));
+          // If the parent has a thread descriptor set, promote this track
+          // to also be a root thread level track. This is necessary for
+          // backcompat reasons: see the comment on parent_uuid in
+          // TrackDescriptor.
+          if (!parent_resolved_track->is_root()) {
+            set_parent_id(id);
+          }
+          return id;
+        }
+        StringId translated_name =
+            context_->process_track_translation_table->TranslateName(name);
+        if (reservation->sibling_merge_behavior == M::kNone) {
+          TrackId id = context_->track_tracker->InternTrack(
+              reservation->is_state ? kProcessStateTrackBlueprint
+                                    : kProcessTrackBlueprint,
+              tracks::Dimensions(parent_resolved_track->upid(),
+                                 static_cast<int64_t>(uuid)),
+              tracks::DynamicName(translated_name), args_fn_non_root);
+          // If the parent has a thread descriptor set, promote this track
+          // to also be a root thread level track. This is necessary for
+          // backcompat reasons: see the comment on parent_uuid in
+          // TrackDescriptor.
+          if (!parent_resolved_track->is_root()) {
+            set_parent_id(id);
+          }
+          return id;
+        }
+        auto [type, key] = GetMergeKey(*reservation, translated_name);
+        return context_->track_compressor->CreateTrackFactory(
+            reservation->is_state ? kProcessStateTrackMergedBlueprint
+                                  : kProcessTrackMergedBlueprint,
+            tracks::Dimensions(parent_resolved_track->upid(),
+                               static_cast<int64_t>(reservation->parent_uuid),
+                               type, key),
+            tracks::DynamicName(translated_name), args_fn_non_root,
+            parent_resolved_track->is_root() ? std::function<void(TrackId)>()
+                                             : set_parent_id);
+      }
+      case ResolvedDescriptorTrack::Scope::kGlobal:
+        break;
+    }
+  }
+
+  // root_in_scope only matters for legacy JSON export. This is somewhat related
+  // but intentionally distinct from our handling of parent_id relationships.
+  bool is_root_in_scope = uuid == kDefaultDescriptorTrackUuid;
+  if (reservation->is_counter) {
+    TrackId id = context_->track_tracker->InternTrack(
+        kGlobalCounterTrackBlueprint,
+        tracks::Dimensions(static_cast<int64_t>(uuid)),
+        tracks::DynamicName(reservation->name),
+        is_root_in_scope ? args_fn_root : args_fn_non_root,
+        tracks::DynamicUnit(reservation->counter_details->unit));
+    set_parent_id(id);
     return id;
   }
-
-  // Intern grouped, sibling-merged tracks.
-  auto [merge_type, key] = GetMergeKey(*reservation, translated_name);
-
-  if (is_state) {
-    switch (target_resolved.scope()) {
-      case ResolvedDescriptorTrack::Scope::kThread:
-        return context_->track_compressor->CreateTrackFactory(
-            kThreadStateTrackMergedBlueprint,
-            tracks::Dimensions(target_resolved.utid(),
-                               static_cast<int64_t>(reservation->parent_uuid),
-                               merge_type, key),
-            tracks::DynamicName(translated_name), args_fn_non_root,
-            set_parent_cb);
-      case ResolvedDescriptorTrack::Scope::kProcess:
-        return context_->track_compressor->CreateTrackFactory(
-            kProcessStateTrackMergedBlueprint,
-            tracks::Dimensions(target_resolved.upid(),
-                               static_cast<int64_t>(reservation->parent_uuid),
-                               merge_type, key),
-            tracks::DynamicName(translated_name), args_fn_non_root,
-            set_parent_cb);
-      case ResolvedDescriptorTrack::Scope::kGlobal:
-        return context_->track_compressor->CreateTrackFactory(
-            kGlobalStateTrackMergedBlueprint,
-            tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid),
-                               merge_type, key),
-            tracks::DynamicName(translated_name),
-            is_root_in_scope ? args_fn_root : args_fn_non_root, set_parent_cb);
-    }
-  } else {
-    switch (target_resolved.scope()) {
-      case ResolvedDescriptorTrack::Scope::kThread:
-        return context_->track_compressor->CreateTrackFactory(
-            kThreadTrackMergedBlueprint,
-            tracks::Dimensions(target_resolved.utid(),
-                               static_cast<int64_t>(reservation->parent_uuid),
-                               merge_type, key),
-            tracks::DynamicName(translated_name), args_fn_non_root,
-            set_parent_cb);
-      case ResolvedDescriptorTrack::Scope::kProcess:
-        return context_->track_compressor->CreateTrackFactory(
-            kProcessTrackMergedBlueprint,
-            tracks::Dimensions(target_resolved.upid(),
-                               static_cast<int64_t>(reservation->parent_uuid),
-                               merge_type, key),
-            tracks::DynamicName(translated_name), args_fn_non_root,
-            set_parent_cb);
-      case ResolvedDescriptorTrack::Scope::kGlobal:
-        return context_->track_compressor->CreateTrackFactory(
-            kGlobalTrackMergedBlueprint,
-            tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid),
-                               merge_type, key),
-            tracks::DynamicName(translated_name),
-            is_root_in_scope ? args_fn_root : args_fn_non_root, set_parent_cb);
-    }
+  if (reservation->sibling_merge_behavior == M::kNone) {
+    TrackId id = context_->track_tracker->InternTrack(
+        reservation->is_state ? kGlobalStateTrackBlueprint
+                              : kGlobalTrackBlueprint,
+        tracks::Dimensions(static_cast<int64_t>(uuid)),
+        tracks::DynamicName(name),
+        is_root_in_scope ? args_fn_root : args_fn_non_root);
+    set_parent_id(id);
+    return id;
   }
-  PERFETTO_FATAL("Invalid scope");
+  auto [type, key] = GetMergeKey(*reservation, name);
+  return context_->track_compressor->CreateTrackFactory(
+      reservation->is_state ? kGlobalStateTrackMergedBlueprint
+                            : kGlobalTrackMergedBlueprint,
+      tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid), type,
+                         key),
+      tracks::DynamicName(name),
+      is_root_in_scope ? args_fn_root : args_fn_non_root, set_parent_id);
 }
 
 std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(

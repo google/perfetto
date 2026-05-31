@@ -50,7 +50,6 @@ AS
 SELECT id, ts, dur, track_id, value, arg_set_id FROM __intrinsic_state;
 
 -- Contains slices from userspace which explains what threads were doing
-
 -- during the trace.
 CREATE PERFETTO VIEW slice(
   -- The id of the slice.
