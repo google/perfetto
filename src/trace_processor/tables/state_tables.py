@@ -51,6 +51,12 @@ STATE_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
+            'category',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
             'value',
             CppString(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,

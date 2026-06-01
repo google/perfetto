@@ -41,15 +41,17 @@ TEST_F(StateTrackerTest, UpdateState) {
   constexpr TrackId track{22u};
   const StringId state1 = context_.storage->InternString("state1");
   const StringId state2 = context_.storage->InternString("state2");
+  const StringId cat1 = context_.storage->InternString("cat1");
+  const StringId cat2 = context_.storage->InternString("cat2");
 
   // 1. Start state1
-  tracker->UpdateState(2 /*ts*/, track, state1);
+  tracker->UpdateState(2 /*ts*/, track, state1, cat1);
 
   // 2. Update with same state
-  tracker->UpdateState(5 /*ts*/, track, state1);
+  tracker->UpdateState(5 /*ts*/, track, state1, cat1);
 
   // 3. Update with different state (should end state1 and start state2)
-  tracker->UpdateState(10 /*ts*/, track, state2);
+  tracker->UpdateState(10 /*ts*/, track, state2, cat2);
 
   // 4. Update with empty state (should end state2)
   tracker->UpdateState(15 /*ts*/, track, kNullStringId);
@@ -62,12 +64,14 @@ TEST_F(StateTrackerTest, UpdateState) {
   EXPECT_EQ(sr0.ts(), 2);
   EXPECT_EQ(sr0.dur(), 8);  // 10 - 2
   EXPECT_EQ(sr0.value().raw_id(), state1.raw_id());
+  EXPECT_EQ(sr0.category().value_or(kNullStringId).raw_id(), cat1.raw_id());
 
   // Second state (state2) should start at ts=10 and be closed at ts=15
   auto sr1 = states[1];
   EXPECT_EQ(sr1.ts(), 10);
   EXPECT_EQ(sr1.dur(), 5);  // 15 - 10
   EXPECT_EQ(sr1.value().raw_id(), state2.raw_id());
+  EXPECT_EQ(sr1.category().value_or(kNullStringId).raw_id(), cat2.raw_id());
 }
 
 }  // namespace

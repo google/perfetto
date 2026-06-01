@@ -44,6 +44,7 @@ class StateTracker {
       int64_t timestamp,
       TrackId track_id,
       StringId value_id,
+      StringId category_id = kNullStringId,
       SetArgsCallback args_callback = SetArgsCallback());
 
  private:
