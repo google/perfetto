@@ -17,4 +17,4 @@
 // importing from 'vitest' in every *_unittest.ts file. Note: type aliases
 // like `Mock` and `Mocked` are NOT injected as globals — those must be
 // imported explicitly: `import type {Mock, Mocked} from 'vitest';`
-// / <reference types="vitest/globals" />
+/// <reference types="vitest/globals" />
