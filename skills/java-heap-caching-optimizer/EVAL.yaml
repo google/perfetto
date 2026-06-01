@@ -1,0 +1,60 @@
+# learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# Suite: java-heap-optimizer
+
+suite_name: "java-heap-optimizer"
+timeout_seconds: 600
+
+cases:
+  - name: "analyze_heap_dump_no_location_given"
+    prompt: "Can you analyze a heap dump and find caching optimizations for our app?"
+    expectations:
+      - "Agent asks the user for the location of the heap dump (either via a URL or a local file path)."
+      - "Agent asks the user if there is a specific package name they are interested in optimizing."
+
+  - name: "download_and_analyze_heap_dump"
+    prompt: "Analyze the heap dump at https://ui.perfetto.dev/#!/?s=0d259d2b6ef1e5e5970b83c47b5e531aff2d0fd9 to find caching opportunities. Focus on package 'com.example.sampleapp'."
+    expectations:
+      - "Agent downloads the heap dump file from the provided URL to the local filesystem."
+      - "Agent downloads or ensures trace_processor is available (using 'curl -LO https://get.perfetto.dev/trace_processor')."
+      - "Agent executes query_most_repeated_objects.sql and query_size_frequencies.sql using trace_processor."
+      - "Agent filters out primitive objects and java.lang.* classes."
+      - "Agent prioritizes and analyzes classes matching 'com.example.sampleapp'."
+      - "Agent identifies potential caching opportunities using heuristics (highly repeated, stateless, convergent root paths, high cumulative size, similar sizes)."
+
+  - name: "analyze_local_heap_dump_with_package"
+    prompt: "I have a heap dump located at /home/user/traces/app-heap.pb. Can you analyze it to find caching opportunities? I'm interested in the package com.google.android.gms.chimera."
+    expectations:
+      - "Agent uses the local path directly without attempting to download it."
+      - "Agent runs PerfettoSQL queries query_most_repeated_objects.sql and query_size_frequencies.sql on the heap dump."
+      - "Agent filters results and prioritizes classes matching the package 'com.google.android.gms.chimera'."
+      - "Agent prints a summary of candidates with self-size, cumulative size, and repetitions."
+
+  - name: "verify_duplicate_references"
+    prompt: "I suspect that MediaMetadata objects are duplicated and owned by MediaItem. Can you verify if MediaItem dominates or owns MediaMetadata in the heap dump /home/user/traces/app-heap.pb?"
+    expectations:
+      - "Agent executes query_heap_references.sql using trace_processor on the heap dump."
+      - "Agent replaces placeholder '<owner_classname>' with 'MediaItem'."
+      - "Agent replaces placeholder '<owned_classname>' with 'MediaMetadata'."
+      - "Agent reports the results or details of the references to confirm the ownership relationship."
+
+  - name: "deep_code_analysis_and_markdown_report"
+    prompt: "We found a candidate class com.google.android.apps.photos.MediaMetadata which is repeated 15,000 times. The source code is in the workspace under src/com/google/android/apps/photos/MediaMetadata.java. Perform a deep analysis and present the findings."
+    expectations:
+      - "Agent searches for and views the source file MediaMetadata.java and its parent referencing objects in the workspace."
+      - "Agent performs a deep analysis of how the object is referenced and constructed."
+      - "Agent presents findings in a markdown file containing memory savings estimate, explanation of the candidate, implementation details, and file path of results."
+
+  - name: "generate_implementation_plan"
+    prompt: "Create an implementation plan for the MediaMetadata caching opportunity. Detail the expected savings."
+    expectations:
+      - "Agent details expected memory savings, providing explanation and bounds if exact estimation is not possible."
+      - "Agent creates an implementation plan in a detailed markdown file (e.g. analysis.md)."
+      - "Agent mentions trade-offs or decisions that impact the estimated savings."
+
+  - name: "apply_caching_optimization"
+    prompt: "I have reviewed the implementation plan. Please apply the caching changes to MediaMetadata.java and its references."
+    expectations:
+      - "Agent applies the caching logic (e.g., LruCache, static cache, or custom deduplication) directly to MediaMetadata.java."
+      - "Agent updates parent files referencing MediaMetadata to utilize the caching mechanism where appropriate."
+      - "Agent preserves unrelated existing code, comments, and docstrings."
+      - "Agent leaves the final code submission process to the user."
