@@ -88,8 +88,22 @@
     },
     {
       "scope": "perfetto.protos.TracePacket",
-      "ranges": [[116, 116], [1000, 1999]],
+      "ranges": [[93, 94], [96, 97], [104, 105], [112, 112], [116, 116], [1000, 1999]],
       "allocations": [
+        {
+          "name": "winscope",
+          "description": "Winscope TracePacket payloads (SurfaceFlinger, Shell, ProtoLog)",
+          "comment": [
+            "Defined in the Android tree under frameworks/{native,base}/tracing/winscope/,",
+            "mirrored here at third_party/android/frameworks/{native,base}/.../winscope/.",
+            "Wrappers: FrameworksNativeWinscopeTracePacket (93,94,104,105,112) and",
+            "FrameworksBaseWinscopeTracePacket (96,97). Field numbers match the original",
+            "in-tree fields for wire compatibility."
+          ],
+          "ranges": [[93, 94], [96, 97], [104, 105], [112, 112]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
         {
           "name": "android_frameworks_base",
           "description": "frameworks/base TracePacket extensions",

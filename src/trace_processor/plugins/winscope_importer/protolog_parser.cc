@@ -24,10 +24,10 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/protolog.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/protolog.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -67,7 +67,8 @@ void ProtoLogParser::ParseProtoLogMessage(
     PacketSequenceStateGeneration* sequence_state,
     protozero::ConstBytes blob,
     int64_t timestamp) {
-  protos::pbzero::ProtoLogMessage::Decoder protolog_message(blob);
+  com::android::internal::pbzero::ProtoLogMessage::Decoder protolog_message(
+      blob);
 
   std::vector<int64_t> sint64_params;
   for (auto it = protolog_message.sint64_params(); it; ++it) {
@@ -89,9 +90,12 @@ void ProtoLogParser::ParseProtoLogMessage(
   std::vector<std::string> string_params;
   if (protolog_message.has_str_param_iids()) {
     for (auto it = protolog_message.str_param_iids(); it; ++it) {
-      auto* decoder = sequence_state->LookupInternedMessage<
-          protos::pbzero::InternedData::kProtologStringArgsFieldNumber,
-          protos::pbzero::InternedString>(it.field().as_uint32());
+      auto* decoder =
+          sequence_state
+              ->LookupInternedMessage<perfetto::protos::pbzero::InternedData::
+                                          kProtologStringArgsFieldNumber,
+                                      perfetto::protos::pbzero::InternedString>(
+                  it.field().as_uint32());
       if (!decoder) {
         // This shouldn't happen since we already checked the incremental
         // state is valid.
@@ -107,8 +111,9 @@ void ProtoLogParser::ParseProtoLogMessage(
   std::optional<StringId> stacktrace = std::nullopt;
   if (protolog_message.has_stacktrace_iid()) {
     auto* stacktrace_decoder = sequence_state->LookupInternedMessage<
-        protos::pbzero::InternedData::kProtologStacktraceFieldNumber,
-        protos::pbzero::InternedString>(protolog_message.stacktrace_iid());
+        perfetto::protos::pbzero::InternedData::kProtologStacktraceFieldNumber,
+        perfetto::protos::pbzero::InternedString>(
+        protolog_message.stacktrace_iid());
 
     if (!stacktrace_decoder) {
       // This shouldn't happen since we already checked the incremental
@@ -149,19 +154,21 @@ void ProtoLogParser::ParseProtoLogMessage(
 
 void ProtoLogParser::ParseAndAddViewerConfigToMessageDecoder(
     protozero::ConstBytes blob) {
-  protos::pbzero::ProtoLogViewerConfig::Decoder protolog_viewer_config(blob);
+  com::android::internal::pbzero::ProtoLogViewerConfig::Decoder
+      protolog_viewer_config(blob);
 
   winscope::ProtoLogMessageDecoder& protolog_message_decoder =
       context_->protolog_message_decoder_;
 
   for (auto it = protolog_viewer_config.groups(); it; ++it) {
-    protos::pbzero::ProtoLogViewerConfig::Group::Decoder group(*it);
+    com::android::internal::pbzero::ProtoLogViewerConfig::Group::Decoder group(
+        *it);
     protolog_message_decoder.TrackGroup(group.id(), group.tag().ToStdString());
   }
 
   for (auto it = protolog_viewer_config.messages(); it; ++it) {
-    protos::pbzero::ProtoLogViewerConfig::MessageData::Decoder message_data(
-        *it);
+    com::android::internal::pbzero::ProtoLogViewerConfig::MessageData::Decoder
+        message_data(*it);
 
     std::optional<std::string> location = std::nullopt;
     if (message_data.has_location()) {

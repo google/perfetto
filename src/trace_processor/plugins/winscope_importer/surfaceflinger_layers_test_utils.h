@@ -20,8 +20,8 @@
 #include <optional>
 #include <vector>
 
-#include "protos/perfetto/trace/android/surfaceflinger_common.gen.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.gen.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_common.gen.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.gen.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry_test_utils.h"
 
@@ -42,8 +42,8 @@ struct ActiveBuffer {
 };
 
 namespace {
-using LayerProto = protos::gen::LayerProto;
-void UpdateColor(protos::gen::LayerProto* layer, Color color) {
+using LayerProto = com::android::internal::gen::LayerProto;
+void UpdateColor(com::android::internal::gen::LayerProto* layer, Color color) {
   auto* color_proto = layer->mutable_color();
   color_proto->set_r(color.r);
   color_proto->set_g(color.g);
@@ -51,7 +51,8 @@ void UpdateColor(protos::gen::LayerProto* layer, Color color) {
   color_proto->set_a(color.a);
 }
 
-void UpdateActiveBuffer(protos::gen::LayerProto* layer, ActiveBuffer buffer) {
+void UpdateActiveBuffer(com::android::internal::gen::LayerProto* layer,
+                        ActiveBuffer buffer) {
   auto* buffer_proto = layer->mutable_active_buffer();
   buffer_proto->set_width(buffer.width);
   buffer_proto->set_height(buffer.height);
@@ -192,7 +193,7 @@ class SnapshotProtoBuilder {
   }
 
   std::string Build() {
-    protos::gen::LayersSnapshotProto snapshot_proto;
+    com::android::internal::gen::LayersSnapshotProto snapshot_proto;
     snapshot_proto.set_excludes_composition_state(excludes_composition_state_);
     auto* layers_proto = snapshot_proto.mutable_layers();
 
