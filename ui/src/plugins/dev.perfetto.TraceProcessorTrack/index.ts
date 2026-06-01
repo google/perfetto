@@ -48,7 +48,6 @@ import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
 import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
 import {PivotTableTab} from './pivot_table_tab';
@@ -237,6 +236,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         upid,
         utid,
+        null,
         new TrackNode({
           uri,
           name: trackName,
@@ -291,10 +291,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
           where t.id not in (select distinct parent_id from track where parent_id is not null)
           group by t.type, upid, utid, gpu_id, t.track_group_id, ifnull(t.track_group_id, t.id)
-
-
           union all
-
           select
             t.type,
             min(t.name) as name,
@@ -583,7 +580,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     if (groupNode) {
       return groupNode;
     }
-
     const newGroup = new TrackNode({
       uri: `/${group}`,
       isSummary: true,

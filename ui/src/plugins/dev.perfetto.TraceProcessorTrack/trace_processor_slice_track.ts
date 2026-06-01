@@ -176,6 +176,8 @@ async function getDataset(
       },
     });
   } else {
+    // Multiple tracks case - need to compute layout depths.
+    // If no depth table name provided, create one with a constant name.
     const tableName = depthTableName ?? `__async_slice_depth_${trackIds[0]}`;
 
     if (depthTableName === undefined) {
