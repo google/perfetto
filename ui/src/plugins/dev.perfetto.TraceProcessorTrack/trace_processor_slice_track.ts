@@ -79,7 +79,6 @@ export async function createTraceProcessorSliceTrack({
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
     rootTableName: rootTable,
-
     fillRatio: (row) => {
       if (row.dur > 0n && row.thread_dur !== null) {
         return clamp(BIMath.ratio(row.thread_dur, row.dur), 0, 1);
