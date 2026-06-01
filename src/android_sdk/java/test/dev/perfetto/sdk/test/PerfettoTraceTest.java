@@ -27,9 +27,12 @@ import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace;
+import dev.perfetto.sdk.PerfettoTrack;
 import dev.perfetto.sdk.PerfettoTrackEventBuilder;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
@@ -256,6 +259,89 @@ public class PerfettoTraceTest {
     assertThat(mCategoryNames).contains(FOO);
     assertThat(mTrackNames).contains(FOO);
     assertThat(mTrackNames).contains("bar");
+  }
+
+  @Test
+  public void testNestedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrack parent = PerfettoTrack.process("parent_track");
+    PerfettoTrack child = parent.child("child_track");
+    PerfettoTrace.instant(FOO_CATEGORY, "event").usingTrack(child).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    // Index every track descriptor by its uuid and capture the event's track.
+    Map<Long, TrackDescriptor> descriptorsByUuid = new HashMap<>();
+    long eventTrackUuid = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        descriptorsByUuid.put(td.getUuid(), td);
+      }
+      if (packet.hasTrackEvent()
+          && TrackEvent.Type.TYPE_INSTANT.equals(packet.getTrackEvent().getType())
+          && packet.getTrackEvent().hasTrackUuid()) {
+        eventTrackUuid = packet.getTrackEvent().getTrackUuid();
+      }
+    }
+
+    // The event is on the leaf (child) track.
+    TrackDescriptor childTd = descriptorsByUuid.get(eventTrackUuid);
+    assertThat(childTd).isNotNull();
+    assertThat(childTd.getName()).isEqualTo("child_track");
+
+    // The child is nested under the parent track.
+    TrackDescriptor parentTd = descriptorsByUuid.get(childTd.getParentUuid());
+    assertThat(parentTd).isNotNull();
+    assertThat(parentTd.getName()).isEqualTo("parent_track");
+
+    // The parent track is rooted at the process track.
+    assertThat(parentTd.getParentUuid()).isEqualTo(PerfettoTrace.getProcessTrackUuid());
+  }
+
+  @Test
+  public void testGlobalNestedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrack parent = PerfettoTrack.global("global_parent");
+    PerfettoTrack child = parent.child("global_child");
+    PerfettoTrace.instant(FOO_CATEGORY, "event").usingTrack(child).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    // Index every track descriptor by its uuid and capture the event's track.
+    Map<Long, TrackDescriptor> descriptorsByUuid = new HashMap<>();
+    long eventTrackUuid = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        descriptorsByUuid.put(td.getUuid(), td);
+      }
+      if (packet.hasTrackEvent()
+          && TrackEvent.Type.TYPE_INSTANT.equals(packet.getTrackEvent().getType())
+          && packet.getTrackEvent().hasTrackUuid()) {
+        eventTrackUuid = packet.getTrackEvent().getTrackUuid();
+      }
+    }
+
+    // The event is on the leaf (child) track.
+    TrackDescriptor childTd = descriptorsByUuid.get(eventTrackUuid);
+    assertThat(childTd).isNotNull();
+    assertThat(childTd.getName()).isEqualTo("global_child");
+
+    // The child is nested under the global parent track.
+    TrackDescriptor parentTd = descriptorsByUuid.get(childTd.getParentUuid());
+    assertThat(parentTd).isNotNull();
+    assertThat(parentTd.getName()).isEqualTo("global_parent");
+
+    // A global root has no process/thread anchor: the outermost named level
+    // hangs off uuid 0.
+    assertThat(parentTd.getParentUuid()).isEqualTo(0);
   }
 
   @Test
