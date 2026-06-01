@@ -92,22 +92,6 @@ struct TraceTimestampTraits<TraceTimestamp> {
 
 namespace internal {
 
-template <typename T,
-          typename std::enable_if<
-              std::is_integral<typename std::decay<T>::type>::value,
-              int>::type = 0>
-constexpr uint32_t GetFieldId(T value) {
-  return static_cast<uint32_t>(value);
-}
-
-template <typename T,
-          typename std::enable_if<
-              !std::is_integral<typename std::decay<T>::type>::value,
-              int>::type = 0>
-constexpr uint32_t GetFieldId(T) {
-  return T::kFieldId;
-}
-
 template <
     typename T,
     typename std::enable_if<std::is_enum<typename std::decay<T>::type>::value,
@@ -1140,7 +1124,7 @@ class TrackEvent {
             typename... Args>
   static void TraceStateImpl(uint32_t instances,
                              const CategoryType& category,
-                             FieldIdType field_id,
+                             FieldIdType,
                              ValueType&& value,
                              const StateTrack& track,
                              Args&&... args) PERFETTO_NO_INLINE {
@@ -1158,7 +1142,7 @@ class TrackEvent {
                               protos::pbzero::TrackEvent::TYPE_STATE, track);
 
           auto* state_msg = event_ctx.event()->set_state();
-          internal::WriteStateField(state_msg, internal::GetFieldId(field_id),
+          internal::WriteStateField(state_msg, FieldIdType::kFieldId,
                                     std::forward<ValueType>(value));
 
           WriteTrackEventArgs(std::move(event_ctx),
