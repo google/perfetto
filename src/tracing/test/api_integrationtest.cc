@@ -669,9 +669,7 @@ std::vector<std::string> ReadSlicesFromTrace(
           (category_count++ ? "," : ":") + incremental_state.GetCategory(it);
     for (const auto& it : track_event.categories())
       slice += (category_count++ ? ",$" : ":$") + it;
-    if (track_event.has_state() && track_event.state().has_string_value()) {
-      slice += "." + track_event.state().string_value();
-    } else if (track_event.has_name() || track_event.has_name_iid()) {
+    if (track_event.has_name() || track_event.has_name_iid()) {
       slice += "." + incremental_state.GetEventName(track_event);
     }
 
@@ -2986,7 +2984,6 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
         EXPECT_EQ(packet.timestamp(), kInstantEventTime);
         break;
-      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_STATE:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
@@ -3022,7 +3019,6 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestampNoLambda) {
       case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
         EXPECT_EQ(packet.timestamp(), kEndEventTime);
         break;
-      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_STATE:
