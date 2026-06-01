@@ -423,11 +423,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_LegacyEvent,
                   19);
 
 PERFETTO_PB_MSG(perfetto_protos_TrackEvent_State);
-PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_State,
-                  STRING,
-                  const char*,
-                  string_value,
-                  1);
 
 PERFETTO_PB_MSG(perfetto_protos_TrackEvent_Callstack);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_Callstack,

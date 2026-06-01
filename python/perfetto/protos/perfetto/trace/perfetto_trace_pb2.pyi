@@ -18887,11 +18887,9 @@ class TrackEvent(_message.Message):
         frames: _containers.RepeatedCompositeFieldContainer[TrackEvent.Callstack.Frame]
         def __init__(self, frames: _Optional[_Iterable[_Union[TrackEvent.Callstack.Frame, _Mapping]]] = ...) -> None: ...
     class State(_message.Message):
-        __slots__ = ("string_value",)
+        __slots__ = ()
         Extensions: _python_message._ExtensionDict
-        STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
-        string_value: str
-        def __init__(self, string_value: _Optional[str] = ...) -> None: ...
+        def __init__(self) -> None: ...
     class LegacyEvent(_message.Message):
         __slots__ = ("name_iid", "phase", "duration_us", "thread_duration_us", "thread_instruction_delta", "unscoped_id", "local_id", "global_id", "id_scope", "use_async_tts", "bind_id", "bind_to_enclosing", "flow_direction", "instant_event_scope", "pid_override", "tid_override")
         class FlowDirection(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
