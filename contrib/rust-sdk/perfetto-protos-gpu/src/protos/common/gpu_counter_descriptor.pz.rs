@@ -74,6 +74,12 @@ pb_enum!(GpuCounterDescriptorMeasureUnit {
     INSTRUCTION: 40,
 });
 
+pb_enum!(GpuCounterSpecValueDirection {
+    VALUE_DIRECTION_UNSPECIFIED: 0,
+    VALUE_DIRECTION_BACKWARDS_LOOKING: 1,
+    VALUE_DIRECTION_FORWARDS_LOOKING: 2,
+});
+
 pb_msg!(GpuCounterDescriptor {
     specs: GpuCounterDescriptorGpuCounterSpec, msg, 1,
     blocks: GpuCounterDescriptorGpuCounterBlock, msg, 2,
@@ -110,4 +116,5 @@ pb_msg!(GpuCounterDescriptorGpuCounterSpec {
     denominator_units: GpuCounterDescriptorMeasureUnit, enum, 8,
     select_by_default: bool, primitive, 9,
     groups: GpuCounterDescriptorGpuCounterGroup, enum, 10,
+    value_direction: GpuCounterSpecValueDirection, enum, 11,
 });
