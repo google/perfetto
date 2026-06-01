@@ -384,9 +384,6 @@ message TrackEvent {
 
   // Represents the state value for a state track.
   message State {
-    // The built-in string state value.
-    optional string string_value = 1;
-
     // Extension range for typed events defined in external projects.
     // See protos/perfetto/trace/extensions.json for the allocation registry and
     // docs/instrumentation/extensions.md for more details.
