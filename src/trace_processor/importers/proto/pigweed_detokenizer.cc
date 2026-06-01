@@ -18,6 +18,7 @@
 
 #include <array>
 #include <cctype>
+#include <cstdint>
 #include <cstring>
 #include <string>
 
@@ -210,10 +211,17 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
       if (!read_varint(&value)) {
         return base::ErrStatus("Truncated Pigweed varint");
       }
-      if (arg.type == kSignedInt) {
+      // Pass each value to vsnprintf with the exact type its (rewritten)
+      // conversion expects. Mismatching the width is undefined behaviour and
+      // misbehaves on some ABIs (e.g. arm64 prints 0).
+      if (arg.type == kChar) {
         args.push_back(value);
-        formatted_size =
-            perfetto::base::SprintfTrunc(buffer, kFormatBufferSize, fmt, value);
+        formatted_size = perfetto::base::SprintfTrunc(
+            buffer, kFormatBufferSize, fmt, static_cast<int>(value));
+      } else if (arg.type == kSignedInt) {
+        args.push_back(value);
+        formatted_size = perfetto::base::SprintfTrunc(
+            buffer, kFormatBufferSize, fmt, static_cast<long long>(value));
       } else {
         uint64_t value_unsigned;
         memcpy(&value_unsigned, &value, sizeof(value_unsigned));
@@ -221,8 +229,15 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
           value_unsigned &= 0xFFFFFFFFu;
         }
         args.push_back(value_unsigned);
-        formatted_size = perfetto::base::SprintfTrunc(buffer, kFormatBufferSize,
-                                                      fmt, value_unsigned);
+        if (arg.type == kPointer) {
+          formatted_size = perfetto::base::SprintfTrunc(
+              buffer, kFormatBufferSize, fmt,
+              reinterpret_cast<void*>(static_cast<uintptr_t>(value_unsigned)));
+        } else {
+          formatted_size = perfetto::base::SprintfTrunc(
+              buffer, kFormatBufferSize, fmt,
+              static_cast<unsigned long long>(value_unsigned));
+        }
       }
     }
     if (formatted_size == kFormatBufferSize - 1) {
@@ -347,21 +362,40 @@ FormatString::FormatString(std::string format) : template_str_(format) {
       i += (length[0] == '\0' ? 0 : 1) + (length[1] == '\0' ? 0 : 1);
 
       const char spec = format[i];
-      const std::string arg_format =
-          format.substr(fmt_start, i - fmt_start + 1);
-      if (spec == 'c' || spec == 'd' || spec == 'i') {
-        args_.push_back(Arg{kSignedInt, arg_format, fmt_start, i + 1,
+      const size_t length_count =
+          (length[0] == '\0' ? 0u : 1u) + (length[1] == '\0' ? 0u : 1u);
+      // The conversion with its flags / width / precision but without the
+      // original length modifier (which sits just before the conversion char).
+      const std::string prefix =
+          format.substr(fmt_start, (i - length_count) - fmt_start);
+
+      // We promote every integer argument to 64 bits before formatting (see
+      // Detokenize), so the conversion handed to vsnprintf must request a
+      // 64-bit type: passing an int64_t to a bare "%d" is undefined and, on
+      // some ABIs (notably arm64), silently prints 0. We therefore rewrite the
+      // length modifier to "ll". 'c' and 'p' are exceptions: they consume an
+      // 'int' / 'void*' and keep no length modifier, with the matching cast
+      // applied at format time.
+      if (spec == 'd' || spec == 'i') {
+        args_.push_back(Arg{kSignedInt, prefix + "ll" + spec, fmt_start, i + 1,
                             width_star, precision_star});
-      } else if (strchr("oxXup", spec) != nullptr) {
-        // Size matters for unsigned integers.
-        if (length[0] == 'j' || length[1] == 'l') {
-          args_.push_back(Arg{kUnsigned64, arg_format, fmt_start, i + 1,
-                              width_star, precision_star});
-        } else {
-          args_.push_back(Arg{kUnsigned32, arg_format, fmt_start, i + 1,
-                              width_star, precision_star});
-        }
+      } else if (spec == 'c') {
+        args_.push_back(Arg{kChar, prefix + spec, fmt_start, i + 1, width_star,
+                            precision_star});
+      } else if (spec == 'p') {
+        args_.push_back(Arg{kPointer, prefix + spec, fmt_start, i + 1,
+                            width_star, precision_star});
+      } else if (strchr("oxXu", spec) != nullptr) {
+        // Size matters for unsigned integers: the value must be masked to the
+        // right width before formatting (see Detokenize).
+        const ArgType type = (length[0] == 'j' || length[1] == 'l')
+                                 ? kUnsigned64
+                                 : kUnsigned32;
+        args_.push_back(Arg{type, prefix + "ll" + spec, fmt_start, i + 1,
+                            width_star, precision_star});
       } else if (strchr("fFeEaAgG", spec) != nullptr) {
+        const std::string arg_format =
+            format.substr(fmt_start, i - fmt_start + 1);
         args_.push_back(Arg{kFloat, arg_format, fmt_start, i + 1, width_star,
                             precision_star});
       } else {

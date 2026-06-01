@@ -154,5 +154,57 @@ TEST(PigweedDetokenizerTest, NegativeStarPrecision) {
   EXPECT_EQ(result->Format(), "[42]");
 }
 
+TEST(PigweedDetokenizerTest, PlainUnsigned) {
+  auto db = BuildDatabase(0x1234, "value=%u");
+  auto detok = MakeDetokenizer(db);
+
+  std::vector<uint8_t> payload;
+  AppendUint32(&payload, 0x1234);
+  AppendZigZagVarInt(&payload, 42);
+
+  auto result = detok.Detokenize({payload.data(), payload.size()});
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  EXPECT_EQ(result->Format(), "value=42");
+}
+
+TEST(PigweedDetokenizerTest, Hex) {
+  auto db = BuildDatabase(0x1234, "value=0x%x");
+  auto detok = MakeDetokenizer(db);
+
+  std::vector<uint8_t> payload;
+  AppendUint32(&payload, 0x1234);
+  AppendZigZagVarInt(&payload, 0xABCD);
+
+  auto result = detok.Detokenize({payload.data(), payload.size()});
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  EXPECT_EQ(result->Format(), "value=0xabcd");
+}
+
+TEST(PigweedDetokenizerTest, LongLong) {
+  auto db = BuildDatabase(0x1234, "value=%lld");
+  auto detok = MakeDetokenizer(db);
+
+  std::vector<uint8_t> payload;
+  AppendUint32(&payload, 0x1234);
+  AppendZigZagVarInt(&payload, -5000000000);
+
+  auto result = detok.Detokenize({payload.data(), payload.size()});
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  EXPECT_EQ(result->Format(), "value=-5000000000");
+}
+
+TEST(PigweedDetokenizerTest, Char) {
+  auto db = BuildDatabase(0x1234, "value=%c");
+  auto detok = MakeDetokenizer(db);
+
+  std::vector<uint8_t> payload;
+  AppendUint32(&payload, 0x1234);
+  AppendZigZagVarInt(&payload, 'A');
+
+  auto result = detok.Detokenize({payload.data(), payload.size()});
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  EXPECT_EQ(result->Format(), "value=A");
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::pigweed
