@@ -669,9 +669,7 @@ std::vector<std::string> ReadSlicesFromTrace(
           (category_count++ ? "," : ":") + incremental_state.GetCategory(it);
     for (const auto& it : track_event.categories())
       slice += (category_count++ ? ",$" : ":$") + it;
-    if (track_event.has_state() && track_event.state().has_string_value()) {
-      slice += "." + track_event.state().string_value();
-    } else if (track_event.has_name() || track_event.has_name_iid()) {
+    if (track_event.has_name() || track_event.has_name_iid()) {
       slice += "." + incremental_state.GetEventName(track_event);
     }
 

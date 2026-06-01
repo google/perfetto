@@ -92,105 +92,14 @@ struct TraceTimestampTraits<TraceTimestamp> {
 
 namespace internal {
 
-// Helpers for TRACE_STATE
-template <typename T>
-struct IsStateStr {
-  using Decayed = typename std::decay<T>::type;
-  static constexpr bool value =
-      std::is_convertible_v<Decayed, const char*> ||
-      std::is_convertible_v<Decayed, std::string> ||
-      std::is_same_v<Decayed, ::perfetto::StaticString> ||
-      std::is_same_v<Decayed, ::perfetto::DynamicString>;
-};
-
-template <typename T,
-          typename std::enable_if<
-              std::is_integral<typename std::decay<T>::type>::value,
-              int>::type = 0>
-constexpr uint32_t GetFieldId(T value) {
-  return static_cast<uint32_t>(value);
-}
-
-template <typename T,
-          typename std::enable_if<
-              !std::is_integral<typename std::decay<T>::type>::value,
-              int>::type = 0>
-constexpr uint32_t GetFieldId(T) {
-  return T::kFieldId;
-}
-
-template <typename T,
-          typename std::enable_if<
-              std::is_integral<typename std::decay<T>::type>::value ||
-                  std::is_enum<typename std::decay<T>::type>::value,
-              int>::type = 0>
+template <
+    typename T,
+    typename std::enable_if<std::is_enum<typename std::decay<T>::type>::value,
+                            int>::type = 0>
 inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
                             uint32_t field_id,
                             T value) {
   state->AppendVarInt(field_id, static_cast<uint64_t>(value));
-}
-
-template <typename T,
-          typename std::enable_if<
-              std::is_floating_point<typename std::decay<T>::type>::value,
-              int>::type = 0>
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            T value) {
-  state->AppendFixed(field_id, value);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            const char* value) {
-  state->AppendString(field_id, value);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            const std::string& value) {
-  state->AppendString(field_id, value);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            ::perfetto::DynamicString value) {
-  state->AppendBytes(field_id, value.value, value.length);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            ::perfetto::StaticString value) {
-  state->AppendString(field_id, value.value);
-}
-
-template <typename T,
-          typename std::enable_if<IsStateStr<T>::value, int>::type = 0>
-inline void WriteSimpleStateValue(const EventContext& ctx, T&& value) {
-  ctx.event()->set_state()->set_string_value(std::forward<T>(value));
-}
-
-inline void WriteSimpleStateValue(const EventContext& ctx, std::nullptr_t) {
-  ctx.event()->set_state();
-}
-
-inline void WriteSimpleStateValue(const EventContext& ctx,
-                                  ::perfetto::DynamicString value) {
-  if (PERFETTO_UNLIKELY(ctx.ShouldFilterDynamicEventNames())) {
-    ctx.event()->set_state()->set_string_value("FILTERED");
-  } else {
-    ctx.event()->set_state()->set_string_value(value.value, value.length);
-  }
-}
-
-inline void WriteSimpleStateValue(const EventContext& ctx,
-                                  ::perfetto::StaticString value) {
-  ctx.event()->set_state()->set_string_value(value.value);
-}
-
-inline void WriteSimpleStateValue(const EventContext& ctx,
-                                  const std::string& value) {
-  ctx.event()->set_state()->set_string_value(value);
 }
 
 namespace {
@@ -587,14 +496,12 @@ class TrackEvent {
   }
 
   // TraceState overloads
-  template <typename CategoryType,
-            typename StateValueType,
-            typename... Args,
-            typename std::enable_if<
-                (internal::IsStateStr<StateValueType>::value ||
-                 std::is_same<typename std::decay<StateValueType>::type,
-                              std::nullptr_t>::value),
-                int>::type = 0>
+  template <
+      typename CategoryType,
+      typename StateValueType,
+      typename... Args,
+      typename std::enable_if<internal::IsValidEventNameType<StateValueType>,
+                              int>::type = 0>
   static void TraceState(uint32_t instances,
                          const CategoryType& category,
                          StateValueType&& state_value,
@@ -605,15 +512,13 @@ class TrackEvent {
                    std::forward<Args>(args)...);
   }
 
-  template <typename CategoryType,
-            typename FieldIdType,
-            typename ValueType,
-            typename... Args,
-            typename std::enable_if<
-                (!internal::IsStateStr<FieldIdType>::value &&
-                 !std::is_same<typename std::decay<FieldIdType>::type,
-                               std::nullptr_t>::value),
-                int>::type = 0>
+  template <
+      typename CategoryType,
+      typename FieldIdType,
+      typename ValueType,
+      typename... Args,
+      typename std::enable_if<!internal::IsValidEventNameType<FieldIdType>,
+                              int>::type = 0>
   static void TraceState(uint32_t instances,
                          const CategoryType& category,
                          FieldIdType field_id,
@@ -1203,11 +1108,10 @@ class TrackEvent {
           }
 
           auto event_ctx =
-              WriteTrackEvent(ctx, category, /*name=*/nullptr,
+              WriteTrackEvent(ctx, category,
+                              internal::DecayEventNameType(
+                                  std::forward<StateValueType>(state_value)),
                               protos::pbzero::TrackEvent::TYPE_STATE, track);
-
-          internal::WriteSimpleStateValue(
-              event_ctx, std::forward<StateValueType>(state_value));
 
           WriteTrackEventArgs(std::move(event_ctx),
                               std::forward<Args>(args)...);
@@ -1220,7 +1124,7 @@ class TrackEvent {
             typename... Args>
   static void TraceStateImpl(uint32_t instances,
                              const CategoryType& category,
-                             FieldIdType field_id,
+                             FieldIdType,
                              ValueType&& value,
                              const StateTrack& track,
                              Args&&... args) PERFETTO_NO_INLINE {
@@ -1238,7 +1142,7 @@ class TrackEvent {
                               protos::pbzero::TrackEvent::TYPE_STATE, track);
 
           auto* state_msg = event_ctx.event()->set_state();
-          internal::WriteStateField(state_msg, internal::GetFieldId(field_id),
+          internal::WriteStateField(state_msg, FieldIdType::kFieldId,
                                     std::forward<ValueType>(value));
 
           WriteTrackEventArgs(std::move(event_ctx),

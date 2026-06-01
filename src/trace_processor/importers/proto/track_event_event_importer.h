@@ -75,6 +75,7 @@
 
 #include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
@@ -676,6 +677,8 @@ class TrackEventEventImporter {
   }
 
   std::optional<std::string> FormatStateValue(ConstBytes state_bytes) {
+    using protos::pbzero::FieldDescriptorProto;
+
     protozero::ProtoDecoder decoder(state_bytes.data, state_bytes.size);
 
     auto state_idx = context_->descriptor_pool_->FindDescriptorIdx(
@@ -684,83 +687,36 @@ class TrackEventEventImporter {
         state_idx ? &context_->descriptor_pool_->descriptors()[*state_idx]
                   : nullptr;
 
-    bool has_value = false;
-    std::string value;
-
     for (auto field = decoder.ReadField(); field.valid();
          field = decoder.ReadField()) {
-      if (field.id() == 1) {  // string_value
-        has_value = true;
-        value = field.as_std_string();
-        break;
-      }
-      if (field.id() >= 10 && state_desc) {
-        const FieldDescriptor* field_desc =
-            state_desc->FindFieldByTag(field.id());
-        if (field_desc) {
-          has_value = true;
-          // If it is an enum, look up the string name!
-          if (field_desc->type() == 14 /* TYPE_ENUM */) {
-            auto enum_idx = context_->descriptor_pool_->FindDescriptorIdx(
-                field_desc->resolved_type_name());
-            if (enum_idx) {
-              const ProtoDescriptor* enum_desc =
-                  &context_->descriptor_pool_->descriptors()[*enum_idx];
-              auto enum_name = enum_desc->FindEnumString(field.as_int32());
-              if (enum_name) {
-                value = *enum_name;
-                break;
-              }
+      const FieldDescriptor* field_desc =
+          state_desc ? state_desc->FindFieldByTag(field.id()) : nullptr;
+      if (field_desc && field_desc->is_extension()) {
+        // For enums, look up the string name.
+        if (field_desc->type() == FieldDescriptorProto::TYPE_ENUM) {
+          auto enum_idx = context_->descriptor_pool_->FindDescriptorIdx(
+              field_desc->resolved_type_name());
+          if (enum_idx) {
+            const ProtoDescriptor* enum_desc =
+                &context_->descriptor_pool_->descriptors()[*enum_idx];
+            auto enum_name = enum_desc->FindEnumString(field.as_int32());
+            if (enum_name) {
+              return *enum_name;
             }
-            value = std::to_string(field.as_int32());
-            break;
           }
-          // For standard scalar types:
-          if (field_desc->type() == 9 /* TYPE_STRING */) {
-            value = field.as_std_string();
-            break;
-          }
-          if (field_desc->type() == 8 /* TYPE_BOOL */) {
-            value = field.as_bool() ? "true" : "false";
-            break;
-          }
-          if (field_desc->type() == 1 /* TYPE_DOUBLE */) {
-            value = std::to_string(field.as_double());
-            break;
-          }
-          if (field_desc->type() == 2 /* TYPE_FLOAT */) {
-            value = std::to_string(field.as_float());
-            break;
-          }
-          // For generic integers:
-          if (field_desc->type() == 3 /* TYPE_INT64 */ ||
-              field_desc->type() == 5 /* TYPE_INT32 */ ||
-              field_desc->type() == 17 /* TYPE_SINT32 */ ||
-              field_desc->type() == 18 /* TYPE_SINT64 */) {
-            value = std::to_string(field.as_int64());
-            break;
-          }
-          if (field_desc->type() == 4 /* TYPE_UINT64 */ ||
-              field_desc->type() == 13 /* TYPE_UINT32 */ ||
-              field_desc->type() == 7 /* TYPE_FIXED32 */ ||
-              field_desc->type() == 6 /* TYPE_FIXED64 */) {
-            value = std::to_string(field.as_uint64());
-            break;
-          }
-          // If it's a sub-message:
-          if (field_desc->type() == 11 /* TYPE_MESSAGE */) {
-            value = field_desc->name() + " (message)";
-            break;
-          }
+          return std::to_string(field.as_int32());
         }
-        has_value = true;
-        value = "Field " + std::to_string(field.id());
-        break;
+        // For strings, get the string directly.
+        if (field_desc->type() == FieldDescriptorProto::TYPE_STRING) {
+          return field.as_std_string();
+        }
+        // For all integer and numeric types.
+        if (field.type() == protozero::proto_utils::ProtoWireType::kVarInt) {
+          return std::to_string(field.as_int64());
+        }
+        // Fallback:
+        return "Field " + std::to_string(field.id());
       }
-    }
-
-    if (has_value) {
-      return value;
     }
     return std::nullopt;
   }

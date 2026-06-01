@@ -280,13 +280,9 @@ class TrackEventTracker {
     if (!s) {
       return std::nullopt;
     }
-    if (std::holds_alternative<TrackId>(*s->track_id_or_factory)) {
-      return base::unchecked_get<TrackId>(*s->track_id_or_factory);
-    }
-    const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
-        *s->track_id_or_factory);
-    return context_->track_compressor->Begin(factory,
-                                             static_cast<int64_t>(uuid));
+    auto* track_id = std::get_if<TrackId>(&*s->track_id_or_factory);
+    PERFETTO_CHECK(track_id);
+    return *track_id;
   }
 
   std::optional<TrackId> InternDescriptorTrackState(

@@ -161,8 +161,9 @@ message TrackEvent {
     TYPE_COUNTER = 4;
 
     // Event that provides a state value update for a state track. |track_uuid|
-    // should refer to a state track, and the state value update is carried in the
-    // |state| field. An empty or unset state field indicates "no state" / "idle".
+    // should refer to a state track, and the state value update is carried in
+    // the |state| field. An empty or unset state field indicates "no state" /
+    // "idle".
     TYPE_STATE = 5;
   }
   optional Type type = 9;
@@ -383,11 +384,7 @@ message TrackEvent {
 
   // Represents the state value for a state track.
   message State {
-    oneof value {
-      string string_value = 1;
-    }
-
-    // Extension range for typed state defined in external projects.
+    // Extension range for typed events defined in external projects.
     // See protos/perfetto/trace/extensions.json for the allocation registry and
     // docs/instrumentation/extensions.md for more details.
     extensions 1000 to 9999;

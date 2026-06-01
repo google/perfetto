@@ -41,7 +41,6 @@
 #include "src/trace_processor/tables/slice_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/state_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
-
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -205,7 +204,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_slice_table(), {{"parent_id"}, {"track_id"}});
     AddDataframe(out, s->mutable_state_table());
     AddDataframe(out, s->mutable_track_event_callstacks_table());
-
     AddDataframe(out, s->mutable_flow_table(), {{"slice_in"}, {"slice_out"}});
     AddDataframe(out, s->mutable_stack_profile_frame_table());
     AddDataframe(out, s->mutable_stack_profile_callsite_table());
