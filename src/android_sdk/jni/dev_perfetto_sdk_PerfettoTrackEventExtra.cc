@@ -380,6 +380,39 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_get_extra_ptr(
   return toJLong(track->get());
 }
 
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
+    JNIEnv* env,
+    jclass,
+    jint root_type,
+    jobjectArray names,
+    jlongArray ids) {
+  const jsize n = env->GetArrayLength(names);
+  std::vector<std::string> names_vec;
+  names_vec.reserve(static_cast<size_t>(n));
+  for (jsize i = 0; i < n; i++) {
+    jstring s = static_cast<jstring>(env->GetObjectArrayElement(names, i));
+    names_vec.emplace_back(StringBuffer::utf16_to_ascii(env, s));
+    env->DeleteLocalRef(s);
+  }
+  jlong* id_ptr = env->GetLongArrayElements(ids, nullptr);
+  std::vector<uint64_t> ids_vec(reinterpret_cast<const uint64_t*>(id_ptr),
+                                reinterpret_cast<const uint64_t*>(id_ptr) + n);
+  env->ReleaseLongArrayElements(ids, id_ptr, JNI_ABORT);
+  return toJLong(new sdk_for_jni::NestedTracks(
+      static_cast<sdk_for_jni::RootType>(root_type), names_vec, ids_vec));
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(&sdk_for_jni::NestedTracks::delete_track);
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_get_extra_ptr(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  sdk_for_jni::NestedTracks* track = toPointer<sdk_for_jni::NestedTracks>(ptr);
+  return toJLong(track->get());
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init(
     JNIEnv* env,
     jclass,
@@ -596,6 +629,15 @@ static const JNINativeMethod gNamedTrackMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_get_extra_ptr},
 };
 
+static const JNINativeMethod gNestedTracksMethods[] = {
+    {"native_init", "(I[Ljava/lang/String;[J)J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete},
+    {"native_get_extra_ptr", "(J)J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_get_extra_ptr},
+};
+
 static const JNINativeMethod gCounterTrackMethods[] = {
     {"native_init", "(Ljava/lang/String;JZ)J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init},
@@ -667,6 +709,14 @@ int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
       gNamedTrackMethods, NELEM(gNamedTrackMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register named track native methods.");
+
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$NestedTracks"),
+      gNestedTracksMethods, NELEM(gNestedTracksMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0,
+                      "Unable to register nested tracks native methods.");
 
   res = jniRegisterNativeMethods(
       env,
