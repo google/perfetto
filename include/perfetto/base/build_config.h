@@ -238,13 +238,6 @@
 #endif
 #endif
 
-#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB
-#if defined(PERFETTO_SDK_ENABLE_ZLIB) && (PERFETTO_SDK_ENABLE_ZLIB == 1)
-#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 1
-#else
-#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 0
-#endif
-
 #undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2
 #if defined(PERFETTO_SDK_ENABLE_RE2) && (PERFETTO_SDK_ENABLE_RE2 == 1)
 #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2() 1
@@ -252,6 +245,23 @@
 #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2() 0
 #endif
 
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB
+#if defined(PERFETTO_SDK_ENABLE_ZLIB) && (PERFETTO_SDK_ENABLE_ZLIB == 1)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 0
+#endif
+
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_AMALGAMATED_SDK)
+
+// Unlike PERFETTO_SDK_ENABLE_ZLIB above (amalgamated SDK opt-in), this is a
+// file-scope opt-out that applies to every build. Define it to compile out the
+// optional zlib compressor. Static libs like libperfetto_client_experimental
+// get linked into many binaries, so keeping the compressor out means those
+// binaries don't have to link libz. See tools/gen_android_bp.
+#if defined(PERFETTO_FORCE_DISABLE_ZLIB)
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 0
+#endif
 
 #endif  // INCLUDE_PERFETTO_BASE_BUILD_CONFIG_H_

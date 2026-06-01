@@ -303,6 +303,23 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
     Partitions* p_values = &tables[0]->partitions_map;
     SQLITE_ASSIGN_OR_RETURN(ctx, std::vector<ColType> p_types,
                             GetPartitionsSqlType(*p_values));
+
+    // The caller names the partition columns via the `partition_list` argument
+    // (these were appended to `ret_col_names` above), while the *count* and
+    // types of the partition columns are derived from the input table
+    // (`p_types`). These must agree: `builder` is sized from `ret_col_names`,
+    // but the partition-push loop in PushPartition() indexes the builder using
+    // the number of partition columns present in the data. If they differ, the
+    // push would write out of bounds (the size check inside the builder is only
+    // a DCHECK, compiled out in release builds). This is a single O(1) check,
+    // so it adds no cost to the per-row hot path.
+    if (ret_col_names.size() - kPartitionColsOffset != p_types.size()) {
+      return sqlite::result::Error(
+          ctx,
+          "interval intersect: the number of partition columns in the "
+          "partition list does not match the number of partition columns in "
+          "the input table");
+    }
     col_types.insert(col_types.end(), p_types.begin(), p_types.end());
 
     // Partitions will be taken from the table which has the least number of
