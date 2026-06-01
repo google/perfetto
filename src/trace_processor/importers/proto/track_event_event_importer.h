@@ -75,6 +75,7 @@
 
 #include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
@@ -675,25 +676,9 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
-  static bool IsIntegerFieldType(uint32_t type) {
-    switch (type) {
-      case 3:   // TYPE_INT64
-      case 4:   // TYPE_UINT64
-      case 5:   // TYPE_INT32
-      case 6:   // TYPE_FIXED64
-      case 7:   // TYPE_FIXED32
-      case 13:  // TYPE_UINT32
-      case 15:  // TYPE_SFIXED32
-      case 16:  // TYPE_SFIXED64
-      case 17:  // TYPE_SINT32
-      case 18:  // TYPE_SINT64
-        return true;
-      default:
-        return false;
-    }
-  }
-
   std::optional<std::string> FormatStateValue(ConstBytes state_bytes) {
+    using protos::pbzero::FieldDescriptorProto;
+
     protozero::ProtoDecoder decoder(state_bytes.data, state_bytes.size);
 
     auto state_idx = context_->descriptor_pool_->FindDescriptorIdx(
@@ -702,22 +687,13 @@ class TrackEventEventImporter {
         state_idx ? &context_->descriptor_pool_->descriptors()[*state_idx]
                   : nullptr;
 
-    bool has_value = false;
-    std::string value;
-
     for (auto field = decoder.ReadField(); field.valid();
          field = decoder.ReadField()) {
-      if (field.id() == 1) {  // string_value
-        has_value = true;
-        value = field.as_std_string();
-        break;
-      }
       const FieldDescriptor* field_desc =
           state_desc ? state_desc->FindFieldByTag(field.id()) : nullptr;
       if (field_desc && field_desc->is_extension()) {
-        has_value = true;
-        // 1. For enums, look up the string name!
-        if (field_desc->type() == 14 /* TYPE_ENUM */) {
+        // For enums, look up the string name.
+        if (field_desc->type() == FieldDescriptorProto::TYPE_ENUM) {
           auto enum_idx = context_->descriptor_pool_->FindDescriptorIdx(
               field_desc->resolved_type_name());
           if (enum_idx) {
@@ -725,31 +701,22 @@ class TrackEventEventImporter {
                 &context_->descriptor_pool_->descriptors()[*enum_idx];
             auto enum_name = enum_desc->FindEnumString(field.as_int32());
             if (enum_name) {
-              value = *enum_name;
-              break;
+              return *enum_name;
             }
           }
-          value = std::to_string(field.as_int32());
-          break;
+          return std::to_string(field.as_int32());
         }
-        // 2. For strings, get the string directly!
-        if (field_desc->type() == 9 /* TYPE_STRING */) {
-          value = field.as_std_string();
-          break;
+        // For strings, get the string directly.
+        if (field_desc->type() == FieldDescriptorProto::TYPE_STRING) {
+          return field.as_std_string();
         }
-        // 3. For all integer and numeric types:
-        if (IsIntegerFieldType(field_desc->type())) {
-          value = std::to_string(field.as_int64());
-          break;
+        // For all integer and numeric types.
+        if (field.type() == protozero::proto_utils::ProtoWireType::kVarInt) {
+          return std::to_string(field.as_int64());
         }
         // Fallback:
-        value = "Field " + std::to_string(field.id());
-        break;
+        return "Field " + std::to_string(field.id());
       }
-    }
-
-    if (has_value) {
-      return value;
     }
     return std::nullopt;
   }
