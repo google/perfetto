@@ -112,27 +112,7 @@ export async function createTraceProcessorSliceTrack({
 }
 
 function getSelectColumns(rootTableName: string, depthTableName?: string) {
-  if (rootTableName === 'state') {
-    return {
-      id: 'id',
-      ts: 'ts',
-      dur: 'dur',
-      depth: depthTableName
-        ? {
-            join: 'depth',
-            expr: 'depth.depth',
-          }
-        : '0',
-      name: 'value',
-      thread_dur: 'NULL',
-      track_id: 'track_id',
-      category: 'NULL',
-      correlation_id: 'NULL',
-      arg_set_id: 'arg_set_id',
-      parent_id: 'NULL',
-      layer: '0',
-    };
-  }
+  const isState = rootTableName === 'state';
   return {
     id: 'id',
     ts: 'ts',
@@ -142,14 +122,18 @@ function getSelectColumns(rootTableName: string, depthTableName?: string) {
           join: 'depth',
           expr: 'depth.depth',
         }
-      : 'depth',
-    name: 'name',
-    thread_dur: 'thread_dur',
+      : isState
+        ? '0'
+        : 'depth',
+    name: isState ? 'value' : 'name',
+    thread_dur: isState ? 'NULL' : 'thread_dur',
     track_id: 'track_id',
     category: 'category',
-    correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
+    correlation_id: isState
+      ? 'NULL'
+      : "extract_arg(arg_set_id, 'correlation_id')",
     arg_set_id: 'arg_set_id',
-    parent_id: 'parent_id',
+    parent_id: isState ? 'NULL' : 'parent_id',
   };
 }
 
