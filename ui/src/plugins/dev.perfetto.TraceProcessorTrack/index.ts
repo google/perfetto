@@ -555,7 +555,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     if (group === undefined) {
       return node;
     }
-
     // This is potentially dangerous - ids MUST be unique within the entire
     // workspace - this seems to indicate that we could end up duplicating ids in
     // different nodes.
@@ -563,7 +562,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     const expanded =
       typeof group === 'string' ? false : group.expanded ?? false;
 
-    // Try to find the parent track's existing visual folder first!
+    // Try to find the parent track's existing visual folder first.
     if (parentId !== null) {
       // Check if this parent is already registered inside the workspace node
       const existingParent = node.children.find(
