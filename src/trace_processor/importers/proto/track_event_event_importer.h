@@ -752,7 +752,7 @@ class TrackEventEventImporter {
       context_->state_tracker->UpdateState(ts_, track_id, kNullStringId);
     } else {
       context_->state_tracker->UpdateState(
-          ts_, track_id, state_id,
+          ts_, track_id, state_id, category_id_,
           [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
     }
 

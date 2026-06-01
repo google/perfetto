@@ -41,13 +41,15 @@ CREATE PERFETTO VIEW state(
   dur DURATION,
   -- The track this state slice belongs to.
   track_id JOINID(track.id),
+  -- The category of the state.
+  category STRING,
   -- The string value/name of the state.
   value STRING,
   -- Additional information about the state.
   arg_set_id ARGSETID
 )
 AS
-SELECT id, ts, dur, track_id, value, arg_set_id FROM __intrinsic_state;
+SELECT id, ts, dur, track_id, category, value, arg_set_id FROM __intrinsic_state;
 
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.

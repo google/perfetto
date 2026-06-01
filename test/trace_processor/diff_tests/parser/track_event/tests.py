@@ -1105,6 +1105,7 @@ class TrackEvent(TestSuite):
           track_event {
             track_uuid: 10
             type: 5
+            categories: "state_cat"
             name: "state_active"
           }
         }
@@ -1114,6 +1115,7 @@ class TrackEvent(TestSuite):
           track_event {
             track_uuid: 10
             type: 5
+            categories: "state_cat"
             name: "state_idle"
           }
         }
@@ -1127,15 +1129,15 @@ class TrackEvent(TestSuite):
         }
         """),
         query="""
-        SELECT ts, dur, value, track.name AS track_name
+        SELECT ts, dur, category, value, track.name AS track_name
         FROM state
         JOIN track ON track.id = state.track_id
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","value","track_name"
-        1000,2000,"state_active","MyStateTrack"
-        3000,1000,"state_idle","MyStateTrack"
+        "ts","dur","category","value","track_name"
+        1000,2000,"state_cat","state_active","MyStateTrack"
+        3000,1000,"state_cat","state_idle","MyStateTrack"
         """))
 
   def test_track_event_custom_proto_state(self):

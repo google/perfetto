@@ -28,6 +28,7 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
     int64_t timestamp,
     TrackId track_id,
     StringId value_id,
+    StringId category_id,
     SetArgsCallback args_callback) {
   auto* states = context_->storage->mutable_state_table();
 
@@ -54,6 +55,8 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
     row.ts = timestamp;
     row.dur = -1;  // pending duration
     row.track_id = track_id;
+    row.category =
+        category_id.is_null() ? std::nullopt : std::make_optional(category_id);
     row.value = value_id;
 
     auto id_and_row = states->Insert(row);
