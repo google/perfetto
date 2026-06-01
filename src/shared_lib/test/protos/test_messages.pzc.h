@@ -24,6 +24,7 @@
 #include <stdint.h>
 
 #include "perfetto/public/pb_macros.h"
+#include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/library.pzc.h"
 #include "src/shared_lib/test/protos/other_package/test_messages.pzc.h"
 #include "src/shared_lib/test/protos/subpackage/test_messages.pzc.h"

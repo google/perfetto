@@ -1105,9 +1105,7 @@ class TrackEvent(TestSuite):
           track_event {
             track_uuid: 10
             type: 5
-            state {
-              string_value: "state_active"
-            }
+            name: "state_active"
           }
         }
         packet {
@@ -1116,9 +1114,7 @@ class TrackEvent(TestSuite):
           track_event {
             track_uuid: 10
             type: 5
-            state {
-              string_value: "state_idle"
-            }
+            name: "state_idle"
           }
         }
         packet {
@@ -1258,9 +1254,7 @@ class TrackEvent(TestSuite):
           track_event {
             track_uuid: 10
             type: 5
-            state {
-              string_value: "state_active"
-            }
+            name: "state_active"
           }
         }
         """),
@@ -1353,9 +1347,7 @@ class TrackEvent(TestSuite):
           track_event {
             track_uuid: 10
             type: 5
-            state {
-              string_value: "Active"
-            }
+            name: "Active"
           }
         }
         packet {
@@ -1364,9 +1356,7 @@ class TrackEvent(TestSuite):
           track_event {
             track_uuid: 11
             type: 5
-            state {
-              string_value: "Running"
-            }
+            name: "Running"
           }
         }
         packet {

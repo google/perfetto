@@ -39,11 +39,11 @@ perfetto_proto_library("@TYPE@") {
     "range_of_interest.proto",
     "screenshot.proto",
     "source_location.proto",
+    "state_descriptor.proto",
     "task_execution.proto",
     "thread_descriptor.proto",
     "track_descriptor.proto",
     "track_event.proto",
-    "state_descriptor.proto",
   ]
   generate_descriptor = "track_event.descriptor"
   generator_visibility = [ "../../../../src/trace_processor/importers/proto:gen_cc_track_event_descriptor" ]

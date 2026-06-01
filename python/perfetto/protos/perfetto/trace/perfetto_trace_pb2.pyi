@@ -3757,7 +3757,7 @@ class V8Config(_message.Message):
     def __init__(self, log_script_sources: bool = ..., log_instructions: bool = ...) -> None: ...
 
 class EtwConfig(_message.Message):
-    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events", "stack_sampling_events", "disk_provider_events")
+    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events", "stack_sampling_events", "disk_provider_events", "system_io_provider_events")
     class KernelFlag(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         CSWITCH: _ClassVar[EtwConfig.KernelFlag]
@@ -3770,13 +3770,15 @@ class EtwConfig(_message.Message):
     FILE_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     STACK_SAMPLING_EVENTS_FIELD_NUMBER: _ClassVar[int]
     DISK_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_IO_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     kernel_flags: _containers.RepeatedScalarFieldContainer[EtwConfig.KernelFlag]
     scheduler_provider_events: _containers.RepeatedScalarFieldContainer[str]
     memory_provider_events: _containers.RepeatedScalarFieldContainer[str]
     file_provider_events: _containers.RepeatedScalarFieldContainer[str]
     stack_sampling_events: _containers.RepeatedScalarFieldContainer[str]
     disk_provider_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_events: _Optional[_Iterable[str]] = ..., disk_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
+    system_io_provider_events: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_events: _Optional[_Iterable[str]] = ..., disk_provider_events: _Optional[_Iterable[str]] = ..., system_io_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class FrozenFtraceConfig(_message.Message):
     __slots__ = ("instance_name",)
@@ -18885,11 +18887,9 @@ class TrackEvent(_message.Message):
         frames: _containers.RepeatedCompositeFieldContainer[TrackEvent.Callstack.Frame]
         def __init__(self, frames: _Optional[_Iterable[_Union[TrackEvent.Callstack.Frame, _Mapping]]] = ...) -> None: ...
     class State(_message.Message):
-        __slots__ = ("string_value",)
+        __slots__ = ()
         Extensions: _python_message._ExtensionDict
-        STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
-        string_value: str
-        def __init__(self, string_value: _Optional[str] = ...) -> None: ...
+        def __init__(self) -> None: ...
     class LegacyEvent(_message.Message):
         __slots__ = ("name_iid", "phase", "duration_us", "thread_duration_us", "thread_instruction_delta", "unscoped_id", "local_id", "global_id", "id_scope", "use_async_tts", "bind_id", "bind_to_enclosing", "flow_direction", "instant_event_scope", "pid_override", "tid_override")
         class FlowDirection(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -19494,7 +19494,7 @@ class JavaStack(_message.Message):
     def __init__(self, frames: _Optional[_Iterable[_Union[JavaFrame, _Mapping]]] = ...) -> None: ...
 
 class ArtProcessMetadata(_message.Message):
-    __slots__ = ("pid", "uid", "process_name", "package_name", "oom_allocation_size", "oom_total_bytes_free", "oom_free_bytes_until_oom", "oom_thread_java_stack")
+    __slots__ = ("pid", "uid", "process_name", "package_name", "oom_allocation_size", "oom_total_bytes_free", "oom_free_bytes_until_oom", "oom_thread_java_stack", "oom_error_msg")
     PID_FIELD_NUMBER: _ClassVar[int]
     UID_FIELD_NUMBER: _ClassVar[int]
     PROCESS_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -19503,6 +19503,7 @@ class ArtProcessMetadata(_message.Message):
     OOM_TOTAL_BYTES_FREE_FIELD_NUMBER: _ClassVar[int]
     OOM_FREE_BYTES_UNTIL_OOM_FIELD_NUMBER: _ClassVar[int]
     OOM_THREAD_JAVA_STACK_FIELD_NUMBER: _ClassVar[int]
+    OOM_ERROR_MSG_FIELD_NUMBER: _ClassVar[int]
     pid: int
     uid: int
     process_name: str
@@ -19511,7 +19512,8 @@ class ArtProcessMetadata(_message.Message):
     oom_total_bytes_free: int
     oom_free_bytes_until_oom: int
     oom_thread_java_stack: JavaStack
-    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., process_name: _Optional[str] = ..., package_name: _Optional[str] = ..., oom_allocation_size: _Optional[int] = ..., oom_total_bytes_free: _Optional[int] = ..., oom_free_bytes_until_oom: _Optional[int] = ..., oom_thread_java_stack: _Optional[_Union[JavaStack, _Mapping]] = ...) -> None: ...
+    oom_error_msg: str
+    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., process_name: _Optional[str] = ..., package_name: _Optional[str] = ..., oom_allocation_size: _Optional[int] = ..., oom_total_bytes_free: _Optional[int] = ..., oom_free_bytes_until_oom: _Optional[int] = ..., oom_thread_java_stack: _Optional[_Union[JavaStack, _Mapping]] = ..., oom_error_msg: _Optional[str] = ...) -> None: ...
 
 class ObfuscatedMember(_message.Message):
     __slots__ = ("obfuscated_name", "deobfuscated_name", "obfuscated_line_start", "obfuscated_line_end", "source_line_start", "source_line_end")

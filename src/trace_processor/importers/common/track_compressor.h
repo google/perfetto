@@ -84,6 +84,63 @@ class TrackCompressor {
  private:
   struct TrackSet;
 
+  template <typename NameBlueprintT,
+            typename UnitBlueprintT,
+            typename DescriptionBlueprintT,
+            typename... DimensionsT>
+  static constexpr auto CompressBlueprint(
+      tracks::BlueprintT<NameBlueprintT,
+                         UnitBlueprintT,
+                         DescriptionBlueprintT,
+                         DimensionsT...> blueprint) {
+    using BT = decltype(blueprint);
+    constexpr auto kCompressorIdxDimensionIndex =
+        std::tuple_size_v<typename BT::dimension_blueprints_t>;
+    return std::apply(
+        [&](auto... x) {
+          auto blueprints = blueprint.dimension_blueprints;
+          blueprints[kCompressorIdxDimensionIndex] =
+              tracks::UintDimensionBlueprint("track_compressor_idx");
+
+          if constexpr (std::is_base_of_v<tracks::NameBlueprintT::FnBase,
+                                          typename BT::name_blueprint_t>) {
+            using F = decltype(blueprint.name_blueprint.fn);
+            auto fn =
+                MakeNameFn<F, decltype(x)...>(blueprint.name_blueprint.fn);
+            return tracks::BlueprintT<
+                decltype(fn), typename BT::unit_blueprint_t,
+                typename BT::description_blueprint_t, decltype(x)...,
+                tracks::DimensionBlueprintT<uint32_t>>{
+                {
+                    blueprint.event_type,
+                    blueprint.type,
+                    blueprint.hasher,
+                    blueprints,
+                },
+                fn,
+                blueprint.unit_blueprint,
+                blueprint.description_blueprint,
+            };
+          } else {
+            return tracks::BlueprintT<
+                typename BT::name_blueprint_t, typename BT::unit_blueprint_t,
+                typename BT::description_blueprint_t, decltype(x)...,
+                tracks::DimensionBlueprintT<uint32_t>>{
+                {
+                    blueprint.event_type,
+                    blueprint.type,
+                    blueprint.hasher,
+                    blueprints,
+                },
+                blueprint.name_blueprint,
+                blueprint.unit_blueprint,
+                blueprint.description_blueprint,
+            };
+          }
+        },
+        typename BT::dimension_blueprints_t());
+  }
+
  public:
   // Indicates the nesting behaviour of slices associated to a single slice
   // stack.
@@ -178,53 +235,7 @@ class TrackCompressor {
       const char type[],
       tracks::DimensionBlueprintsT<D...> dimensions = {},
       NB name = NB{}) {
-    auto blueprint = tracks::SliceBlueprint(type, dimensions, name);
-    using BT = decltype(blueprint);
-    constexpr auto kCompressorIdxDimensionIndex =
-        std::tuple_size_v<typename BT::dimension_blueprints_t>;
-    return std::apply(
-        [&](auto... x) {
-          auto blueprints = blueprint.dimension_blueprints;
-          blueprints[kCompressorIdxDimensionIndex] =
-              tracks::UintDimensionBlueprint("track_compressor_idx");
-
-          if constexpr (std::is_base_of_v<tracks::NameBlueprintT::FnBase,
-                                          typename BT::name_blueprint_t>) {
-            using F = decltype(blueprint.name_blueprint.fn);
-            auto fn =
-                MakeNameFn<F, decltype(x)...>(blueprint.name_blueprint.fn);
-            return tracks::BlueprintT<
-                decltype(fn), typename BT::unit_blueprint_t,
-                typename BT::description_blueprint_t, decltype(x)...,
-                tracks::DimensionBlueprintT<uint32_t>>{
-                {
-                    blueprint.event_type,
-                    blueprint.type,
-                    blueprint.hasher,
-                    blueprints,
-                },
-                fn,
-                blueprint.unit_blueprint,
-                blueprint.description_blueprint,
-            };
-          } else {
-            return tracks::BlueprintT<
-                typename BT::name_blueprint_t, typename BT::unit_blueprint_t,
-                typename BT::description_blueprint_t, decltype(x)...,
-                tracks::DimensionBlueprintT<uint32_t>>{
-                {
-                    blueprint.event_type,
-                    blueprint.type,
-                    blueprint.hasher,
-                    blueprints,
-                },
-                blueprint.name_blueprint,
-                blueprint.unit_blueprint,
-                blueprint.description_blueprint,
-            };
-          }
-        },
-        typename BT::dimension_blueprints_t());
+    return CompressBlueprint(tracks::SliceBlueprint(type, dimensions, name));
   }
 
   // Wrapper around tracks::StateBlueprint which makes the blueprint eligible
@@ -235,53 +246,7 @@ class TrackCompressor {
       const char type[],
       tracks::DimensionBlueprintsT<D...> dimensions = {},
       NB name = NB{}) {
-    auto blueprint = tracks::StateBlueprint(type, dimensions, name);
-    using BT = decltype(blueprint);
-    constexpr auto kCompressorIdxDimensionIndex =
-        std::tuple_size_v<typename BT::dimension_blueprints_t>;
-    return std::apply(
-        [&](auto... x) {
-          auto blueprints = blueprint.dimension_blueprints;
-          blueprints[kCompressorIdxDimensionIndex] =
-              tracks::UintDimensionBlueprint("track_compressor_idx");
-
-          if constexpr (std::is_base_of_v<tracks::NameBlueprintT::FnBase,
-                                          typename BT::name_blueprint_t>) {
-            using F = decltype(blueprint.name_blueprint.fn);
-            auto fn =
-                MakeNameFn<F, decltype(x)...>(blueprint.name_blueprint.fn);
-            return tracks::BlueprintT<
-                decltype(fn), typename BT::unit_blueprint_t,
-                typename BT::description_blueprint_t, decltype(x)...,
-                tracks::DimensionBlueprintT<uint32_t>>{
-                {
-                    blueprint.event_type,
-                    blueprint.type,
-                    blueprint.hasher,
-                    blueprints,
-                },
-                fn,
-                blueprint.unit_blueprint,
-                blueprint.description_blueprint,
-            };
-          } else {
-            return tracks::BlueprintT<
-                typename BT::name_blueprint_t, typename BT::unit_blueprint_t,
-                typename BT::description_blueprint_t, decltype(x)...,
-                tracks::DimensionBlueprintT<uint32_t>>{
-                {
-                    blueprint.event_type,
-                    blueprint.type,
-                    blueprint.hasher,
-                    blueprints,
-                },
-                blueprint.name_blueprint,
-                blueprint.unit_blueprint,
-                blueprint.description_blueprint,
-            };
-          }
-        },
-        typename BT::dimension_blueprints_t());
+    return CompressBlueprint(tracks::StateBlueprint(type, dimensions, name));
   }
 
   /***************************************************************************

@@ -59,7 +59,6 @@ class RegisteredFileTracker;
 class SchedEventTracker;
 class SliceTracker;
 class StateTracker;
-
 class SliceTranslationTable;
 class StackProfileTracker;
 class SymbolTracker;
@@ -229,7 +228,6 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;
   PerTraceAndMachinePtr<StateTracker> state_tracker;
-
   PerTraceAndMachinePtr<FileIoTracker> file_io_tracker;
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;

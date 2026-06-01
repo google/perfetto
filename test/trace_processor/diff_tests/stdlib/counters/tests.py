@@ -71,3 +71,50 @@ class StdlibCounterIntervals(TestSuite):
         5,50,10,1,11.000000,12.000000,0.000000
         6,60,19940,1,12.000000,"[NULL]",1.000000
         """))
+
+  # A counter track nested under another track should expose its parent via
+  # counter_track.parent_id, mirroring the track table.
+  def test_counter_track_parent_id(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 1
+            name: "parent_track"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            parent_uuid: 1
+            name: "child_counter"
+            counter {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 100
+          track_event {
+            type: TYPE_COUNTER
+            track_uuid: 2
+            counter_value: 10
+          }
+        }
+        """),
+        query="""
+        SELECT
+          ct.name,
+          ct.parent_id = parent.id AS parent_matches,
+          parent.name AS parent_name
+        FROM counter_track ct
+        JOIN track parent ON ct.parent_id = parent.id
+        WHERE ct.name = 'child_counter';
+        """,
+        out=Csv("""
+        "name","parent_matches","parent_name"
+        "child_counter",1,"parent_track"
+        """))

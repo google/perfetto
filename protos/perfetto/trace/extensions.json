@@ -88,8 +88,13 @@
     },
     {
       "scope": "perfetto.protos.TrackEvent.State",
-      "range": [10, 9999],
+      "range": [1000, 9999],
       "allocations": [
+        {
+          "name": "unallocated",
+          "comment": ["The next allocation goes here. Shrink and take from here."],
+          "range": [1000, 8999]
+        },
         {
           "name": "perfetto_tests",
           "range": [9000, 9999],

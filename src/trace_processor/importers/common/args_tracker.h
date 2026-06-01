@@ -37,7 +37,6 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/state_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
-
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
