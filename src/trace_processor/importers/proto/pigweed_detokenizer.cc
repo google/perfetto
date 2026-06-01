@@ -388,9 +388,8 @@ FormatString::FormatString(std::string format) : template_str_(format) {
       } else if (strchr("oxXu", spec) != nullptr) {
         // Size matters for unsigned integers: the value must be masked to the
         // right width before formatting (see Detokenize).
-        const ArgType type = (length[0] == 'j' || length[1] == 'l')
-                                 ? kUnsigned64
-                                 : kUnsigned32;
+        const ArgType type =
+            (length[0] == 'j' || length[1] == 'l') ? kUnsigned64 : kUnsigned32;
         args_.push_back(Arg{type, prefix + "ll" + spec, fmt_start, i + 1,
                             width_star, precision_star});
       } else if (strchr("fFeEaAgG", spec) != nullptr) {
