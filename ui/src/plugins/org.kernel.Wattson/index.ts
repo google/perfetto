@@ -23,6 +23,7 @@ import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import type {Engine} from '../../trace_processor/engine';
+import SchedPlugin from '../dev.perfetto.Sched';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import type {RouteArgs} from '../../public/route_schema';
@@ -49,7 +50,7 @@ const WINDOW_MAP: Record<string, string> = {
 
 export default class Wattson implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
-  static readonly dependencies = [];
+  static readonly dependencies = [SchedPlugin];
   public static windowsOfInterest = new Set<string>();
 
   static onActivate(_app: App, args: RouteArgs): void {
