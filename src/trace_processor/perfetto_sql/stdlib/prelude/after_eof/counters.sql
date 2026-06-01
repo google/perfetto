@@ -56,7 +56,7 @@ AS
 SELECT
   id,
   name,
-  NULL AS parent_id,
+  parent_id,
   type,
   dimension_arg_set_id,
   source_arg_set_id,
