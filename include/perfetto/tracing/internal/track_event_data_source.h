@@ -108,49 +108,14 @@ constexpr uint32_t GetFieldId(T) {
   return T::kFieldId;
 }
 
-template <typename T,
-          typename std::enable_if<
-              std::is_integral<typename std::decay<T>::type>::value ||
-                  std::is_enum<typename std::decay<T>::type>::value,
-              int>::type = 0>
+template <
+    typename T,
+    typename std::enable_if<std::is_enum<typename std::decay<T>::type>::value,
+                            int>::type = 0>
 inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
                             uint32_t field_id,
                             T value) {
   state->AppendVarInt(field_id, static_cast<uint64_t>(value));
-}
-
-template <typename T,
-          typename std::enable_if<
-              std::is_floating_point<typename std::decay<T>::type>::value,
-              int>::type = 0>
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            T value) {
-  state->AppendFixed(field_id, value);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            const char* value) {
-  state->AppendString(field_id, value);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            const std::string& value) {
-  state->AppendString(field_id, value);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            ::perfetto::DynamicString value) {
-  state->AppendBytes(field_id, value.value, value.length);
-}
-
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            ::perfetto::StaticString value) {
-  state->AppendString(field_id, value.value);
 }
 
 namespace {
