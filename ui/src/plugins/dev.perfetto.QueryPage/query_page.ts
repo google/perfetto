@@ -89,13 +89,6 @@ export interface QueryPageAttrs {
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  // Whether the right-hand History/Tables sidebar is shown.
-  private sidebarVisible = true;
-
-  oninit({attrs}: m.CVnode<QueryPageAttrs>) {
-    this.sidebarVisible = attrs.sidebarVisibleSetting.get();
-  }
-
   // Map of tab ID to DataSource for each tab's query results
   private dataSources = new Map<string, DataSource>();
 
@@ -126,6 +119,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
+    const sidebarVisible = attrs.sidebarVisibleSetting.get();
 
     // Update data sources for tabs whose results have changed
     for (const tab of editorTabs) {
@@ -181,13 +175,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         }),
         m('.pf-query-page__tab-spacer'),
         m(Button, {
-          icon: this.sidebarVisible ? 'right_panel_close' : 'right_panel_open',
-          title: this.sidebarVisible ? 'Hide sidebar' : 'Show sidebar',
-          onclick: () => {
-            this.sidebarVisible = !this.sidebarVisible;
-            attrs.sidebarVisibleSetting.set(this.sidebarVisible);
-          },
-          active: this.sidebarVisible,
+          icon: sidebarVisible ? 'right_panel_close' : 'right_panel_open',
+          title: sidebarVisible ? 'Hide sidebar' : 'Show sidebar',
+          onclick: () => attrs.sidebarVisibleSetting.set(!sidebarVisible),
+          active: sidebarVisible,
         }),
       ],
     });
@@ -225,7 +216,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       ],
     });
 
-    if (!this.sidebarVisible) {
+    if (!sidebarVisible) {
       return m('.pf-query-page', leftPanel);
     }
 
