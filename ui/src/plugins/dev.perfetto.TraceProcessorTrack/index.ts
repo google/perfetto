@@ -417,7 +417,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         : schema.group;
       const trackName = getTrackName({
         name,
-
         tid,
         threadName,
         pid,
@@ -454,7 +453,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ...(isKernelThread === 1 && {kernelThread: true}),
           hasCallstacks: hasCallstacks === 1,
         },
-
         renderer: await createTraceProcessorSliceTrack({
           trace: ctx,
           uri,
@@ -558,6 +556,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       return node;
     }
 
+    // This is potentially dangerous - ids MUST be unique within the entire
+    // workspace - this seems to indicate that we could end up duplicating ids in
+    // different nodes.
     const name = typeof group === 'string' ? group : group.name;
     const expanded =
       typeof group === 'string' ? false : group.expanded ?? false;

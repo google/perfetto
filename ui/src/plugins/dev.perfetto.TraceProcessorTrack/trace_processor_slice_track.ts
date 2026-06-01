@@ -166,7 +166,8 @@ async function getDataset(
 
     if (depthTableName === undefined) {
       if (rootTableName === 'state') {
-        // For state tracks, each distinct track_id maps directly to a vertical depth row!
+        // For state tracks, each distinct track_id maps directly to a vertical
+        // depth row.
         await createPerfettoTable({
           name: tableName,
           engine,
