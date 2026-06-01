@@ -94,7 +94,6 @@ export async function getSliceFromConstraints(
       ABS_TIME_STR(ts) as absTime
     FROM ${tableName}
     ${constraintsToQuerySuffix(constraints)}`);
-
   const it = query.iter({
     id: NUM,
     name: STR_NULL,
