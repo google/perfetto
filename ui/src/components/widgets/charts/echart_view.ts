@@ -27,6 +27,7 @@
  */
 
 import m from 'mithril';
+import './charts.scss';
 import {
   AXIS_LABEL_FONT_SIZE,
   type LabelFormatter,

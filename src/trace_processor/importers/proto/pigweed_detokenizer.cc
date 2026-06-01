@@ -156,37 +156,42 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
 
   std::vector<std::variant<int64_t, uint64_t, double>> args;
   std::vector<std::string> args_formatted;
-  for (Arg arg : format->args()) {
+  for (const Arg& arg : format->args()) {
     char buffer[kFormatBufferSize];
     size_t formatted_size;
 
     // Resolve any '*' field width / precision wildcards. Each consumes an extra
     // integer argument from the payload, which we substitute into the format
     // string so that exactly one variadic value remains for SprintfTrunc. Not
-    // doing so would let vsnprintf read uninitialized memory.
-    std::string resolved_fmt = arg.format;
-    if (arg.width_star) {
-      int64_t width;
-      if (!read_varint(&width)) {
-        return base::ErrStatus("Truncated Pigweed varint");
+    // doing so would let vsnprintf read uninitialized memory. Wildcards are
+    // rare, so only materialize a resolved copy of the format when present.
+    const char* fmt = arg.format.c_str();
+    std::string resolved_fmt;
+    if (arg.width_star || arg.precision_star) {
+      resolved_fmt = arg.format;
+      if (arg.width_star) {
+        int64_t width;
+        if (!read_varint(&width)) {
+          return base::ErrStatus("Truncated Pigweed varint");
+        }
+        size_t star = resolved_fmt.find('*');
+        resolved_fmt.replace(star, 1, std::to_string(width));
       }
-      size_t star = resolved_fmt.find('*');
-      resolved_fmt.replace(star, 1, std::to_string(width));
+      if (arg.precision_star) {
+        int64_t precision;
+        if (!read_varint(&precision)) {
+          return base::ErrStatus("Truncated Pigweed varint");
+        }
+        size_t dot = resolved_fmt.find(".*");
+        if (precision < 0) {
+          // printf treats a negative precision as if precision were omitted.
+          resolved_fmt.erase(dot, 2);
+        } else {
+          resolved_fmt.replace(dot + 1, 1, std::to_string(precision));
+        }
+      }
+      fmt = resolved_fmt.c_str();
     }
-    if (arg.precision_star) {
-      int64_t precision;
-      if (!read_varint(&precision)) {
-        return base::ErrStatus("Truncated Pigweed varint");
-      }
-      size_t dot = resolved_fmt.find(".*");
-      if (precision < 0) {
-        // printf treats a negative precision as if precision were omitted.
-        resolved_fmt.erase(dot, 2);
-      } else {
-        resolved_fmt.replace(dot + 1, 1, std::to_string(precision));
-      }
-    }
-    const char* fmt = resolved_fmt.c_str();
 
     if (arg.type == kFloat) {
       if (ptr + sizeof(float) > bytes.data + bytes.size) {
