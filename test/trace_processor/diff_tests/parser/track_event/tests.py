@@ -1129,15 +1129,15 @@ class TrackEvent(TestSuite):
         }
         """),
         query="""
-        SELECT ts, dur, category, value, track.name AS track_name
+        SELECT state.id, ts, dur, category, value, track.name AS track_name
         FROM state
         JOIN track ON track.id = state.track_id
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","category","value","track_name"
-        1000,2000,"state_cat","state_active","MyStateTrack"
-        3000,1000,"state_cat","state_idle","MyStateTrack"
+        "id","ts","dur","category","value","track_name"
+        0,1000,2000,"state_cat","state_active","MyStateTrack"
+        1,3000,1000,"state_cat","state_idle","MyStateTrack"
         """))
 
   def test_track_event_custom_proto_state(self):
@@ -1225,16 +1225,16 @@ class TrackEvent(TestSuite):
         }
         """),
         query="""
-        SELECT ts, dur, value, track.name AS track_name, args.key, args.display_value
+        SELECT state.id, ts, dur, value, track.name AS track_name, args.key, args.display_value
         FROM state
         JOIN track ON track.id = state.track_id
         LEFT JOIN args USING(arg_set_id)
         ORDER BY ts, args.key;
         """,
         out=Csv("""
-        "ts","dur","value","track_name","key","display_value"
-        1000,2000,"TEST_STATE_ACTIVE","MyCustomStateTrack","state.test_state_enum_value","TEST_STATE_ACTIVE"
-        3000,1000,"TEST_STATE_INACTIVE","MyCustomStateTrack","state.test_state_enum_value","TEST_STATE_INACTIVE"
+        "id","ts","dur","value","track_name","key","display_value"
+        0,1000,2000,"TEST_STATE_ACTIVE","MyCustomStateTrack","state.test_state_enum_value","TEST_STATE_ACTIVE"
+        1,3000,1000,"TEST_STATE_INACTIVE","MyCustomStateTrack","state.test_state_enum_value","TEST_STATE_INACTIVE"
         """))
 
   def test_state_track_ui_auto_discovery(self):
