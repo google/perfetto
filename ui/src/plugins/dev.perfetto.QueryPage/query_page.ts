@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Engine} from 'syntaqlite';
+import {assetSrc} from '../../base/assets';
 import {Icons} from '../../base/semantic_icons';
 import type {QueryResponse} from '../../components/query_table/queries';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
@@ -98,13 +99,13 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private getFormatterEngine(): Promise<Engine> {
     if (this.formatterEnginePromise === undefined) {
       const engine = new Engine({
-        runtimeJsPath: 'assets/syntaqlite-runtime.js',
-        runtimeWasmPath: 'assets/syntaqlite-runtime.wasm',
+        runtimeJsPath: assetSrc('assets/syntaqlite-runtime.js'),
+        runtimeWasmPath: assetSrc('assets/syntaqlite-runtime.wasm'),
       });
       this.formatterEnginePromise = (async () => {
         await engine.load();
         const binding = await engine.loadDialectFromUrl(
-          'assets/syntaqlite-perfetto.wasm',
+          assetSrc('assets/syntaqlite-perfetto.wasm'),
           'syntaqlite_perfetto_dialect_template',
         );
         engine.setDialectPointer(binding.ptr);
