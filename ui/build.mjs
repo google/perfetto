@@ -688,7 +688,7 @@ function buildWasm(skipWasmBuild) {
 
 function copySyntaqliteRuntime() {
   const srcDir = pjoin(ROOT_DIR, 'ui/node_modules/syntaqlite/wasm');
-  const dstDir = pjoin(cfg.outDistRootDir, 'assets');
+  const dstDir = pjoin(cfg.outDistDir, 'assets');
   for (const fname of [
     'syntaqlite-runtime.js',
     'syntaqlite-runtime.wasm',
@@ -721,7 +721,7 @@ function buildSyntaqlitePerfettoDialect() {
     ROOT_DIR,
     'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
   );
-  const dst = pjoin(cfg.outDistRootDir, 'assets', 'syntaqlite-perfetto.wasm');
+  const dst = pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm');
   try {
     const srcMtime = fs.statSync(src).mtimeMs;
     const dstMtime = fs.statSync(dst).mtimeMs;
