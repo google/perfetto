@@ -218,6 +218,10 @@ class NamedTrackImpl : public Track {
   static Derived FromPointer(TrackEventName&& name,
                              const void* ptr,
                              Track parent = MakeProcessTrack()) {
+    // Using pointers as global TrackIds isn't supported as pointers are
+    // per-proccess and the same pointer value can be used in different
+    // processes. If you hit this check but are providing no |parent| track,
+    // verify that Tracing::Initialize() was called for the current process.
     PERFETTO_DCHECK(parent.uuid != Track().uuid ||
                     MakeProcessTrack().uuid == 0);
     return Derived(std::forward<TrackEventName>(name),
@@ -226,6 +230,9 @@ class NamedTrackImpl : public Track {
   }
 
   // Construct a track using `name` and `id` as identifier within thread-scope.
+  // Shorthand for `Track::NamedTrack("name", id, ThreadTrack::Current())`
+  // Usage: TRACE_EVENT_BEGIN("...", "...",
+  // perfetto::NamedTrack::ThreadScoped("rendering"))
   template <class TrackEventName>
   static Derived ThreadScoped(TrackEventName&& name,
                               uint64_t id = 0,
@@ -323,11 +330,14 @@ class NamedTrackImpl : public Track {
   std::optional<uint64_t> sibling_merge_key_int_ = std::nullopt;
 };
 
+static constexpr uint64_t kNamedTrackMagic = 0xCD571EC5EAD37024ul;
+static constexpr uint64_t kStateTrackMagic = 0x57417374617465ul;
+
 }  // namespace internal
 
-// A track that's identified by an explcit name, id and its parent.
+// A track that's identified by an explicit name, id and its parent.
 class PERFETTO_EXPORT_COMPONENT NamedTrack
-    : public internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul> {
+    : public internal::NamedTrackImpl<NamedTrack, internal::kNamedTrackMagic> {
  public:
   using NamedTrackImpl::NamedTrackImpl;
   using NamedTrackImpl::Serialize;
@@ -335,11 +345,13 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
-  friend class internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul>;
+  friend class internal::NamedTrackImpl<NamedTrack, internal::kNamedTrackMagic>;
 };
 
+// A track for recording state values with the TRACE_STATE macro, with similar
+// API as NamedTrack.
 class PERFETTO_EXPORT_COMPONENT StateTrack
-    : public internal::NamedTrackImpl<StateTrack, 0x57417374617465ul> {
+    : public internal::NamedTrackImpl<StateTrack, internal::kStateTrackMagic> {
  public:
   using NamedTrackImpl::NamedTrackImpl;
   using NamedTrackImpl::Serialize;
@@ -347,7 +359,7 @@ class PERFETTO_EXPORT_COMPONENT StateTrack
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
-  friend class internal::NamedTrackImpl<StateTrack, 0x57417374617465ul>;
+  friend class internal::NamedTrackImpl<StateTrack, internal::kStateTrackMagic>;
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter
