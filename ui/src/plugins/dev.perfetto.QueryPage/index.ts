@@ -129,6 +129,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       description: 'Show the History/Tables sidebar on the Query page.',
       schema: z.boolean(),
       defaultValue: true,
+      headless: true,
     });
   }
 
