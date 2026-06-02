@@ -1,8 +1,9 @@
 {
   "comment": [
     "Allocation registry for out-of-tree extensions against Perfetto trace",
-    "protos. Three scopes are tracked here:",
+    "protos. 4 scopes are tracked here:",
     "  * TrackEvent   -- typed-event payloads emitted on a track (`extend TrackEvent`)",
+    "  * TrackEvent.State   -- typed value emitted for a state track (`extend TrackEvent.State`)",
     "  * TracePacket  -- top-level trace packet types (`extend TracePacket`)",
     "  * InternedData -- per-sequence interned data types (`extend InternedData`)",
     "",
@@ -104,7 +105,6 @@
         }
       ]
     },
-
     {
       "scope": "perfetto.protos.TracePacket",
       "ranges": [[116, 116], [1000, 1999]],
