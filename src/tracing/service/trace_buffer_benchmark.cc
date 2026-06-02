@@ -230,6 +230,64 @@ static void BM_TraceBuffer_RD(benchmark::State& state) {
   state.SetBytesProcessed(static_cast<int64_t>(total_bytes_read));
 }
 
+// Benchmark 3: Per-session setup/teardown cost. Relevant to workloads that
+// repeatedly start and stop tracing sessions (e.g. busy-waiting jank tests).
+// Isolates the buffer Create()/destroy lifecycle: allocation, Initialize(), and
+// teardown. state.range(0) is the buffer size.
+template <typename BufferType>
+static void BM_TraceBuffer_Create(benchmark::State& state) {
+  const size_t buffer_size = static_cast<size_t>(state.range(0));
+  for (auto _ : state) {
+    auto buffer = BufferType::Create(buffer_size);
+    PERFETTO_CHECK(buffer);
+    benchmark::DoNotOptimize(buffer.get());
+    // buffer is destroyed (munmap) at end of scope.
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
+}
+
+// Benchmark 4: A whole short session - create, write a little, read it back,
+// destroy. Models the brief tracing sessions a busy-waiting jank test spins up
+// and tears down repeatedly. state.range(0) is bytes written per session.
+template <typename BufferType>
+static void BM_TraceBuffer_ShortSession(benchmark::State& state) {
+  constexpr size_t kBufferSize = 4 * 1024 * 1024;
+  const size_t session_bytes = static_cast<size_t>(state.range(0));
+  auto chunk_templates = GenerateChunkTemplates(100);
+  ClientIdentity client_identity(1000, 100);
+  size_t total_bytes = 0;
+
+  for (auto _ : state) {
+    auto buffer = BufferType::Create(kBufferSize);
+    PERFETTO_CHECK(buffer);
+
+    ChunkID chunk_id = 0;
+    size_t bytes_written = 0;
+    size_t template_idx = 0;
+    while (bytes_written < session_bytes) {
+      const auto& tmpl = chunk_templates[template_idx % chunk_templates.size()];
+      buffer->CopyChunkUntrusted(ProducerID(1), client_identity, WriterID(1),
+                                 chunk_id++, tmpl.num_fragments, tmpl.flags,
+                                 /*chunk_complete=*/true, tmpl.data.data(),
+                                 tmpl.data.size());
+      bytes_written += kChunkSize;
+      template_idx++;
+    }
+
+    buffer->BeginRead();
+    TraceBuffer::PacketSequenceProperties seq_props;
+    bool packet_dropped;
+    for (;;) {
+      TracePacket packet;
+      if (!buffer->ReadNextTracePacket(&packet, &seq_props, &packet_dropped))
+        break;
+    }
+    total_bytes += bytes_written;
+    benchmark::DoNotOptimize(buffer.get());
+  }
+  state.SetBytesProcessed(static_cast<int64_t>(total_bytes));
+}
+
 // Instantiate benchmarks for both V1 and V2
 
 // Write benchmarks - Single writer
@@ -247,6 +305,28 @@ BENCHMARK_TEMPLATE(BM_TraceBuffer_WR_MultipleWriters, TraceBufferV2)
 // Read benchmarks
 BENCHMARK_TEMPLATE(BM_TraceBuffer_RD, TraceBufferV1)->Apply(BmArgs);
 BENCHMARK_TEMPLATE(BM_TraceBuffer_RD, TraceBufferV2)->Apply(BmArgs);
+
+// Per-session create/teardown cost (1MB, 16MB, 64MB buffers).
+BENCHMARK_TEMPLATE(BM_TraceBuffer_Create, TraceBufferV1)
+    ->Arg(1 * 1024 * 1024)
+    ->Arg(16 * 1024 * 1024)
+    ->Arg(64 * 1024 * 1024)
+    ->Apply(BmArgs);
+BENCHMARK_TEMPLATE(BM_TraceBuffer_Create, TraceBufferV2)
+    ->Arg(1 * 1024 * 1024)
+    ->Arg(16 * 1024 * 1024)
+    ->Arg(64 * 1024 * 1024)
+    ->Apply(BmArgs);
+
+// Whole short session (64KB and 1MB written per session).
+BENCHMARK_TEMPLATE(BM_TraceBuffer_ShortSession, TraceBufferV1)
+    ->Arg(64 * 1024)
+    ->Arg(1 * 1024 * 1024)
+    ->Apply(BmArgs);
+BENCHMARK_TEMPLATE(BM_TraceBuffer_ShortSession, TraceBufferV2)
+    ->Arg(64 * 1024)
+    ->Arg(1 * 1024 * 1024)
+    ->Apply(BmArgs);
 
 }  // namespace
 }  // namespace perfetto
