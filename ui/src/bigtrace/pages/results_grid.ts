@@ -137,7 +137,7 @@ function renderDataGrid(
   return m(DataGrid, {
     schema,
     rootSchema: 'data',
-    enablePivotControls: false,
+    disablePivotControls: true, // In-mem datasource doesn't support pivoting
     initialColumns: columns
       .filter((col) => {
         if (!col.startsWith('_')) return true;
