@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../../../base/classnames';
 import {Box} from '../../../widgets/box';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
+import type {HTMLAttrs} from '../../../widgets/common';
 import {Stack, StackAuto} from '../../../widgets/stack';
 import {isEmptyVnodes} from '../../../base/mithril_utils';
 
@@ -25,19 +27,44 @@ export class GridFilterBar implements m.ClassComponent {
   }
 }
 
-export interface GridFilterChipAttrs {
+export interface GridFilterChipAttrs extends HTMLAttrs {
   readonly content: m.Children;
   readonly onRemove?: () => void;
+  // Called when the chip BODY is clicked (the × button is excluded
+  // via a propagation guard). Lets callers open a popup that edits
+  // the filter the chip represents.
+  readonly onEdit?: () => void;
 }
 
 export class GridFilterChip implements m.ClassComponent<GridFilterChipAttrs> {
   view({attrs}: m.Vnode<GridFilterChipAttrs>): m.Children {
+    // Pass through any HTML attrs (notably `ref` and `active`, which
+    // the Popup widget injects when this chip is used as a Popup
+    // trigger) to the underlying Chip widget. Without this, the
+    // class-component boundary swallows those attrs and Popup's
+    // findRef-by-ref fails on mount.
+    const {content, onRemove, onEdit, className, onclick, ...rest} = attrs;
     return m(Chip, {
-      className: 'pf-grid-filter',
-      label: attrs.content,
-      removable: attrs.onRemove !== undefined,
-      onRemove: attrs.onRemove,
+      ...rest,
+      className: classNames(
+        'pf-grid-filter',
+        onEdit && 'pf-grid-filter--editable',
+        className,
+      ),
+      label: content,
+      removable: onRemove !== undefined,
+      onRemove,
       removeButtonTitle: 'Remove filter',
+      // The × close button is rendered as a Button inside the chip
+      // root and doesn't stopPropagation. Skip onEdit if the click
+      // originated from inside a .pf-button so removing a chip
+      // doesn't also open its editor.
+      onclick: onEdit
+        ? (e: PointerEvent) => {
+            if ((e.target as Element | null)?.closest('.pf-button')) return;
+            onEdit();
+          }
+        : onclick,
     });
   }
 }

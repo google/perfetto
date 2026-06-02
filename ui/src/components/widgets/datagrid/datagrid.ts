@@ -42,8 +42,13 @@ import {
   ColumnMenu,
   getAggregateFunctionsForColumnType,
 } from './add_column_menu';
+import {Popup, PopupPosition} from '../../../widgets/popup';
 import {CellFilterMenu} from './cell_filter_menu';
-import {FilterMenu} from './column_filter_menu';
+import {
+  EditFilterMenu,
+  FilterMenu,
+  isEditableFilter,
+} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
 import type {
   DataSource,
@@ -420,6 +425,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private paginationOffset: number = 0;
   private paginationLimit: number = 100;
 
+  // Which filter chip's edit-popup is currently open. Undefined =
+  // no popup. Toggled by clicks on the chip body; cleared on apply
+  // or outside-click.
+  private editingFilterIndex: number | undefined;
+
   // The grid API instance for column autosizing etc
   private gridApi?: GridApi;
 
@@ -606,14 +616,58 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 ),
             }),
         ],
-        filterChips: this.filters.map((filter, index) =>
-          m(GridFilterChip, {
+        filterChips: this.filters.map((filter, index) => {
+          // Filters that carry no editable value render as
+          // remove-only chips with no edit popup.
+          const editable = isEditableFilter(filter);
+          const colInfo = getColumnInfo(schema, rootSchema, filter.field);
+          const chip = m(GridFilterChip, {
             content: this.formatFilter(filter, schema, rootSchema),
             onRemove: filtersAreMutable
               ? () => this.removeFilter(index, attrs)
               : undefined,
-          }),
-        ),
+            onEdit:
+              filtersAreMutable && editable
+                ? () => {
+                    this.editingFilterIndex =
+                      this.editingFilterIndex === index ? undefined : index;
+                  }
+                : undefined,
+          });
+          if (!filtersAreMutable || !editable) return chip;
+          // Controlled-mode Popup: trigger keeps its own onclick (the
+          // chip's onEdit toggles editingFilterIndex); Popup just
+          // renders the body when that index matches. BottomStart
+          // anchors the popup to the chip's left edge so it grows
+          // rightward with the reading direction.
+          return m(
+            Popup,
+            {
+              trigger: chip,
+              isOpen: this.editingFilterIndex === index,
+              onChange: (open) => {
+                this.editingFilterIndex = open ? index : undefined;
+              },
+              position: PopupPosition.BottomStart,
+            },
+            m(EditFilterMenu, {
+              datasource,
+              field: filter.field,
+              columnType: colInfo?.columnType,
+              valueFormatter: (v) =>
+                colInfo?.cellFormatter?.(v, {}) ?? String(v),
+              initialFilter: filter,
+              onFilterReplace: (newFilter) => {
+                this.editingFilterIndex = undefined;
+                this.replaceFilter(
+                  index,
+                  {field: filter.field, ...newFilter},
+                  attrs,
+                );
+              },
+            }),
+          );
+        }),
         drillDownFields:
           this.pivot?.drillDown &&
           this.pivot.drillDown.map(({field, value}) => {
@@ -815,12 +869,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private clearFilters(attrs: DataGridAttrs): void {
+    // Editing index points into a now-empty array — drop it.
+    this.editingFilterIndex = undefined;
     this.filters = [];
     attrs.onFiltersChanged?.([]);
   }
 
   private removeFilter(index: number, attrs: DataGridAttrs): void {
+    this.editingFilterIndex = undefined;
     const newFilters = this.filters.filter((_, i) => i !== index);
+    this.filters = newFilters;
+    attrs.onFiltersChanged?.(newFilters);
+  }
+
+  private replaceFilter(
+    index: number,
+    newFilter: Filter,
+    attrs: DataGridAttrs,
+  ): void {
+    if (index < 0 || index >= this.filters.length) return;
+    const newFilters = this.filters.map((f, i) =>
+      i === index ? newFilter : f,
+    );
     this.filters = newFilters;
     attrs.onFiltersChanged?.(newFilters);
   }
