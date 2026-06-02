@@ -32,11 +32,25 @@ pb_msg!(TestEvent {
 pb_msg!(TestEventProtoVmIncrementalState {
     string_merged: String, primitive, 1,
     int_merged: i32, primitive, 2,
+    single_message: TestEventProtoVmMessage, msg, 3,
+    messages: TestEventProtoVmMessage, msg, 4,
 });
 
 pb_msg!(TestEventProtoVmPatch {
     string_to_merge: String, primitive, 1,
     int_to_merge: i32, primitive, 2,
+    single_message: TestEventProtoVmMessage, msg, 3,
+    messages: TestEventProtoVmMessage, msg, 4,
+    delete_message_ids: u32, primitive, 5,
+});
+
+pb_msg!(TestEventProtoVmMessage {
+    id: u32, primitive, 1,
+    submessage: TestEventProtoVmMessageProtoVmSubmessage, msg, 2,
+});
+
+pb_msg!(TestEventProtoVmMessageProtoVmSubmessage {
+    single_int: u32, primitive, 1,
 });
 
 pb_msg!(TestEventTestPayload {

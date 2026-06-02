@@ -17,6 +17,7 @@
 #include "src/tools/tracing_proto_extensions.h"
 
 #include "perfetto/base/status.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -524,6 +525,78 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithUnifiedRegistry) {
   ASSERT_TRUE(result.ok()) << result.status().message();
   // The output should be a non-empty FileDescriptorSet.
   EXPECT_GT(result->size(), 0u);
+}
+
+TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsExcludesCoreProtos) {
+  // The output carries the extension files and the types they define, but not
+  // the core Perfetto protos (the extendee and what it imports). Here a core
+  // extendee references a leaf type in a separate core file; both core files
+  // must be excluded from the output.
+  base::TmpDirTree tmp;
+  tmp.AddDir("protos");
+  tmp.AddDir("protos/perfetto");
+  tmp.AddDir("protos/perfetto/trace");
+  tmp.AddDir("protos/perfetto/trace/track_event");
+  tmp.AddDir("ext");
+  // A leaf type in its own core file.
+  tmp.AddFile("protos/perfetto/trace/track_event/leaf.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    message CoreLeaf { optional int32 x = 1; }
+  )");
+  // A core extendee that references the leaf from the separate file.
+  tmp.AddFile("protos/perfetto/trace/track_event/track_event.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    import "protos/perfetto/trace/track_event/leaf.proto";
+    message TrackEvent {
+      extensions 9900 to 9999;
+      optional CoreLeaf core_leaf = 1;
+    }
+  )");
+  // Out-of-tree extension: its own payload, extending the core TrackEvent.
+  tmp.AddFile("ext/my_ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "protos/perfetto/trace/track_event/track_event.proto";
+    message MyPayload { optional int32 y = 1; }
+    message MyExt {
+      extend perfetto.protos.TrackEvent {
+        optional MyPayload my_payload = 9900;
+      }
+    }
+  )");
+  tmp.AddFile("registry.json", R"({
+    "extensions": [
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [9900, 9999],
+        "allocations": [
+          {"name": "ext", "range": [9900, 9999], "proto": "ext/my_ext.proto"}
+        ]
+      }
+    ]
+  })");
+
+  auto result = GenerateExtensionDescriptors(tmp.AbsolutePath("registry.json"),
+                                             {tmp.path()}, tmp.path());
+  ASSERT_TRUE(result.ok()) << result.status().message();
+
+  std::vector<std::string> files;
+  protos::pbzero::FileDescriptorSet::Decoder fds(result->data(),
+                                                 result->size());
+  for (auto it = fds.file(); it; ++it) {
+    protos::pbzero::FileDescriptorProto::Decoder f(*it);
+    files.push_back(f.name().ToStdString());
+  }
+
+  // Extension file is present; the core extendee and core leaf are not.
+  EXPECT_THAT(files, testing::Contains("ext/my_ext.proto"));
+  EXPECT_THAT(files,
+              testing::Not(testing::Contains(
+                  "protos/perfetto/trace/track_event/track_event.proto")));
+  EXPECT_THAT(files, testing::Not(testing::Contains(
+                         "protos/perfetto/trace/track_event/leaf.proto")));
 }
 
 }  // namespace
