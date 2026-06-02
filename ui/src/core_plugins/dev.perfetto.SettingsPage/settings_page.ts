@@ -183,6 +183,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     >();
     for (const result of settings) {
       const setting = result.item;
+      if (setting.headless) continue; // Don't display headless settings
       const isCore =
         setting.pluginId === undefined ||
         app.plugins.isCorePlugin(setting.pluginId);

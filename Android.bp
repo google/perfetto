@@ -17722,6 +17722,7 @@ filegroup {
         "src/trace_processor/importers/proto/network_trace_module_unittest.cc",
         "src/trace_processor/importers/proto/packet_sequence_state_generation_unittest.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker_unittest.cc",
+        "src/trace_processor/importers/proto/pigweed_detokenizer_unittest.cc",
         "src/trace_processor/importers/proto/profile_packet_sequence_state_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_parser_impl_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_reader_unittest.cc",

@@ -200,6 +200,30 @@ void ConvertFileDescriptor(const google::protobuf::FileDescriptorProto& src,
   }
 }
 
+// Emits |fd| and its transitive dependencies into |fds|, skipping files already
+// added and core Perfetto protos (those under protos/perfetto/). Core protos
+// already ship in TraceProcessor and resolve there -- including the extendee
+// (e.g. TracePacket) -- so the descriptor only needs to carry the extension
+// files and the types they define. |is_root| keeps the extension file itself
+// even when it lives under protos/perfetto/; the skip applies to its deps.
+void AddFileAndTransitiveDeps(const google::protobuf::FileDescriptor* fd,
+                              bool is_root,
+                              std::set<std::string>* added_files,
+                              pbzero::FileDescriptorSet* fds) {
+  std::string name(fd->name().data(), fd->name().size());
+  if (!is_root && base::StartsWith(name, "protos/perfetto/"))
+    return;
+  if (!added_files->insert(name).second)
+    return;
+  google::protobuf::FileDescriptorProto file_proto;
+  fd->CopyTo(&file_proto);
+  ConvertFileDescriptor(file_proto, fds->add_file());
+  for (int i = 0; i < fd->dependency_count(); ++i) {
+    AddFileAndTransitiveDeps(fd->dependency(i), /*is_root=*/false, added_files,
+                             fds);
+  }
+}
+
 // Validates that:
 // 1. At least one extension targeting |scope| exists in |file_desc|.
 // 2. All such extension fields have field numbers within the given |ranges|.
@@ -672,26 +696,9 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     // Validate field numbers.
     RETURN_IF_ERROR(ValidateFieldNumbers(file_desc, entry.scope, entry.ranges));
 
-    // Convert to our descriptor format. We include the extension file itself
-    // and its transitive dependencies that are NOT core Perfetto protos
-    // (those are already built into TraceProcessor).
-    // For simplicity, we include all dependencies. TraceProcessor's
-    // DescriptorPool handles duplicates gracefully.
-    google::protobuf::FileDescriptorProto file_proto;
-    file_desc->CopyTo(&file_proto);
-
-    if (added_files.insert(file_proto.name()).second) {
-      ConvertFileDescriptor(file_proto, fds->add_file());
-    }
-
-    // Also add direct dependencies needed for type resolution.
-    for (int i = 0; i < file_desc->dependency_count(); ++i) {
-      google::protobuf::FileDescriptorProto dep_proto;
-      file_desc->dependency(i)->CopyTo(&dep_proto);
-      if (added_files.insert(dep_proto.name()).second) {
-        ConvertFileDescriptor(dep_proto, fds->add_file());
-      }
-    }
+    // Emit the extension file plus its non-core transitive dependencies.
+    AddFileAndTransitiveDeps(file_desc, /*is_root=*/true, &added_files,
+                             fds.get());
   }
 
   return fds.SerializeAsArray();

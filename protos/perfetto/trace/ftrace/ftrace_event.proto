@@ -764,5 +764,6 @@ message FtraceEvent {
     DpuDispFrameStartMissingFtraceEvent dpu_disp_frame_start_missing = 610;
     PanelSettingsFullFtraceEvent panel_settings_full = 611;
     PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
+    DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
   }
 }
