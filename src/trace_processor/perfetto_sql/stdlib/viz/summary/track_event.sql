@@ -24,7 +24,9 @@ WITH
       t.parent_id,
       extract_arg(t.source_arg_set_id, 'child_ordering') AS ordering,
       extract_arg(t.source_arg_set_id, 'sibling_order_rank') AS rank,
-      extract_arg(t.source_arg_set_id, 'description') AS description
+      extract_arg(t.source_arg_set_id, 'description') AS description,
+      extract_arg(t.dimension_arg_set_id, 'upid') AS upid,
+      extract_arg(t.dimension_arg_set_id, 'utid') AS utid
     FROM track AS t
     WHERE
       t.type GLOB '*_track_event'
@@ -35,7 +37,9 @@ SELECT
   t.parent_id,
   p.ordering AS parent_ordering,
   coalesce(t.rank, 0) AS rank,
-  t.description
+  t.description,
+  t.upid,
+  t.utid
 FROM extracted AS t
 LEFT JOIN extracted AS p ON t.parent_id = p.id;
 
@@ -64,7 +68,12 @@ WITH
   lexicographic_and_none AS (
     SELECT
       id,
-      row_number() OVER (PARTITION BY parent_id ORDER BY name) AS order_id
+      row_number() OVER (
+        PARTITION BY
+          parent_id,
+          (CASE WHEN parent_id IS NULL THEN coalesce(upid, utid) ELSE NULL END)
+        ORDER BY name
+      ) AS order_id
     FROM _track_event_tracks_unordered AS t
     WHERE
       t.parent_ordering = 'lexicographic'
