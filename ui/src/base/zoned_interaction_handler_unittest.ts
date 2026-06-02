@@ -159,10 +159,7 @@ describe('ZonedInteractionHandler', () => {
     expect(handleDragEnd).toHaveBeenCalled();
   });
 
-  // TODO: happy-dom doesn't dispatch WheelEvent to listeners registered via
-  // addEventListener('wheel', ...). This code is slated for removal, so just
-  // skip rather than work around it.
-  test.skip('onWheel', () => {
+  test('onWheel', () => {
     const handleWheel = vi.fn();
 
     zih.update([

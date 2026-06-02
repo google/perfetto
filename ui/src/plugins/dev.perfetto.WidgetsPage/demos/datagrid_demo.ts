@@ -194,7 +194,9 @@ export function renderDataGrid(app: App): m.Children {
       initialOpts: {
         showExportButton: false,
         structuredQueryCompatMode: false,
-        enablePivotControls: true,
+        disablePivotControls: false,
+        disableColumnControls: false,
+        disableFilterControls: false,
       },
       noPadding: true,
     }),
@@ -253,12 +255,7 @@ export function renderDataGrid(app: App): m.Children {
                 ],
               });
             },
-            initialOpts: {
-              enableSortControls: true,
-              enableFilterControls: true,
-              enablePivotControls: false,
-              showRowCount: true,
-            },
+            initialOpts: {},
             noPadding: true,
           })
         : m('.pf-empty-state', 'Load a trace to see the SQL DataGrid example'),
