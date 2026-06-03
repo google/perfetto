@@ -590,6 +590,8 @@ class TrackEvent {
     TrackRegistry::Get()->UpdateTrack(track, desc.SerializeAsString());
     Trace([&](TrackEventDataSource::TraceContext ctx) {
       auto* incr_state = ctx.GetIncrementalState();
+      // Defer writing the track descriptor until the track actually emits its
+      // first event to avoid polluting the buffer with idle tracks.
       if (incr_state->seen_tracks.count(track.uuid) == 0) {
         return;
       }
