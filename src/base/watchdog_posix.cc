@@ -29,6 +29,10 @@
 #include <sys/timerfd.h>
 #include <unistd.h>
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif
+
 #include <algorithm>
 #include <cinttypes>
 #include <fstream>
@@ -60,6 +64,20 @@ base::CrashKey g_crash_key_timeout("wdog_timeout");
 base::CrashKey g_crash_key_actual_mono("wdog_actual_mono");
 base::CrashKey g_crash_key_actual_boot("wdog_actual_boot");
 base::CrashKey g_crash_key_actual_cpu("wdog_actual_cpu");
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+uint32_t GetHwTimeoutMultiplier() {
+  static uint32_t multiplier = []() {
+    char prop_val[PROP_VALUE_MAX] = {0};
+    if (__system_property_get("ro.hw_timeout_multiplier", prop_val) > 0) {
+      int val = atoi(prop_val);
+      return val > 1 ? static_cast<uint32_t>(val) : 1u;
+    }
+    return 1u;
+  }();
+  return multiplier;
+}
+#endif
 
 bool IsMultipleOf(uint32_t number, uint32_t divisor) {
   return number >= divisor && number % divisor == 0;
@@ -133,6 +151,10 @@ Watchdog::Timer Watchdog::CreateFatalTimer(uint32_t ms,
                                            WatchdogCrashReason crash_reason) {
   if (!enabled_.load(std::memory_order_relaxed))
     return Watchdog::Timer(this, 0, crash_reason);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  ms *= GetHwTimeoutMultiplier();
+#endif
 
   return Watchdog::Timer(this, ms, crash_reason);
 }
