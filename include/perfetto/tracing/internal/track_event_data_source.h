@@ -589,8 +589,12 @@ class TrackEvent {
     PERFETTO_DCHECK(track.uuid == desc.uuid());
     TrackRegistry::Get()->UpdateTrack(track, desc.SerializeAsString());
     Trace([&](TrackEventDataSource::TraceContext ctx) {
+      auto* incr_state = ctx.GetIncrementalState();
+      if (incr_state->seen_tracks.count(track.uuid) == 0) {
+        return;
+      }
       TrackEventInternal::WriteTrackDescriptor(
-          track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+          track, ctx.tls_inst_->trace_writer.get(), incr_state,
           *ctx.GetCustomTlsState(), TrackEventInternal::GetTraceTime());
     });
   }
