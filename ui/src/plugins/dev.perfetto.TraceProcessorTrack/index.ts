@@ -252,6 +252,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     await ctx.engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.track_event_callstacks;
+      include perfetto module viz.summary.slices;
+      include perfetto module viz.summary.states;
     `);
 
     // Step 1: Materialize track metadata
@@ -282,7 +284,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           from _slice_track_summary s
           join track t using (id)
           left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
-          group by type, upid, utid, gpu_id, t.track_group_id, ifnull(t.track_group_id, t.id)
+          where t.id not in (select distinct parent_id from track where parent_id is not null)
+          group by t.type, upid, utid, gpu_id, t.track_group_id, ifnull(t.track_group_id, t.id)
         )
         select
           s.type,

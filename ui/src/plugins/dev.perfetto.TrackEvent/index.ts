@@ -99,6 +99,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           g.utid,
           g.parent_id as parentId,
           g.is_counter AS isCounter,
+          g.is_state AS isState,
           g.name,
           g.description,
           g.unit,
@@ -130,7 +131,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         select id, t.minTrackId, layout_depth as depth
         from __track_event_tracks t
         join experimental_slice_layout(t.trackIds) s
-        where isCounter = 0 and trackCount > 1
+        where isCounter = 0 and isState = 0 and trackCount > 1
         order by s.id
       `,
     });
@@ -141,6 +142,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       utid: NUM_NULL,
       parentId: NUM_NULL,
       isCounter: NUM,
+      isState: NUM,
       name: STR_NULL,
       description: STR_NULL,
       unit: STR_NULL,
@@ -174,6 +176,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         utid,
         parentId,
         isCounter,
+        isState,
         name,
         description,
         unit,
@@ -209,7 +212,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         tid,
         pid,
       });
-      const uri = `/track_event_${trackIds[0]}`;
+      const uri = isState
+        ? `/state_track_event_${trackIds[0]}`
+        : `/track_event_${trackIds[0]}`;
       if (hasData && isCounter) {
         // Don't show any builtin counter.
         if (builtinCounterType !== null) {
@@ -259,9 +264,10 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackIds,
             detailsPanel: createTrackEventDetailsPanel(ctx),
             depthTableName:
-              trackIds.length > 1
+              trackIds.length > 1 && isState === 0
                 ? '__trackevent_track_layout_depth'
                 : undefined,
+            rootTableName: isState === 1 ? 'state' : undefined,
           }),
         });
       } else {

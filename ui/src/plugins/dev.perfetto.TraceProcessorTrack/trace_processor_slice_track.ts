@@ -40,6 +40,7 @@ export interface TraceProcessorSliceTrackAttrs {
   readonly trackIds: ReadonlyArray<number>;
   readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
   readonly depthTableName?: string;
+  readonly rootTableName?: string;
 }
 
 const schema = {
@@ -63,14 +64,21 @@ export async function createTraceProcessorSliceTrack({
   trackIds,
   detailsPanel,
   depthTableName,
+  rootTableName,
 }: TraceProcessorSliceTrackAttrs) {
+  const rootTable = rootTableName ?? 'slice';
   return SliceTrack.create({
     trace,
     uri,
-    dataset: await getDataset(trace.engine, trackIds, depthTableName),
+    dataset: await getDataset(
+      trace.engine,
+      trackIds,
+      rootTable,
+      depthTableName,
+    ),
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
-    rootTableName: 'slice',
+    rootTableName: rootTable,
     fillRatio: (row) => {
       if (row.dur > 0n && row.thread_dur !== null) {
         return clamp(BIMath.ratio(row.thread_dur, row.dur), 0, 1);
@@ -102,9 +110,36 @@ export async function createTraceProcessorSliceTrack({
   });
 }
 
+function getSelectColumns(rootTableName: string, depthTableName?: string) {
+  const isState = rootTableName === 'state';
+  return {
+    id: 'id',
+    ts: 'ts',
+    dur: 'dur',
+    depth: depthTableName
+      ? {
+          join: 'depth',
+          expr: 'depth.depth',
+        }
+      : isState
+        ? '0'
+        : 'depth',
+    name: isState ? 'value' : 'name',
+    thread_dur: isState ? 'NULL' : 'thread_dur',
+    track_id: 'track_id',
+    category: 'category',
+    correlation_id: isState
+      ? 'NULL'
+      : "extract_arg(arg_set_id, 'correlation_id')",
+    arg_set_id: 'arg_set_id',
+    parent_id: isState ? 'NULL' : 'parent_id',
+  };
+}
+
 async function getDataset(
   engine: Engine,
   trackIds: ReadonlyArray<number>,
+  rootTableName: string,
   depthTableName?: string,
 ) {
   assertTrue(trackIds.length > 0);
@@ -113,20 +148,11 @@ async function getDataset(
     // Single track case - use depth directly from slice table
     return new SourceDataset({
       schema,
-      select: {
-        id: 'id',
-        ts: 'ts',
-        dur: 'dur',
-        depth: 'depth',
-        name: 'name',
-        thread_dur: 'thread_dur',
-        track_id: 'track_id',
-        category: 'category',
-        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
-        arg_set_id: 'arg_set_id',
-        parent_id: 'parent_id',
-      },
-      src: 'slice',
+      select: getSelectColumns(rootTableName, depthTableName),
+      src:
+        rootTableName === 'state'
+          ? "(SELECT * FROM state WHERE value != '')"
+          : rootTableName,
       filter: {
         col: 'track_id',
         eq: trackIds[0],
@@ -138,40 +164,44 @@ async function getDataset(
     const tableName = depthTableName ?? `__async_slice_depth_${trackIds[0]}`;
 
     if (depthTableName === undefined) {
-      // Create the depth table if not provided by caller
-      await createPerfettoTable({
-        name: tableName,
-        engine,
-        as: `
-          select
-            id,
-            layout_depth as depth,
-            ${Math.min(...trackIds)} AS minTrackId
-          from experimental_slice_layout('${trackIds.join(',')}')
-        `,
-      });
+      if (rootTableName === 'state') {
+        // For state tracks, each distinct track_id maps directly to a vertical
+        // depth row.
+        await createPerfettoTable({
+          name: tableName,
+          engine,
+          as: `
+            select
+              id,
+              (track_id - ${Math.min(...trackIds)}) AS depth
+            from state
+            where track_id in (${trackIds.join(',')})
+          `,
+        });
+      } else {
+        // For slice tracks, fallback to standard experimental_slice_layout
+        await createPerfettoTable({
+          name: tableName,
+          engine,
+          as: `
+            select
+              id,
+              layout_depth as depth,
+              ${Math.min(...trackIds)} AS minTrackId
+            from experimental_slice_layout('${trackIds.join(',')}')
+          `,
+        });
+      }
     }
 
     // Join slice with the depth table (caller-provided or self-created).
     return new SourceDataset({
       schema,
-      select: {
-        id: 'id',
-        ts: 'ts',
-        dur: 'dur',
-        depth: {
-          join: 'depth',
-          expr: 'depth.depth',
-        },
-        name: 'name',
-        thread_dur: 'thread_dur',
-        track_id: 'track_id',
-        category: 'category',
-        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
-        arg_set_id: 'arg_set_id',
-        parent_id: 'parent_id',
-      },
-      src: 'slice',
+      select: getSelectColumns(rootTableName, tableName),
+      src:
+        rootTableName === 'state'
+          ? "(SELECT * FROM state WHERE value != '')"
+          : rootTableName,
       joins: {
         depth: {
           from: `${tableName} USING (id)`,
