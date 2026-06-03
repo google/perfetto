@@ -77,7 +77,13 @@ function handleTabChange(session: HeapDumpExplorerSession, key: string): void {
   const fgId = parseFgTabKey(key);
   if (fgId !== undefined) {
     session.setActiveFlamegraphTab(fgId);
-    session.navigate('flamegraph-objects');
+    const tab = session.flamegraphTabs.find((t) => t.id === fgId);
+    if (tab) {
+      session.navigate('flamegraph-objects', {
+        pathHashes: tab.pathHashes,
+        isDominator: tab.isDominator,
+      });
+    }
     return;
   }
   const instId = parseInstanceTabKey(key);
@@ -310,6 +316,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     const {session, subpage} = attrs;
     session.syncFromSubpage(subpage);
     session.syncInstanceTabFromNav();
+    session.syncFlamegraphTabFromNav();
 
     const active = session.activeDump;
     const overview = session.cachedOverview;

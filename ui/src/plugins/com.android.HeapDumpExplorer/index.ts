@@ -23,9 +23,12 @@ import HeapProfilePlugin, {
 } from '../dev.perfetto.HeapProfile';
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
+import {migrateHdeState} from './persisted_state';
+
+const PLUGIN_ID = 'com.android.HeapDumpExplorer';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'com.android.HeapDumpExplorer';
+  static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -43,19 +46,30 @@ export default class implements PerfettoPlugin {
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
+    // The core restores this store (phase 1) before plugins run, so
+    // restoreFromStore() below sees any shared-link state.
+    const store = ctx.mountStore(PLUGIN_ID, migrateHdeState);
+
     const session = new HeapDumpExplorerSession(
       ctx,
       ctx.engine,
       hideDefaultChangedHint,
+      store,
     );
     await session.loadDumps();
+    const restored = session.restoreFromStore();
 
     ctx.pages.registerPage({
       route: '/heapdump',
       render: (subpage) => m(HeapDumpPage, {session, subpage}),
     });
 
-    if (
+    if (restored) {
+      // Restored from a shared link: land on the saved tab (beats the
+      // default-open hint below).
+      const sub = session.navPath;
+      ctx.initialPage.suggest(sub ? `/heapdump/${sub}` : '/heapdump', 200);
+    } else if (
       HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
       !(await traceHasTimelineData(ctx))
     ) {
