@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <algorithm>
+#include <set>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/android_utils.h"
@@ -57,9 +58,19 @@ Options and arguments
         <prod_mode> is the mode bits (e.g. 0660) for chmod the produce socket,
         <cons_group> is the group name for chgrp the consumer socket, and
         <cons_mode> is the mode bits (e.g. 0660) for chmod the consumer socket.
-    --enable-relay-endpoint : enables the relay endpoint on producer socket(s)
-        for traced_relay to communicate with traced in a multiple-machine
-        tracing session.
+    --enable-relay-endpoint : exposes the RelayPort service (used by
+        traced_relay in multi-machine tracing) on every producer socket named
+        by PERFETTO_PRODUCER_SOCK_NAME / the default producer socket. This
+        is the standard switch for multi-machine setups.
+    --enable-relay-endpoint-on <socket> : narrower variant of the above,
+        intended for security-conscious deployments. Exposes the RelayPort
+        service only on the named producer socket. <socket> must match one
+        of the entries in PERFETTO_PRODUCER_SOCK_NAME (or the default
+        producer socket); the flag selects which producer sockets get
+        RelayPort, it does NOT introduce new endpoints. May be repeated.
+        Useful when the producer socket list mixes local AF_UNIX sockets
+        with remote-capable ones and the relay port must not be reachable
+        on the local socket.
 
 Example:
     %s --set-socket-permissions traced-producer:0660:traced-consumer:0660
@@ -76,11 +87,13 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     OPT_VERSION = 1000,
     OPT_SET_SOCKET_PERMISSIONS = 1001,
     OPT_BACKGROUND,
-    OPT_ENABLE_RELAY_ENDPOINT
+    OPT_ENABLE_RELAY_ENDPOINT,
+    OPT_ENABLE_RELAY_ENDPOINT_ON
   };
 
   bool background = false;
   bool enable_relay_endpoint = false;
+  std::set<std::string> relay_endpoint_sockets;
 
   static const option long_options[] = {
       {"background", no_argument, nullptr, OPT_BACKGROUND},
@@ -89,6 +102,8 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
        OPT_SET_SOCKET_PERMISSIONS},
       {"enable-relay-endpoint", no_argument, nullptr,
        OPT_ENABLE_RELAY_ENDPOINT},
+      {"enable-relay-endpoint-on", required_argument, nullptr,
+       OPT_ENABLE_RELAY_ENDPOINT_ON},
       {nullptr, 0, nullptr, 0}};
 
   std::string producer_socket_group, consumer_socket_group,
@@ -120,6 +135,9 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
       }
       case OPT_ENABLE_RELAY_ENDPOINT:
         enable_relay_endpoint = true;
+        break;
+      case OPT_ENABLE_RELAY_ENDPOINT_ON:
+        relay_endpoint_sockets.emplace(optarg);
         break;
       default:
         PrintUsage(argv[0]);
@@ -154,17 +172,6 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   }
 #endif
 
-  std::string relay_producer_socket;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  relay_producer_socket = base::GetAndroidProp("traced.relay_producer_port");
-  // If a guest producer port is defined, then the relay endpoint should be
-  // enabled regardless. This is used in cases where perf data is passed
-  // from guest machines or the hypervisor to Android.
-  if (!relay_producer_socket.empty())
-    init_opts.enable_relay_endpoint = true;
-#endif
-  if (enable_relay_endpoint)
-    init_opts.enable_relay_endpoint = true;
   svc = ServiceIPCHost::CreateInstance(&task_runner, init_opts);
 
   // When built as part of the Android tree, the two socket are created and
@@ -180,18 +187,52 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #else
     ListenEndpoint consumer_ep(base::ScopedFile(atoi(env_cons)));
     std::list<ListenEndpoint> producer_eps;
+    // The init-bound FD is the local producer socket; it never carries the
+    // relay endpoint.
     producer_eps.emplace_back(ListenEndpoint(base::ScopedFile(atoi(env_prod))));
-    if (!relay_producer_socket.empty()) {
-      producer_eps.emplace_back(ListenEndpoint(relay_producer_socket));
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    // On Android, a relay-only producer socket can be configured via system
+    // property — e.g. when perf data is forwarded from guest VMs or the
+    // hypervisor into the host's traced. It is a separate socket from the
+    // init-bound local producer socket above and is always relay-capable.
+    std::string android_relay_socket =
+        base::GetAndroidProp("traced.relay_producer_port");
+    if (!android_relay_socket.empty()) {
+      ListenEndpoint relay_ep(android_relay_socket);
+      relay_ep.expose_relay_endpoint = true;
+      producer_eps.emplace_back(std::move(relay_ep));
     }
+#endif
     started = svc->Start(std::move(producer_eps), std::move(consumer_ep));
 #endif
   } else {
     std::list<ListenEndpoint> producer_eps;
     auto producer_socket_names = TokenizeProducerSockets(GetProducerSocket());
+    std::set<std::string> seen_relay_selectors;
     for (const auto& producer_socket_name : producer_socket_names) {
       remove(producer_socket_name.c_str());
-      producer_eps.emplace_back(ListenEndpoint(producer_socket_name));
+      ListenEndpoint ep(producer_socket_name);
+      // RelayPort is exposed on this socket if either:
+      //   --enable-relay-endpoint was passed (applies to all
+      //   PERFETTO_PRODUCER_SOCK_NAME sockets), OR
+      //   --enable-relay-endpoint-on=<this socket> was passed (selects
+      //   specific producer sockets).
+      bool selected = relay_endpoint_sockets.count(producer_socket_name) > 0;
+      if (selected)
+        seen_relay_selectors.insert(producer_socket_name);
+      ep.expose_relay_endpoint = enable_relay_endpoint || selected;
+      producer_eps.emplace_back(std::move(ep));
+    }
+    for (const auto& selector : relay_endpoint_sockets) {
+      if (seen_relay_selectors.count(selector) == 0) {
+        PERFETTO_ELOG(
+            "--enable-relay-endpoint-on=%s does not match any socket in "
+            "PERFETTO_PRODUCER_SOCK_NAME / the default producer socket "
+            "(%s). The flag selects from existing producer sockets; it does "
+            "not introduce new endpoints.",
+            selector.c_str(), GetProducerSocket());
+        return 1;
+      }
     }
     remove(GetConsumerSocket());
     started = svc->Start(std::move(producer_eps),

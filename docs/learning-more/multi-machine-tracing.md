@@ -55,6 +55,25 @@ UNIX path to a TCP listener that remote machines can reach.
 `--enable-relay-endpoint` makes that socket accept `traced_relay`
 connections in addition to ordinary local producers.
 
+For deployments that need to keep a local AF_UNIX producer socket
+listening alongside the TCP relay socket — so host-side unprivileged
+producers and remote `traced_relay` clients use separate sockets —
+list both in `PERFETTO_PRODUCER_SOCK_NAME` and use the narrower
+`--enable-relay-endpoint-on` form, which names the socket that should
+carry `RelayPort`:
+
+```bash
+PERFETTO_PRODUCER_SOCK_NAME=/tmp/perfetto-producer,0.0.0.0:20001 \
+  tracebox traced --enable-relay-endpoint-on=0.0.0.0:20001
+```
+
+In this form the local UNIX socket continues to serve unprivileged
+producers and never accepts relay calls, which keeps the `RelayPort`
+service unreachable from local apps. The flag selects from the producer
+sockets already listed in `PERFETTO_PRODUCER_SOCK_NAME` — it does not
+introduce a new endpoint, so the named socket must appear in the env
+var.
+
 Leave this process running.
 
 ### Step 2: Start `traced_probes` on the host
@@ -69,7 +88,10 @@ PERFETTO_PRODUCER_SOCK_NAME=127.0.0.1:20001 \
 The same env var that rebound `traced`'s listener also tells local
 producers where to connect — without it, `traced_probes` would still try
 the default UNIX socket and fail. `sudo -E` preserves the env var across
-the privilege escalation needed for ftrace.
+the privilege escalation needed for ftrace. (If you used the
+`--enable-relay-endpoint-on` form in Step 1 instead, omit the env var:
+the default UNIX producer socket is still up, and `traced_probes` will
+connect to it without any extra configuration.)
 
 ### Step 3: Start `traced_relay` on the guest
 

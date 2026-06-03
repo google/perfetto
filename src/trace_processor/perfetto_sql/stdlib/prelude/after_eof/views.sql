@@ -261,25 +261,53 @@ CREATE PERFETTO VIEW perf_session(
 AS
 SELECT *, id AS perf_session_id FROM __intrinsic_perf_session;
 
--- Log entries from Android logcat.
+-- Log entries from all sources (Android logcat, systemd_journald, etc.).
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW logs(
+  -- Which row in the table the log corresponds to.
+  id ID,
+  -- Timestamp of the log entry.
+  ts TIMESTAMP,
+  -- Thread writing the log entry (nullable).
+  utid JOINID(thread.id),
+  -- Priority. Android: 3=DEBUG..6=ERROR. Journald/syslog: 0=EMERG..7=DEBUG.
+  prio LONG,
+  -- Source of the log entry: 'android_logcat' or 'systemd_journald'.
+  log_source STRING,
+  -- Tag / SYSLOG_IDENTIFIER of the log entry.
+  tag STRING,
+  -- Content of the log entry.
+  msg STRING,
+  -- Args for source-specific metadata.
+  arg_set_id ARGSETID
+)
+AS
+SELECT id, ts, utid, prio, log_source, tag, msg, arg_set_id
+FROM __intrinsic_logs;
+
+-- Android log entries from logcat or bugreport.
 --
 -- NOTE: this table is not sorted by timestamp.
 CREATE PERFETTO VIEW android_logs(
   -- Which row in the table the log corresponds to.
   id ID,
-  -- Timestamp of log entry.
+  -- Timestamp in nanoseconds.
   ts TIMESTAMP,
-  -- Thread writing the log entry.
+  -- Thread id in the trace (nullable).
   utid JOINID(thread.id),
-  -- Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.
+  -- Android log priority (3=DEBUG, 4=INFO, 5=WARN, 6=ERROR, 7=FATAL).
   prio LONG,
-  -- Tag of the log entry.
+  -- Log tag.
   tag STRING,
-  -- Content of the log entry
+  -- Log message text.
   msg STRING
 )
 AS
-SELECT id, ts, utid, prio, tag, msg FROM __intrinsic_android_logs;
+SELECT id, ts, utid, prio, tag, msg
+FROM __intrinsic_logs
+WHERE
+  log_source = 'android_logcat';
 
 -- Contains flow events linking slices.
 CREATE PERFETTO VIEW flow(
@@ -350,7 +378,7 @@ CREATE PERFETTO VIEW android_dumpstate(
 AS
 SELECT * FROM __intrinsic_android_dumpstate;
 
--- The profiler smaps contains the memory stats for virtual memory ranges.
+-- Per-VMA memory mapping stats. For linux traces, prefer the process_memory_mappings view.
 CREATE PERFETTO VIEW profiler_smaps(
   -- The id of the row.
   id ID,
@@ -360,6 +388,12 @@ CREATE PERFETTO VIEW profiler_smaps(
   ts TIMESTAMP,
   -- The mmaped file, as per /proc/pid/smaps.
   path STRING,
+  -- Same as path but with any trailing " (deleted)" suffix removed.
+  path_trimmed STRING,
+  -- Number of original mappings aggregated into this row.
+  aggregate_count LONG,
+  -- True if this is a file-backed mapping, and the file was deleted.
+  is_deleted LONG,
   -- Total size of the mapping.
   size_kb LONG,
   -- KB of this mapping that are private dirty RSS.
@@ -386,11 +420,80 @@ CREATE PERFETTO VIEW profiler_smaps(
   shared_clean_resident_kb LONG,
   -- Locked KB.
   locked_kb LONG,
-  -- Proportional resident KB.
-  proportional_resident_kb LONG
+  -- Proportional set size (PSS) KB.
+  proportional_resident_kb LONG,
+  -- Resident set size (RSS) KB.
+  rss_kb LONG,
+  -- Anonymous (non-file-backed) KB.
+  anonymous_kb LONG,
+  -- Dirty portion of the proportional set size (PSS) KB.
+  pss_dirty_kb LONG,
+  -- Proportional share of swap KB.
+  swap_pss_kb LONG
 )
 AS
 SELECT * FROM __intrinsic_profiler_smaps;
+
+-- Per-VMA memory mapping stats.
+CREATE PERFETTO VIEW process_memory_mappings(
+  -- The id of the row.
+  id ID,
+  -- Unique pid of the process.
+  upid LONG,
+  -- Timestamp of the snapshot.
+  ts TIMESTAMP,
+  -- The mapping name. Any (deleted) suffix is removed for file-backed mappings.
+  path STRING,
+  -- Number of original mappings aggregated into this row.
+  aggregate_count LONG,
+  -- True if this is a file-backed mapping, and the file was deleted. In other words, the kernel reported the mapping with a "(deleted)" suffix.
+  is_deleted LONG,
+  -- Total size of the mapping.
+  size_kb LONG,
+  -- Resident set size (RSS) of the mapping.
+  rss_kb LONG,
+  -- Anonymous (non-file-backed) portion of the mapping.
+  anonymous_kb LONG,
+  -- Portion of the mapping in swap.
+  swap_kb LONG,
+  -- Shared clean RSS of the mapping.
+  shared_clean_kb LONG,
+  -- Shared dirty RSS of the mapping.
+  shared_dirty_kb LONG,
+  -- Private clean RSS of the mapping.
+  private_clean_kb LONG,
+  -- Private dirty RSS of the mapping.
+  private_dirty_kb LONG,
+  -- Locked KB.
+  locked_kb LONG,
+  -- Proportional set size (PSS).
+  pss_kb LONG,
+  -- Dirty portion of the proportional set size (PSS).
+  pss_dirty_kb LONG,
+  -- Proportional share of swap.
+  swap_pss_kb LONG
+)
+AS
+SELECT
+  id,
+  upid,
+  ts,
+  path_trimmed AS path,
+  aggregate_count,
+  is_deleted,
+  size_kb,
+  rss_kb,
+  anonymous_kb,
+  swap_kb,
+  shared_clean_resident_kb AS shared_clean_kb,
+  shared_dirty_resident_kb AS shared_dirty_kb,
+  private_clean_resident_kb AS private_clean_kb,
+  private_dirty_kb,
+  locked_kb,
+  proportional_resident_kb AS pss_kb,
+  pss_dirty_kb,
+  swap_pss_kb
+FROM __intrinsic_profiler_smaps;
 
 -- Metadata about packages installed on the system.
 CREATE PERFETTO VIEW package_list(

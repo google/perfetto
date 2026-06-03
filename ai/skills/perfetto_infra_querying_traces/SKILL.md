@@ -16,14 +16,15 @@ The `trace_processor` binary is what every other Perfetto analysis tool
 runs on top of, including the Perfetto UI. Reference docs:
 <https://perfetto.dev/docs/analysis/trace-processor>.
 
-> **Prerequisite — getting `trace_processor`.** This skill assumes
-> `trace_processor` is already on `PATH` (and, for the long-running RPC
-> mode below, that the Python client is installed). If neither is set
-> up, follow whatever skill the user's environment provides for
-> acquisition — typically `perfetto_infra_getting_trace_processor` for the
-> open-source path, or a team-specific variant inside Google or other
-> restricted environments. The rest of this skill is intentionally
-> orthogonal to *how* you got `trace_processor`.
+> **Prerequisite — `trace_processor` must be invokable.** Before
+> running any of the shell commands below, ensure your environment's
+> trace-processor-acquisition skill is loaded. There is always exactly
+> one (a plugin-bundled variant, the open-source fallback, or a
+> team-specific override). That skill tells you the exact invocation
+> form for `trace_processor` in this environment — substitute it for
+> every bare `trace_processor` reference below. Likewise, the
+> long-running RPC mode needs the `perfetto` Python client, whose
+> setup the acquisition skill also covers.
 
 ## Quickstart
 
@@ -40,8 +41,8 @@ Multiple statements separated by `;` are supported in one invocation.
 Reparsing a trace on every query is slow — for a multi-GB trace it's tens
 of seconds, every time. When you expect to run more than a couple of
 queries, start the shell once as an HTTP RPC server and drive it from
-the Python client. (If the Python client is not installed yet, see the
-`getting-trace-processor` skill or the team-specific equivalent.)
+the Python client. (If the Python client is not installed yet, the
+trace-processor-acquisition skill in your environment covers it.)
 
 ```sh
 # Terminal A: pick a random high port and start the server on it.
@@ -92,8 +93,12 @@ Notes:
 
 PerfettoSQL ships with **intrinsic table-functions** for browsing the
 loaded standard library — modules, tables/views, functions, macros. Use
-these to find what's available; use a plain `LIMIT 0` query to read the
-column schema of any specific table, view, or query result.
+these to find what's available and to verify if a Standard Library module
+already provides the needed abstraction before drafting custom logic.
+
+**Mandatory Schema Check:** Do not guess column names or join keys. Always
+use a plain `LIMIT 0` query to read the exact column schema of any specific
+table, view, or query result before drafting your query.
 
 > **Intrinsic surface — not stable API.** The `__intrinsic_*` names below
 > are an implementation detail of trace processor. They're fair game for
@@ -140,6 +145,7 @@ Useful starting points for any trace:
 Static reference for the public surface (does not require a running
 trace_processor): <https://perfetto.dev/docs/analysis/sql-tables>.
 
+
 ## Using the standard library
 
 Most useful queries are *much* shorter when you build on stdlib modules
@@ -173,29 +179,143 @@ The module name maps directly to the file path under the stdlib root:
 `foo.bar` lives at `foo/bar.sql`. Browse the full list at the stdlib
 reference linked above.
 
+
 ## Tips for writing good PerfettoSQL
 
 - **Reach for stdlib first.** If you find yourself joining `slice` to
   `thread_track` to `thread` to `process`, there is almost certainly a
   stdlib module that already does it. Check the stdlib reference before
   writing the join.
-- **Filter on `dur > 0` carefully.** Some slices have `dur = -1` (still
-  open at trace end) and some have `dur = 0` (instant events). Be explicit
-  about which you mean.
+- **Filter on `dur > 0` and Trace Boundaries carefully.** Some slices have
+  `dur = -1` (still open at trace end) and some have `dur = 0` (instant
+  events). Be explicit about which you mean. When calculating a bounding box
+  (for example, `ts + dur`) or summing durations (`SUM(dur)`), handle
+  incomplete durations using: `IIF(dur = -1, trace_end() - ts, dur)`.
+- **Robust State Transitions.** Avoid manual timestamp arithmetic (for
+  example, `ts + dur = next.ts`) to join adjacent events. Rely on standard
+  library modules (for example, `sched.runnable`, `linux.perf.counters`,
+  `intervals.overlap`) which safely handle trace gaps and preemptions.
+- **Working with Identifiers:**
+  - **Use Unique Identifiers for Joins:** When writing SQL queries in
+    Perfetto, you must join tables using `utid` (unique thread ID) or `upid`
+    (unique process ID) instead of the regular `tid` or `pid`. **Why it's
+    useful**: The operating system recycles `TIDs` and `PIDs`, while `UTIDs`
+    and `UPIDs` remain unique for the lifetime of the trace, which prevents
+    incorrect joins.
+  - Columns like `id`, `utid`, `upid`, `track_id` are not stable across traces
+    or even runs of trace_processor on the same trace. You can use them
+    **inside** a query as join keys, but alongside the IDS, always join out to
+    a stable name (`thread.name`, `process.name`, `slice.name`) when reporting
+    results to the user.
+  - **Materialise expensive intermediate results.** `CREATE PERFETTO TABLE foo
+    AS SELECT ...` caches the result so subsequent queries don't redo the work.
+    - *Note for `SPAN_JOIN`:* Intermediate tables fed into a `SPAN_JOIN` must
+      be materialized using `CREATE PERFETTO TABLE`, not `CREATE VIEW`.
+- **Idempotency.** Ensure queries are idempotent to prevent "already exists"
+  errors during multiple executions.
+  - For Perfetto objects, always use `CREATE OR REPLACE`: `CREATE OR REPLACE
+    PERFETTO {TABLE|VIEW|MACRO|FUNCTION}`.
+  - For SQLite Virtual Tables (such as `SPAN_JOIN`), `CREATE OR REPLACE` is
+    not supported. Explicitly drop them first: `DROP TABLE IF EXISTS
+    my_table; CREATE VIRTUAL TABLE my_table USING SPAN_JOIN(...);`
+  - For standard SQLite indexes, prepend `DROP INDEX IF EXISTS index_name;`.
+- **`SPAN_JOIN` safety.** `SPAN_JOIN` will crash if intervals **within the
+  same input table** overlap. Always use the `PARTITIONED {column}` (for
+  example, `PARTITIONED track_id`) clause to isolate intervals.
 - **Avoid `SELECT *` in saved queries.** Trace processor table schemas can
   gain columns; pin the columns you actually use.
-- **Don't expose raw IDs in summaries.** Columns like `id`, `utid`, `upid`,
-  `track_id` are not stable across traces or even runs of trace_processor
-  on the same trace. They are fine to use *inside* a query as join keys,
-  but join out to a stable name (`thread.name`, `process.name`,
-  `slice.name`) before reporting results to the user.
-- **Use `EXPLAIN QUERY PLAN` if a query is slow.** It shows whether SQLite
-  is using indexes. Counter and slice tables have built-in indexes on `ts`
-  and `track_id`; queries that don't filter on either will scan the whole
-  table.
-- **Materialise expensive intermediate results.** `CREATE PERFETTO TABLE
-  foo AS SELECT ...` caches the result so subsequent queries don't redo
-  the work. Use `CREATE PERFETTO VIEW` if you want lazy evaluation.
+- **Use `EXPLAIN QUERY PLAN` if a query is slow.** It shows whether SQLite is
+  using indexes. Counter and slice tables have built-in indexes on `ts` and
+  `track_id`; queries that don't filter on either will scan the whole table.
+- **Argument Extraction:** Use `EXTRACT_ARG(arg_set_id, 'key')` to fetch event
+  properties instead of manually joining the `args` table.
+- **JSON Parsing:** When dealing with JSON text, use standard SQLite JSON
+  functions (for example, `json_extract()`) to extract values.
+- **String Matching (Always use GLOB).** Use `GLOB` instead of `LIKE`. `LIKE`
+  causes performance bottlenecks and treats underscores (`_`) as wildcards,
+  leading to bugs.
+  - **Exact matches:** Use `=`.
+  - **Substring matches:** Use `GLOB` with `*` (for example, `name GLOB
+    '*RenderThread*'`).
+  - **Case-insensitive matches:** Use `LOWER(name) GLOB` and make sure the
+    search string is fully lowercase (for example, `LOWER(name) GLOB
+    '*renderthread*'`). Use this when dealing with inconsistent trace
+    capitalization (for example, `WakeLock` versus `wakelock`).
+- **Alias Precision.** Always prefix column names with table or view alias,
+  that is: `{alias}.{column_name}`.
+
+## Common Analysis Patterns
+
+- **Calculating Time Overlaps & CPU Time:**
+  1.  **Primary Method (MANDATORY):** Always search the standard library first
+    before writing custom interval logic. For example, to find the exact CPU
+    execution time of a slice, do not calculate it manually; instead, search
+    the docs and use the `slices.cpu_time` module.
+  2.  **Fallback Method (Use ONLY if you have verified no stdlib module or
+    `SPAN_JOIN` applies):** If you must calculate custom overlap durations
+    between two different sets of time intervals `[start1, end1]` and
+    `[start2, end2]`:
+  - **Condition:** The intervals overlap if `start1 < end2` and `start2
+      < end1`.
+  - **Duration:** The overlap duration is calculated as `MIN(end1, end2)
+    - MAX(start1, start2)`.
+  - **Important:** Incomplete Perfetto slices have a duration of -1
+    (`dur = -1`). Always calculate the effective end time using `ts +
+      IIF(dur = -1, trace_end() - ts, dur)` before applying this logic.
+- **Window Size:** When looking for events around a specific timestamp, start
+  with 100ms as the window size.
+- **Total Duration:** To calculate the total time spent in slices matching a
+  specific name pattern (for example, `*{name_pattern}*`), you must sum their
+  durations. **Why it's useful**: This helps quantify the total impact of a
+  specific function or feature on performance across multiple calls. Here is
+  an example query (note the safe handling of incomplete slices):
+  ```sql
+  SELECT
+  count(*) as total_count,
+  sum(IIF(slice.dur = -1, trace_end() - slice.ts, slice.dur)) / 1000000.0 as total_dur_ms
+  FROM slice
+  WHERE slice.name GLOB '*{name_pattern}*';
+  ```
+
+## Analytical Workflow (Standard Operating Procedure)
+
+To ensure accuracy and efficiency, follow these steps:
+
+1. **Research & Dissection:** Identify the core question and required data
+   points.
+2. **Mandatory Schema Validation:** Locate relevant tables via
+   `__intrinsic_stdlib_tables`. Verify column names and types.
+   - **Intent Check:** You must verify if a stdlib module already provides
+   the needed abstraction before drafting manual arithmetic or custom joins.
+  - **IMPORTANT:** If your query requires calculating overlaps,
+   intersections, or boundaries between intervals, you MUST search the
+   `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
+    writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
+3. **Draft & Validate Loop (Max 3 Iterations):**
+  - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
+    MODULE` is present for non-prelude modules.
+  - [ ] **Verify Idempotency:** Use `CREATE OR REPLACE` or `DROP TABLE IF
+    EXISTS` for virtual tables.
+  - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
+    `s.name`)? Are you joining on `utid`/`upid`?
+  - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
+  - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
+    and materialized?
+  - [ ] **Execute:** Run using `trace_processor query TRACE_FILE "QUERY"`.
+
+   **Execution Rules:**
+  - **File Usage:** If you must create a SQL file to execute queries (for
+    example, due to query length or escaping issues), you must create them
+    in the `/tmp/` directory.
+  - **Failure Resilience:** Debug and fix SQL syntax and logic errors when
+    query fails. Don't simplify the analytical intent to pass validation.
+    For example, if requested to calculate an overlap or intersection, you
+    must fix the intersection math. Don't substitute with disjoint queries
+    (for example, returning independent total durations) as a workaround.
+4. **Cleanup & Finalize:**
+  - Explicitly return and state the final validated SQL and explain the
+    results to the user.
+  - Before finishing, delete any temporary SQL files created in `/tmp/`.
 
 ## Where to look for more
 

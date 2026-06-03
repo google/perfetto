@@ -1,15 +1,86 @@
 Unreleased:
   Tracing service and probes:
-    * Added `machine_id` and `machine_name` fields to `TracingServiceState`,
-      exposing the originating machine for producers connected via
-      `traced_relay`. `perfetto --query` and `--query-raw` surface these in a
-      new `MACHINE` column when more than one machine is involved.
+    * Scoped the RelayPort IPC service so it is only exposed on producer
+      sockets explicitly opted-in. Added `--enable-relay-endpoint-on=<sock>`
+      as a narrower variant of `--enable-relay-endpoint` that turns RelayPort
+      on only for the named producer sockets listed in
+      `PERFETTO_PRODUCER_SOCK_NAME`. `--enable-relay-endpoint` retains its
+      existing semantics for the common single-socket multi-machine setup.
   Trace Processor:
    *
   UI:
    *
   SDK:
    *
+
+v56.0 - 2026-05-21:
+  Tracing service and probes:
+    * Added `machine_id` and `machine_name` fields to `TracingServiceState`,
+      exposing the originating machine for producers connected via
+      `traced_relay`. `perfetto --query` and `--query-raw` surface these in a
+      new `MACHINE` column when more than one machine is involved.
+    * Added support for in-kernel frame pointer unwinding to `traced_perf`
+      for faster, kernel-assisted stack sampling.
+    * Added process and package metadata to Android heap dumps.
+    * Fixed silent data loss and potential shared-memory corruption when
+      scraping chunks from `traced_relay` producers; previously the scrape
+      path was a no-op for emulated SMBs and could corrupt the buffer.
+    * Fixed an intermittent crash in the tracing service caused by a
+      use-after-free race in the lock-free task runner.
+    * Fixed builds on FreeBSD (`tracebox`), musl, and recent Fedora.
+  Trace Processor:
+    * Added support for importing markers from the Firefox Profiler as
+      slices.
+    * Added bitmap metadata support to Android heap dumps (new bitmap table
+      in the standard library).
+    * Treat Java soft references as strong references during heap-graph
+      reachability analysis.
+    * Fixed HPROF parser aborting when a sub-record spans segment
+      boundaries.
+    * Extended the `stats` table to report per-machine and per-trace
+      statistics.
+    * Improved trace_processor startup performance.
+    * Hardened the parsers and SQL engine.
+  UI:
+    * Added an embedded flamegraph viewer and a bitmap metadata page to the
+      Heap Dump Explorer; added a feature flag to control auto-opening on
+      traces containing heap-graph data. The setting ID has been prefixed
+      with `com.android`; users with saved settings will need to re-enable.
+    * Enabled `com.android.AndroidLockContention` by default, with several
+      UX improvements.
+    * Added details panels and process navigation to the AndroidStartup and
+      AndroidAnr plugins.
+    * Added handling for traces containing only preferred frame timelines
+      in `dev.perfetto.ChromeScrollJank`, plus a new command for visualizing
+      frame timelines.
+    * Added memcg reclaim tracks and refreshed descriptions in the memory
+      visualization; moved reclaim events under the Memory group.
+    * Nested GPU tracks under their process groups in `GpuByProcess`.
+    * Added trace start time and duration to the timeline header.
+    * Added hover-preview support on mouse-over to screenshot tracks.
+    * Added a distribution histogram on slice selection, with the selected
+      slice highlighted and a Debug Track shortcut.
+    * Added a matching-slice action on selection flamegraphs and a
+      scroll-to-root command for top-down/bottom-up/pivot views.
+    * Added SQL formatting and per-query column refresh to the Query page.
+    * Improved rendering performance for incomplete-slice fetches.
+    * Sped up `trace_processor` worker startup.
+    * Updated Chrome's built-in categories.
+    * Fixed manually pinned tracks being unpinned when the timeline loaded
+      or when other tracks were unpinned.
+    * Hardened permalink loading.
+  SDK:
+    * Added `track_event_buf_exhausted_policy` to `TracingInitArgs` to give
+      clients control over what happens when the TrackEvent buffer is
+      exhausted.
+    * Added support for running the Java SDK on non-ART JVMs (e.g. on
+      host/desktop).
+  Docs:
+    * Added documentation for the new subcommand-based trace_processor CLI.
+    * Added documentation for multi-machine tracing.
+    * Added a Data Explorer documentation stub, improved its architecture
+      doc, and added images/videos.
+    * Updated heap profiler documentation.
 
 v55.3 - 2026-05-19:
   Trace Processor:
