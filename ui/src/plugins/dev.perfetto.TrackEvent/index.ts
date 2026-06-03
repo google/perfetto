@@ -301,9 +301,10 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         utid ?? undefined,
         hasChildren,
       );
+      const isGlobalRoot = parentId === null && upid === null && utid === null;
       const node = new TrackNode({
         name: trackName,
-        sortOrder: orderId,
+        sortOrder: isGlobalRoot ? 0 : orderId,
         isSummary: hasData === 0,
         uri,
       });
