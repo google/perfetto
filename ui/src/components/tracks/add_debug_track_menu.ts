@@ -15,9 +15,9 @@
 import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
 import {assertUnreachable} from '../../base/assert';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Form, FormGrid, FormLabel, FormSection} from '../../widgets/form';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {addDebugCounterTrack, addDebugSliceTrack} from './debug_tracks';
@@ -56,7 +56,6 @@ function chooseDefaultColumn(
 }
 
 type TrackType = 'slice' | 'counter';
-const trackTypes: ReadonlyArray<TrackType> = ['slice', 'counter'];
 
 interface ConfigurationOptions {
   ts: string;
@@ -134,12 +133,18 @@ export class AddDebugTrackMenu
         this.trackName,
       ),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
-      m(SegmentedButtons, {
-        fillWidth: true,
-        options: [{label: 'Slice Track'}, {label: 'Counter Track'}],
-        selectedOption: trackTypes.indexOf(this.trackType),
-        onOptionSelected: (i) => (this.trackType = trackTypes[i]),
-      }),
+      m(
+        RadioGroup,
+        {
+          fillWidth: true,
+          selectedValue: this.trackType,
+          onValueChange: (value) => (this.trackType = value as TrackType),
+        },
+        [
+          m(RadioGroup.Button, {value: 'slice'}, 'Slice Track'),
+          m(RadioGroup.Button, {value: 'counter'}, 'Counter Track'),
+        ],
+      ),
       m(
         FormSection,
         {label: 'Column mapping'},

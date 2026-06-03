@@ -21,6 +21,7 @@
 /expat/src/
 /googletest/
 /grpc/src/
+/java_sdk/
 /jsoncpp/
 /libbacktrace/
 /libbase/
@@ -44,7 +45,6 @@
 /re2
 /re2/
 /rustup/
-/sqlglot/
 /sqlite/
 /sqlite_src/
 /syntaqlite/

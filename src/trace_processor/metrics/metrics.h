@@ -32,7 +32,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -174,7 +174,7 @@ struct BuildProto : public sqlite::Function<BuildProto> {
 // Implements the RUN_METRIC SQL function.
 struct RunMetric : public sqlite::Function<RunMetric> {
   struct UserData {
-    PerfettoSqlEngine* engine;
+    PerfettoSqlConnection* connection;
     std::vector<SqlMetricFile>* metrics;
   };
 
@@ -201,7 +201,7 @@ struct RepeatedField : public sqlite::AggregateFunction<RepeatedField> {
   static void Final(sqlite3_context* ctx);
 };
 
-base::Status ComputeMetrics(PerfettoSqlEngine*,
+base::Status ComputeMetrics(PerfettoSqlConnection*,
                             const std::vector<std::string>& metrics_to_compute,
                             const std::vector<SqlMetricFile>& metrics,
                             const DescriptorPool& pool,

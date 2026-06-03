@@ -118,9 +118,13 @@ class GpuEventParser {
   void InsertCustomCounterGroups(
       const protos::pbzero::GpuCounterDescriptor::Decoder& desc,
       const base::FlatHashMap<uint32_t, TrackId>& counter_id_to_track);
+  // Pushes a counter sample for a GPU counter, handling both the
+  // backwards-looking and forwards-looking conventions (see
+  // GpuCounterSpec.ValueDirection).
   void PushGpuCounterValue(int64_t ts,
                            double value,
                            TrackId track_id,
+                           bool forwards_looking,
                            std::optional<tables::CounterTable::Id>* last_id);
 
   TraceProcessorContext* const context_;
@@ -147,6 +151,7 @@ class GpuEventParser {
   struct GpuCounterState {
     TrackId track_id;
     std::optional<tables::CounterTable::Id> last_id;
+    bool forwards_looking;
   };
   base::FlatHashMap<uint32_t, GpuCounterState> gpu_counter_state_;
 

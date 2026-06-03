@@ -194,9 +194,8 @@ std::optional<BuildId> PerfInvocation::LookupBuildId(
 void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     auto session_id = it.value()->perf_session_id();
-    context_->storage->mutable_perf_session_table()
-        ->FindById(session_id)
-        ->set_cmdline(context_->storage->InternString(
+    (*context_->storage->mutable_perf_session_table())[session_id].set_cmdline(
+        context_->storage->InternString(
             base::StringView(base::Join(args, " "))));
   }
 }

@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../protos';
-import {errResult, okResult, Result} from '../../../base/result';
-import {PreflightCheck} from '../interfaces/connection_check';
-import {AdbDevice} from './adb_device';
+import type protos from '../../../protos';
+import {errResult, okResult, type Result} from '../../../base/result';
+import type {PreflightCheck} from '../interfaces/connection_check';
+import type {AdbDevice} from './adb_device';
 import {getAdbTracingServiceState} from './adb_tracing_session';
-import {RecordTraceV2Settings} from '../settings';
 
 /**
  * Common pre-flight checks for Android targets. This function is used by
@@ -27,7 +26,6 @@ import {RecordTraceV2Settings} from '../settings';
  */
 export async function* checkAndroidTarget(
   adbDevice: AdbDevice,
-  settings: RecordTraceV2Settings,
 ): AsyncGenerator<PreflightCheck> {
   yield {
     name: 'Android version',
@@ -55,7 +53,7 @@ export async function* checkAndroidTarget(
       );
     })(),
   };
-  const svcStatus = await getAdbTracingServiceState(adbDevice, settings);
+  const svcStatus = await getAdbTracingServiceState(adbDevice);
   yield {
     name: 'Traced version',
     status: await (async (): Promise<Result<string>> => {

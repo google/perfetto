@@ -46,10 +46,12 @@ class FlowTracker;
 class BlobPacketWriter;
 class GlobalArgsTracker;
 class GlobalMetadataTracker;
+class GlobalStatsTracker;
 class ImportLogsTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
+class StatsTracker;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class ProtoTraceReader;
@@ -148,6 +150,7 @@ class TraceProcessorContext {
   GlobalPtr<TraceReaderRegistry> reader_registry;
   GlobalPtr<GlobalArgsTracker> global_args_tracker;
   GlobalPtr<GlobalMetadataTracker> global_metadata_tracker;
+  GlobalPtr<GlobalStatsTracker> global_stats_tracker;
   GlobalPtr<TraceFileTracker> trace_file_tracker;
   GlobalPtr<DescriptorPool> descriptor_pool_;
   GlobalPtr<ForkedContextState> forked_context_state;
@@ -161,9 +164,9 @@ class TraceProcessorContext {
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
   // modules.
-  using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
-                                                TraceProcessorContext*);
-  RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
+  using RegisterAdditionalProtoModulesFn =
+      std::function<void(ProtoImporterModuleContext*, TraceProcessorContext*)>;
+  RegisterAdditionalProtoModulesFn register_additional_proto_modules;
 
   // Registry of callbacks invoked when PerfTracker is created, allowing
   // external code (e.g. ETM) to register aux tokenizers.
@@ -228,6 +231,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
   PerTraceAndMachinePtr<MetadataTracker> metadata_tracker;
+  PerTraceAndMachinePtr<StatsTracker> stats_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass

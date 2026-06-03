@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
-import {App} from '../../public/app';
+import type {App} from '../../public/app';
 import {renderAccordion} from './demos/accordion_demo';
 import {anchor} from './demos/anchor_demo';
 import {renderButtonDemo} from './demos/button_demo';
@@ -45,7 +45,7 @@ import {renderPopup} from './demos/popup_demo';
 import {popupMenuDemo} from './demos/popup_menu_demo';
 import {renderPortal} from './demos/portal_demo';
 import {renderResizeHandle} from './demos/resize_handle_demo';
-import {segmentedButtons} from './demos/segmented_buttons_demo';
+import {radioGroup} from './demos/radio_group_demo';
 import {renderSelect} from './demos/select_demo';
 import {renderSpinner} from './demos/spinner_demo';
 import {renderSplitPanel} from './demos/split_panel_demo';
@@ -100,7 +100,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'popup-menu', label: 'PopupMenu', view: popupMenuDemo},
   {id: 'portal', label: 'Portal', view: renderPortal},
   {id: 'resize-handle', label: 'ResizeHandle', view: renderResizeHandle},
-  {id: 'segmented-buttons', label: 'SegmentedButtons', view: segmentedButtons},
+  {id: 'radio-group', label: 'RadioGroup', view: radioGroup},
   {id: 'select', label: 'Select', view: renderSelect},
   {id: 'spinner', label: 'Spinner', view: renderSpinner},
   {id: 'split-panel', label: 'SplitPanel', view: renderSplitPanel},

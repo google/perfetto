@@ -19,11 +19,11 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- returns the ids of all the nodes reachable by walking up the tree from each
 -- of the start nodes.
 CREATE PERFETTO MACRO _tree_reachable_ancestors_or_self(
-    tree TableOrSubquery,
-    start_nodes TableOrSubquery
+  tree TableOrSubquery,
+  start_nodes TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     node_id AS id
   FROM graph_reachable_dfs!(

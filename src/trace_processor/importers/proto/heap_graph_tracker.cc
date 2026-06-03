@@ -36,6 +36,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -82,9 +83,8 @@ struct ClassDescriptor {
 
 ClassDescriptor GetClassDescriptor(const TraceStorage& storage,
                                    ObjectTable::Id obj_id) {
-  auto obj_row_ref = *storage.heap_graph_object_table().FindById(obj_id);
-  auto type_row_ref =
-      *storage.heap_graph_class_table().FindById(obj_row_ref.type_id());
+  auto obj_row_ref = storage.heap_graph_object_table()[obj_id];
+  auto type_row_ref = storage.heap_graph_class_table()[obj_row_ref.type_id()];
   return {type_row_ref.name(), type_row_ref.location()};
 }
 
@@ -176,7 +176,7 @@ void SortRoots(TraceStorage* storage,
   auto* class_table = storage->mutable_heap_graph_class_table();
   for (ObjectTable::RowNumber root : roots) {
     auto obj_row = root.ToRowReference(object_table);
-    auto cls_row = *class_table->FindById(obj_row.type_id());
+    auto cls_row = (*class_table)[obj_row.type_id()];
     sorted_with_names.emplace_back(storage->GetString(cls_row.name()), root);
   }
   std::sort(sorted_with_names.begin(), sorted_with_names.end(),
@@ -242,8 +242,10 @@ std::string DenormalizeTypeName(NormalizedType normalized,
   return result;
 }
 
-HeapGraphTracker::HeapGraphTracker(TraceStorage* storage)
+HeapGraphTracker::HeapGraphTracker(TraceStorage* storage,
+                                   GlobalStatsTracker* stats_tracker)
     : storage_(storage),
+      global_stats_tracker_(stats_tracker),
       class_cursor_(storage->mutable_heap_graph_class_table()->CreateCursor({
           dataframe::FilterSpec{
               tables::HeapGraphClassTable::ColumnIndex::name,
@@ -346,11 +348,13 @@ bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
                                           int64_t ts) {
   if (sequence_state->current_upid != 0 &&
       sequence_state->current_upid != upid) {
-    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
+    global_stats_tracker_->IncrementGlobalStats(
+        stats::heap_graph_non_finalized_graph);
     return false;
   }
   if (sequence_state->current_ts != 0 && sequence_state->current_ts != ts) {
-    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
+    global_stats_tracker_->IncrementGlobalStats(
+        stats::heap_graph_non_finalized_graph);
     return false;
   }
   sequence_state->current_upid = upid;
@@ -492,6 +496,48 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     sequence_state.nar_size_by_obj_id[owner_id] =
         *obj.native_allocation_registry_size;
   }
+
+  bool has_bitmap_fields =
+      obj.bitmap_id.has_value() || obj.bitmap_source_id.has_value() ||
+      obj.bitmap_width.has_value() || obj.bitmap_height.has_value();
+
+  if (has_bitmap_fields) {
+    auto* prim_table = storage_->mutable_heap_graph_primitive_table();
+    uint32_t field_set_id = prim_table->row_count();
+
+    auto insert_primitive =
+        [&](const char* name, const char* type, auto value,
+            std::optional<int64_t> tables::HeapGraphPrimitiveTable::Row::*
+                column) {
+          if (value.has_value()) {
+            tables::HeapGraphPrimitiveTable::Row row;
+            row.field_set_id = field_set_id;
+            row.field_name = storage_->InternString(name);
+            row.field_type = storage_->InternString(type);
+            row.*column = static_cast<int64_t>(*value);
+            prim_table->Insert(row);
+          }
+        };
+
+    insert_primitive("android.graphics.Bitmap.mId", "long", obj.bitmap_id,
+                     &tables::HeapGraphPrimitiveTable::Row::long_value);
+    insert_primitive("android.graphics.Bitmap.mSourceId", "long",
+                     obj.bitmap_source_id,
+                     &tables::HeapGraphPrimitiveTable::Row::long_value);
+    insert_primitive("android.graphics.Bitmap.mWidth", "int", obj.bitmap_width,
+                     &tables::HeapGraphPrimitiveTable::Row::int_value);
+    insert_primitive("android.graphics.Bitmap.mHeight", "int",
+                     obj.bitmap_height,
+                     &tables::HeapGraphPrimitiveTable::Row::int_value);
+
+    // Link to object data
+    auto* data_table = storage_->mutable_heap_graph_object_data_table();
+    tables::HeapGraphObjectDataTable::Row data_row;
+    data_row.field_set_id = field_set_id;
+    auto data_id = data_table->Insert(data_row).id;
+
+    owner_row_ref.set_object_data_id(data_id.value);
+  }
 }
 
 void HeapGraphTracker::AddRoot(uint32_t seq_id,
@@ -584,7 +630,7 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
       PERFETTO_ELOG("Invalid first packet index %" PRIu64 " (!= 0)", index);
     }
 
-    storage_->IncrementIndexedStats(
+    global_stats_tracker_->IncrementGlobalIndexedStats(
         stats::heap_graph_missing_packet,
         static_cast<int>(sequence_state.current_upid));
   }
@@ -601,7 +647,7 @@ HeapGraphTracker::InternedType* HeapGraphTracker::GetSuperClass(
     if (it != sequence_state->interned_types.end())
       return &it->second;
   }
-  storage_->IncrementIndexedStats(
+  global_stats_tracker_->IncrementGlobalIndexedStats(
       stats::heap_graph_malformed_packet,
       static_cast<int>(sequence_state->current_upid));
   return nullptr;
@@ -624,7 +670,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       auto it = sequence_state.interned_location_names.find(
           *interned_type.location_id);
       if (it == sequence_state.interned_location_names.end()) {
-        storage_->IncrementIndexedStats(
+        global_stats_tracker_->IncrementGlobalIndexedStats(
             stats::heap_graph_invalid_string_id,
             static_cast<int>(sequence_state.current_upid));
       } else {
@@ -679,7 +725,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
               auto* ptr = sequence_state.interned_fields.Find(field_id);
               if (!ptr) {
                 PERFETTO_DLOG("Invalid field id.");
-                storage_->IncrementIndexedStats(
+                global_stats_tracker_->IncrementGlobalIndexedStats(
                     stats::heap_graph_malformed_packet,
                     static_cast<int>(sequence_state.current_upid));
                 return true;
@@ -710,8 +756,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
     std::optional<StringId> class_package;
     if (location_name) {
-      std::optional<std::string> package_name =
-          PackageFromLocation(storage_, storage_->GetString(location_name));
+      std::optional<std::string> package_name = PackageFromLocation(
+          global_stats_tracker_, storage_->GetString(location_name));
       if (package_name) {
         class_package = storage_->InternString(base::StringView(*package_name));
       }
@@ -736,7 +782,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
   if (!sequence_state.deferred_size_objects_for_type_.empty() ||
       !sequence_state.deferred_reference_objects_for_type_.empty()) {
-    storage_->IncrementIndexedStats(
+    global_stats_tracker_->IncrementGlobalIndexedStats(
         stats::heap_graph_malformed_packet,
         static_cast<int>(sequence_state.current_upid));
   }
@@ -774,7 +820,7 @@ std::optional<ObjectTable::Id> HeapGraphTracker::GetReferenceByFieldName(
     ObjectTable::Id obj,
     StringId field) {
   std::optional<ObjectTable::Id> referred;
-  auto obj_row_ref = *storage_->heap_graph_object_table().FindById(obj);
+  auto obj_row_ref = storage_->heap_graph_object_table()[obj];
   ForReferenceSet(reference_cursor_, obj_row_ref.reference_set_id(),
                   [&](ReferenceTable::Cursor& ref) -> bool {
                     if (ref.field_name() == field) {
@@ -855,7 +901,7 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
 
     int64_t native_size =
         GetSizeFromNativeAllocationRegistry(nar_size_it->second);
-    auto referent_row_ref = *objects_tbl.FindById(cleaner.referent);
+    auto referent_row_ref = objects_tbl[cleaner.referent];
     int64_t total_native_size = referent_row_ref.native_size() + native_size;
     referent_row_ref.set_native_size(total_native_size);
   }
@@ -908,16 +954,13 @@ void HeapGraphTracker::GetChildren(ObjectTable::RowReference object,
                                    std::vector<ObjectTable::Id>& children) {
   children.clear();
 
-  auto cls_row_ref =
-      *storage_->heap_graph_class_table().FindById(object.type_id());
+  auto cls_row_ref = storage_->heap_graph_class_table()[object.type_id()];
 
   StringId kind = cls_row_ref.kind();
 
   bool is_ignored_reference =
       kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE) ||
-      kind == InternTypeKindString(
-                  protos::pbzero::HeapGraphType::KIND_SOFT_REFERENCE) ||
       kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_FINALIZER_REFERENCE) ||
       kind == InternTypeKindString(
@@ -983,7 +1026,7 @@ void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
     GetChildren(cur_node, children);
     for (ObjectTable::Id child_node : children) {
       auto child_ref =
-          *storage_->mutable_heap_graph_object_table()->FindById(child_node);
+          (*storage_->mutable_heap_graph_object_table())[child_node];
       stack.push_back(child_ref);
     }
   }
@@ -1012,7 +1055,7 @@ void HeapGraphTracker::UpdateShortestPaths(
       GetChildren(cur_row_ref, children);
       for (ObjectTable::Id child_node : children) {
         auto child_row_ref =
-            *storage_->mutable_heap_graph_object_table()->FindById(child_node);
+            (*storage_->mutable_heap_graph_object_table())[child_node];
         int32_t child_distance = child_row_ref.root_distance();
         if (child_distance == -1 || child_distance > distance + 1)
           reach.emplace_back(distance + 1, child_row_ref);
@@ -1046,7 +1089,7 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
 
     ClassTable::Id type_id = object_row_ref.type_id();
 
-    auto type_row_ref = *storage_->heap_graph_class_table().FindById(type_id);
+    auto type_row_ref = storage_->heap_graph_class_table()[type_id];
     std::optional<StringId> opt_class_name_id =
         type_row_ref.deobfuscated_name();
     if (!opt_class_name_id) {
@@ -1109,7 +1152,7 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
       PERFETTO_CHECK(i < children.size());
       ObjectTable::Id child = children[i];
       auto child_row_ref =
-          *storage_->mutable_heap_graph_object_table()->FindById(child);
+          (*storage_->mutable_heap_graph_object_table())[child];
       if (++i == children.size())
         stack.pop_back();
 
@@ -1219,7 +1262,8 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
 void HeapGraphTracker::FinalizeAllProfiles() {
   if (!sequence_state_.empty()) {
-    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
+    global_stats_tracker_->IncrementGlobalStats(
+        stats::heap_graph_non_finalized_graph);
     // There might still be valuable data even though the trace is truncated.
     while (!sequence_state_.empty()) {
       FinalizeProfile(sequence_state_.begin()->first);

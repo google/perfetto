@@ -17,7 +17,7 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/assert';
 import {uuidv4Sql} from '../base/uuid';
-import {Engine} from '../trace_processor/engine';
+import type {Engine} from '../trace_processor/engine';
 import {
   createPerfettoIndex,
   createPerfettoTable,
@@ -31,14 +31,14 @@ import {
 } from '../trace_processor/query_result';
 import {
   Flamegraph,
-  FlamegraphPropertyDefinition,
-  FlamegraphQueryData,
-  FlamegraphState,
-  FlamegraphView,
-  FlamegraphOptionalAction,
-  FlamegraphOptionalMarker,
+  type FlamegraphPropertyDefinition,
+  type FlamegraphQueryData,
+  type FlamegraphState,
+  type FlamegraphView,
+  type FlamegraphOptionalAction,
+  type FlamegraphOptionalMarker,
 } from '../widgets/flamegraph';
-import {Trace} from '../public/trace';
+import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';

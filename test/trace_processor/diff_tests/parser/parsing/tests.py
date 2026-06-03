@@ -479,7 +479,8 @@ class Parsing(TestSuite):
         trace=DataPath('android_sched_and_ps.pb'),
         query="""
         SELECT name, idx, severity, source, value
-        FROM stats WHERE name GLOB 'ftrace_cpu_*' OR name GLOB 'traced_buf_*';
+        FROM stats WHERE name GLOB 'ftrace_cpu_*' OR name GLOB 'traced_buf_*'
+        ORDER BY name, idx;
         """,
         out=Path('android_sched_and_ps_stats.out'))
 

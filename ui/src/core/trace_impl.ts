@@ -13,47 +13,49 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import {createStore, Migrate, Store} from '../base/store';
+import {createStore, type Migrate, type Store} from '../base/store';
 import {TimelineImpl} from './timeline';
-import {Command} from '../public/commands';
-import {Trace} from '../public/trace';
-import {ScrollToArgs} from '../public/scroll_helper';
-import {Engine, EngineBase} from '../trace_processor/engine';
-import {CommandManagerImpl} from './command_manager';
+import type {Command} from '../public/commands';
+import type {Trace} from '../public/trace';
+import type {ScrollToArgs} from '../public/scroll_helper';
+import type {Engine, EngineBase} from '../trace_processor/engine';
+import type {CommandManagerImpl} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
-import {OmniboxManagerImpl} from './omnibox_manager';
+import type {OmniboxManagerImpl} from './omnibox_manager';
 import {SearchManagerImpl} from './search_manager';
 import {SelectionManagerImpl} from './selection_manager';
-import {SidebarManagerImpl} from './sidebar_manager';
+import type {SidebarManagerImpl} from './sidebar_manager';
 import {TabManagerImpl} from './tab_manager';
 import {TrackManagerImpl} from './track_manager';
 import {WorkspaceManagerImpl} from './workspace_manager';
-import {SidebarMenuItem} from '../public/sidebar';
+import type {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
-import {Selection, SelectionOpts} from '../public/selection';
-import {SearchResult} from '../public/search';
+import type {Selection, SelectionOpts} from '../public/selection';
+import type {SearchResult} from '../public/search';
 import {FlowManager} from './flow_manager';
-import {AppImpl, OpenTraceArrayBufArgs} from './app_impl';
-import {PluginManagerImpl} from './plugin_manager';
-import {RouteArgs} from '../public/route_schema';
-import {Analytics} from '../public/analytics';
+import type {AppImpl, OpenTraceArrayBufArgs} from './app_impl';
+import type {PluginManagerImpl} from './plugin_manager';
+import type {RouteArgs} from '../public/route_schema';
+import type {Analytics} from '../public/analytics';
 import {fetchWithProgress} from '../base/http_utils';
-import {TraceInfoImpl} from './trace_info_impl';
-import {PageHandler, PageManager} from '../public/page';
+import type {TraceInfoImpl} from './trace_info_impl';
+import type {PageHandler, PageManager} from '../public/page';
 import {createProxy} from '../base/utils';
-import {PageManagerImpl} from './page_manager';
-import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
-import {SerializedAppState} from './state_serialization_schema';
+import type {PageManagerImpl} from './page_manager';
+import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
+import type {SerializedAppState} from './state_serialization_schema';
 import {featureFlags} from './feature_flags';
 import {EvtSource} from '../base/events';
-import {Raf} from '../public/raf';
+import type {Raf} from '../public/raf';
 import {StatusbarManagerImpl} from './statusbar_manager';
-import {SettingDescriptor} from '../public/settings';
-import {SettingsManagerImpl} from './settings_manager';
+import type {SettingDescriptor} from '../public/settings';
+import type {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {InitialPageManagerImpl} from './initial_page_manager';
-import {TraceStream} from '../public/stream';
-import {OmniboxModeDescriptor} from '../public/omnibox';
+import type {TraceStream} from '../public/stream';
+import type {OmniboxModeDescriptor} from '../public/omnibox';
+import type {SidePanelManagerImpl} from './side_panel_manager';
+import type {SidePanelTabDescriptor} from '../public/side_panel';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -185,6 +187,14 @@ export class TraceImpl implements Trace, Disposable {
         return disposable;
       },
     });
+
+    this.sidePanelProxy = createProxy(app.sidePanel, {
+      registerTab: (tab: SidePanelTabDescriptor) => {
+        const disposable = app.sidePanel.registerTab(tab);
+        this.trash.use(disposable);
+        return disposable;
+      },
+    });
   }
 
   // This method wires up changes to selection to side effects on search and
@@ -211,6 +221,7 @@ export class TraceImpl implements Trace, Disposable {
 
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
+  private readonly sidePanelProxy: SidePanelManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
   private readonly omniboxProxy: OmniboxManagerImpl;
@@ -266,6 +277,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get sidebar(): SidebarManagerImpl {
     return this.sidebarProxy;
+  }
+
+  get sidePanel(): SidePanelManagerImpl {
+    return this.sidePanelProxy;
   }
 
   get pages(): PageManager {

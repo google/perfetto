@@ -258,6 +258,14 @@ class SamplePrograms {
     return program;
   }
 
+  static perfetto::protos::VmProgram Merge_DelIfSrcEmpty() {
+    perfetto::protos::VmProgram program;
+    auto* instruction = program.add_instructions();
+    auto* merge = instruction->mutable_merge();
+    merge->set_del_if_src_empty(true);
+    return program;
+  }
+
   static perfetto::protos::VmProgram Set() {
     perfetto::protos::VmProgram program;
     program.add_instructions()->mutable_set();
@@ -392,6 +400,75 @@ class SamplePrograms {
         }
       }
     }
+
+    return program;
+  }
+
+  static perfetto::protos::VmProgram DelAliasedRoot() {
+    perfetto::protos::VmProgram program;
+    auto* outer = program.add_instructions();
+    auto* outer_select = outer->mutable_select();
+    outer_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+    outer->add_nested_instructions()->mutable_del();
+    return program;
+  }
+
+  static perfetto::protos::VmProgram DelAliasedDstInsideSrcSelect() {
+    // The outer select walks dst to a non-root child. The inner select uses
+    // cursor=SRC with a non-empty relative_path, so dst remains pinned at
+    // the outer's child while src walks elsewhere. A nested `del` targets
+    // that pinned dst node. The parser must abort rather than restore a
+    // stale dst pointer.
+    perfetto::protos::VmProgram program;
+    auto* outer = program.add_instructions();
+    auto* outer_select = outer->mutable_select();
+    outer_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+    outer_select->set_create_if_not_exist(true);
+    outer_select->add_relative_path()->set_field_id(1);
+
+    auto* inner = outer->add_nested_instructions();
+    auto* inner_select = inner->mutable_select();
+    inner_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_SRC);
+    inner_select->add_relative_path()->set_field_id(
+        protos::Patch::kElementsToSetFieldNumber);
+    inner->add_nested_instructions()->mutable_del();
+    return program;
+  }
+
+  static perfetto::protos::VmProgram DelAliasedDstInsideEmptyPathDstSelect() {
+    // The outer select walks dst to a non-root child; the inner select has
+    // an empty relative_path so its snapshot aliases that same child; a
+    // nested `del` then targets the child. The parser must abort rather
+    // than restore a stale dst pointer.
+    perfetto::protos::VmProgram program;
+    auto* outer = program.add_instructions();
+    auto* outer_select = outer->mutable_select();
+    outer_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+    outer_select->set_create_if_not_exist(true);
+    outer_select->add_relative_path()->set_field_id(1);
+
+    auto* inner = outer->add_nested_instructions();
+    auto* inner_select = inner->mutable_select();
+    inner_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+    inner->add_nested_instructions()->mutable_del();
+
+    outer->add_nested_instructions()->mutable_del();
+    return program;
+  }
+
+  static perfetto::protos::VmProgram DelAndNestedDel() {
+    perfetto::protos::VmProgram program;
+    auto* outer = program.add_instructions();
+    auto* select = outer->mutable_select();
+    select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+    select->set_create_if_not_exist(true);
+    select->add_relative_path()->set_field_id(1);
+
+    auto* outer_del = outer->add_nested_instructions();
+    outer_del->mutable_del();
+
+    auto* inner_del = outer_del->add_nested_instructions();
+    inner_del->mutable_del();
 
     return program;
   }

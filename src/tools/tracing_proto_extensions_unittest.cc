@@ -456,8 +456,8 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithTestProto) {
   std::string proto_path = base::GetTestDataPath(
       "protos/perfetto/trace/track_event/track_event_extensions.json");
   auto result = GenerateExtensionDescriptors(proto_path, {"."}, ".");
-  // This should succeed for local protos (test_extensions.proto and
-  // android_track_event.proto). Remote entries (chromium) are skipped.
+  // This should succeed for local protos (test_extensions.proto). Remote
+  // entries (chromium, android-internal) are skipped.
   ASSERT_TRUE(result.ok()) << result.status().message();
   // The output should be a non-empty FileDescriptorSet.
   EXPECT_GT(result->size(), 0u);

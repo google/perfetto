@@ -218,3 +218,51 @@ class PreludeWindowFunctions(TestSuite):
         4,3
         5,3
         """))
+
+  def test_layout_with_partition_by(self):
+    #   1 2 3 4 5 6 7 8 9 10
+    # Partition A:
+    #   |-----| |-------|
+    #     |---------|
+    # Partition B:
+    #       |-------------|
+    #             |---|
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        """),
+        query="""
+        CREATE TABLE TEST(start INTEGER, end INTEGER, partition_id TEXT);
+
+        INSERT INTO TEST
+        VALUES
+        (1, 4, 'A'),
+        (2, 7, 'A'),
+        (3, 10, 'B'),
+        (5, 9, 'A'),
+        (6, 8, 'B');
+
+        WITH custom_slices as (
+          SELECT
+            start as ts,
+            end - start as dur,
+            partition_id
+          FROM test
+        )
+        SELECT
+          ts,
+          INTERNAL_LAYOUT(ts, dur) OVER (
+            PARTITION BY partition_id
+            ORDER BY ts
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          ) as depth
+        FROM custom_slices
+        ORDER BY ts ASC
+        """,
+        out=Csv("""
+        "ts","depth"
+        1,0
+        2,1
+        3,0
+        5,0
+        6,1
+        """))

@@ -14,20 +14,24 @@
 
 import m from 'mithril';
 import {Duration} from '../base/time';
-import {SqlValue} from '../trace_processor/query_result';
+import type {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
-import {BarChartData, ColumnDef} from './aggregation';
-import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
-import {defaultValueFormatter} from './widgets/datagrid/export_utils';
-import {AggregatePivotModel, DataGridState} from './aggregation_adapter';
+import type {BarChartData, ColumnDef} from './aggregation';
 import {
+  DataGrid,
+  renderCell,
+  type DataGridApi,
+} from './widgets/datagrid/datagrid';
+import {defaultValueFormatter} from './widgets/datagrid/export_utils';
+import type {AggregatePivotModel, DataGridState} from './aggregation_adapter';
+import type {
   CellRenderer,
   ColumnSchema,
   ColumnType,
   SchemaRegistry,
 } from './widgets/datagrid/datagrid_schema';
-import {DataSource} from './widgets/datagrid/data_source';
+import type {DataSource} from './widgets/datagrid/data_source';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 

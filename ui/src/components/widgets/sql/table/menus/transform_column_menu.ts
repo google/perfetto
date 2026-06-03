@@ -17,23 +17,23 @@ import {MenuItem} from '../../../../../widgets/menu';
 import {Form, FormLabel} from '../../../../../widgets/form';
 import {TextInput} from '../../../../../widgets/text_input';
 import {Icons} from '../../../../../base/semantic_icons';
-import {
+import type {
   TableColumn,
   RenderedCell,
   RenderCellContext,
   ListColumnsContext,
 } from '../table_column';
-import {SqlTableState} from '../state';
+import type {SqlTableState} from '../state';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
   typesEqual,
 } from '../../../../../trace_processor/perfetto_sql_type';
-import {SqlColumn, SqlExpression} from '../sql_column';
-import {SqlValue} from '../../../../../trace_processor/query_result';
+import {type SqlColumn, SqlExpression} from '../sql_column';
+import type {SqlValue} from '../../../../../trace_processor/query_result';
 import {uuidv4} from '../../../../../base/uuid';
 import {range} from '../../../../../base/array_utils';
-import {Trace} from '../../../../../public/trace';
+import type {Trace} from '../../../../../public/trace';
 import {createTableColumn, PrintArgsColumn} from '../columns';
 
 type Transform = {

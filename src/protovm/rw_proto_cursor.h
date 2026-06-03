@@ -28,6 +28,12 @@ namespace protovm {
 
 class RwProtoCursor {
  public:
+  enum MergeFlags : uint32_t {
+    kNone = 0,
+    kSkipSubmessages = 1 << 0,
+    kDelIfSrcEmpty = 1 << 1,
+  };
+
   class RepeatedFieldIterator {
    public:
     RepeatedFieldIterator();
@@ -43,6 +49,11 @@ class RwProtoCursor {
 
   RwProtoCursor();
   explicit RwProtoCursor(Node* node, Allocator* allocator);
+
+  bool operator==(const RwProtoCursor& other) const;
+  bool operator!=(const RwProtoCursor& other) const;
+
+  StatusOr<bool> IsRoot() const;
   StatusOr<bool> HasField(uint32_t field_id);
   StatusOr<void> EnterField(uint32_t field_id);
   StatusOr<void> EnterRepeatedFieldAt(uint32_t field_id, uint32_t index);
@@ -91,11 +102,17 @@ class RwProtoCursor {
   // from 'data'. Fields present in 'data' but not in the cursor's message are
   // added/created. If skip_submessages is set to true, any message node already
   // resolved in the dst are skipped, thus not overwritten by the parent merge.
-  StatusOr<void> Merge(protozero::ConstBytes data, bool skip_submessages);
+  StatusOr<void> Merge(protozero::ConstBytes data, uint32_t flags);
 
   StatusOr<void> Delete();
 
  private:
+  struct ParentLink {
+    Node* node;
+    IntrusiveMap* map;
+    MapNode* map_node;
+  };
+
   StatusOr<void> ConvertToMessageIfNeeded(Node* node);
   StatusOr<OwnedPtr<Node>> CreateNodeFromField(protozero::Field field);
   StatusOr<void> ConvertToMappedRepeatedFieldIfNeeded(
@@ -115,8 +132,10 @@ class RwProtoCursor {
                                              OwnedPtr<Node> map_value);
   StatusOr<uint64_t> ReadScalarField(const Node& node, uint32_t field_id);
 
+  StatusOr<void> CheckIsValid() const;
+
   Node* node_ = nullptr;
-  std::pair<IntrusiveMap*, Node::MapNode*> holding_map_and_node_ = {};
+  ParentLink parent_link_ = {};
   Allocator* allocator_ = nullptr;
 };
 

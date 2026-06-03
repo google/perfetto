@@ -1,0 +1,394 @@
+// Copyright (C) 2018 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../../assets/theme";
+
+.pf-sidebar {
+  --sidebar-timing: 0.15s;
+
+  grid-area: sidebar;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  color: var(--pf-sidebar-on-surface);
+  background-color: var(--pf-sidebar-surface);
+  overflow: hidden;
+  width: var(--sidebar-width);
+  border-right: 1px solid var(--pf-sidebar-border);
+  transition:
+    margin-left var(--anim-easing) var(--sidebar-timing),
+    visibility linear var(--sidebar-timing);
+}
+
+.pf-sidebar__header {
+  display: flex;
+  align-items: center;
+  height: var(--topbar-height);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--pf-sidebar-border);
+  flex-shrink: 0;
+
+  .pf-sidebar__brand {
+    height: 36px;
+  }
+
+  .pf-sidebar__branding-badge {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    font-size: var(--pf-font-size-xs);
+    line-height: 1;
+    font-family: var(--pf-font);
+    top: 7px;
+    right: 48px;
+    z-index: 10;
+
+    i.pf-icon {
+      font-size: var(--pf-font-size-xs);
+      margin-right: 2px;
+    }
+
+    .pf-sidebar__branding-badge-img {
+      height: 10px;
+      margin-right: 2px;
+    }
+  }
+}
+
+.pf-sidebar__content {
+  flex-shrink: 1;
+  flex-grow: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 4px;
+
+  // Override scrollbar colors for the sidebar's dark background.
+  scrollbar-color: var(--pf-sidebar-border) var(--pf-sidebar-surface);
+  &::-webkit-scrollbar {
+    width: 0.5em;
+  }
+  &::-webkit-scrollbar-track {
+    background-color: var(--pf-sidebar-surface);
+    border-radius: 2px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--pf-sidebar-border);
+    border-radius: 2px;
+  }
+
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+li.pf-sidebar__item {
+  list-style: none;
+  color: var(--pf-sidebar-on-surface);
+  font-size: var(--pf-font-size-m);
+
+  a,
+  button {
+    color: inherit;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: $border-radius;
+    gap: 8px;
+    width: 100%;
+    font: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+      background: color-hover-surface(transparent, currentColor);
+    }
+
+    &:active {
+      background: color-active-surface(transparent, currentColor);
+    }
+
+    &[disabled] {
+      text-decoration: line-through;
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  &.pf-active a {
+    background: color-active-surface(transparent, currentColor);
+  }
+}
+
+.pf-sidebar__button-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.pf-sidebar__external-link-icon {
+  margin-left: auto;
+  font-size: 14px;
+  opacity: 0.4;
+}
+
+.pf-spinner.pf-sidebar__spinner {
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-color: var(--pf-sidebar-border);
+  border-top-color: var(--pf-sidebar-on-surface);
+}
+
+.pf-sidebar__trace-file-name {
+  display: block;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  font-family: var(--pf-font-compact);
+  font-weight: 300;
+  color: var(--pf-sidebar-on-surface-muted);
+  white-space: break-spaces;
+  word-break: break-all;
+}
+
+.pf-sidebar.pf-sidebar--hidden {
+  visibility: hidden;
+  margin-left: calc(var(--sidebar-width) * -1);
+  .pf-sidebar-button {
+    left: 10px;
+    color: var(--pf-color-text);
+    &:hover {
+      background: color_hover(transparent);
+    }
+    &:active {
+      background: color_active(transparent);
+    }
+  }
+}
+
+.pf-sidebar .pf-sidebar-button {
+  font-size: 26px;
+  position: fixed;
+  z-index: 5;
+  left: calc(var(--sidebar-width) - 44px);
+  top: 6px;
+  visibility: visible; // So stays visible when the sidebar is hidden.
+  transition: left var(--anim-easing) var(--sidebar-timing);
+
+  // Custom button styles
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  border-radius: $border-radius;
+  cursor: pointer;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--pf-sidebar-on-surface);
+
+  &:hover {
+    background: color-hover-surface(transparent, currentColor);
+  }
+
+  &:active {
+    background: color-active-surface(transparent, currentColor);
+  }
+}
+
+.pf-sidebar__header--canary::before,
+.pf-sidebar__header--autopush::before {
+  display: block;
+  position: absolute;
+  font-size: var(--pf-font-size-xs);
+  font-weight: 700;
+  line-height: 5px;
+  font-family: var(--pf-font);
+  top: 7px;
+  right: 48px;
+  z-index: 10;
+}
+
+.pf-sidebar__header:has(.pf-sidebar__branding-badge) {
+  &.pf-sidebar__header--canary::before,
+  &.pf-sidebar__header--autopush::before {
+    top: 18px;
+  }
+}
+
+.pf-sidebar__header--canary::before {
+  content: "CANARY";
+  color: var(--pf-color-warning);
+}
+
+.pf-sidebar__header--autopush::before {
+  content: "AUTOPUSH";
+  color: var(--pf-color-danger);
+}
+
+.pf-sidebar__section {
+  padding: 4px 0;
+}
+
+.pf-sidebar__section--expanded {
+  .pf-sidebar__section-header {
+    margin-bottom: 1px;
+    h2 {
+      display: none;
+    }
+    &:after {
+      content: "expand_less";
+    }
+  }
+
+  .pf-sidebar__section-content {
+    display: block;
+  }
+}
+
+.pf-sidebar__section-header {
+  cursor: pointer;
+  user-select: none;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: $border-radius;
+  color: var(--pf-sidebar-on-surface-muted);
+
+  &:hover {
+    color: var(--pf-sidebar-on-surface);
+    background: color-hover-surface(transparent, currentColor);
+  }
+
+  &:active {
+    color: var(--pf-sidebar-on-surface);
+    background: color-active-surface(transparent, currentColor);
+  }
+
+  > h1,
+  > h2 {
+    grid-column: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0;
+  }
+
+  > h1 {
+    text-transform: uppercase;
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+  }
+
+  > h2 {
+    font-size: var(--pf-font-size-s);
+    font-weight: 400;
+    margin-top: 2px;
+  }
+
+  &:after {
+    @include material-icon("expand_more");
+    font-size: 18px;
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+}
+
+.pf-sidebar__section-content {
+  display: none;
+}
+
+.pf-sidebar__footer {
+  padding: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, min-content);
+  grid-gap: 6px;
+  border-top: 1px solid var(--pf-sidebar-border);
+  flex-shrink: 0;
+
+  > .pf-sidebar__dbg-info-square {
+    font-family: var(--pf-font-compact);
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    user-select: none;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    margin: 1px 0;
+    background: var(--pf-sidebar-surface-secondary);
+    border-radius: $border-radius;
+    font-size: var(--pf-font-size-s);
+    text-align: center;
+    &--green {
+      background: var(--pf-color-success);
+      color: var(--pf-color-text-on-success);
+    }
+    &--amber {
+      background: var(--pf-color-warning);
+      color: var(--pf-color-text-on-warning);
+    }
+    &--red {
+      background: var(--pf-color-danger);
+      color: var(--pf-color-text-on-danger);
+    }
+    > div {
+      font-size: var(--pf-font-size-xs);
+      line-height: 11px;
+    }
+  }
+
+  .pf-sidebar__version {
+    position: absolute;
+    right: 8px;
+    bottom: 3px;
+    font-size: var(--pf-font-size-s);
+    font-family: var(--pf-font-compact);
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    margin-top: 11px;
+  }
+}
+
+// Note: The hiring banner doesn't use theme colors.
+.pf-hiring-banner {
+  font-size: var(--pf-font-size-s);
+  background: #db4634;
+  box-shadow: 0 0 3px var(--pf-color-box-shadow);
+  left: -65px;
+  letter-spacing: 1px;
+  line-height: 25px;
+  position: absolute;
+  text-align: center;
+  top: 20px;
+  transform: rotate(-45deg);
+  width: 200px;
+  z-index: 5;
+
+  a {
+    color: white;
+    text-decoration: none;
+  }
+}

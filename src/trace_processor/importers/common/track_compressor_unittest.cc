@@ -19,8 +19,10 @@
 #include <memory>
 
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -45,8 +47,14 @@ class TrackCompressorUnittest : public testing::Test {
  public:
   TrackCompressorUnittest() {
     context_.storage = std::make_unique<TraceStorage>();
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
@@ -75,7 +83,7 @@ TEST_F(TrackCompressorUnittest, Smoke) {
   ASSERT_EQ(begin, end);
 
   const auto& process = storage_->track_table();
-  auto rr = *process.FindById(begin);
+  auto rr = process[begin];
   ASSERT_EQ(rr.upid(), 1u);
   ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));
 }
@@ -84,7 +92,7 @@ TEST_F(TrackCompressorUnittest, EndFirst) {
   auto end = tracker_->InternEnd(kNestable, tracks::Dimensions(1), 1);
 
   const auto& process = storage_->track_table();
-  auto rr = *process.FindById(end);
+  auto rr = process[end];
   ASSERT_EQ(rr.upid(), 1u);
   ASSERT_EQ(rr.name(), storage_->string_pool().GetId("test"));
 }

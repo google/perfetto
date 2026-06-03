@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {errResult, okResult, Result} from '../../../../base/result';
+import {errResult, okResult, type Result} from '../../../../base/result';
 import {exists} from '../../../../base/utils';
-import {PreflightCheck} from '../../interfaces/connection_check';
+import type {PreflightCheck} from '../../interfaces/connection_check';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
-import {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
+import type {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
 import {AdbWebsocketTarget} from './adb_websocket_target';
 import {adbCmdAndWait} from './adb_websocket_utils';
 import {EvtSource} from '../../../../base/events';
 import {websocketInstructions} from '../../websocket/websocket_utils';
-import {RecordTraceV2Settings} from '../../settings';
 
 export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
   readonly id = 'adb_websocket';
@@ -34,8 +33,6 @@ export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
   private readonly wsHost = '127.0.0.1:8037';
   readonly onTargetsChanged = new EvtSource<void>();
   private targets = new Map<string, AdbWebsocketTarget>();
-
-  constructor(private readonly settings: RecordTraceV2Settings) {}
 
   async *runPreflightChecks(): AsyncGenerator<PreflightCheck> {
     yield {
@@ -69,12 +66,7 @@ export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
     // Find new devices.
     for (const [serial, model] of adbDevices.entries()) {
       if (this.targets.has(serial)) continue; // We already have a target.
-      const newTarget = new AdbWebsocketTarget(
-        this.wsUrl,
-        serial,
-        model,
-        this.settings,
-      );
+      const newTarget = new AdbWebsocketTarget(this.wsUrl, serial, model);
       this.targets.set(serial, newTarget);
     }
   }

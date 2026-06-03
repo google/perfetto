@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {time, Time, TimeSpan} from '../../base/time';
+import {type time, Time, type TimeSpan} from '../../base/time';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {
   escapeQuery,
@@ -25,8 +25,8 @@ import {
 } from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {
-  MultiSelectDiff,
-  MultiSelectOption,
+  type MultiSelectDiff,
+  type MultiSelectOption,
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
@@ -34,15 +34,15 @@ import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
 import {
   Grid,
-  GridColumn,
-  GridRow,
+  type GridColumn,
+  type GridRow,
   GridHeaderCell,
   GridCell,
 } from '../../widgets/grid';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
-import {Store} from '../../base/store';
-import {Trace} from '../../public/trace';
+import type {Store} from '../../base/store';
+import type {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {MenuItem} from '../../widgets/menu';
 import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';

@@ -23,10 +23,10 @@ import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
 import {Spinner} from '../../widgets/spinner';
 import {Stack} from '../../widgets/stack';
-import {TabStrip, TabOption} from '../../widgets/tab_strip';
+import {TabStrip, type TabOption} from '../../widgets/tab_strip';
 import {TextParagraph} from '../../widgets/text_paragraph';
 import {MultiTraceController} from './multi_trace_controller';
-import {TraceFile} from './multi_trace_types';
+import type {TraceFile} from './multi_trace_types';
 import {WasmTraceAnalyzer} from './trace_analyzer';
 
 const MODAL_KEY = 'multi-trace-modal';

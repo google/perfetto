@@ -19,9 +19,17 @@
 #[path = "gpu_counter_event.pz.rs"]
 pub mod gpu_counter_event;
 
+/// `gpu_interned_data` protos.
+#[path = "gpu_interned_data.pz.rs"]
+pub mod gpu_interned_data;
+
 /// `gpu_log` protos.
 #[path = "gpu_log.pz.rs"]
 pub mod gpu_log;
+
+/// `gpu_mem_event` protos.
+#[path = "gpu_mem_event.pz.rs"]
+pub mod gpu_mem_event;
 
 /// `gpu_render_stage_event` protos.
 #[path = "gpu_render_stage_event.pz.rs"]

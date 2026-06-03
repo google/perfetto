@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './query_history.scss';
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {assertTrue} from '../../base/assert';
 import {z} from 'zod';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
 import {Stack} from '../../widgets/stack';
 

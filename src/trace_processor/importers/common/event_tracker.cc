@@ -42,7 +42,7 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
   auto opt_id = PushCounter(timestamp, value, kInvalidTrackId);
   if (opt_id) {
     PendingUpidResolutionCounter pending;
-    pending.row = counter.FindById(*opt_id)->ToRowNumber().row_number();
+    pending.row = counter[*opt_id].ToRowNumber().row_number();
     pending.utid = utid;
     pending.counter = pcounter;
     pending_upid_resolution_counter_.emplace_back(pending);

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode} from '../query_node';
-import {QueryExecutionService} from './query_execution_service';
+import type {QueryNode} from '../query_node';
+import type {QueryExecutionService} from './query_execution_service';
 
 /**
  * Centralized manager for resource cleanup in the Data Explorer.

@@ -16,23 +16,27 @@
 -- sqlformat file off
 
 CREATE PERFETTO MACRO _ii_df_agg(x ColumnName, y ColumnName)
-RETURNS _ProjectionFragment AS __intrinsic_stringify!($x), input.$y;
+RETURNS _ProjectionFragment
+AS __intrinsic_stringify!($x), input.$y;
 
 CREATE PERFETTO MACRO _ii_df_bind(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
+RETURNS Expr
+AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
 
 CREATE PERFETTO MACRO _ii_df_select(x ColumnName, y Expr)
-RETURNS _ProjectionFragment AS $x AS $y;
+RETURNS _ProjectionFragment
+AS $x AS $y;
 
 CREATE PERFETTO MACRO __first_arg(x Expr, y Expr)
-RETURNS Expr AS $x;
+RETURNS Expr
+AS $x;
 
 CREATE PERFETTO MACRO _interval_agg(
   tab TableOrSubquery,
   agg_columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT __intrinsic_interval_tree_intervals_agg(
     input.id,
     input.ts,
@@ -53,8 +57,8 @@ CREATE PERFETTO MACRO _interval_agg_with_col_names(
   ts_col ColumnName,
   dur_col ColumnName
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT __intrinsic_interval_tree_intervals_agg(
     input.$id_col,
     input.$ts_col,
@@ -72,8 +76,8 @@ CREATE PERFETTO MACRO _interval_intersect(
   tabs _TableNameList,
   agg_columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS ts,
     c1 AS dur,
@@ -82,14 +86,15 @@ RETURNS TableOrSubquery AS
       __first_arg,
       (
         c2 AS id_0, c3 AS id_1, c4 AS id_2, c5 AS id_3, c6 AS id_4,
-        c7 AS id_5, c8 AS id_6, c9 AS id_7, c10 AS id_8, c11 AS id_9
+        c7 AS id_5, c8 AS id_6, c9 AS id_7, c10 AS id_8, c11 AS id_9,
+        c12 AS id_10, c13 AS id_11, c14 AS id_12, c15 AS id_13, c16 AS id_14
       ),
       $tabs
     )
     -- Columns for partitions, one for each column with partition.
     __intrinsic_token_apply_prefix!(
       _ii_df_select,
-      (c12, c13, c14, c15),
+      (c17, c18, c19, c20),
       $agg_columns
     )
   -- Interval intersect result table.
@@ -99,6 +104,7 @@ RETURNS TableOrSubquery AS
         _interval_agg,
         $tabs,
         (
+          $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns,
           $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns,
           $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns
         )
@@ -121,11 +127,16 @@ RETURNS TableOrSubquery AS
     AND __intrinsic_table_ptr_bind(c9, 'id_7')
     AND __intrinsic_table_ptr_bind(c10, 'id_8')
     AND __intrinsic_table_ptr_bind(c11, 'id_9')
+    AND __intrinsic_table_ptr_bind(c12, 'id_10')
+    AND __intrinsic_table_ptr_bind(c13, 'id_11')
+    AND __intrinsic_table_ptr_bind(c14, 'id_12')
+    AND __intrinsic_table_ptr_bind(c15, 'id_13')
+    AND __intrinsic_table_ptr_bind(c16, 'id_14')
 
     -- Partition columns.
     __intrinsic_token_apply_and_prefix!(
       _ii_df_bind,
-      (c12, c13, c14, c15),
+      (c17, c18, c19, c20),
       $agg_columns
     )
 );
@@ -138,8 +149,8 @@ CREATE PERFETTO MACRO _interval_rename_cols(
   ts_col ColumnName,
   dur_col ColumnName
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT $id_col AS id, $ts_col AS ts, $dur_col AS dur
   __intrinsic_token_apply_prefix!(_ii_df_select, $agg_columns, $agg_columns)
   FROM $tab
@@ -150,8 +161,8 @@ CREATE PERFETTO MACRO _interval_intersect_single(
   dur Expr,
   t TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
   id_0 AS id,
   ts,
@@ -192,8 +203,8 @@ CREATE PERFETTO MACRO _interval_intersect_with_col_names(
   -- List of partition columns (can be empty with ()).
   agg_columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   _interval_intersect!(
     (
       _interval_rename_cols!($tab1, $agg_columns, $id_col1, $ts_col1, $dur_col1),
@@ -231,8 +242,7 @@ CREATE PERFETTO MACRO interval_self_intersect(
   intervals TableOrSubquery
 )
 RETURNS TableOrSubquery
-AS
-(
+AS (
   WITH
     _all_endpoints AS (
       SELECT id, ts, TRUE as is_start FROM $intervals

@@ -16,6 +16,7 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import Json
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -119,4 +120,63 @@ class GeckoParser(TestSuite):
           "Thread <27885290>",2
           "Thread <27885289>",2
           "Thread <27885277>",2
+        '''))
+
+  # Hand-crafted minimal preprocessed-format profile exercising all four
+  # Firefox marker phases on a single thread:
+  #  - phase 0 (Instant)         => zero-duration slice
+  #  - phase 1 (Interval)        => slice with computed duration
+  #  - phase 2/3 (Start/End pair) => single slice spanning [startTime, endTime]
+  # Also verifies category resolution from `meta.categories` and that the
+  # `data` payload is flattened into `data.*` args.
+  def test_gecko_markers(self):
+    return DiffTestBlueprint(
+        trace=Json(contents="""{
+          "meta": {
+            "categories": [
+              {"name": "Other", "color": "grey", "subcategories": ["Other"]},
+              {"name": "DOM", "color": "blue", "subcategories": ["Other"]}
+            ]
+          },
+          "threads": [
+            {
+              "name": "main",
+              "tid": 100,
+              "pid": 100,
+              "stringArray": ["Click", "Boot", "DOMEvent"],
+              "frameTable": {"func": []},
+              "funcTable": {"name": []},
+              "stackTable": {"prefix": [], "frame": []},
+              "samples": {"stack": [], "time": []},
+              "markers": {
+                "name":      [0,    1,    2,    2],
+                "startTime": [10.0, 20.0, 30.0, 0.0],
+                "endTime":   [10.0, 25.0, 0.0,  35.0],
+                "phase":     [0,    1,    2,    3],
+                "category":  [0,    0,    1,    1],
+                "data":      [{"flow": 7}, null, {"target": "btn"}, null],
+                "length":    4
+              }
+            }
+          ]
+        }"""),
+        query="""
+          SELECT
+            thread.name AS thread_name,
+            slice.name,
+            slice.ts,
+            slice.dur,
+            slice.category,
+            IFNULL(EXTRACT_ARG(slice.arg_set_id, 'data.flow'), '') AS data_flow,
+            IFNULL(EXTRACT_ARG(slice.arg_set_id, 'data.target'), '') AS data_target
+          FROM slice
+          JOIN thread_track ON slice.track_id = thread_track.id
+          JOIN thread USING(utid)
+          ORDER BY slice.ts
+        """,
+        out=Csv('''
+          "thread_name","name","ts","dur","category","data_flow","data_target"
+          "main","Click",10000000,0,"Other",7,""
+          "main","Boot",20000000,5000000,"Other","",""
+          "main","DOMEvent",30000000,5000000,"DOM","","btn"
         '''))

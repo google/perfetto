@@ -55,28 +55,16 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 -- @column process_name       Alias for `process.name`.
 CREATE PERFETTO TABLE _slice_flattened AS
 WITH
-  root_slices AS (
-    SELECT
-      *
-    FROM slice
-    WHERE
-      parent_id IS NULL
-  ),
+  root_slices AS (SELECT * FROM slice WHERE parent_id IS NULL),
   child_slices AS (
-    SELECT
-      anc.id AS root_id,
-      slice.*
+    SELECT anc.id AS root_id, slice.*
     FROM slice, ancestor_slice(slice.id) AS anc
     WHERE
       slice.parent_id IS NOT NULL
   ),
   flat_slices AS (
-    SELECT
-      root_id,
-      id,
-      ts,
-      dur
-    FROM _intervals_flatten !(_intervals_merge_root_and_children!(root_slices, child_slices))
+    SELECT root_id, id, ts, dur
+    FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices))
   )
 SELECT
   id AS slice_id,
@@ -93,8 +81,7 @@ SELECT
   pid,
   process_name
 FROM flat_slices
-JOIN thread_slice
-  USING (id);
+JOIN thread_slice USING (id);
 
 CREATE PERFETTO INDEX _slice_flattened_id_idx ON _slice_flattened(slice_id);
 

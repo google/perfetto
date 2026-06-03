@@ -13,19 +13,19 @@
 // limitations under the License.
 
 import {
-  QueryNode,
+  type QueryNode,
   nextNodeId,
   NodeType,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
+import {type ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
-import protos from '../../../../protos';
+import type protos from '../../../../protos';
 import m from 'mithril';
 import {Select} from '../../../../widgets/select';
 import {Button, ButtonVariant} from '../../../../widgets/button';
@@ -33,37 +33,34 @@ import {TextInput} from '../../../../widgets/text_input';
 import {showModal, redrawModal, closeModal} from '../../../../widgets/modal';
 import {
   StructuredQueryBuilder,
-  ColumnSpec,
-  JoinCondition,
+  type ColumnSpec,
+  type JoinCondition,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {Form, FormSection} from '../../../../widgets/form';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {Spinner} from '../../../../widgets/spinner';
 import {STR} from '../../../../trace_processor/query_result';
 import {sqliteString} from '../../../../base/string_utils';
 import {loadNodeDoc} from '../node_doc_loader';
-import {NewColumn, AddColumnsNodeAttrs} from './add_columns_types';
+import type {NewColumn, AddColumnsNodeAttrs} from './add_columns_types';
 import {SwitchComponent, IfComponent} from './computed_column_components';
 import {AddColumnsSuggestionModal} from './add_columns_suggestion_modal';
 import {AddColumnsConfigurationModal} from './add_columns_configuration_modal';
 import {renderTypeSelector} from './modify_columns_utils';
-import {FunctionWithModule} from '../function_list';
+import type {FunctionWithModule} from '../function_list';
 import {Icon} from '../../../../widgets/icon';
 import {
-  FunctionModalState,
+  type FunctionModalState,
   createFunctionModalState,
   isFunctionModalValid,
   createFunctionColumn,
   FunctionSelectStep,
   FunctionConfigureStep,
 } from './add_columns_function_modal';
-
-// Re-export types for backwards compatibility
-export {NewColumn, AddColumnsNodeAttrs} from './add_columns_types';
 
 export class AddColumnsNode implements QueryNode {
   readonly nodeId: string;

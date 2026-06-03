@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './datagrid.scss';
 import m from 'mithril';
 import {intersperse} from '../../../base/array_utils';
 import {classNames} from '../../../base/classnames';
@@ -19,15 +20,15 @@ import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
 import {shortUuid} from '../../../base/uuid';
 import {exists, isNumeric, maybeUndefined} from '../../../base/utils';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
 import {
   Grid,
-  GridApi,
+  type GridApi,
   GridCell,
-  GridColumn,
+  type GridColumn,
   GridHeaderCell,
   renderSortMenuItems,
 } from '../../../widgets/grid';
@@ -42,7 +43,7 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {
+import type {
   DataSource,
   DataSourceModel,
   DataSourceRows,
@@ -51,7 +52,7 @@ import {
   TreeModel,
 } from './data_source';
 import {
-  SchemaRegistry,
+  type SchemaRegistry,
   getColumnInfo,
   getDefaultVisibleColumns,
   isCellRenderResult,
@@ -68,15 +69,15 @@ import {
 } from './export_utils';
 import {InMemoryDataSource} from './in_memory_data_source';
 import {
-  AggregateColumn,
-  AggregateFunction,
-  Column,
+  type AggregateColumn,
+  type AggregateFunction,
+  type Column,
   DEFAULT_GROUP_DISPLAY,
-  Filter,
-  GroupPath,
-  IdBasedTree,
-  Pivot,
-  SortDirection,
+  type Filter,
+  type GroupPath,
+  type IdBasedTree,
+  type Pivot,
+  type SortDirection,
 } from './model';
 
 // Compare two SqlValues for equality, handling nulls, undefined, and different types.
@@ -210,6 +211,15 @@ export interface DataGridAttrs {
   readonly onColumnsChanged?: (columns: readonly Column[]) => void;
 
   /**
+   * When true, forces all column controls (sort, reorder, add, remove,
+   * summary functions) off regardless of the controlled/uncontrolled wiring.
+   * This is an override on top of the normal mutability rule: columns are
+   * otherwise mutable in uncontrolled mode, or controlled with an
+   * onColumnsChanged callback. Defaults to false.
+   */
+  readonly disableColumnControls?: boolean;
+
+  /**
    * Whether columns can be added. Defaults to true.
    */
   readonly canAddColumns?: boolean;
@@ -252,6 +262,15 @@ export interface DataGridAttrs {
   readonly onFiltersChanged?: (filters: readonly Filter[]) => void;
 
   /**
+   * When true, forces all filter controls (column/cell filter menus, chip
+   * removal) off regardless of the controlled/uncontrolled wiring. This is an
+   * override on top of the normal mutability rule: filters are otherwise
+   * mutable in uncontrolled mode, or controlled with an onFiltersChanged or
+   * onFilterAdd callback. Defaults to false.
+   */
+  readonly disableFilterControls?: boolean;
+
+  /**
    * Defines how data should be pivoted - can operate in controlled or
    * uncontrolled mode.
    *
@@ -261,6 +280,11 @@ export interface DataGridAttrs {
    *
    * Specifies groupBy columns and aggregation values for pivoting.
    * If not provided, defaults to undefined (no pivoting).
+   *
+   * Pivot controls (creating/modifying a pivot) are shown only when the pivot
+   * is mutable: i.e. in uncontrolled mode, or in controlled mode with an
+   * onPivotChanged callback. To disable pivoting entirely, set
+   * disablePivotControls.
    */
   readonly pivot?: Pivot;
 
@@ -277,6 +301,15 @@ export interface DataGridAttrs {
    * the parent component becomes responsible for updating the pivot prop.
    */
   readonly onPivotChanged?: (pivot: Pivot | undefined) => void;
+
+  /**
+   * When true, forces all pivot controls (creating/modifying a pivot, sorting,
+   * drill-down) off regardless of the controlled/uncontrolled wiring. This is
+   * an override on top of the normal mutability rule: the pivot is otherwise
+   * mutable in uncontrolled mode, or controlled with an onPivotChanged
+   * callback. Defaults to false.
+   */
+  readonly disablePivotControls?: boolean;
 
   /**
    * ID-based tree configuration for displaying hierarchical data.
@@ -313,16 +346,6 @@ export interface DataGridAttrs {
    * Default = false.
    */
   readonly showExportButton?: boolean;
-
-  /**
-   * When true, enables pivot controls that allow users to modify the pivot
-   * structure (add/remove groupBy columns, add/remove aggregates, change
-   * aggregate functions, drill down). When false, pivot controls are hidden
-   * and the pivot structure becomes read-only.
-   *
-   * Default = true.
-   */
-  readonly enablePivotControls?: boolean;
 
   /**
    * When true, disables 'not glob' and 'not contains' filter options. Use this
@@ -383,11 +406,11 @@ interface FlatGridBuildContext {
   readonly aggregateSummaries?: Row;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
-  readonly enablePivotControls: boolean;
   // ID-based tree mode - if set, one column displays as a tree with chevrons
   readonly tree?: IdBasedTree;
-  readonly columnsAreMutable: boolean;
-  readonly filtersAreMutable: boolean;
+  readonly showColumnControls: boolean;
+  readonly showPivotControls: boolean;
+  readonly showFilterControls: boolean;
 }
 
 /**
@@ -402,8 +425,8 @@ interface PivotGridBuildContext {
   readonly aggregateSummaries?: Row;
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
-  readonly enablePivotControls: boolean;
-  readonly filtersAreMutable: boolean;
+  readonly showPivotControls: boolean;
+  readonly showFilterControls: boolean;
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
@@ -455,7 +478,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       structuredQueryCompatMode = false,
-      enablePivotControls = true,
       toolbarItemsLeft,
       toolbarItemsRight,
       showExportButton,
@@ -471,12 +493,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     // Determine if we're in tree mode (has id-based tree config)
     const isTreeMode = this.tree !== undefined;
 
-    // Columns are mutable if in uncontrolled mode, or controlled with callback
-    const columnsAreMutable = !columns || !!attrs.onColumnsChanged;
+    // Show column controls in uncontrolled mode, or controlled with a callback,
+    // unless disableColumnControls forces them off.
+    const showColumnControls =
+      !attrs.disableColumnControls && (!columns || !!attrs.onColumnsChanged);
 
-    // Filters are mutable if in uncontrolled mode, or controlled with callback
-    const filtersAreMutable =
-      !filters || !!attrs.onFiltersChanged || !!attrs.onFilterAdd;
+    // Show filter controls in uncontrolled mode, or controlled with a callback,
+    // unless disableFilterControls forces them off.
+    const showFilterControls =
+      !attrs.disableFilterControls &&
+      (!filters || !!attrs.onFiltersChanged || !!attrs.onFilterAdd);
+
+    // The pivot uses a separate model from columns, so pivot controls can stay
+    // available even when columns are fixed. Show them in uncontrolled mode, or
+    // controlled with an onPivotChanged callback, unless disablePivotControls
+    // forces them off.
+    const showPivotControls =
+      !attrs.disablePivotControls && (!pivot || !!attrs.onPivotChanged);
 
     // Determine if we're in pivot mode (has groupBy columns and not drilling down)
     const isPivotMode =
@@ -525,8 +558,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         aggregateSummaries: aggregateSummariesResult.data,
         pivot: this.pivot!,
         structuredQueryCompatMode,
-        enablePivotControls,
-        filtersAreMutable,
+        showPivotControls,
+        showFilterControls,
       };
 
       gridColumns = this.buildPivotColumns(pivotContext);
@@ -550,10 +583,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         aggregateSummaries: aggregateSummariesResult.data,
         columnInfoCache,
         structuredQueryCompatMode,
-        enablePivotControls,
         tree: this.tree,
-        columnsAreMutable,
-        filtersAreMutable,
+        showColumnControls,
+        showPivotControls,
+        showFilterControls,
       };
 
       gridColumns = this.buildFlatColumns(flatContext);
@@ -592,7 +625,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         filterChips: this.filters.map((filter, index) =>
           m(GridFilterChip, {
             content: this.formatFilter(filter, schema, rootSchema),
-            onRemove: filtersAreMutable
+            onRemove: showFilterControls
               ? () => this.removeFilter(index, attrs)
               : undefined,
           }),
@@ -1421,9 +1454,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       aggregateSummaries,
       columnInfoCache,
       structuredQueryCompatMode,
-      enablePivotControls,
-      columnsAreMutable,
-      filtersAreMutable,
+      showColumnControls,
+      showPivotControls,
+      showFilterControls,
     } = ctx;
 
     // Find the current sort direction (if any column is sorted)
@@ -1444,11 +1477,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build menu items
       const columnType = colInfo?.columnType;
       const menuItems: m.Children[] = [
-        renderSortMenuItems(sort, (direction) =>
-          this.updateSort(field, direction, attrs),
-        ),
-        m(MenuDivider),
-        filtersAreMutable &&
+        showColumnControls &&
+          renderSortMenuItems(sort, (direction) =>
+            this.updateSort(field, direction, attrs),
+          ),
+        showColumnControls && m(MenuDivider),
+        showFilterControls &&
           m(FilterMenu, {
             datasource,
             field,
@@ -1457,15 +1491,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
             onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           }),
-        filtersAreMutable && m(MenuDivider),
+        showFilterControls && m(MenuDivider),
         this.gridApi &&
           m(MenuItem, {
             label: 'Fit to content',
             icon: 'fit_width',
             onclick: () => this.gridApi!.autoFitColumn(colId),
           }),
-        columnsAreMutable && m(MenuDivider),
-        columnsAreMutable &&
+        showColumnControls && m(MenuDivider),
+        showColumnControls &&
           m(ColumnMenu, {
             canAdd: attrs.canAddColumns ?? true,
             canRemove: this.columns.length > 1,
@@ -1482,17 +1516,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           }),
         attrs.addColumnMenuItems?.(field),
         m(MenuDivider),
-        enablePivotControls &&
-          columnsAreMutable &&
+        showPivotControls &&
           m(MenuItem, {
             label: 'Group by this column',
             icon: 'pivot_table_chart',
             onclick: () => this.groupByColumn(field, attrs),
           }),
-        columnsAreMutable && m(MenuDivider),
+        showColumnControls && m(MenuDivider),
         // Summary menu - show available functions based on column type
         // Filter out ANY since it only makes sense in pivot mode (arbitrary value from group)
-        columnsAreMutable &&
+        showColumnControls &&
           (() => {
             const funcs = getAggregateFunctionsForColumnType(columnType).filter(
               (f) => f !== 'ANY',
@@ -1551,13 +1584,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           {
             sort,
             hintSortDirection: currentSortDirection,
-            onSort: (direction) => this.updateSort(colId, direction, attrs),
+            onSort: showColumnControls
+              ? (direction) => this.updateSort(colId, direction, attrs)
+              : undefined,
             menuItems,
             subContent,
           },
           titleContent,
         ),
-        reorderable: columnsAreMutable
+        reorderable: showColumnControls
           ? {reorderGroup: '__datagrid_columns__'}
           : undefined,
       };
@@ -1570,7 +1605,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, rowsResult, columnInfoCache, tree, filtersAreMutable} = ctx;
+    const {attrs, rowsResult, columnInfoCache, tree, showFilterControls} = ctx;
 
     if (rowsResult.rows === undefined) return [];
 
@@ -1631,6 +1666,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           return m(
             GridCell,
             {
+              actionButtons: colInfo?.actions?.(value, row),
               align: isRich ? rendered.align ?? 'left' : getAligment(value),
               nullish: isRich
                 ? rendered.nullish ?? value === null
@@ -1638,7 +1674,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               chevron,
               onChevronClick,
               indent,
-              menuItems: filtersAreMutable
+              menuItems: showFilterControls
                 ? [
                     m(CellFilterMenu, {
                       value,
@@ -1735,8 +1771,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       aggregateSummaries,
       pivot,
       structuredQueryCompatMode,
-      enablePivotControls,
-      filtersAreMutable,
+      showPivotControls,
+      showFilterControls,
     } = ctx;
 
     const columns: GridColumn[] = [];
@@ -1766,11 +1802,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build menu items for groupBy column
       const columnType = colInfo?.columnType;
       const menuItems: m.Children[] = [
-        renderSortMenuItems(sort, (direction) =>
-          this.updatePivotGroupBySort(i, direction, attrs),
-        ),
-        filtersAreMutable && m(MenuDivider),
-        filtersAreMutable &&
+        showPivotControls &&
+          renderSortMenuItems(sort, (direction) =>
+            this.updatePivotGroupBySort(i, direction, attrs),
+          ),
+        showFilterControls && m(MenuDivider),
+        showFilterControls &&
           m(FilterMenu, {
             datasource,
             field,
@@ -1780,7 +1817,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           }),
         m(MenuDivider),
-        enablePivotControls &&
+        showPivotControls &&
           m(ColumnMenu, {
             schema,
             rootSchema,
@@ -1804,8 +1841,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           {
             hintSortDirection: currentSortDirection,
             sort,
-            onSort: (direction) =>
-              this.updatePivotGroupBySort(i, direction, attrs),
+            onSort: showPivotControls
+              ? (direction) => this.updatePivotGroupBySort(i, direction, attrs)
+              : undefined,
             menuItems,
             className: classNames(
               'pf-data-grid__groupby-column',
@@ -1818,7 +1856,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       });
     }
 
-    if (enablePivotControls) {
+    if (showPivotControls) {
       columns.push({
         key: '__drilldown__',
         header: m(GridHeaderCell, {
@@ -1878,11 +1916,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build menu items for aggregate column
       const menuItems: m.Children[] = [
-        renderSortMenuItems(sort, (direction) =>
-          this.updatePivotAggregateSort(i, direction, attrs),
-        ),
-        m(MenuDivider),
-        enablePivotControls && [
+        showPivotControls &&
+          renderSortMenuItems(sort, (direction) =>
+            this.updatePivotAggregateSort(i, direction, attrs),
+          ),
+        showPivotControls && m(MenuDivider),
+        showPivotControls && [
           changeFunctionSubmenu,
           groupByThisMenuItem,
           m(AggregateMenu, {
@@ -1933,8 +1972,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           {
             sort,
             hintSortDirection: currentSortDirection,
-            onSort: (direction) =>
-              this.updatePivotAggregateSort(i, direction, attrs),
+            onSort: showPivotControls
+              ? (direction) =>
+                  this.updatePivotAggregateSort(i, direction, attrs)
+              : undefined,
             menuItems,
             subContent,
           },
@@ -1959,8 +2000,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       rootSchema,
       rowsResult,
       pivot,
-      enablePivotControls,
-      filtersAreMutable,
+      showPivotControls,
+      showFilterControls,
     } = ctx;
 
     if (rowsResult.rows === undefined) return [];
@@ -2064,7 +2105,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 onChevronClick,
                 indent,
                 menuItems: [
-                  enablePivotControls && [
+                  showPivotControls && [
                     m(MenuItem, {
                       label: 'Drill down',
                       icon: 'zoom_in',
@@ -2082,9 +2123,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         this.drillDown(drillDownRow, attrs);
                       },
                     }),
-                    filtersAreMutable && m(MenuDivider),
+                    showFilterControls && m(MenuDivider),
                   ],
-                  filtersAreMutable &&
+                  showFilterControls &&
                     m(CellFilterMenu, {
                       value,
                       onFilterAdd: (filter) =>
@@ -2097,8 +2138,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           );
         }
 
-        // Only add drill-down cell if pivot controls are enabled
-        if (enablePivotControls) {
+        // Only add drill-down cell if the pivot is mutable
+        if (showPivotControls) {
           const drillDownCell = m(
             '.pf-datagrid__dd-cell',
             {className: 'pf-datagrid__dd'},
@@ -2300,7 +2341,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 }
 
-export function renderCell(value: SqlValue, columnName: string) {
+export function renderCell(value: SqlValue, columnName?: string) {
   if (value === undefined) {
     return '';
   } else if (value instanceof Uint8Array) {
@@ -2310,7 +2351,7 @@ export function renderCell(value: SqlValue, columnName: string) {
         icon: Icons.Download,
         onclick: () =>
           download({
-            fileName: `${columnName}.blob`,
+            fileName: `${columnName ?? 'untitled'}.bin`,
             content: value,
           }),
       },

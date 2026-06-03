@@ -54,14 +54,14 @@
  */
 
 import {
-  QueryNode,
+  type QueryNode,
   nextNodeId,
   NodeType,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import protos from '../../../../protos';
+import type {ColumnInfo} from '../column_info';
+import type protos from '../../../../protos';
 import m from 'mithril';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
@@ -72,15 +72,15 @@ import {
   ListItem,
   LabeledControl,
   OutlinedMultiSelect,
-  MultiSelectOption,
-  MultiSelectDiff,
+  type MultiSelectOption,
+  type MultiSelectDiff,
 } from '../widgets';
 import {Switch} from '../../../../widgets/switch';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {notifyNextNodes} from '../graph_utils';
 import {getCommonColumns} from '../utils';
-import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
+import type {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 
 // Serializable node configuration.
 export interface FilterDuringNodeAttrs {

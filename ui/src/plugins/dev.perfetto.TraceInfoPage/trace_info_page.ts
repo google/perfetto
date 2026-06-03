@@ -13,41 +13,49 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../public/trace';
-import {TabStrip, TabOption} from '../../widgets/tab_strip';
+import type {Trace} from '../../public/trace';
+import {TabStrip, type TabOption} from '../../widgets/tab_strip';
 import {EmptyState} from '../../widgets/empty_state';
 import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';
-import {OverviewTab, OverviewData, loadOverviewData} from './tabs/overview';
-import {ConfigTab, ConfigData, loadConfigData} from './tabs/config';
+import {
+  OverviewTab,
+  type OverviewData,
+  loadOverviewData,
+} from './tabs/overview';
+import {ConfigTab, type ConfigData, loadConfigData} from './tabs/config';
 import {
   AndroidTab,
-  AndroidData,
+  type AndroidData,
   loadAndroidData,
   hasAndroidData,
 } from './tabs/android';
-import {MachinesTab, MachinesData, loadMachinesData} from './tabs/machines';
-import {TracesTab, TracesData, loadTracesData} from './tabs/traces';
+import {
+  MachinesTab,
+  type MachinesData,
+  loadMachinesData,
+} from './tabs/machines';
+import {TracesTab, type TracesData, loadTracesData} from './tabs/traces';
 import {
   ImportErrorsTab,
-  ImportErrorsData,
+  type ImportErrorsData,
   loadImportErrorsData,
 } from './tabs/import_errors';
 import {
   DataLossesTab,
-  DataLossesData,
+  type DataLossesData,
   loadDataLossesData,
 } from './tabs/data_losses';
 import {
   TraceErrorsTab,
-  TraceErrorsData,
+  type TraceErrorsData,
   loadTraceErrorsData,
 } from './tabs/trace_errors';
 import {
   UiLoadingErrorsTab,
-  UiLoadingErrorsData,
+  type UiLoadingErrorsData,
 } from './tabs/ui_loading_errors';
-import {StatsTab, StatsData, loadStatsData} from './tabs/stats';
+import {StatsTab, type StatsData, loadStatsData} from './tabs/stats';
 
 export interface TraceInfoPageAttrs {
   readonly trace: Trace;

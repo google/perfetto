@@ -16,6 +16,7 @@
 // fields to limit core proto bindings.
 
 use crate::pb_msg;
+use crate::protos::trace::profiling::profile_common::*;
 use crate::protos::trace::track_event::chrome_histogram_sample::*;
 use crate::protos::trace::track_event::debug_annotation::*;
 use crate::protos::trace::track_event::log_message::*;
@@ -31,4 +32,5 @@ pb_msg!(InternedData {
     unsymbolized_source_locations: UnsymbolizedSourceLocation, msg, 28,
     log_message_body: LogMessageBody, msg, 20,
     histogram_names: HistogramName, msg, 25,
+    debug_annotation_string_values: InternedString, msg, 29,
 });

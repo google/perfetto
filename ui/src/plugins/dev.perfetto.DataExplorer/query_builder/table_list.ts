@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, FuzzySegment} from '../../../base/fuzzy';
+import {FuzzyFinder, type FuzzySegment} from '../../../base/fuzzy';
 import {
-  SqlModules,
-  SqlTable,
+  type SqlModules,
+  type SqlTable,
   isTableEffectivelyDisabled,
 } from '../../dev.perfetto.SqlModules/sql_modules';
 import {Card, CardStack} from '../../../widgets/card';

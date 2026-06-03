@@ -13,19 +13,18 @@
 // limitations under the License.
 
 import {exists} from '../../../../base/utils';
-import {PreflightCheck} from '../../interfaces/connection_check';
+import type {PreflightCheck} from '../../interfaces/connection_check';
 import {AdbKeyManager} from './adb_key_manager';
 import {
   ADB_DEVICE_FILTER,
-  AdbUsbInterface,
+  type AdbUsbInterface,
   getAdbWebUsbInterface,
   usbDeviceToStr,
 } from './adb_webusb_utils';
 import {errResult} from '../../../../base/result';
-import {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
+import type {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
 import {AdbWebusbTarget} from './adb_webusb_target';
 import {EvtSource} from '../../../../base/events';
-import {RecordTraceV2Settings} from '../../settings';
 
 export class AdbWebusbTargetProvider implements RecordingTargetProvider {
   readonly id = 'adb_webusb';
@@ -41,7 +40,7 @@ export class AdbWebusbTargetProvider implements RecordingTargetProvider {
   private targets = new Map<string, AdbWebusbTarget>();
   readonly onTargetsChanged = new EvtSource<void>();
 
-  constructor(private readonly settings: RecordTraceV2Settings) {
+  constructor() {
     if (!exists(navigator.usb)) return;
     navigator.usb.addEventListener('disconnect', () => this.refreshTargets());
     navigator.usb.addEventListener('connect', () => this.refreshTargets());
@@ -74,11 +73,7 @@ export class AdbWebusbTargetProvider implements RecordingTargetProvider {
 
     // If the user re-pairs the same device, remove it from the list and keep
     // the new one.
-    const newTarget = new AdbWebusbTarget(
-      usbiface,
-      this.adbKeyMgr,
-      this.settings,
-    );
+    const newTarget = new AdbWebusbTarget(usbiface, this.adbKeyMgr);
     this.targets.set(key, newTarget);
     this.onTargetsChanged.notify();
     return newTarget;
@@ -106,11 +101,7 @@ export class AdbWebusbTargetProvider implements RecordingTargetProvider {
     }
     for (const [key, usbiface] of usbDevices.entries()) {
       if (this.targets.has(key)) continue; // We already have this target.
-      const newTarget = new AdbWebusbTarget(
-        usbiface,
-        this.adbKeyMgr,
-        this.settings,
-      );
+      const newTarget = new AdbWebusbTarget(usbiface, this.adbKeyMgr);
       this.targets.set(key, newTarget);
       triggerOnTrgetsChanged = true;
     }

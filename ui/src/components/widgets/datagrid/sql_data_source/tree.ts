@@ -13,20 +13,20 @@
 // limitations under the License.
 
 import {
-  QueryResult,
+  type QueryResult,
   QuerySlot,
-  SerialTaskQueue,
+  type SerialTaskQueue,
 } from '../../../../base/query_slot';
 import {shortUuid} from '../../../../base/uuid';
-import {Engine} from '../../../../trace_processor/engine';
-import {NUM, Row} from '../../../../trace_processor/query_result';
+import type {Engine} from '../../../../trace_processor/engine';
+import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {
   createPerfettoTable,
-  DisposableSqlEntity,
+  type DisposableSqlEntity,
 } from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
-import {DataSourceRows, TreeModel} from '../data_source';
-import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
+import type {DataSourceRows, TreeModel} from '../data_source';
+import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, sqlValue, toAlias} from '../sql_utils';
 
 /**

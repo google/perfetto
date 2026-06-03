@@ -16,34 +16,34 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {TimeSpan} from '../../base/time';
 import {exists} from '../../base/utils';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {Tree} from '../../widgets/tree';
-import {FlowPoint} from '../../core/flow_types';
+import type {FlowPoint} from '../../core/flow_types';
 import {hasArgs} from './args';
 import {
-  DistributionScope,
+  type DistributionScope,
   findSliceTrackDataset,
   findWholeTraceSliceDataset,
   renderDetails,
   sliceDistributionConfig,
 } from './slice_details';
-import {getSlice, SliceDetails} from '../sql_utils/slice';
+import {getSlice, type SliceDetails} from '../sql_utils/slice';
 import {
-  BreakdownByThreadState,
+  type BreakdownByThreadState,
   breakDownIntervalByThreadState,
 } from './thread_state';
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 import {assertIsInstance} from '../../base/assert';
-import {Trace} from '../../public/trace';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
@@ -58,7 +58,7 @@ import {
   renderDistributionPlaceholder,
   titleWithHelp,
 } from '../distribution_panel';
-import {Dataset} from '../../trace_processor/dataset';
+import type {Dataset} from '../../trace_processor/dataset';
 
 interface ContextMenuItem {
   name: string;
@@ -326,8 +326,8 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         precFlows,
         followingFlows,
         args,
-        distribution,
         additionalSections,
+        distribution,
       );
     } else {
       return undefined;
@@ -438,7 +438,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     if (trackDataset === undefined) return undefined;
 
     const body = this.distributionLoaded
-      ? this.renderLoadedBody(sliceName, trackDataset)
+      ? this.renderLoadedBody(sliceName, trackDataset, Number(slice.dur))
       : this.renderGatedPlaceholder();
     return m(
       Section,
@@ -468,6 +468,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private renderLoadedBody(
     sliceName: string,
     trackDataset: Dataset,
+    sliceDur: number,
   ): m.Children {
     const dataset = this.activeDataset(trackDataset);
     if (dataset === undefined) return renderDistributionPlaceholder();
@@ -477,6 +478,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         dataset,
         filter: {col: 'name', eq: sliceName},
         valueColumn: 'dur',
+        highlightValue: sliceDur,
       }),
       m(
         '.pf-thread-slice-distribution-link',
@@ -551,7 +553,6 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     const contextMenuItems = getSliceContextMenuItems(sliceInfo);
     if (contextMenuItems.length > 0) {
       const trigger = m(Button, {
-        compact: true,
         label: 'Contextual Options',
         rightIcon: Icons.ContextMenu,
       });

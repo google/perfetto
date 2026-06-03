@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {
@@ -31,21 +31,21 @@ import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrac
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import ProcessSummaryPlugin from '../dev.perfetto.ProcessSummary';
 import {
-  Config as SliceTrackSummaryConfig,
+  type Config as SliceTrackSummaryConfig,
   SLICE_TRACK_SUMMARY_KIND,
   GroupSummaryTrack,
 } from '../dev.perfetto.ProcessSummary/group_summary_track';

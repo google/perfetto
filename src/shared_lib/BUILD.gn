@@ -61,3 +61,13 @@ shared_library("libperfetto_c") {
   ]
   public_deps = [ "../../include/perfetto/public" ]
 }
+
+# This is only used by the Bazel build (see //BUILD), where it gets mapped to a
+# cc_library exposing the C public headers without linking the implementation.
+# We skip it in other configurations because an empty static_library has no
+# .obj inputs, which makes lld-link fail on Windows ("no input files").
+if (is_perfetto_build_generator) {
+  static_library("libperfetto_c_headers") {
+    public_deps = [ "../../include/perfetto/public" ]
+  }
+}

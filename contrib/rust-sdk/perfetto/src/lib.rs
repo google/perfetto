@@ -12,15 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! # perfetto
-//!
-//! This crate provides Rust bindings for Perfetto.
-//!
-//! It is uses the public ABI under the hood and has been designed for safe
-//! and efficient usage in Rust projects. Performance critical operations
-//! such as checking if a track event category is enabled is done in Rust
-//! code as well as encoding of proto messages.
-
+#![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![cfg_attr(

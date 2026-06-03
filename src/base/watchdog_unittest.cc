@@ -17,6 +17,7 @@
 #include "perfetto/ext/base/watchdog.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/task_runner.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -171,6 +172,80 @@ TEST(WatchdogTest, TimerCrashDeliveredToCallerThread) {
     thread.join();
 
   EXPECT_EQ(g_aborted_thread, expected_tid);
+}
+
+// Minimal TaskRunner stub that captures whatever is posted via PostTask().
+// Sufficient for the FatalHandler test below; other methods are unused.
+class CapturingTaskRunner : public TaskRunner {
+ public:
+  void PostTask(std::function<void()> t) override {
+    std::lock_guard<std::mutex> lock(mu);
+    posted_tasks.emplace_back(std::move(t));
+    cv.notify_all();
+  }
+  void PostDelayedTask(std::function<void()>, uint32_t) override {}
+  void AddFileDescriptorWatch(PlatformHandle, std::function<void()>) override {}
+  void RemoveFileDescriptorWatch(PlatformHandle) override {}
+  bool RunsTasksOnCurrentThread() const override { return true; }
+
+  std::mutex mu;
+  std::condition_variable cv;
+  std::vector<std::function<void()>> posted_tasks;
+};
+
+TEST(WatchdogTest, FatalHandlerRunsBeforeKill) {
+  // Absorb SIGABRT so the kill-via-tgkill path inside the watchdog doesn't
+  // actually crash the test process.
+  struct sigaction oldact;
+  struct sigaction newact = {};
+  newact.sa_handler = SIGABRTHandler;
+  ASSERT_EQ(sigaction(SIGABRT, &newact, &oldact), 0);
+  base::ScopedResource<const struct sigaction*, RestoreSIGABRT, nullptr>
+      auto_restore(&oldact);
+  g_aborted_thread = 0;
+
+  CapturingTaskRunner runner;
+  std::atomic<int> handler_calls{0};
+  WatchdogCrashInfo captured_info{};
+  std::mutex captured_mu;
+
+  TestWatchdog watchdog(100);
+  watchdog.Start(&runner, [&](WatchdogCrashInfo info) {
+    std::lock_guard<std::mutex> lock(captured_mu);
+    captured_info = info;
+    handler_calls.fetch_add(1);
+  });
+
+  auto handle =
+      watchdog.CreateFatalTimer(20, WatchdogCrashReason::kTaskRunnerHung);
+
+  // The watchdog thread should observe the expired timer and PostTask the
+  // handler. The polling interval is 100ms, so allow up to 10s for slow CI.
+  {
+    std::unique_lock<std::mutex> lock(runner.mu);
+    ASSERT_TRUE(runner.cv.wait_for(lock, std::chrono::seconds(10), [&] {
+      return !runner.posted_tasks.empty();
+    })) << "watchdog did not post the fatal handler";
+  }
+
+  // Run the captured task as the embedder's task runner would.
+  runner.posted_tasks.front()();
+  EXPECT_EQ(handler_calls.load(), 1);
+  {
+    std::lock_guard<std::mutex> lock(captured_mu);
+    EXPECT_EQ(captured_info.reason, WatchdogCrashReason::kTaskRunnerHung);
+  }
+
+  // Even if the watchdog thread observes the same expired timer again on
+  // subsequent iterations, the handler must not be re-posted (it was moved
+  // out and the task_runner pointer cleared after the first invocation).
+  // Wait at least one more polling interval and then make sure we still
+  // have only the single posted task captured initially.
+  usleep(300 * 1000);
+  {
+    std::lock_guard<std::mutex> lock(runner.mu);
+    EXPECT_EQ(runner.posted_tasks.size(), 1u);
+  }
 }
 
 }  // namespace

@@ -17,7 +17,8 @@
 
 -- Helper macro to generate 'col_name', t.col_name pairs for tree_from_table.
 CREATE PERFETTO MACRO _tree_from_table_col(col ColumnName)
-RETURNS _ProjectionFragment AS __intrinsic_stringify!($col), t.$col;
+RETURNS _ProjectionFragment
+AS __intrinsic_stringify!($col), t.$col;
 
 -- Creates a tree structure from a table with id, parent_id, and additional columns.
 --
@@ -31,16 +32,16 @@ RETURNS _ProjectionFragment AS __intrinsic_stringify!($col), t.$col;
 -- );
 -- ```
 CREATE PERFETTO MACRO _tree_from_table(
-    -- A table/view/subquery containing the tree data.
-    -- Must have columns 'id' and 'parent_id'.
-    source_table TableOrSubquery,
-    -- Additional columns to pass through (parenthesized, comma-separated).
-    columns ColumnNameList
+  -- A table/view/subquery containing the tree data.
+  -- Must have columns 'id' and 'parent_id'.
+  source_table TableOrSubquery,
+  -- Additional columns to pass through (parenthesized, comma-separated).
+  columns ColumnNameList
 )
 -- Returns a TREE pointer that can be used with _tree_to_table! or other
 -- tree operations.
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   SELECT __intrinsic_tree_from_table(
     'id', t.id,
     'parent_id', t.parent_id,
@@ -52,12 +53,13 @@ RETURNS Expr AS
 -- Helper macro to generate column selection for tree_to_table.
 -- Maps column index (c4, c5, ...) to column name.
 CREATE PERFETTO MACRO _tree_to_table_col_select(idx ColumnName, col ColumnName)
-RETURNS _ProjectionFragment AS $idx AS $col;
+RETURNS _ProjectionFragment
+AS $idx AS $col;
 
 -- Helper macro to generate column binding for tree_to_table.
 CREATE PERFETTO MACRO _tree_to_table_col_bind(idx ColumnName, col ColumnName)
-RETURNS Expr AS
-  __intrinsic_table_ptr_bind($idx, __intrinsic_stringify!($col));
+RETURNS Expr
+AS __intrinsic_table_ptr_bind($idx, __intrinsic_stringify!($col));
 
 -- Converts a tree back to a table.
 --
@@ -79,13 +81,13 @@ RETURNS Expr AS
 -- );
 -- ```
 CREATE PERFETTO MACRO _tree_to_table(
-    -- A TREE pointer from _tree_from_table!
-    tree_ptr Expr,
-    -- Additional columns to include (must match columns passed to _tree_from_table!)
-    columns ColumnNameList
+  -- A TREE pointer from _tree_from_table!
+  tree_ptr Expr,
+  -- Additional columns to include (must match columns passed to _tree_from_table!)
+  columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS _tree_id,
     c1 AS _tree_parent_id,

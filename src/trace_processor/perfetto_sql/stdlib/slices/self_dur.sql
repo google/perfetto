@@ -14,9 +14,7 @@
 -- limitations under the License.
 
 CREATE PERFETTO TABLE _slice_children_dur AS
-SELECT
-  parent_id AS id,
-  sum(dur) AS child_dur_sum
+SELECT parent_id AS id, sum(dur) AS child_dur_sum
 FROM slice
 WHERE
   parent_id IS NOT NULL
@@ -27,16 +25,14 @@ ORDER BY
 
 -- For every slice in the `slice` table, computes the "self-duration": the time
 -- spent in the slice but *not* spent in any child slices.
-CREATE PERFETTO TABLE slice_self_dur (
+CREATE PERFETTO TABLE slice_self_dur(
   -- The id of the slice.
   id ID(slice.id),
   -- The self duration for the slice: the time spent in the slice but not any
   -- child slices.
   self_dur DURATION
-) AS
-SELECT
-  slice.id,
-  slice.dur - coalesce(child_dur_sum, 0) AS self_dur
+)
+AS
+SELECT slice.id, slice.dur - coalesce(child_dur_sum, 0) AS self_dur
 FROM slice
-LEFT JOIN _slice_children_dur
-  USING (id);
+LEFT JOIN _slice_children_dur USING (id);

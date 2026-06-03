@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, Time, time} from '../../base/time';
+import {type duration, Time, type time} from '../../base/time';
 import {hasArgs, renderArguments} from '../details/args';
-import {getSlice, SliceDetails} from '../sql_utils/slice';
-import {asArgSetId, asSliceSqlId, Utid} from '../sql_utils/core_types';
-import {getThreadState, ThreadState} from '../sql_utils/thread_state';
+import {getSlice, type SliceDetails} from '../sql_utils/slice';
+import {asArgSetId, asSliceSqlId, type Utid} from '../sql_utils/core_types';
+import {getThreadState, type ThreadState} from '../sql_utils/thread_state';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 import {
-  SqlValue,
+  type SqlValue,
   LONG,
   STR,
   NUM_NULL,
@@ -35,11 +35,11 @@ import {threadStateRef} from '../widgets/thread_state';
 import {getThreadName} from '../sql_utils/thread';
 import {getProcessName} from '../sql_utils/process';
 import {sliceRef} from '../widgets/slice';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 import {SqlRef} from '../../widgets/sql_ref';
 import {renderSliceArguments} from '../details/slice_args';
-import {ArgsDict, getArgs} from '../sql_utils/args';
+import {type ArgsDict, getArgs} from '../sql_utils/args';
 
 export const RAW_PREFIX = 'raw_';
 
