@@ -336,6 +336,7 @@ source_set("unittests") {
     "network_trace_module_unittest.cc",
     "packet_sequence_state_generation_unittest.cc",
     "perf_sample_tracker_unittest.cc",
+    "pigweed_detokenizer_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",
     "proto_trace_reader_unittest.cc",
