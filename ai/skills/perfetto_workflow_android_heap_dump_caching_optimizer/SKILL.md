@@ -45,7 +45,7 @@ heap_graph_object: Information about individual objects in the heap dump.
 heap_graph_class: Information about classes in the heap dump.
 heap_graph_reference: Information about references between objects in the heap dump.
 
-6. Once you understand the data, think about what kind of objects could be good candidates for caching. Filter out any objects that are primitives objects or objects that are part of java.lang.*, if the user provided a package name, prioritize objects that are part of that package name.
+7. Once you understand the data, think about what kind of objects could be good candidates for caching. Filter out any objects that are primitives objects or objects that are part of java.lang.*, if the user provided a package name, prioritize objects that are part of that package name.
 
 Use the following set of heuristics to find opportinities but don't limit yourself to them, if you find another heuristic that leads to a good caching candidate, go for it.
 
@@ -57,15 +57,15 @@ Use the following set of heuristics to find opportinities but don't limit yourse
 
 Note: Not every heuristic has to be optimized, you may find one opportunity that falls into just one heuristic but still is a good candidate for caching. The goal is to find the top memory saving objects or memory leaks but more about the easy to cache objects that would yield savings with low implementation complexity. Ideally you will identify several different opportunities that fall into different heuristics
 
-7. Now that you have a list of potential candidates. Perform a deep analysis both on heap dump and codebase (if available), make sure to analyze the object reference hierarchy to identify the optimal location in the call stack to cache objects. You can run more queries after looking at the code base if required to improve your analysis.
+8. Now that you have a list of potential candidates. Perform a deep analysis both on heap dump and codebase (if available), make sure to analyze the object reference hierarchy to identify the optimal location in the call stack to cache objects. You can run more queries after looking at the code base if required to improve your analysis.
 
-8. Present your findings to the user both in a markdown file as well as in the prompt. List every opportunity you identified along with a brief explanation of why it might be a good candidate for caching, how to implement it and an estimate of how much memory you estimate that it would save. Provide the file path to the file containing the results of the analysis.
+9. Present your findings to the user both in a markdown file as well as in the prompt. List every opportunity you identified along with a brief explanation of why it might be a good candidate for caching, how to implement it and an estimate of how much memory you estimate that it would save. Provide the file path to the file containing the results of the analysis.
 
-9. If more than one opportunity was identified, ask the user from the provided opportunities which one they would like you to proceed with. Once user selected an option to move forward with. Create the following artifacts:
+10. If more than one opportunity was identified, ask the user from the provided opportunities which one they would like you to proceed with. Once user selected an option to move forward with. Create the following artifacts:
 * If code was available to the agent: Provide an implementation plan which consists of step-by-step instructions on how to implement the caching solution, including any code changes required.
 * If code was not available to the agent: Provide a list of suggestions on what to look for in the codebase to implement the caching solution to the best of your ability.
 
 * Always provide an in-detail explanation doc called `analysis.md` which shows the in-depth reasoning of savings, why you are suggesting to cache, potential trade-offs you considered, any other details and considerations which you think are important. In case trade off decisions were made, ensure the memory savings are properly updated in `analysis.md`.
 
-10. Once the user has agreed to the implementation plan, proceed with the implementation and apply the changes locally, do not commit them, let the user handle the code submission process.
+11. Once the user has agreed to the implementation plan, proceed with the implementation and apply the changes locally, do not commit them, let the user handle the code submission process.
 
