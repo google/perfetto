@@ -1,7 +1,7 @@
 ---
 name: perfetto-workflow-android-heap-dump-caching-optimizer
 description: >-
-  Use when the user asks to analyze a perfetto java heap dump and find potential caching optimizations that would generate memory savings or reduce memory churn.
+  Use when the user asks to analyze a perfetto java heap dump and wants to improve memory usage. Also use when the user wants to cache objects to save memory.
 ---
 
 # Android Heap Dump Caching Optimizer
