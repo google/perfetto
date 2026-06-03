@@ -198,7 +198,9 @@ class NestedTracks {
  public:
   NestedTracks(RootType root_type,
                const std::vector<std::string>& names,
-               const std::vector<uint64_t>& ids);
+               const std::vector<uint64_t>& ids,
+               const std::vector<int32_t>& sibling_order_ranks,
+               const std::vector<uint32_t>& child_orderings);
 
   static void delete_track(NestedTracks* track);
 

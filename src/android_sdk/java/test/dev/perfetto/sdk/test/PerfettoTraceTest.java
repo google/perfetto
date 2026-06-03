@@ -303,6 +303,40 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testSortedNestedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // "render" orders its children explicitly; each child sets its rank.
+    PerfettoTrack render =
+        PerfettoTrack.process("render").setChildOrdering(PerfettoTrack.CHILD_ORDERING_EXPLICIT);
+    PerfettoTrack gpu = render.child("gpu").setSiblingOrderRank(1);
+    PerfettoTrack cpu = render.child("cpu").setSiblingOrderRank(2);
+    PerfettoTrace.instant(FOO_CATEGORY, "gpu_work").usingTrack(gpu).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "cpu_work").usingTrack(cpu).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    Map<String, TrackDescriptor> byName = new HashMap<>();
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if (!td.getName().isEmpty()) {
+          byName.put(td.getName(), td);
+        }
+      }
+    }
+
+    // The parent declares explicit child ordering.
+    assertThat(byName.get("render").getChildOrdering())
+        .isEqualTo(TrackDescriptor.ChildTracksOrdering.EXPLICIT);
+    // Each child carries its sibling_order_rank.
+    assertThat(byName.get("gpu").getSiblingOrderRank()).isEqualTo(1);
+    assertThat(byName.get("cpu").getSiblingOrderRank()).isEqualTo(2);
+  }
+
+  @Test
   public void testGlobalNestedTrack() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 

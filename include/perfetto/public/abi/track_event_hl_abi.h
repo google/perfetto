@@ -316,12 +316,25 @@ struct PerfettoTeHlNestedTrack {
   uint32_t type;
 };
 
+// How a track orders its direct children. Values mirror
+// TrackDescriptor.ChildTracksOrdering; 0 (unknown) leaves it unset.
+#define PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN 0
+#define PERFETTO_TE_HL_CHILD_ORDERING_LEXICOGRAPHIC 1
+#define PERFETTO_TE_HL_CHILD_ORDERING_CHRONOLOGICAL 2
+#define PERFETTO_TE_HL_CHILD_ORDERING_EXPLICIT 3
+
 // PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED
 struct PerfettoTeHlNestedTrackNamed {
   struct PerfettoTeHlNestedTrack header;
   const char* name;
   // Partially identifies the track, along `name` and the parent hierarchy.
   uint64_t id;
+  // This track's rank among its siblings (lower sorts first). Honored only when
+  // the parent's `child_ordering` is EXPLICIT. 0 leaves it unset.
+  int32_t sibling_order_rank;
+  // How this track orders its own children: one of the
+  // PERFETTO_TE_HL_CHILD_ORDERING_* values. 0 (unknown) leaves it unset.
+  uint32_t child_ordering;
 };
 
 struct PerfettoTeHlNestedTrackProto {

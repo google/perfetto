@@ -404,6 +404,20 @@ struct PerfettoTeHlMacroNameAndType {
           PerfettoTeHlNestedTrackNamed,          \
           {{PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED}, NAME, ID}))
 
+// Like PERFETTO_TE_NESTED_TRACK_NAMED, but also sets this level's
+// `sibling_order_rank` (its rank among siblings; lower sorts first, honored
+// when the parent is EXPLICIT) and `child_ordering` (how this level orders its
+// own children: a PERFETTO_TE_HL_CHILD_ORDERING_* value).
+#define PERFETTO_TE_NESTED_TRACK_NAMED_ORDERED(NAME, ID, RANK, ORDERING)   \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlNestedTrack*,               \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(           \
+                                PerfettoTeHlNestedTrackNamed,              \
+                                {{PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED}, \
+                                 NAME,                                     \
+                                 ID,                                       \
+                                 RANK,                                     \
+                                 ORDERING}))
+
 // A track uniquely identified by `ID` (a uint64_t) and its parent hierarchy.
 // The rest of the params should be PERFETTO_TE_PROTO_FIELD_* macros and should
 // be fields of the perfetto.protos.TrackDescriptor protobuf message: they will

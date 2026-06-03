@@ -169,7 +169,8 @@ final class PerfettoTrackEventExtra {
     private final long mExtraPtr;
 
     NestedTracks(PerfettoTrack track, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(track.mRootType, track.mNames, track.mIds);
+      mPtr = native_init(track.mRootType, track.mNames, track.mIds,
+                         track.mSiblingOrderRanks, track.mChildOrderings);
       mExtraPtr = native_get_extra_ptr(mPtr);
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
@@ -180,7 +181,8 @@ final class PerfettoTrackEventExtra {
     }
 
     @FastNative
-    private static native long native_init(int rootType, String[] names, long[] ids);
+    private static native long native_init(int rootType, String[] names, long[] ids,
+                                           int[] siblingOrderRanks, int[] childOrderings);
 
     @CriticalNative
     private static native long native_delete();

@@ -385,7 +385,9 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
     jclass,
     jint root_type,
     jobjectArray names,
-    jlongArray ids) {
+    jlongArray ids,
+    jintArray sibling_order_ranks,
+    jintArray child_orderings) {
   const jsize n = env->GetArrayLength(names);
   std::vector<std::string> names_vec;
   names_vec.reserve(static_cast<size_t>(n));
@@ -398,8 +400,17 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
   std::vector<uint64_t> ids_vec(reinterpret_cast<const uint64_t*>(id_ptr),
                                 reinterpret_cast<const uint64_t*>(id_ptr) + n);
   env->ReleaseLongArrayElements(ids, id_ptr, JNI_ABORT);
+  jint* rank_ptr = env->GetIntArrayElements(sibling_order_ranks, nullptr);
+  std::vector<int32_t> rank_vec(reinterpret_cast<const int32_t*>(rank_ptr),
+                                reinterpret_cast<const int32_t*>(rank_ptr) + n);
+  env->ReleaseIntArrayElements(sibling_order_ranks, rank_ptr, JNI_ABORT);
+  jint* ord_ptr = env->GetIntArrayElements(child_orderings, nullptr);
+  std::vector<uint32_t> ord_vec(reinterpret_cast<const uint32_t*>(ord_ptr),
+                                reinterpret_cast<const uint32_t*>(ord_ptr) + n);
+  env->ReleaseIntArrayElements(child_orderings, ord_ptr, JNI_ABORT);
   return toJLong(new sdk_for_jni::NestedTracks(
-      static_cast<sdk_for_jni::RootType>(root_type), names_vec, ids_vec));
+      static_cast<sdk_for_jni::RootType>(root_type), names_vec, ids_vec,
+      rank_vec, ord_vec));
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete(
@@ -630,7 +641,7 @@ static const JNINativeMethod gNamedTrackMethods[] = {
 };
 
 static const JNINativeMethod gNestedTracksMethods[] = {
-    {"native_init", "(I[Ljava/lang/String;[J)J",
+    {"native_init", "(I[Ljava/lang/String;[J[I[I)J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init},
     {"native_delete", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete},

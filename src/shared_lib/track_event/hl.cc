@@ -282,6 +282,8 @@ uint64_t EmitNamedTrack(uint64_t parent_uuid,
                         const char* name,
                         uint64_t id,
                         bool is_name_static,
+                        int32_t sibling_order_rank,
+                        uint32_t child_ordering,
                         perfetto::shlib::TrackEventIncrementalState* incr_state,
                         perfetto::TraceWriterBase* trace_writer) {
   uint64_t uuid = parent_uuid;
@@ -298,6 +300,14 @@ uint64_t EmitNamedTrack(uint64_t parent_uuid,
       track_descriptor->set_static_name(name);
     } else {
       track_descriptor->set_name(name);
+    }
+    if (sibling_order_rank != 0) {
+      track_descriptor->set_sibling_order_rank(sibling_order_rank);
+    }
+    if (child_ordering != PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN) {
+      track_descriptor->set_child_ordering(
+          static_cast<protos::pbzero::TrackDescriptor::ChildTracksOrdering>(
+              child_ordering));
     }
   }
   return uuid;
@@ -466,6 +476,8 @@ void InstanceOp(internal::DataSourceType* ds,
     auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
     track_uuid = EmitNamedTrack(named_track->parent_uuid, named_track->name,
                                 named_track->id, named_track->is_name_static,
+                                /*sibling_order_rank=*/0,
+                                PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN,
                                 incr_state, trace_writer);
   } else if (std::holds_alternative<const PerfettoTeHlExtraProtoTrack*>(
                  track)) {
@@ -488,9 +500,10 @@ void InstanceOp(internal::DataSourceType* ds,
           auto* named_track =
               reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
           // Currently static names for nested tracks is not supported.
-          uuid = EmitNamedTrack(uuid, named_track->name, named_track->id,
-                                /*is_name_static_=*/false, incr_state,
-                                trace_writer);
+          uuid = EmitNamedTrack(
+              uuid, named_track->name, named_track->id,
+              /*is_name_static_=*/false, named_track->sibling_order_rank,
+              named_track->child_ordering, incr_state, trace_writer);
         } break;
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {
           uuid = perfetto_te_process_track_uuid;
