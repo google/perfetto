@@ -67,7 +67,8 @@ base::CrashKey g_crash_key_actual_cpu("wdog_actual_cpu");
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 // This system property is already used for all sorts of Android watchdogs.
-// Bringing the Perfetto watchdog behavior closer to that on Android reduces surprise.
+// Bringing the Perfetto watchdog behavior closer to that on Android reduces
+// surprise.
 uint32_t GetHwTimeoutMultiplier() {
   static uint32_t multiplier = []() {
     char prop_val[PROP_VALUE_MAX] = {0};
