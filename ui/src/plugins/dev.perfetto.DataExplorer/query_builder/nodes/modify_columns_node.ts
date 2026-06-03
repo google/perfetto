@@ -13,15 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
+import {
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
 import {TextInput} from '../../../../widgets/text_input';
-import {ColumnInfo} from '../column_info';
-import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
-import protos from '../../../../protos';
+import type {ColumnInfo} from '../column_info';
+import type {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
+import type protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
-import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
+import {
+  StructuredQueryBuilder,
+  type ColumnSpec,
+} from '../structured_query_builder';
 import {ColumnSelector} from '../column_selector';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {
   NodeDetailsMessage,
   NodeDetailsSpacer,

@@ -41,7 +41,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -681,8 +681,8 @@ void RunMetric::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
                         metric_it->sql.c_str()));
   }
 
-  auto res =
-      user_ctx->engine->Execute(SqlSource::FromMetricFile(subbed_sql, path));
+  auto res = user_ctx->connection->Execute(
+      SqlSource::FromMetricFile(subbed_sql, path));
   if (!res.status().ok()) {
     return sqlite::utils::SetError(ctx, res.status());
   }
@@ -728,7 +728,7 @@ void UnwrapMetricProto::Step(sqlite3_context* ctx,
                                         static_cast<int>(bytes->size));
 }
 
-base::Status ComputeMetrics(PerfettoSqlEngine* engine,
+base::Status ComputeMetrics(PerfettoSqlConnection* connection,
                             const std::vector<std::string>& metrics_to_compute,
                             const std::vector<SqlMetricFile>& sql_metrics,
                             const DescriptorPool& pool,
@@ -747,8 +747,8 @@ base::Status ComputeMetrics(PerfettoSqlEngine* engine,
     }
 
     const SqlMetricFile& sql_metric = *metric_it;
-    auto prep_it =
-        engine->Execute(SqlSource::FromMetric(sql_metric.sql, metric_it->path));
+    auto prep_it = connection->Execute(
+        SqlSource::FromMetric(sql_metric.sql, metric_it->path));
     RETURN_IF_ERROR(prep_it.status());
 
     auto output_query =
@@ -757,7 +757,7 @@ base::Status ComputeMetrics(PerfettoSqlEngine* engine,
         metatrace::Category::QUERY_TIMELINE, "COMPUTE_METRIC_QUERY",
         [&](metatrace::Record* r) { r->AddArg("SQL", output_query); });
 
-    auto it = engine->ExecuteUntilLastStatement(
+    auto it = connection->ExecuteUntilLastStatement(
         SqlSource::FromTraceProcessorImplementation(std::move(output_query)));
     RETURN_IF_ERROR(it.status());
 

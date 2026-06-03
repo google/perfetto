@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {InitialPageManager} from '../public/initial_page';
+import type {InitialPageManager} from '../public/initial_page';
 
 interface Suggestion {
   // Route to navigate to (e.g. '/heapdump').

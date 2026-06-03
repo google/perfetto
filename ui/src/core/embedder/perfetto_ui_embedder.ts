@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Embedder} from './embedder';
+import type {Embedder} from './embedder';
 import {defaultPlugins} from './default_plugins';
 
 /** Embedder implementation for ui.perfetto.dev and localhost development. */
 export class PerfettoUiEmbedder implements Embedder {
   readonly analyticsId = 'G-BD89KT2P3C';
   readonly extensionServer = {
-    url: 'https://perfetto-gae-internal.googleplex.com/',
+    url: 'https://perfetto-gae-internal.googleplex.com/extension_server_assets',
     authType: 'https_sso' as const,
   };
   readonly brandingBadge = undefined;

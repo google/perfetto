@@ -19,6 +19,8 @@ INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
 INCLUDE PERFETTO MODULE wattson.cpu.freq_idle;
 
+INCLUDE PERFETTO MODULE wattson.cpu.hotplug;
+
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
@@ -27,14 +29,14 @@ INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Helper macro to do pivot function
 CREATE PERFETTO MACRO _cpu_stats_subquery(
-    cpu Expr,
-    curve_col ColumnName,
-    static_col ColumnName,
-    freq_col ColumnName,
-    idle_col ColumnName
+  cpu Expr,
+  curve_col ColumnName,
+  static_col ColumnName,
+  freq_col ColumnName,
+  idle_col ColumnName
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     t1.ts,
     t1.dur,
@@ -66,72 +68,35 @@ RETURNS TableOrSubquery AS
 );
 
 CREATE PERFETTO TABLE _stats_cpu0 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(0, cpu0_curve, cpu0_static, freq_0, idle_0);
+SELECT * FROM _cpu_stats_subquery!(0, cpu0_curve, cpu0_static, freq_0, idle_0);
 
 CREATE PERFETTO TABLE _stats_cpu1 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(1, cpu1_curve, cpu1_static, freq_1, idle_1);
+SELECT * FROM _cpu_stats_subquery!(1, cpu1_curve, cpu1_static, freq_1, idle_1);
 
 CREATE PERFETTO TABLE _stats_cpu2 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(2, cpu2_curve, cpu2_static, freq_2, idle_2);
+SELECT * FROM _cpu_stats_subquery!(2, cpu2_curve, cpu2_static, freq_2, idle_2);
 
 CREATE PERFETTO TABLE _stats_cpu3 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(3, cpu3_curve, cpu3_static, freq_3, idle_3);
+SELECT * FROM _cpu_stats_subquery!(3, cpu3_curve, cpu3_static, freq_3, idle_3);
 
 CREATE PERFETTO TABLE _stats_cpu4 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(4, cpu4_curve, cpu4_static, freq_4, idle_4);
+SELECT * FROM _cpu_stats_subquery!(4, cpu4_curve, cpu4_static, freq_4, idle_4);
 
 CREATE PERFETTO TABLE _stats_cpu5 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(5, cpu5_curve, cpu5_static, freq_5, idle_5);
+SELECT * FROM _cpu_stats_subquery!(5, cpu5_curve, cpu5_static, freq_5, idle_5);
 
 CREATE PERFETTO TABLE _stats_cpu6 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(6, cpu6_curve, cpu6_static, freq_6, idle_6);
+SELECT * FROM _cpu_stats_subquery!(6, cpu6_curve, cpu6_static, freq_6, idle_6);
 
 CREATE PERFETTO TABLE _stats_cpu7 AS
-SELECT
-  *
-FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7);
+SELECT * FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7);
 
--- Does calculations for CPUs that are independent of other CPUs or frequencies
--- This is the last generic table before going to device specific table calcs
-CREATE PERFETTO TABLE _w_independent_cpus_calc AS
+CREATE PERFETTO TABLE _all_stats AS
 SELECT
   base.ts,
   base.dur,
   cast_int!(l3_hit_rate * base.dur) AS l3_hit_count,
   cast_int!(l3_miss_rate * base.dur) AS l3_miss_count,
-  hash(
-    freq_0,
-    idle_0,
-    freq_1,
-    idle_1,
-    freq_2,
-    idle_2,
-    freq_3,
-    idle_3,
-    freq_4,
-    idle_4,
-    freq_5,
-    idle_5,
-    freq_6,
-    idle_6,
-    freq_7,
-    idle_7,
-    dsu_freq
-  ) AS config_hash,
   freq_0,
   idle_0,
   freq_1,
@@ -156,8 +121,26 @@ SELECT
   _stats_cpu5.cpu5_curve,
   _stats_cpu6.cpu6_curve,
   _stats_cpu7.cpu7_curve,
+  _stats_cpu0.cpu0_static,
+  _stats_cpu1.cpu1_static,
+  _stats_cpu2.cpu2_static,
+  _stats_cpu3.cpu3_static,
+  _stats_cpu4.cpu4_static,
+  _stats_cpu5.cpu5_static,
+  _stats_cpu6.cpu6_static,
+  _stats_cpu7.cpu7_static,
+  suspend.suspended,
   _wattson_dsu_frequency.dsu_freq,
-  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d
+  CAST(_bitmask8!(
+    idle_0 != deepest.idle,
+    idle_1 != deepest.idle,
+    idle_2 != deepest.idle,
+    idle_3 != deepest.idle,
+    idle_4 != deepest.idle,
+    idle_5 != deepest.idle,
+    idle_6 != deepest.idle,
+    idle_7 != deepest.idle
+  ) AS INTEGER) AS cpus_on_mask
 FROM _interval_intersect!(
   (
     _ii_subquery!(_stats_cpu0),
@@ -169,7 +152,8 @@ FROM _interval_intersect!(
     _ii_subquery!(_stats_cpu6),
     _ii_subquery!(_stats_cpu7),
     _ii_subquery!(_wattson_dsu_frequency),
-    _ii_subquery!(_arm_l3_rates)
+    _ii_subquery!(_arm_l3_rates),
+    _ii_subquery!(_gapless_suspend_slices)
   ),
   ()
 ) AS base
@@ -192,7 +176,85 @@ JOIN _stats_cpu7
 JOIN _wattson_dsu_frequency
   ON _wattson_dsu_frequency._auto_id = base.id_8
 JOIN _arm_l3_rates
-  ON _arm_l3_rates._auto_id = base.id_9;
+  ON _arm_l3_rates._auto_id = base.id_9
+JOIN _gapless_suspend_slices AS suspend
+  ON suspend._auto_id = base.id_10
+CROSS JOIN _deepest_idle AS deepest;
+
+-- Does calculations for CPUs that are independent of other CPUs or frequencies
+-- This is the last generic table before going to device specific table calcs
+CREATE PERFETTO TABLE _w_independent_cpus_calc AS
+SELECT
+  ts,
+  dur,
+  l3_hit_count,
+  l3_miss_count,
+  hash(
+    freq_0,
+    idle_0,
+    freq_1,
+    idle_1,
+    freq_2,
+    idle_2,
+    freq_3,
+    idle_3,
+    freq_4,
+    idle_4,
+    freq_5,
+    idle_5,
+    freq_6,
+    idle_6,
+    freq_7,
+    idle_7,
+    dsu_freq,
+    suspended
+  ) AS config_hash,
+  freq_0,
+  idle_0,
+  freq_1,
+  idle_1,
+  freq_2,
+  idle_2,
+  freq_3,
+  idle_3,
+  freq_4,
+  idle_4,
+  freq_5,
+  idle_5,
+  freq_6,
+  idle_6,
+  freq_7,
+  idle_7,
+  cpu0_curve,
+  cpu1_curve,
+  cpu2_curve,
+  cpu3_curve,
+  cpu4_curve,
+  cpu5_curve,
+  cpu6_curve,
+  cpu7_curve,
+  suspended,
+  dsu_freq,
+  CAST(_bitmask8!(
+    cpus_on_mask & m0,
+    cpus_on_mask & m1,
+    cpus_on_mask & m2,
+    cpus_on_mask & m3,
+    cpus_on_mask & m4,
+    cpus_on_mask & m5,
+    cpus_on_mask & m6,
+    cpus_on_mask & m7
+  ) AS INTEGER) AS policy_cpus_on_mask,
+  iif(cpus_on_mask & m0, cpu0_static, 0)
+  + iif(cpus_on_mask & m1, cpu1_static, 0)
+  + iif(cpus_on_mask & m2, cpu2_static, 0)
+  + iif(cpus_on_mask & m3, cpu3_static, 0)
+  + iif(cpus_on_mask & m4, cpu4_static, 0)
+  + iif(cpus_on_mask & m5, cpu5_static, 0)
+  + iif(cpus_on_mask & m6, cpu6_static, 0)
+  + iif(cpus_on_mask & m7, cpu7_static, 0) AS static_1d
+FROM _all_stats
+CROSS JOIN _policy_masks;
 
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
 CREATE PERFETTO VIEW _w_dependent_cpus_unique AS
@@ -210,17 +272,6 @@ WITH
       max(cpu = 6) AS dsu_6,
       max(cpu = 7) AS dsu_7
     FROM _cpu_w_dsu_dependency
-  ),
-  _static_checks AS (
-    SELECT
-      0 IN _cpus_for_static AS c0,
-      1 IN _cpus_for_static AS c1,
-      2 IN _cpus_for_static AS c2,
-      3 IN _cpus_for_static AS c3,
-      4 IN _cpus_for_static AS c4,
-      5 IN _cpus_for_static AS c5,
-      6 IN _cpus_for_static AS c6,
-      7 IN _cpus_for_static AS c7
   ),
   _w_unique_configs AS (
     SELECT
@@ -251,19 +302,9 @@ WITH
       cpu7_curve,
       dsu_freq,
       static_1d,
-      min(idle_0, idle_1, idle_2, idle_3, idle_4, idle_5, idle_6, idle_7) AS all_cpu_deep_idle,
-      min(
-        iif(sc.c0, idle_0, 1),
-        iif(sc.c1, idle_1, 1),
-        iif(sc.c2, idle_2, 1),
-        iif(sc.c3, idle_3, 1),
-        iif(sc.c4, idle_4, 1),
-        iif(sc.c5, idle_5, 1),
-        iif(sc.c6, idle_6, 1),
-        iif(sc.c7, idle_7, 1)
-      ) AS no_static
+      policy_cpus_on_mask,
+      suspended
     FROM _w_independent_cpus_calc
-    CROSS JOIN _static_checks AS sc
     GROUP BY
       config_hash
   ),
@@ -278,62 +319,37 @@ WITH
       d.cpu,
       -- Determine the scoring value (Frequency or Curve) based on device
       CASE v.vote_by_freq
-        WHEN 1
-        THEN CASE d.dep_cpu
-          WHEN 0
-          THEN i.freq_0
-          WHEN 1
-          THEN i.freq_1
-          WHEN 2
-          THEN i.freq_2
-          WHEN 3
-          THEN i.freq_3
-          WHEN 4
-          THEN i.freq_4
-          WHEN 5
-          THEN i.freq_5
-          WHEN 6
-          THEN i.freq_6
-          WHEN 7
-          THEN i.freq_7
+        WHEN 1 THEN CASE d.dep_cpu
+          WHEN 0 THEN i.freq_0
+          WHEN 1 THEN i.freq_1
+          WHEN 2 THEN i.freq_2
+          WHEN 3 THEN i.freq_3
+          WHEN 4 THEN i.freq_4
+          WHEN 5 THEN i.freq_5
+          WHEN 6 THEN i.freq_6
+          WHEN 7 THEN i.freq_7
         END
         ELSE CASE d.dep_cpu
-          WHEN 0
-          THEN i.cpu0_curve
-          WHEN 1
-          THEN i.cpu1_curve
-          WHEN 2
-          THEN i.cpu2_curve
-          WHEN 3
-          THEN i.cpu3_curve
-          WHEN 4
-          THEN i.cpu4_curve
-          WHEN 5
-          THEN i.cpu5_curve
-          WHEN 6
-          THEN i.cpu6_curve
-          WHEN 7
-          THEN i.cpu7_curve
+          WHEN 0 THEN i.cpu0_curve
+          WHEN 1 THEN i.cpu1_curve
+          WHEN 2 THEN i.cpu2_curve
+          WHEN 3 THEN i.cpu3_curve
+          WHEN 4 THEN i.cpu4_curve
+          WHEN 5 THEN i.cpu5_curve
+          WHEN 6 THEN i.cpu6_curve
+          WHEN 7 THEN i.cpu7_curve
         END
       END AS vote_score,
       -- Calculate the Actual Frequency (to be used in the result)
       CASE d.dep_cpu
-        WHEN 0
-        THEN i.freq_0
-        WHEN 1
-        THEN i.freq_1
-        WHEN 2
-        THEN i.freq_2
-        WHEN 3
-        THEN i.freq_3
-        WHEN 4
-        THEN i.freq_4
-        WHEN 5
-        THEN i.freq_5
-        WHEN 6
-        THEN i.freq_6
-        WHEN 7
-        THEN i.freq_7
+        WHEN 0 THEN i.freq_0
+        WHEN 1 THEN i.freq_1
+        WHEN 2 THEN i.freq_2
+        WHEN 3 THEN i.freq_3
+        WHEN 4 THEN i.freq_4
+        WHEN 5 THEN i.freq_5
+        WHEN 6 THEN i.freq_6
+        WHEN 7 THEN i.freq_7
       END AS freq,
       p.policy
     FROM _w_unique_configs AS i
@@ -344,31 +360,19 @@ WITH
       ON d.dep_cpu = p.cpu
     WHERE
       CASE d.dep_cpu
-        WHEN 0
-        THEN i.idle_0
-        WHEN 1
-        THEN i.idle_1
-        WHEN 2
-        THEN i.idle_2
-        WHEN 3
-        THEN i.idle_3
-        WHEN 4
-        THEN i.idle_4
-        WHEN 5
-        THEN i.idle_5
-        WHEN 6
-        THEN i.idle_6
-        WHEN 7
-        THEN i.idle_7
-      END = -1
+        WHEN 0 THEN i.idle_0
+        WHEN 1 THEN i.idle_1
+        WHEN 2 THEN i.idle_2
+        WHEN 3 THEN i.idle_3
+        WHEN 4 THEN i.idle_4
+        WHEN 5 THEN i.idle_5
+        WHEN 6 THEN i.idle_6
+        WHEN 7 THEN i.idle_7
+      END
+      = -1
   ),
   max_voters AS (
-    SELECT
-      config_hash,
-      cpu,
-      freq,
-      policy,
-      max(vote_score)
+    SELECT config_hash, cpu, freq, policy, max(vote_score)
     FROM unpivoted_deps
     GROUP BY
       config_hash,
@@ -440,5 +444,4 @@ SELECT
 FROM _w_unique_configs AS base
 CROSS JOIN dsu_flags AS dsu
 CROSS JOIN default_votes AS defaults
-LEFT JOIN pivoted_results AS pivoted
-  USING (config_hash);
+LEFT JOIN pivoted_results AS pivoted USING (config_hash);

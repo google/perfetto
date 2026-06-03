@@ -53,8 +53,7 @@ class MockExecutor : public Executor {
   MOCK_METHOD2(WriteRegister,
                StatusOr<void>(const Cursors& cursors, uint8_t reg_id));
   MOCK_CONST_METHOD1(Delete, StatusOr<void>(RwProto::Cursor* dst));
-  MOCK_CONST_METHOD2(Merge,
-                     StatusOr<void>(Cursors* cursors, bool skip_submessages));
+  MOCK_CONST_METHOD2(Merge, StatusOr<void>(Cursors* cursors, uint32_t flags));
   MOCK_CONST_METHOD1(Set, StatusOr<void>(Cursors* cursors));
 };
 

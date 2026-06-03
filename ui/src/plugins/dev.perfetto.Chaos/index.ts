@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
+import type {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {PerfettoPlugin} from '../../public/plugin';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Chaos';

@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Counter information for each idle state change for each CPU. Finds each time
 -- region where a CPU idle state is constant.
-CREATE PERFETTO TABLE cpu_idle_counters (
+CREATE PERFETTO TABLE cpu_idle_counters(
   -- Counter id.
   id LONG,
   -- Joinable with 'counter_track.id'.
@@ -32,7 +32,8 @@ CREATE PERFETTO TABLE cpu_idle_counters (
   idle LONG,
   -- CPU that corresponds to this counter.
   cpu LONG
-) AS
+)
+AS
 SELECT
   count_w_dur.id,
   count_w_dur.track_id,

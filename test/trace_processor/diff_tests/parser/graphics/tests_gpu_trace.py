@@ -48,6 +48,24 @@ class GraphicsGpuTrace(TestSuite):
         34,0.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","Triangle/ms:ms"
         """))
 
+  def test_gpu_counters_forwards_looking(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counters_forwards_looking.py'),
+        query="""
+        SELECT ts, value
+        FROM counter
+        JOIN gpu_counter_track ON counter.track_id = gpu_counter_track.id
+        WHERE gpu_counter_track.name = 'forward_counter'
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","value"
+        10,100.000000
+        20,0.000000
+        30,0.000000
+        40,50.000000
+        """))
+
   def test_gpu_table(self):
     return DiffTestBlueprint(
         trace=Path('gpu_counters.py'),
@@ -639,4 +657,39 @@ class GraphicsGpuTrace(TestSuite):
         out=Csv('''
           "slice_name","kernel_name","grid_x","grid_y","grid_z","wg_x","wg_y","wg_z","regs","shmem"
           "vectorAdd","_Z9vectorAddPfS_S_i",256,1,1,128,1,1,32,4096
+        '''))
+
+  def test_gpu_frequency_event(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            timestamp: 1000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 1500000
+            }
+          }
+          packet {
+            timestamp: 2000
+            generic_gpu_frequency_event {
+              gpu_id: 0
+              frequency_khz: 2100000
+            }
+          }
+        """),
+        query='''
+          SELECT
+            t.name AS track_name,
+            t.type AS track_type,
+            c.ts,
+            c.value
+          FROM counter c
+          JOIN counter_track t ON c.track_id = t.id
+          WHERE t.type = 'gpu_frequency'
+          ORDER BY c.ts;
+        ''',
+        out=Csv('''
+          "track_name","track_type","ts","value"
+          "gpufreq","gpu_frequency",1000,1500000.000000
+          "gpufreq","gpu_frequency",2000,2100000.000000
         '''))

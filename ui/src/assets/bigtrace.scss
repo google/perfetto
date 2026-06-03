@@ -14,27 +14,12 @@
 
 @import "typefaces";
 @import "common";
-@import "home_page";
-@import "sidebar";
-@import "topbar";
-@import "help_modal";
-@import "theme_provider";
 
-// Components - keep these sorted alphabetically
-@import "components/datagrid";
-@import "components/query_history";
+// Plugin styles are imported by each plugin's index.ts via Vite's CSS pipeline.
 
-// Widgets
-@import "widgets.scss";
+// BigTrace-specific styles; `.pf-bt-` prefix avoids collisions.
 
-// Auto generated imports
-@import "../gen/all_plugins";
-@import "../gen/all_core_plugins";
-
-// BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
-// collisions with existing Perfetto UI classes.
-
-// ---------- Settings page ----------
+// ---------- Settings & endpoint ----------
 
 .pf-bt-settings-card-wrapper--disabled {
   opacity: 0.6;
@@ -70,5 +55,660 @@
   &:focus {
     outline: none;
     border-color: var(--pf-color-primary);
+  }
+}
+
+.pf-bt-settings-toggle {
+  margin-right: 8px;
+}
+
+.pf-bt-settings-warning {
+  color: var(--pf-color-danger);
+  margin-top: 4px;
+}
+
+.pf-bt-settings-warning-icon {
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.pf-bt-settings-hint {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.pf-bt-endpoint-row {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pf-bt-endpoint-input {
+  width: min(300px, 30vw);
+}
+
+// ---------- Layout ----------
+
+// QueryPage stays mounted across routes (preserves DataGrid state); contents
+// = no extra box when active, none = hidden but mounted.
+.pf-bt-route-pane {
+  display: contents;
+}
+
+.pf-bt-route-pane--hidden {
+  display: none;
+}
+
+// Bounds the page + SplitPanel/Tabs chain so DataGrid fillHeight scrolls.
+.pf-bt-query-page {
+  height: 100%;
+  min-height: 0;
+
+  > .pf-split-panel {
+    height: 100%;
+  }
+}
+
+.pf-bt-query-page__editor-tabs {
+  height: 100%;
+
+  // Tab strip is 32px; give the content (the editor/results split) the rest.
+  .pf-tabs__content {
+    height: calc(100% - 32px);
+  }
+
+  .pf-split-panel {
+    height: 100%;
+  }
+}
+
+.pf-bt-query-page__sidebar,
+.pf-bt-query-page__results {
+  height: 100%;
+}
+
+// Bound the nested Tabs too, else the whole history scrolls and the tab strip isn't sticky.
+.pf-bt-query-page__history,
+.pf-bt-query-page__history > .pf-tabs {
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-sidebar-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pf-bt-sidebar-logo {
+  height: 1em;
+}
+
+// Compound (.pf-home-page__center.pf-bt-home-center) outranks the shared
+// single-class rule, so this overrides its justify-content.
+.pf-bt-home-center {
+  justify-content: flex-start;
+  padding-top: 15vh;
+  gap: 24px;
+}
+
+// ---------- Editor tabs & toolbar ----------
+
+// Must fill the SplitPanel pane or .cm-editor (height:100%) collapses to one line.
+.pf-bt-query-page__editor-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  .pf-editor {
+    flex: 1;
+    min-height: 3rem;
+  }
+}
+
+.pf-bt-query-page__editor-tabs > .pf-tabs__tabs {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pf-color-border-secondary) transparent;
+
+  > .pf-tabs__tab {
+    max-width: 220px;
+  }
+}
+
+.pf-bt-tab-spacer {
+  flex: 1;
+}
+
+.pf-bt-query-page__toolbar {
+  container-type: inline-size;
+
+  // Without nowrap, "Persistent" wraps under its toggle when squeezed.
+  .pf-checkbox {
+    white-space: nowrap;
+  }
+}
+
+@container (max-width: 520px) {
+  .pf-bt-query-page__hotkeys {
+    display: none;
+  }
+}
+
+.pf-bt-toolbar-divider {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background-color: var(--pf-color-border-secondary);
+}
+
+// ---------- Async status bar ----------
+
+.pf-bt-status-bar {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.pf-bt-status-bar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pf-bt-status-bar-stat--rows {
+  margin-right: 16px;
+}
+
+.pf-bt-status-bar--running {
+  .pf-bt-status-bar-stat--traces,
+  .pf-bt-status-bar-stat-label,
+  .pf-bt-status-bar-stat-value {
+    display: none;
+  }
+}
+
+.pf-bt-status-bar-refresh {
+  position: relative;
+  display: inline-block;
+}
+
+.pf-bt-status-bar-notif {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--pf-color-success);
+  z-index: 10;
+}
+
+.pf-bt-status-bar-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-bt-status-bar-stat--empty {
+  opacity: 0.55;
+}
+
+.pf-bt-status-bar-duration {
+  display: inline-flex;
+  // Baseline aligns with the SUCCESS pill; center would sit ~2px high.
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+// Wide: during a run it's the only progress signal (numbers are hover-only).
+.pf-bt-inline-progress {
+  display: inline-block;
+  width: 140px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 2px;
+  border: 1px solid var(--pf-color-border);
+  // Theme-aware track; hardcoded white rgba vanished on the light theme.
+  background-color: var(--pf-color-background-secondary);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.pf-bt-inline-progress-fill {
+  display: block;
+  height: 100%;
+  background-color: var(--pf-color-accent);
+  transition: width 0.3s ease-out;
+  will-change: width;
+}
+
+// ---------- Query history ----------
+
+// Anchors the abs-positioned buttons; the shared float made a BFC that
+// squeezed the meta card.
+.pf-query-history__item {
+  // margin-bottom: 10px;
+  max-height: none;
+  overflow-y: visible;
+  position: relative;
+}
+
+.pf-query-history__item-buttons {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  float: none;
+  z-index: 1;
+}
+
+// Status-colored left bar, meta card only (clashes with the pre's border).
+.pf-bt-history-item-meta {
+  border-left: 3px solid transparent;
+}
+
+.pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-success);
+}
+
+.pf-query-history__item:has(.pf-bt-status-failed) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-danger);
+}
+
+.pf-query-history__item:has(.pf-bt-status-cancelled) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-warning);
+}
+
+.pf-query-history__item:has(.pf-bt-status-in-progress)
+  .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-primary);
+}
+
+.pf-query-history__item:has(.pf-bt-status-queued) .pf-bt-history-item-meta,
+.pf-query-history__item:has(.pf-bt-status-unknown) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-text-muted);
+}
+
+// padding-right reserves space for the abs-positioned Open/Delete buttons.
+.pf-bt-history-item-meta {
+  position: relative;
+  background: var(--pf-color-background-tertiary);
+  padding: 6px 8px;
+  padding-right: 56px;
+  // Top + right only; the border-left status rule owns the left edge
+  // (shorthand would shrink it to 1px).
+  border-top: 1px solid var(--pf-color-border-secondary);
+  border-right: 1px solid var(--pf-color-border-secondary);
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--pf-color-text);
+}
+
+.pf-bt-status-success {
+  color: var(--pf-color-success);
+}
+
+.pf-bt-status-failed {
+  color: var(--pf-color-danger);
+}
+
+.pf-bt-status-cancelled {
+  color: var(--pf-color-warning);
+}
+
+.pf-bt-status-in-progress {
+  color: var(--pf-color-primary);
+}
+
+.pf-bt-status-queued,
+.pf-bt-status-unknown {
+  color: var(--pf-color-text-muted);
+  font-style: italic;
+}
+
+.pf-bt-history-item-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+
+  > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+}
+
+.pf-bt-history-item-status {
+  flex-shrink: 0;
+}
+
+.pf-bt-history-item-date {
+  text-align: right;
+}
+
+// Materialized-only band between the meta header and the SQL pre.
+.pf-bt-history-item-details {
+  background: var(--pf-color-background-secondary);
+  padding: 4px 8px;
+  border-left: 1px solid var(--pf-color-border-secondary);
+  border-right: 1px solid var(--pf-color-border-secondary);
+  border-top: 1px solid var(--pf-color-border-secondary);
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--pf-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-bt-history-item-details--empty {
+  opacity: 0.55;
+}
+
+.pf-bt-history-item-rows-value {
+  flex-shrink: 0;
+}
+
+.pf-bt-history-item-table-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pf-bt-history-item-table-link--disabled {
+  color: var(--pf-color-text-muted);
+  pointer-events: none;
+  text-decoration: none;
+}
+
+.pf-bt-history-item-table-link--active {
+  color: var(--pf-color-primary);
+  pointer-events: auto;
+  text-decoration: underline;
+}
+
+.pf-query-history__item pre {
+  background: var(--pf-color-void);
+  padding: 8px;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  margin: 0;
+  font-family: var(--pf-font-monospace, monospace);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.pf-query-history__item pre:hover::after {
+  content: none;
+}
+
+// Clamped ~4 lines with a fade mask; click to expand. The `pre.` prefix
+// keeps specificity == `.pf-query-history__item pre`.
+pre.pf-bt-history-item-query,
+pre.pf-bt-history-item-query--standalone {
+  cursor: pointer;
+  position: relative;
+  max-height: 4.5em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+pre.pf-bt-history-item-query.pf-bt-history-item-query--expanded,
+pre.pf-bt-history-item-query--standalone.pf-bt-history-item-query--expanded {
+  max-height: 50vh;
+  overflow: auto;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+// Standalone (delete-confirm modal) has no .pf-query-history__item parent, so
+// it declares the frame the sidebar variant inherits from
+// `.pf-query-history__item pre`.
+pre.pf-bt-history-item-query--standalone {
+  font-family: var(--pf-font-monospace, monospace);
+  background: var(--pf-color-void);
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.pf-bt-history-item-query--empty {
+  font-style: italic;
+  opacity: 0.5;
+}
+
+.pf-bt-history-empty-hint {
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+.pf-bt-history-delete-date {
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+// ---------- Results panel ----------
+
+.pf-bt-error-tab-title {
+  color: var(--pf-color-danger);
+}
+
+.pf-bt-error-content {
+  overflow: auto;
+  max-height: 100%;
+  padding: 12px;
+  margin: 0;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+// min-height:0 chain lets DataGrid fillHeight work; only the body scrolls.
+.pf-bt-results-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-results-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.pf-bt-results-container > .pf-data-grid {
+  flex: 1;
+  min-height: 0;
+}
+
+// ---------- Stdlib table list ----------
+
+.pf-bt-simple-table-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &__search {
+    margin: 8px;
+  }
+
+  &__items {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  &__item-name {
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+  }
+
+  &__highlight {
+    background-color: var(--pf-color-accent);
+    color: var(--pf-color-text-on-accent);
+    border-radius: 2px;
+  }
+
+  &__description {
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  &__detail-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .pf-show-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover .pf-show-on-hover {
+      visibility: visible;
+    }
+  }
+
+  &__detail-label {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    text-transform: uppercase;
+    min-width: 50px;
+  }
+
+  &__detail-value {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__columns {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__column-list {
+    display: flex;
+    flex-direction: column;
+    margin-top: 4px;
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  &__column {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--pf-color-border-secondary);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  &__column-icon {
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+    width: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  &__column-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__column-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__column-name {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__column-copy {
+    visibility: hidden;
+  }
+
+  &__column:hover &__column-copy {
+    visibility: visible;
+  }
+
+  &__column-type {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  &__column-desc {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+// ---------- Settings page ----------
+
+.pf-bt-settings-page {
+  &__plugin-section {
+    margin-bottom: 32px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__plugin-title {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    padding: 8px 12px;
+    background: var(--pf-minimal-background);
+    border-radius: 4px;
   }
 }

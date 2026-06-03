@@ -13,7 +13,7 @@ tooling e.g. it cannot be used to create efficient analytic tables, import
 modules from the PerfettoSQL standard library etc.
 
 For this reason, PerfettoSQL adds new pieces of syntax which make the experience
-of writing SQL queries better. All such additons include the keyword `PERFETTO`
+of writing SQL queries better. All such additions include the keyword `PERFETTO`
 to make it clear that they are PerfettoSQL-only.
 
 <!-- TODO(b/290185551): we should really talk about our "recommendations" (e.g.
@@ -71,7 +71,7 @@ schemas, function arguments and return types:
 | `ARGSETID` | An identifier for a set of arguments. This set can be obtained by joining with an `args` table on `arg_set_id` column. |
 | `ID` | An ID column for this table. Each table can have only one ID column, whose values should be unique and fit into `uint32`. |
 | `JOINID(table.column)` | A foreign key reference into a given table. `table` should exist, should have column named `column` of type `ID`. |
-| `ID(table.column)` | A variant of the `ID` type, which is both primary key for this table and simultaneusly is a foreign key reference into another table. Useful when a given table is based on a subset of rows from another table (e.g. `slice`). |
+| `ID(table.column)` | A variant of the `ID` type, which is both primary key for this table and simultaneously is a foreign key reference into another table. Useful when a given table is based on a subset of rows from another table (e.g. `slice`). |
 
 ## Defining functions
 `CREATE PEFETTO FUNCTION` allows functions to be defined in SQL, which can be
@@ -186,7 +186,7 @@ CREATE OR REPLACE PERFETTO INDEX foo_track_and_name ON foo(track_id, name);
 
 The performance of those two queries should be very different now:
 ```sql
--- This doesn't have an index so it will have to linearily scan whole column.
+-- This doesn't have an index so it will have to linearly scan whole column.
 SELECT * FROM slice WHERE track_id = 10 AND name > "b";
 
 -- This has an index and can use binary search.
@@ -238,7 +238,7 @@ performance-sensitive query, a macro can be more efficient as it avoids the
 potential overhead of function calls in a large number.
 
 NOTE: Macros are expanded with a pre-processing step *before* any execution
-happens. Expansion is a purely syntatic operation involves replacing the macro
+happens. Expansion is a purely syntactic operation involves replacing the macro
 invocation with the SQL tokens in the macro definition.
 
 As macros are syntactic, the types of arguments and return types in macros are

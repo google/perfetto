@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AvfVmCpuTimeline';

@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TreeTable, TreeTableAttrs} from '../../../components/widgets/treetable';
+import {
+  TreeTable,
+  type TreeTableAttrs,
+} from '../../../components/widgets/treetable';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
 interface File {

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {StandardGroup} from '../dev.perfetto.StandardGroups';
+import type {StandardGroup} from '../dev.perfetto.StandardGroups';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 
@@ -340,6 +340,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
           ),
         ]);
     },
+  },
+  {
+    type: 'etw_diskio',
+    topLevelGroup: 'IO',
+    group: 'ETW Disk I/O',
   },
   {
     type: 'etw_fileio',

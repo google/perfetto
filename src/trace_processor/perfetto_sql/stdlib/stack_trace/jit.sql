@@ -15,7 +15,7 @@
 
 -- Represents a jitted code snippet.
 -- TODO(carlscab): Make public
-CREATE PERFETTO VIEW _jit_code (
+CREATE PERFETTO VIEW _jit_code(
   -- Unique jit code id.
   jit_code_id LONG,
   -- Time this code was created / allocated.
@@ -34,7 +34,8 @@ CREATE PERFETTO VIEW _jit_code (
   function_name STRING,
   -- Jitted code (binary data).
   native_code BYTES
-) AS
+)
+AS
 SELECT
   id AS jit_code_id,
   create_ts,
@@ -48,13 +49,11 @@ FROM __intrinsic_jit_code;
 
 -- Represents a jitted frame.
 -- TODO(carlscab): Make public
-CREATE PERFETTO VIEW _jit_frame (
+CREATE PERFETTO VIEW _jit_frame(
   -- Jitted code snipped the frame is in (joins with _jit_code.jit_code_id).
   jit_code_id LONG,
   -- Jitted frame (joins with stack_profile_frame.id).
   frame_id LONG
-) AS
-SELECT
-  jit_code_id,
-  frame_id
-FROM __intrinsic_jit_frame;
+)
+AS
+SELECT jit_code_id, frame_id FROM __intrinsic_jit_frame;

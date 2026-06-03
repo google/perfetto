@@ -123,7 +123,8 @@ WITH android_jank_cuj_timeline_sf_frame AS (
     FROM android_jank_cuj_vsync_boundary boundary
     JOIN actual_frame_timeline_slice timeline
       ON
-        CAST(timeline.name AS INTEGER) >= vsync_min
+        boundary.upid = timeline.upid
+        AND CAST(timeline.name AS INTEGER) >= vsync_min
         AND CAST(timeline.name AS INTEGER) <= vsync_max
     WHERE
         boundary.layer_id IS NULL

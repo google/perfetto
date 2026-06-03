@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Engine} from 'syntaqlite';
+import {assetSrc} from '../../base/assets';
 import {Icons} from '../../base/semantic_icons';
-import {QueryResponse} from '../../components/query_table/queries';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
+import type {QueryResponse} from '../../components/query_table/queries';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Box} from '../../widgets/box';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
@@ -27,10 +28,9 @@ import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
-import {Tabs, TabsTab} from '../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {Anchor} from '../../widgets/anchor';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
 import {ResultsTable} from './results_table';
@@ -41,6 +41,7 @@ const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 export interface QueryEditorTab {
   readonly id: string;
   editorText: string;
+  queryId?: number; // Unique ID associated with the current query result (session unique only, not universally unique).
   queryResult?: QueryResponse;
   isLoading: boolean;
   title: string;
@@ -85,39 +86,30 @@ export interface QueryPageAttrs {
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  // Map of tab ID to DataSource for each tab's query results
-  private dataSources = new Map<string, DataSource>();
+  // Lazily-initialized SQL formatter engine, scoped to this component instance.
+  private formatterEnginePromise?: Promise<Engine>;
 
-  // Track previous query results to detect changes
-  private prevQueryResults = new Map<string, QueryResponse | undefined>();
+  private getFormatterEngine(): Promise<Engine> {
+    if (this.formatterEnginePromise === undefined) {
+      const engine = new Engine({
+        runtimeJsPath: assetSrc('assets/syntaqlite-runtime.js'),
+        runtimeWasmPath: assetSrc('assets/syntaqlite-runtime.wasm'),
+      });
+      this.formatterEnginePromise = (async () => {
+        await engine.load();
+        const binding = await engine.loadDialectFromUrl(
+          assetSrc('assets/syntaqlite-perfetto.wasm'),
+          'syntaqlite_perfetto_dialect_template',
+        );
+        engine.setDialectPointer(binding.ptr);
+        return engine;
+      })();
+    }
+    return this.formatterEnginePromise;
+  }
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
-
-    // Update data sources for tabs whose results have changed
-    for (const tab of editorTabs) {
-      const prevResult = this.prevQueryResults.get(tab.id);
-      if (tab.queryResult !== prevResult) {
-        if (tab.queryResult) {
-          this.dataSources.set(
-            tab.id,
-            new InMemoryDataSource(tab.queryResult.rows),
-          );
-        } else {
-          this.dataSources.delete(tab.id);
-        }
-        this.prevQueryResults.set(tab.id, tab.queryResult);
-      }
-    }
-
-    // Clean up data sources for removed tabs
-    const tabIds = new Set(editorTabs.map((t) => t.id));
-    for (const id of this.dataSources.keys()) {
-      if (!tabIds.has(id)) {
-        this.dataSources.delete(id);
-        this.prevQueryResults.delete(id);
-      }
-    }
 
     // Build editor tabs for the left panel
     const leftTabs: TabsTab[] = editorTabs.map((tab) => ({
@@ -194,7 +186,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     tab: QueryEditorTab,
   ): m.Children {
     const {trace} = attrs;
-    const dataSource = this.dataSources.get(tab.id);
 
     const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
@@ -219,6 +210,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
+          m(Button, {
+            label: 'Format',
+            icon: 'format_align_left',
+            title: 'Auto-format the SQL query',
+            onclick: () => this.formatSql(attrs, tab.id, tab.editorText),
+          }),
           trace.isInternalUser &&
             m(Button, {
               icon: 'wand_stars',
@@ -284,19 +281,20 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         text: tab.editorText,
         onUpdate: (content) => attrs.onEditorContentUpdate?.(tab.id, content),
         onExecute: (query) => attrs.onExecute?.(tab.id, query),
+        onFormat: (text) => this.formatSql(attrs, tab.id, text),
       }),
     ]);
 
     const resp = tab.queryResult;
     const resultsPanel = resp
       ? m(ResultsTable, {
+          key: tab.queryId, // Force remount when query changes to reset internal state
           data: resp.error
             ? {kind: 'error', errorMessage: resp.error}
             : {
                 kind: 'success',
                 columns: resp.columns,
                 rows: resp.rows,
-                dataSource: dataSource!,
                 rowCount: resp.totalRowCount,
                 queryTimeMs: resp.durationMs,
                 query: resp.query,
@@ -361,5 +359,25 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   private hidePerfettoSqlAgentBanner() {
     localStorage.setItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY, 'true');
+  }
+
+  private async formatSql(attrs: QueryPageAttrs, tabId: string, text: string) {
+    try {
+      const engine = await this.getFormatterEngine();
+      const result = engine.runFmt(text, {
+        lineWidth: 80,
+        indentWidth: 2,
+        keywordCase: 1,
+        semicolons: true,
+      });
+      if (result.ok) {
+        attrs.onEditorContentUpdate?.(tabId, result.text);
+        m.redraw();
+      } else {
+        console.error('SQL formatting failed', result.text);
+      }
+    } catch (e) {
+      console.error('SQL formatting failed', e);
+    }
   }
 }

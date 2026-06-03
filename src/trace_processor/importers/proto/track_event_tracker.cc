@@ -195,7 +195,7 @@ void TrackEventTracker::ReserveDescriptorTrack(
 
       // If the track was already resolved, update the name.
       auto* tracks = context_->storage->mutable_track_table();
-      auto rr = *tracks->FindById(*track_id);
+      auto rr = (*tracks)[*track_id];
       rr.set_name(reservation.name);
     }
   }
@@ -427,9 +427,8 @@ TrackEventTracker::InternDescriptorTrackImpl(
   // persisted in the case of merged tracks.
   auto set_parent_id = [this, parent_track_id](TrackId id) {
     if (parent_track_id) {
-      auto rr = context_->storage->mutable_track_table()->FindById(id);
-      PERFETTO_CHECK(rr);
-      rr->set_parent_id(parent_track_id);
+      auto rr = (*context_->storage->mutable_track_table())[id];
+      rr.set_parent_id(parent_track_id);
     }
   };
   using M = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;

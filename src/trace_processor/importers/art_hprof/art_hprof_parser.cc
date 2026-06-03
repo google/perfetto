@@ -38,6 +38,7 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -61,7 +62,7 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
   parser_->PushBlob(std::move(blob));
 
   if (is_init && !parser_->ParseHeader()) {
-    context_->storage->IncrementStats(stats::hprof_header_errors);
+    context_->stats_tracker->IncrementStats(stats::hprof_header_errors);
   }
 
   parser_->Parse();
@@ -278,8 +279,8 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
       auto* super_id_opt = FindClassId(super_id);
 
       if (current_id && super_id_opt) {
-        auto ref = class_table.FindById(*current_id);
-        ref->set_superclass_id(*super_id_opt);
+        auto ref = class_table[*current_id];
+        ref.set_superclass_id(*super_id_opt);
       }
     }
   }
@@ -321,7 +322,7 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
           auto* table_id = FindClassId(it.key());
           if (table_id) {
             StringId kind_id = context_->storage->InternString(kind_name);
-            class_table.FindById(*table_id)->set_kind(kind_id);
+            class_table[*table_id].set_kind(kind_id);
           }
         }
       }
@@ -339,7 +340,7 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
 
     auto* class_name_it = class_name_map_.Find(obj->GetClassId());
     if (!class_name_it) {
-      context_->storage->IncrementStats(stats::hprof_class_errors);
+      context_->stats_tracker->IncrementStats(stats::hprof_class_errors);
       continue;
     }
 
@@ -376,13 +377,13 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
     if (obj.GetObjectType() == ObjectType::kClass) {
       type_id = FindClassObjectId(obj.GetId());
       if (!type_id) {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->stats_tracker->IncrementStats(stats::hprof_class_errors);
         continue;
       }
     } else {
       type_id = FindClassId(obj.GetClassId());
       if (!type_id && obj.GetObjectType() != ObjectType::kPrimitiveArray) {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->stats_tracker->IncrementStats(stats::hprof_class_errors);
         continue;
       }
     }
@@ -441,8 +442,7 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
     // matching the proto importer's convention.
     uint32_t reference_set_id =
         static_cast<uint32_t>(reference_table.row_count());
-    object_table.FindById(*owner_table_id)
-        ->set_reference_set_id(reference_set_id);
+    object_table[*owner_table_id].set_reference_set_id(reference_set_id);
 
     for (const auto& ref : refs) {
       tables::HeapGraphObjectTable::Id* owned_table_id = nullptr;
@@ -456,11 +456,9 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
       if (ref.field_class_id.has_value() && *ref.field_class_id != 0) {
         auto* cls_table_id = FindClassId(*ref.field_class_id);
         if (cls_table_id) {
-          auto class_ref = context_->storage->heap_graph_class_table().FindById(
-              *cls_table_id);
-          if (class_ref) {
-            field_type_id = class_ref->name();
-          }
+          auto class_ref =
+              context_->storage->heap_graph_class_table()[*cls_table_id];
+          field_type_id = class_ref.name();
         }
       }
 
@@ -558,7 +556,7 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
 
     // Set reverse FK on the object table for direct lookup.
     auto& object_table = *context_->storage->mutable_heap_graph_object_table();
-    object_table.FindById(*owner_table_id)->set_object_data_id(data_id.value);
+    object_table[*owner_table_id].set_object_data_id(data_id.value);
   }
 }
 

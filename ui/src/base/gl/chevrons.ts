@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {createSDFTexture, generatePolygonSDF} from './sdf';
-import {Point2D, Transform1D, Transform2D} from '../geom';
-import {MarkerBuffers, RowLayout} from '../renderer';
+import type {Point2D, Transform1D, Transform2D} from '../geom';
+import type {MarkerBuffers, RowLayout} from '../renderer';
 import {
   createBuffer,
   createProgram,

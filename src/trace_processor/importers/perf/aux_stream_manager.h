@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
@@ -142,7 +143,7 @@ class AuxStreamManager {
 
   std::optional<uint64_t> ConvertTscToPerfTime(uint64_t cycles) {
     if (!time_conv_) {
-      context_->storage->IncrementStats(stats::perf_no_tsc_data);
+      context_->stats_tracker->IncrementStats(stats::perf_no_tsc_data);
       return std::nullopt;
     }
     return time_conv_->ConvertTscToPerfTime(cycles);

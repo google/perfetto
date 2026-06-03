@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../../frontend/home_page.scss';
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {Icon} from '../../widgets/icon';
-import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {Switch} from '../../widgets/switch';
 import {queryState} from '../query/query_state';
 import {settingsStorage} from '../settings/settings_storage';
@@ -41,6 +41,34 @@ GROUP BY p.name
 ORDER BY cpu_sec DESC
 LIMIT 10`;
 
+// One of the four landing-page action buttons (Quick start +
+// Example queries rows). Differs only by icon, label, and click.
+function homeButton(
+  label: string,
+  icon: string,
+  onclick: () => void,
+): m.Children {
+  return m(
+    '.pf-home-page__button',
+    {onclick},
+    m(Icon, {icon, className: 'pf-left-icon'}),
+    m('span.pf-button__label', label),
+  );
+}
+
+// Example-query button: stash the query for the new tab to pick up,
+// then navigate to the editor.
+function exampleQueryButton(
+  label: string,
+  icon: string,
+  query: string,
+): m.Children {
+  return homeButton(label, icon, () => {
+    queryState.initialQuery = query;
+    setRoute(Routes.QUERY);
+  });
+}
+
 export class HomePage implements m.ClassComponent {
   view() {
     const themeSetting = settingsStorage.get('theme');
@@ -49,7 +77,7 @@ export class HomePage implements m.ClassComponent {
     return m(
       '.pf-home-page',
       m(
-        '.pf-home-page__center',
+        '.pf-home-page__center.pf-bt-home-center',
         m(
           '.pf-home-page__title',
           m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
@@ -65,17 +93,11 @@ export class HomePage implements m.ClassComponent {
               '.pf-home-page__section-content',
               m(
                 '.pf-home-page__getting-started-buttons',
-                m(
-                  '.pf-home-page__button',
-                  {onclick: () => setRoute(Routes.SETTINGS)},
-                  m(Icon, {icon: 'settings', className: 'pf-left-icon'}),
-                  m('span.pf-button__label', 'Configure targets'),
+                homeButton('Configure backend', 'settings', () =>
+                  setRoute(Routes.SETTINGS),
                 ),
-                m(
-                  '.pf-home-page__button',
-                  {onclick: () => setRoute(Routes.QUERY)},
-                  m(Icon, {icon: 'edit', className: 'pf-left-icon'}),
-                  m('span.pf-button__label', 'Open query editor'),
+                homeButton('Open query editor', 'edit', () =>
+                  setRoute(Routes.QUERY),
                 ),
               ),
             ),
@@ -88,50 +110,16 @@ export class HomePage implements m.ClassComponent {
               '.pf-home-page__section-content',
               m(
                 '.pf-home-page__getting-started-buttons',
-                m(
-                  '.pf-home-page__button',
-                  {
-                    onclick: () => {
-                      queryState.initialQuery = LMK_QUERY;
-                      setRoute(Routes.QUERY);
-                    },
-                  },
-                  m(Icon, {icon: 'search', className: 'pf-left-icon'}),
-                  m('span.pf-button__label', 'LMK events'),
-                ),
-                m(
-                  '.pf-home-page__button',
-                  {
-                    onclick: () => {
-                      queryState.initialQuery = CPU_TIME_QUERY;
-                      setRoute(Routes.QUERY);
-                    },
-                  },
-                  m(Icon, {icon: 'timer', className: 'pf-left-icon'}),
-                  m('span.pf-button__label', 'Top CPU consumers'),
+                exampleQueryButton('LMK events', 'search', LMK_QUERY),
+                exampleQueryButton(
+                  'Top CPU consumers',
+                  'timer',
+                  CPU_TIME_QUERY,
                 ),
               ),
             ),
           ),
-          // Shortcuts section
-          m(
-            '.pf-home-page__section',
-            m('.pf-home-page__section-title', 'Shortcuts'),
-            m(
-              '.pf-home-page__section-content',
-              m(
-                '.pf-home-page__shortcut',
-                m('span.pf-home-page__shortcut-label', 'Commands'),
-                m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
-              ),
-              m(
-                '.pf-home-page__shortcut',
-                m('span.pf-home-page__shortcut-label', 'Toggle sidebar'),
-                m(HotkeyGlyphs, {hotkey: '!Mod+B'}),
-              ),
-            ),
-          ),
-          // Links below the cards
+          // Footer: theme toggle; full shortcut list lives in the help modal (?).
           m(
             '.pf-home-page__links',
             m(Switch, {

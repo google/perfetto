@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Draft} from 'immer';
+import type {Draft} from 'immer';
 import {createStore} from './store';
 import {exists} from './utils';
 

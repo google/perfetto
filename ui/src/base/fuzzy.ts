@@ -96,7 +96,10 @@ function camelCaseTokenize(text: string): string[] {
 // Given a query (possibly multi-word) and candidate text, compute highlight
 // segments. Each query token is first tried as a substring match, then falls
 // back to sequential character matching.
-function computeHighlightSegments(query: string, text: string): FuzzySegment[] {
+export function computeHighlightSegments(
+  query: string,
+  text: string,
+): FuzzySegment[] {
   const tokens = query.split(/\s+/).filter(Boolean);
   const lowerText = text.toLowerCase();
   const highlightedIndices: number[] = [];

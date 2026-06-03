@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';

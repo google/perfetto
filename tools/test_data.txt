@@ -4,6 +4,7 @@
 # directory when pushing a 2nd-time. adb push has a slightly different behavior
 # than `cp` on directoriesm, trailing slash is not enough.
 protos/perfetto/trace/.
+protos/third_party/android/.
 src/profiling/memory/test/data/.
 src/traced/probes/filesystem/testdata/.
 src/traced/probes/ftrace/test/data/.

@@ -142,6 +142,10 @@ class EventConfig {
   bool sample_callstacks() const { return user_frames() || kernel_frames_; }
   bool user_frames() const { return IsUserFramesEnabled(unwind_mode_); }
   bool kernel_frames() const { return kernel_frames_; }
+  bool kernel_unwinds_user_frames() const {
+    return unwind_mode_ ==
+           protos::gen::PerfEventConfig::UNWIND_KERNEL_FRAME_POINTER;
+  }
   // clang-format on
 
  private:

@@ -15,10 +15,11 @@
 
 INCLUDE PERFETTO MODULE counters.intervals;
 
+INCLUDE PERFETTO MODULE intervals.fill_gaps;
+
 -- Device charging states.
-CREATE PERFETTO TABLE android_charging_states (
-  -- Alias of counter.id if a slice with charging state exists otherwise
-  -- there will be a single row where id = 1.
+CREATE PERFETTO TABLE android_charging_states(
+  -- A unique id for each row.
   id LONG,
   -- Timestamp at which the device charging state began.
   ts TIMESTAMP,
@@ -30,67 +31,50 @@ CREATE PERFETTO TABLE android_charging_states (
   -- (when the charger is present but battery is not charging),
   -- Full, Unknown
   charging_state STRING
-) AS
+)
+AS
 -- Either the first statement is populated or the select statement after the
 -- union is populated but not both.
 WITH
   _counter AS (
-    SELECT
-      counter.id,
-      ts,
-      0 AS track_id,
-      value
+    SELECT counter.id, ts, 0 AS track_id, value
     FROM counter
     JOIN counter_track
       ON counter_track.id = counter.track_id
     WHERE
       counter_track.name = 'BatteryStatus'
+  ),
+  _intervals AS (
+    SELECT
+      id,
+      ts,
+      dur,
+      CASE value
+        WHEN 2 THEN 'charging'
+        WHEN 3 THEN 'discharging'
+        WHEN 4 THEN 'not_charging'
+        WHEN 5 THEN 'full'
+      END AS short_charging_state,
+      CASE value
+        -- 0 and 1 are both 'Unknown'
+        WHEN 2 THEN 'Charging'
+        WHEN 3 THEN 'Discharging'
+        -- special case when charger is present but battery isn't charging
+        WHEN 4 THEN 'Not charging'
+        WHEN 5 THEN 'Full'
+      END AS charging_state
+    FROM counter_leading_intervals!(_counter)
+    WHERE
+      dur > 0
   )
+-- When the trace does not have a slice in the charging state track or when
+-- the charging state value is not a valid enum value, assume the charging
+-- state for the entire trace is unknown. The use of _intervals_fill_gaps
+-- ensures we still have data for the entirety of the trace.
 SELECT
-  id,
+  ROW_NUMBER() OVER () AS id,
   ts,
   dur,
-  CASE value
-    WHEN 2
-    THEN 'charging'
-    WHEN 3
-    THEN 'discharging'
-    WHEN 4
-    THEN 'not_charging'
-    WHEN 5
-    THEN 'full'
-    ELSE 'unknown'
-  END AS short_charging_state,
-  CASE value
-    -- 0 and 1 are both 'Unknown'
-    WHEN 2
-    THEN 'Charging'
-    WHEN 3
-    THEN 'Discharging'
-    -- special case when charger is present but battery isn't charging
-    WHEN 4
-    THEN 'Not charging'
-    WHEN 5
-    THEN 'Full'
-    ELSE 'Unknown'
-  END AS charging_state
-FROM counter_leading_intervals !(_counter)
-WHERE
-  dur > 0
-UNION
--- When the trace does not have a slice in the charging state track then
--- we will assume that the charging state for the entire trace is Unknown.
--- This ensures that we still have job data even if the charging state is
--- not known. The following statement will only ever return a single row.
-SELECT
-  1,
-  trace_start(),
-  trace_dur(),
-  'unknown',
-  'Unknown'
-WHERE
-  NOT EXISTS(
-    SELECT
-      *
-    FROM _counter
-  ) AND trace_dur() > 0;
+  COALESCE(short_charging_state, 'unknown') AS short_charging_state,
+  COALESCE(charging_state, 'Unknown') AS charging_state
+FROM _intervals_fill_gaps!((NULL), (short_charging_state, charging_state), _intervals);

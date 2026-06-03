@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackNode} from '../../public/workspace';
-import {App} from '../../public/app';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Track} from '../../public/track';
+import type {TrackNode} from '../../public/workspace';
+import type {App} from '../../public/app';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Track} from '../../public/track';
 import {z} from 'zod';
 import {assertIsInstance} from '../../base/assert';
-import {RouteArg, RouteArgs} from '../../public/route_schema';
+import type {RouteArg, RouteArgs} from '../../public/route_schema';
 import {arrayEquals} from '../../base/array_utils';
 
 const PLUGIN_ID = 'dev.perfetto.AutoPinAndExpandTracks';

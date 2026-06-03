@@ -19,6 +19,8 @@ INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- Get estimates per unique configuration, establishing the 1-to-1 map from CPU
 -- configuration to the config_hash
 CREATE PERFETTO TABLE _unique_estimates_mw AS
@@ -33,12 +35,57 @@ SELECT
   coalesce(base.cpu6_curve, lut6.curve_value) AS cpu6_mw,
   coalesce(base.cpu7_curve, lut7.curve_value) AS cpu7_mw,
   iif(
-    no_static = 1,
-    0.0,
-    iif(0 IN _device_policies, coalesce(lut0.static, 0), 0) + iif(1 IN _device_policies, coalesce(lut1.static, 0), 0) + iif(2 IN _device_policies, coalesce(lut2.static, 0), 0) + iif(3 IN _device_policies, coalesce(lut3.static, 0), 0) + iif(4 IN _device_policies, coalesce(lut4.static, 0), 0) + iif(5 IN _device_policies, coalesce(lut5.static, 0), 0) + iif(6 IN _device_policies, coalesce(lut6.static, 0), 0) + iif(7 IN _device_policies, coalesce(lut7.static, 0), 0) + static_1d
-  ) AS static_mw,
+    0 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 0),
+    coalesce(lut0.static, 0),
+    0
+  )
+  + iif(
+    1 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 1),
+    coalesce(lut1.static, 0),
+    0
+  )
+  + iif(
+    2 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 2),
+    coalesce(lut2.static, 0),
+    0
+  )
+  + iif(
+    3 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 3),
+    coalesce(lut3.static, 0),
+    0
+  )
+  + iif(
+    4 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 4),
+    coalesce(lut4.static, 0),
+    0
+  )
+  + iif(
+    5 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 5),
+    coalesce(lut5.static, 0),
+    0
+  )
+  + iif(
+    6 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 6),
+    coalesce(lut6.static, 0),
+    0
+  )
+  + iif(
+    7 IN _device_policies
+    AND _extract_bit!(policy_cpus_on_mask, 7),
+    coalesce(lut7.static, 0),
+    0
+  )
+  + static_1d AS static_mw,
   l3_lut.l3_hit,
-  l3_lut.l3_miss
+  l3_lut.l3_miss,
+  iif(base.suspended, 0, interconnect_lut.curve_value) AS interconnect_mw
 FROM _w_dependent_cpus_unique AS base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d AS lut0
@@ -84,7 +131,12 @@ LEFT JOIN _filtered_curves_2d AS lut7
 LEFT JOIN _filtered_curves_l3 AS l3_lut
   ON l3_lut.freq_khz = base.freq_0
   AND l3_lut.dep_policy = base.dep_policy_0
-  AND l3_lut.dep_freq = base.dep_freq_0;
+  AND l3_lut.dep_freq = base.dep_freq_0
+LEFT JOIN _filtered_curves_interconnect AS interconnect_lut
+  ON interconnect_lut.freq_khz = base.freq_0
+  AND interconnect_lut.dep_policy = base.dep_policy_0
+  AND interconnect_lut.dep_freq = base.dep_freq_0
+  AND interconnect_lut.policy = 0;
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
@@ -92,19 +144,25 @@ CREATE PERFETTO TABLE _cpu_estimates_mw AS
 SELECT
   slices.ts,
   slices.dur,
-  base.cpu0_mw,
-  base.cpu1_mw,
-  base.cpu2_mw,
-  base.cpu3_mw,
-  base.cpu4_mw,
-  base.cpu5_mw,
-  base.cpu6_mw,
-  base.cpu7_mw,
-  base.static_mw + (
-    coalesce(slices.l3_hit_count * base.l3_hit, 0) + coalesce(slices.l3_miss_count * base.l3_miss, 0)
-  ) * 1000 / slices.dur AS dsu_scu_mw
+  iif(slices.suspended = 1, 0, base.cpu0_mw) AS cpu0_mw,
+  iif(slices.suspended = 1, 0, base.cpu1_mw) AS cpu1_mw,
+  iif(slices.suspended = 1, 0, base.cpu2_mw) AS cpu2_mw,
+  iif(slices.suspended = 1, 0, base.cpu3_mw) AS cpu3_mw,
+  iif(slices.suspended = 1, 0, base.cpu4_mw) AS cpu4_mw,
+  iif(slices.suspended = 1, 0, base.cpu5_mw) AS cpu5_mw,
+  iif(slices.suspended = 1, 0, base.cpu6_mw) AS cpu6_mw,
+  iif(slices.suspended = 1, 0, base.cpu7_mw) AS cpu7_mw,
+  iif(
+    slices.suspended = 1,
+    0,
+    base.static_mw
+    + (coalesce(slices.l3_hit_count * base.l3_hit, 0)
+    + coalesce(slices.l3_miss_count * base.l3_miss, 0))
+    * 1000
+    / slices.dur
+    + coalesce(base.interconnect_mw, 0)
+  ) AS dsu_scu_mw
 FROM _w_independent_cpus_calc AS slices
-JOIN _unique_estimates_mw AS base
-  USING (config_hash)
+JOIN _unique_estimates_mw AS base USING (config_hash)
 WHERE
   slices.dur > 0;

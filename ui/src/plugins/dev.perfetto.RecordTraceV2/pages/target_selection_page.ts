@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {RecordingTarget} from '../interfaces/recording_target';
+import type {RecordingTarget} from '../interfaces/recording_target';
 import {TARGET_PLATFORMS} from '../interfaces/target_platform';
-import {RecordingTargetProvider} from '../interfaces/recording_target_provider';
+import type {RecordingTargetProvider} from '../interfaces/recording_target_provider';
 import {Icon} from '../../../widgets/icon';
 import {Button, ButtonBar, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
@@ -23,10 +23,16 @@ import {getOrCreate} from '../../../base/utils';
 import {PreflightCheckRenderer} from './preflight_check_renderer';
 import {Select} from '../../../widgets/select';
 import {DisposableStack} from '../../../base/disposable_stack';
-import {CurrentTracingSession, RecordingManager} from '../recording_manager';
+import type {
+  CurrentTracingSession,
+  RecordingManager,
+} from '../recording_manager';
 import {download} from '../../../base/download_utils';
-import {RecordSubpage} from '../config/config_interfaces';
-import {RecordPluginSchema, SavedSessionSchema} from '../serialization_schema';
+import type {RecordSubpage} from '../config/config_interfaces';
+import type {
+  RecordPluginSchema,
+  SavedSessionSchema,
+} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
 import {linkify} from '../../../widgets/anchor';
 import {getPresetsForPlatform} from '../presets';

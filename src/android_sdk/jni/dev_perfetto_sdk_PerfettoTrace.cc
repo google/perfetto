@@ -38,11 +38,13 @@ inline static jlong toJLong(T* ptr) {
   return static_cast<jlong>(reinterpret_cast<uintptr_t>(ptr));
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid() {
+static jlong dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid(
+    PERFETTO_JNI_HOST_PARAMS) {
   return sdk_for_jni::get_process_track_uuid();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid(jlong tid) {
+static jlong dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong tid) {
   return sdk_for_jni::get_thread_track_uuid(tid);
 }
 
@@ -75,21 +77,25 @@ static jlong dev_perfetto_sdk_PerfettoTraceCategory_init(JNIEnv* env,
   return toJLong(new sdk_for_jni::Category(name_c_str, tags_c_strs));
 }
 
-static jlong dev_perfetto_sdk_PerfettoTraceCategory_delete() {
+static jlong dev_perfetto_sdk_PerfettoTraceCategory_delete(
+    PERFETTO_JNI_HOST_PARAMS) {
   return toJLong(&sdk_for_jni::Category::delete_category);
 }
 
-static void dev_perfetto_sdk_PerfettoTraceCategory_register(jlong ptr) {
+static void dev_perfetto_sdk_PerfettoTraceCategory_register(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
   auto* category = toPointer<sdk_for_jni::Category>(ptr);
   category->register_category();
 }
 
-static void dev_perfetto_sdk_PerfettoTraceCategory_unregister(jlong ptr) {
+static void dev_perfetto_sdk_PerfettoTraceCategory_unregister(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
   auto* category = toPointer<sdk_for_jni::Category>(ptr);
   category->unregister_category();
 }
 
-static jboolean dev_perfetto_sdk_PerfettoTraceCategory_is_enabled(jlong ptr) {
+static jboolean dev_perfetto_sdk_PerfettoTraceCategory_is_enabled(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
   auto* category = toPointer<sdk_for_jni::Category>(ptr);
   return category->is_category_enabled();
 }

@@ -974,7 +974,7 @@ void SharedMemoryArbiterImpl::ScrapeEmulatedSharedMemoryBuffer(
     if (writer == buffer_for_writers.end())
       return;
     BufferID target_buffer_id = writer->second;
-    auto* ctm = commit_data_req_->add_chunks_to_move();
+    auto* ctm = commit_req.add_chunks_to_move();
     auto page_and_chunk = shmem_abi_.GetPageAndChunkIndex(*chunk);
     ctm->set_page(static_cast<uint32_t>(page_and_chunk.first));
     ctm->set_chunk(static_cast<uint32_t>(page_and_chunk.second));

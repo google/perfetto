@@ -27,12 +27,7 @@ INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Get slices only where there is transition from deep idle to active
 CREATE PERFETTO TABLE _idle_exits AS
-SELECT
-  ts,
-  dur,
-  cpu,
-  idle,
-  _auto_id AS group_id
+SELECT ts, dur, cpu, idle, _auto_id AS group_id
 FROM _adjusted_deep_idle
 WHERE
   idle = -1;
@@ -52,12 +47,9 @@ SELECT
   process.name AS process_name,
   package.package_name
 FROM thread
-JOIN sched
-  USING (utid)
-LEFT JOIN process
-  USING (upid)
-LEFT JOIN android_process_metadata AS package
-  USING (upid)
+JOIN sched USING (utid)
+LEFT JOIN process USING (upid)
+LEFT JOIN android_process_metadata AS package USING (upid)
 WHERE
   -- Some slices have -1 duration when there is no end (e.g. slices at the end
   -- of a trace), so need this check to exclude negative dur slices.
@@ -68,33 +60,17 @@ WHERE
 CREATE PERFETTO VIEW _hard_irq_flattened_slices AS
 WITH
   root_slices AS (
-    SELECT
-      id,
-      ts,
-      dur
-    FROM linux_hard_irqs
-    WHERE
-      parent_id IS NULL
+    SELECT id, ts, dur FROM linux_hard_irqs WHERE parent_id IS NULL
   ),
   child_slices AS (
-    SELECT
-      anc.id AS root_id,
-      irq.id,
-      irq.parent_id,
-      irq.ts,
-      irq.dur
+    SELECT anc.id AS root_id, irq.id, irq.parent_id, irq.ts, irq.dur
     FROM linux_hard_irqs AS irq, ancestor_slice(irq.id) AS anc
     WHERE
       irq.parent_id IS NOT NULL
   )
-SELECT
-  intervals.ts,
-  intervals.dur,
-  slices.name AS hard_irq_name,
-  cpu_track.cpu
+SELECT intervals.ts, intervals.dur, slices.name AS hard_irq_name, cpu_track.cpu
 FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices)) AS intervals
-JOIN slices
-  USING (id)
+JOIN slices USING (id)
 JOIN cpu_track
   ON cpu_track.id = slices.track_id;
 
@@ -107,12 +83,11 @@ SELECT
   slices.name AS soft_irq_name,
   cpu_track.cpu
 FROM linux_soft_irqs
-JOIN slices
-  USING (id)
+JOIN slices USING (id)
 JOIN cpu_track
   ON cpu_track.id = slices.track_id;
 
-CREATE VIRTUAL TABLE _all_irqs_combined_slices USING SPAN_OUTER_JOIN (
+CREATE VIRTUAL TABLE _all_irqs_combined_slices USING SPAN_OUTER_JOIN(
   _soft_irq_slices PARTITIONED cpu,
   _hard_irq_flattened_slices PARTITIONED cpu
 );
@@ -133,7 +108,7 @@ FROM _all_irqs_combined_slices;
 
 -- SPAN_OUTER_JOIN needed because IRQ table do not have contiguous slices,
 -- whereas tasks table will be contiguous
-CREATE VIRTUAL TABLE _irq_w_tasks_info USING SPAN_OUTER_JOIN (
+CREATE VIRTUAL TABLE _irq_w_tasks_info USING SPAN_OUTER_JOIN(
   _task_wo_irq_infos PARTITIONED cpu,
   _all_irqs_flattened_slices PARTITIONED cpu
 );
@@ -153,7 +128,7 @@ SELECT
   coalesce(irq_name, thread_name) AS thread_name,
   coalesce(irq_name, process_name) AS process_name,
   coalesce(irq_name, package_name) AS package_name,
-  NOT irq_id IS NULL AS is_irq
+  NOT (irq_id IS NULL) AS is_irq
 FROM _irq_w_tasks_info;
 
 -- Associate idle states, and specifically the active state, with tasks
@@ -182,7 +157,10 @@ FROM _interval_intersect!(
 JOIN _all_tasks_flattened_slices AS tasks
   ON tasks._auto_id = id_0;
 
-CREATE PERFETTO INDEX _active_state_w_tasks_group ON _active_state_w_tasks(idle_group, ts);
+CREATE PERFETTO INDEX _active_state_w_tasks_group ON _active_state_w_tasks(
+  idle_group,
+  ts
+);
 
 -- Find the task responsible for causing the idle exit, and remove all tasks
 -- before it (effectively only IRQs and swappers). This logic creates a table
@@ -196,19 +174,19 @@ WITH
       -- If there are non-IRQs in this idle_group, select the first non-IRQ
       -- task as the first row. Otherwise, select the first IRQ as the first
       -- row.
-      row_number() OVER (PARTITION BY idle_group ORDER BY (
-        CASE WHEN NOT is_irq AND utid > 0 THEN 0 ELSE 1 END
-      ), ts) AS rn
+      row_number() OVER (
+        PARTITION BY
+          idle_group
+        ORDER BY (CASE WHEN NOT is_irq AND utid > 0 THEN 0 ELSE 1 END), ts
+      ) AS rn
     FROM _active_state_w_tasks
   )
-SELECT
-  ts AS boundary_ts,
-  idle_group
-FROM exit_causer
-WHERE
-  rn = 1;
+SELECT ts AS boundary_ts, idle_group FROM exit_causer WHERE rn = 1;
 
-CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(idle_group, boundary_ts);
+CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(
+  idle_group,
+  boundary_ts
+);
 
 --- Recreate all known tasks in the context of power estimation, meaning that
 --- tasks (usually IRQs) that do not contribute to power attribution are removed
@@ -218,20 +196,14 @@ CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(idl
 CREATE PERFETTO TABLE _wattson_task_slices AS
 WITH
   base_tasks AS (
-    SELECT
-      t.*
+    SELECT t.*
     FROM _active_state_w_tasks AS t
-    JOIN _task_causing_idle_exit AS exit
-      USING (idle_group)
+    JOIN _task_causing_idle_exit AS exit USING (idle_group)
     WHERE
       t.ts >= exit.boundary_ts
   ),
   activity_islands AS (
-    SELECT
-      cpu,
-      idle_group,
-      min(ts) AS island_start,
-      max(ts + dur) AS island_end
+    SELECT cpu, idle_group, min(ts) AS island_start, max(ts + dur) AS island_end
     FROM base_tasks
     GROUP BY
       cpu,
@@ -240,7 +212,8 @@ WITH
   swapper_gaps AS (
     SELECT
       island_end AS ts,
-      lead(island_start) OVER (PARTITION BY cpu ORDER BY island_start) - island_end AS dur,
+      lead(island_start) OVER (PARTITION BY cpu ORDER BY island_start)
+      - island_end AS dur,
       cpu
     FROM activity_islands
   )

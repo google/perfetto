@@ -17,18 +17,16 @@
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- GPU power state which is analogous to CPU idle state
-CREATE PERFETTO TABLE android_mali_gpu_power_state (
+CREATE PERFETTO TABLE android_mali_gpu_power_state(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
   dur DURATION,
   -- GPU power state
   power_state LONG
-) AS
-SELECT
-  ts,
-  dur,
-  cast_int!(value) AS power_state
+)
+AS
+SELECT ts, dur, cast_int!(value) AS power_state
 FROM counter_leading_intervals!((
     SELECT c.*
     FROM counter c

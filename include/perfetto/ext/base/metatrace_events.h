@@ -70,7 +70,15 @@ enum Tags : uint32_t {
   F(PROFILER_UNWIND_ATTEMPT), \
   F(PROFILER_MAPS_PARSE), \
   F(PROFILER_MAPS_REPARSE), \
-  F(PROFILER_UNWIND_CACHE_CLEAR)
+  F(PROFILER_UNWIND_CACHE_CLEAR), \
+  F(ANDROID_CPU_PER_UID_TICK), \
+  F(ANDROID_KERNEL_WAKELOCKS_TICK), \
+  F(ANDROID_POWER_TICK), \
+  F(ANDROID_POWER_WRITE_BATTERY_COUNTERS), \
+  F(ANDROID_POWER_WRITE_ENERGY_ESTIMATION_BREAKDOWN), \
+  F(ANDROID_POWER_WRITE_ENTITY_STATE_RESIDENCY), \
+  F(ANDROID_POWER_WRITE_POWER_RAILS_DATA), \
+  F(LINUX_POWER_SYSFS_TICK)
 
 // Append only, see above.
 //
@@ -78,6 +86,13 @@ enum Tags : uint32_t {
 // * FTRACE_SERVICE_COMMIT_DATA is a bit-packed representation of an event, see
 //   tracing_service_impl.cc for the format.
 // * PROFILER_UNWIND_CURRENT_PID represents the PID that is being unwound.
+// * WATCHDOG_CRASH_REASON represents the base::WatchdogCrashReason enum.
+// * WATCHDOG_CRASH_TIME_BOOT_MS The time in ms since boot when the watchdog
+//   timeout alarm triggered (i.e. when it would have caused a crash, without
+//   counting for the optional handler time).
+// * WATCHDOG_CRASH_ACTUAL_{MONO,BOOT,CPU} are the elapsed seconds (since the
+//   offending fatal timer was created) sampled from CLOCK_MONOTONIC,
+//   CLOCK_BOOTTIME and CLOCK_PROCESS_CPUTIME_ID respectively.
 //
 #define PERFETTO_METATRACE_COUNTERS(F) \
   F(COUNTER_ZERO_UNUSED),\
@@ -85,7 +100,13 @@ enum Tags : uint32_t {
   F(PS_PIDS_SCANNED), \
   F(TRACE_SERVICE_COMMIT_DATA), \
   F(PROFILER_UNWIND_QUEUE_SZ), \
-  F(PROFILER_UNWIND_CURRENT_PID)
+  F(PROFILER_UNWIND_CURRENT_PID), \
+  F(WATCHDOG_CRASH_REASON), \
+  F(WATCHDOG_CRASH_TIME_BOOT_MS), \
+  F(WATCHDOG_CRASH_ACTUAL_MONO), \
+  F(WATCHDOG_CRASH_ACTUAL_BOOT), \
+  F(WATCHDOG_CRASH_ACTUAL_CPU), \
+  F(FTRACE_SESSIONS)
 
 // clang-format on
 

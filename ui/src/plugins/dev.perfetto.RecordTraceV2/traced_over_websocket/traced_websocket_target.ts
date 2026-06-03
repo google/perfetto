@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {errResult, okResult, Result} from '../../../base/result';
-import {RecordingTarget} from '../interfaces/recording_target';
-import {PreflightCheck} from '../interfaces/connection_check';
+import {errResult, okResult, type Result} from '../../../base/result';
+import type {RecordingTarget} from '../interfaces/recording_target';
+import type {PreflightCheck} from '../interfaces/connection_check';
 import {AsyncWebsocket} from '../websocket/async_websocket';
 import {websocketInstructions} from '../websocket/websocket_utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
@@ -114,11 +114,10 @@ export class TracedWebsocketTarget implements RecordingTarget {
   async startTracing(
     traceConfig: protos.ITraceConfig,
   ): Promise<Result<ConsumerIpcTracingSession>> {
-    const ipcStatus = await this.createConsumerIpcChannel();
-    if (!ipcStatus.ok) return ipcStatus;
-    const consumerIpc = ipcStatus.value;
-    const session = new ConsumerIpcTracingSession(consumerIpc, traceConfig);
-    return okResult(session);
+    return ConsumerIpcTracingSession.create({
+      ipcFactory: () => this.createConsumerIpcChannel(),
+      traceConfig,
+    });
   }
 
   private async createConsumerIpcChannel(): Promise<Result<TracingProtocol>> {

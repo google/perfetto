@@ -14,12 +14,14 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE intervals.fill_gaps;
+
 -- Table of suspended and awake slices.
 --
 -- Selects either the minimal or full ftrace source depending on what's
 -- available, marks suspended periods, and complements them to give awake
 -- periods.
-CREATE PERFETTO TABLE android_suspend_state (
+CREATE PERFETTO TABLE android_suspend_state(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
@@ -28,13 +30,19 @@ CREATE PERFETTO TABLE android_suspend_state (
   power_state STRING,
   -- Machine identifier for multi-device traces
   machine_id JOINID(machine.id)
-) AS
+)
+AS
 WITH
   suspend_slice_from_minimal AS (
     SELECT
       ts,
       dur,
-      coalesce(lead(ts) OVER (PARTITION BY t.machine_id ORDER BY ts), trace_end()) - ts - dur AS duration_gap,
+      coalesce(
+        lead(ts) OVER (PARTITION BY t.machine_id ORDER BY ts),
+        trace_end()
+      )
+      - ts
+      - dur AS duration_gap,
       t.machine_id
     FROM track AS t
     JOIN slice AS s
@@ -46,113 +54,55 @@ WITH
     SELECT
       ts,
       dur,
-      coalesce(lead(ts) OVER (PARTITION BY track.machine_id ORDER BY ts), trace_end()) - ts - dur AS duration_gap,
+      coalesce(
+        lead(ts) OVER (PARTITION BY track.machine_id ORDER BY ts),
+        trace_end()
+      )
+      - ts
+      - dur AS duration_gap,
       track.machine_id
     FROM slice
     JOIN track
       ON slice.track_id = track.id
     WHERE
       track.name = 'Suspend/Resume Latency'
-      AND (
-        slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)'
-      )
+      AND (slice.name = 'syscore_resume(0)'
+      OR slice.name = 'timekeeping_freeze(0)')
       AND dur != -1
-      AND NOT EXISTS(
-        SELECT
-          *
+      AND NOT EXISTS (
+        SELECT *
         FROM suspend_slice_from_minimal
         WHERE
           suspend_slice_from_minimal.machine_id = track.machine_id
       )
   ),
   suspend_slice_pre_filter AS (
-    SELECT
-      ts,
-      dur,
-      duration_gap,
-      machine_id
-    FROM suspend_slice_from_minimal
+    SELECT ts, dur, duration_gap, machine_id FROM suspend_slice_from_minimal
     UNION ALL
-    SELECT
-      ts,
-      dur,
-      duration_gap,
-      machine_id
-    FROM suspend_slice_latency
+    SELECT ts, dur, duration_gap, machine_id FROM suspend_slice_latency
   ),
   suspend_slice AS (
     -- Filter out all the slices that overlapped with the following slices.
     -- This happens with data loss where we lose start and end slices for suspends.
-    SELECT
-      ts,
-      dur,
-      machine_id
+    SELECT ts, dur, machine_id, 'suspended' AS power_state
     FROM suspend_slice_pre_filter
     WHERE
       duration_gap >= 0
-  ),
-  awake_slice AS (
-    -- For machines without any suspend slices, use the trace bounds.
-    SELECT
-      trace_start() AS ts,
-      trace_dur() AS dur,
-      m.id AS machine_id
-    FROM machine AS m
-    WHERE
-      trace_dur() > 0
-      AND NOT EXISTS(
-        SELECT
-          1
-        FROM suspend_slice AS s
-        WHERE
-          s.machine_id = m.id
-      )
-      -- Only use the trace_bounds state for the primary machine: this is
-      -- because we know from the trace starting and ending at all that
-      -- the device was awake. However, for other machines, we don't actually
-      -- know the suspend state as it's very possible they were just asleep
-      -- throughout the trace.
-      AND m.id = 0
     UNION ALL
-    -- For machines with suspend slices, create one slice from the trace start
-    -- to the first suspend.
-    SELECT
-      trace_start() AS ts,
-      (
-        SELECT
-          min(s2.ts)
-        FROM suspend_slice AS s2
-        WHERE
-          s2.machine_id = s.machine_id
-      ) - trace_start() AS dur,
-      s.machine_id
-    FROM (
-      SELECT DISTINCT
-        machine_id
-      FROM suspend_slice
-    ) AS s
-    UNION ALL
-    -- And then one slice for each suspend, from the end of the suspend to the
-    -- start of the next one (or the end of the trace if there is no next one).
-    SELECT
-      ts + dur AS ts,
-      coalesce(lead(ts) OVER (PARTITION BY machine_id ORDER BY ts), trace_end()) - ts - dur AS dur,
-      machine_id
-    FROM suspend_slice
+    -- This guarantees that if machine 0 has no suspend slices in the trace,
+    -- that _intervals_fill_gaps will add an awake slice for the trace bounds.
+    -- This only works for the primary machine because we know from the trace
+    -- starting and ending at all that the device was awake. However, for other
+    -- machines, we don't actually know the suspend state as it's very possible
+    -- they were just asleep throughout the trace.
+    SELECT NULL, NULL, 0, NULL
   )
 SELECT
   ts,
   dur,
-  'awake' AS power_state,
-  machine_id
-FROM awake_slice
-UNION ALL
-SELECT
-  ts,
-  dur,
-  'suspended' AS power_state,
-  machine_id
-FROM suspend_slice
+  COALESCE(machine_id, 0) AS machine_id,
+  COALESCE(power_state, 'awake') AS power_state
+FROM _intervals_fill_gaps!((machine_id), (power_state), suspend_slice)
 ORDER BY
   ts;
 
@@ -162,11 +112,11 @@ ORDER BY
 -- This is the same as converting an event duration from wall clock to monotonic clock.
 -- If there was no CPU suspend, the result is same as |dur|.
 CREATE PERFETTO FUNCTION _extract_duration_without_suspend(
-    -- Timestamp of event.
-    ts TIMESTAMP,
-    -- Duration of event.
-    dur DURATION
+  -- Timestamp of event.
+  ts TIMESTAMP,
+  -- Duration of event.
+  dur DURATION
 )
-RETURNS LONG AS
-SELECT
-  to_monotonic($ts + $dur) - to_monotonic($ts);
+RETURNS LONG
+AS
+SELECT to_monotonic($ts + $dur) - to_monotonic($ts);

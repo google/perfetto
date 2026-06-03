@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../protos';
+import type protos from '../../../protos';
 import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
-import {ProbesSchema} from '../serialization_schema';
-import {TargetPlatformId} from '../interfaces/target_platform';
-import {RecordProbe, supportsPlatform} from './config_interfaces';
+import type {ProbesSchema} from '../serialization_schema';
+import type {TargetPlatformId} from '../interfaces/target_platform';
+import {type RecordProbe, supportsPlatform} from './config_interfaces';
 import {DEFAULT_BUFFER_ID, TraceConfigBuilder} from './trace_config_builder';
 
 /**

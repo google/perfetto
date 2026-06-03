@@ -59,6 +59,41 @@ static_assert(sizeof(TrackEventDataDescriptor) == 8,
 static_assert(alignof(TrackEventDataDescriptor) == 8,
               "CompressedTracePacketData must be 8-aligned");
 
+struct alignas(8) TracePacketDataDescriptor {
+  static constexpr uint8_t kMaxOffsetFromInternedBlobBits = 25;
+  static constexpr uint32_t kMaxOffsetFromInternedBlob =
+      (1Ul << kMaxOffsetFromInternedBlobBits) - 1;
+
+  uint16_t intern_blob_index;
+  uint16_t intern_seq_index;
+  uint32_t intern_blob_offset : kMaxOffsetFromInternedBlobBits;
+};
+static_assert(sizeof(TracePacketDataDescriptor) == 8,
+              "TracePacketDataDescriptor must be small");
+static_assert(alignof(TracePacketDataDescriptor) == 8,
+              "TracePacketDataDescriptor must be 8-aligned");
+
+struct alignas(8) FtraceDataDescriptor {
+  static constexpr uint8_t kMaxOffsetFromInternedBlobBits = 25;
+  static constexpr uint32_t kMaxOffsetFromInternedBlob =
+      (1Ul << kMaxOffsetFromInternedBlobBits) - 1;
+
+  uint16_t intern_blob_index;
+  uint16_t intern_seq_index;
+  uint32_t intern_blob_offset : kMaxOffsetFromInternedBlobBits;
+  uint32_t has_raw_ts : 1;
+};
+static_assert(sizeof(FtraceDataDescriptor) == 8,
+              "FtraceDataDescriptor must be small");
+static_assert(alignof(FtraceDataDescriptor) == 8,
+              "FtraceDataDescriptor must be 8-aligned");
+static_assert(FtraceDataDescriptor::kMaxOffsetFromInternedBlob ==
+                  TrackEventDataDescriptor::kMaxOffsetFromInternedBlob,
+              "Descriptors must agree on max blob offset");
+static_assert(TracePacketDataDescriptor::kMaxOffsetFromInternedBlob ==
+                  TrackEventDataDescriptor::kMaxOffsetFromInternedBlob,
+              "Descriptors must agree on max blob offset");
+
 template <typename T>
 T ExtractFromPtr(uint8_t** ptr) {
   T* typed_ptr = reinterpret_cast<T*>(*ptr);
@@ -84,7 +119,59 @@ uint32_t GetAllocSize(const TrackEventDataDescriptor& desc) {
   return alloc_size;
 }
 
+uint32_t GetAllocSize(const FtraceDataDescriptor& desc) {
+  uint32_t alloc_size = sizeof(FtraceDataDescriptor);
+  alloc_size += sizeof(uint64_t);
+  alloc_size += desc.has_raw_ts * sizeof(int64_t);
+  return alloc_size;
+}
+
+uint32_t GetAllocSize(const TracePacketDataDescriptor&) {
+  return sizeof(TracePacketDataDescriptor) + sizeof(uint64_t);
+}
+
 }  // namespace
+
+template <typename Desc>
+std::pair<BumpAllocator::AllocId, uint8_t*> TraceTokenBuffer::AppendCommon(
+    Desc& desc,
+    const TraceBlobView& packet,
+    RefPtr<PacketSequenceStateGeneration> sequence_state) {
+  BumpAllocator::AllocId alloc_id =
+      AllocAndResizeInternedVectors(GetAllocSize(desc));
+  InternedIndex interned_index = GetInternedIndex(alloc_id);
+
+  desc.intern_blob_offset = InternTraceBlob(interned_index, packet);
+  desc.intern_blob_index =
+      static_cast<uint16_t>(interned_blobs_.at(interned_index).size() - 1);
+  desc.intern_seq_index =
+      InternSeqState(interned_index, std::move(sequence_state));
+
+  uint8_t* ptr = static_cast<uint8_t*>(allocator_.GetPointer(alloc_id));
+  ptr = AppendToPtr(ptr, desc);
+  uint64_t packet_size = static_cast<uint64_t>(packet.size());
+  ptr = AppendToPtr(ptr, packet_size);
+  return {alloc_id, ptr};
+}
+
+template <typename Desc>
+std::pair<TracePacketData, uint8_t*> TraceTokenBuffer::ExtractCommon(
+    Id id,
+    Desc* out_desc) {
+  uint8_t* ptr = static_cast<uint8_t*>(allocator_.GetPointer(id.alloc_id));
+  *out_desc = ExtractFromPtr<Desc>(&ptr);
+  uint64_t packet_size = ExtractFromPtr<uint64_t>(&ptr);
+
+  InternedIndex interned_index = GetInternedIndex(id.alloc_id);
+  BlobWithOffset& bwo =
+      interned_blobs_.at(interned_index)[out_desc->intern_blob_index];
+  TraceBlobView tbv(RefPtr<TraceBlob>::FromReleasedUnsafe(bwo.blob),
+                    bwo.offset_in_blob + out_desc->intern_blob_offset,
+                    static_cast<uint32_t>(packet_size));
+  auto seq = RefPtr<PacketSequenceStateGeneration>::FromReleasedUnsafe(
+      interned_seqs_.at(interned_index)[out_desc->intern_seq_index]);
+  return {TracePacketData{std::move(tbv), std::move(seq)}, ptr};
+}
 
 TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData ted) {
   // TrackEventData (and TracePacketData) are two big contributors to the size
@@ -104,30 +191,10 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData ted) {
   desc.has_counter_value = std::not_equal_to<double>()(ted.counter_value, 0);
   desc.extra_counter_count = ted.CountExtraCounterValues();
 
-  // Allocate enough memory using the BumpAllocator to store the data in |ted|.
-  // Also figure out the interned index.
-  BumpAllocator::AllocId alloc_id =
-      AllocAndResizeInternedVectors(GetAllocSize(desc));
-  InternedIndex interned_index = GetInternedIndex(alloc_id);
-
-  // Compute the interning information for the TrackBlob and the SequenceState.
   TracePacketData& tpd = ted.trace_packet_data;
-  desc.intern_blob_offset = InternTraceBlob(interned_index, tpd.packet);
-  desc.intern_blob_index =
-      static_cast<uint16_t>(interned_blobs_.at(interned_index).size() - 1);
-  desc.intern_seq_index =
-      InternSeqState(interned_index, std::move(tpd.sequence_state));
+  auto [alloc_id, ptr] =
+      AppendCommon(desc, tpd.packet, std::move(tpd.sequence_state));
 
-  // Store the descriptor
-  uint8_t* ptr = static_cast<uint8_t*>(allocator_.GetPointer(alloc_id));
-  ptr = AppendToPtr(ptr, desc);
-
-  // Store the packet sizes.
-  uint64_t packet_size = static_cast<uint64_t>(tpd.packet.size());
-  ptr = AppendToPtr(ptr, packet_size);
-
-  // Add the "optional" fields of TrackEventData based on whether or not they
-  // are non-null.
   if (desc.has_thread_instruction_count) {
     ptr = AppendToPtr(ptr, ted.thread_instruction_count.value());
   }
@@ -143,23 +210,54 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData ted) {
   return Id{alloc_id};
 }
 
+TraceTokenBuffer::Id TraceTokenBuffer::Append(TracePacketData data) {
+  TracePacketDataDescriptor desc;
+  auto [alloc_id, ptr] =
+      AppendCommon(desc, data.packet, std::move(data.sequence_state));
+  base::ignore_result(ptr);
+  return Id{alloc_id};
+}
+
+TraceTokenBuffer::Id TraceTokenBuffer::Append(FtraceData data) {
+  FtraceDataDescriptor desc;
+  desc.has_raw_ts = data.raw_ts != FtraceData::kRawTsUnset;
+
+  auto [alloc_id, ptr] =
+      AppendCommon(desc, data.packet, std::move(data.sequence_state));
+
+  if (desc.has_raw_ts) {
+    ptr = AppendToPtr(ptr, data.raw_ts);
+  }
+  return Id{alloc_id};
+}
+
+template <>
+TracePacketData TraceTokenBuffer::Extract<TracePacketData>(Id id) {
+  TracePacketDataDescriptor desc;
+  auto [data, ptr] = ExtractCommon(id, &desc);
+  base::ignore_result(ptr);
+  allocator_.Free(id.alloc_id);
+  return std::move(data);
+}
+
+template <>
+FtraceData TraceTokenBuffer::Extract<FtraceData>(Id id) {
+  FtraceDataDescriptor desc;
+  auto [tpd, ptr] = ExtractCommon(id, &desc);
+  FtraceData data{std::move(tpd.packet), std::move(tpd.sequence_state),
+                  FtraceData::kRawTsUnset};
+  if (desc.has_raw_ts) {
+    data.raw_ts = ExtractFromPtr<int64_t>(&ptr);
+  }
+  allocator_.Free(id.alloc_id);
+  return data;
+}
+
 template <>
 TrackEventData TraceTokenBuffer::Extract<TrackEventData>(Id id) {
-  uint8_t* ptr = static_cast<uint8_t*>(allocator_.GetPointer(id.alloc_id));
-  TrackEventDataDescriptor desc =
-      ExtractFromPtr<TrackEventDataDescriptor>(&ptr);
-  uint64_t packet_size = ExtractFromPtr<uint64_t>(&ptr);
-
-  InternedIndex interned_index = GetInternedIndex(id.alloc_id);
-  BlobWithOffset& bwo =
-      interned_blobs_.at(interned_index)[desc.intern_blob_index];
-  TraceBlobView tbv(RefPtr<TraceBlob>::FromReleasedUnsafe(bwo.blob),
-                    bwo.offset_in_blob + desc.intern_blob_offset,
-                    static_cast<uint32_t>(packet_size));
-  auto seq = RefPtr<PacketSequenceStateGeneration>::FromReleasedUnsafe(
-      interned_seqs_.at(interned_index)[desc.intern_seq_index]);
-
-  TrackEventData ted{std::move(tbv), std::move(seq)};
+  TrackEventDataDescriptor desc;
+  auto [tpd, ptr] = ExtractCommon(id, &desc);
+  TrackEventData ted{std::move(tpd.packet), std::move(tpd.sequence_state)};
   if (desc.has_thread_instruction_count) {
     ted.thread_instruction_count = ExtractFromPtr<int64_t>(&ptr);
   }
@@ -209,7 +307,7 @@ uint32_t TraceTokenBuffer::InternTraceBlob(InternedIndex interned_index,
   // of this TraceBlob one higher than the number of RefPtrs pointing to it.
   // This allows avoid storing the same RefPtr n times.
   //
-  // Calls to this function are paired to Extract<TrackEventData> which picks
+  // Calls to this function are paired to the matching Extract<T> which picks
   // up this "leaked" pointer.
   TraceBlob* leaked = tbv.blob().ReleaseUnsafe();
   base::ignore_result(leaked);

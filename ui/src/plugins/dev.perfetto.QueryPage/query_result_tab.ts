@@ -14,15 +14,13 @@
 
 import m from 'mithril';
 import {
-  QueryResponse,
+  type QueryResponse,
   runQueryForQueryTable,
 } from '../../components/query_table/queries';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {Trace} from '../../public/trace';
-import {Tab} from '../../public/tab';
+import type {Trace} from '../../public/trace';
+import type {Tab} from '../../public/tab';
 import {DetailsShell} from '../../widgets/details_shell';
-import {ResultsData, ResultsTable} from './results_table';
+import {type ResultsData, ResultsTable} from './results_table';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -31,7 +29,6 @@ interface QueryResultTabConfig {
 
 export class QueryResultsTab implements Tab {
   private queryResponse?: QueryResponse;
-  private dataSource?: DataSource;
 
   constructor(
     private readonly trace: Trace,
@@ -47,10 +44,6 @@ export class QueryResultsTab implements Tab {
       this.trace.engine,
     );
     this.queryResponse = result;
-
-    if (result.error === undefined) {
-      this.dataSource = new InMemoryDataSource(this.queryResponse.rows);
-    }
   }
 
   getTitle(): string {
@@ -80,7 +73,6 @@ export class QueryResultsTab implements Tab {
           kind: 'success',
           columns: resp.columns,
           rows: resp.rows,
-          dataSource: this.dataSource!,
           rowCount: resp.totalRowCount,
           queryTimeMs: resp.durationMs,
           query: this.args.query,

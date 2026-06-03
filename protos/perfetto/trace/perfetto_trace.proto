@@ -63,6 +63,35 @@ message GpuCounterDescriptor {
     repeated MeasureUnit denominator_units = 8;
     optional bool select_by_default = 9;
     repeated GpuCounterGroup groups = 10;
+
+    // Direction of the time interval that each emitted sample applies to.
+    // A GPU counter is sampled at discrete timestamps, but its value really
+    // represents a measurement over some interval around that timestamp
+    // (e.g. average GPU utilization over the sampling window). This field
+    // tells trace processor on which side of the timestamp that interval
+    // lies, which controls where the value is drawn in the UI.
+    //
+    // Example: samples at t=10, 20, 30 with values 5, 7, 0.
+    //   BACKWARDS_LOOKING: 5 covers (-inf, 10], 7 covers (10, 20], 0 covers
+    //     (20, 30]; the UI draws 7 between t=10 and t=20.
+    //   FORWARDS_LOOKING:  5 covers [10, 20), 7 covers [20, 30), 0 covers
+    //     [30, +inf); the UI draws 5 between t=10 and t=20.
+    enum ValueDirection {
+      // Treated as BACKWARDS_LOOKING (the historical default).
+      VALUE_DIRECTION_UNSPECIFIED = 0;
+      // The value applies to the interval ending at this event's timestamp.
+      // This is the convention used by AGI and most existing GPU producers,
+      // where a sample reports what happened during the window leading up
+      // to the timestamp.
+      VALUE_DIRECTION_BACKWARDS_LOOKING = 1;
+      // The value applies to the interval starting at this event's
+      // timestamp, matching standard Perfetto counters. Producers that emit
+      // explicit zero samples to denote "no activity from here on" should
+      // use this so the zero is not back-propagated over earlier non-zero
+      // samples (https://github.com/google/perfetto/issues/5683).
+      VALUE_DIRECTION_FORWARDS_LOOKING = 2;
+    }
+    optional ValueDirection value_direction = 11;
   }
   repeated GpuCounterSpec specs = 1;
 
@@ -304,6 +333,15 @@ message VmOpMerge {
   // the deepest submessages first, then moving up to the parent
   // message and merging it with skip_submessages = true.
   optional bool skip_submessages = 1;
+
+  // When true, the merge operation will remove the dst field if the src field
+  // is empty.
+  //
+  // This can be used to replicate the removal of a subobject within the
+  // producer's state. E.g.
+  // This event on the producer side: mProducerState.mSubobject = nullptr
+  // can be represented by this patch: { producer_state { subobject {} }}
+  optional bool del_if_src_empty = 2;
 }
 
 // Copies SRC into DST. If a message, replaces the DST node, discarding any
@@ -409,6 +447,19 @@ message TracingServiceState {
     // Returns true if the process appears to be frozen (Android only).
     // Introduced in Perfetto V49 / Android 24Q4.
     optional bool frozen = 6;
+
+    // Identifies the machine this producer is connected from in multi-machine
+    // tracing setups (e.g. when going through traced_relay). Unset (or zero)
+    // means the producer is connected from the local/host machine where the
+    // tracing service is running.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional uint32 machine_id = 7;
+
+    // Human-readable name of the machine, as advertised by the relay (usually
+    // the value of PERFETTO_MACHINE_NAME on the remote, falling back to the
+    // remote's `uname -s`). Only set when machine_id is non-zero.
+    // Introduced in Perfetto V56 / Android 26Q3.
+    optional string machine_name = 8;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
@@ -605,7 +656,7 @@ message AndroidGameInterventionListConfig {
 //
 // NOTE: Input traces can only be taken on debuggable (userdebug/eng) builds!
 //
-// Next ID: 5
+// Next ID: 6
 message AndroidInputEventConfig {
   // Trace modes are tracing presets that are included in the system.
   enum TraceMode {
@@ -714,6 +765,10 @@ message AndroidInputEventConfig {
   // Trace details about which windows the system is sending each input event
   // to. All trace rules will apply.
   optional bool trace_dispatcher_window_dispatch = 4;
+
+  // Trace evdev events received from the kernel, including device additions and
+  // removals.
+  optional bool trace_evdev_events = 5;
 }
 
 // End of protos/perfetto/config/android/android_input_event_config.proto
@@ -1213,6 +1268,19 @@ message WindowManagerConfig {
     LOG_LEVEL_CRITICAL = 3;
   }
   optional LogLevel log_level = 2;
+
+  enum LogMode {
+    LOG_MODE_UNSPECIFIED = 0;
+
+    // Always logs a full state dump of the window hierarchy.
+    LOG_MODE_FULL_STATE = 1;
+
+    // Logs a full state dump of the window hierarchy only when tracing starts.
+    // The following trace packets are lightweight patches containing only the
+    // last changes.
+    LOG_MODE_INCREMENTAL = 2;
+  }
+  optional LogMode log_mode = 3;
 }
 
 // End of protos/perfetto/config/android/windowmanager_config.proto
@@ -1329,6 +1397,8 @@ message EtwConfig {
   repeated string file_provider_events = 4;
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
+  // Provides events relating to disk I/O.
+  repeated string disk_provider_events = 6;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -1901,6 +1971,26 @@ message InterceptorConfig {
 }
 
 // End of protos/perfetto/config/interceptor_config.proto
+
+// Begin of protos/perfetto/config/linux/journald_config.proto
+
+// Configuration for the "linux.systemd_journald" data source.
+// Next field id: 4
+message SystemdJournaldConfig {
+  // Minimum syslog priority level to capture (inclusive).
+  // 0=EMERG, 1=ALERT, 2=CRIT, 3=ERR, 4=WARNING, 5=NOTICE, 6=INFO, 7=DEBUG.
+  // Default (0 / unset): capture all priorities (equivalent to 7).
+  optional uint32 min_prio = 1;
+
+  // If non-empty, only capture journal entries whose SYSLOG_IDENTIFIER
+  // matches one of these strings.
+  repeated string filter_identifiers = 2;
+
+  // If non-empty, only capture journal entries from these systemd unit names.
+  repeated string filter_units = 3;
+}
+
+// End of protos/perfetto/config/linux/journald_config.proto
 
 // Begin of protos/perfetto/config/power/android_power_config.proto
 
@@ -2718,8 +2808,7 @@ message PerfEventConfig {
     optional uint32 process_shard_count = 6;
   }
 
-  // Userspace unwinding mode. A possible future addition is kernel-unwound
-  // callchains for frame pointer based systems.
+  // Userspace unwinding mode.
   enum UnwindMode {
     UNWIND_UNKNOWN = 0;
     // Do not unwind userspace:
@@ -2728,6 +2817,14 @@ message PerfEventConfig {
     UNWIND_DWARF = 2;
     // Use userspace frame pointer unwinder:
     UNWIND_FRAME_POINTER = 3;
+    // Ask the kernel to unwind the userspace stack via frame pointers, using
+    // PERF_SAMPLE_CALLCHAIN. The user stack bytes are not copied into the
+    // sample, which avoids the per-sample copy cost and the depth limit
+    // imposed by PERF_SAMPLE_STACK_USER. Requires that the userspace code
+    // (including system libraries) is built with frame pointers - the kernel
+    // walks the chain and returns instruction addresses, which still need to
+    // be symbolized offline using the recorded process mappings.
+    UNWIND_KERNEL_FRAME_POINTER = 4;
   }
 }
 
@@ -4297,7 +4394,11 @@ message SysStatsConfig {
 // - Values of
 // /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
 // datasource has no configuration options at present.
-message SystemInfoConfig {}
+message SystemInfoConfig {
+  // If true, records hardware interrupt ID-to-name mappings from
+  // /proc/interrupts.
+  optional bool irq_names = 1;
+}
 
 // End of protos/perfetto/config/system_info/system_info_config.proto
 
@@ -4684,6 +4785,9 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: linux.systemd_journald
+  optional SystemdJournaldConfig journald_config = 141 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -6572,6 +6676,9 @@ message FrameTimelineEvent {
       LATCHED_DELAYED_LATCH_UNSIGNALED = 3;
     }
     optional LatchedFenceState latched_fence_state = 19;
+
+    // animation time (ms) used when drawing this frame.
+    optional float animation_time_millis = 20;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -6653,17 +6760,6 @@ message FrameTimelineEvent {
 }
 
 // End of protos/perfetto/trace/android/frame_timeline_event.proto
-
-// Begin of protos/perfetto/trace/android/gpu_mem_event.proto
-
-// Generated by Android's GpuService.
-message GpuMemTotalEvent {
-  optional uint32 gpu_id = 1;
-  optional uint32 pid = 2;
-  optional uint64 size = 3;
-}
-
-// End of protos/perfetto/trace/android/gpu_mem_event.proto
 
 // Begin of protos/perfetto/trace/android/graphics_frame_event.proto
 
@@ -7818,7 +7914,7 @@ message AndroidUserList {
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
 message WinscopeExtensions {
-  extensions 1 to 7;
+  extensions 1 to 8;
 }
 
 // End of protos/perfetto/trace/android/winscope_extensions.proto
@@ -8686,12 +8782,37 @@ message FileIoOpEndEtwEvent {
   optional uint32 nt_status = 3;
 }
 
+// Proto definition based on the `FileIo_PathOperation` class definition.
+message FileIoPathOperationEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+  optional string file_name = 7;
+  optional uint32 opcode = 8;
+}
+
 // Proto definition based on the `StackWalk_Event` class definition. See
 // `Callstack` in `perfetto/protos/perfetto/trace/track_event/track_event.proto`
 // for context on what is contained in it.
 message StackWalkEtwEvent {
   optional string trigger = 1;
   optional uint64 callstack_iid = 2;
+}
+
+// Proto definition based on the `DiskIo_TypeGroup1/2/3` class definitions.
+message DiskIoEtwEvent {
+  optional uint32 disk_number = 1;
+  optional uint32 irp_flags = 2;
+  optional uint32 transfer_size = 3;
+  optional int64 byte_offset = 4;
+  optional uint64 file_object = 5;
+  optional uint64 irp_ptr = 6;
+  optional int64 response_time = 7;
+  optional uint32 issuing_thread_id = 8;
+  optional uint32 opcode = 9;
 }
 
 // End of protos/perfetto/trace/etw/etw.proto
@@ -8714,6 +8835,8 @@ message EtwTraceEvent {
     FileIoSimpleOpEtwEvent file_io_simple_op = 11;
     FileIoOpEndEtwEvent file_io_op_end = 12;
     StackWalkEtwEvent stack_walk = 13;
+    FileIoPathOperationEtwEvent file_io_path_operation = 14;
+    DiskIoEtwEvent disk_io = 15;
   }
 }
 
@@ -14338,6 +14461,19 @@ enum FtraceClock {
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
+// Begin of protos/perfetto/trace/generic_kernel/generic_gpu_frequency.proto
+
+// GenericGpuFrequencyEvent is the standard proto to capture GPU
+// frequency change events in a generic kernel implementation.
+message GenericGpuFrequencyEvent {
+  // GPU on which the frequency change occurred.
+  optional uint32 gpu_id = 1;
+  // Frequency (kHz) of the GPU.
+  optional uint32 frequency_khz = 2;
+}
+
+// End of protos/perfetto/trace/generic_kernel/generic_gpu_frequency.proto
+
 // Begin of protos/perfetto/trace/generic_kernel/generic_power.proto
 
 // GenericKernelCpuFrequencyEvent is the standard proto to capture CPU
@@ -14534,6 +14670,17 @@ message GpuLog {
 }
 
 // End of protos/perfetto/trace/gpu/gpu_log.proto
+
+// Begin of protos/perfetto/trace/gpu/gpu_mem_event.proto
+
+// Generated by Android's GpuService.
+message GpuMemTotalEvent {
+  optional uint32 gpu_id = 1;
+  optional uint32 pid = 2;
+  optional uint64 size = 3;
+}
+
+// End of protos/perfetto/trace/gpu/gpu_mem_event.proto
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
@@ -16564,6 +16711,58 @@ message AndroidJobName {
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
 
+// Begin of protos/perfetto/trace/linux/journald_event.proto
+
+// A journald log event packet, collected from the Linux systemd journal.
+// Emitted by the "linux.systemd_journald" data source in traced_probes.
+// Next field id: 13, statistics starting at 20
+message SystemdJournaldEvent {
+  // _PID: PID of the process that wrote the log entry (trusted).
+  optional uint32 pid = 1;
+
+  // _TID: thread ID of the logging thread (trusted, set by journald for
+  // native journal protocol entries). Absent for syslog, stdout-piped, and
+  // kernel entries.
+  optional uint32 tid = 2;
+
+  // _UID: user ID of the process (trusted).
+  optional uint32 uid = 3;
+
+  // _GID: group ID of the process (trusted).
+  optional uint32 gid = 4;
+
+  // PRIORITY: syslog priority level 0 (EMERG) .. 7 (DEBUG).
+  optional uint32 prio = 5;
+
+  // SYSLOG_IDENTIFIER: program name / tag, set by the logging application.
+  optional string tag = 6;
+
+  // MESSAGE: the human-readable log message text.
+  optional string message = 7;
+
+  // _COMM: short process name as known to the kernel (trusted).
+  optional string comm = 8;
+
+  // _EXE: full executable path (trusted).
+  optional string exe = 9;
+
+  // _SYSTEMD_UNIT: the systemd unit that owns this process (trusted).
+  optional string systemd_unit = 10;
+
+  // _HOSTNAME: hostname of the machine (trusted).
+  optional string hostname = 11;
+
+  // _TRANSPORT: how the entry was received by journald (trusted).
+  // Values: "audit", "driver", "syslog", "journal", "stdout", "kernel".
+  optional string transport = 12;
+
+  // These statistics emitted once on Flush()
+  optional uint64 num_total = 20;
+  optional uint64 num_failed = 21;
+}
+
+// End of protos/perfetto/trace/linux/journald_event.proto
+
 // Begin of protos/perfetto/trace/memory_graph.proto
 
 // Message definitions for app-reported memory breakdowns. At the moment, this
@@ -17006,6 +17205,19 @@ message PowerRails {
 
 // End of protos/perfetto/trace/power/power_rails.proto
 
+// Begin of protos/perfetto/trace/profiling/art_process_metadata.proto
+
+message ArtProcessMetadata {
+  optional int32 pid = 1;
+  optional int32 uid = 2;
+  // /proc/self/cmdline argv0
+  optional string process_name = 3;
+  // Set by VMRuntime.setProcessPackageName
+  optional string package_name = 4;
+}
+
+// End of protos/perfetto/trace/profiling/art_process_metadata.proto
+
 // Begin of protos/perfetto/trace/profiling/deobfuscation.proto
 
 message ObfuscatedMember {
@@ -17168,10 +17380,17 @@ message HeapGraphObject {
   optional uint32 bitmap_width_field = 13;
   // `android.graphics.Bitmap.mHeight`: Height in pixels
   optional uint32 bitmap_height_field = 14;
+
+  // ApplicationInfo field captures
+  // `android.content.pm.ApplicationInfo.longVersionCode`: Used to identify
+  // the dumped process version code (without the full package list)
+  optional int64 application_info_long_version_code_field = 15;
 }
 
+// Next id: 11
 message HeapGraph {
   optional int32 pid = 1;
+  optional int64 heap_bytes_allocated = 10;
 
   // This contains all objects at the time this dump was taken. Some of these
   // will be live, some of those unreachable (garbage). To find the live
@@ -17580,12 +17799,43 @@ message SmapsEntry {
   optional uint64 shared_clean_resident_kb = 13;
   optional uint64 locked_kb = 14;
   optional uint64 proportional_resident_kb = 15;
-};
+}
+
+// Structure-of-arrays style smaps packet of a single process. All packed
+// repeated fields, if set, must have the same length.
+message PackedSmaps {
+  repeated string string_table = 1;
+
+  // Interned file paths as an index into |string_table|.
+  // Note: the "(deleted)" suffix is kept as part of the string_table entry, and
+  // is to be handled during trace import stage.
+  // Written only if config.unaggregated == true. Otherwise the string_table is
+  // exactly the ordered names of the aggregated mappings.
+  repeated uint32 name_id = 2 [packed = true];
+
+  // How many mappings were merged by name, summing the values below.
+  // Written only if config.unaggregated == false.
+  repeated uint32 aggregate_count = 3 [packed = true];
+
+  repeated uint64 size_kb = 4 [packed = true];
+  repeated uint64 rss_kb = 5 [packed = true];
+  repeated uint64 anonymous_kb = 6 [packed = true];
+  repeated uint64 swap_kb = 7 [packed = true];
+  repeated uint64 shared_clean_kb = 8 [packed = true];
+  repeated uint64 shared_dirty_kb = 9 [packed = true];
+  repeated uint64 private_clean_kb = 10 [packed = true];
+  repeated uint64 private_dirty_kb = 11 [packed = true];
+  repeated uint64 locked_kb = 12 [packed = true];
+  repeated uint64 pss_kb = 13 [packed = true];
+  repeated uint64 pss_dirty_kb = 14 [packed = true];
+  repeated uint64 swap_pss_kb = 15 [packed = true];
+}
 
 message SmapsPacket {
   optional uint32 pid = 1;
   repeated SmapsEntry entries = 2;
-};
+  optional PackedSmaps packed_entries = 3;
+}
 
 // End of protos/perfetto/trace/profiling/smaps.proto
 
@@ -18086,6 +18336,26 @@ message GpuInfo {
 
 // End of protos/perfetto/trace/system_info/gpu_info.proto
 
+// Begin of protos/perfetto/trace/system_info/interrupt_info.proto
+
+// Hardware interrupt (IRQ) ID-to-name mappings collected from
+// /proc/interrupts at the start of a trace.
+// Emitted by the linux.system_info data source when irq_names: true is set
+// in SystemInfoConfig.
+message InterruptInfo {
+  message InterruptMapping {
+    // Numeric IRQ identifier.
+    optional uint32 irq_id = 1;
+    // Human-readable name for the IRQ (e.g. "arch_timer", "arm-pmu").
+    optional string name = 2;
+  }
+
+  // One entry per hardware IRQ found in /proc/interrupts.
+  repeated InterruptMapping irq_mapping = 1;
+}
+
+// End of protos/perfetto/trace/system_info/interrupt_info.proto
+
 // Begin of protos/perfetto/trace/test_event.proto
 
 // Event used by testing code.
@@ -18118,15 +18388,26 @@ message TestEvent {
   }
   optional TestPayload payload = 5;
 
-  // Simple ProtoVm patch and incremental state formats used for integration
-  // testing
+  // Simple ProtoVm patch and incremental state formats used for testing
+  message ProtoVmMessage {
+    message ProtoVmSubmessage {
+      optional uint32 single_int = 1;
+    }
+    optional uint32 id = 1;
+    optional ProtoVmSubmessage submessage = 2;
+  }
   message ProtoVmPatch {
     optional string string_to_merge = 1;
     optional int32 int_to_merge = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
+    repeated uint32 delete_message_ids = 5;
   }
   message ProtoVmIncrementalState {
     optional string string_merged = 1;
     optional int32 int_merged = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
   }
   optional ProtoVmPatch protovm_patch = 6;
   optional ProtoVmIncrementalState protovm_incremental_state = 7;
@@ -18888,7 +19169,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 128.
+// Next id: 133.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18921,16 +19202,41 @@ message TracePacket {
   optional uint32 timestamp_clock_id = 58;
 
   oneof data {
+    //
+    // == STABLE PUBLIC API: TrackEvent ==
+    //
+    // TrackEvent is the stable, extensible API for recording trace events.
+    // See docs/instrumentation/track-events.md for details.
+    TrackEvent track_event = 11;
+    TrackDescriptor track_descriptor = 60;
+
+    //
+    // == STABLE PUBLIC API: GENERIC KERNEL EVENTS ==
+    //
+    // Stable API for OS-level and hardware events from non-ftrace data
+    // sources.
+    GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
+    GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
+    GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
+    GenericKernelProcessTree generic_kernel_process_tree = 122;
+    GenericGpuFrequencyEvent generic_gpu_frequency_event = 129;
+
+    //
+    // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
+    //
+    // The fields below are NOT part of the stable public API. They are
+    // emitted by specific Perfetto data sources and may change without
+    // notice. Depend on them at your own risk.
+
+    // IDs up to 15 are reserved. They take only one byte to encode their
+    // preamble so should be used for frequent events.
     ProcessTree process_tree = 2;
+    TrackEventRangeOfInterest track_event_range_of_interest = 90;
     ProcessStats process_stats = 9;
     InodeFileMap inode_file_map = 4;
     ChromeEventBundle chrome_events = 5;
     ClockSnapshot clock_snapshot = 6;
     SysStats sys_stats = 7;
-    TrackEvent track_event = 11;
-
-    // IDs up to 15 are reserved. They take only one byte to encode their
-    // preamble so should be used for frequent events.
 
     TraceUuid trace_uuid = 89;
     TraceConfig trace_config = 33;
@@ -18952,6 +19258,7 @@ message TracePacket {
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
+    ArtProcessMetadata art_process_metadata = 131;
     HeapGraph heap_graph = 56;
     GraphicsFrameEvent graphics_frame_event = 57;
     VulkanMemoryEvent vulkan_memory_event = 62;
@@ -18979,13 +19286,11 @@ message TracePacket {
     TraceAttributes trace_attributes = 126;
     AndroidAflags android_aflags = 127;
     GpuInfo gpu_info = 128;
+    InterruptInfo interrupt_info = 130;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;
     DeobfuscationMapping deobfuscation_mapping = 64;
-
-    // Only used by TrackEvent.
-    TrackDescriptor track_descriptor = 60;
 
     // Deprecated, use TrackDescriptor instead.
     ProcessDescriptor process_descriptor = 43;
@@ -19020,10 +19325,6 @@ message TracePacket {
     // Represents one or more packets sent or received by the network.
     NetworkPacketBundle network_packet_bundle = 92;
 
-    // The "range of interest" for track events. See the message definition
-    // comments for more details.
-    TrackEventRangeOfInterest track_event_range_of_interest = 90;
-
     // Winscope traces
     LayersSnapshotProto surfaceflinger_layers_snapshot = 93;
     TransactionTraceEntry surfaceflinger_transactions = 94;
@@ -19055,17 +19356,13 @@ message TracePacket {
 
     AppWakelockBundle app_wakelock_bundle = 116;
 
-    // Generic events for a standard kernel implementation
-    GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
-    GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
-    GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
-    GenericKernelProcessTree generic_kernel_process_tree = 122;
-
     CpuPerUidData cpu_per_uid_data = 119;
 
     EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
+
+    SystemdJournaldEvent journald_event = 132;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

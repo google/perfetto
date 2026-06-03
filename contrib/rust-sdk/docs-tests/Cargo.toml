@@ -1,0 +1,13 @@
+[package]
+name = "perfetto-sdk-docs-tests"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+perfetto-sdk = { path = "../perfetto", version = "1" }
+perfetto-sdk-derive = { path = "../perfetto-derive", version = "1" }
+perfetto-sdk-protos-gpu = { path = "../perfetto-protos-gpu", version = "1" }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
+tracing-perfetto-sdk = { path = "../tracing-perfetto", version = "1" }

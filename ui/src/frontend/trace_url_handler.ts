@@ -17,7 +17,7 @@ import {tryGetTrace} from '../core/cache_manager';
 import {showModal} from '../widgets/modal';
 import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
-import {Route, Router} from '../core/router';
+import {type Route, Router} from '../core/router';
 import {taskTracker} from './task_tracker';
 import {AppImpl} from '../core/app_impl';
 

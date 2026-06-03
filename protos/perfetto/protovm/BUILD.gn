@@ -16,4 +16,12 @@ import("../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
   sources = [ "vm_program.proto" ]
+  generate_descriptor = "vm_program.descriptor"
+  descriptor_root_source = "vm_program.proto"
+}
+
+perfetto_proto_library("compile_config_@TYPE@") {
+  sources = [ "compile_config.proto" ]
+  generate_descriptor = "compile_config.descriptor"
+  descriptor_root_source = "compile_config.proto"
 }

@@ -239,6 +239,10 @@ protos::pbzero::BuiltinClock TrackEventInternal::clock_ = kDefaultTraceClock;
 bool TrackEventInternal::disallow_merging_with_system_tracks_ = false;
 
 // static
+BufferExhaustedPolicy TrackEventInternal::buffer_exhausted_policy_ =
+    BufferExhaustedPolicy::kDrop;
+
+// static
 void TrackEventInternal::EnableRegistry(
     const TrackEventCategoryRegistry* registry,
     const protos::gen::TrackEventConfig& config,

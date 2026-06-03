@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
+import type {
   NotificationsBlockingCallMetricData,
   MetricHandler,
 } from './metricUtils';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class BlockingCallMetricHandler implements MetricHandler {
