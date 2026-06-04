@@ -139,7 +139,9 @@ instance. The most important are:
 - `fetch_latest_trace_processor`: If `True` (and `bin_path` is not set), fetch
   the latest available prebuilt from `get.perfetto.dev` instead of the version
   pinned to the package. Use this to always run the newest build, at the cost of
-  reproducibility.
+  reproducibility. Note that this option is best-effort and may be ignored on
+  platforms which source the binary differently (e.g. inside Google3, where the
+  binary always comes from internal infra).
 
 ## API
 

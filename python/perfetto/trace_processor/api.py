@@ -66,6 +66,12 @@ class TraceProcessorConfig:
   # trace_processor prebuilt from get.perfetto.dev instead of using the version
   # pinned to this package. This trades reproducibility for always being on the
   # newest build.
+  #
+  # Note: this option is best-effort and may be ignored on platforms which
+  # source the binary in a different way. In particular, inside Google3 the
+  # PlatformDelegate is swapped out (see PLATFORM_DELEGATE above) and the
+  # trace_processor binary always comes from internal infra, so this flag has
+  # no effect there.
   fetch_latest_trace_processor: bool = False
 
   # If True, the trace processor will use a unique port for each instance.
