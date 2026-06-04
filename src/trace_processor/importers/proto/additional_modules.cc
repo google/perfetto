@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 #include "src/trace_processor/importers/proto/android_cpu_per_uid_module.h"
 #include "src/trace_processor/importers/proto/android_extension.descriptor.h"
+#include "src/trace_processor/importers/proto/android_framework_track_event_parser.h"
 #include "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/app_wakelock_module.h"
@@ -41,6 +42,7 @@
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -101,6 +103,9 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
       new EtwModuleImpl(module_context, context));
   module_context->etw_module =
       static_cast<EtwModule*>(module_context->modules.back().get());
+
+  AndroidFrameworkTrackEventParser::Register(
+      context, module_context->track_module->parser());
 
   if (context->config.analyze_trace_proto_content) {
     context->content_analyzer = std::make_unique<ProtoContentAnalyzer>(context);
