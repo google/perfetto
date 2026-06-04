@@ -147,10 +147,6 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
-  // Interned job names for Android Job Names. These are separate from
-  // other strings because they are under app control.
-  repeated AndroidJobName android_job_name = 44;
-
   // Description of GPU counters available in a data source.
   repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
 
@@ -161,12 +157,11 @@ message InternedData {
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
   extensions 42;
 
+  // Interned job names for Android Job Names. These are separate from
+  // other strings because they are under app control.
+  extensions 44;
+
   // Extension range for domain-specific interned data. See
   // protos/perfetto/trace/extensions.json for the allocation registry.
   extensions 1000 to 9999;
-}
-
-message AndroidJobName {
-  optional uint64 iid = 1;
-  optional string name = 2;
 }
