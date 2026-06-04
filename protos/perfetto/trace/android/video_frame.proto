@@ -1,0 +1,122 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// A captured video frame from the device display.
+//
+// Top-level TracePacket message (TracePacket.video_frame = 133). Each display
+// is captured as a hardware video elementary stream: one codec_config-only
+// VideoFrame is emitted first per stream, then one VideoFrame per on-screen
+// change carrying a single coded access unit (au_data). display_id
+// identifies the source display; display_name and codec_string are set on
+// the codec_config packet only.
+message VideoFrame {
+  // Per-session display index assigned by the producer (0, 1, ... for the
+  // displays captured in this session). Used by the UI to group frames into
+  // per-display tracks and as the `idx` for the android_video_* entries in
+  // the global stats table; must therefore fit in int32.
+  optional uint32 display_id = 1;
+
+  // Sequential frame number within the capture session.
+  optional uint64 frame_number = 2;
+
+  // Codec used for au_data / codec_config.
+  enum Codec {
+    CODEC_UNSPECIFIED = 0;
+    CODEC_H264 = 1;
+    CODEC_HEVC = 2;
+  }
+  optional Codec codec = 3;
+
+  // Out-of-band decoder configuration, emitted once per stream in its own
+  // VideoFrame before any au_data. Annex-B bytes (start codes + SPS/PPS for
+  // H.264; VPS/SPS/PPS for HEVC). Required to decode au_data.
+  optional bytes codec_config = 4;
+
+  // One coded access unit (a single encoded frame) for this instant.
+  // Annex-B bytes.
+  optional bytes au_data = 5;
+
+  // True if au_data is a key frame (IDR) and can be decoded standalone.
+  optional bool is_key_frame = 6;
+
+  // Codec presentation timestamp (microseconds) of au_data, for ordering and
+  // seeking within the elementary stream. Distinct from the TracePacket
+  // timestamp, which is the boot-time instant used for timeline placement.
+  optional uint64 pts_us = 7;
+
+  // Human-readable name of the source display. Set on the codec_config packet
+  // only; the UI labels the per-display track with this string.
+  optional string display_name = 8;
+
+  // RFC 6381 codec string (e.g. "avc1.42c00b", "hev1.1.6.L93.B0"). Set on the
+  // codec_config packet only. The producer knows the profile / level /
+  // constraints directly from MediaCodec; consumers (e.g. WebCodecs
+  // VideoDecoder.configure) consume it as-is, so neither the trace processor
+  // nor the UI has to parse SPS NALs to reconstruct it.
+  optional string codec_string = 9;
+}
+
+// Per-stream failure indicator. The producer emits one VideoFrameError per
+// failure event on a stream (cap hit, codec crash, source display removed,
+// or failure to start). Clean streams produce no VideoFrameError packets.
+//
+// Carried as top-level TracePacket.video_frame_error (field 134). Trace
+// processor mirrors each reason to a kIndexed entry in the global stats
+// table (android_video_size_cap_hit / _codec_error / _display_gone /
+// _start_failed, indexed by display_id) -- same shape as ftrace's per-cpu
+// stats and heapprofd's hit_guardrail.
+message VideoFrameError {
+  // Stream the failure happened on. Matches VideoFrame.display_id.
+  optional uint32 display_id = 1;
+
+  // What failed. Names point at the specific producer-side condition so
+  // reviewers can triage from the stats table alone, without reading
+  // logcat. Trace processor mirrors each value to its own kIndexed entry
+  // in the global stats table (one per reason, keyed by display_id).
+  enum Reason {
+    REASON_UNKNOWN = 0;
+    // Producer stopped writing because the stream hit
+    // DisplayVideoConfig.max_stream_size_bytes. Encoder torn down.
+    SIZE_CAP_HIT = 1;
+    // MediaCodec.Callback.onError fired (codec crash, resource preempt,
+    // OOM, malformed bitstream...). Encoder torn down.
+    CODEC_ERROR = 2;
+    // Source physical display was removed mid-session
+    // (DisplayManager.DisplayListener.onDisplayRemoved). Stream torn down.
+    DISPLAY_GONE = 3;
+    // Device has no MediaCodec encoder for the requested format
+    // (MediaCodecList.findEncoderForFormat returned null). Permanent for
+    // this device/build; software fallback or skipping capture is the
+    // only recourse.
+    NO_ENCODER = 4;
+    // DisplayManager.getDisplay(displayId) returned null at session
+    // start: the physical display was removed in the window between the
+    // listener notification and start().
+    DISPLAY_NOT_FOUND = 5;
+    // MediaCodec.createEncoderByType / configure / createInputSurface /
+    // start threw. Usually a bad config (resolution, bitrate, frame
+    // rate). Specifics in logcat.
+    ENCODER_SETUP_FAILED = 6;
+    // DisplayManager.createVirtualDisplay returned null: permission
+    // denied or VirtualDisplay resource exhausted.
+    VIRTUAL_DISPLAY_FAILED = 7;
+  }
+  optional Reason reason = 2;
+}

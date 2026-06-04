@@ -1,0 +1,54 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Configuration for the "android.display.video" data source, which captures
+// what each display showed during the trace and emits it as top-level
+// TracePacket VideoFrames.
+message DisplayVideoConfig {
+  // Hardware video codec used to encode the captured frames.
+  enum Format {
+    // Data source default (H.264).
+    FORMAT_UNSPECIFIED = 0;
+    FORMAT_H264 = 1;
+    FORMAT_HEVC = 2;
+  }
+
+  // Scale factor applied to each display's resolution before capture
+  // (e.g. 0.25 = quarter size). 0 = use the producer's default.
+  optional float scale = 1;
+
+  // Hardware-video codec to use. Unspecified = the data source default
+  // (H.264).
+  optional Format format = 2;
+
+  // Encoder GOP size in seconds (keyframe every N seconds). Smaller =
+  // snappier UI scrubbing, larger trace. Larger = smaller trace, slower
+  // seek between keyframes. 0 = use the producer's default.
+  optional uint32 key_frame_interval_secs = 3;
+
+  // Per-stream cap (one stream = one captured display) on the total payload
+  // bytes (codec_config + au_data) the producer will emit. Once reached,
+  // further access units are dropped on that stream and the truncation is
+  // reported via a VideoFrameStats packet. On multi-display devices total
+  // bytes can be N * max_stream_size_bytes (the cap is per stream, mirroring
+  // HeapprofdConfig.max_heapprofd_memory_kb which is per process). 0 = use
+  // the producer's default.
+  optional uint64 max_stream_size_bytes = 4;
+}

@@ -34,6 +34,36 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_video_size_cap_hit,           kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video stream hit DisplayVideoConfig."                   \
+      "max_stream_size_bytes; producer torn down (indexed by display_id). "    \
+      "Mirrors VideoFrameError.SIZE_CAP_HIT."),                                \
+  F(android_video_codec_error,            kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video MediaCodec.Callback.onError fired on this "       \
+      "stream (codec crash, OOM, resource preempt); encoder torn down "        \
+      "(indexed by display_id). Mirrors VideoFrameError.CODEC_ERROR."),        \
+  F(android_video_display_gone,           kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video source physical display was removed "             \
+      "mid-session; stream torn down (indexed by display_id). Mirrors "        \
+      "VideoFrameError.DISPLAY_GONE."),                                        \
+  F(android_video_no_encoder,             kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video device has no MediaCodec encoder for the "        \
+      "requested format (indexed by display_id). Permanent for this "          \
+      "device/build. Mirrors VideoFrameError.NO_ENCODER."),                    \
+  F(android_video_display_not_found,      kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video DisplayManager.getDisplay returned null at "      \
+      "session start (display removed between listener notification and "      \
+      "start) (indexed by display_id). Mirrors "                               \
+      "VideoFrameError.DISPLAY_NOT_FOUND."),                                   \
+  F(android_video_encoder_setup_failed,   kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video MediaCodec setup (createEncoderByType / "         \
+      "configure / createInputSurface / start) threw (indexed by "             \
+      "display_id). Mirrors VideoFrameError.ENCODER_SETUP_FAILED."),           \
+  F(android_video_virtual_display_failed, kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video DisplayManager.createVirtualDisplay returned "    \
+      "null (permission denied or VirtualDisplay resource exhausted) "         \
+      "(indexed by display_id). Mirrors "                                      \
+      "VideoFrameError.VIRTUAL_DISPLAY_FAILED."),                              \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
