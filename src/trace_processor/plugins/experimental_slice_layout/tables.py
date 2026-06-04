@@ -15,6 +15,7 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
@@ -22,6 +23,7 @@ from src.trace_processor.tables.slice_tables import SLICE_TABLE
 EXPERIMENTAL_SLICE_LAYOUT_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalSliceLayoutTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="experimental_slice_layout",
     columns=[
         C('id', CppTableId(SLICE_TABLE)),
