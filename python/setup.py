@@ -37,6 +37,8 @@ setup(
         'perfetto',
         'perfetto.batch_trace_processor',
         'perfetto.common',
+        'perfetto.prebuilts',
+        'perfetto.prebuilts.manifests',
         'perfetto.protos.perfetto.trace',
         'perfetto.trace_builder',
         'perfetto.trace_processor',
