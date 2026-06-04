@@ -128,6 +128,11 @@ export interface FlamegraphNode {
   readonly marker?: string;
   readonly xStart: number;
   readonly xEnd: number;
+  // Opaque colour hint of the form `diff:<score>`, where score ∈ [-1, 1]
+  // is a signed, normalised change vs a baseline (negative = shrank,
+  // positive = grew). Mapped to a pprof-style green→grey→red fill by
+  // getColorSchemeFromHint. Today only the heap-dump diff metric emits it.
+  readonly colorHint?: string;
 }
 
 export interface FlamegraphQueryData {
@@ -729,7 +734,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
         name = nodes[source.queryIdx].name;
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        const hint = nodes[source.queryIdx].colorHint;
+        if (hint !== undefined && state !== 'PARTIAL') {
+          colorScheme = getColorSchemeFromHint(hint);
+        } else {
+          colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        }
       }
       const bgColor = hover ? colorScheme.variant : colorScheme.base;
       const textColor = hover ? colorScheme.textVariant : colorScheme.textBase;
@@ -1667,6 +1677,90 @@ const ROOT_COLOR_SCHEME = makeColorScheme(
 // Cache for computed color schemes by name
 const colorSchemeCache = new Map<string, ColorScheme>();
 
+// Schemes derived from a `diff:<score>` colour hint, keyed by the hint
+// string. The diff colour depends only on the signed score, not the node
+// name (pprof-style diff colouring), so the name is not part of the key.
+const hintSchemeCache = new Map<string, ColorScheme>();
+
+// pprof-style diff colouring. Diff metrics emit a `diff:<score>` hint
+// where score ∈ [-1, 1] is the signed, normalised change vs the baseline
+// (negative = shrank, positive = grew). We map it to a green→grey→red
+// scale with the same algorithm as the pprof web UI's `dotColor`
+// (google/pprof internal/report/graph.go), tuned to the flamegraph's
+// light node fills (so changes read at a glance and text stays legible).
+const DIFF_SATURATION = 0.5; // colour vividness at |score| = 1
+// pprof's web UI defaults to HSV value 0.7 for the diff palette; using 0.93
+// here washed grey-at-zero out to near-white, which made unchanged boxes
+// blend into the background and read as "broken styling" against the panel
+// chrome. 0.78 keeps coloured nodes vibrant while giving grey real
+// distinguishability from the surrounding empty space.
+const DIFF_VALUE = 0.78; // node fill lightness (HSV "value")
+const DIFF_SHIFT = 0.7; // pushes scores away from grey to use the range
+
+function clampSigned(x: number): number {
+  return Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+}
+
+// pprof diff fill colour for a signed score in [-1, 1].
+function pprofDiffColor(score: number): HSLColor {
+  score = clampSigned(score);
+  let saturation = DIFF_SATURATION;
+  const value = DIFF_VALUE;
+  // Desaturate towards grey near zero so tiny changes read as neutral.
+  if (Math.abs(score) < 0.2) {
+    saturation *= Math.abs(score) / 0.2;
+  }
+  // Gamma to move scores away from grey, matching pprof.
+  if (score > 0) {
+    score = Math.pow(score, 1 - DIFF_SHIFT);
+  } else if (score < 0) {
+    score = -Math.pow(-score, 1 - DIFF_SHIFT);
+  }
+  let r: number;
+  let g: number;
+  if (score < 0) {
+    g = value;
+    r = value * (1 + saturation * score);
+  } else {
+    r = value;
+    g = value * (1 - saturation * score);
+  }
+  const b = value * (1 - saturation);
+  return new HSLColor(rgbUnitToHex(r, g, b));
+}
+
+function rgbUnitToHex(r: number, g: number, b: number): string {
+  const to255 = (x: number) =>
+    Math.round(Math.max(0, Math.min(1, x)) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${to255(r)}${to255(g)}${to255(b)}`;
+}
+
+// CSS colour for a diff score — exported so the Heap Dump Explorer diff
+// legend can paint a gradient that exactly matches the node fills.
+export function getDiffColorCss(score: number): string {
+  return pprofDiffColor(score).cssString;
+}
+
+// Resolve a `diff:<score>` hint into a ColorScheme.
+function getColorSchemeFromHint(hint: string): ColorScheme {
+  const cached = hintSchemeCache.get(hint);
+  if (cached !== undefined) return cached;
+  const score = clampSigned(Number(hint.split(':')[1] ?? '0'));
+  const base = pprofDiffColor(score);
+  const scheme = makeColorScheme(base, base.darken(8));
+  hintSchemeCache.set(hint, scheme);
+  return scheme;
+}
+
+// Base palette colour for a node name. Hashing the name to a hue keeps
+// the same class in the same colour across diff and non-diff modes; the
+// fixed saturation / lightness match the pprof web UI.
+function paletteHsl(name: string): HSLColor {
+  return new HSLColor({h: hash(name, 360), s: 46, l: 80});
+}
+
 function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (greyed) {
     return GREYED_COLOR_SCHEME;
@@ -1674,17 +1768,11 @@ function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (name === 'unknown' || name === 'root') {
     return ROOT_COLOR_SCHEME;
   }
-
-  // Check cache first
   let scheme = colorSchemeCache.get(name);
   if (scheme !== undefined) {
     return scheme;
   }
-
-  // Hash the name to get a predictable hue, then create color with fixed
-  // saturation and lightness values to match what pprof web UI does.
-  const hue = hash(name, 360);
-  const base = new HSLColor({h: hue, s: 46, l: 80});
+  const base = paletteHsl(name);
   scheme = makeColorScheme(base, base.darken(15).saturate(15));
   colorSchemeCache.set(name, scheme);
   return scheme;

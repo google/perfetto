@@ -44,7 +44,8 @@ export interface HeapDump {
   readonly upid: number;
   readonly ts: bigint;
   readonly processName: string | null;
-  readonly pid: number;
+  /** Null when the trace has no process metadata (typical for raw hprof). */
+  readonly pid: number | null;
 }
 
 export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
@@ -74,17 +75,36 @@ export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
       upid: it.upid,
       ts: it.ts,
       processName: it.pname,
-      pid: it.pid ?? 0,
+      pid: it.pid,
     });
   }
   return result;
 }
 
-export function dumpFilterSql(dump: HeapDump, alias: string = 'o'): string {
-  return (
-    `${alias}.upid = ${dump.upid} ` +
-    `AND ${alias}.graph_sample_ts = ${dump.ts}`
-  );
+// When set, dumpFilterSql() yields this dump's filter instead of the
+// passed dump. Heap_dump_page sets this in Baseline-only mode so
+// the standard (non-diff) views read baseline data without changing the
+// user-visible primary selection.
+let dumpFilterOverride: HeapDump | null = null;
+
+export function setDumpFilterOverride(d: HeapDump | null): void {
+  dumpFilterOverride = d;
+}
+
+let activeDumpForDiff: HeapDump | null = null;
+
+export function setActiveDumpForDiff(d: HeapDump | null): void {
+  activeDumpForDiff = d;
+}
+
+export function getActiveDump(): HeapDump | null {
+  return activeDumpForDiff;
+}
+
+export function dumpFilterSql(dump?: HeapDump, alias: string = 'o'): string {
+  const d = dump ?? dumpFilterOverride;
+  if (!d) return '1=1';
+  return `${alias}.upid = ${d.upid} AND ${alias}.graph_sample_ts = ${d.ts}`;
 }
 
 async function requireDominatorTree(engine: Engine): Promise<void> {
@@ -239,11 +259,24 @@ async function batchBitmapBufferHashes(
   return result;
 }
 
+// `dumpOrFilter` can be a `HeapDump` object or a pre-computed filter string.
+// Passing a filter string is useful in diff mode where the filter must match
+// the specific engine (e.g. baseline engine).
 export async function getOverview(
   engine: Engine,
-  activeDump: HeapDump,
+  dumpOrFilter: HeapDump | string,
+  activeDump?: HeapDump,
 ): Promise<OverviewData> {
-  const dumpFilter = dumpFilterSql(activeDump, 'o');
+  // Accept either a HeapDump (computes its own filter) or a pre-computed
+  // filter string (used by diff mode where the filter must match a
+  // specific engine's dumps). `activeDump` lets the caller pass a HeapDump
+  // alongside a filter string for downstream code (e.g. bitmap content
+  // hashing) that needs the full dump record.
+  const dumpFilter =
+    typeof dumpOrFilter === 'string'
+      ? dumpOrFilter
+      : dumpFilterSql(dumpOrFilter, 'o');
+  const dump = typeof dumpOrFilter === 'string' ? activeDump : dumpOrFilter;
   const countRes = await engine.query(`
     SELECT
       sum(iif(o.reachable, 1, 0)) AS reachable,
@@ -261,39 +294,43 @@ export async function getOverview(
   const unreachableInstanceCount = countIt.unreachable;
   const classCount = countIt.classes;
 
-  // Process stats at the dump instant. Null when the trace carries no such stats.
-  const statsRes = await engine.query(`
-    INCLUDE PERFETTO MODULE android.oom_adjuster;
-    INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
-    SELECT
-      CAST(oom_score_adj AS INT) AS score,
-      android_oom_adj_score_to_bucket_name(CAST(oom_score_adj AS INT)) AS bucket,
-      anon_rss_and_swap_size AS anonRssAndSwapSize,
-      dmabuf_rss_size AS dmabufRssSize,
-      process_uptime AS processUptime
-    FROM android_heap_graph_stats
-    WHERE upid = ${activeDump.upid}
-      AND graph_sample_ts = ${activeDump.ts}
-    LIMIT 1
-  `);
-  const statsIt = statsRes.iter({
-    score: NUM_NULL,
-    bucket: STR_NULL,
-    anonRssAndSwapSize: LONG_NULL,
-    dmabufRssSize: LONG_NULL,
-    processUptime: LONG_NULL,
-  });
+  // Process stats at the dump instant. Null when the trace carries no such
+  // stats, or when the caller passed only a filter string with no `dump`
+  // record (the stats query needs the concrete upid + ts of one dump).
   let oomScore: number | null = null;
   let oomBucket: string | null = null;
   let anonRssAndSwapSize: bigint | null = null;
   let dmabufRssSize: bigint | null = null;
   let processUptime: bigint | null = null;
-  if (statsIt.valid()) {
-    oomScore = statsIt.score;
-    oomBucket = statsIt.bucket;
-    anonRssAndSwapSize = statsIt.anonRssAndSwapSize;
-    dmabufRssSize = statsIt.dmabufRssSize;
-    processUptime = statsIt.processUptime;
+  if (dump !== undefined) {
+    const statsRes = await engine.query(`
+      INCLUDE PERFETTO MODULE android.oom_adjuster;
+      INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
+      SELECT
+        CAST(oom_score_adj AS INT) AS score,
+        android_oom_adj_score_to_bucket_name(CAST(oom_score_adj AS INT)) AS bucket,
+        anon_rss_and_swap_size AS anonRssAndSwapSize,
+        dmabuf_rss_size AS dmabufRssSize,
+        process_uptime AS processUptime
+      FROM android_heap_graph_stats
+      WHERE upid = ${dump.upid}
+        AND graph_sample_ts = ${dump.ts}
+      LIMIT 1
+    `);
+    const statsIt = statsRes.iter({
+      score: NUM_NULL,
+      bucket: STR_NULL,
+      anonRssAndSwapSize: LONG_NULL,
+      dmabufRssSize: LONG_NULL,
+      processUptime: LONG_NULL,
+    });
+    if (statsIt.valid()) {
+      oomScore = statsIt.score;
+      oomBucket = statsIt.bucket;
+      anonRssAndSwapSize = statsIt.anonRssAndSwapSize;
+      dmabufRssSize = statsIt.dmabufRssSize;
+      processUptime = statsIt.processUptime;
+    }
   }
 
   const heapRes = await engine.query(`
@@ -378,8 +415,8 @@ export async function getOverview(
     .filter((b) => b.nativePtr !== null)
     .map((b) => ({objectId: b.id, nativePtr: b.nativePtr!}));
   const hashes =
-    hashInputs.length > 0
-      ? await batchBitmapBufferHashes(engine, activeDump, hashInputs)
+    hashInputs.length > 0 && dump
+      ? await batchBitmapBufferHashes(engine, dump, hashInputs)
       : new Map<number, string>();
 
   const hashGroups = new Map<
