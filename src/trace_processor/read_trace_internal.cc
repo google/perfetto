@@ -245,9 +245,21 @@ std::optional<std::string> CachePathForUrl(const std::string& url) {
 // empty body) on HTTP errors and -sS suppresses the progress meter while still
 // emitting actual error messages on stderr (which we capture rather than let
 // leak to the terminal).
+//
+// If `if_modified_since_file` is set, curl issues a conditional GET (-z), using
+// that file's modification time as the If-Modified-Since value. The server then
+// returns "304 Not Modified" with an empty body when the resource is unchanged,
+// which lets us revalidate a cached copy without re-downloading it.
 base::Subprocess MakeCurl(const std::string& url,
+                          const std::optional<std::string>& if_modified_since_file,
                           base::ScopedPlatformHandle stderr_wr) {
-  base::Subprocess curl({"curl", "-L", "-f", "-sS", url});
+  base::Subprocess curl;
+  curl.args.exec_cmd = {"curl", "-L", "-f", "-sS"};
+  if (if_modified_since_file) {
+    curl.args.exec_cmd.push_back("-z");
+    curl.args.exec_cmd.push_back(*if_modified_since_file);
+  }
+  curl.args.exec_cmd.push_back(url);
   curl.args.stdin_mode = base::Subprocess::InputMode::kDevNull;
   curl.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
   curl.args.stderr_mode = base::Subprocess::OutputMode::kFd;
@@ -273,7 +285,7 @@ base::Status CurlError(const std::string& url,
 // Fetches `url` in full into `out`. Used for small responses (permalink JSON).
 base::Status CurlFetchAll(const std::string& url, std::string* out) {
   base::Pipe err = base::Pipe::Create();
-  base::Subprocess curl = MakeCurl(url, std::move(err.wr));
+  base::Subprocess curl = MakeCurl(url, std::nullopt, std::move(err.wr));
   // Call() drains stdout into output() and waits for curl to exit; the write
   // end of `err` is closed in the parent by Start(), so the read below sees EOF.
   bool ok = curl.Call();
@@ -288,12 +300,21 @@ base::Status CurlFetchAll(const std::string& url, std::string* out) {
 // Fetches `url` and streams the bytes into `tp` as they arrive, keeping at most
 // one poll interval of data in memory at a time. If `cache_path` is set, the
 // bytes are also written to a temp file and atomically renamed into place once
-// the whole download has been parsed successfully.
+// the whole download has been parsed successfully. If `conditional` is true the
+// request is a conditional GET against the existing `cache_path` (see MakeCurl):
+// the server may answer "304 Not Modified" with an empty body, in which case
+// nothing is streamed and `*bytes_streamed` is left at 0 so the caller knows to
+// fall back to the cached copy. On return `*bytes_streamed` holds the number of
+// bytes fed into `tp`.
 base::Status CurlStreamInto(
     TraceProcessor* tp,
     const std::string& url,
     const std::optional<std::string>& cache_path,
-    const std::function<void(uint64_t parsed_size)>& progress_callback) {
+    bool conditional,
+    const std::function<void(uint64_t parsed_size)>& progress_callback,
+    uint64_t* bytes_streamed) {
+  *bytes_streamed = 0;
+
   // Tee the download into a per-pid temp file alongside the final cache entry so
   // concurrent downloads of the same URL don't clobber each other. Caching is
   // best-effort: any failure here just disables it for this download.
@@ -308,12 +329,18 @@ base::Status CurlStreamInto(
       cache_tmp.clear();
   }
 
+  // For a conditional request curl derives the If-Modified-Since time from the
+  // existing cache file's mtime.
+  std::optional<std::string> if_modified_since =
+      conditional ? cache_path : std::nullopt;
+
   base::Pipe err = base::Pipe::Create();
-  base::Subprocess curl = MakeCurl(url, std::move(err.wr));
+  base::Subprocess curl = MakeCurl(url, if_modified_since, std::move(err.wr));
   curl.Start();
 
   uint64_t bytes_read = 0;
   base::Status parse_status;
+  bool curl_exited = false;
   for (;;) {
     // Wait() drains whatever stdout is currently available into output() and
     // returns true once curl has exited and all output has been read.
@@ -331,9 +358,19 @@ base::Status CurlStreamInto(
       if (progress_callback)
         progress_callback(bytes_read);
     }
-    if (done)
+    if (done) {
+      curl_exited = true;
       break;
+    }
   }
+
+  // If we bailed out of the loop early (parse error) curl is still running and,
+  // now that we've stopped draining its stdout, will soon block on a full pipe.
+  // Kill it so it releases its end of the stderr pipe; otherwise the
+  // ReadPlatformHandle() below would deadlock waiting for an EOF that never
+  // comes.
+  if (!curl_exited)
+    curl.KillAndWaitForTermination();
 
   // curl has exited; with -sS its stderr is at most a short error line, which
   // is now fully buffered in the pipe and read here (the parent's write end was
@@ -343,20 +380,23 @@ base::Status CurlStreamInto(
   bool curl_ok = curl.status() == base::Subprocess::kTerminated &&
                  curl.returncode() == 0;
 
-  // Commit the cache entry only on a fully successful download+parse.
+  // Commit the cache entry only on a fully successful download+parse that
+  // actually produced bytes. A 304 Not Modified streams nothing, so committing
+  // here would clobber the up-to-date cache with an empty file.
   if (!cache_tmp.empty()) {
     cache_fd.reset();  // Close before renaming.
-    if (curl_ok && parse_status.ok() && cache_path &&
+    if (curl_ok && parse_status.ok() && bytes_read > 0 && cache_path &&
         std::rename(cache_tmp.c_str(), cache_path->c_str()) == 0) {
       // Committed.
     } else {
-      remove(cache_tmp.c_str());  // Lost a race or download failed; discard.
+      remove(cache_tmp.c_str());  // 304, lost a race, or download failed.
     }
   }
 
   RETURN_IF_ERROR(parse_status);
   if (!curl_ok)
     return CurlError(url, curl.returncode(), stderr_text);
+  *bytes_streamed = bytes_read;
   return base::OkStatus();
 }
 
@@ -388,30 +428,63 @@ base::StatusOr<std::string> ResolvePermalink(const std::string& hash) {
   return *trace_url;
 }
 
+// Reads the cached copy at `cache_path` into `tp` via the normal local-file
+// path (mmap etc.).
+base::Status ReadCachedTrace(
+    TraceProcessor* tp,
+    const std::string& url,
+    const std::string& cache_path,
+    const std::function<void(uint64_t parsed_size)>& progress_callback) {
+  RETURN_IF_ERROR(
+      ReadTraceUnfinalized(tp, cache_path.c_str(), progress_callback));
+  tp->SetCurrentTraceName(url);
+  return base::OkStatus();
+}
+
 base::Status ReadTraceFromUrl(
     TraceProcessor* tp,
     const std::string& url,
+    const std::optional<std::string>& permalink_hash,
     bool use_cache,
     const std::function<void(uint64_t parsed_size)>& progress_callback) {
   std::string trace_url = url;
-  if (std::optional<std::string> hash = GetPermalinkHash(url)) {
-    PERFETTO_LOG("Resolving Perfetto UI permalink (hash: %s)", hash->c_str());
-    ASSIGN_OR_RETURN(trace_url, ResolvePermalink(*hash));
+  if (permalink_hash) {
+    PERFETTO_LOG("Resolving Perfetto UI permalink (hash: %s)",
+                 permalink_hash->c_str());
+    ASSIGN_OR_RETURN(trace_url, ResolvePermalink(*permalink_hash));
   }
 
   std::optional<std::string> cache_path =
       use_cache ? CachePathForUrl(trace_url) : std::nullopt;
-  if (cache_path && base::FileExists(*cache_path)) {
-    PERFETTO_LOG("Loading cached trace for %s", trace_url.c_str());
-    // Read the cached file via the normal local-file path (mmap etc.).
-    RETURN_IF_ERROR(
-        ReadTraceUnfinalized(tp, cache_path->c_str(), progress_callback));
-    tp->SetCurrentTraceName(url);
-    return base::OkStatus();
+  bool cache_exists = cache_path && base::FileExists(*cache_path);
+
+  // Always ask the server whether our cached copy (if any) is still current via
+  // a conditional GET. We never serve a stale trace for a mutable URL, while a
+  // "304 Not Modified" still avoids re-downloading an unchanged one.
+  PERFETTO_LOG("Downloading trace from %s", trace_url.c_str());
+  uint64_t streamed = 0;
+  base::Status status =
+      CurlStreamInto(tp, trace_url, cache_path, /*conditional=*/cache_exists,
+                     progress_callback, &streamed);
+
+  // The fetch failed (e.g. offline) but nothing was streamed into `tp` yet, so
+  // it's safe to fall back to a previously cached copy rather than fail outright.
+  if (!status.ok()) {
+    if (cache_exists && streamed == 0) {
+      PERFETTO_LOG("Download failed (%s); using cached trace for %s",
+                   status.c_message(), trace_url.c_str());
+      return ReadCachedTrace(tp, url, *cache_path, progress_callback);
+    }
+    return status;
   }
 
-  PERFETTO_LOG("Downloading trace from %s", trace_url.c_str());
-  RETURN_IF_ERROR(CurlStreamInto(tp, trace_url, cache_path, progress_callback));
+  // A successful fetch that streamed no bytes is a 304 Not Modified: the cached
+  // copy is current, so parse that instead.
+  if (streamed == 0 && cache_exists) {
+    PERFETTO_LOG("Cached trace is up to date for %s", trace_url.c_str());
+    return ReadCachedTrace(tp, url, *cache_path, progress_callback);
+  }
+
   tp->SetCurrentTraceName(url);
   return base::OkStatus();
 }
@@ -421,6 +494,7 @@ base::Status ReadTraceFromUrl(
 base::Status ReadTraceFromUrl(
     TraceProcessor*,
     const std::string& url,
+    const std::optional<std::string>&,
     bool,
     const std::function<void(uint64_t parsed_size)>&) {
   return base::ErrStatus(
@@ -468,7 +542,8 @@ base::Status ReadTraceUnfinalized(
   // one is not set we return a clear error rather than treating the URL as a
   // (non-existent) local file path.
   if (IsUrl(filename)) {
-    if (GetPermalinkHash(filename).has_value()) {
+    std::optional<std::string> permalink_hash = GetPermalinkHash(filename);
+    if (permalink_hash) {
       if (!args.allow_perfetto_ui_links) {
         return base::ErrStatus(
             "Cannot load Perfetto UI share link '%s': loading share links is "
@@ -481,7 +556,7 @@ base::Status ReadTraceUnfinalized(
           "(set ReadTraceArgs::allow_http).",
           filename);
     }
-    return ReadTraceFromUrl(tp, filename, args.cache_downloads,
+    return ReadTraceFromUrl(tp, filename, permalink_hash, args.cache_downloads,
                             progress_callback);
   }
 

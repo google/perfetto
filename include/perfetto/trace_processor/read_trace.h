@@ -55,9 +55,10 @@ struct ReadTraceArgs {
 
   // When loading a trace from a URL or share link, cache the downloaded bytes
   // on local disk (~/.cache/perfetto/tp-http-traces, or the platform
-  // equivalent) and reuse them on subsequent loads of the same URL instead of
-  // re-downloading. Only has an effect alongside allow_http /
-  // allow_perfetto_ui_links.
+  // equivalent). Subsequent loads of the same URL issue a conditional request
+  // (If-Modified-Since) and reuse the cached bytes if the server reports the
+  // resource is unchanged, so a stale cache is never served for a mutable URL.
+  // Only has an effect alongside allow_http / allow_perfetto_ui_links.
   //
   // Defaults to false.
   bool cache_downloads = false;
