@@ -29,12 +29,47 @@ namespace trace_processor {
 
 class TraceProcessor;
 
+// Optional behaviours for ReadTrace(). Defaults are chosen so that the
+// behaviour is identical to historical callers; new options must be opt-in.
+struct ReadTraceArgs {
+  // When true, a `filename` that looks like an "http://" or "https://" URL is
+  // fetched by shelling out to `curl` and streamed into the TraceProcessor,
+  // instead of being treated as a local file path.
+  //
+  // This does NOT cover Perfetto UI share links; see allow_perfetto_ui_links.
+  //
+  // Defaults to false: by default every `filename` is treated as a local path,
+  // so existing callers are unaffected.
+  bool allow_http = false;
+
+  // When true, a `filename` that is a Perfetto UI share link
+  // (e.g. https://ui.perfetto.dev/#!/?s=<hash>) is resolved to the underlying
+  // trace URL and that trace is fetched and streamed into the TraceProcessor.
+  //
+  // This is independent of allow_http: enabling it authorises the share-link
+  // resolution flow (which fetches from storage.googleapis.com) even if
+  // allow_http is false.
+  //
+  // Defaults to false.
+  bool allow_perfetto_ui_links = false;
+
+  // When loading a trace from a URL or share link, cache the downloaded bytes
+  // on local disk (~/.cache/perfetto/tp-http-traces, or the platform
+  // equivalent) and reuse them on subsequent loads of the same URL instead of
+  // re-downloading. Only has an effect alongside allow_http /
+  // allow_perfetto_ui_links.
+  //
+  // Defaults to false.
+  bool cache_downloads = false;
+};
+
 base::Status PERFETTO_EXPORT_COMPONENT ReadTrace(
     TraceProcessor* tp,
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback =
         [](uint64_t) {},
-    bool call_notify_end_of_file = true);
+    bool call_notify_end_of_file = true,
+    const ReadTraceArgs& args = {});
 
 base::Status PERFETTO_EXPORT_COMPONENT
 DecompressTrace(const uint8_t* data, size_t size, std::vector<uint8_t>* output);
