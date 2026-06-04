@@ -149,6 +149,9 @@ Usage: %s [command] [flags] [trace_file]
 
 If no command is given, opens an interactive SQL shell on the trace file.
 
+trace_file can be a local path, an http(s):// URL, or a Perfetto UI share link
+(https://ui.perfetto.dev/#!/?s=<hash>).
+
 Commands:
   query         Load a trace and run a SQL query.
   interactive   Interactive SQL shell (default if no command is given).
@@ -175,6 +178,8 @@ Examples:
   tp server http                                    Start HTTP server.
   tp summarize --metrics-v2 all trace.pb            Summarize a trace.
   tp convert json trace.pb out.json                 Convert to JSON.
+  tp query "https://.../trace.pftrace" "SELECT ..." Query a trace from a URL.
+  tp "https://ui.perfetto.dev/#!/?s=<hash>"         Open a UI share link.
 
 Classic interface:
   The previous flat-flag interface (-q, --httpd, --summary, -e, etc.) is
@@ -740,8 +745,16 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
       TraceProcessor* trace_processor,
       const std::string& path,
       std::function<void(size_t)> progress_callback) override {
+    // The shell opts into loading traces directly from http(s) URLs and from
+    // Perfetto UI share links; the user opts in by passing such a path. Bytes
+    // downloaded this way are cached on local disk so re-running on the same
+    // URL doesn't re-download.
+    ReadTraceArgs args;
+    args.allow_http = true;
+    args.allow_perfetto_ui_links = true;
+    args.cache_downloads = true;
     return ReadTraceUnfinalized(trace_processor, path.c_str(),
-                                progress_callback);
+                                progress_callback, args);
   }
 };
 

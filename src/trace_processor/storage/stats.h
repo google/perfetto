@@ -108,6 +108,11 @@ namespace perfetto::trace_processor::stats {
        "Invalid order of generic task state events. Should never happen."),    \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(gpu_counters_missing_spec,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(gpu_counters_missing_timestamp,       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,           \
+      "A GpuCounterEvent packet was received without a timestamp on the "      \
+      "containing TracePacket. Without a timestamp the counter samples cannot "\
+      "be placed on the trace timeline, so the packet is dropped. This "       \
+      "indicates a bug in the trace producer."),                              \
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(graphics_frame_event_parser_errors,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(guess_trace_type_duration_ns,         kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \

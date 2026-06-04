@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/proto/graphics_frame_event_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
+#include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -36,15 +37,48 @@ class GraphicsEventModule : public ProtoImporterModule {
 
   ~GraphicsEventModule() override;
 
+  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&,
+                              TraceBlobView* packet,
+                              int64_t packet_timestamp,
+                              RefPtr<PacketSequenceStateGeneration> state,
+                              uint32_t field_id) override;
+
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder&,
                             int64_t ts,
                             const TracePacketData&,
                             uint32_t field_id) override;
 
  private:
+  // Parses the GpuCounterDescriptor portion of a GpuCounterEvent (if present)
+  // at tokenization time: interns the counter tracks and inserts the counter
+  // groups, caching the resulting counter_id -> track mapping (on the
+  // sequence's GpuCounterSequenceState for the interned path, or on the
+  // module-global `legacy_gpu_counters_` for the inline path) for the parse
+  // stage. `packet_offset` is the byte offset of the packet, used for error
+  // reporting.
+  void TokenizeGpuCounterEvent(
+      PacketSequenceStateGeneration* state,
+      size_t packet_offset,
+      const protos::pbzero::GpuCounterEvent::Decoder& event);
+
+  // Pushes the sample values of a GpuCounterEvent at parse time, resolving the
+  // counter_id -> track mapping built at tokenization time.
+  void ParseGpuCounterEvent(int64_t ts,
+                            PacketSequenceStateGeneration* state,
+                            protozero::ConstBytes);
+
+  TraceProcessorContext* const context_;
   GpuEventParser parser_;
   GraphicsFrameEventParser frame_parser_;
   FrameTimelineEventParser frame_timeline_parser_;
+
+  const StringId counter_id_key_id_;
+  const StringId counter_name_key_id_;
+
+  // counter_id -> track info for the legacy inline counter_descriptor path
+  // (mode 1). counter_ids are global in this mode, so the map is shared across
+  // all packet sequences (this module instance is per-trace).
+  GpuEventParser::CounterTrackMap legacy_gpu_counters_;
 };
 
 }  // namespace perfetto::trace_processor

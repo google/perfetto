@@ -363,7 +363,11 @@ additional_args = {
         # lib to pay the libpcre2 code-size cost. Regex usage in the client
         # SDK is minimal, so std::regex is an acceptable tradeoff.
         # See b/498785154 for the binary-size regression that motivated this.
-        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
+        #
+        # Same idea for zlib: the compressor would otherwise pull in libz, and
+        # consumers that don't link it fail with undefined deflate* symbols.
+        ('cflags',
+         {'-DPERFETTO_REGEX_FORCE_STD', '-DPERFETTO_FORCE_DISABLE_ZLIB'}),
     ],
     'libperfetto_c': [
         ('min_sdk_version', '30'),
@@ -383,7 +387,11 @@ additional_args = {
         # lib to pay the libpcre2 code-size cost. Regex usage in the client
         # SDK is minimal, so std::regex is an acceptable tradeoff.
         # See b/498785154 for the binary-size regression that motivated this.
-        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
+        #
+        # Same idea for zlib: the compressor would otherwise pull in libz, and
+        # consumers that don't link it fail with undefined deflate* symbols.
+        ('cflags',
+         {'-DPERFETTO_REGEX_FORCE_STD', '-DPERFETTO_FORCE_DISABLE_ZLIB'}),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
@@ -516,6 +524,10 @@ def enable_sqlite(module):
 
 
 def enable_zlib(module):
+  # Modules built with PERFETTO_FORCE_DISABLE_ZLIB compile out the compressor
+  # and don't reference any zlib symbols, so skip the libz dep for them.
+  if '-DPERFETTO_FORCE_DISABLE_ZLIB' in module.cflags:
+    return
   if module.type == 'cc_binary_host':
     module.static_libs.add('libz')
   elif module.host_supported:

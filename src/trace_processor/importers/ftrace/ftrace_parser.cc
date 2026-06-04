@@ -1191,6 +1191,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDpuDispDpuLineUnderrunFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispDpuLineUnderrun(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kDpuDispFrameStartTimeoutFieldNumber: {
         pixel_display_tracker_.ParseDpuDispFrameStartTimeout(ts, fld_bytes);
         break;
@@ -3445,8 +3449,11 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
     return;
   }
 
-  // Skip invalid TCP state.
-  if (evt.newstate() >= TCP_MAX_STATES || evt.oldstate() >= TCP_MAX_STATES) {
+  // Skip invalid TCP state. Note: newstate()/oldstate() are signed, so we must
+  // also reject negative values to avoid an out-of-bounds read into
+  // kTcpStateNames below.
+  if (evt.newstate() < 0 || evt.newstate() >= TCP_MAX_STATES ||
+      evt.oldstate() < 0 || evt.oldstate() >= TCP_MAX_STATES) {
     PERFETTO_ELOG("skip invalid tcp state");
     return;
   }

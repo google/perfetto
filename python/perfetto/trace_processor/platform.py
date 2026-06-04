@@ -23,6 +23,8 @@ import tempfile
 from typing import Optional, Tuple
 from urllib import request
 
+from perfetto.prebuilts.manifests.trace_processor_shell import TRACE_PROCESSOR_SHELL_MANIFEST
+from perfetto.prebuilts.perfetto_prebuilts import get_perfetto_prebuilt
 from perfetto.trace_uri_resolver.path import PathUriResolver
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
@@ -38,12 +40,21 @@ class PlatformDelegate:
     with open(os.path.join(ws, file), 'rb') as x:
       return x.read()
 
-  def get_shell_path(self, bin_path: Optional[str]) -> str:
+  def get_shell_path(self,
+                     bin_path: Optional[str],
+                     fetch_latest: bool = False) -> str:
     if bin_path is not None:
       if not os.path.isfile(bin_path):
         raise Exception(f'Path to binary is not valid ({bin_path}).')
       return bin_path
 
+    if not fetch_latest:
+      # Default: use the trace_processor version pinned to (and shipped with)
+      # this package. The actual binary is downloaded and verified against the
+      # pinned SHA-256 on first use, then cached under ~/.local/share/perfetto.
+      return get_perfetto_prebuilt(TRACE_PROCESSOR_SHELL_MANIFEST)
+
+    # Opt-in: fetch the latest trace_processor regardless of the pinned version.
     tp_path = os.path.join(tempfile.gettempdir(), 'trace_processor_python_api')
     if self._should_download_tp(tp_path):
       with contextlib.ExitStack() as stack:

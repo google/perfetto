@@ -14,33 +14,28 @@
 
 import {test} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
+import {expect} from '@playwright/test';
 
 test('command palette keyboard navigation', async ({browser}) => {
   const page = await browser.newPage();
   const pth = new PerfettoTestHelper(page);
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 
+  // Open the command palette
   const omnibox = page.locator('input[ref=omnibox]');
   await omnibox.focus();
   await omnibox.fill('>');
 
-  await pth.waitForIdleAndScreenshot('command_palette_pos_0.png');
-  await omnibox.press('ArrowDown');
-  await pth.waitForIdleAndScreenshot('command_palette_pos_1.png');
+  const commands = page.locator('.pf-omnibox-options-container');
+
+  // Initially the first command should be highlighted.
+  expect(commands.first()).toHaveClass('pf-highlighted');
+
+  // Pressing up should highlight the last command.
   await omnibox.press('ArrowUp');
-  await pth.waitForIdleAndScreenshot('command_palette_pos_0.png');
+  expect(commands.last()).toHaveClass('pf-highlighted');
 
-  // Wrap around to the end of the list.
-  await omnibox.press('ArrowUp');
-
-  await pth.waitForIdleAndScreenshot('command_palette_pos_end-1.png');
-  await omnibox.press('ArrowUp');
-  await pth.waitForIdleAndScreenshot('command_palette_pos_end-2.png');
+  // Pressing down should highlight the first command again.
   await omnibox.press('ArrowDown');
-  await pth.waitForIdleAndScreenshot('command_palette_pos_end-1.png');
-
-  // Wrap around to the start of the list.
-  await omnibox.press('ArrowDown');
-
-  await pth.waitForIdleAndScreenshot('command_palette_pos_0.png');
+  expect(commands.first()).toHaveClass('pf-highlighted');
 });

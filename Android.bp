@@ -1058,6 +1058,7 @@ cc_library {
         "perfetto_defaults",
     ],
     cflags: [
+        "-DPERFETTO_FORCE_DISABLE_ZLIB",
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DPERFETTO_SHLIB_SDK_IMPLEMENTATION",
         "-DZLIB_IMPLEMENTATION",
@@ -1067,7 +1068,6 @@ cc_library {
         android: {
             shared_libs: [
                 "liblog",
-                "libz",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
@@ -1076,7 +1076,6 @@ cc_library {
         host: {
             static_libs: [
                 "liblog",
-                "libz",
             ],
         },
         windows: {
@@ -1362,6 +1361,7 @@ cc_library_static {
         "perfetto_defaults",
     ],
     cflags: [
+        "-DPERFETTO_FORCE_DISABLE_ZLIB",
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DZLIB_IMPLEMENTATION",
     ],
@@ -1372,16 +1372,8 @@ cc_library_static {
     min_sdk_version: "30",
     target: {
         android: {
-            shared_libs: [
-                "libz",
-            ],
             static_libs: [
                 "perfetto_flags_c_lib",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libz",
             ],
         },
     },
@@ -2224,16 +2216,8 @@ cc_library_static {
     ],
     target: {
         android: {
-            shared_libs: [
-                "libz",
-            ],
             static_libs: [
                 "perfetto_flags_c_lib",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libz",
             ],
         },
     },
@@ -3495,16 +3479,8 @@ cc_test {
     test_config: "PerfettoIntegrationTests.xml",
     target: {
         android: {
-            shared_libs: [
-                "libz",
-            ],
             static_libs: [
                 "perfetto_flags_c_lib",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libz",
             ],
         },
     },
@@ -17729,6 +17705,7 @@ filegroup {
         "src/trace_processor/importers/proto/network_trace_module_unittest.cc",
         "src/trace_processor/importers/proto/packet_sequence_state_generation_unittest.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker_unittest.cc",
+        "src/trace_processor/importers/proto/pigweed_detokenizer_unittest.cc",
         "src/trace_processor/importers/proto/profile_packet_sequence_state_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_parser_impl_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_reader_unittest.cc",
@@ -19560,6 +19537,7 @@ filegroup {
 genrule {
     name: "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
     srcs: [
+        "src/trace_processor/plugins/wattson/data/MT6858/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/SM8750/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_1d.csv",
@@ -19583,6 +19561,7 @@ genrule {
 genrule {
     name: "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
     srcs: [
+        "src/trace_processor/plugins/wattson/data/MT6858/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_2d.csv",
