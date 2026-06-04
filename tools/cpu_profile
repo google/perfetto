@@ -225,40 +225,42 @@ def download_or_get_cached(file_name, url, sha256):
   """ Downloads a prebuilt or returns a cached version
 
   The first time this is invoked, it downloads the |url| and caches it into
-  ~/.local/share/perfetto/prebuilts/$tool_name. On subsequent invocations it
-  just runs the cached version.
+  ~/.local/share/perfetto/prebuilts/$tool_name-$sha256. On subsequent
+  invocations it just runs the cached version.
+
+  The (short) SHA-256 is embedded in the cached file name so that several
+  versions of the same tool can coexist on the same machine. This matters when
+  e.g. two virtualenvs pin different Perfetto releases, or the //tools wrappers
+  and the Python API request different versions: without the SHA in the name
+  they would all map to the same path, clobber each other and trigger a
+  re-download on every switch.
   """
   dir = os.path.join(
       os.path.expanduser('~'), '.local', 'share', 'perfetto', 'prebuilts')
   os.makedirs(dir, exist_ok=True)
-  bin_path = os.path.join(dir, file_name)
-  sha256_path = os.path.join(dir, file_name + '.sha256')
-  needs_download = True
+  # Embed the SHA in the file name, preserving any extension (e.g. .exe) as the
+  # last component since callers (and the OS, on Windows) rely on it.
+  root, ext = os.path.splitext(file_name)
+  bin_path = os.path.join(dir, '%s-%s%s' % (root, sha256[:16], ext))
 
-  # Avoid recomputing the SHA-256 on each invocation. The SHA-256 of the last
-  # download is cached into file_name.sha256, just check if that matches.
-  if os.path.exists(bin_path) and os.path.exists(sha256_path):
-    with open(sha256_path, 'rb') as f:
-      digest = f.read().decode()
-      if digest == sha256:
-        needs_download = False
+  # The cached file is only ever created via an atomic rename after the SHA-256
+  # has been verified, so if a file at this (SHA-named) path exists we can trust
+  # it without recomputing the hash on every invocation.
+  if os.path.exists(bin_path):
+    return bin_path
 
-  if needs_download:  # The file doesn't exist or the SHA256 doesn't match.
-    # Use a unique random file to guard against concurrent executions.
-    # See https://github.com/google/perfetto/issues/786 .
-    tmp_path = '%s.%d.tmp' % (bin_path, random.randint(0, 100000))
-    print('Downloading ' + url)
-    subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
-    with open(tmp_path, 'rb') as fd:
-      actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
-    if actual_sha256 != sha256:
-      raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
-                      (url, actual_sha256, sha256))
-    os.chmod(tmp_path, 0o755)
-    os.replace(tmp_path, bin_path)
-    with open(tmp_path, 'w') as f:
-      f.write(sha256)
-    os.replace(tmp_path, sha256_path)
+  # Use a unique random file to guard against concurrent executions.
+  # See https://github.com/google/perfetto/issues/786 .
+  tmp_path = '%s.%d.tmp' % (bin_path, random.randint(0, 100000))
+  print('Downloading ' + url)
+  subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
+  with open(tmp_path, 'rb') as fd:
+    actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
+  if actual_sha256 != sha256:
+    raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
+                    (url, actual_sha256, sha256))
+  os.chmod(tmp_path, 0o755)
+  os.replace(tmp_path, bin_path)
   return bin_path
 
 
