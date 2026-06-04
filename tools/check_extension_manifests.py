@@ -23,6 +23,7 @@ JSON, missing required fields, and drift between `ai/skills/` and
 
 import json
 import os
+import re
 import sys
 from typing import Any, Dict, List
 
@@ -30,7 +31,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXTENSIONS_DIR = os.path.join(REPO_ROOT, 'ai', 'extensions')
 SKILLS_DIR = os.path.join(REPO_ROOT, 'ai', 'skills')
 TARGETS_JSON = os.path.join(SKILLS_DIR, 'targets.json')
+# Before the first prebuilt roll the manifests carry the dev sentinel;
+# roll-prebuilts stamps the release version (vX.Y) in place. Accept either.
 VERSION_SENTINEL = '0.0.0-dev'
+VERSION_RE = re.compile(r'^(0\.0\.0-dev|v[0-9]+\.[0-9]+)$')
 VALID_TARGETS = ('claude-code', 'codex', 'fallback')
 
 # Per-agent required fields. Each entry maps a manifest filename to the
@@ -51,10 +55,10 @@ def _check_specific(rel_path: str, data: Dict[str, Any]) -> List[str]:
   errors = []
   fname = os.path.basename(rel_path)
 
-  if 'version' in data and data['version'] != VERSION_SENTINEL:
+  if 'version' in data and not VERSION_RE.match(str(data['version'])):
     errors.append(
-        f'{rel_path}: version must be the sentinel {VERSION_SENTINEL!r} '
-        f'(release pipeline rewrites it on the ai-agents branch); '
+        f'{rel_path}: version must be the {VERSION_SENTINEL!r} sentinel or a '
+        f'release version like "v54.0" (roll-prebuilts stamps it); '
         f'got {data["version"]!r}')
 
   if fname == 'marketplace.json':
