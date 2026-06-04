@@ -21,7 +21,7 @@
     "@lezer/lr": "^1.4.2",
     "@popperjs/core": "^2.11.8",
     "@protobufjs/base64": "^1.1.2",
-    "@protobufjs/utf8": "^1.1.0",
+    "@protobufjs/utf8": "^1.1.1",
     "@rollup/plugin-json": "^6.1.0",
     "@types/chrome": "0.0.268",
     "@types/color-convert": "^2.0.3",
