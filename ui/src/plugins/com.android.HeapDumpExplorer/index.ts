@@ -46,8 +46,8 @@ export default class implements PerfettoPlugin {
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
-    // The core restores this store (phase 1) before plugins run, so
-    // restoreFromStore() below sees any shared-link state.
+    // The core restores this store (phase 1) before plugins run, so the session
+    // reads any shared-link state straight from it.
     const store = ctx.mountStore(PLUGIN_ID, migrateHdeState);
 
     const session = new HeapDumpExplorerSession(
@@ -56,8 +56,7 @@ export default class implements PerfettoPlugin {
       hideDefaultChangedHint,
       store,
     );
-    await session.loadDumps();
-    const restored = session.restoreFromStore();
+    const restored = await session.loadDumps();
 
     ctx.pages.registerPage({
       route: '/heapdump',
