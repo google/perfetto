@@ -19,6 +19,10 @@
     {
       "name": "perfetto-workflow-android-heap-dump-cluster",
       "targets": ["claude-code", "codex", "fallback"]
+    },
+    {
+      "name": "perfetto-workflow-android-heap-dump-caching-optimizer",
+      "targets": ["claude-code", "codex", "fallback"]
     }
   ]
 }

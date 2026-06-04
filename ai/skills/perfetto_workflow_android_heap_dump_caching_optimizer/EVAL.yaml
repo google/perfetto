@@ -1,0 +1,72 @@
+# learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# Suite: java-heap-optimizer
+
+suite_name: "java-heap-optimizer"
+timeout_seconds: 600
+
+cases:
+  - name: "analyze_heap_dump_no_location_given"
+    prompt: "Can you analyze a heap dump and find caching optimizations for our app?"
+    expectations:
+      - "Agent asks the user for the location of the heap dump (either via a URL or a local file path)."
+      - "Agent asks the user if there is a specific package name they are interested in optimizing."
+      - "Agent asks the user if they want to focus on a specific class name regex."
+      - "Agent asks the user for the codebase location (URL, custom local path, current workspace, or none)."
+
+  - name: "download_and_analyze_heap_dump"
+    prompt: "Analyze the heap dump at https://ui.perfetto.dev/#!/?s=0d259d2b6ef1e5e5970b83c47b5e531aff2d0fd9 to find caching opportunities. Focus on package 'com.example.sampleapp'."
+    expectations:
+      - "Agent downloads the heap dump file from the provided URL to the local filesystem."
+      - "Agent loads the heap dump (following perfetto_infra_querying_traces skill)."
+      - "Agent executes query_most_repeated_objects.sql and query_size_frequencies.sql using trace_processor."
+      - "Agent asks the user for a class name regex to focus on."
+      - "Agent asks the user for the codebase location."
+      - "Agent filters out primitive objects and java.lang.* classes."
+      - "Agent prioritizes and analyzes classes matching 'com.example.sampleapp'."
+      - "Agent identifies potential caching opportunities using heuristics."
+
+  - name: "analyze_local_heap_dump_with_package"
+    prompt: "I have a heap dump located at /home/user/traces/app-heap.pb. Can you analyze it to find caching opportunities? I'm interested in the package com.google.android.gms.chimera."
+    expectations:
+      - "Agent uses the local path directly."
+      - "Agent asks the user for a class name regex to focus on."
+      - "Agent asks the user for the codebase location."
+      - "Agent runs PerfettoSQL queries query_most_repeated_objects.sql and query_size_frequencies.sql on the heap dump."
+      - "Agent filters results and prioritizes classes matching the package 'com.google.android.gms.chimera'."
+      - "Agent prints a summary of candidates."
+
+  - name: "verify_duplicate_references"
+    prompt: "I suspect that MediaMetadata objects are duplicated and owned by MediaItem. Can you verify if MediaItem dominates or owns MediaMetadata in the heap dump /home/user/traces/app-heap.pb?"
+    expectations:
+      - "Agent executes query_heap_references.sql using trace_processor on the heap dump."
+      - "Agent replaces placeholder '<owner_classname>' with 'MediaItem'."
+      - "Agent replaces placeholder '<owned_classname>' with 'MediaMetadata'."
+      - "Agent reports the results to confirm the ownership relationship."
+
+  - name: "deep_code_analysis"
+    prompt: "We found a candidate class com.google.android.apps.photos.MediaMetadata which is repeated 15,000 times. The source code is in the workspace under src/com/google/android/apps/photos/MediaMetadata.java. Perform a deep analysis of references and present findings."
+    expectations:
+      - "Agent searches for and views the source file MediaMetadata.java and its referencing files in the workspace."
+      - "Agent analyzes the reference hierarchy to identify the optimal location to cache."
+      - "Agent presents findings in a markdown file and in the prompt, including memory savings estimate, explanation, implementation details, and file path."
+
+  - name: "generate_implementation_plan_with_code"
+    prompt: "Create an implementation plan for the MediaMetadata caching opportunity. The codebase is in the workspace."
+    expectations:
+      - "Agent creates a detailed implementation plan with step-by-step instructions and code changes."
+      - "Agent creates a detailed explanation doc called analysis.md."
+      - "Agent includes in-depth reasoning of savings, why to cache, and trade-offs in analysis.md."
+
+  - name: "generate_implementation_plan_no_code"
+    prompt: "Create an implementation plan for the MediaMetadata caching opportunity. We do not have access to the codebase."
+    expectations:
+      - "Agent provides a list of suggestions on what to look for in the codebase to implement caching."
+      - "Agent creates a detailed explanation doc called analysis.md."
+      - "Agent includes in-depth reasoning of savings and trade-offs in analysis.md."
+
+  - name: "apply_caching_optimization"
+    prompt: "I have reviewed the implementation plan. Please apply the caching changes to MediaMetadata.java and its references."
+    expectations:
+      - "Agent applies the caching changes locally to MediaMetadata.java and referencing files."
+      - "Agent preserves unrelated existing code, comments, and docstrings."
+      - "Agent does not commit the changes and leaves it to the user."
