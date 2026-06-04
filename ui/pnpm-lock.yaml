@@ -166,6 +166,9 @@ devDependencies:
   '@typescript-eslint/parser':
     specifier: ^7.14.1
     version: 7.14.1(eslint@9.6.0)(typescript@5.5.2)
+  argparse:
+    specifier: ^2.0.1
+    version: 2.0.1
   dingusjs:
     specifier: ^0.0.3
     version: 0.0.3
