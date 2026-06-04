@@ -73,7 +73,7 @@
     "pngjs": "^7.0.0",
     "prettier": "^3.3.2",
     "protobufjs-cli": "1.2.1",
-    "puppeteer": "^22.15.0",
+    "puppeteer": "^25.1.0",
     "rollup": "^4.60.1",
     "rollup-plugin-re": "^1.0.7",
     "rollup-plugin-sourcemaps2": "^0.5.6",
