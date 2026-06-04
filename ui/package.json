@@ -87,10 +87,5 @@
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
-  },
-  "pnpm": {
-    "overrides": {
-      "@types/linkify-it": "^3.0.3"
-    }
   }
 }
