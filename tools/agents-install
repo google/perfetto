@@ -137,8 +137,7 @@ def download_and_extract(ref: str, workdir: str) -> str:
   # The tarball expands into a single top-level "perfetto-<ref>" directory.
   roots = [
       d for d in os.listdir(workdir)
-      if d.startswith('perfetto-') and
-      os.path.isdir(os.path.join(workdir, d))
+      if d.startswith('perfetto-') and os.path.isdir(os.path.join(workdir, d))
   ]
   if not roots:
     err('unexpected tarball layout (no perfetto-* directory)')

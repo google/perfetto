@@ -200,8 +200,11 @@ def update_ai_agents(version):
       f.write('\n')
   with open(AGENTS_INSTALL) as f:
     src = f.read()
-  src = re.sub(r"^DEFAULT_VERSION = '.*'$", f"DEFAULT_VERSION = '{version}'",
-               src, flags=re.M)
+  src = re.sub(
+      r"^DEFAULT_VERSION = '.*'$",
+      f"DEFAULT_VERSION = '{version}'",
+      src,
+      flags=re.M)
   with open(AGENTS_INSTALL, 'w') as f:
     f.write(src)
 
