@@ -13,6 +13,12 @@ Unreleased:
   SDK:
    *
 
+v56.1 - 2026-06-04:
+  SDK:
+    * Fixed C++ SDK build failure on aarch64 with recent libstdc++ versions
+      (e.g. 12.5.0) caused by `CircularQueue::Iterator` not being default
+      constructible.
+
 v56.0 - 2026-05-21:
   Tracing service and probes:
     * Added `machine_id` and `machine_name` fields to `TracingServiceState`,
