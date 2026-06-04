@@ -34,6 +34,25 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_video_size_cap_hit,           kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video stream hit max_stream_size_bytes; "               \
+      "frames dropped (indexed by display_id)."),                              \
+  F(android_video_codec_error,            kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video MediaCodec error (indexed by display_id)."),      \
+  F(android_video_display_gone,           kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video source display removed mid-session "              \
+      "(indexed by display_id)."),                                            \
+  F(android_video_no_encoder,             kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video has no encoder for the requested format "         \
+      "(indexed by display_id)."),                                            \
+  F(android_video_display_not_found,      kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video display not found at session start "              \
+      "(indexed by display_id)."),                                            \
+  F(android_video_encoder_setup_failed,   kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video encoder setup failed (indexed by display_id)."),  \
+  F(android_video_virtual_display_failed, kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video createVirtualDisplay failed "                     \
+      "(indexed by display_id)."),                                            \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

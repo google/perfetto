@@ -1,0 +1,85 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// A captured frame from a device display.
+//
+// Each display is captured as a hardware video elementary stream: a
+// codec_config-only VideoFrame first, then one VideoFrame per on-screen
+// change carrying a single access unit (au_data).
+message VideoFrame {
+  // Per-session display index (0, 1, ...). Groups frames into per-display
+  // tracks.
+  optional uint32 display_id = 1;
+
+  optional uint64 frame_number = 2;
+
+  enum Codec {
+    CODEC_UNSPECIFIED = 0;
+    CODEC_H264 = 1;
+    CODEC_HEVC = 2;
+  }
+  optional Codec codec = 3;
+
+  // Decoder config, emitted once per stream before any au_data. Annex-B
+  // (SPS/PPS for H.264; VPS/SPS/PPS for HEVC). Required to decode au_data.
+  optional bytes codec_config = 4;
+
+  // One access unit (a single encoded frame), Annex-B bytes.
+  optional bytes au_data = 5;
+
+  optional bool is_key_frame = 6;
+
+  // Codec presentation timestamp (us) of au_data. Distinct from the
+  // TracePacket timestamp, which places the frame on the timeline.
+  optional uint64 pts_us = 7;
+
+  // Set on the codec_config packet only.
+  optional string display_name = 8;
+
+  // RFC 6381 codec string (e.g. "avc1.42c00b"), passed straight to
+  // WebCodecs VideoDecoder.configure. Set on the codec_config packet only.
+  optional string codec_string = 9;
+}
+
+// Per-stream failure indicator. One is emitted per failure on a stream;
+// clean streams produce none. Trace processor maps each reason to its own
+// kIndexed entry in the global stats table, keyed by display_id.
+message VideoFrameError {
+  optional uint32 display_id = 1;
+
+  enum Reason {
+    REASON_UNKNOWN = 0;
+    // Hit DisplayVideoConfig.max_stream_size_bytes.
+    SIZE_CAP_HIT = 1;
+    // MediaCodec.Callback.onError fired.
+    CODEC_ERROR = 2;
+    // Source display removed mid-session.
+    DISPLAY_GONE = 3;
+    // No MediaCodec encoder for the requested format on this device.
+    NO_ENCODER = 4;
+    // getDisplay returned null at session start.
+    DISPLAY_NOT_FOUND = 5;
+    // MediaCodec configure/start threw.
+    ENCODER_SETUP_FAILED = 6;
+    // createVirtualDisplay returned null.
+    VIRTUAL_DISPLAY_FAILED = 7;
+  }
+  optional Reason reason = 2;
+}
