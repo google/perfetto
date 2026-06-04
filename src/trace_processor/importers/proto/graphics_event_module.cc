@@ -75,8 +75,8 @@ ModuleResult GraphicsEventModule::TokenizePacket(
     return ModuleResult::Ignored();
   }
 
-  // A GpuCounterEvent has two independent sections that are handled in different
-  // stages:
+  // A GpuCounterEvent has two independent sections that are handled in
+  // different stages:
   //  - the descriptor section (counter_descriptor / counter_descriptor_iid) is
   //    handled here at tokenization time (track + counter group setup);
   //  - the event section (the counter samples) is handled at parse time.
@@ -86,8 +86,8 @@ ModuleResult GraphicsEventModule::TokenizePacket(
   TokenizeGpuCounterEvent(state.get(), packet->offset(), event);
 
   // Only the event section needs a timestamp (the samples have to be sorted). A
-  // descriptor-only packet legitimately has no samples and no timestamp, so only
-  // flag/drop the packet when it actually carries samples. Returning a
+  // descriptor-only packet legitimately has no samples and no timestamp, so
+  // only flag/drop the packet when it actually carries samples. Returning a
   // non-Ignored result stops it from reaching the sorter.
   if (event.counters() && !decoder.has_timestamp()) {
     context_->import_logs_tracker->RecordTokenizationError(
@@ -95,8 +95,8 @@ ModuleResult GraphicsEventModule::TokenizePacket(
     return ModuleResult::Handled();
   }
 
-  // Let the packet flow through to the sorter so its samples are pushed at parse
-  // time.
+  // Let the packet flow through to the sorter so its samples are pushed at
+  // parse time.
   return ModuleResult::Ignored();
 }
 
@@ -192,9 +192,9 @@ void GraphicsEventModule::TokenizeGpuCounterEvent(
       bool forwards_looking = spec.value_direction() ==
                               GpuCounterDescriptor::GpuCounterSpec::
                                   VALUE_DIRECTION_FORWARDS_LOOKING;
-      legacy_gpu_counters_.Insert(
-          counter_id, GpuCounterSequenceState::CounterTrackInfo{
-                          track_id, forwards_looking});
+      legacy_gpu_counters_.Insert(counter_id,
+                                  GpuCounterSequenceState::CounterTrackInfo{
+                                      track_id, forwards_looking});
       counter_id_to_track.Insert(counter_id, track_id);
     }
     parser_.InsertCustomCounterGroups(descriptor, counter_id_to_track);
