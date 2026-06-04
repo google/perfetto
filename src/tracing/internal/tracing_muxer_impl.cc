@@ -2295,6 +2295,9 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
     TracingBackendId backend_id,
     DataSourceInstanceID instance_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // 0 is the sentinel id for unadopted startup data sources; never match it.
+  if (instance_id == 0)
+    return FindDataSourceRes();
   RegisteredProducerBackend& backend = *FindProducerBackendById(backend_id);
   for (const auto& rds : data_sources_) {
     DataSourceStaticState* static_state = rds.static_state;

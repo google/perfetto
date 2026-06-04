@@ -6,6 +6,13 @@ suite_name: "perfetto_workflow_android_heap_dump"
 timeout_seconds: 300
 
 cases {
+  name: "quickstart_triage"
+  prompt: "I need to analyze an Android OOM heap dump."
+  expectations: "The agent strictly follows the verbatim triage prompt instructions, gating open-ended exploration."
+}
+
+
+cases {
   name: "confirm_heap_graph"
   prompt: "How do I check if my trace has a Java heap dump?"
   expectations: "The agent recommends querying `android_heap_graph_stats`."
@@ -23,4 +30,6 @@ cases {
   prompt: "I found a leaky class. How do I find what's keeping it alive?"
   expectations: "The agent recommends using `heap_graph_dominator_tree`."
   expectations: "The agent explains walking up `idom_id` to find retention path."
+  expectations: "The agent instructs to search codebase for application source code."
+  expectations: "The agent explains providing philosophical architectural advice and an implementation plan."
 }

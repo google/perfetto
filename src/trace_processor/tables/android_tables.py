@@ -29,37 +29,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
-from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
-
-ANDROID_LOG_TABLE = Table(
-    python_module=__file__,
-    class_name="AndroidLogTable",
-    sql_name="__intrinsic_android_logs",
-    columns=[
-        C("ts", CppInt64(), cpp_access=CppAccess.READ),
-        C("utid", CppTableId(THREAD_TABLE), cpp_access=CppAccess.READ),
-        C("prio", CppUint32(), cpp_access=CppAccess.READ),
-        C("tag", CppOptional(CppString()), cpp_access=CppAccess.READ),
-        C("msg", CppString(), cpp_access=CppAccess.READ),
-    ],
-    tabledoc=TableDoc(
-        doc='''
-          Log entries from Android logcat.
-
-          NOTE: this table is not sorted by timestamp. This is why we omit the
-          sorted flag on the ts column.
-        ''',
-        group='Android',
-        columns={
-            'ts': 'Timestamp of log entry.',
-            'utid': 'Thread writing the log entry.',
-            'prio': 'Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.',
-            'tag': 'Tag of the log entry.',
-            'msg': 'Content of the log entry.'
-        },
-    ),
-)
 
 ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
     python_module=__file__,
@@ -406,7 +376,6 @@ ALL_TABLES = [
     ANDROID_GAME_INTERVENTION_LIST_TABLE,
     ANDROID_INPUT_EVENT_DISPATCH_TABLE,
     ANDROID_KEY_EVENTS_TABLE,
-    ANDROID_LOG_TABLE,
     ANDROID_MOTION_EVENTS_TABLE,
     ANDROID_USER_LIST_TABLE,
 ]

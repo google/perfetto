@@ -91,6 +91,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly dependencies = [SqlModulesPlugin];
 
   private static queryTabPersistenceSetting: Setting<boolean>;
+  private static sidebarVisibleSetting: Setting<boolean>;
 
   constructor(private readonly trace: Trace) {}
 
@@ -118,6 +119,15 @@ export default class QueryPagePlugin implements PerfettoPlugin {
         'Experimental: stored queries may be lost during version upgrades.',
       schema: z.boolean(),
       defaultValue: false,
+    });
+
+    QueryPagePlugin.sidebarVisibleSetting = app.settings.register({
+      id: `${QueryPagePlugin.id}#sidebarVisible`,
+      name: 'Query Page: Sidebar Visible',
+      description: 'Show the History/Tables sidebar on the Query page.',
+      schema: z.boolean(),
+      defaultValue: true,
+      headless: true,
     });
   }
 
@@ -326,6 +336,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           onTabAdd,
           onTabRename,
           onTabReorder,
+          sidebarVisibleSetting: QueryPagePlugin.sidebarVisibleSetting,
         }),
     });
 

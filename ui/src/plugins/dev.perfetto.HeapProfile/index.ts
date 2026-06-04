@@ -385,9 +385,11 @@ function matchingTracks(
 }
 
 export async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
+  // We treat a small number of slices as not having timeline data cos
+  // there are some inevitable slices like trace triggers on oom etc.
   const res = await ctx.engine.query(`
     SELECT
-      EXISTS(SELECT 1 FROM slice) OR
+      (SELECT count(id) FROM slice) > 50 OR
       EXISTS(SELECT 1 FROM sched) OR
       EXISTS(SELECT 1 FROM heap_profile_allocation) OR
       EXISTS(SELECT 1 FROM perf_sample)

@@ -16,7 +16,6 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/android/app_wakelock_data.proto";
 import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/gpu/gpu_counter_event.proto";
@@ -145,9 +144,6 @@ message InternedData {
   repeated InternedString viewcapture_content_description = 45;
   repeated InternedString viewcapture_text = 46;
 
-  // Interned context for android.app_wakelocks.
-  repeated AppWakelockInfo app_wakelock_info = 42;
-
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
@@ -161,8 +157,12 @@ message InternedData {
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
 
+  // App wakelock (AppWakelockInfo). Schema:
+  // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
+  extensions 42;
+
   // Extension range for domain-specific interned data. See
-  // interned_data_extensions.json for the allocation registry.
+  // protos/perfetto/trace/extensions.json for the allocation registry.
   extensions 1000 to 9999;
 }
 

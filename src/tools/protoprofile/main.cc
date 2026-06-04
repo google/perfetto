@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/importers/proto/android_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_profiler.h"
@@ -207,6 +208,13 @@ int Main(int argc, const char** argv) {
                                                       kTraceDescriptor.size());
   if (!status.ok()) {
     PERFETTO_ELOG("Could not add Trace proto descriptor: %s",
+                  status.c_message());
+    return 1;
+  }
+  status = pool.AddFromFileDescriptorSet(kAndroidExtensionDescriptor.data(),
+                                         kAndroidExtensionDescriptor.size());
+  if (!status.ok()) {
+    PERFETTO_ELOG("Could not add Android extensions proto descriptor: %s",
                   status.c_message());
     return 1;
   }

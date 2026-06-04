@@ -200,6 +200,30 @@ void ConvertFileDescriptor(const google::protobuf::FileDescriptorProto& src,
   }
 }
 
+// Emits |fd| and its transitive dependencies into |fds|, skipping files already
+// added and core Perfetto protos (those under protos/perfetto/). Core protos
+// already ship in TraceProcessor and resolve there -- including the extendee
+// (e.g. TracePacket) -- so the descriptor only needs to carry the extension
+// files and the types they define. |is_root| keeps the extension file itself
+// even when it lives under protos/perfetto/; the skip applies to its deps.
+void AddFileAndTransitiveDeps(const google::protobuf::FileDescriptor* fd,
+                              bool is_root,
+                              std::set<std::string>* added_files,
+                              pbzero::FileDescriptorSet* fds) {
+  std::string name(fd->name().data(), fd->name().size());
+  if (!is_root && base::StartsWith(name, "protos/perfetto/"))
+    return;
+  if (!added_files->insert(name).second)
+    return;
+  google::protobuf::FileDescriptorProto file_proto;
+  fd->CopyTo(&file_proto);
+  ConvertFileDescriptor(file_proto, fds->add_file());
+  for (int i = 0; i < fd->dependency_count(); ++i) {
+    AddFileAndTransitiveDeps(fd->dependency(i), /*is_root=*/false, added_files,
+                             fds);
+  }
+}
+
 // Validates that:
 // 1. At least one extension targeting |scope| exists in |file_desc|.
 // 2. All such extension fields have field numbers within the given |ranges|.
@@ -465,12 +489,14 @@ base::StatusOr<std::vector<Registry>> ParseRegistryFile(
 }
 
 base::Status ValidateRegistry(const Registry& reg) {
-  // Currently only TrackEvent extensions are supported. In the future, this
-  // field could be used to disambiguate TracePacket extensions.
-  if (reg.scope != "perfetto.protos.TrackEvent") {
+  if (reg.scope != "perfetto.protos.TrackEvent" &&
+      reg.scope != "perfetto.protos.TracePacket" &&
+      reg.scope != "perfetto.protos.InternedData") {
     return base::ErrStatus(
-        "'scope' must be \"perfetto.protos.TrackEvent\" in '%s'",
-        reg.source_path.c_str());
+        "Invalid scope '%s' in '%s'; expected one of: "
+        "perfetto.protos.TrackEvent, perfetto.protos.TracePacket, "
+        "perfetto.protos.InternedData",
+        reg.scope.c_str(), reg.source_path.c_str());
   }
 
   if (reg.ranges.empty()) {
@@ -544,13 +570,25 @@ base::Status ValidateRegistry(const Registry& reg) {
     // we don't validate remote entries.
     if (!has_repo && !has_proto && !has_registry) {
       return base::ErrStatus(
-          "Allocation '%s' must have 'proto' or 'registry' in '%s'",
+          "Allocation '%s' must have 'proto', 'registry', or (for remote "
+          "sources) 'repo' in '%s'",
           alloc.name.c_str(), reg.source_path.c_str());
     }
     if (has_proto && has_registry) {
       return base::ErrStatus(
           "Allocation '%s' has both 'proto' and 'registry' in '%s'",
           alloc.name.c_str(), reg.source_path.c_str());
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status ValidateScopesUnique(const std::vector<Registry>& registries) {
+  std::set<std::string> seen;
+  for (const auto& reg : registries) {
+    if (!seen.insert(reg.scope).second) {
+      return base::ErrStatus("Scope '%s' appears more than once in '%s'",
+                             reg.scope.c_str(), reg.source_path.c_str());
     }
   }
   return base::OkStatus();
@@ -606,7 +644,10 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
   ASSIGN_OR_RETURN(auto extensions,
                    ParseRegistryFile(root_contents, root_json_path));
 
-  // 2. Recursively collect all local proto entries from each registry.
+  // 2. Reject duplicate top-level scopes before any per-entry walking.
+  RETURN_IF_ERROR(ValidateScopesUnique(extensions));
+
+  // 3. Recursively collect all local proto entries from each registry.
   std::vector<ProtoEntry> entries;
   for (const auto& reg : extensions) {
     RETURN_IF_ERROR(ValidateRegistry(reg));
@@ -620,7 +661,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     return fds.SerializeAsArray();
   }
 
-  // 2. Set up protoc importer.
+  // 4. Set up protoc importer.
   protozero::MultiFileErrorCollectorImpl error_collector;
   google::protobuf::compiler::DiskSourceTree source_tree;
   for (const auto& path : proto_paths) {
@@ -631,7 +672,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
   // Track which files we've already added to avoid duplicates.
   std::set<std::string> added_files;
 
-  // 3. Compile each proto and collect descriptors.
+  // 5. Compile each proto and collect descriptors.
   protozero::HeapBuffered<pbzero::FileDescriptorSet> fds;
 
   for (const auto& entry : entries) {
@@ -654,26 +695,9 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     // Validate field numbers.
     RETURN_IF_ERROR(ValidateFieldNumbers(file_desc, entry.scope, entry.ranges));
 
-    // Convert to our descriptor format. We include the extension file itself
-    // and its transitive dependencies that are NOT core Perfetto protos
-    // (those are already built into TraceProcessor).
-    // For simplicity, we include all dependencies. TraceProcessor's
-    // DescriptorPool handles duplicates gracefully.
-    google::protobuf::FileDescriptorProto file_proto;
-    file_desc->CopyTo(&file_proto);
-
-    if (added_files.insert(file_proto.name()).second) {
-      ConvertFileDescriptor(file_proto, fds->add_file());
-    }
-
-    // Also add direct dependencies needed for type resolution.
-    for (int i = 0; i < file_desc->dependency_count(); ++i) {
-      google::protobuf::FileDescriptorProto dep_proto;
-      file_desc->dependency(i)->CopyTo(&dep_proto);
-      if (added_files.insert(dep_proto.name()).second) {
-        ConvertFileDescriptor(dep_proto, fds->add_file());
-      }
-    }
+    // Emit the extension file plus its non-core transitive dependencies.
+    AddFileAndTransitiveDeps(file_desc, /*is_root=*/true, &added_files,
+                             fds.get());
   }
 
   return fds.SerializeAsArray();

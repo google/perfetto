@@ -143,4 +143,7 @@ export interface DataSourceRows {
 
   // Whether the data is currently being fetched
   readonly isPending: boolean;
+
+  // If set, the query failed and this contains the error message.
+  readonly error?: string;
 }

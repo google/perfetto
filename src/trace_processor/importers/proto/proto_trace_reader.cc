@@ -499,6 +499,12 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
   auto& modules = module_context_.modules_by_field;
+  // TODO: decoder.Get(field_id) here shares the num_fields_ gap
+  // described in TypedProtoDecoderBase::GetExtensionSlowly(): a module
+  // registered for a field id in the out-of-tree `extensions 1000 to 1999`
+  // range would not be dispatched, because Get() can't see fields beyond the
+  // highest in-tree field id. Switch this to GetExtensionSlowly() (or the
+  // object-pool approach) once such fields land.
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (!modules[field_id].empty() && decoder.Get(field_id).valid()) {
       for (ProtoImporterModule* module : modules[field_id]) {

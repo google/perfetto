@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -114,6 +115,32 @@ class PerfettoSqlConnection {
   // Returns an error if the execution of any statement failed or if there was
   // no valid SQL to run.
   base::StatusOr<ExecutionStats> Execute(SqlSource sql);
+
+  // Executes a single-statement parameterized SQL, binding |binds| to its
+  // |?| placeholders in order. Strings in |binds| must outlive the call.
+  // Bypasses the PerfettoSQL frontend: the SQL must be plain SQLite.
+  //
+  // Intended for hot internal loops where the same INSERT/UPDATE shape is
+  // run many times with different values. Each call still prepares and
+  // finalizes a fresh sqlite3_stmt (lookaside makes that cheap); wrap the
+  // loop in a |Transaction| to avoid per-call commits.
+  base::Status Execute(SqlSource sql,
+                       std::initializer_list<std::string_view> binds);
+
+  // RAII transaction. Issues BEGIN on construction and COMMIT on
+  // destruction. Use to batch a sequence of Execute() calls so SQLite does
+  // not implicitly commit after each statement.
+  class [[nodiscard]] Transaction {
+   public:
+    explicit Transaction(PerfettoSqlConnection*);
+    ~Transaction();
+
+    Transaction(const Transaction&) = delete;
+    Transaction& operator=(const Transaction&) = delete;
+
+   private:
+    PerfettoSqlConnection* conn_;
+  };
 
   // Executes all the statements in |sql| fully until the final statement and
   // returns a |ExecutionResult| object containing a |ScopedStmt| for the final

@@ -76,7 +76,6 @@ source_set("minimal") {
   ]
   public_deps = [ ":proto_importer_module" ]
   deps = [
-    ":gen_cc_android_extensions_descriptor",
     ":gen_cc_chrome_track_event_descriptor",
     ":gen_cc_gpu_track_event_descriptor",
     ":gen_cc_track_event_descriptor",
@@ -99,6 +98,8 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/perfetto/trace/translation:zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_interned_data_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
     "../../../../protos/third_party/chromium:zero",
     "../../../base",
     "../../../protovm",
@@ -166,6 +167,10 @@ source_set("full") {
     "heap_graph_tracker.h",
     "jit_tracker.cc",
     "jit_tracker.h",
+    "linux_probes_module.cc",
+    "linux_probes_module.h",
+    "linux_probes_parser.cc",
+    "linux_probes_parser.h",
     "metadata_module.cc",
     "metadata_module.h",
     "pigweed_detokenizer.cc",
@@ -196,6 +201,7 @@ source_set("full") {
     "vulkan_memory_tracker.h",
   ]
   deps = [
+    ":gen_cc_android_extension_descriptor",
     ":gen_cc_gpu_interned_data_descriptor",
     ":gen_cc_statsd_atoms_descriptor",
     ":gen_cc_trace_descriptor",
@@ -211,6 +217,7 @@ source_set("full") {
     "../../../../protos/perfetto/trace/gpu:gpu_interned_data_zero",
     "../../../../protos/perfetto/trace/gpu:zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
+    "../../../../protos/perfetto/trace/linux:zero",
     "../../../../protos/perfetto/trace/power:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/perfetto/trace/ps:zero",
@@ -300,8 +307,8 @@ perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
       "../../../../protos/third_party/chromium:extension_descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_android_extensions_descriptor") {
-  descriptor_name = "android_extensions_extension.descriptor"
+perfetto_cc_proto_descriptor("gen_cc_android_extension_descriptor") {
+  descriptor_name = "android_extension.descriptor"
   descriptor_target =
       "../../../../protos/third_party/android:extension_descriptor"
 }
@@ -329,6 +336,7 @@ source_set("unittests") {
     "network_trace_module_unittest.cc",
     "packet_sequence_state_generation_unittest.cc",
     "perf_sample_tracker_unittest.cc",
+    "pigweed_detokenizer_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",
     "proto_trace_reader_unittest.cc",
