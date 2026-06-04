@@ -1384,7 +1384,7 @@ message EtwConfig {
   // The kernel_flags determines the flags that will be used by the etw tracing
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
-  repeated KernelFlag kernel_flags = 1;
+  repeated KernelFlag kernel_flags = 1 [deprecated = true];
 
   // See the list of keywords for for individual providers.
   // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
@@ -1394,11 +1394,14 @@ message EtwConfig {
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
   // Provides events relating to file I/O.
-  repeated string file_provider_events = 4;
+  repeated string file_provider_events = 4 [deprecated = true];
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
   // Provides events relating to disk I/O.
-  repeated string disk_provider_events = 6;
+  repeated string disk_provider_events = 6 [deprecated = true];
+  // Provides events relating to multiple kinds of IO including disk, cache, and
+  // network.
+  repeated string system_io_provider_events = 7;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -2323,6 +2326,93 @@ message HeapprofdConfig {
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto
 
+// Begin of protos/perfetto/config/profiling/smaps_config.proto
+
+// Config for collecting /proc/pid/smaps.
+message SmapsConfig {
+  enum VmaField {
+    VMA_FIELD_UNKNOWN = 0;
+    VMA_FIELD_SIZE = 1;
+    VMA_FIELD_RSS = 2;
+    VMA_FIELD_ANONYMOUS = 3;
+    VMA_FIELD_SWAP = 4;
+    VMA_FIELD_SHARED_CLEAN = 5;
+    VMA_FIELD_SHARED_DIRTY = 6;
+    VMA_FIELD_PRIVATE_CLEAN = 7;
+    VMA_FIELD_PRIVATE_DIRTY = 8;
+    VMA_FIELD_LOCKED = 9;
+    VMA_FIELD_PSS = 10;
+    VMA_FIELD_PSS_DIRTY = 11;
+    VMA_FIELD_SWAP_PSS = 12;
+  }
+
+  // Set of fields to collect.
+  // If unset, defaults to: size, rss, anonymous, swap.
+  repeated VmaField vma_fields = 1;
+
+  // If false, mappings are aggregated by their path name.
+  // If true, each mapping is serialised separately.
+  optional bool unaggregated = 2;
+
+  // Optional ordered list of redaction rules for the name of the mapping.
+  // Note that all mappings will still be emitted, these rules only affect the
+  // emitted name.
+  // If unset, all names are written as is.
+  // If set, the first matching rule decides on the action.
+  // If no rules match, the name is written as is.
+  repeated RedactionRule name_redaction_rules = 3;
+}
+
+message RedactionRule {
+  // How to match |pattern| against the name of the mapping.
+  // Note for future extensions: unrecognised enums are treated as always
+  // matching.
+  enum MatchMode {
+    MATCH_MODE_UNKNOWN = 0;
+    // The pattern matches if it is a prefix of the mapping name.
+    MATCH_MODE_PREFIX = 1;
+    // The pattern is matched against the mapping name as a pathname glob
+    // (see "man 7 glob" and FNM_PATHNAME in "man 3 fnmatch").
+    // The key distinction is that path separators in the name are *not* matched
+    // against wildcards. So a pattern of the form "/usr/*/llvm" would match
+    // "/usr/lib/llvm" but not "/usr/lib/nested/llvm".
+    // Note: any "(deleted)" suffix is excluded before matching.
+    MATCH_MODE_GLOB_PATH = 2;
+    // The pattern is matched against the mapping name without special-casing
+    // path separators. So a pattern of the form "/usr/*/llvm" would match
+    // both "/usr/lib/llvm" and "/usr/lib/nested/llvm".
+    // Note: any "(deleted)" suffix is excluded before matching.
+    MATCH_MODE_GLOB_STRING = 3;
+  }
+
+  // The pattern to match against.
+  optional string pattern = 1;
+  optional MatchMode match_mode = 2;
+
+  // If the pattern matches, keep the entire name. In other words, do not
+  // redact. This option exists since the rules are evaluated in order, so a
+  // more specific allow rule with keep_full can match before a more general
+  // deny rule. This option is mutually exclusive with |keep_file_extension| and
+  // |keep_path_elements|.
+  optional bool keep_full = 3;
+
+  // If the pattern matches, replace the name with this string (defaulting to
+  // <pf_redacted> if unset). The final emitted name might be further augmented
+  // by the options below keeping parts of the original name.
+  optional string replacement_name = 4;
+
+  // If the pattern matches, keep the file extension, if any.
+  // Can be combined with |keep_path_elements|.
+  optional bool keep_file_extension = 5;
+
+  // If the pattern matches, keep the first N path elements (as separated by
+  // '/'). If the name is not a path, this option does nothing. Can be combined
+  // with |keep_file_extension|.
+  optional uint32 keep_path_elements = 6;
+}
+
+// End of protos/perfetto/config/profiling/smaps_config.proto
+
 // Begin of protos/perfetto/config/profiling/java_hprof_config.proto
 
 // Configuration for managed app heap graph snapshots.
@@ -2389,7 +2479,14 @@ message JavaHprofConfig {
   // * start with /vendor
   // * start with /data/app
   // * contain "extracted in memory from Y", where Y matches any of the above
+  //
+  // Superseded by |smaps_config| in perfetto v58+.
   optional bool dump_smaps = 5;
+
+  // If set, include /proc/self/smaps memory mappings.
+  //
+  // Added in perfetto v58.
+  optional SmapsConfig smaps_config = 8;
 
   // Exclude objects of the following types from the profile. This can be
   // useful if lots of uninteresting objects, e.g. "sun.misc.Cleaner".
@@ -4545,7 +4642,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 142
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -6274,49 +6371,6 @@ message AndroidSystemProperty {
 }
 
 // End of protos/perfetto/trace/android/android_system_property.proto
-
-// Begin of protos/perfetto/trace/android/app_wakelock_data.proto
-
-// AppWakelockInfo describes the time-independent properties of a wakelock, such
-// as the owning package or wakelock tag. This is interned to reduce trace size.
-// Event bundles refer to interned wakelock info by the iid.
-message AppWakelockInfo {
-  // The interned id of this wakelock.
-  optional int32 iid = 1;
-
-  // The app-provided tag of the wakelock.
-  optional string tag = 2;
-
-  // The wakelock flags (such as partial vs full).
-  optional int32 flags = 3;
-
-  // The pid that created the wakelock.
-  optional int32 owner_pid = 4;
-
-  // The uid that created the wakelock.
-  optional int32 owner_uid = 5;
-
-  // The uid of the work source root (if present).
-  optional int32 work_uid = 6;
-}
-
-// AppWakelockBundle describes one or more wakelock events. Events are written
-// in two paired array, such that the details for event i are in intern_id[i]
-// and encoded_ts[i].
-message AppWakelockBundle {
-  // The interned id for the WakelockInfo of the event.
-  repeated uint32 intern_id = 1 [packed = true];
-
-  // The timestamp and event type, encoded as:
-  //   (event_time - packet_time) << 1 | (acquired ? 1 : 0)
-  repeated uint64 encoded_ts = 2 [packed = true];
-
-  // For writing single packets (mainly by tokenization).
-  optional AppWakelockInfo info = 3;
-  optional bool acquired = 4;
-}
-
-// End of protos/perfetto/trace/android/app_wakelock_data.proto
 
 // Begin of protos/perfetto/trace/android/bluetooth_trace.proto
 
@@ -9934,6 +9988,11 @@ message DpuDispFrameStartMissingFtraceEvent {
   optional int32 frames_pending = 3;
   optional int32 te_count = 4;
 }
+message DpuDispDpuLineUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -12511,6 +12570,25 @@ message GramCollisionFtraceEvent {
   optional int32 panel_index = 1;
   optional uint32 collision_cnt = 2;
 }
+message PanelSettingsFullFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 hbm = 2;
+  optional uint32 irc = 3;
+  optional uint32 h_pwm = 4;
+  optional uint32 fi_auto = 5;
+  optional uint32 fi_manual = 6;
+  optional uint32 early_exit = 7;
+  optional uint32 min_rr = 8;
+  optional uint32 max_rr = 9;
+  optional uint32 te_freq = 10;
+}
+message PanelSettingsLiteFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 vrr = 2;
+  optional uint32 min_rr = 3;
+  optional uint32 max_rr = 4;
+  optional uint32 te_freq = 5;
+}
 
 // End of protos/perfetto/trace/ftrace/panel.proto
 
@@ -14158,6 +14236,9 @@ message FtraceEvent {
     MmVmscanMemcgReclaimEndFtraceEvent mm_vmscan_memcg_reclaim_end = 608;
     DpuDispFrameDoneMissingFtraceEvent dpu_disp_frame_done_missing = 609;
     DpuDispFrameStartMissingFtraceEvent dpu_disp_frame_start_missing = 610;
+    PanelSettingsFullFtraceEvent panel_settings_full = 611;
+    PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
+    DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
   }
 }
 
@@ -16418,9 +16499,9 @@ message TrackEvent {
   // New argument types go here :)
 
   // Extension range for typed events defined in external projects.
-  // See track_event_extensions.json for the allocation registry and
+  // See protos/perfetto/trace/extensions.json for the allocation registry and
   // docs/instrumentation/extensions.md for more details.
-  extensions 1000 to 10000;
+  extensions 1000 to 9999;
 
   // ---------------------------------------------------------------------------
   // Deprecated / legacy event fields, which will be removed in the future:
@@ -16683,9 +16764,6 @@ message InternedData {
   repeated InternedString viewcapture_content_description = 45;
   repeated InternedString viewcapture_text = 46;
 
-  // Interned context for android.app_wakelocks.
-  repeated AppWakelockInfo app_wakelock_info = 42;
-
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
@@ -16699,8 +16777,12 @@ message InternedData {
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
 
+  // App wakelock (AppWakelockInfo). Schema:
+  // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
+  extensions 42;
+
   // Extension range for domain-specific interned data. See
-  // interned_data_extensions.json for the allocation registry.
+  // protos/perfetto/trace/extensions.json for the allocation registry.
   extensions 1000 to 9999;
 }
 
@@ -17207,6 +17289,16 @@ message PowerRails {
 
 // Begin of protos/perfetto/trace/profiling/art_process_metadata.proto
 
+message JavaFrame {
+  optional string method_name = 1;
+  optional string source_file = 2;
+  optional int32 line_number = 3;
+}
+
+message JavaStack {
+  repeated JavaFrame frames = 1;
+}
+
 message ArtProcessMetadata {
   optional int32 pid = 1;
   optional int32 uid = 2;
@@ -17214,6 +17306,18 @@ message ArtProcessMetadata {
   optional string process_name = 3;
   // Set by VMRuntime.setProcessPackageName
   optional string package_name = 4;
+
+  // OutOfMemoryError details (if heap dump was triggered by an OOM)
+  // The size of the allocation that ended up failing with OOME
+  optional uint64 oom_allocation_size = 5;
+  // Amount of free memory until the runtime would need to grow the heap
+  optional uint64 oom_total_bytes_free = 6;
+  // Amount of memory remaining until the max heap size supported
+  optional uint64 oom_free_bytes_until_oom = 7;
+  // Stacktrace for the thread doing the failing allocation
+  optional JavaStack oom_thread_java_stack = 8;
+  // Full OOME exception message
+  optional string oom_error_msg = 9;
 }
 
 // End of protos/perfetto/trace/profiling/art_process_metadata.proto
@@ -17804,6 +17908,9 @@ message SmapsEntry {
 // Structure-of-arrays style smaps packet of a single process. All packed
 // repeated fields, if set, must have the same length.
 message PackedSmaps {
+  // Table of path names. Notes:
+  // * first element is the empty string, serialised explicitly.
+  // * the table might contain duplicates.
   repeated string string_table = 1;
 
   // Interned file paths as an index into |string_table|.
@@ -19354,8 +19461,6 @@ message TracePacket {
 
     KernelWakelockData kernel_wakelock_data = 115;
 
-    AppWakelockBundle app_wakelock_bundle = 116;
-
     CpuPerUidData cpu_per_uid_data = 119;
 
     EvdevEvent evdev_event = 121;
@@ -19378,6 +19483,14 @@ message TracePacket {
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 55;
+
+  // App wakelock (AppWakelockBundle). Schema:
+  // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto
+  extensions 116;
+
+  // Reserved for future OOT extensions. New allocations are carved out of this
+  // range and registered in protos/perfetto/trace/extensions.json.
+  extensions 1000 to 1999;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.

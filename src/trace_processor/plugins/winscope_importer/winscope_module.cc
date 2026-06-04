@@ -35,9 +35,9 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/plugins/winscope_importer/shell_transitions_tracker.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope.descriptor.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
-#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor {
 
@@ -122,31 +122,31 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
                                                  int64_t timestamp,
                                                  const TracePacketData& data) {
   WinscopeExtensionsImpl::Decoder decoder(blob.data, blob.size);
-
-  if (auto field =
-          decoder.Get(WinscopeExtensionsImpl::kInputmethodClientsFieldNumber);
+  if (auto field = decoder.GetExtensionSlowly<
+                   WinscopeExtensionsImpl::kInputmethodClientsFieldNumber>();
       field.valid()) {
     ParseInputMethodClientsData(timestamp, field.as_bytes());
-  } else if (field = decoder.Get(
-                 WinscopeExtensionsImpl::kInputmethodManagerServiceFieldNumber);
+  } else if (field = decoder.GetExtensionSlowly<
+                     WinscopeExtensionsImpl::
+                         kInputmethodManagerServiceFieldNumber>();
              field.valid()) {
     ParseInputMethodManagerServiceData(timestamp, field.as_bytes());
-  } else if (field = decoder.Get(
-                 WinscopeExtensionsImpl::kInputmethodServiceFieldNumber);
+  } else if (field = decoder.GetExtensionSlowly<
+                     WinscopeExtensionsImpl::kInputmethodServiceFieldNumber>();
              field.valid()) {
     ParseInputMethodServiceData(timestamp, field.as_bytes());
-  } else if (field =
-                 decoder.Get(WinscopeExtensionsImpl::kViewcaptureFieldNumber);
+  } else if (field = decoder.GetExtensionSlowly<
+                     WinscopeExtensionsImpl::kViewcaptureFieldNumber>();
              field.valid()) {
     viewcapture_parser_.Parse(timestamp, field.as_bytes(),
                               data.sequence_state.get());
-  } else if (field = decoder.Get(
-                 WinscopeExtensionsImpl::kAndroidInputEventFieldNumber);
+  } else if (field = decoder.GetExtensionSlowly<
+                     WinscopeExtensionsImpl::kAndroidInputEventFieldNumber>();
              field.valid()) {
     android_input_event_parser_.ParseAndroidInputEvent(timestamp,
                                                        field.as_bytes());
-  } else if (field =
-                 decoder.Get(WinscopeExtensionsImpl::kWindowmanagerFieldNumber);
+  } else if (field = decoder.GetExtensionSlowly<
+                     WinscopeExtensionsImpl::kWindowmanagerFieldNumber>();
              field.valid()) {
     windowmanager_parser_.Parse(timestamp, field.as_bytes());
   }

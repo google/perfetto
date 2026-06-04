@@ -18,6 +18,7 @@ import {assetSrc} from '../../base/assets';
 import {Icons} from '../../base/semantic_icons';
 import type {QueryResponse} from '../../components/query_table/queries';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
+import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import {Box} from '../../widgets/box';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -83,6 +84,8 @@ export interface QueryPageAttrs {
   // draggedTabId is the tab being moved, beforeTabId is the tab it should be
   // placed before (or undefined if moved to the end).
   onTabReorder?(draggedTabId: string, beforeTabId: string | undefined): void;
+
+  readonly sidebarVisibleSetting: Setting<boolean>;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
@@ -110,6 +113,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
+    const sidebarVisible = attrs.sidebarVisibleSetting.get();
 
     // Build editor tabs for the left panel
     const leftTabs: TabsTab[] = editorTabs.map((tab) => ({
@@ -132,7 +136,20 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       onTabClose: (key) => attrs.onTabClose?.(key),
       onTabReorder: (draggedKey, beforeKey) =>
         attrs.onTabReorder?.(draggedKey, beforeKey),
-      onNewTab: () => attrs.onTabAdd?.(),
+      newTabContent: [
+        m(Button, {
+          icon: 'add',
+          className: 'pf-tabs__new-tab-btn',
+          onclick: () => attrs.onTabAdd?.(),
+        }),
+        m('.pf-query-page__tab-spacer'),
+        m(Button, {
+          icon: sidebarVisible ? 'right_panel_close' : 'right_panel_open',
+          title: sidebarVisible ? 'Hide sidebar' : 'Show sidebar',
+          onclick: () => attrs.sidebarVisibleSetting.set(!sidebarVisible),
+          active: sidebarVisible,
+        }),
+      ],
     });
 
     const activeTab = editorTabs.find((t) => t.id === activeTabId);
@@ -167,6 +184,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         },
       ],
     });
+
+    if (!sidebarVisible) {
+      return m('.pf-query-page', leftPanel);
+    }
 
     return m(
       '.pf-query-page',

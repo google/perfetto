@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/version.h"
 #include "perfetto/profiling/pprof_builder.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
+#include "src/traceconv/android_extension.descriptor.h"
 #include "src/traceconv/deobfuscate_profile.h"
 #include "src/traceconv/symbolize_profile.h"
 #include "src/traceconv/trace.descriptor.h"
@@ -139,8 +140,15 @@ uint64_t StringToUint64OrDie(const char* str) {
 int TextToTrace(std::istream* input, std::ostream* output) {
   std::string trace_text(std::istreambuf_iterator<char>{*input},
                          std::istreambuf_iterator<char>{});
+  std::vector<uint8_t> descriptors;
+  descriptors.reserve(kTraceDescriptor.size() +
+                      kAndroidExtensionDescriptor.size());
+  descriptors.insert(descriptors.end(), kTraceDescriptor.begin(),
+                     kTraceDescriptor.end());
+  descriptors.insert(descriptors.end(), kAndroidExtensionDescriptor.begin(),
+                     kAndroidExtensionDescriptor.end());
   auto proto_status =
-      protozero::TextToProto(kTraceDescriptor.data(), kTraceDescriptor.size(),
+      protozero::TextToProto(descriptors.data(), descriptors.size(),
                              ".perfetto.protos.Trace", "trace", trace_text);
   if (!proto_status.ok()) {
     PERFETTO_ELOG("Failed to parse trace: %s",

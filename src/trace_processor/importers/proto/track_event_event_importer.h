@@ -64,6 +64,8 @@
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
@@ -908,10 +910,8 @@ class TrackEventEventImporter {
                                     /* close_flow = */ true);
       }
     }
-    constexpr uint32_t kGpuCorrelationFieldId =
-        protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber;
-    protozero::ProtoDecoder event_decoder(blob_);
-    auto gpu_field = event_decoder.FindField(kGpuCorrelationFieldId);
+    auto gpu_field = event_.GetExtensionSlowly<
+        protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber>();
     if (gpu_field.valid()) {
       protos::pbzero::GpuCorrelation::Decoder gpu(gpu_field.as_bytes());
       for (auto it = gpu.render_stage_submission_event_ids(); it; ++it) {
@@ -1478,10 +1478,16 @@ class TrackEventEventImporter {
                        Variadic::Integer(priority));
     }
 
-    storage_->mutable_android_log_table()->Insert(
-        {ts_, *utid_,
-         /*priority*/ static_cast<uint32_t>(priority),
-         /*tag_id*/ source_location_id, log_message_id});
+    tables::LogTable::Row log_row;
+    log_row.ts = ts_;
+    log_row.utid = utid_;
+    log_row.prio = static_cast<uint32_t>(priority);
+    log_row.log_source = storage_->InternString("android_logcat");
+    log_row.tag = source_location_id != kNullStringId
+                      ? std::make_optional(source_location_id)
+                      : std::nullopt;
+    log_row.msg = log_message_id;
+    storage_->mutable_log_table()->Insert(log_row);
 
     return base::OkStatus();
   }

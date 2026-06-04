@@ -17,6 +17,14 @@
 #ifndef SRC_BASE_REGEX_REGEX_RE2_H_
 #define SRC_BASE_REGEX_REGEX_RE2_H_
 
+#include "perfetto/base/build_config.h"
+
+// Guarded because gen_amalgamated inlines the body even when the include
+// site in regex.cc is preprocessed out. Also honor PERFETTO_REGEX_FORCE_STD:
+// targets that define it opt out of the optional backends and must not pull in
+// <re2/re2.h>, even when PERFETTO_RE2 is set.
+#if PERFETTO_BUILDFLAG(PERFETTO_RE2) && !defined(PERFETTO_REGEX_FORCE_STD)
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -27,7 +35,7 @@
 // Using quotes instead of angle brackets because Bazel passes external repo
 // paths via -iquote (not -isystem), which only covers quoted includes.
 // See google/re2 commit baeed1c and bazelbuild/bazel#18974.
-#include "re2/re2.h"
+#include "re2/re2.h"  // gen_amalgamated:keep
 
 namespace perfetto {
 namespace base {
@@ -117,5 +125,8 @@ class RegexRe2 {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_RE2) &&
+        // !defined(PERFETTO_REGEX_FORCE_STD)
 
 #endif  // SRC_BASE_REGEX_REGEX_RE2_H_

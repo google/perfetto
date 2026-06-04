@@ -29,10 +29,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-
-namespace protozero {
-struct ConstBytes;
-}
+#include "perfetto/protozero/field.h"
 
 namespace perfetto::trace_processor {
 
@@ -56,6 +53,9 @@ class FieldDescriptor {
   bool is_repeated() const { return is_repeated_; }
   bool is_packed() const { return is_packed_; }
   bool is_extension() const { return is_extension_; }
+  const std::string& extension_full_name() const {
+    return extension_full_name_;
+  }
 
   const std::vector<uint8_t>& options() const { return options_; }
   std::vector<uint8_t>* mutable_options() { return &options_; }
@@ -65,6 +65,10 @@ class FieldDescriptor {
 
   void set_resolved_type_name(const std::string& resolved_type_name) {
     resolved_type_name_ = resolved_type_name;
+  }
+
+  void set_extension_full_name(const std::string& extension_full_name) {
+    extension_full_name_ = extension_full_name;
   }
 
  private:
@@ -78,6 +82,7 @@ class FieldDescriptor {
   bool is_repeated_;
   bool is_packed_;
   bool is_extension_;
+  std::string extension_full_name_;
 };
 
 class ProtoDescriptor {
@@ -171,7 +176,12 @@ class ProtoDescriptor {
   std::unordered_map<std::string, int32_t> enum_values_by_name_;
 };
 
-using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
+struct ExtensionInfo {
+  std::string package_name;
+  // Enclosing message's full name. Empty for file-scope extends.
+  std::string parent_full_name;
+  protozero::ConstBytes field_desc_proto;
+};
 
 // Sometimes the same extension field number shows up twice with two
 // different type names (this happens during a package rename). We can't
@@ -244,8 +254,7 @@ class DescriptorPool {
                                        bool merge_existing_messages);
 
   base::Status AddExtensionField(
-      const std::string& package_name,
-      protozero::ConstBytes field_desc_proto,
+      const ExtensionInfo& extension,
       std::vector<ExtensionTypeCheck>* extension_type_checks);
 
   // Recursively searches for the given short type in all parent messages

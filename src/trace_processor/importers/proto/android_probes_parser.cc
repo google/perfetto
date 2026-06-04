@@ -44,6 +44,8 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -165,7 +167,8 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
       aflags_device_config_id_(context->storage->InternString("device_config")),
       aflags_boolean_id_(context->storage->InternString("boolean")),
       aflags_integer_id_(context->storage->InternString("integer")),
-      aflags_unspecified_id_(context->storage->InternString("unspecified")) {}
+      aflags_unspecified_id_(context->storage->InternString("unspecified")),
+      android_logcat_(context->storage->InternString("android_logcat")) {}
 
 void AndroidProbesParser::ParseRailDescriptor(
     const protos::pbzero::PowerRails_Decoder& evt) {
@@ -473,12 +476,17 @@ void AndroidProbesParser::ParseAndroidLogEvent(int64_t ts,
       msg_id = context_->storage->InternString(base::StringView(new_msg));
     }
   }
-  UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
-
   // Log events are NOT required to be sorted by trace_time. The virtual table
   // will take care of sorting on-demand.
-  context_->storage->mutable_android_log_table()->Insert(
-      {ts, utid, prio, tag_id, msg_id});
+  tables::LogTable::Row row;
+  row.ts = ts;
+  row.utid =
+      std::make_optional(context_->process_tracker->UpdateThread(tid, pid));
+  row.prio = static_cast<uint32_t>(prio);
+  row.log_source = android_logcat_;
+  row.tag = evt.has_tag() ? std::make_optional(tag_id) : std::nullopt;
+  row.msg = msg_id;
+  context_->storage->mutable_log_table()->Insert(row);
 }
 
 void AndroidProbesParser::ParseAndroidLogStats(protozero::ConstBytes blob) {
