@@ -48,11 +48,11 @@
 // which requires base::Subprocess. That is available on every platform except
 // Wasm/NaCl (where fork()/exec() don't exist), so gate the implementation
 // accordingly and fall back to a clear error elsewhere.
-#define PERFETTO_TP_HTTP_IMPORT_SUPPORTED()       \
-  (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||       \
-   PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||     \
-   PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||       \
-   PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) ||     \
+#define PERFETTO_TP_HTTP_IMPORT_SUPPORTED()   \
+  (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+   PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+   PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
+   PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
    PERFETTO_BUILDFLAG(PERFETTO_OS_WIN))
 
 #if PERFETTO_TP_HTTP_IMPORT_SUPPORTED()
@@ -160,8 +160,8 @@ std::optional<std::string> GetPermalinkHash(const std::string& url) {
   // The share id is the `s` query param. The Perfetto UI uses hash-based
   // routing (#!/?s=<hash>), so it normally lives in the query string of the
   // fragment, but accept it in the top-level query string too.
-  auto valid_hash = [](std::optional<std::string_view> v)
-      -> std::optional<std::string> {
+  auto valid_hash =
+      [](std::optional<std::string_view> v) -> std::optional<std::string> {
     if (v && IsPermalinkHash(*v))
       return std::string(*v);
     return std::nullopt;
@@ -250,9 +250,10 @@ std::optional<std::string> CachePathForUrl(const std::string& url) {
 // that file's modification time as the If-Modified-Since value. The server then
 // returns "304 Not Modified" with an empty body when the resource is unchanged,
 // which lets us revalidate a cached copy without re-downloading it.
-base::Subprocess MakeCurl(const std::string& url,
-                          const std::optional<std::string>& if_modified_since_file,
-                          base::ScopedPlatformHandle stderr_wr) {
+base::Subprocess MakeCurl(
+    const std::string& url,
+    const std::optional<std::string>& if_modified_since_file,
+    base::ScopedPlatformHandle stderr_wr) {
   base::Subprocess curl;
   curl.args.exec_cmd = {"curl", "-L", "-f", "-sS"};
   if (if_modified_since_file) {
@@ -277,7 +278,8 @@ base::Status CurlError(const std::string& url,
     return base::ErrStatus("Failed to download '%s': %s", url.c_str(),
                            detail.c_str());
   return base::ErrStatus(
-      "Failed to download '%s': curl exited with code %d (is curl installed and "
+      "Failed to download '%s': curl exited with code %d (is curl installed "
+      "and "
       "the URL reachable?)",
       url.c_str(), returncode);
 }
@@ -287,7 +289,8 @@ base::Status CurlFetchAll(const std::string& url, std::string* out) {
   base::Pipe err = base::Pipe::Create();
   base::Subprocess curl = MakeCurl(url, std::nullopt, std::move(err.wr));
   // Call() drains stdout into output() and waits for curl to exit; the write
-  // end of `err` is closed in the parent by Start(), so the read below sees EOF.
+  // end of `err` is closed in the parent by Start(), so the read below sees
+  // EOF.
   bool ok = curl.Call();
   std::string stderr_text;
   base::ReadPlatformHandle(*err.rd, &stderr_text);
@@ -301,11 +304,11 @@ base::Status CurlFetchAll(const std::string& url, std::string* out) {
 // one poll interval of data in memory at a time. If `cache_path` is set, the
 // bytes are also written to a temp file and atomically renamed into place once
 // the whole download has been parsed successfully. If `conditional` is true the
-// request is a conditional GET against the existing `cache_path` (see MakeCurl):
-// the server may answer "304 Not Modified" with an empty body, in which case
-// nothing is streamed and `*bytes_streamed` is left at 0 so the caller knows to
-// fall back to the cached copy. On return `*bytes_streamed` holds the number of
-// bytes fed into `tp`.
+// request is a conditional GET against the existing `cache_path` (see
+// MakeCurl): the server may answer "304 Not Modified" with an empty body, in
+// which case nothing is streamed and `*bytes_streamed` is left at 0 so the
+// caller knows to fall back to the cached copy. On return `*bytes_streamed`
+// holds the number of bytes fed into `tp`.
 base::Status CurlStreamInto(
     TraceProcessor* tp,
     const std::string& url,
@@ -315,9 +318,9 @@ base::Status CurlStreamInto(
     uint64_t* bytes_streamed) {
   *bytes_streamed = 0;
 
-  // Tee the download into a per-pid temp file alongside the final cache entry so
-  // concurrent downloads of the same URL don't clobber each other. Caching is
-  // best-effort: any failure here just disables it for this download.
+  // Tee the download into a per-pid temp file alongside the final cache entry
+  // so concurrent downloads of the same URL don't clobber each other. Caching
+  // is best-effort: any failure here just disables it for this download.
   base::ScopedFile cache_fd;
   std::string cache_tmp;
   if (cache_path) {
@@ -377,8 +380,8 @@ base::Status CurlStreamInto(
   // closed by Start(), so this sees EOF).
   std::string stderr_text;
   base::ReadPlatformHandle(*err.rd, &stderr_text);
-  bool curl_ok = curl.status() == base::Subprocess::kTerminated &&
-                 curl.returncode() == 0;
+  bool curl_ok =
+      curl.status() == base::Subprocess::kTerminated && curl.returncode() == 0;
 
   // Commit the cache entry only on a fully successful download+parse that
   // actually produced bytes. A 304 Not Modified streams nothing, so committing
@@ -468,7 +471,8 @@ base::Status ReadTraceFromUrl(
                      progress_callback, &streamed);
 
   // The fetch failed (e.g. offline) but nothing was streamed into `tp` yet, so
-  // it's safe to fall back to a previously cached copy rather than fail outright.
+  // it's safe to fall back to a previously cached copy rather than fail
+  // outright.
   if (!status.ok()) {
     if (cache_exists && streamed == 0) {
       PERFETTO_LOG("Download failed (%s); using cached trace for %s",
@@ -552,7 +556,8 @@ base::Status ReadTraceUnfinalized(
       }
     } else if (!args.allow_http) {
       return base::ErrStatus(
-          "Cannot load '%s' from a URL: loading traces from URLs is not enabled "
+          "Cannot load '%s' from a URL: loading traces from URLs is not "
+          "enabled "
           "(set ReadTraceArgs::allow_http).",
           filename);
     }
