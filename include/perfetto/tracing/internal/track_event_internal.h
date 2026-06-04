@@ -193,6 +193,10 @@ struct TrackEventIncrementalState {
   std::unordered_map<uint64_t, int64_t> last_counter_value_per_track;
   int64_t last_thread_time_ns = 0;
   uint64_t last_thread_time_timestamp_ns = 0;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  int64_t last_thread_instruction_count = 0;
+  int64_t last_thread_cycles = 0;
+#endif
 
   // Clears the incremental state without destroying and recreating this object.
   // This allows reusing allocated memory in hash maps and other data structures
@@ -207,6 +211,10 @@ struct TrackEventIncrementalState {
     last_counter_value_per_track.clear();
     last_thread_time_ns = 0;
     last_thread_time_timestamp_ns = 0;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+    last_thread_instruction_count = 0;
+    last_thread_cycles = 0;
+#endif
   }
 };
 

@@ -36,6 +36,31 @@
 #include <os/signpost.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <dlfcn.h>
+#define KPC_CLASS_FIXED_MASK (1u << 0)
+static int (*g_kpc_set_counting)(uint32_t);
+static int (*g_kpc_set_thread_counting)(uint32_t);
+static int (*g_kpc_get_thread_counters)(uint32_t, uint32_t, uint64_t*);
+static int (*g_kpc_force_all_ctrs_set)(int);
+
+static void InitKpc() {
+  static bool inited = false;
+  if (inited) return;
+  inited = true;
+  void* lib = dlopen("/System/Library/PrivateFrameworks/kperf.framework/kperf", RTLD_LAZY);
+  if (!lib) return;
+  g_kpc_set_counting = reinterpret_cast<int(*)(uint32_t)>(dlsym(lib, "kpc_set_counting"));
+  g_kpc_set_thread_counting = reinterpret_cast<int(*)(uint32_t)>(dlsym(lib, "kpc_set_thread_counting"));
+  g_kpc_get_thread_counters = reinterpret_cast<int(*)(uint32_t, uint32_t, uint64_t*)>(dlsym(lib, "kpc_get_thread_counters"));
+  g_kpc_force_all_ctrs_set = reinterpret_cast<int(*)(int)>(dlsym(lib, "kpc_force_all_ctrs_set"));
+
+  if (g_kpc_force_all_ctrs_set) g_kpc_force_all_ctrs_set(1);
+  if (g_kpc_set_counting) g_kpc_set_counting(KPC_CLASS_FIXED_MASK);
+  if (g_kpc_set_thread_counting) g_kpc_set_thread_counting(KPC_CLASS_FIXED_MASK);
+}
+#endif
+
 using perfetto::protos::pbzero::ClockSnapshot;
 
 namespace perfetto {
@@ -458,6 +483,24 @@ void TrackEventInternal::ResetIncrementalState(
     if (tls_state.enable_thread_time_sampling) {
       track_defaults->add_extra_counter_track_uuids(
           thread_time_counter_track.uuid);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+      InitKpc();
+      if (g_kpc_get_thread_counters) {
+        auto thread_instruction_counter_track =
+            CounterTrack("thread_instruction_count", default_track)
+                .set_is_incremental(true)
+                .set_type(protos::gen::CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT);
+        track_defaults->add_extra_counter_track_uuids(
+            thread_instruction_counter_track.uuid);
+            
+        auto thread_cycles_counter_track =
+            CounterTrack("thread_cycles", default_track)
+                .set_is_incremental(true)
+                .set_unit_name("cycles");
+        track_defaults->add_extra_counter_track_uuids(
+            thread_cycles_counter_track.uuid);
+      }
+#endif
     }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MAC)
@@ -516,6 +559,23 @@ void TrackEventInternal::ResetIncrementalState(
   if (tls_state.enable_thread_time_sampling) {
     WriteTrackDescriptor(thread_time_counter_track, trace_writer, incr_state,
                          tls_state, sequence_timestamp);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+    if (g_kpc_get_thread_counters) {
+      auto thread_instruction_counter_track =
+          CounterTrack("thread_instruction_count", default_track)
+              .set_is_incremental(true)
+              .set_type(protos::gen::CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT);
+      WriteTrackDescriptor(thread_instruction_counter_track, trace_writer, incr_state,
+                           tls_state, sequence_timestamp);
+                           
+      auto thread_cycles_counter_track =
+          CounterTrack("thread_cycles", default_track)
+              .set_is_incremental(true)
+              .set_unit_name("cycles");
+      WriteTrackDescriptor(thread_cycles_counter_track, trace_writer, incr_state,
+                           tls_state, sequence_timestamp);
+    }
+#endif
   }
 }
 
@@ -608,9 +668,31 @@ EventContext TrackEventInternal::WriteEvent(
       track_event->add_extra_counter_values(
           thread_time_delta_ns /
           static_cast<int64_t>(tls_state.timestamp_unit_multiplier));
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+      if (g_kpc_get_thread_counters) {
+        uint64_t counters[2] = {0};
+        g_kpc_get_thread_counters(0, 2, counters);
+        
+        int64_t current_instructions = static_cast<int64_t>(counters[1]);
+        int64_t instruction_delta = current_instructions - incr_state->last_thread_instruction_count;
+        incr_state->last_thread_instruction_count = current_instructions;
+        track_event->add_extra_counter_values(instruction_delta);
+        
+        int64_t current_cycles = static_cast<int64_t>(counters[0]);
+        int64_t cycles_delta = current_cycles - incr_state->last_thread_cycles;
+        incr_state->last_thread_cycles = current_cycles;
+        track_event->add_extra_counter_values(cycles_delta);
+      }
+#endif
     } else {
       // When subsampling, the skip emitting values.
       track_event->add_extra_counter_values(0);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+      if (g_kpc_get_thread_counters) {
+        track_event->add_extra_counter_values(0);
+        track_event->add_extra_counter_values(0);
+      }
+#endif
     }
   }
 
