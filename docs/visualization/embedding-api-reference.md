@@ -79,8 +79,8 @@ iframe.contentWindow.postMessage(
 
 | Field            | Type     | Required | Meaning                                          |
 | ---------------- | -------- | -------- | ------------------------------------------------ |
-| `timeStart`      | `number` | Yes      | Start of the range, in **seconds**.              |
-| `timeEnd`        | `number` | Yes      | End of the range, in **seconds**.                |
+| `timeStart`      | `number` | Yes      | Range start, **absolute trace time in seconds** (not relative to trace start; clamped to trace bounds). |
+| `timeEnd`        | `number` | Yes      | Range end, **absolute trace time in seconds**.   |
 | `viewPercentage` | `number` | No       | Fraction of the viewport the range should fill, in `(0.0, 1.0]`. Out-of-range values are ignored and replaced by `0.5`. |
 
 The handler retries internally (roughly 20 times at 200ms intervals) until the

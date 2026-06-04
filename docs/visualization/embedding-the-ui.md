@@ -136,13 +136,16 @@ const src =
 ```
 
 To scroll and zoom to a time range after the trace is loaded, post a second
-message. `timeStart` and `timeEnd` are in **seconds**. `viewPercentage` is
-optional and is a fraction in the range `(0, 1]` (e.g. `0.5` fills half the
-viewport); out-of-range values are ignored and fall back to `0.5`:
+message. `timeStart` and `timeEnd` are **absolute trace time in seconds**, not
+relative to the trace start (most traces do not start at 0); a range outside the
+trace is clamped to its bounds. `viewPercentage` is optional and is a fraction
+in the range `(0, 1]` (e.g. `0.5` fills half the viewport, `1` fills it exactly);
+out-of-range values are ignored and fall back to `0.5`:
 
 ```js
+// e.g. zoom to the first 2 seconds of a trace that starts at 261187s.
 iframe.contentWindow.postMessage(
-  {perfetto: {timeStart: 1.0, timeEnd: 1.5, viewPercentage: 0.5}},
+  {perfetto: {timeStart: 261187.0, timeEnd: 261189.0, viewPercentage: 1}},
   '*',
 );
 ```
