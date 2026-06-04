@@ -58,9 +58,15 @@ class SqlPackage:
 @dc.dataclass
 class TraceProcessorConfig:
   # The path to the trace processor binary. If not specified, the trace
-  # processor will be automatically downloaded and run from the latest
-  # avaialble prebuilts.
+  # processor version pinned to (and shipped with) this package is downloaded
+  # and run. See `fetch_latest_trace_processor` to override this.
   bin_path: Optional[str] = None
+
+  # If True (and `bin_path` is not set), fetch the latest available
+  # trace_processor prebuilt from get.perfetto.dev instead of using the version
+  # pinned to this package. This trades reproducibility for always being on the
+  # newest build.
+  fetch_latest_trace_processor: bool = False
 
   # If True, the trace processor will use a unique port for each instance.
   unique_port: bool = True
@@ -107,6 +113,7 @@ class TraceProcessorConfig:
       load_timeout: int = 2,
       extra_flags: Optional[List[str]] = None,
       add_sql_packages: Optional[List[Union[str, SqlPackage]]] = None,
+      fetch_latest_trace_processor: bool = False,
   ):
     self.bin_path = bin_path
     self.unique_port = unique_port
@@ -117,6 +124,7 @@ class TraceProcessorConfig:
     self.load_timeout = load_timeout
     self.extra_flags = extra_flags
     self.add_sql_packages = add_sql_packages
+    self.fetch_latest_trace_processor = fetch_latest_trace_processor
 
 
 class TraceProcessor:
@@ -302,6 +310,7 @@ class TraceProcessor:
         self.config.load_timeout,
         self.config.extra_flags,
         self.config.add_sql_packages,
+        self.config.fetch_latest_trace_processor,
     )
     return TraceProcessorHttp(url, protos=self.protos)
 

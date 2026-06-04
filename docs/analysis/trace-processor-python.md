@@ -132,8 +132,14 @@ instance. The most important are:
   PerfettoSQL statements.
 - `verbose`: If `True`, `trace_processor` will print verbose output to stdout.
   This is useful for debugging and seeing more detailed error messages.
-- `bin_path`: Path to the `trace_processor` binary. If not given, the latest
-  prebuilt version will be downloaded.
+- `bin_path`: Path to the `trace_processor` binary. If not given, the
+  `trace_processor` version pinned to (and shipped with) the installed
+  `perfetto` package is downloaded and used. This keeps results reproducible:
+  upgrading the binary means upgrading the package.
+- `fetch_latest_trace_processor`: If `True` (and `bin_path` is not set), fetch
+  the latest available prebuilt from `get.perfetto.dev` instead of the version
+  pinned to the package. Use this to always run the newest build, at the cost of
+  reproducibility.
 
 ## API
 
