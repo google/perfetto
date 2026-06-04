@@ -764,8 +764,7 @@ def InstallNodeModules(force_clean=False):
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
   logging.info(
-      "Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}"
-      .format(UI_DIR))
+      "Running `pnpm install --frozen-lockfile` in {0}".format(UI_DIR))
 
   # Some node modules have postinstall scripts (already bad) but worse
   # sometimes they are in the form: "postinstall: 'node ./scripts/foo'"
@@ -775,8 +774,7 @@ def InstallNodeModules(force_clean=False):
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
   subprocess.check_call([
-      os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--shamefully-hoist',
-      '--frozen-lockfile'
+      os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile'
   ],
                         cwd=UI_DIR,
                         env=env)
