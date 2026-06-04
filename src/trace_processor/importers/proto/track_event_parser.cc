@@ -228,6 +228,10 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       callsite_id_key_id_(context_->storage->InternString("callsite_id")),
       end_callsite_id_key_id_(
           context_->storage->InternString("end_callsite_id")),
+      thread_sort_index_hint_id_(
+          context_->storage->InternString("thread_sort_index_hint")),
+      process_sort_index_hint_id_(
+          context_->storage->InternString("process_sort_index_hint")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   // Opt into DebugAnnotation handling: ParseMessage routes DebugAnnotation
@@ -346,6 +350,15 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
     context_->process_tracker->SetStartTsIfUnset(upid,
                                                  decoder.start_timestamp_ns());
   }
+
+  // Parse legacy_sort_index and store it as process_sort_index_hint for UI
+  // ordering. This allows SDK users to control process display order in the UI.
+  if (decoder.has_legacy_sort_index()) {
+    context_->process_tracker->AddArgsToProcess(upid).AddArg(
+        process_sort_index_hint_id_,
+        Variadic::Integer(decoder.legacy_sort_index()));
+  }
+
   // TODO(skyostil): Remove parsing for legacy chrome_process_type field.
   // TODO(lalitm): this maze of priorities around Chrome process labels is
   // because of us trying to fix process naming without breaking backcompat.
@@ -424,6 +437,14 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
   }
   context_->process_tracker->UpdateThreadName(
       utid, name_id, ThreadNamePriority::kTrackDescriptor);
+
+  // Parse legacy_sort_index and store it as thread_sort_index_hint for UI
+  // ordering. This allows SDK users to control thread display order in the UI.
+  if (decoder.has_legacy_sort_index()) {
+    context_->process_tracker->AddArgsToThread(utid).AddArg(
+        thread_sort_index_hint_id_,
+        Variadic::Integer(decoder.legacy_sort_index()));
+  }
   return utid;
 }
 

@@ -1,0 +1,4 @@
+pid	name	sort_index_hint
+100	HighPriorityProcess	100
+200	NormalProcess	NULL
+300	LowPriorityProcess	10

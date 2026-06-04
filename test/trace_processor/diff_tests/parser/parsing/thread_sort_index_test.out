@@ -1,0 +1,4 @@
+tid	name	sort_index_hint
+1234	MainThread	10
+5678	WorkerThread	NULL
+9999	HighPriorityThread	100

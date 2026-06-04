@@ -1,0 +1,46 @@
+# Process with legacy_sort_index
+packet {
+  track_descriptor {
+    uuid: 100
+    process {
+      pid: 100
+      process_name: "HighPriorityProcess"
+      legacy_sort_index: 100
+    }
+  }
+  timestamp: 1000
+  track_event {
+    type: TYPE_INSTANT
+  }
+}
+
+# Process without legacy_sort_index (should have default NULL)
+packet {
+  track_descriptor {
+    uuid: 200
+    process {
+      pid: 200
+      process_name: "NormalProcess"
+    }
+  }
+  timestamp: 1000
+  track_event {
+    type: TYPE_INSTANT
+  }
+}
+
+# Process with lower sort_index
+packet {
+  track_descriptor {
+    uuid: 300
+    process {
+      pid: 300
+      process_name: "LowPriorityProcess"
+      legacy_sort_index: 10
+    }
+  }
+  timestamp: 1000
+  track_event {
+    type: TYPE_INSTANT
+  }
+}
