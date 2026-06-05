@@ -18,10 +18,13 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_VIDEO_FRAME_IMPORTER_VIDEO_FRAME_MODULE_H_
 
 #include <cstdint>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/plugins/video_frame_importer/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -30,13 +33,17 @@ namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
-// Parses video_frame into AndroidVideoFramesTable rows (with the encoded
-// payload held zero-copy and exposed via __INTRINSIC_VIDEO_FRAME_AU_DATA),
-// and video_frame_error into per-reason kIndexed stats keyed by display_id.
+// Parses video_frame into the plugin-owned AndroidVideoFramesTable (with the
+// encoded payload held zero-copy in `au_data`, exposed via
+// __INTRINSIC_VIDEO_FRAME_AU_DATA), and video_frame_error into per-reason
+// kIndexed stats keyed by display_id. The table and au_data vector are owned
+// by VideoFrameImporter and passed in.
 class VideoFrameModule : public ProtoImporterModule {
  public:
   VideoFrameModule(ProtoImporterModuleContext* module_context,
-                   TraceProcessorContext* context);
+                   TraceProcessorContext* context,
+                   tables::AndroidVideoFramesTable* table,
+                   std::vector<TraceBlobView>* au_data);
   ~VideoFrameModule() override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
@@ -67,6 +74,8 @@ class VideoFrameModule : public ProtoImporterModule {
     bool size_cap_hit = false;
   };
   TraceProcessorContext* const context_;
+  tables::AndroidVideoFramesTable* const table_;
+  std::vector<TraceBlobView>* const au_data_;
   int64_t max_stream_size_bytes_ = kDefaultMaxStreamSizeBytes;
   base::FlatHashMap<uint32_t, StreamInfo> stream_info_by_id_;
 };

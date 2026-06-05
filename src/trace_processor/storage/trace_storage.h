@@ -516,13 +516,6 @@ class TraceStorage {
     return mutable_table<tables::AndroidUserListTable>();
   }
 
-  const tables::AndroidVideoFramesTable& video_frames_table() const {
-    return table<tables::AndroidVideoFramesTable>();
-  }
-  tables::AndroidVideoFramesTable* mutable_video_frames_table() {
-    return mutable_table<tables::AndroidVideoFramesTable>();
-  }
-
   const tables::AndroidGameInterventionListTable&
   android_game_intervention_list_table() const {
     return table<tables::AndroidGameInterventionListTable>();
@@ -784,16 +777,6 @@ class TraceStorage {
   }
   std::vector<HprofArrayBlob>* mutable_hprof_array_blobs() {
     return &hprof_array_blobs_;
-  }
-  // Indexed by AndroidVideoFramesTable row id; each entry is a zero-copy view
-  // into the original trace blob holding either an au_data (one access unit)
-  // or codec_config payload. Read via the __intrinsic_video_frame_au_data SQL
-  // function.
-  const std::vector<TraceBlobView>& video_frame_au_data() const {
-    return video_frame_au_data_;
-  }
-  std::vector<TraceBlobView>* mutable_video_frame_au_data() {
-    return &video_frame_au_data_;
   }
   const tables::FileTable& file_table() const {
     return table<tables::FileTable>();
@@ -1111,11 +1094,6 @@ class TraceStorage {
   // HPROF primitive array blobs.
   // Indexed by heap_graph_object_data.array_data_id
   std::vector<HprofArrayBlob> hprof_array_blobs_;
-
-  // Video frame access-unit / codec_config payloads.
-  // Indexed by AndroidVideoFramesTable row id (zero-copy views into the
-  // original trace blob).
-  std::vector<TraceBlobView> video_frame_au_data_;
 
   // Aligned storage for all table dataframes.
   alignas(

@@ -53,6 +53,9 @@ namespace perfetto::trace_processor::stats {
   F(android_video_virtual_display_failed, kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
       "android.display.video createVirtualDisplay failed "                     \
       "(indexed by display_id)."),                                            \
+  F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video stream exceeded the parse-time size cap; frames " \
+      "dropped. See the trace_import_logs table for the affected display."),   \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

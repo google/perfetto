@@ -523,6 +523,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
@@ -813,6 +814,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
@@ -4935,6 +4937,19 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/plugins/video_frame_importer:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_video_frame_importer_tables",
+    srcs = [
+        "src/trace_processor/plugins/video_frame_importer/tables.py",
+    ],
+    outs = [
+        "src/trace_processor/plugins/video_frame_importer/all_tables_fwd.h",
+        "src/trace_processor/plugins/video_frame_importer/tables_fwd.h",
+        "src/trace_processor/plugins/video_frame_importer/tables_py.h",
+    ],
+)
+
 # GN target: //src/trace_processor/plugins/video_frame_importer:video_frame_importer
 perfetto_filegroup(
     name = "src_trace_processor_plugins_video_frame_importer_video_frame_importer",
@@ -8542,7 +8557,6 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
         "protos/perfetto/trace/android/user_list.proto",
-        "protos/perfetto/trace/android/video_frame.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -10516,6 +10530,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
@@ -10836,6 +10851,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",

@@ -26,7 +26,6 @@ import "protos/perfetto/trace/android/android_aflags.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
-import "protos/perfetto/trace/android/video_frame.proto";
 import "protos/perfetto/trace/android/bluetooth_trace.proto";
 import "protos/perfetto/trace/android/camera_event.proto";
 import "protos/perfetto/trace/android/cpu_per_uid_data.proto";
@@ -121,7 +120,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 135.
+// Next id: 133.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -313,14 +312,6 @@ message TracePacket {
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
-
-    // A captured frame from a device display. See
-    // protos/perfetto/trace/android/video_frame.proto.
-    VideoFrame video_frame = 133;
-
-    // Per-stream video capture failure. See
-    // protos/perfetto/trace/android/video_frame.proto.
-    VideoFrameError video_frame_error = 134;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

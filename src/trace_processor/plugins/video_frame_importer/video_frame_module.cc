@@ -19,40 +19,38 @@
 #include <cstdint>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/plugins/video_frame_importer/tables_py.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
-#include "protos/perfetto/trace/android/video_frame.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
 
-using protos::pbzero::TracePacket;
-using protos::pbzero::VideoFrame;
-using protos::pbzero::VideoFrameError;
-
-namespace {
-
-StringId InternProtoString(TraceProcessorContext* context,
-                           protozero::ConstChars sv) {
-  return context->storage->InternString(
-      base::StringView(reinterpret_cast<const char*>(sv.data), sv.size));
-}
-
-}  // namespace
+using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
+using ::com::android::internal::pbzero::VideoFrame;
+using ::com::android::internal::pbzero::VideoFrameError;
+using ::perfetto::protos::pbzero::TracePacket;
 
 VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
-                                   TraceProcessorContext* context)
-    : ProtoImporterModule(mc), context_(context) {
-  RegisterForField(TracePacket::kVideoFrameFieldNumber);
-  RegisterForField(TracePacket::kVideoFrameErrorFieldNumber);
+                                   TraceProcessorContext* context,
+                                   tables::AndroidVideoFramesTable* table,
+                                   std::vector<TraceBlobView>* au_data)
+    : ProtoImporterModule(mc),
+      context_(context),
+      table_(table),
+      au_data_(au_data) {
+  RegisterForField(FrameworksBaseTracePacket::kVideoFrameFieldNumber);
+  RegisterForField(FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber);
 }
 
 VideoFrameModule::~VideoFrameModule() = default;
@@ -62,10 +60,10 @@ void VideoFrameModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
                                             const TracePacketData& data,
                                             uint32_t field_id) {
   switch (field_id) {
-    case TracePacket::kVideoFrameFieldNumber:
+    case FrameworksBaseTracePacket::kVideoFrameFieldNumber:
       ParseVideoFrame(decoder, ts, data);
       break;
-    case TracePacket::kVideoFrameErrorFieldNumber:
+    case FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber:
       ParseVideoFrameError(decoder);
       break;
     default:
@@ -76,7 +74,11 @@ void VideoFrameModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
 void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
                                        int64_t ts,
                                        const TracePacketData& data) {
-  VideoFrame::Decoder frame(decoder.video_frame());
+  VideoFrame::Decoder frame(
+      decoder
+          .GetExtensionSlowly<
+              FrameworksBaseTracePacket::kVideoFrameFieldNumber>()
+          .as_bytes());
 
   const uint32_t display_id = frame.has_display_id() ? frame.display_id() : 0u;
 
@@ -84,10 +86,12 @@ void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
   // them so later frames of the stream inherit them.
   StreamInfo& info = stream_info_by_id_[display_id];
   if (frame.has_display_name()) {
-    info.display_name = InternProtoString(context_, frame.display_name());
+    info.display_name =
+        context_->storage->InternString(frame.display_name().ToStdStringView());
   }
   if (frame.has_codec_string()) {
-    info.codec_string = InternProtoString(context_, frame.codec_string());
+    info.codec_string =
+        context_->storage->InternString(frame.codec_string().ToStdStringView());
   }
 
   tables::AndroidVideoFramesTable::Row row;
@@ -122,34 +126,41 @@ void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
     return;
   }
 
-  // Parse-time per-stream cap: drop frames once a stream exceeds it,
-  // reporting once via the same stat as the producer's cap.
+  // Parse-time per-stream cap: drop frames once a stream exceeds it. Report
+  // the first drop per stream to the import logs (with the affected display)
+  // and let later drops fall through silently.
   if (info.emitted_bytes + static_cast<int64_t>(payload.size) >
       max_stream_size_bytes_) {
     if (!info.size_cap_hit) {
       info.size_cap_hit = true;
-      context_->stats_tracker->IncrementIndexedStats(
-          stats::android_video_size_cap_hit, static_cast<int>(display_id));
+      context_->import_logs_tracker->RecordParserError(
+          stats::android_video_parse_size_cap_hit, ts,
+          [this, display_id](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(context_->storage->InternString("display_id"),
+                            Variadic::UnsignedInteger(display_id));
+          });
     }
     return;
   }
   info.emitted_bytes += static_cast<int64_t>(payload.size);
 
-  auto id =
-      context_->storage->mutable_video_frames_table()->Insert(row).id.value;
-  // au_data side-vector is parallel to the table, indexed by row id.
-  auto* blobs = context_->storage->mutable_video_frame_au_data();
-  PERFETTO_DCHECK(id == blobs->size());
+  auto id = table_->Insert(row).id.value;
+  // au_data is parallel to the table, indexed by row id.
+  PERFETTO_DCHECK(id == au_data_->size());
   const TraceBlobView& packet = data.packet;
   const uint8_t* base = packet.blob()->data();
   PERFETTO_DCHECK(payload.data >= base &&
                   payload.data + payload.size <= base + packet.blob()->size());
-  blobs->emplace_back(packet.slice(payload.data, payload.size));
+  au_data_->emplace_back(packet.slice(payload.data, payload.size));
 }
 
 void VideoFrameModule::ParseVideoFrameError(
     const TracePacket::Decoder& decoder) {
-  VideoFrameError::Decoder err(decoder.video_frame_error());
+  VideoFrameError::Decoder err(
+      decoder
+          .GetExtensionSlowly<
+              FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber>()
+          .as_bytes());
   if (!err.has_reason())
     return;
   const int idx = err.has_display_id() ? static_cast<int>(err.display_id()) : 0;
