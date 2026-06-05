@@ -63,8 +63,8 @@ dependencies:
     specifier: ^2.2.6
     version: 2.2.6
   '@types/node':
-    specifier: ^20.14.9
-    version: 20.14.9
+    specifier: ^20.19.41
+    version: 20.19.41
   '@types/pako':
     specifier: ^2.0.3
     version: 2.0.3
@@ -210,7 +210,7 @@ devDependencies:
     version: 1.0.7
   rollup-plugin-sourcemaps2:
     specifier: ^0.5.6
-    version: 0.5.6(@types/node@20.14.9)(rollup@4.61.1)
+    version: 0.5.6(@types/node@20.19.41)(rollup@4.61.1)
   sass:
     specifier: ^1.77.6
     version: 1.77.6
@@ -225,10 +225,10 @@ devDependencies:
     version: 5.9.3
   vite:
     specifier: ^6.4.2
-    version: 6.4.2(@types/node@20.14.9)(sass@1.77.6)
+    version: 6.4.2(@types/node@20.19.41)(sass@1.77.6)
   vitest:
     specifier: ^4.1.6
-    version: 4.1.6(@types/node@20.14.9)(jsdom@25.0.1)(vite@6.4.2)
+    version: 4.1.6(@types/node@20.19.41)(jsdom@25.0.1)(vite@6.4.2)
 
 packages:
 
@@ -1429,10 +1429,10 @@ packages:
     resolution: {integrity: sha512-cU142pS/rDHpE0NlC2XJpejD2ihzMQ+jI7R0cOLCVWRQJFxwD9CUxJGdRmWu9DrGLr52G2QjMRCfXs+ew4LD2Q==}
     dev: false
 
-  /@types/node@20.14.9:
-    resolution: {integrity: sha512-06OCtnTXtWOZBJlRApleWndH4JsRVs1pDCc8dLSQp+7PpUpX3ePdHyeNSFTeSe7FtKyQkrlPvHwJOW3SLd8Oyg==}
+  /@types/node@20.19.41:
+    resolution: {integrity: sha512-ECymXOukMnOoVkC2bb1Vc/w/836DXncOg5m8Xj1RH7xSHZJWNYY6Zh7EH477vcnD5egKNNfy2RpNOmuChhFPgQ==}
     dependencies:
-      undici-types: 5.26.5
+      undici-types: 6.21.0
 
   /@types/pako@2.0.3:
     resolution: {integrity: sha512-bq0hMV9opAcrmE0Byyo0fY3Ew4tgOevJmQ9grUhpXQhYfyLJ1Kqg3P33JT5fdbT2AjeAjR51zqqVjAL/HMkx7Q==}
@@ -1441,7 +1441,7 @@ packages:
   /@types/pngjs@6.0.5:
     resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 20.19.41
     dev: false
 
   /@types/resolve@1.20.2:
@@ -1608,7 +1608,7 @@ packages:
       '@vitest/spy': 4.1.6
       estree-walker: 3.0.3
       magic-string: 0.30.21
-      vite: 6.4.2(@types/node@20.14.9)(sass@1.77.6)
+      vite: 6.4.2(@types/node@20.19.41)(sass@1.77.6)
     dev: true
 
   /@vitest/pretty-format@4.1.6:
@@ -3343,7 +3343,7 @@ packages:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 20.14.9
+      '@types/node': 20.19.41
       long: 5.3.2
 
   /punycode.js@2.3.1:
@@ -3442,7 +3442,7 @@ packages:
       rollup-pluginutils: 2.8.2
     dev: true
 
-  /rollup-plugin-sourcemaps2@0.5.6(@types/node@20.14.9)(rollup@4.61.1):
+  /rollup-plugin-sourcemaps2@0.5.6(@types/node@20.19.41)(rollup@4.61.1):
     resolution: {integrity: sha512-oalmewAT4GLVsW6NugcDybx0ypet94vU0dUK3VofdYoWiN4ZjoX1L4dizFd0OhoJ78r/Am9sARTR9gMrX0cJ7w==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
@@ -3453,7 +3453,7 @@ packages:
         optional: true
     dependencies:
       '@rollup/pluginutils': 5.3.0(rollup@4.61.1)
-      '@types/node': 20.14.9
+      '@types/node': 20.19.41
       rollup: 4.61.1
     dev: true
 
@@ -3806,8 +3806,8 @@ packages:
     resolution: {integrity: sha512-DXtD3ZtEQzc7M8m4cXotyHR+FAS18C64asBYY5vqZexfYryNNnDc02W4hKg3rdQuqOYas1jkseX0+nZXjTXnvQ==}
     dev: true
 
-  /undici-types@5.26.5:
-    resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
+  /undici-types@6.21.0:
+    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
   /update-browserslist-db@1.0.16(browserslist@4.23.1):
     resolution: {integrity: sha512-KVbTxlBYlckhF5wgfyZXTWnMn7MMZjMu9XG8bPlliUOP9ThaF4QnhP8qrjrH7DRzHfSk0oQv1wToW+iA5GajEQ==}
@@ -3841,7 +3841,7 @@ packages:
     hasBin: true
     dev: false
 
-  /vite@6.4.2(@types/node@20.14.9)(sass@1.77.6):
+  /vite@6.4.2(@types/node@20.19.41)(sass@1.77.6):
     resolution: {integrity: sha512-2N/55r4JDJ4gdrCvGgINMy+HH3iRpNIz8K6SFwVsA+JbQScLiC+clmAxBgwiSPgcG9U15QmvqCGWzMbqda5zGQ==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
@@ -3881,7 +3881,7 @@ packages:
       yaml:
         optional: true
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 20.19.41
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
@@ -3893,7 +3893,7 @@ packages:
       fsevents: 2.3.3
     dev: true
 
-  /vitest@4.1.6(@types/node@20.14.9)(jsdom@25.0.1)(vite@6.4.2):
+  /vitest@4.1.6(@types/node@20.19.41)(jsdom@25.0.1)(vite@6.4.2):
     resolution: {integrity: sha512-6lvjbS3p9b4CrdCmguzbh2/4uoXhGE2q71R4OX5sqF9R1bo9Xd6fGrMAfvp5wnCzlBnFVdCOp6onuTQVbo8iUQ==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
     hasBin: true
@@ -3934,7 +3934,7 @@ packages:
       jsdom:
         optional: true
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 20.19.41
       '@vitest/expect': 4.1.6
       '@vitest/mocker': 4.1.6(vite@6.4.2)
       '@vitest/pretty-format': 4.1.6
@@ -3954,7 +3954,7 @@ packages:
       tinyexec: 1.1.2
       tinyglobby: 0.2.16
       tinyrainbow: 3.1.0
-      vite: 6.4.2(@types/node@20.14.9)(sass@1.77.6)
+      vite: 6.4.2(@types/node@20.19.41)(sass@1.77.6)
       why-is-node-running: 2.3.0
     transitivePeerDependencies:
       - msw
