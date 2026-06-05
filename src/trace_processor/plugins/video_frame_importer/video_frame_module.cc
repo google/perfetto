@@ -64,7 +64,7 @@ void VideoFrameModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
       ParseVideoFrame(decoder, ts, data);
       break;
     case FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber:
-      ParseVideoFrameError(decoder);
+      ParseVideoFrameError(decoder, ts);
       break;
     default:
       break;
@@ -154,8 +154,8 @@ void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
   au_data_->emplace_back(packet.slice(payload.data, payload.size));
 }
 
-void VideoFrameModule::ParseVideoFrameError(
-    const TracePacket::Decoder& decoder) {
+void VideoFrameModule::ParseVideoFrameError(const TracePacket::Decoder& decoder,
+                                            int64_t ts) {
   VideoFrameError::Decoder err(
       decoder
           .GetExtensionSlowly<
@@ -163,8 +163,8 @@ void VideoFrameModule::ParseVideoFrameError(
           .as_bytes());
   if (!err.has_reason())
     return;
-  const int idx = err.has_display_id() ? static_cast<int>(err.display_id()) : 0;
-  // Each reason maps to its own kIndexed stat, keyed by display_id.
+  const uint32_t display_id = err.has_display_id() ? err.display_id() : 0u;
+  // Each reason maps to its own stat.
   size_t stat;
   switch (err.reason()) {
     case VideoFrameError::SIZE_CAP_HIT:
@@ -191,7 +191,13 @@ void VideoFrameModule::ParseVideoFrameError(
     default:
       return;  // REASON_UNKNOWN or future enumerator
   }
-  context_->stats_tracker->IncrementIndexedStats(stat, idx);
+  // Producer-reported failure: record to the import logs (which also bumps the
+  // reason's stat), with the affected display as a queryable arg.
+  context_->import_logs_tracker->RecordCollectionError(
+      stat, ts, [this, display_id](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(context_->storage->InternString("display_id"),
+                        Variadic::UnsignedInteger(display_id));
+      });
 }
 
 }  // namespace perfetto::trace_processor

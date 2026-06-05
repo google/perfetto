@@ -62,8 +62,8 @@ class VideoFrameModule : public ProtoImporterModule {
   void ParseVideoFrame(const protos::pbzero::TracePacket::Decoder& decoder,
                        int64_t ts,
                        const TracePacketData& data);
-  void ParseVideoFrameError(
-      const protos::pbzero::TracePacket::Decoder& decoder);
+  void ParseVideoFrameError(const protos::pbzero::TracePacket::Decoder& decoder,
+                            int64_t ts);
 
   struct StreamInfo {
     // display_name and codec_string arrive on the codec_config packet and
