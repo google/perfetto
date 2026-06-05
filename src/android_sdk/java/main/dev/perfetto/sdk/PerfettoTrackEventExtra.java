@@ -160,16 +160,20 @@ final class PerfettoTrackEventExtra {
 
   /**
    * A nested chain of named tracks emitted via the HL {@code NESTED_TRACKS} extra.
-   * Built once per {@link PerfettoTrack} (cached by the builder) so the emit path
-   * stays allocation-free; the native side derives the per-level uuids and emits a
+   * Built once per track handle and cached on it, so the emit path stays
+   * allocation-free; the native side derives the per-level uuids and emits a
    * {@code TrackDescriptor} for each level once per sequence.
    */
   static final class NestedTracks implements PerfettoPointer {
     private final long mPtr;
     private final long mExtraPtr;
 
-    NestedTracks(PerfettoTrack track, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(track.mRootType, track.mNames, track.mIds);
+    NestedTracks(
+        int rootType,
+        String[] names,
+        long[] ids,
+        PerfettoNativeMemoryCleaner memoryCleaner) {
+      mPtr = native_init(rootType, names, ids);
       mExtraPtr = native_get_extra_ptr(mPtr);
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }

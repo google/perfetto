@@ -38,7 +38,7 @@ import dev.perfetto.sdk.PerfettoTrackEventExtra.NestedTracks;
  * <p>Emitting on {@code GPU} emits the {@code TrackDescriptor}s for the whole
  * chain (Render under the process, GPU under Render) once per sequence, matching
  * the C SDK's nested-track behaviour. The track uuid is derived natively exactly
- * as the C SDK derives it.
+ * as the C SDK derives it. Emit cost grows with the nesting depth.
  *
  * <p>This is the nesting-only shape supported by the high-level ABI; sibling
  * ordering, counter units and similar are intentionally not exposed here.
@@ -64,7 +64,8 @@ public final class PerfettoTrack {
   // Frees a handle's native track when the handle is collected. SystemCleaner
   // needs no native lib, so it is safe to hold statically.
   private static final PerfettoNativeMemoryCleaner sCleaner =
-      new PerfettoNativeMemoryCleaner();
+      new PerfettoNativeMemoryCleaner(
+          PerfettoTrackEventBuilder.getNativeAllocationStats());
 
   private PerfettoTrack(int rootType, String[] names, long[] ids) {
     mRootType = rootType;
@@ -84,7 +85,7 @@ public final class PerfettoTrack {
   NestedTracks nestedTracks() {
     NestedTracks n = mNested;
     if (n == null) {
-      n = new NestedTracks(this, sCleaner);
+      n = new NestedTracks(mRootType, mNames, mIds, sCleaner);
       mNested = n;
     }
     return n;
@@ -95,7 +96,7 @@ public final class PerfettoTrack {
     return new PerfettoTrack(ROOT_PROCESS, new String[] {name}, new long[] {DEFAULT_ID});
   }
 
-  /** A track named {@code name} rooted at the calling thread's track. */
+  /** A track named {@code name} rooted at the emitting thread's track. */
   public static PerfettoTrack thread(@CompileTimeConstant String name) {
     return new PerfettoTrack(ROOT_THREAD, new String[] {name}, new long[] {DEFAULT_ID});
   }

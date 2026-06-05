@@ -291,12 +291,12 @@ public class PerfettoTraceTest {
     // The event is on the leaf (child) track.
     TrackDescriptor childTd = descriptorsByUuid.get(eventTrackUuid);
     assertThat(childTd).isNotNull();
-    assertThat(childTd.getName()).isEqualTo("child_track");
+    assertThat(childTd.getStaticName()).isEqualTo("child_track");
 
     // The child is nested under the parent track.
     TrackDescriptor parentTd = descriptorsByUuid.get(childTd.getParentUuid());
     assertThat(parentTd).isNotNull();
-    assertThat(parentTd.getName()).isEqualTo("parent_track");
+    assertThat(parentTd.getStaticName()).isEqualTo("parent_track");
 
     // The parent track is rooted at the process track.
     assertThat(parentTd.getParentUuid()).isEqualTo(PerfettoTrace.getProcessTrackUuid());
@@ -332,12 +332,12 @@ public class PerfettoTraceTest {
     // The event is on the leaf (child) track.
     TrackDescriptor childTd = descriptorsByUuid.get(eventTrackUuid);
     assertThat(childTd).isNotNull();
-    assertThat(childTd.getName()).isEqualTo("global_child");
+    assertThat(childTd.getStaticName()).isEqualTo("global_child");
 
     // The child is nested under the global parent track.
     TrackDescriptor parentTd = descriptorsByUuid.get(childTd.getParentUuid());
     assertThat(parentTd).isNotNull();
-    assertThat(parentTd.getName()).isEqualTo("global_parent");
+    assertThat(parentTd.getStaticName()).isEqualTo("global_parent");
 
     // A global root has no process/thread anchor: the outermost named level
     // hangs off uuid 0.

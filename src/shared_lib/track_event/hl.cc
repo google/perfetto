@@ -487,9 +487,8 @@ void InstanceOp(internal::DataSourceType* ds,
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED: {
           auto* named_track =
               reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
-          // Currently static names for nested tracks is not supported.
           uuid = EmitNamedTrack(uuid, named_track->name, named_track->id,
-                                /*is_name_static_=*/false, incr_state,
+                                named_track->is_name_static, incr_state,
                                 trace_writer);
         } break;
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {

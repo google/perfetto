@@ -160,7 +160,7 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
 NestedTracks::NestedTracks(RootType root_type,
                            const std::vector<std::string>& names,
                            const std::vector<uint64_t>& ids)
-    : names_(names), root_{} {
+    : names_(names), root_{}, extra_{} {
   const size_t count = names_.size();
   named_.reserve(count);
   ptrs_.reserve(count + 2);
@@ -180,15 +180,16 @@ NestedTracks::NestedTracks(RootType root_type,
       break;  // No root entry; the chain hangs off uuid 0.
   }
 
+  // reserve(count) above prevents reallocation, so the &named_.back() pointers
+  // stay valid.
   for (size_t i = 0; i < count; i++) {
     PerfettoTeHlNestedTrackNamed entry{};
     entry.header.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED;
     entry.name = names_[i].c_str();
     entry.id = ids[i];
+    entry.is_name_static = true;
     named_.push_back(entry);
-  }
-  for (size_t i = 0; i < count; i++) {
-    ptrs_.push_back(reinterpret_cast<PerfettoTeHlNestedTrack*>(&named_[i]));
+    ptrs_.push_back(reinterpret_cast<PerfettoTeHlNestedTrack*>(&named_.back()));
   }
   ptrs_.push_back(nullptr);
 

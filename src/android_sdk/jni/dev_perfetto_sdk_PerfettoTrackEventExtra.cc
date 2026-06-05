@@ -386,7 +386,17 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
     jint root_type,
     jobjectArray names,
     jlongArray ids) {
-  const jsize n = env->GetArrayLength(names);
+  const jsize num_names = env->GetArrayLength(names);
+  const jsize num_ids = env->GetArrayLength(ids);
+  // names and ids are built in lockstep by PerfettoTrack, so they should match.
+  // Tracing must never crash the caller, so on a mismatch just log and use the
+  // shorter length rather than over-reading.
+  const jsize n = num_names < num_ids ? num_names : num_ids;
+  if (num_names != num_ids) {
+    __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
+                        "nested track names (%d) and ids (%d) length mismatch",
+                        num_names, num_ids);
+  }
   std::vector<std::string> names_vec;
   names_vec.reserve(static_cast<size_t>(n));
   for (jsize i = 0; i < n; i++) {
@@ -394,10 +404,8 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
     names_vec.emplace_back(StringBuffer::utf16_to_ascii(env, s));
     env->DeleteLocalRef(s);
   }
-  jlong* id_ptr = env->GetLongArrayElements(ids, nullptr);
-  std::vector<uint64_t> ids_vec(reinterpret_cast<const uint64_t*>(id_ptr),
-                                reinterpret_cast<const uint64_t*>(id_ptr) + n);
-  env->ReleaseLongArrayElements(ids, id_ptr, JNI_ABORT);
+  std::vector<uint64_t> ids_vec(static_cast<size_t>(n));
+  env->GetLongArrayRegion(ids, 0, n, reinterpret_cast<jlong*>(ids_vec.data()));
   return toJLong(new sdk_for_jni::NestedTracks(
       static_cast<sdk_for_jni::RootType>(root_type), names_vec, ids_vec));
 }
