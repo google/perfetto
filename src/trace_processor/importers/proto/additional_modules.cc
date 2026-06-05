@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"

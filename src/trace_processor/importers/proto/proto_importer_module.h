@@ -29,6 +29,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/track_event_plugin.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 
 namespace perfetto {
@@ -179,6 +180,9 @@ struct ProtoImporterModuleContext {
   FtraceModule* ftrace_module = nullptr;
   EtwModule* etw_module = nullptr;
   TrackEventModule* track_module = nullptr;
+
+  // TrackEvent extensions, populated by plugins and read by TrackEventParser.
+  TrackEventPluginRegistry track_event_plugins;
 
   std::unique_ptr<TraceSorter::Stream<TracePacketData>> trace_packet_stream;
   std::unique_ptr<TraceSorter::Stream<TrackEventData>> track_event_stream;
