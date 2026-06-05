@@ -64,7 +64,7 @@
     "@typescript-eslint/parser": "^7.14.1",
     "argparse": "^2.0.1",
     "dingusjs": "^0.0.3",
-    "eslint": "^9.6.0",
+    "eslint": "^9.39.4",
     "eslint-config-google": "^0.14.0",
     "eslint-plugin-compat": "^5.0.0",
     "eslint-plugin-jsdoc": "^48.5.0",
