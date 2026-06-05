@@ -95,16 +95,17 @@
           "description": "frameworks/base TracePacket extensions",
           "comment": [
             "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto.",
-            "Wrapper: FrameworksBaseTracePacket."
+            "Wrapper: FrameworksBaseTracePacket.",
+            "1000: VideoFrame video_frame, 1001: VideoFrameError video_frame_error."
           ],
-          "range": [116, 116],
+          "ranges": [[116, 116], [1000, 1001]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },
         {
           "name": "unallocated",
           "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1000, 1999]
+          "range": [1002, 1999]
         }
       ]
     },

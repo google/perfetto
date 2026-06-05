@@ -34,6 +34,30 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_video_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video producer hit max_stream_size_bytes; stream torn " \
+      "down. See trace_import_logs for the affected display."),                \
+  F(android_video_codec_error,            kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video MediaCodec error. See trace_import_logs for the " \
+      "affected display."),                                                    \
+  F(android_video_display_gone,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video source display removed mid-session. See "         \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_no_encoder,             kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video has no encoder for the requested format. See "    \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_display_not_found,      kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video display not found at session start. See "         \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_encoder_setup_failed,   kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video encoder setup failed. See trace_import_logs for " \
+      "the affected display."),                                                \
+  F(android_video_virtual_display_failed, kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video createVirtualDisplay failed. See "                \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video stream exceeded the parse-time size cap; frames " \
+      "dropped. See the trace_import_logs table for the affected display."),   \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

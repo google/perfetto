@@ -133,6 +133,7 @@
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
+#include "src/trace_processor/plugins/video_frame_importer/video_frame_importer.h"
 #include "src/trace_processor/plugins/wattson/wattson.h"
 #include "src/trace_processor/plugins/window_operator/window_operator.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
@@ -361,6 +362,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   tree_functions::RegisterPlugin();
   type_builder_functions::RegisterPlugin();
   utils_functions::RegisterPlugin();
+  video_frame_importer::RegisterPlugin();
   wattson::RegisterPlugin();
   window_operator::RegisterPlugin();
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
