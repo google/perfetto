@@ -206,5 +206,7 @@ SELECT
     WHEN $name GLOB "*.*$*: #*" THEN "Handler: " || _remove_lambda_name($name)
     WHEN $name GLOB "deliverInputEvent*" THEN "deliverInputEvent <...>"
     WHEN lower($name) GLOB "*vsync*" THEN _standardize_vsync_slice_name($name)
+    -- Passthrough stats pull slices, the number is the atom tag
+    WHEN $name GLOB "StatsPull-*" THEN $name
     ELSE __intrinsic_strip_hex($name, 2)
   END;
