@@ -109,7 +109,11 @@ export class HeapDumpExplorerSession {
     const restored =
       ref !== undefined &&
       this._dumps.some((d) => d.upid === ref.upid && d.ts === BigInt(ref.ts));
-    if (!restored) {
+    if (restored) {
+      for (const t of this.store.state.flamegraphTabs ?? []) {
+        this.loadCount(t.pathHashes, t.isDominator);
+      }
+    } else {
       const first = this._dumps.length > 0 ? this._dumps[0] : undefined;
       this.store.edit((s) => {
         s.activeDump =
@@ -121,10 +125,6 @@ export class HeapDumpExplorerSession {
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
       });
-    } else {
-      for (const t of this.store.state.flamegraphTabs ?? []) {
-        this.loadCount(t.pathHashes, t.isDominator);
-      }
     }
     return restored;
   }
@@ -249,8 +249,7 @@ export class HeapDumpExplorerSession {
 
   // Adds the flamegraph tab for a selection in the active dump if not open.
   private openFlamegraphTab(pathHashes: string, isDominator: boolean): void {
-    const dump = this.activeDump;
-    if (dump === null) return;
+    if (this.activeDump === null) return;
     const tabs = this.store.state.flamegraphTabs ?? [];
     if (
       tabs.some(
@@ -262,7 +261,7 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.flamegraphTabs = [
         ...(s.flamegraphTabs ?? []),
-        {pathHashes, isDominator, upid: dump.upid, ts: dump.ts.toString()},
+        {pathHashes, isDominator},
       ];
     });
     this.loadCount(pathHashes, isDominator);

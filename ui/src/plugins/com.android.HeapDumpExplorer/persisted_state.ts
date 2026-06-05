@@ -28,11 +28,11 @@ const DUMP_REF_SCHEMA = z.object({
   ts: z.string(),
 });
 
+// A flamegraph tab always belongs to the active dump (tabs reset on dump
+// switch), so the dump is taken from activeDump rather than stored per tab.
 const FLAMEGRAPH_TAB_SCHEMA = z.object({
   pathHashes: z.string(),
   isDominator: z.boolean(),
-  upid: z.number(),
-  ts: z.string(),
 });
 
 const INSTANCE_TAB_SCHEMA = z.object({
