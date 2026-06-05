@@ -20,9 +20,10 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
-import type {Filter} from '../../../components/widgets/datagrid/model';
+import type {Column, Filter} from '../../../components/widgets/datagrid/model';
 import {fmtHex} from '../format';
 import {
+  type GridStateAccess,
   type NavFn,
   sizeRenderer,
   countRenderer,
@@ -110,21 +111,34 @@ interface ArraysViewAttrs {
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
+  readonly grid: GridStateAccess;
   readonly initialArrayHash?: string;
   readonly hasFieldValues?: boolean;
 }
 
+const DEFAULT_COLUMNS: readonly Column[] = [
+  {id: 'id', field: 'id'},
+  {id: 'cls', field: 'cls'},
+  {id: 'self_size', field: 'self_size'},
+  {id: 'native_size', field: 'native_size'},
+  {id: 'element_count', field: 'element_count'},
+  {id: 'heap', field: 'heap'},
+];
+
 function ArraysView(): m.Component<ArraysViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
-  let filters: Filter[] = [];
 
   function applyNavFilter(
     ah: string | undefined,
     clearNavParam: (key: string) => void,
+    grid: GridStateAccess,
   ) {
     if (!ah) return;
-    filters = [{field: 'array_hash', op: '=' as const, value: ah}];
+    const filters: Filter[] = [
+      {field: 'array_hash', op: '=' as const, value: ah},
+    ];
+    grid.setFilters(filters);
     counter.onFiltersChanged(filters);
     clearNavParam('arrayHash');
   }
@@ -139,13 +153,22 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
         rootSchemaName: 'query',
       });
       counter.init(engine, query);
-      applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
+      counter.onFiltersChanged(vnode.attrs.grid.filters);
+      applyNavFilter(
+        vnode.attrs.initialArrayHash,
+        vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
+      );
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
+      applyNavFilter(
+        vnode.attrs.initialArrayHash,
+        vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
+      );
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, grid} = vnode.attrs;
       if (vnode.attrs.hasFieldValues === false) {
         return m(EmptyState, {
           icon: 'data_array',
@@ -163,18 +186,12 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
           rootSchema: 'query',
           data: dataSource,
           fillHeight: true,
-          initialColumns: [
-            {id: 'id', field: 'id'},
-            {id: 'cls', field: 'cls'},
-            {id: 'self_size', field: 'self_size'},
-            {id: 'native_size', field: 'native_size'},
-            {id: 'element_count', field: 'element_count'},
-            {id: 'heap', field: 'heap'},
-          ],
-          filters,
+          columns: grid.columns ?? DEFAULT_COLUMNS,
+          onColumnsChanged: grid.setColumns,
+          filters: grid.filters,
           showExportButton: true,
           onFiltersChanged: (f) => {
-            filters = [...f];
+            grid.setFilters(f);
             counter.onFiltersChanged(f);
           },
         }),

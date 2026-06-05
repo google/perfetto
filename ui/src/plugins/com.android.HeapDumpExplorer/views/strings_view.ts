@@ -23,8 +23,9 @@ import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schem
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {StringListRow} from '../types';
 import {fmtSize, fmtHex} from '../format';
-import type {Filter} from '../../../components/widgets/datagrid/model';
+import type {Column, Filter} from '../../../components/widgets/datagrid/model';
 import {
+  type GridStateAccess,
   type NavFn,
   sizeRenderer,
   countRenderer,
@@ -162,23 +163,36 @@ interface StringsViewAttrs {
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
+  readonly grid: GridStateAccess;
   readonly initialQuery?: string;
   readonly hasFieldValues?: boolean;
 }
+
+const DEFAULT_COLUMNS: readonly Column[] = [
+  {id: 'id', field: 'id'},
+  {id: 'value', field: 'value'},
+  {id: 'retained', field: 'retained'},
+  {id: 'reachable_size', field: 'reachable_size'},
+  {id: 'reachable_native', field: 'reachable_native'},
+  {id: 'reachable_count', field: 'reachable_count'},
+  {id: 'len', field: 'len'},
+  {id: 'heap', field: 'heap'},
+];
 
 function StringsView(): m.Component<StringsViewAttrs> {
   let allRows: StringListRow[] | null = null;
   let alive = true;
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
-  let filters: Filter[] = [];
 
   function applyNavFilter(
     q: string | undefined,
     clearNavParam: (key: string) => void,
+    grid: GridStateAccess,
   ) {
     if (!q) return;
-    filters = [{field: 'value', op: '=' as const, value: q}];
+    const filters: Filter[] = [{field: 'value', op: '=' as const, value: q}];
+    grid.setFilters(filters);
     counter.onFiltersChanged(filters);
     clearNavParam('q');
   }
@@ -194,7 +208,12 @@ function StringsView(): m.Component<StringsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
-      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
+      counter.onFiltersChanged(vnode.attrs.grid.filters);
+      applyNavFilter(
+        vnode.attrs.initialQuery,
+        vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
+      );
       queries
         .getStringList(engine, activeDump)
         .then((r) => {
@@ -205,13 +224,17 @@ function StringsView(): m.Component<StringsViewAttrs> {
         .catch(console.error);
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
+      applyNavFilter(
+        vnode.attrs.initialQuery,
+        vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
+      );
     },
     onremove() {
       alive = false;
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, grid} = vnode.attrs;
 
       if (!allRows) {
         return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
@@ -262,20 +285,12 @@ function StringsView(): m.Component<StringsViewAttrs> {
               rootSchema: 'query',
               data: dataSource,
               fillHeight: true,
-              initialColumns: [
-                {id: 'id', field: 'id'},
-                {id: 'value', field: 'value'},
-                {id: 'retained', field: 'retained'},
-                {id: 'reachable_size', field: 'reachable_size'},
-                {id: 'reachable_native', field: 'reachable_native'},
-                {id: 'reachable_count', field: 'reachable_count'},
-                {id: 'len', field: 'len'},
-                {id: 'heap', field: 'heap'},
-              ],
-              filters,
+              columns: grid.columns ?? DEFAULT_COLUMNS,
+              onColumnsChanged: grid.setColumns,
+              filters: grid.filters,
               showExportButton: true,
               onFiltersChanged: (f) => {
-                filters = [...f];
+                grid.setFilters(f);
                 counter.onFiltersChanged(f);
               },
             })

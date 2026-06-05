@@ -20,8 +20,9 @@ import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_sourc
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import {fmtHex} from '../format';
-import type {Filter} from '../../../components/widgets/datagrid/model';
+import type {Column, Filter} from '../../../components/widgets/datagrid/model';
 import {
+  type GridStateAccess,
   type NavFn,
   sizeRenderer,
   countRenderer,
@@ -38,8 +39,23 @@ interface AllObjectsViewAttrs {
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
+  readonly grid: GridStateAccess;
   readonly initialClass?: string;
 }
+
+const DEFAULT_COLUMNS: readonly Column[] = [
+  {id: 'id', field: 'id'},
+  {id: 'cls', field: 'cls'},
+  {id: 'retained', field: 'retained', sort: 'DESC'},
+  {id: 'retained_native', field: 'retained_native'},
+  {id: 'retained_count', field: 'retained_count'},
+  {id: 'self_size', field: 'self_size'},
+  {id: 'native_size', field: 'native_size'},
+  {id: 'reachable_size', field: 'reachable_size'},
+  {id: 'reachable_native', field: 'reachable_native'},
+  {id: 'reachable_count', field: 'reachable_count'},
+  {id: 'heap', field: 'heap'},
+];
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -168,14 +184,15 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
 function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
-  let filters: Filter[] = [];
 
   function applyNavFilter(
     cls: string | undefined,
     clearNavParam: (key: string) => void,
+    grid: GridStateAccess,
   ) {
     if (!cls) return;
-    filters = [{field: 'cls', op: '=' as const, value: cls}];
+    const filters: Filter[] = [{field: 'cls', op: '=' as const, value: cls}];
+    grid.setFilters(filters);
     counter.onFiltersChanged(filters);
     clearNavParam('cls');
   }
@@ -191,13 +208,22 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
-      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
+      counter.onFiltersChanged(vnode.attrs.grid.filters);
+      applyNavFilter(
+        vnode.attrs.initialClass,
+        vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
+      );
     },
     onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
+      applyNavFilter(
+        vnode.attrs.initialClass,
+        vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
+      );
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, grid} = vnode.attrs;
 
       if (!dataSource) return null;
 
@@ -208,23 +234,12 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
           rootSchema: 'query',
           data: dataSource,
           fillHeight: true,
-          initialColumns: [
-            {id: 'id', field: 'id'},
-            {id: 'cls', field: 'cls'},
-            {id: 'retained', field: 'retained', sort: 'DESC' as const},
-            {id: 'retained_native', field: 'retained_native'},
-            {id: 'retained_count', field: 'retained_count'},
-            {id: 'self_size', field: 'self_size'},
-            {id: 'native_size', field: 'native_size'},
-            {id: 'reachable_size', field: 'reachable_size'},
-            {id: 'reachable_native', field: 'reachable_native'},
-            {id: 'reachable_count', field: 'reachable_count'},
-            {id: 'heap', field: 'heap'},
-          ],
-          filters,
+          columns: grid.columns ?? DEFAULT_COLUMNS,
+          onColumnsChanged: grid.setColumns,
+          filters: grid.filters,
           showExportButton: true,
           onFiltersChanged: (f) => {
-            filters = [...f];
+            grid.setFilters(f);
             counter.onFiltersChanged(f);
           },
         }),

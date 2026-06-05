@@ -19,7 +19,7 @@ import type {Setting} from '../../public/settings';
 import type {Store} from '../../base/store';
 import {NUM} from '../../trace_processor/query_result';
 
-import {SQL_PREAMBLE} from './components';
+import {SQL_PREAMBLE, type GridStateAccess} from './components';
 import {flamegraphQuery} from './views/flamegraph_objects_view';
 import * as queries from './queries';
 import {
@@ -31,7 +31,13 @@ import {
 } from './nav_state';
 import type {OverviewData} from './types';
 import type {FlamegraphState} from '../../widgets/flamegraph';
-import type {HdeState} from './persisted_state';
+import type {Column, Filter} from '../../components/widgets/datagrid/model';
+import {
+  type GridSlot,
+  type HdeState,
+  decodeGridSlot,
+  encodeGridSlot,
+} from './persisted_state';
 import {
   METRIC_DOMINATED_OBJECT_SIZE,
   METRIC_OBJECT_SIZE,
@@ -124,6 +130,7 @@ export class HeapDumpExplorerSession {
         s.flamegraphTabs = undefined;
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
+        s.grids = undefined;
       });
     }
     return restored;
@@ -147,6 +154,7 @@ export class HeapDumpExplorerSession {
       s.flamegraphTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
+      s.grids = undefined;
     });
     void this.loadOverview();
   }
@@ -347,6 +355,37 @@ export class HeapDumpExplorerSession {
     const {id, label} = nav.params;
     const tabs = this.store.state.instanceTabs ?? [];
     if (!tabs.some((t) => t.objId === id)) this.openInstanceTab(id, label);
+  }
+
+  // Read/write access to one grid's persisted column/filter state, keyed by a
+  // stable tab key, for running DataGrid in controlled mode.
+  gridAccess(key: string): GridStateAccess {
+    const slot = this.gridSlot(key);
+    return {
+      columns: slot?.columns,
+      filters: slot?.filters ?? [],
+      setColumns: (columns) => this.setGridColumns(key, columns),
+      setFilters: (filters) => this.setGridFilters(key, filters),
+    };
+  }
+
+  private gridSlot(key: string): GridSlot | undefined {
+    const json = this.store.state.grids?.[key];
+    return json === undefined ? undefined : decodeGridSlot(json);
+  }
+
+  private setGridColumns(key: string, columns: readonly Column[]): void {
+    this.setGrid(key, {columns, filters: this.gridSlot(key)?.filters ?? []});
+  }
+
+  private setGridFilters(key: string, filters: readonly Filter[]): void {
+    this.setGrid(key, {columns: this.gridSlot(key)?.columns, filters});
+  }
+
+  private setGrid(key: string, slot: GridSlot): void {
+    this.store.edit((s) => {
+      s.grids = {...(s.grids ?? {}), [key]: encodeGridSlot(slot)};
+    });
   }
 
   get flamegraphPanelState(): FlamegraphState | undefined {

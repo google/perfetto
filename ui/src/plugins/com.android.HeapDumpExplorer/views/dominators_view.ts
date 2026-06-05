@@ -19,8 +19,10 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {Column} from '../../../components/widgets/datagrid/model';
 import {fmtHex} from '../format';
 import {
+  type GridStateAccess,
   type NavFn,
   sizeRenderer,
   countRenderer,
@@ -36,7 +38,22 @@ interface DominatorsViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly grid: GridStateAccess;
 }
+
+const DEFAULT_COLUMNS: readonly Column[] = [
+  {id: 'id', field: 'id'},
+  {id: 'cls', field: 'cls'},
+  {id: 'retained', field: 'retained', sort: 'DESC'},
+  {id: 'retained_native', field: 'retained_native'},
+  {id: 'retained_count', field: 'retained_count'},
+  {id: 'self_size', field: 'self_size'},
+  {id: 'reachable_size', field: 'reachable_size'},
+  {id: 'reachable_native', field: 'reachable_native'},
+  {id: 'reachable_count', field: 'reachable_count'},
+  {id: 'heap', field: 'heap'},
+  {id: 'root_type', field: 'root_type'},
+];
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -161,9 +178,10 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
+      counter.onFiltersChanged(vnode.attrs.grid.filters);
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, grid} = vnode.attrs;
 
       if (!dataSource) return null;
 
@@ -174,21 +192,14 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
           rootSchema: 'query',
           data: dataSource,
           fillHeight: true,
-          initialColumns: [
-            {id: 'id', field: 'id'},
-            {id: 'cls', field: 'cls'},
-            {id: 'retained', field: 'retained', sort: 'DESC' as const},
-            {id: 'retained_native', field: 'retained_native'},
-            {id: 'retained_count', field: 'retained_count'},
-            {id: 'self_size', field: 'self_size'},
-            {id: 'reachable_size', field: 'reachable_size'},
-            {id: 'reachable_native', field: 'reachable_native'},
-            {id: 'reachable_count', field: 'reachable_count'},
-            {id: 'heap', field: 'heap'},
-            {id: 'root_type', field: 'root_type'},
-          ],
+          columns: grid.columns ?? DEFAULT_COLUMNS,
+          onColumnsChanged: grid.setColumns,
+          filters: grid.filters,
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            grid.setFilters(f);
+            counter.onFiltersChanged(f);
+          },
         }),
       ]);
     },

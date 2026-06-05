@@ -19,8 +19,10 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {Column} from '../../../components/widgets/datagrid/model';
 import {fmtHex} from '../format';
 import {
+  type GridStateAccess,
   type NavFn,
   sizeRenderer,
   countRenderer,
@@ -34,11 +36,26 @@ import {
 interface FlamegraphObjectsViewAttrs {
   engine: Engine;
   navigate: NavFn;
+  grid: GridStateAccess;
   onBackToTimeline?: () => void;
   nodeName?: string;
   pathHashes?: string;
   isDominator?: boolean;
 }
+
+const DEFAULT_COLUMNS: readonly Column[] = [
+  {id: 'id', field: 'id'},
+  {id: 'cls', field: 'cls'},
+  {id: 'self_size', field: 'self_size'},
+  {id: 'native_size', field: 'native_size'},
+  {id: 'retained', field: 'retained'},
+  {id: 'retained_native', field: 'retained_native'},
+  {id: 'retained_count', field: 'retained_count'},
+  {id: 'reachable_size', field: 'reachable_size'},
+  {id: 'reachable_native', field: 'reachable_native'},
+  {id: 'reachable_count', field: 'reachable_count'},
+  {id: 'heap', field: 'heap'},
+];
 
 export function flamegraphQuery(
   pathHashes: string,
@@ -198,6 +215,7 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
       if (pathHashes) {
         initDataSource(engine, pathHashes, isDominator ?? false);
       }
+      counter.onFiltersChanged(vnode.attrs.grid.filters);
     },
     onupdate(vnode) {
       if (vnode.attrs.pathHashes !== lastPathHashes) {
@@ -211,7 +229,7 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
       }
     },
     view(vnode) {
-      const {navigate, nodeName, onBackToTimeline} = vnode.attrs;
+      const {navigate, nodeName, onBackToTimeline, grid} = vnode.attrs;
 
       if (!dataSource) {
         return m('div', [
@@ -257,21 +275,14 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
           rootSchema: 'query',
           data: dataSource,
           fillHeight: true,
-          initialColumns: [
-            {id: 'id', field: 'id'},
-            {id: 'cls', field: 'cls'},
-            {id: 'self_size', field: 'self_size'},
-            {id: 'native_size', field: 'native_size'},
-            {id: 'retained', field: 'retained'},
-            {id: 'retained_native', field: 'retained_native'},
-            {id: 'retained_count', field: 'retained_count'},
-            {id: 'reachable_size', field: 'reachable_size'},
-            {id: 'reachable_native', field: 'reachable_native'},
-            {id: 'reachable_count', field: 'reachable_count'},
-            {id: 'heap', field: 'heap'},
-          ],
+          columns: grid.columns ?? DEFAULT_COLUMNS,
+          onColumnsChanged: grid.setColumns,
+          filters: grid.filters,
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            grid.setFilters(f);
+            counter.onFiltersChanged(f);
+          },
         }),
       ]);
     },

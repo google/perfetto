@@ -16,7 +16,7 @@ import m from 'mithril';
 import type {SqlValue} from '../../trace_processor/query_result';
 import {NUM} from '../../trace_processor/query_result';
 import type {CellRenderResult} from '../../components/widgets/datagrid/datagrid_schema';
-import type {Filter} from '../../components/widgets/datagrid/model';
+import type {Column, Filter} from '../../components/widgets/datagrid/model';
 import {filterToSql} from '../../components/widgets/datagrid/sql_utils';
 import type {Engine} from '../../trace_processor/engine';
 import type {InstanceRow, PathEntry, PrimOrRef} from './types';
@@ -29,6 +29,17 @@ export type NavFn = (
   view: NavState['view'],
   params?: Record<string, unknown>,
 ) => void;
+
+// Session-backed DataGrid state for one tab: lets a view run its grid in
+// controlled mode with columns/filters persisted to the shared link. `columns`
+// is undefined until the user customises them; the view uses its defaults
+// until then.
+export interface GridStateAccess {
+  readonly columns: readonly Column[] | undefined;
+  readonly filters: readonly Filter[];
+  readonly setColumns: (columns: readonly Column[]) => void;
+  readonly setFilters: (filters: readonly Filter[]) => void;
+}
 
 export type ObjLinkRef = {
   id: number;

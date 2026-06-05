@@ -25,10 +25,12 @@ import type {
   SchemaRegistry,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
+import type {Column} from '../../../components/widgets/datagrid/model';
 import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import {downloadBlob} from '../download';
 import {
+  type GridStateAccess,
   type NavFn,
   sizeRenderer,
   countRenderer,
@@ -62,6 +64,71 @@ interface ObjectViewAttrs {
   readonly navigate: NavFn;
   readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
+  // Returns the persisted DataGrid state for one of this object tab's grids,
+  // keyed by a sub-grid name ('refs', 'dominated', 'staticFields', 'fields',
+  // 'array').
+  readonly gridFor: (subKey: string) => GridStateAccess;
+}
+
+const REVERSE_REFS_COLUMNS: readonly Column[] = [
+  {id: 'id', field: 'id'},
+  {id: 'cls', field: 'cls'},
+  {id: 'str', field: 'str'},
+  {id: 'self_size', field: 'self_size'},
+  {id: 'native_size', field: 'native_size'},
+  {id: 'retained', field: 'retained'},
+  {id: 'retained_native', field: 'retained_native'},
+  {id: 'retained_count', field: 'retained_count'},
+  {id: 'reachable_size', field: 'reachable_size'},
+  {id: 'reachable_native', field: 'reachable_native'},
+  {id: 'reachable_count', field: 'reachable_count'},
+];
+
+const DOMINATED_COLUMNS: readonly Column[] = [
+  ...REVERSE_REFS_COLUMNS,
+  {id: 'heap', field: 'heap'},
+];
+
+const FIELDS_COLUMNS: readonly Column[] = [
+  {id: 'type_name', field: 'type_name'},
+  {id: 'name', field: 'name'},
+  {id: 'value_display', field: 'value_display'},
+  {id: 'shallow', field: 'shallow'},
+  {id: 'shallow_native', field: 'shallow_native'},
+  {id: 'retained', field: 'retained'},
+  {id: 'retained_native', field: 'retained_native'},
+  {id: 'reachable', field: 'reachable'},
+  {id: 'reachable_native', field: 'reachable_native'},
+  {id: 'reachable_count', field: 'reachable_count'},
+  {id: 'value_kind', field: 'value_kind'},
+  {id: 'ref_id', field: 'ref_id'},
+  {id: 'ref_str', field: 'ref_str'},
+];
+
+const ARRAY_COLUMNS: readonly Column[] = [
+  {id: 'idx', field: 'idx'},
+  {id: 'value_display', field: 'value_display'},
+  {id: 'shallow', field: 'shallow'},
+  {id: 'shallow_native', field: 'shallow_native'},
+  {id: 'retained', field: 'retained'},
+  {id: 'retained_native', field: 'retained_native'},
+  {id: 'reachable', field: 'reachable'},
+  {id: 'reachable_native', field: 'reachable_native'},
+  {id: 'reachable_count', field: 'reachable_count'},
+  {id: 'value_kind', field: 'value_kind'},
+  {id: 'ref_id', field: 'ref_id'},
+  {id: 'ref_str', field: 'ref_str'},
+];
+
+// Wires one object-tab grid to its persisted state: controlled columns +
+// filters, falling back to the grid's defaults until the user customises them.
+function gridProps(grid: GridStateAccess, defaults: readonly Column[]) {
+  return {
+    columns: grid.columns ?? defaults,
+    onColumnsChanged: grid.setColumns,
+    filters: grid.filters,
+    onFiltersChanged: grid.setFilters,
+  };
 }
 
 const JAVA_PRIM_SIZE: Record<string, number> = {
@@ -598,7 +665,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {navigate, params} = vnode.attrs;
+      const {navigate, params, gridFor} = vnode.attrs;
 
       if (detail === 'loading') {
         return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
@@ -848,7 +915,11 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
           ? m(
               Section,
               {title: 'Static Fields'},
-              renderFieldsGrid(detail.staticFields, navigate),
+              renderFieldsGrid(
+                detail.staticFields,
+                navigate,
+                gridFor('staticFields'),
+              ),
             )
           : null,
 
@@ -857,7 +928,11 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
               Section,
               {title: 'Fields'},
               detail.instanceFields.length > 0
-                ? renderFieldsGrid(detail.instanceFields, navigate)
+                ? renderFieldsGrid(
+                    detail.instanceFields,
+                    navigate,
+                    gridFor('fields'),
+                  )
                 : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
             )
           : null,
@@ -870,6 +945,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                 detail.arrayElems,
                 detail.elemTypeName ?? 'Object',
                 navigate,
+                gridFor('array'),
                 detail.elemTypeName === 'byte'
                   ? () => {
                       queries
@@ -904,19 +980,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                 schema: makeInstanceSchema(navigate),
                 rootSchema: 'query',
                 data: detail.reverseRefs.map(instanceRowToRow),
-                initialColumns: [
-                  {id: 'id', field: 'id'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'str', field: 'str'},
-                  {id: 'self_size', field: 'self_size'},
-                  {id: 'native_size', field: 'native_size'},
-                  {id: 'retained', field: 'retained'},
-                  {id: 'retained_native', field: 'retained_native'},
-                  {id: 'retained_count', field: 'retained_count'},
-                  {id: 'reachable_size', field: 'reachable_size'},
-                  {id: 'reachable_native', field: 'reachable_native'},
-                  {id: 'reachable_count', field: 'reachable_count'},
-                ],
+                ...gridProps(gridFor('refs'), REVERSE_REFS_COLUMNS),
                 showExportButton: true,
               })
             : m('p', {class: 'pf-hde-muted'}, 'No references to this object.'),
@@ -937,20 +1001,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                 schema: makeInstanceSchema(navigate),
                 rootSchema: 'query',
                 data: detail.dominated.map(instanceRowToRow),
-                initialColumns: [
-                  {id: 'id', field: 'id'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'str', field: 'str'},
-                  {id: 'self_size', field: 'self_size'},
-                  {id: 'native_size', field: 'native_size'},
-                  {id: 'retained', field: 'retained'},
-                  {id: 'retained_native', field: 'retained_native'},
-                  {id: 'retained_count', field: 'retained_count'},
-                  {id: 'reachable_size', field: 'reachable_size'},
-                  {id: 'reachable_native', field: 'reachable_native'},
-                  {id: 'reachable_count', field: 'reachable_count'},
-                  {id: 'heap', field: 'heap'},
-                ],
+                ...gridProps(gridFor('dominated'), DOMINATED_COLUMNS),
                 showExportButton: true,
               })
             : m(
@@ -964,7 +1015,11 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
   };
 }
 
-function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
+function renderFieldsGrid(
+  fields: FieldRow[],
+  navigate: NavFn,
+  grid: GridStateAccess,
+): m.Children {
   if (fields.length === 0) {
     return m('div', {class: 'pf-hde-info-grid__label'}, 'No fields');
   }
@@ -972,21 +1027,7 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
     schema: makeFieldSchema(navigate),
     rootSchema: 'query',
     data: fields.map(fieldRowToRow),
-    initialColumns: [
-      {id: 'type_name', field: 'type_name'},
-      {id: 'name', field: 'name'},
-      {id: 'value_display', field: 'value_display'},
-      {id: 'shallow', field: 'shallow'},
-      {id: 'shallow_native', field: 'shallow_native'},
-      {id: 'retained', field: 'retained'},
-      {id: 'retained_native', field: 'retained_native'},
-      {id: 'reachable', field: 'reachable'},
-      {id: 'reachable_native', field: 'reachable_native'},
-      {id: 'reachable_count', field: 'reachable_count'},
-      {id: 'value_kind', field: 'value_kind'},
-      {id: 'ref_id', field: 'ref_id'},
-      {id: 'ref_str', field: 'ref_str'},
-    ],
+    ...gridProps(grid, FIELDS_COLUMNS),
     showExportButton: true,
   });
 }
@@ -995,6 +1036,7 @@ function renderArrayGrid(
   elems: ArrayElemRow[],
   elemTypeName: string,
   navigate: NavFn,
+  grid: GridStateAccess,
   onDownloadBytes?: () => void,
 ): m.Children {
   function copyTsv() {
@@ -1031,20 +1073,7 @@ function renderArrayGrid(
       schema: makeArraySchema(navigate, elemTypeName),
       rootSchema: 'query',
       data: elems.map((e) => arrayElemToRow(e, elemTypeName)),
-      initialColumns: [
-        {id: 'idx', field: 'idx'},
-        {id: 'value_display', field: 'value_display'},
-        {id: 'shallow', field: 'shallow'},
-        {id: 'shallow_native', field: 'shallow_native'},
-        {id: 'retained', field: 'retained'},
-        {id: 'retained_native', field: 'retained_native'},
-        {id: 'reachable', field: 'reachable'},
-        {id: 'reachable_native', field: 'reachable_native'},
-        {id: 'reachable_count', field: 'reachable_count'},
-        {id: 'value_kind', field: 'value_kind'},
-        {id: 'ref_id', field: 'ref_id'},
-        {id: 'ref_str', field: 'ref_str'},
-      ],
+      ...gridProps(grid, ARRAY_COLUMNS),
       showExportButton: true,
     }),
   ]);

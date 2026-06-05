@@ -19,8 +19,9 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
-import type {Filter} from '../../../components/widgets/datagrid/model';
+import type {Column, Filter} from '../../../components/widgets/datagrid/model';
 import {
+  type GridStateAccess,
   type NavFn,
   sizeRenderer,
   countRenderer,
@@ -36,8 +37,19 @@ interface ClassesViewAttrs {
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
+  readonly grid: GridStateAccess;
   readonly initialRootClass?: string;
 }
+
+const DEFAULT_COLUMNS: readonly Column[] = [
+  {id: 'cls', field: 'cls'},
+  {id: 'cnt', field: 'cnt'},
+  {id: 'shallow', field: 'shallow'},
+  {id: 'native_shallow', field: 'native_shallow'},
+  {id: 'retained', field: 'retained', sort: 'DESC'},
+  {id: 'retained_native', field: 'retained_native'},
+  {id: 'retained_count', field: 'retained_count'},
+];
 
 const PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation';
@@ -116,19 +128,20 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   let alive = true;
   const counter = new RowCounter();
-  let filters: Filter[] = [];
 
   async function applyNavFilter(
     engine: Engine,
     activeDump: HeapDump,
     root: string | undefined,
     clearNavParam: (key: string) => void,
+    grid: GridStateAccess,
   ) {
     if (!root) return;
     clearNavParam('rootClass');
     const names = await queries.getSubclassNames(engine, activeDump, root);
     if (!alive || names.length === 0) return;
-    filters = [{field: 'cls', op: 'in' as const, value: names}];
+    const filters: Filter[] = [{field: 'cls', op: 'in' as const, value: names}];
+    grid.setFilters(filters);
     counter.onFiltersChanged(filters);
     m.redraw();
   }
@@ -144,11 +157,13 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
         preamble: PREAMBLE,
       });
       counter.init(engine, query, PREAMBLE);
+      counter.onFiltersChanged(vnode.attrs.grid.filters);
       applyNavFilter(
         engine,
         activeDump,
         vnode.attrs.initialRootClass,
         vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
       ).catch(console.error);
     },
     onupdate(vnode) {
@@ -157,13 +172,14 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
         vnode.attrs.activeDump,
         vnode.attrs.initialRootClass,
         vnode.attrs.clearNavParam,
+        vnode.attrs.grid,
       ).catch(console.error);
     },
     onremove() {
       alive = false;
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, grid} = vnode.attrs;
 
       if (!dataSource) return null;
 
@@ -174,19 +190,12 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
           rootSchema: 'query',
           data: dataSource,
           fillHeight: true,
-          initialColumns: [
-            {id: 'cls', field: 'cls'},
-            {id: 'cnt', field: 'cnt'},
-            {id: 'shallow', field: 'shallow'},
-            {id: 'native_shallow', field: 'native_shallow'},
-            {id: 'retained', field: 'retained', sort: 'DESC' as const},
-            {id: 'retained_native', field: 'retained_native'},
-            {id: 'retained_count', field: 'retained_count'},
-          ],
-          filters,
+          columns: grid.columns ?? DEFAULT_COLUMNS,
+          onColumnsChanged: grid.setColumns,
+          filters: grid.filters,
           showExportButton: true,
           onFiltersChanged: (f) => {
-            filters = [...f];
+            grid.setFilters(f);
             counter.onFiltersChanged(f);
           },
         }),

@@ -127,6 +127,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        grid: session.gridAccess('classes'),
         initialRootClass:
           state.view === 'classes' ? state.params.rootClass : undefined,
       }),
@@ -139,6 +140,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        grid: session.gridAccess('objects'),
         initialClass: state.view === 'objects' ? state.params.cls : undefined,
       }),
     },
@@ -149,6 +151,7 @@ function buildTabs(
         engine,
         activeDump,
         navigate: navigateWithTabs,
+        grid: session.gridAccess('dominators'),
       }),
     },
     {
@@ -172,6 +175,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        grid: session.gridAccess('strings'),
         initialQuery: state.view === 'strings' ? state.params.q : undefined,
         hasFieldValues: overview.hasFieldValues,
       }),
@@ -184,6 +188,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        grid: session.gridAccess('arrays'),
         initialArrayHash:
           state.view === 'arrays' ? state.params.arrayHash : undefined,
         hasFieldValues: overview.hasFieldValues,
@@ -208,6 +213,7 @@ function buildTabs(
       content: m(FlamegraphObjectsView, {
         engine,
         navigate: navigateWithTabs,
+        grid: session.gridAccess(`fg:${fg.pathHashes}:${fg.isDominator}`),
         pathHashes: fg.pathHashes,
         isDominator: fg.isDominator,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
@@ -236,6 +242,8 @@ function buildTabs(
         navigate: navigateWithTabs,
         openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
         params: {id: obj.objId},
+        gridFor: (subKey: string) =>
+          session.gridAccess(`obj:${obj.objId}:${subKey}`),
       }),
     });
     actions.set(key, {
