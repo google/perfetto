@@ -44,15 +44,13 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
-// Fetching traces from http(s) URLs is implemented by shelling out to `curl`,
-// which requires base::Subprocess. That is available on every platform except
-// Wasm/NaCl (where fork()/exec() don't exist), so gate the implementation
-// accordingly and fall back to a clear error elsewhere.
-#define PERFETTO_TP_HTTP_IMPORT_SUPPORTED()   \
-  (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-   PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-   PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
-   PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
+// URL fetching shells out to `curl` via base::Subprocess. Keep in sync with
+// `_subprocess_supported` in src/base/BUILD.gn; elsewhere we error out cleanly.
+#define PERFETTO_TP_HTTP_IMPORT_SUPPORTED()             \
+  (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
+   PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||           \
+   PERFETTO_BUILDFLAG(PERFETTO_OS_MAC) ||               \
+   PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) ||           \
    PERFETTO_BUILDFLAG(PERFETTO_OS_WIN))
 
 #if PERFETTO_TP_HTTP_IMPORT_SUPPORTED()
