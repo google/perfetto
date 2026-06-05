@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TABLE
@@ -26,17 +26,14 @@ from src.trace_processor.tables.profiler_tables import STACK_PROFILE_FRAME_TABLE
 EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalAnnotatedCallstackTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="experimental_annotated_callstack",
     columns=[
         C('id', CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
         C('depth', CppUint32()),
-        C('parent_id',
-          CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('parent_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
         C('frame_id', CppTableId(STACK_PROFILE_FRAME_TABLE)),
-        C("annotation",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("annotation", CppString()),
     ],
     add_implicit_column=False,
 )

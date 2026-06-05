@@ -147,33 +147,56 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   ASSIGN_OR_RETURN(reader_, input_context_->reader_registry->CreateTraceReader(
                                 trace_type_, trace_context_));
 
-  // Centralize clock setup for all trace formats. Proto traces add an identity
-  // sync so BOOTTIME is reachable in the clock graph; the trace default clock
-  // is set later by ParseClockSnapshot. All other formats know their clock
-  // statically and set the global clock directly.
+  // Centralize clock setup for all trace formats. Every format declares the
+  // clock domain its native timestamps are expressed in (its "trace clock"),
+  // and we do two things with it:
+  //
+  //   1. Claim it as the global trace-time clock. The first trace to claim
+  //      wins; later claims are silently ignored, so the global clock is
+  //      stable regardless of how many traces an archive (e.g. a ZIP) holds.
+  //
+  //   2. Register a deferred identity sync for the same clock. If this trace
+  //      does NOT win the global clock (e.g. a proto trace in the same archive
+  //      claimed BOOTTIME first) and the trace clock is not otherwise linked
+  //      into the clock graph via a ClockSnapshot, a zero-offset identity edge
+  //      is injected on the first conversion. This keeps the trace's
+  //      timestamps convertible instead of silently dropping every event. When
+  //      a real ClockSnapshot does link the clock (e.g. proto provides
+  //      BOOTTIME<->MONOTONIC), that real relationship is used instead.
+  //
+  // Proto traces are special: their clock is whatever ParseClockSnapshot reads
+  // from primary_trace_clock, set later, so here we only register BOOTTIME as
+  // the deferred fallback and do not claim the global clock now.
+  //
+  // TODO: once traces can carry a JSON schema that overrides clock handling,
+  // the per-format selection below should consult it.
   using ClockId = ClockTracker::ClockId;
+  std::optional<ClockId> trace_clock;
+  bool claim_global_clock = true;
   if (trace_type_ == kProtoTraceType) {
-    trace_context_->clock_tracker->AddDeferredIdentitySync(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+    claim_global_clock = false;
   } else if (trace_type_ == kSystraceTraceType ||
              trace_type_ == kSimpleperfProtoTraceType ||
              trace_type_ == kPerfTextTraceType ||
              trace_type_ == kPerfDataTraceType ||
              trace_type_ == kArtMethodTraceType ||
              trace_type_ == kArtMethodV2TraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
   } else if (trace_type_ == kFuchsiaTraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
   } else if (trace_type_ == kGeckoTraceType || trace_type_ == kJsonTraceType ||
              trace_type_ == kInstrumentsXmlTraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::TraceFile(trace_context_->trace_id().value));
+    trace_clock = ClockId::TraceFile(trace_context_->trace_id().value);
   } else if (trace_type_ == kAndroidDumpstateTraceType ||
              trace_type_ == kAndroidLogcatTraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
+  }
+  if (trace_clock) {
+    if (claim_global_clock) {
+      trace_context_->clock_tracker->SetGlobalClock(*trace_clock);
+    }
+    trace_context_->clock_tracker->AddDeferredIdentitySync(*trace_clock);
   }
   return base::OkStatus();
 }

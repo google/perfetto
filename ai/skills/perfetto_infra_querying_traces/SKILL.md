@@ -36,6 +36,21 @@ trace_processor query TRACE_FILE "SELECT ts, dur FROM slice LIMIT 10"
 
 Multiple statements separated by `;` are supported in one invocation.
 
+`TRACE_FILE` can be a local path, an `http(s)://` URL, or a Perfetto UI
+share link (`https://ui.perfetto.dev/#!/?s=<hash>`) — in the last two
+cases trace_processor downloads the trace for you, resolving the share
+link to its underlying trace first:
+
+```sh
+trace_processor query "https://ui.perfetto.dev/#!/?s=<hash>" \
+  "SELECT name, dur FROM slice ORDER BY dur DESC LIMIT 10"
+```
+
+Downloaded traces are cached locally (under `~/.cache/perfetto/`, or the
+platform equivalent), so re-running on the same URL doesn't re-download.
+The same `URL`/share-link form works anywhere a trace path is accepted
+(`query`, `server`, the interactive shell, etc.).
+
 ## Long-running mode (preferred for iteration)
 
 Reparsing a trace on every query is slow — for a multi-GB trace it's tens

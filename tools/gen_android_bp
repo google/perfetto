@@ -1266,7 +1266,13 @@ def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
       name = label_to_module_name(module_name) + '_java_protos'
       module = Module('java_library', name, name)
       module.comment = f'''GN: [{', '.join(target_names)}]'''
-      module.proto = {'type': 'lite', 'canonical_path_from_root': False}
+      # local_include_dirs is required to resolve imports when protoc
+      # sandboxing is enabled. See b/498317670 for more details.
+      module.proto = {
+          'type': 'lite',
+          'canonical_path_from_root': False,
+          'local_include_dirs': ['.'],
+      }
       module.srcs = module_sources
       module.host_supported = True
       module.sdk_version = 'current'
