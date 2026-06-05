@@ -35,7 +35,7 @@ import {
   LONG,
   NUM,
   NUM_NULL,
-  SqlValue,
+  type SqlValue,
   STR_NULL,
   UNKNOWN,
 } from '../../trace_processor/query_result';

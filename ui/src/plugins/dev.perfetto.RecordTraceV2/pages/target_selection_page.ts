@@ -342,7 +342,7 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
             m(
               '.pf-preset-card__title',
               hasUnsavedCustomConfig
-                ? (recMgr.customConfigFileName ?? 'Imported config')
+                ? recMgr.customConfigFileName ?? 'Imported config'
                 : 'Custom',
             ),
             m('.pf-preset-card__subtitle', 'Click to save'),
