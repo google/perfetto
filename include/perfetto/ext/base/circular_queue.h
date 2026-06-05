@@ -72,7 +72,7 @@ class CircularQueue {
     }
 
     // Needed so std::reverse_iterator<Iterator> is default constructible, which
-    // some libstdc++ versions require. Never used default-constructed.
+    // some libstdc++ versions require. 
     Iterator() noexcept = default;
     Iterator(const Iterator&) noexcept = default;
     Iterator& operator=(const Iterator&) noexcept = default;
