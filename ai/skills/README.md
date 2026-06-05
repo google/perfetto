@@ -26,6 +26,13 @@ to and loads on demand. This keeps a single, broad `description` in
 the agent's context budget instead of many sibling skills competing to
 match, and lets each piece be loaded only when the task needs it.
 
+> **Legacy `perfetto_*` directories.** The older one-directory-per-skill
+> layout (`perfetto_infra_*`, `perfetto_workflow_*`, each with its own
+> `BUILD`/`OWNERS`/`TEST`/`EVAL`) is retained **only** because Google-internal
+> (G3) build targets still reference those paths. OSS bundling ignores them
+> entirely — `build_ai_agents.py` consumes only `perfetto/`. Don't add to
+> them; new content goes in `perfetto/`.
+
 ```
 ai/skills/perfetto/
 ├── SKILL-template.md            # the router (see below — NOT named SKILL.md)
