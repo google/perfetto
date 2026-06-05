@@ -25,6 +25,7 @@ RESOURCES = {
     'tracebox': 'tools/tracebox',
     'traceconv': 'tools/traceconv',
     'trace_processor': 'tools/trace_processor',
+    'agents-install': 'tools/agents-install',
 }
 
 CACHE_TTL = 3600  # 1 h

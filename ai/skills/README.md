@@ -24,6 +24,11 @@ A skill is portable. It will be vendored into agent contexts (e.g.
 `~/.claude/skills/`), pasted into other repos, and read by tools
 running without access to the Perfetto source tree. So:
 
+(For how skills reach end users — marketplace plugins and the
+fallback installer served at <https://get.perfetto.dev/agents-install>
+— see [`ai/extensions/README.md`](../extensions/README.md). This file
+is developer-facing: it covers authoring, not distribution.)
+
 - **Never use repo-relative paths** like `src/trace_processor/...`
   or `docs/analysis/...` — they don't resolve outside this checkout.
   Link to [perfetto.dev](https://perfetto.dev/docs) instead.

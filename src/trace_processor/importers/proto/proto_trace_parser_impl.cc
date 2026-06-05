@@ -80,8 +80,13 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   // TODO(eseckler): Propagate statuses from modules.
   auto& modules = module_context_->modules_by_field;
+  // GetExtensionSlowly() (not Get()) so modules registered for out-of-tree
+  // extension field ids in the `extensions 1000 to 1999` range are dispatched:
+  // Get() can't see fields beyond the highest in-tree field id. It fast-paths
+  // in-tree ids, and the scan only runs for the (rare) registered high ids.
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
-    if (!modules[field_id].empty() && packet.Get(field_id).valid()) {
+    if (!modules[field_id].empty() &&
+        packet.GetExtensionSlowly(field_id).valid()) {
       for (ProtoImporterModule* module : modules[field_id])
         module->ParseTracePacketData(packet, ts, data, field_id);
       return;

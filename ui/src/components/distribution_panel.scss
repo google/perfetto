@@ -97,6 +97,16 @@
   }
 }
 
+// Cap the header title width so long slice names don't push the description
+// and buttons off-screen; overflow is clipped with an ellipsis (the full text
+// stays available as a native tooltip, see view()).
+.pf-distribution-shell .pf-header-title {
+  max-width: 400px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 // When the distribution panel is the body of a fill-height DetailsShell, the
 // shell's pf-content tries to scroll itself; suppress that so the DataGrid in
 // the right pane handles its own virtual scroll instead.

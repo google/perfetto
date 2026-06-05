@@ -31,6 +31,7 @@ The branch layout produced:
     skills/
         index.json                      ← OpenCode discovery
         <dashed-slug>/SKILL.md          ← fallback-target skill set
+    agents-install                      ← bundled fallback installer
     BRANCH_METADATA.json                ← main_sha, tag, built_at
 
 Two skill sets are produced because plugin-style agents (Claude, Codex)
@@ -42,12 +43,20 @@ not a plugin consumer, because the release branch cannot currently pin
 `ai/skills/targets.json`, which lists every skill explicitly with the
 targets it ships to.
 
-Local usage:
-    tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
-        [--version v0.0.0-prototype] [--commit-and-git-init]
+This script does no stamping: the release version is written into the
+source manifests and the bundled `agents-install` by tools/release/
+roll-prebuilts (alongside the prebuilt binary roll), so this just copies
+already-versioned files. At release time the finalize-release GitHub
+Action rolls the prebuilts, overlays this tag's ai/skills, runs this, then
+opens a PR (base: ai-agents) for a maintainer to review and merge — the
+bundle is never pushed to ai-agents directly.
 
-To push a locally-built tree to a remote ai-agents branch:
-    git -C <output> push <remote> --force HEAD:refs/heads/ai-agents
+Local usage (builds the tree only):
+    tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
+
+`--commit-and-git-init` additionally inits a throwaway orphan repo in the
+output dir for ad-hoc testing against a personal fork. It is not how the
+release branch is published; the Action opens a reviewable PR.
 """
 
 import argparse
@@ -65,7 +74,10 @@ SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
 TARGETS_JSON = SKILLS_SRC / 'targets.json'
 EXTENSIONS_SRC = REPO_ROOT / 'ai' / 'extensions'
 TRACE_PROCESSOR_SRC = REPO_ROOT / 'tools' / 'trace_processor'
-VERSION_SENTINEL = '0.0.0-dev'
+AGENTS_INSTALL_SRC = REPO_ROOT / 'tools' / 'agents-install'
+# The manifest whose `version` field we treat as the bundle's version (all
+# manifests carry the same value, stamped by roll-prebuilts).
+VERSION_MANIFEST = EXTENSIONS_SRC / 'claude-code' / 'marketplace.json'
 
 PLUGIN_TARGETS = ('claude-code', 'codex')
 FALLBACK_TARGETS = ('fallback',)
@@ -150,11 +162,8 @@ def _write_index(skills_dir: Path) -> None:
    'index.json').write_text(json.dumps({'skills': skills}, indent=2) + '\n')
 
 
-def _rewrite_version(manifest_path: Path, new_version: str) -> None:
-  data = json.loads(manifest_path.read_text())
-  if 'version' in data:
-    data['version'] = new_version
-  manifest_path.write_text(json.dumps(data, indent=2) + '\n')
+def _bundle_version() -> str:
+  return json.loads(VERSION_MANIFEST.read_text()).get('version', '')
 
 
 def _main_sha() -> str:
@@ -162,7 +171,7 @@ def _main_sha() -> str:
       ['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD']).decode().strip()
 
 
-def build(output: Path, version: str) -> None:
+def build(output: Path) -> None:
   if output.exists():
     shutil.rmtree(output)
   output.mkdir(parents=True)
@@ -178,11 +187,13 @@ def build(output: Path, version: str) -> None:
       (EXTENSIONS_SRC / 'codex' / 'plugin.json',
        output / 'plugins' / 'perfetto' / '.codex-plugin' / 'plugin.json'),
       (TRACE_PROCESSOR_SRC, output / 'bin' / 'trace_processor'),
+      (AGENTS_INSTALL_SRC, output / 'agents-install'),
   ]
   for src, dst in copies:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, dst)
   (output / 'bin' / 'trace_processor').chmod(0o755)
+  (output / 'agents-install').chmod(0o755)
 
   targets_map = _load_targets()
   plugin_skills = _emit_skills(targets_map, PLUGIN_TARGETS,
@@ -191,7 +202,9 @@ def build(output: Path, version: str) -> None:
                                  output / 'skills')
   _write_index(output / 'skills')
 
-  # Branch metadata.
+  # Branch metadata. The version is read from the source manifests, which
+  # roll-prebuilts already stamped — this script does not rewrite it.
+  version = _bundle_version()
   meta = {
       'main_sha':
           _main_sha(),
@@ -203,16 +216,6 @@ def build(output: Path, version: str) -> None:
   }
   (output /
    'BRANCH_METADATA.json').write_text(json.dumps(meta, indent=2) + '\n')
-
-  # Rewrite the version sentinel in every manifest that carries one.
-  manifest_paths = [
-      output / '.claude-plugin' / 'marketplace.json',
-      output / 'plugins' / 'perfetto' / '.claude-plugin' / 'plugin.json',
-      output / 'plugins' / 'perfetto' / '.codex-plugin' / 'plugin.json',
-      output / '.agents' / 'plugins' / 'marketplace.json',
-  ]
-  for p in manifest_paths:
-    _rewrite_version(p, version)
 
   print(f'Built ai-agents tree at {output}')
   print(
@@ -248,19 +251,14 @@ def main() -> int:
       help='Directory to write the assembled tree into '
       '(will be removed if it exists).')
   ap.add_argument(
-      '--version',
-      default=VERSION_SENTINEL,
-      help='Value to write into every manifest version field. '
-      'Use the release tag (e.g. v54.0) at release time.')
-  ap.add_argument(
       '--commit-and-git-init',
       action='store_true',
       help='After assembling, initialize the output as a fresh git repo '
-      'with one commit on an `ai-agents` branch (so it can be pushed '
-      'directly via `git push <remote> --force HEAD:refs/heads/ai-agents`).')
+      'with one commit on an `ai-agents` branch (for ad-hoc local testing '
+      'against a personal fork).')
   args = ap.parse_args()
 
-  build(args.output, args.version)
+  build(args.output)
   if args.commit_and_git_init:
     commit(args.output, f'RFC-0026 ai-agents branch (built from {_main_sha()})')
     print(f'  committed to {args.output}/.git (branch: ai-agents)')
