@@ -35,6 +35,10 @@ export class TimelineImpl implements Timeline {
   readonly MIN_DURATION = 10;
   private readonly ANIMATION_DURATION_MS = 300;
   private readonly SPAM_DETECTION_THRESHOLD_MS = 300;
+  // How far past the trace bounds the user is allowed to zoom/pan out, as a
+  // fraction of the trace duration applied to each side. This adds breathing
+  // room around the trace instead of hard-stopping the viewport at the edges.
+  private readonly ZOOM_OUT_PADDING_RATIO = 0.5;
 
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;
@@ -123,18 +127,18 @@ export class TimelineImpl implements Timeline {
   }
 
   pan(delta: number) {
+    const {start, end} = this.zoomBounds;
     this.setVisibleWindow(
-      this._visibleWindow
-        .translate(delta)
-        .fitWithin(this.traceInfo.start, this.traceInfo.end),
+      this._visibleWindow.translate(delta).fitWithin(start, end),
     );
   }
 
   zoom(ratio: number, centerPoint: number = 0.5) {
+    const {start, end} = this.zoomBounds;
     this.setVisibleWindow(
       this._visibleWindow
         .scale(ratio, centerPoint, this.MIN_DURATION)
-        .fitWithin(this.traceInfo.start, this.traceInfo.end),
+        .fitWithin(start, end),
     );
   }
 
@@ -331,11 +335,24 @@ export class TimelineImpl implements Timeline {
     raf.scheduleCanvasRedraw();
   }
 
+  // The bounds the viewport is allowed to occupy: the trace bounds padded by
+  // ZOOM_OUT_PADDING_RATIO on each side, so the user can zoom/pan slightly
+  // beyond the start and end of the trace.
+  private get zoomBounds(): {start: time; end: time} {
+    const dur = Number(this.traceInfo.end - this.traceInfo.start);
+    const pad = BigInt(Math.round(dur * this.ZOOM_OUT_PADDING_RATIO));
+    return {
+      start: Time.fromRaw(this.traceInfo.start - pad),
+      end: Time.fromRaw(this.traceInfo.end + pad),
+    };
+  }
+
   // Set visible window using a high precision time span
   setVisibleWindow(ts: HighPrecisionTimeSpan) {
+    const {start, end} = this.zoomBounds;
     this._visibleWindow = ts
       .clampDuration(this.MIN_DURATION)
-      .fitWithin(this.traceInfo.start, this.traceInfo.end);
+      .fitWithin(start, end);
 
     raf.scheduleCanvasRedraw();
   }
