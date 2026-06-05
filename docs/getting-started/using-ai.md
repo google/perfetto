@@ -63,17 +63,18 @@ install step.
 
 ## What gets installed
 
-- **perfetto-infra-querying-traces**: Load a trace, run a PerfettoSQL query, and
-  discover the available tables, views, columns, and stdlib modules.
-- **perfetto-infra-getting-trace-processor**: How to fetch the `trace_processor`
-  binary and the `perfetto` Python client when it is not already bundled.
-- **perfetto-infra-trace-processor-bundled**: Points the agent at the
-  `trace_processor` binary that ships with the install.
-- **perfetto-workflow-android-heap-dump**: A guided workflow for investigating an
-  Android Java heap graph (heap dump) to find leaks and understand what is
-  retaining memory.
-- **perfetto-workflow-android-heap-dump-cluster**: A workflow for clustering
-  multiple Android heap dumps for a process to identify common leaks.
+A single **perfetto** skill. Its `SKILL.md` is a router that the agent loads
+when you ask about a trace, then dispatches to the right on-demand reference or
+workflow file. It covers:
+
+- **Setup** — how to invoke `trace_processor` in your environment (the bundled
+  binary in a plugin install, or fetching it plus the `perfetto` Python client
+  in a standalone install).
+- **Querying** — load a trace, run a PerfettoSQL query, and discover the
+  available tables, views, columns, and stdlib modules.
+- **Android memory workflows** — guided investigations of an Android Java heap
+  graph (heap dump): finding leaks and what retains memory, clustering multiple
+  dumps for a process to spot common leaks, and proposing caching to cut memory.
 
 ## Contributing
 
