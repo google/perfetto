@@ -1,15 +1,6 @@
----
-name: perfetto-workflow-android-heap-dump-cluster
-description:
-  Use when the user has multiple Android Java heap dump traces (or a batch of
-  extracted heap dump paths) for a specific process and wants to cluster them to
-  identify common memory leaks, group matching attribution chains, or eliminate
-  parent-child dominator noise.
----
-
 # Clustering Android Java Heap Dumps
 
-This skill teaches an AI agent how to process, cluster, and summarize large sets
+This workflow walks an AI agent through processing, clustering, and summarizing large sets
 of Android Java heap dump traces (or pre-extracted dominator class paths) for a
 specific process. It is designed to eliminate noise from parent-child
 attribution chains (e.g., where `Captions`, `SubtitleWindow`, and
@@ -50,8 +41,8 @@ traces. The expected CSV columns are
 `trace_uuid,process_name,path,class_name,self_size`.
 
 If the user provides raw traces, run the standard dominator tree query
-(`scripts/triage_dominator_path.sql` from the `perfetto_workflow_android_heap_dump`
-skill) on each trace and prepend a `trace_uuid` column yourself when assembling
+(`scripts/triage_dominator_path.sql`, also used by `heap_dump.md`) on each
+trace and prepend a `trace_uuid` column yourself when assembling
 the CSV — that query returns `process_name, path, class_name, self_size` but
 does NOT carry the trace identifier. Use the trace file name (or any stable
 identifier you have for each trace) as the `trace_uuid` value.

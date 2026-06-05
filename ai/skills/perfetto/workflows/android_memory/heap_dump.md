@@ -1,20 +1,11 @@
----
-name: perfetto-workflow-android-heap-dump
-description:
-  Use when the user has an Android trace containing a Java heap graph (heap
-  dump) and wants to investigate memory usage, find leaks, or understand what is
-  retaining memory. Walks through a two-phase guided workflow (automated
-  first-pass triage followed by an open-ended exploratory deep dive).
----
-
 # Investigating an Android Java Heap Dump
 
-This skill teaches an AI agent how to investigate memory leaks and object
+This workflow walks an AI agent through investigating memory leaks and object
 retention in Android Java heap dumps. It assumes the trace was recorded with the
 ART perfetto data source (`java_heap_profiler`).
 
-If the user has not yet loaded a trace into `trace_processor`, follow the
-`perfetto_infra_querying_traces` skill first, then come back here.
+If the user has not yet loaded a trace into `trace_processor`, follow
+`../../infra-references/querying.md` first, then come back here.
 
 ---
 
