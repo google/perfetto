@@ -32,7 +32,7 @@ export default class implements PerfettoPlugin {
     if (this.validTargets.size === 0) {
       alert('The loaded trace does not contain any valid Avf VM targets!');
     } else {
-      const defaultTargetId = this.validTargets.keys().next().value;
+      const defaultTargetId = this.validTargets.keys().next().value as number;
       await this.createTargetVmTrack(ctx, defaultTargetId);
 
       ctx.commands.registerCommand({
@@ -141,7 +141,7 @@ export default class implements PerfettoPlugin {
       }
     }
 
-    const defaultTarget = this.validTargets.keys().next().value;
+    const defaultTarget = this.validTargets.keys().next().value as number;
     alert(`Invalid Target selected! Using default value: ${defaultTarget}`);
     return defaultTarget;
   }

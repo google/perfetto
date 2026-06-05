@@ -44,7 +44,7 @@ export function hexEncode(bytes: Uint8Array): string {
   );
 }
 
-export function utf8Encode(str: string): Uint8Array {
+export function utf8Encode(str: string): Uint8Array<ArrayBuffer> {
   textEncoder = textEncoder ?? new TextEncoder();
   return textEncoder.encode(str);
 }

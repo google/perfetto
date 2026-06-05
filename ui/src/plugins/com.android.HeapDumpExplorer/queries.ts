@@ -865,7 +865,7 @@ export async function fetchShortestPaths(
       if (!row) continue;
       const field =
         i < chain.length - 1
-          ? fieldMap.get(`${chain[i]}:${chain[i + 1]}`) ?? ''
+          ? (fieldMap.get(`${chain[i]}:${chain[i + 1]}`) ?? '')
           : '';
       path.push({row, field, isDominator: false});
     }
@@ -1006,7 +1006,7 @@ export async function fetchDominatorPaths(
       if (!row) continue;
       const field =
         i < chain.length - 1
-          ? fieldMap.get(`${chain[i]}:${chain[i + 1]}`) ?? ''
+          ? (fieldMap.get(`${chain[i]}:${chain[i + 1]}`) ?? '')
           : '';
       path.push({row, field, isDominator: true});
     }
@@ -1407,7 +1407,7 @@ export async function getSubclassNames(
 export async function getRawArrayBlob(
   engine: Engine,
   objectId: number,
-): Promise<Uint8Array | null> {
+): Promise<Uint8Array<ArrayBuffer> | null> {
   const res = await engine.query(`
     SELECT __intrinsic_heap_graph_array(od.array_data_id) AS data
     FROM heap_graph_object o
@@ -1533,7 +1533,7 @@ async function computeBitmapDumpData(
 
   `);
   const fmtIt = fmtRes.iter({int_value: NUM_NULL});
-  const format = fmtIt.valid() ? fmtIt.int_value ?? 1 : 1;
+  const format = fmtIt.valid() ? (fmtIt.int_value ?? 1) : 1;
 
   // Step 4: Get DumpData's references — natives (long[]) and buffers (Object[]).
   const refsRes = await engine.query(`

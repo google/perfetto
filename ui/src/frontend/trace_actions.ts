@@ -138,8 +138,10 @@ async function finaliseMetatrace(engine: Engine) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
 
+  const metaTraceAsArrayBuffer = result.metatrace as Uint8Array<ArrayBuffer>;
+
   download({
     fileName: 'metatrace',
-    content: new Blob([result.metatrace, jsEvents]),
+    content: new Blob([metaTraceAsArrayBuffer, jsEvents]),
   });
 }

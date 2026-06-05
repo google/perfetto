@@ -64,7 +64,7 @@ export function enableMetatracing(categories?: protos.MetatraceCategories) {
       : categories;
 }
 
-export function disableMetatracingAndGetTrace(): Uint8Array {
+export function disableMetatracingAndGetTrace(): Uint8Array<ArrayBuffer> {
   enabledCategories = undefined;
   return readMetatrace();
 }
@@ -89,8 +89,8 @@ interface TraceEvent {
 
 const traceEvents: TraceEvent[] = [];
 
-function readMetatrace(): Uint8Array {
-  const eventToPacket = (e: TraceEvent): Uint8Array => {
+function readMetatrace(): Uint8Array<ArrayBuffer> {
+  const eventToPacket = (e: TraceEvent): Uint8Array<ArrayBuffer> => {
     const metatraceEvent = protos.PerfettoMetatrace.create({
       eventName: e.eventName,
       threadId: e.track,
@@ -121,9 +121,9 @@ function readMetatrace(): Uint8Array {
       .uint32(TRACE_PACKET_METATRACE_TAG)
       .bytes(protos.PerfettoMetatrace.encode(metatraceEvent).finish());
     wri.ldelim();
-    return wri.finish();
+    return wri.finish() as Uint8Array<ArrayBuffer>;
   };
-  const packets: Uint8Array[] = [];
+  const packets: Uint8Array<ArrayBuffer>[] = [];
   for (const event of traceEvents) {
     packets.push(eventToPacket(event));
   }

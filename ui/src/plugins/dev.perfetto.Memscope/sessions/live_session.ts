@@ -204,8 +204,11 @@ export class LiveSession {
     this.profileImpl = undefined;
     if (traceData) {
       const fileName = `heap-${processName}-${pid}.perfetto-trace`;
-      const buffer = traceData.buffer as ArrayBuffer;
-      this.app.openTraceFromBuffer({buffer, title: fileName, fileName});
+      this.app.openTraceFromBuffer({
+        buffer: traceData,
+        title: fileName,
+        fileName,
+      });
     }
   }
 

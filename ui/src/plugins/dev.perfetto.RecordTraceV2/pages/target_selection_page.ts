@@ -342,7 +342,7 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
             m(
               '.pf-preset-card__title',
               hasUnsavedCustomConfig
-                ? recMgr.customConfigFileName ?? 'Imported config'
+                ? (recMgr.customConfigFileName ?? 'Imported config')
                 : 'Custom',
             ),
             m('.pf-preset-card__subtitle', 'Click to save'),
@@ -658,7 +658,7 @@ class SessionStateRenderer implements m.ClassComponent<SessionStateAttrs> {
           m('td', 'Trace file'),
           m(
             'td',
-            `${Math.round(traceData.length / 1e3).toLocaleString()} KB`,
+            `${Math.round(traceData.byteLength / 1e3).toLocaleString()} KB`,
             this.session.isCompressed && ' (compressed)',
             m(Button, {
               label: 'Open',

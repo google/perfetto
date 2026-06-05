@@ -24,7 +24,7 @@ import {assertTrue} from './assert';
  * and retrieve the stored data as a `Uint8Array`.
  */
 export class ResizableArrayBuffer {
-  private buf: Uint8Array;
+  private buf: Uint8Array<ArrayBuffer>;
   private _size = 0;
 
   constructor(private readonly initialSize = 128) {
@@ -50,8 +50,20 @@ export class ResizableArrayBuffer {
     this._size = 0;
   }
 
-  get(): Uint8Array {
+  get(): Uint8Array<ArrayBuffer> {
     return this.buf.subarray(0, this._size);
+  }
+
+  getBuffer(): ArrayBuffer {
+    if (this._size === this.buf.length) {
+      // The size is the same as the buffer length so we can return the
+      // underlying buffer without copying it.
+      return this.buf.buffer;
+    } else {
+      // We must make a copy of the used portion of the buffer to return it as
+      // an ArrayBuffer.
+      return this.get().buffer;
+    }
   }
 
   get size(): number {
