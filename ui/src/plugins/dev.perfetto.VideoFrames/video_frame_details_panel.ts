@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './video_frames.scss';
 import m from 'mithril';
+import {assertIsInstance} from '../../base/assert';
 import {Time} from '../../base/time';
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -78,7 +80,8 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
           {title: 'Preview', className: 'pf-video-frame-preview-section'},
           p.webCodecsAvailable
             ? m('canvas.pf-video-frame-preview', {
-                oncreate: ({dom}) => p.attachCanvas(dom as HTMLCanvasElement),
+                oncreate: ({dom}) =>
+                  p.attachCanvas(assertIsInstance(dom, HTMLCanvasElement)),
                 onremove: () => p.detachCanvas(),
               })
             : m(

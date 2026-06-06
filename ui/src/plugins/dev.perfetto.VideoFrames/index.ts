@@ -12,14 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import './styles.scss';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {VideoFramePlayer} from './video_frame_player';
 import {createVideoFramesTrack} from './video_frames_track';
-import {VideoFramesSelectionTab} from './video_frames_selection_tab';
 
 interface StreamInfo {
   displayId: number;
@@ -28,6 +26,10 @@ interface StreamInfo {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.VideoFrames';
+  static readonly description =
+    'Shows display frames captured by the android.display.video data source. ' +
+    'Adds a per-display timeline track with a decoded frame preview and ' +
+    'playback.';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
@@ -62,16 +64,6 @@ export default class implements PerfettoPlugin {
         renderer: createVideoFramesTrack(ctx, uri, stream.displayId, player),
       });
       group.addChildInOrder(new TrackNode({uri, name: stream.displayName}));
-
-      ctx.selection.registerAreaSelectionTab(
-        new VideoFramesSelectionTab(
-          ctx,
-          uri,
-          stream.displayId,
-          stream.displayName,
-          player,
-        ),
-      );
     }
 
     ctx.defaultWorkspace.addChildInOrder(group);

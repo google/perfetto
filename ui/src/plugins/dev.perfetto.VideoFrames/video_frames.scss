@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Bare default: safe in any container (e.g. the area-selection tab whose
-// shell we don't control). max-width keeps it from overflowing
-// horizontally; height stays intrinsic so it can never collapse to zero.
+// Base preview canvas. max-width keeps it within its container; the shell
+// rules below bound the height in the details panel.
 .pf-video-frame-preview {
   display: block;
   max-width: 100%;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: 1px solid var(--pf-color-border);
   border-radius: 4px;
 }
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './video_frames.scss';
 import m from 'mithril';
 import {QuerySlot} from '../../base/query_slot';
 import {materialColorScheme} from '../../components/colorizer';

@@ -139,7 +139,7 @@ export class VideoFramePlayer {
       ts: LONG,
       frameNumber: NUM,
       isKey: NUM,
-      ptsUs: LONG,
+      ptsUs: NUM,
       isConfig: NUM,
       codecString: STR_NULL,
     });
@@ -154,19 +154,19 @@ export class VideoFramePlayer {
         ts: it.ts,
         frameNumber: it.frameNumber,
         isKey: it.isKey !== 0,
-        ptsUs: Number(it.ptsUs),
+        ptsUs: it.ptsUs,
       });
     }
 
-    // Pick up any per-stream failure entries (one stats row per
-    // VideoFrameError.Reason that fired). All start with the
-    // 'android_video_' prefix and are keyed by display_id.
+    // Per-stream failures: import-log rows for this display_id; name = reason.
     const errRes = await this.trace.engine.query(`
-      SELECT name FROM stats
-      WHERE name LIKE 'android_video_%'
-        AND idx = ${this.displayId}
-        AND value > 0
-      ORDER BY name
+      SELECT DISTINCT l.name AS name
+      FROM _trace_import_logs l
+      JOIN args a USING (arg_set_id)
+      WHERE l.name LIKE 'android_video_%'
+        AND a.key = 'display_id'
+        AND a.int_value = ${this.displayId}
+      ORDER BY l.name
     `);
     const errIt = errRes.iter({name: STR_NULL});
     for (; errIt.valid(); errIt.next()) {
@@ -201,12 +201,10 @@ export class VideoFramePlayer {
   togglePlay(): void {
     if (this.playing) this.stop();
     else this.play();
-    m.redraw();
   }
 
   setPlaybackRate(rate: number): void {
     this.playbackRate = rate;
-    m.redraw();
   }
 
   play(): void {
