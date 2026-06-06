@@ -523,6 +523,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
+        ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -812,6 +814,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
+        ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -4933,6 +4937,30 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/plugins/video_frame_importer:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_video_frame_importer_tables",
+    srcs = [
+        "src/trace_processor/plugins/video_frame_importer/tables.py",
+    ],
+    outs = [
+        "src/trace_processor/plugins/video_frame_importer/all_tables_fwd.h",
+        "src/trace_processor/plugins/video_frame_importer/tables_fwd.h",
+        "src/trace_processor/plugins/video_frame_importer/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/video_frame_importer:video_frame_importer
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_video_frame_importer_video_frame_importer",
+    srcs = [
+        "src/trace_processor/plugins/video_frame_importer/video_frame_importer.cc",
+        "src/trace_processor/plugins/video_frame_importer/video_frame_importer.h",
+        "src/trace_processor/plugins/video_frame_importer/video_frame_module.cc",
+        "src/trace_processor/plugins/video_frame_importer/video_frame_module.h",
+    ],
+)
+
 # GN target: //src/trace_processor/plugins/wattson:gen_cpu_1d_curves
 perfetto_cpp_blob_header(
     name = "src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
@@ -7554,6 +7582,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_system_property_config.proto",
         "protos/perfetto/config/android/app_wakelock_config.proto",
         "protos/perfetto/config/android/cpu_per_uid_config.proto",
+        "protos/perfetto/config/android/display_video_config.proto",
         "protos/perfetto/config/android/inputmethod_config.proto",
         "protos/perfetto/config/android/kernel_wakelocks_config.proto",
         "protos/perfetto/config/android/network_trace_config.proto",
@@ -10503,6 +10532,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
+        ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -10822,6 +10853,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
+        ":src_trace_processor_plugins_video_frame_importer_tables",
+        ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",

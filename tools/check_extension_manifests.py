@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Validates the per-agent extension manifests under ai/extensions/ and
-the skill-to-target mapping at ai/skills/targets.json.
+the source shape of the consolidated `perfetto` skill under ai/skills/.
 
 These files are the source of truth for the `ai-agents` release branch
 (see ai/extensions/README.md and RFC-0026). This lint catches malformed
-JSON, missing required fields, and drift between `ai/skills/` and
-`targets.json` before the release pipeline builds the branch.
+JSON, missing required fields, and a skill source tree the bundler
+(tools/release/build_ai_agents.py) could not assemble, before the release
+pipeline builds the branch.
 """
 
 import json
@@ -30,12 +31,18 @@ from typing import Any, Dict, List
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXTENSIONS_DIR = os.path.join(REPO_ROOT, 'ai', 'extensions')
 SKILLS_DIR = os.path.join(REPO_ROOT, 'ai', 'skills')
-TARGETS_JSON = os.path.join(SKILLS_DIR, 'targets.json')
+SKILL_DIR = os.path.join(SKILLS_DIR, 'perfetto')
+# The bundler keys off these exact source paths; keep this list in sync with
+# build_ai_agents.py (SKILL_TEMPLATE / ENV_REF_DIR / SETUP_VARIANT).
+SKILL_TEMPLATE = os.path.join(SKILL_DIR, 'SKILL-template.md')
+SETUP_VARIANTS = [
+    os.path.join(SKILL_DIR, 'environment-references', 'setup-bundled.md'),
+    os.path.join(SKILL_DIR, 'environment-references', 'setup-standalone.md'),
+]
 # Before the first prebuilt roll the manifests carry the dev sentinel;
 # roll-prebuilts stamps the release version (vX.Y) in place. Accept either.
 VERSION_SENTINEL = '0.0.0-dev'
 VERSION_RE = re.compile(r'^(0\.0\.0-dev|v[0-9]+\.[0-9]+)$')
-VALID_TARGETS = ('claude-code', 'codex', 'fallback')
 
 # Per-agent required fields. Each entry maps a manifest filename to the
 # list of top-level keys that must be present and non-empty. Sub-field
@@ -104,63 +111,27 @@ def _check_file(rel_path: str) -> List[str]:
   return errors
 
 
-def _available_skill_slugs() -> List[str]:
-  out = []
-  if not os.path.isdir(SKILLS_DIR):
-    return out
-  for d in sorted(os.listdir(SKILLS_DIR)):
-    if os.path.isfile(os.path.join(SKILLS_DIR, d, 'SKILL.md')):
-      out.append(d.replace('_', '-'))
-  return out
+def _check_skill_source() -> List[str]:
+  """Verify the `perfetto` skill source tree is in the shape the bundler
 
-
-def _check_targets_json() -> List[str]:
-  if not os.path.isfile(TARGETS_JSON):
-    return ['ai/skills/targets.json: required file is missing']
-  try:
-    with open(TARGETS_JSON, 'r') as f:
-      data = json.load(f)
-  except json.JSONDecodeError as e:
-    return [f'ai/skills/targets.json: invalid JSON: {e}']
-
+  expects: a router template, both setup variants, and no loadable SKILL.md
+  in source control (the source tree must never be a drop-in skill).
+  """
   errors = []
-  entries = data.get('skills') if isinstance(data, dict) else None
-  if not isinstance(entries, list):
-    return ['ai/skills/targets.json: top-level "skills" must be an array']
+  if not os.path.isdir(SKILL_DIR):
+    return ['ai/skills/perfetto/: consolidated skill directory is missing']
 
-  declared: List[str] = []
-  for i, entry in enumerate(entries):
-    prefix = f'ai/skills/targets.json: skills[{i}]'
-    if not isinstance(entry, dict):
-      errors.append(f'{prefix}: must be an object')
-      continue
-    name = entry.get('name')
-    targets = entry.get('targets')
-    if not isinstance(name, str) or not name:
-      errors.append(f'{prefix}: missing "name"')
-    else:
-      if name in declared:
-        errors.append(f'{prefix}: duplicate entry for {name!r}')
-      declared.append(name)
-    if not isinstance(targets, list) or not targets:
-      errors.append(f'{prefix} ({name}): "targets" must be a non-empty array')
-    else:
-      bad = [t for t in targets if t not in VALID_TARGETS]
-      if bad:
-        errors.append(f'{prefix} ({name}): unknown targets {bad}; '
-                      f'valid: {list(VALID_TARGETS)}')
-
-  available = set(_available_skill_slugs())
-  missing = sorted(available - set(declared))
-  extra = sorted(set(declared) - available)
-  if missing:
-    errors.append(
-        f'ai/skills/targets.json: missing entries for {missing}; every skill '
-        f'under ai/skills/ must be listed explicitly')
-  if extra:
-    errors.append(
-        f'ai/skills/targets.json: unknown entries {extra}; no matching '
-        f'directory under ai/skills/')
+  if not os.path.isfile(SKILL_TEMPLATE):
+    errors.append('ai/skills/perfetto/SKILL-template.md: router template is '
+                  'missing (the bundler renames it to SKILL.md)')
+  if os.path.isfile(os.path.join(SKILL_DIR, 'SKILL.md')):
+    errors.append('ai/skills/perfetto/SKILL.md: source tree must not contain a '
+                  'loadable SKILL.md; the entry point is SKILL-template.md')
+  for variant in SETUP_VARIANTS:
+    if not os.path.isfile(variant):
+      rel = os.path.relpath(variant, REPO_ROOT)
+      errors.append(f'{rel}: setup variant is missing (the bundler selects one '
+                    f'as environment-references/setup.md)')
   return errors
 
 
@@ -172,7 +143,7 @@ def main() -> int:
   errors = []
   for rel_path in sorted(REQUIRED):
     errors.extend(_check_file(rel_path))
-  errors.extend(_check_targets_json())
+  errors.extend(_check_skill_source())
 
   if errors:
     print('Extension manifest errors:', file=sys.stderr)

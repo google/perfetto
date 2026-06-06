@@ -560,6 +560,13 @@ function copyUiTestArtifactsAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outUiTestArtifactsDir, dst)]);
 }
 
+function postProcessProtosDts() {
+  const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
+  let content = fs.readFileSync(dstTs, 'utf8');
+  content = content.replace(/import Long = require\("long"\);\r?\n/g, '');
+  fs.writeFileSync(dstTs, content, 'utf8');
+}
+
 function compileProtos() {
   const dstJs = pjoin(cfg.outGenDir, 'protos.js');
   const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
@@ -594,6 +601,7 @@ function compileProtos() {
   // pinning a CPU core the whole time.
   const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execModule, ['pbts', pbtsArgs]);
+  addTask(postProcessProtosDts, []);
 }
 
 // Generates a .ts source that defines the VERSION and SCM_REVISION constants.
