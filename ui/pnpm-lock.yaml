@@ -75,8 +75,8 @@ dependencies:
     specifier: ^10.0.0
     version: 10.0.0
   '@types/w3c-web-usb':
-    specifier: ^1.0.10
-    version: 1.0.10
+    specifier: ^1.0.14
+    version: 1.0.14
   codemirror:
     specifier: 6.0.1
     version: 6.0.1
@@ -1484,8 +1484,8 @@ packages:
     resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
     dev: false
 
-  /@types/w3c-web-usb@1.0.10:
-    resolution: {integrity: sha512-CHgUI5kTc/QLMP8hODUHhge0D4vx+9UiAwIGiT0sTy/B2XpdX1U5rJt6JSISgr6ikRT7vxV9EVAFeYZqUnl1gQ==}
+  /@types/w3c-web-usb@1.0.14:
+    resolution: {integrity: sha512-Qu3Nn6JFuF4+sHKYl+IcX9vYiI40ogleXzFFSxoE1W94rG98o/kXs8uJ0QSfFzuwBCZWlGfUGpPkgwuuX4PchA==}
     dev: false
 
   /@typescript-eslint/eslint-plugin@8.60.1(@typescript-eslint/parser@8.60.1)(eslint@9.39.4)(typescript@5.9.3):

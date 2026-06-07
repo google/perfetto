@@ -30,7 +30,7 @@
     "@types/pako": "^2.0.3",
     "@types/pngjs": "^6.0.5",
     "@types/uuid": "^10.0.0",
-    "@types/w3c-web-usb": "^1.0.10",
+    "@types/w3c-web-usb": "^1.0.14",
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
     "devtools-protocol": "0.0.1561482",
