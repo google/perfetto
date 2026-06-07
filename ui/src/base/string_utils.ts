@@ -51,7 +51,7 @@ export function utf8Encode(str: string): Uint8Array<ArrayBuffer> {
 
 // Note: not all byte sequences can be converted to<>from UTF8. This can be
 // used only with valid unicode strings, not arbitrary byte buffers.
-export function utf8Decode(buffer: Uint8Array | ArrayBuffer): string {
+export function utf8Decode(buffer: AllowSharedBufferSource): string {
   textDecoder = textDecoder ?? new TextDecoder();
   return textDecoder.decode(buffer);
 }

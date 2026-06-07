@@ -324,12 +324,12 @@ export class AdbWebusbDevice extends AdbDevice {
   private static async recv(
     usb: AdbUsbInterface,
     len: number,
-  ): Promise<DataView<ArrayBuffer>> {
+  ): Promise<DataView> {
     const res = await usb.dev.transferIn(usb.rx, len);
     if (!exists(res.data) || res.status !== 'ok') {
       throw new WebusbTransportError(`res: ${res.status}, data: ${!!res.data}`);
     }
-    return res.data as DataView<ArrayBuffer>;
+    return res.data;
   }
 
   private static async recvMsg(usb: AdbUsbInterface): Promise<AdbMsg> {

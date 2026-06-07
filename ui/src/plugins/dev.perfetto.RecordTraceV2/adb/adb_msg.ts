@@ -41,7 +41,7 @@ export interface AdbMsg extends AdbMsgHdr {
 //     uint32_t data_check; // checksum of data payload
 //     uint32_t magic;      // command ^ 0xffffffff
 // };
-export function parseAdbMsgHdr(dv: DataView<ArrayBuffer>): AdbMsgHdr {
+export function parseAdbMsgHdr(dv: DataView): AdbMsgHdr {
   assertTrue(dv.byteLength === ADB_MSG_SIZE);
   const cmd = utf8Decode(dv.buffer.slice(0, 4));
   const cmdNum = dv.getUint32(0, true);
