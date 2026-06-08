@@ -22,6 +22,7 @@ const DUMP_INTERVAL_MS = 10_000;
 const PROC_STATS_BUFFER_SIZE_KB = 4 * 1024;
 const HEAPPROFD_BUFFER_SIZE_KB = 128 * 1024;
 const JAVA_HPROF_BUFFER_SIZE_KB = 256 * 1024;
+const VIDEO_BUFFER_SIZE_KB = 256 * 1024;
 const STATS_POLL_INTERVAL_MS = 3000;
 
 export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
@@ -145,6 +146,11 @@ function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
         sizeKb: JAVA_HPROF_BUFFER_SIZE_KB,
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
+      {
+        name: 'video',
+        sizeKb: VIDEO_BUFFER_SIZE_KB,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
     ],
     dataSources: [
       {
@@ -180,6 +186,17 @@ function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
             continuousDumpConfig: {
               dumpIntervalMs: DUMP_INTERVAL_MS, // Required for Java profiles.
             },
+          },
+        },
+      },
+      // Capture the screen for the duration of the profile.
+      {
+        config: {
+          name: 'android.display.video',
+          targetBufferName: 'video',
+          displayVideoConfig: {
+            format: protos.DisplayVideoConfig.Format.FORMAT_H264,
+            maxStreamSizeBytes: VIDEO_BUFFER_SIZE_KB * 1024,
           },
         },
       },

@@ -17,7 +17,6 @@ import {assertUnreachable} from '../../../base/assert';
 import {showPopupWindow} from '../../../base/popup_window';
 import {exists} from '../../../base/utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Checkbox} from '../../../widgets/checkbox';
 import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
@@ -42,8 +41,6 @@ export interface ConnectionResult {
   device?: AdbDevice;
   deviceName: string;
   linuxTarget?: TracedWebsocketTarget;
-  // Also capture display frames (android.display.video) in the session.
-  captureVideo?: boolean;
 }
 
 interface ConnectionPageAttrs {
@@ -61,7 +58,6 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
   private adbKeyMgr = new AdbKeyManager();
   private error?: string;
   private connectionMethod: ConnectionMethod = 'usb';
-  private captureVideo = false;
 
   // USB state.
   private usbConnecting = false;
@@ -124,13 +120,6 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
             ),
             m(RadioGroup.Button, {value: 'linux', icon: 'computer'}, 'Linux'),
           ),
-          m(Checkbox, {
-            label: 'Also capture screen video',
-            checked: this.captureVideo,
-            onchange: () => {
-              this.captureVideo = !this.captureVideo;
-            },
-          }),
           this.renderConnectBox(attrs),
           this.error && m('.pf-memscope-error', this.error),
         ),
@@ -300,7 +289,6 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       attrs.onConnected({
         device: result.value,
         deviceName: `${usbdev.productName} [${usbdev.serialNumber}]`,
-        captureVideo: this.captureVideo,
       });
       m.redraw();
     } catch (e) {
@@ -364,7 +352,6 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
     attrs.onConnected({
       linuxTarget: target,
       deviceName: `Linux (${host})`,
-      captureVideo: this.captureVideo,
     });
     m.redraw();
   }
@@ -432,7 +419,6 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       attrs.onConnected({
         device: result.value,
         deviceName: `${dev.model} [${dev.serial}]`,
-        captureVideo: this.captureVideo,
       });
       m.redraw();
     } catch (e) {
@@ -571,7 +557,6 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       attrs.onConnected({
         device: result.value,
         deviceName: `${model} [${dev.serialNumber}]`,
-        captureVideo: this.captureVideo,
       });
       m.redraw();
     } catch (e) {
