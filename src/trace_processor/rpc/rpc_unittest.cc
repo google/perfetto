@@ -31,6 +31,9 @@ namespace {
 
 using ::testing::HasSubstr;
 using RpcProto = protos::pbzero::TraceProcessorRpc;
+using StreamProto = protos::pbzero::TraceProcessorRpcStream;
+using ResultProto = protos::pbzero::QueryResult;
+using BatchProto = protos::pbzero::QueryResult::CellsBatch;
 
 // Collects everything a Stream sends back, and whether it was disconnected.
 class ResponseSink {
@@ -182,6 +185,117 @@ TEST(RpcStreamTest, FramingErrorIsScopedToOneStream) {
   Write(b, RpcMessage(1, RpcProto::TPM_GET_STATUS));
   EXPECT_FALSE(sink_b.disconnected);
   EXPECT_THAT(sink_b.AsString(), ::testing::Not(HasSubstr("framing error")));
+}
+
+std::vector<uint8_t> EncodeQuery(int64_t seq, const std::string& sql) {
+  protozero::HeapBuffered<StreamProto> buf;
+  auto* msg = buf->add_msg();
+  msg->set_seq(seq);
+  msg->set_request(RpcProto::TPM_QUERY_STREAMING);
+  msg->set_query_args()->set_sql_query(sql);
+  return buf.SerializeAsArray();
+}
+
+// Collects all varint cells across every QueryResult batch in the response
+// stream (for the single-integer queries used here, one value per query).
+std::vector<int64_t> DecodeVarints(const std::vector<uint8_t>& buf) {
+  std::vector<int64_t> out;
+  StreamProto::Decoder stream(buf.data(), buf.size());
+  for (auto m = stream.msg(); m; ++m) {
+    RpcProto::Decoder rpc(m->as_bytes());
+    if (!rpc.has_query_result())
+      continue;
+    protozero::ConstBytes qr_bytes = rpc.query_result();
+    ResultProto::Decoder qr(qr_bytes.data, qr_bytes.size);
+    for (auto b = qr.batch(); b; ++b) {
+      BatchProto::Decoder batch(b->as_bytes());
+      bool parse_error = false;
+      for (auto v = batch.varint_cells(&parse_error); v; ++v)
+        out.push_back(*v);
+    }
+  }
+  return out;
+}
+
+// The response function runs on the (single) thread that calls EndRequest, so
+// the ResponseSink needs no synchronization.
+TEST(RpcThreadTest, QueryRunsThroughTpThread) {
+  Rpc rpc;
+  ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
+
+  ResponseSink sink;
+  Rpc::Stream stream(rpc, sink.Fn());
+  Write(stream, EncodeQuery(/*seq=*/1, "SELECT 42"));
+
+  auto vals = DecodeVarints(sink.bytes);
+  ASSERT_EQ(vals.size(), 1u);
+  EXPECT_EQ(vals[0], 42);
+}
+
+TEST(RpcThreadTest, MultipleSequentialQueries) {
+  Rpc rpc;
+  ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
+
+  ResponseSink sink;
+  Rpc::Stream stream(rpc, sink.Fn());
+  for (int i = 0; i < 5; ++i) {
+    sink.bytes.clear();
+    Write(stream,
+          EncodeQuery(/*seq=*/i + 1, "SELECT " + std::to_string(i * 10)));
+
+    auto vals = DecodeVarints(sink.bytes);
+    ASSERT_EQ(vals.size(), 1u) << "i=" << i;
+    EXPECT_EQ(vals[0], i * 10);
+  }
+}
+
+// A query that returns many rows forces the serializer to emit multiple
+// batches, exercising the per-batch emit ping-pong between the TP and receiving
+// threads.
+TEST(RpcThreadTest, MultiBatchQueryStreamsAllRows) {
+  Rpc rpc;
+  ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
+
+  ResponseSink sink;
+  Rpc::Stream stream(rpc, sink.Fn());
+  Write(stream,
+        EncodeQuery(
+            /*seq=*/1,
+            "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c "
+            "WHERE x < 5000) SELECT x FROM c"));
+
+  auto vals = DecodeVarints(sink.bytes);
+  ASSERT_EQ(vals.size(), 5000u);
+  EXPECT_EQ(vals.front(), 1);
+  EXPECT_EQ(vals.back(), 5000);
+}
+
+// Two messages in one buffer become two sequential tasks on the TP thread; the
+// finalize must complete before the query runs.
+TEST(RpcThreadTest, BytePipeFinalizeThenQuery) {
+  Rpc rpc;
+  ResponseSink sink;
+  Rpc::Stream stream(rpc, sink.Fn());
+
+  std::vector<uint8_t> buf;
+  auto fin = RpcMessage(/*seq=*/1, RpcProto::TPM_FINALIZE_TRACE_DATA);
+  auto q = EncodeQuery(/*seq=*/2, "SELECT 7");
+  buf.insert(buf.end(), fin.begin(), fin.end());
+  buf.insert(buf.end(), q.begin(), q.end());
+  Write(stream, buf);
+
+  auto vals = DecodeVarints(sink.bytes);
+  ASSERT_EQ(vals.size(), 1u);
+  EXPECT_EQ(vals[0], 7);
+}
+
+// The direct (non-byte-pipe) legacy methods go through the public wrappers,
+// which marshal to the TP thread too.
+TEST(RpcThreadTest, DirectLegacyMethodsRunOnTpThread) {
+  Rpc rpc;
+  ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
+  std::vector<uint8_t> status = rpc.GetStatus();
+  EXPECT_FALSE(status.empty());
 }
 
 }  // namespace

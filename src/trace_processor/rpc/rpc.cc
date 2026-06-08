@@ -17,16 +17,19 @@
 #include "src/trace_processor/rpc/rpc.h"
 
 #include <cinttypes>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
@@ -34,6 +37,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
@@ -68,6 +72,7 @@ class Rpc::Outbox {
   }
 
   void Close() { response_fn_(nullptr, 0); }
+  const RpcResponseFunction& response_fn() const { return response_fn_; }
 
  private:
   RpcResponseFunction response_fn_;
@@ -228,6 +233,74 @@ class RpcExportOutput : public TraceProcessor::ExportOutput {
 
 }  // namespace
 
+void Rpc::RunOnTpThread(const RpcResponseFunction& response_fn,
+                        const std::function<void(const EmitFn&)>& task) {
+  // Inline mode (no TP thread, e.g. single-threaded wasm): run on the calling
+  // thread and forward emitted chunks straight to the response function.
+  if (!tp_thread_) {
+    task(response_fn);
+    return;
+  }
+
+  // Threaded mode: post the task to the TP thread and block here, pumping the
+  // response chunks it emits so that |response_fn| is only ever called on
+  // this (the receiving) thread. The channel lives on this stack frame, which
+  // stays alive because we block until the task is done.
+  //
+  // The two parties (the TP thread inside emit, and this pump) take turns on a
+  // single condvar; only one ever waits at a time. We still use notify_all so
+  // the protocol is robust to spurious wakeups and to either predicate. Note
+  // that |response_fn| is assumed to return without throwing (the codebase
+  // is -fno-exceptions and the transport sinks handle errors internally); a
+  // sink that never returns would strand the TP thread.
+  std::mutex mu;
+  std::condition_variable cv;
+  const void* chunk_data = nullptr;
+  uint32_t chunk_size = 0;
+  bool chunk_pending = false;
+  bool done = false;
+
+  EmitFn emit = [&](const void* data, uint32_t size) {
+    // Runs on the TP thread: hand one chunk to the receiving thread and wait
+    // until it has been sent before returning (so |data| can be reused and the
+    // chunks stay strictly ordered).
+    std::unique_lock<std::mutex> lock(mu);
+    chunk_data = data;
+    chunk_size = size;
+    chunk_pending = true;
+    cv.notify_all();
+    cv.wait(lock, [&] { return !chunk_pending; });
+  };
+
+  tp_thread_->PostTask([&] {
+    task(emit);
+    std::lock_guard<std::mutex> lock(mu);
+    done = true;
+    cv.notify_all();
+  });
+
+  std::unique_lock<std::mutex> lock(mu);
+  for (;;) {
+    cv.wait(lock, [&] { return chunk_pending || done; });
+    if (chunk_pending) {
+      const void* data = chunk_data;
+      uint32_t size = chunk_size;
+      lock.unlock();
+      response_fn(data, size);
+      lock.lock();
+      chunk_pending = false;
+      cv.notify_all();
+      continue;
+    }
+    break;  // done
+  }
+}
+
+void Rpc::RunOnTpThread(const std::function<void()>& task) {
+  RunOnTpThread([](const void*, uint32_t) {},
+                [&task](const EmitFn&) { task(); });
+}
+
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
          bool has_preloaded_eof,
          Config default_config,
@@ -236,16 +309,36 @@ Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
     : default_config_(default_config),
       platform_(platform),
       on_trace_processor_created_(std::move(on_trace_processor_created)),
-      current_config_(std::move(default_config)),
-      trace_processor_(std::move(preloaded_instance)),
-      eof_(trace_processor_ ? has_preloaded_eof : false) {
-  if (!trace_processor_) {
-    ResetTraceProcessorInternal(default_config_);
-  }
+      current_config_(std::move(default_config)) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  // trace_processor_ is owned exclusively by this thread; all access goes
+  // through RunOnTpThread. wasm is single-threaded, so it stays inline.
+  tp_thread_ = std::make_unique<base::ThreadTaskRunner>(
+      base::ThreadTaskRunner::CreateAndStart("TraceProcessor"));
+#endif
+  RunOnTpThread([&] {
+    if (preloaded_instance) {
+      trace_processor_ = std::move(preloaded_instance);
+      eof_ = has_preloaded_eof;
+      if (on_trace_processor_created_)
+        on_trace_processor_created_(trace_processor_.get());
+    } else {
+      ResetTraceProcessorInternal(default_config_);
+    }
+  });
 }
 
 Rpc::Rpc() : Rpc(nullptr, false, Config(), nullptr, {}) {}
-Rpc::~Rpc() = default;
+
+Rpc::~Rpc() {
+  // Tear down trace_processor_ (and the summarizers that point to it) on the TP
+  // thread, then join it.
+  RunOnTpThread([this] {
+    summarizers_.Clear();
+    trace_processor_.reset();
+  });
+  tp_thread_.reset();  // Joins the TP thread, if any.
+}
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
   current_config_ = config;
@@ -329,7 +422,10 @@ void Rpc::DrainStream(Stream& stream) {
       }
       break;
     }
-    ParseRpcRequest(*stream.outbox_, std::move(msg));
+    RunOnTpThread(stream.outbox_->response_fn(), [&](const EmitFn& emit) {
+      Outbox outbox(emit);
+      ParseRpcRequest(outbox, std::move(msg));
+    });
   }
 }
 
@@ -401,7 +497,7 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
         result->set_error(kErrFieldNotSet);
       } else {
         protozero::ConstBytes byte_range = req.append_trace_data();
-        base::Status res = Parse(TraceBlobView(TraceBlob::Adopt(
+        base::Status res = ParseInternal(TraceBlobView(TraceBlob::Adopt(
             byte_range.data, byte_range.size, std::move(message))));
         if (!res.ok()) {
           result->set_error(res.message());
@@ -413,7 +509,7 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
     case RpcProto::TPM_FINALIZE_TRACE_DATA: {
       Response resp(tx_seq_id_++, req_type);
       auto* result = resp->set_finalize_data_result();
-      base::Status res = NotifyEndOfFile();
+      base::Status res = NotifyEndOfFileInternal();
       if (!res.ok()) {
         result->set_error(res.message());
       }
@@ -439,6 +535,8 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
                             }
                           });
 
+        // Execute the query and serialize its result batches (we are already on
+        // the TP thread); each batch is emitted back to the receiving thread.
         const auto t_start = base::GetWallTimeNs();
         auto it = trace_processor_->ExecuteQuery(sql);
 
@@ -540,7 +638,7 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
     case RpcProto::TPM_ENABLE_METATRACE: {
       using protos::pbzero::MetatraceCategories;
       protozero::ConstBytes args = req.enable_metatrace_args();
-      EnableMetatrace(args.data, args.size);
+      EnableMetatraceInternal(args.data, args.size);
 
       Response resp(tx_seq_id_++, req_type);
       resp.Send(outbox);
@@ -554,7 +652,7 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
     }
     case RpcProto::TPM_GET_STATUS: {
       Response resp(tx_seq_id_++, req_type);
-      std::vector<uint8_t> status = GetStatus();
+      std::vector<uint8_t> status = GetStatusInternal();
       resp->set_status()->AppendRawProtoBytes(status.data(), status.size());
       resp.Send(outbox);
       break;
@@ -671,7 +769,7 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
       std::optional<TraceProcessor::ExportFormat> format =
           ParseExportFormat(args.format());
       base::Status status =
-          format ? Export(*format,
+          format ? ExportInternal(*format,
                           [&](const uint8_t* chunk, size_t chunk_len,
                               bool has_more) {
                             Response resp(tx_seq_id_++, req_type);
@@ -725,6 +823,12 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
 }
 
 base::Status Rpc::Parse(TraceBlobView blob) {
+  base::Status status;
+  RunOnTpThread([&] { status = ParseInternal(std::move(blob)); });
+  return status;
+}
+
+base::Status Rpc::ParseInternal(TraceBlobView blob) {
   const size_t len = blob.size();
   PERFETTO_TP_TRACE(
       metatrace::Category::API_TIMELINE, "RPC_PARSE",
@@ -746,6 +850,12 @@ base::Status Rpc::Parse(TraceBlobView blob) {
 }
 
 base::Status Rpc::NotifyEndOfFile() {
+  base::Status status;
+  RunOnTpThread([&] { status = NotifyEndOfFileInternal(); });
+  return status;
+}
+
+base::Status Rpc::NotifyEndOfFileInternal() {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE,
                     "RPC_NOTIFY_END_OF_FILE");
 
@@ -839,34 +949,41 @@ void Rpc::MaybePrintProgress() {
 void Rpc::Query(const uint8_t* args,
                 size_t len,
                 const QueryResultBatchCallback& result_callback) {
-  protos::pbzero::QueryArgs::Decoder query(args, len);
-  std::string sql = query.sql_query().ToStdString();
-  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
-                    [&](metatrace::Record* r) {
-                      r->AddArg("SQL", sql);
-                      if (query.has_tag()) {
-                        r->AddArg("tag", query.tag());
-                      }
-                    });
+  // Execute + serialize on the TP thread, collecting the serialized batches;
+  // |result_callback| (which writes to the transport) is then replayed here on
+  // the receiving thread. Unlike the byte-pipe path this buffers the result
+  // rather than streaming it incrementally, but /query is a legacy endpoint.
+  std::vector<std::pair<std::vector<uint8_t>, bool>> batches;
+  RunOnTpThread([&] {
+    protos::pbzero::QueryArgs::Decoder query(args, len);
+    std::string sql = query.sql_query().ToStdString();
+    PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
+                      [&](metatrace::Record* r) {
+                        r->AddArg("SQL", sql);
+                        if (query.has_tag()) {
+                          r->AddArg("tag", query.tag());
+                        }
+                      });
 
-  const auto t_start = base::GetWallTimeNs();
-  auto it = trace_processor_->ExecuteQuery(sql);
+    const auto t_start = base::GetWallTimeNs();
+    auto it = trace_processor_->ExecuteQuery(sql);
 
-  QueryResultSerializer serializer(std::move(it), t_start);
-
-  protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
-                                                                kSliceSize);
-  for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(buffered.get());
-    const auto& res = buffered.GetSlices();
-    for (uint32_t i = 0; i < res.size(); ++i) {
-      auto used = res[i].GetUsedRange();
-      result_callback(used.begin, used.size(), has_more || i < res.size() - 1);
+    QueryResultSerializer serializer(std::move(it), t_start);
+    protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
+                                                                  kSliceSize);
+    for (bool has_more = true; has_more;) {
+      has_more = serializer.Serialize(buffered.get());
+      batches.emplace_back(buffered.SerializeAsArray(), has_more);
+      buffered.Reset();
     }
-    if (res.size() == 0 && !has_more) {
+  });
+
+  for (const auto& [bytes, has_more] : batches) {
+    if (bytes.empty() && !has_more) {
       result_callback(nullptr, 0, false);
+    } else {
+      result_callback(bytes.data(), bytes.size(), has_more);
     }
-    buffered.Reset();
   }
 }
 
@@ -886,6 +1003,13 @@ std::optional<TraceProcessor::ExportFormat> Rpc::ParseExportFormat(
 
 base::Status Rpc::Export(TraceProcessor::ExportFormat format,
                          const ExportCallback& callback) {
+  base::Status status;
+  RunOnTpThread([&] { status = ExportInternal(format, callback); });
+  return status;
+}
+
+base::Status Rpc::ExportInternal(TraceProcessor::ExportFormat format,
+                                 const ExportCallback& callback) {
   if (format == TraceProcessor::ExportFormat::kSqlite) {
     return ExportSqlite(callback);
   }
@@ -930,18 +1054,18 @@ base::Status Rpc::ExportSqlite(const ExportCallback& callback) {
 }
 
 void Rpc::RestoreInitialTables() {
-  trace_processor_->RestoreInitialTables();
+  RunOnTpThread([this] { trace_processor_->RestoreInitialTables(); });
 }
 
 std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* args, size_t len) {
   protozero::HeapBuffered<protos::pbzero::ComputeMetricResult> result;
-  ComputeMetricInternal(args, len, result.get());
+  RunOnTpThread([&] { ComputeMetricInternal(args, len, result.get()); });
   return result.SerializeAsArray();
 }
 
 std::vector<uint8_t> Rpc::ComputeTraceSummary(const uint8_t* args, size_t len) {
   protozero::HeapBuffered<protos::pbzero::TraceSummaryResult> result;
-  ComputeTraceSummaryInternal(args, len, result.get());
+  RunOnTpThread([&] { ComputeTraceSummaryInternal(args, len, result.get()); });
   return result.SerializeAsArray();
 }
 
@@ -1086,6 +1210,10 @@ void Rpc::ComputeTraceSummaryInternal(
 }
 
 void Rpc::EnableMetatrace(const uint8_t* data, size_t len) {
+  RunOnTpThread([&] { EnableMetatraceInternal(data, len); });
+}
+
+void Rpc::EnableMetatraceInternal(const uint8_t* data, size_t len) {
   using protos::pbzero::MetatraceCategories;
   TraceProcessor::MetatraceConfig config;
   protos::pbzero::EnableMetatraceArgs::Decoder args(data, len);
@@ -1096,7 +1224,7 @@ void Rpc::EnableMetatrace(const uint8_t* data, size_t len) {
 
 std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
   protozero::HeapBuffered<protos::pbzero::DisableAndReadMetatraceResult> result;
-  DisableAndReadMetatraceInternal(result.get());
+  RunOnTpThread([&] { DisableAndReadMetatraceInternal(result.get()); });
   return result.SerializeAsArray();
 }
 
@@ -1112,6 +1240,12 @@ void Rpc::DisableAndReadMetatraceInternal(
 }
 
 std::vector<uint8_t> Rpc::GetStatus() {
+  std::vector<uint8_t> result;
+  RunOnTpThread([&] { result = GetStatusInternal(); });
+  return result;
+}
+
+std::vector<uint8_t> Rpc::GetStatusInternal() {
   protozero::HeapBuffered<protos::pbzero::StatusResult> status;
   status->set_loaded_trace_name(trace_processor_->GetCurrentTraceName());
   status->set_human_readable_version(base::GetVersionString());

@@ -38,6 +38,10 @@
 
 namespace perfetto {
 
+namespace base {
+class ThreadTaskRunner;
+}
+
 namespace protos::pbzero {
 class ComputeMetricResult;
 class DisableAndReadMetatraceResult;
@@ -216,9 +220,40 @@ class Rpc {
 
  private:
   base::Status ExportSqlite(const ExportCallback&);
+  base::Status ExportInternal(TraceProcessor::ExportFormat,
+                              const ExportCallback&);
 
   void ParseRpcRequest(Outbox&, protozero::ProtoRingBuffer::Message);
+  // Runs |task| on the TP thread and blocks the calling (receiving) thread
+  // until it completes. |task| is the only code permitted to touch
+  // trace_processor_. It is handed an `emit` callback: each call to emit(data,
+  // size) is marshalled back to and invoked as |response_fn| on the receiving
+  // thread (so that a Stream's response function / other transport sinks are
+  // only ever called there, never on the TP thread). emit blocks until the
+  // receiving thread has consumed the chunk, keeping the data pointer valid
+  // and responses strictly ordered.
+  //
+  // On platforms without threads (single-threaded wasm) there is no TP thread:
+  // the task runs inline on the calling thread and emit forwards directly.
+  using EmitFn = std::function<void(const void* data, uint32_t size)>;
+  void RunOnTpThread(const RpcResponseFunction& response_fn,
+                     const std::function<void(const EmitFn& emit)>& task);
+
+  // Convenience overload for tasks that produce no streamed output.
+  void RunOnTpThread(const std::function<void()>& task);
+
+  // Pulls every complete message out of |stream|'s tokenizer and handles it.
   void DrainStream(Stream&);
+
+  // Decodes and handles one byte-pipe request. Runs on the TP thread (it is
+  // invoked from inside a RunOnTpThread task), using |emit| to send responses
+  // back to the receiving thread. The *Internal helpers below assume the same
+  // (on-TP-thread) context; the like-named public methods wrap them in
+  // RunOnTpThread for direct (httpd) callers.
+  base::Status ParseInternal(TraceBlobView);
+  base::Status NotifyEndOfFileInternal();
+  void EnableMetatraceInternal(const uint8_t*, size_t);
+  std::vector<uint8_t> GetStatusInternal();
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);
   void ResetTraceProcessorInternal(const Config&);
@@ -232,6 +267,12 @@ class Rpc {
                                    protos::pbzero::TraceSummaryResult*);
   void DisableAndReadMetatraceInternal(
       protos::pbzero::DisableAndReadMetatraceResult*);
+
+  // The dedicated thread (with its task runner) that exclusively owns and
+  // accesses trace_processor_. Null on single-threaded platforms (wasm), in
+  // which case RunOnTpThread runs tasks inline. The dtor runs a final teardown
+  // task on it and then joins it (via ~ThreadTaskRunner).
+  std::unique_ptr<base::ThreadTaskRunner> tp_thread_;
 
   Config default_config_;
   TraceProcessor::PlatformInterface* platform_ = nullptr;
