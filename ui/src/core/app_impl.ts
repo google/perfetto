@@ -242,25 +242,6 @@ export class AppImpl implements App {
   }
 
   private async openTrace(src: TraceSource): Promise<TraceImpl> {
-    if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
-      const byteArray: Uint8Array<ArrayBuffer> = src.buffer;
-      // Even though the type of `buffer` is ArrayBuffer, it's possible to
-      // accidentally pass a Uint8Array here, because the interface of
-      // Uint8Array is compatible with ArrayBuffer. That can cause subtle bugs
-      // in TraceStream when creating chunks out of it (see b/390473162).
-      // So if we get a Uint8Array in input, convert it into an actual
-      // ArrayBuffer, as various parts of the codebase assume that this is a
-      // pure ArrayBuffer, and not a logical view of it with a byteOffset > 0.
-      if (
-        byteArray.byteOffset === 0 &&
-        byteArray.byteLength === byteArray.byteLength
-      ) {
-        src = {...src, buffer: byteArray.buffer};
-      } else {
-        src = {...src, buffer: byteArray.slice().buffer};
-      }
-    }
-
     const result = defer<TraceImpl>();
 
     // Rationale for asyncLimiter: openTrace takes several seconds and involves
