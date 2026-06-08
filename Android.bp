@@ -25662,6 +25662,8 @@ filegroup {
     name: "perfetto-trace-processor-python-srcs",
     srcs: [
         "python/perfetto/common/*.py",
+        "python/perfetto/prebuilts/*.py",
+        "python/perfetto/prebuilts/manifests/*.py",
         "python/perfetto/trace_processor/*.py",
     ],
     path: "python",
