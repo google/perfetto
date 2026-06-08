@@ -172,6 +172,21 @@ source_set("storage_minimal") {
 }
 
 if (enable_perfetto_trace_processor_sqlite) {
+  # Per-thread connection-acquisition layer: forks PerfettoSqlConnections from
+  # an initialized primary so multiple threads can query one loaded database.
+  source_set("connection_pool") {
+    sources = [
+      "connection_pool.cc",
+      "connection_pool.h",
+    ]
+    deps = [
+      "../../gn:default_deps",
+      "../base",
+      "containers",
+      "perfetto_sql/engine",
+    ]
+  }
+
   source_set("lib") {
     sources = [
       "iterator_impl.cc",
@@ -186,6 +201,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_processor_impl.h",
     ]
     deps = [
+      ":connection_pool",
       ":io",
       ":metatrace",
       ":parallel_query_config",
@@ -394,6 +410,22 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
     sources = [ "minimal_shell.cc" ]
   }
+  perfetto_unittest_source_set("connection_pool_unittests") {
+    testonly = true
+    sources = [ "connection_pool_unittest.cc" ]
+    deps = [
+      ":connection_pool",
+      "../../gn:default_deps",
+      "../../gn:gtest_and_gmock",
+      "../../gn:sqlite",
+      "../base",
+      "containers",
+      "core/dataframe",
+      "perfetto_sql/engine",
+      "sqlite",
+      "util:concurrency_stress_test_util",
+    ]
+  }
 }  # if (enable_perfetto_trace_processor_sqlite)
 
 # Header-only helper for resolving the parallel-query kill-switch. Top-level
@@ -484,6 +516,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
+      ":connection_pool_unittests",
       "../perfetto_sql/analysis:unittests",
       "perfetto_sql/engine:unittests",
       "perfetto_sql/parser:unittests",
