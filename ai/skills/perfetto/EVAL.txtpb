@@ -1,0 +1,267 @@
+# proto-file: learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# proto-message: EvalSuite
+# txtpbfmt: wrap_strings_after_newlines
+
+# Single eval suite for the consolidated `perfetto` skill. Cases are grouped by
+# the reference/workflow file they exercise.
+
+suite_name: "perfetto"
+timeout_seconds: 600
+
+# ===========================================================================
+# environment-references/setup.md  (standalone variant: fetching the binary)
+# ===========================================================================
+
+cases {
+  name: "fetch_prebuilt_binary"
+  prompt: "How do I get the trace_processor binary?"
+  expectations: "The agent recommends using curl to fetch the official prebuilt binary from get.perfetto.dev/trace_processor."
+  expectations: "The agent mentions making it executable with chmod +x."
+}
+
+cases {
+  name: "setup_python_venv"
+  prompt: "How do I install the perfetto Python client?"
+  expectations: "The agent recommends creating an isolated venv."
+  expectations: "The agent mentions installing perfetto and protobuf packages."
+}
+
+# ===========================================================================
+# infra-references/querying.md
+# ===========================================================================
+
+cases {
+  name: "quickstart_query"
+  prompt: "How do I run a quick query on a trace file?"
+  expectations: "The agent recommends using `trace_processor query TRACE_FILE \"QUERY\"`."
+}
+
+cases {
+  name: "long_running_mode"
+  prompt: "How do I avoid reparsing the trace for every query?"
+  expectations: "The agent recommends starting `trace_processor server http` on a random port."
+  expectations: "The agent shows how to connect using the Python `TraceProcessor` client."
+}
+
+cases {
+  name: "discover_tables"
+  prompt: "How do I see what tables are available in the trace?"
+  expectations: "The agent mentions `__intrinsic_stdlib_modules` or listing tables for a module."
+  expectations: "The agent mentions using `LIMIT 0` to read column schema."
+}
+
+cases {
+  name: "sql_best_practices_glob"
+  prompt: "Write a query to find slices with 'Choreographer' in their name."
+  expectations: "The agent uses `GLOB '*Choreographer*'` instead of `LIKE`."
+}
+
+cases {
+  name: "sql_best_practices_joins"
+  prompt: "Find all slices on the main thread of process 'com.android.systemui'."
+  expectations: "The agent uses the `slices.with_context` stdlib module (e.g., the `thread_slice` view, which already exposes `is_main_thread` and `process_name`) instead of manually joining `slice`, `thread_track`, `thread`, and `process`."
+  expectations: "The agent filters with `is_main_thread = 1` and matches the process via `process_name = 'com.android.systemui'`."
+}
+
+cases {
+  name: "schema_research_methodology"
+  prompt: "I need to query a table I'm not familiar with, like 'android_binder_txs'. How should I start?"
+  expectations: "The agent must research the schema in `__intrinsic_stdlib*` tables before drafting."
+  expectations: "The agent must identify if an `INCLUDE PERFETTO MODULE` is required."
+}
+
+# Analytical Intent Based Evals
+
+cases {
+  name: "cpu_time_function"
+  prompt: "Write me a reusable function that takes slice_id as input argument and returns the exact CPU time that slice spent executing on the core. Also, write me a SQL query to use this function."
+  expectations: "The agent uses `CREATE OR REPLACE PERFETTO FUNCTION` for idempotency, per the skill's idempotency guidance."
+  expectations: "The agent uses the `slices.cpu_time` module (or its `thread_slice_cpu_time` view) instead of manual interval math, per the skill's 'reach for stdlib first' rule for CPU-time calculations."
+}
+
+cases {
+  name: "ui_jank_cpu_frequency"
+  prompt: "I need you to help me correlate UI Jank with CPU frequency scaling. Write me a query that computes the average CPU frequency of the 'big' cores during the execution of every Choreographer#doFrame slice on the main thread of the youtube process."
+  expectations: "The agent discovers stdlib modules via `__intrinsic_stdlib_modules` / `__intrinsic_stdlib_tables` and uses dedicated stdlib helpers for CPU cluster classification and time-weighted CPU frequency (e.g., `android.cpu.cluster_type` and `linux.cpu.frequency`) rather than aggregating raw `counter` rows by hand."
+  expectations: "The agent reaches the main-thread Choreographer slices via the `slices.with_context` module (e.g., the `thread_slice` view with `is_main_thread = 1`) instead of manually joining `slice`, `thread_track`, `thread`, and `process`."
+  expectations: "The agent matches the process and slice names with `GLOB '*youtube*'` / `GLOB '*Choreographer*'` (not `LIKE`), per the skill's string-matching guidance."
+}
+
+cases {
+  name: "lmk_rss_increase"
+  prompt: "Help me identify the process that was killed by the Android Low Memory Killer (LMK). Then, calculate the total increase in its Anonymous RSS memory (in Megabytes) during the exact 10-second window preceding its death."
+  expectations: "The agent identifies the killed process via a dedicated stdlib LMK module (e.g., `android.memory.lmk` / `android_lmk_events`) discovered through `__intrinsic_stdlib_modules`, instead of grepping raw slices for kill events."
+  expectations: "The agent computes the RSS delta from a stdlib RSS view (e.g., `memory_rss_and_swap_per_process`) rather than aggregating raw `counter` rows, consistent with the skill's 'reach for stdlib first' rule."
+  expectations: "The agent reports the killed process by `process.name` (not raw `upid`), per the skill's stable-identifier guidance."
+}
+
+cases {
+  name: "wakeup_chain_recursive"
+  prompt: "Trace the wakeup chain backward from the main thread of the system-ui process starting at its first Choreographer#doFrame slice. Write a query that shows the sequence of thread names that woke each other up, up to 3 levels deep."
+  expectations: "Before drafting, the agent validates the `thread_state` schema with `SELECT * FROM thread_state LIMIT 0` (or `__intrinsic_stdlib_tables`) to confirm the columns that link `utid` and `waker_utid`, per the skill's mandatory schema-check rule."
+  expectations: "The agent reaches the starting Choreographer slice via the `slices.with_context` module (e.g., `thread_slice` with `is_main_thread = 1` and `GLOB '*system_ui*'` / `GLOB '*Choreographer*'`), not by manually joining `slice`/`thread_track`/`thread`."
+  expectations: "The agent walks the chain with a recursive CTE that joins on stable IDs (`utid` / `waker_utid`) and filters on `thread_state.state = 'R'`, then reports the result by `thread.name` rather than raw `utid`."
+}
+
+cases {
+  name: "heap_graph_shortest_path"
+  prompt: "Given a trace with multiple Java heap dumps, write a Perfetto query to find the shortest path to GC root for all instances of android.graphics.Bitmap that exist in the final heap dump. Concatenate the class names of the reference path into a single string for each leaked Bitmap."
+  expectations: "The agent discovers and uses a stdlib graph-search helper (e.g., the `graphs.search` module and the `graph_reachable_bfs!` macro) via `__intrinsic_stdlib_modules` / `__intrinsic_stdlib_macros`, instead of writing the BFS by hand."
+  expectations: "The agent materializes intermediate results with `CREATE PERFETTO TABLE` (per the skill's materialization guidance) before recursing over them to concatenate the reference path."
+  expectations: "The agent reports the path using `heap_graph_class.name` strings, not raw object / class IDs."
+}
+
+cases {
+  name: "memory_dominator_tree"
+  prompt: "Perform a retained-size analysis for a Java heap dump in my trace."
+  expectations: "The agent refers to the `android.memory.heap_graph.dominator_tree` module."
+  expectations: "The agent includes the necessary module before querying."
+}
+
+cases {
+  name: "binder_transaction_analysis"
+  prompt: "I need to analyze Binder transactions. Show me the total count of binder events grouped by process name."
+  expectations: "The agent discovers binder helpers via `__intrinsic_stdlib_modules` / `__intrinsic_stdlib_tables` and uses a stdlib binder view (e.g., `android_binder_txns` or `android_binder_metrics_by_process`) that already captures both client and server sides, instead of grepping raw `slice` rows."
+  expectations: "The agent groups by `process.name` (stable identifier) rather than raw `upid`, per the skill's stable-identifier guidance."
+}
+
+cases {
+  name: "foreground_duration_screen_on"
+  prompt: "Calculate the total duration each process spent in the foreground while the screen state was 'ON'. Show the top 10 process names by duration."
+  expectations: "The agent discovers and uses stdlib interval views for screen state and process foreground (e.g., `android_screen_state` and `android_oom_adj_intervals`), validating their schemas with `LIMIT 0` before filtering on the appropriate semantic columns, rather than reconstructing the intervals from raw events."
+  expectations: "The agent intersects the intervals with `SPAN_JOIN`, materializing the inputs via `CREATE PERFETTO TABLE` and partitioning correctly, per the skill's SPAN_JOIN safety guidance."
+  expectations: "The agent reports the top 10 by `process.name` (stable identifier), not raw `upid`."
+}
+
+cases {
+  name: "app_startup_analysis"
+  prompt: "Find the durations of all app startups in this trace."
+  expectations: "The agent uses the `android.startup.startups` module and the `android_startups` view instead of joining raw slices."
+}
+
+# ===========================================================================
+# workflows/android_memory/heap_dump.md
+# ===========================================================================
+
+cases {
+  name: "quickstart_triage"
+  prompt: "I need to analyze an Android OOM heap dump."
+  expectations: "The agent strictly follows the verbatim triage prompt instructions, gating open-ended exploration."
+}
+
+cases {
+  name: "confirm_heap_graph"
+  prompt: "How do I check if my trace has a Java heap dump?"
+  expectations: "The agent recommends querying `android_heap_graph_stats`."
+}
+
+cases {
+  name: "find_dominators"
+  prompt: "How do I find what is taking up the most memory in the heap dump?"
+  expectations: "The agent recommends using `android_heap_graph_class_summary_tree`."
+  expectations: "The agent mentions sorting by `cumulative_size`."
+}
+
+cases {
+  name: "retention_chain"
+  prompt: "I found a leaky class. How do I find what's keeping it alive?"
+  expectations: "The agent recommends using `heap_graph_dominator_tree`."
+  expectations: "The agent explains walking up `idom_id` to find retention path."
+  expectations: "The agent instructs to search codebase for application source code."
+  expectations: "The agent explains providing philosophical architectural advice and an implementation plan."
+}
+
+# ===========================================================================
+# workflows/android_memory/heap_dump_cluster.md
+# ===========================================================================
+
+cases {
+  name: "explain_clustering"
+  prompt: "I have 50 heap dumps from YouTube. How do I cluster them to reduce noise?"
+  expectations: "The agent explains the mental model of preprocessing paths and using TF-IDF with K-Means."
+  expectations: "The agent recommends invoking `scripts/cluster_paths.py`."
+}
+
+cases {
+  name: "summarize_clusters"
+  prompt: "I ran the clustering script and got `clustered_output.csv`. What's the next step?"
+  expectations: "The agent recommends running `scripts/summarize_clusters.py` to generate a report."
+}
+
+# ===========================================================================
+# workflows/android_memory/heap_dump_caching_optimizer.md
+# ===========================================================================
+
+cases {
+  name: "analyze_heap_dump_no_location_given"
+  prompt: "Can you analyze a heap dump and find caching optimizations for our app?"
+  expectations: "Agent asks the user for the location of the heap dump (either via a URL or a local file path)."
+  expectations: "Agent asks the user if there is a specific package name they are interested in optimizing."
+  expectations: "Agent asks the user if they want to focus on a specific class name regex."
+  expectations: "Agent asks the user for the codebase location (URL, custom local path, current workspace, or none)."
+}
+
+cases {
+  name: "download_and_analyze_heap_dump"
+  prompt: "Analyze the heap dump at https://ui.perfetto.dev/#!/?s=0d259d2b6ef1e5e5970b83c47b5e531aff2d0fd9 to find caching opportunities. Focus on package 'com.example.sampleapp'."
+  expectations: "Agent downloads the heap dump file from the provided URL to the local filesystem."
+  expectations: "Agent loads the heap dump (following the querying reference)."
+  expectations: "Agent executes query_most_repeated_objects.sql and query_size_frequencies.sql using trace_processor."
+  expectations: "Agent asks the user for a class name regex to focus on."
+  expectations: "Agent asks the user for the codebase location."
+  expectations: "Agent filters out primitive objects and java.lang.* classes."
+  expectations: "Agent prioritizes and analyzes classes matching 'com.example.sampleapp'."
+  expectations: "Agent identifies potential caching opportunities using heuristics."
+}
+
+cases {
+  name: "analyze_local_heap_dump_with_package"
+  prompt: "I have a heap dump located at /home/user/traces/app-heap.pb. Can you analyze it to find caching opportunities? I'm interested in the package com.google.android.gms.chimera."
+  expectations: "Agent uses the local path directly."
+  expectations: "Agent asks the user for a class name regex to focus on."
+  expectations: "Agent asks the user for the codebase location."
+  expectations: "Agent runs PerfettoSQL queries query_most_repeated_objects.sql and query_size_frequencies.sql on the heap dump."
+  expectations: "Agent filters results and prioritizes classes matching the package 'com.google.android.gms.chimera'."
+  expectations: "Agent prints a summary of candidates."
+}
+
+cases {
+  name: "verify_duplicate_references"
+  prompt: "I suspect that MediaMetadata objects are duplicated and owned by MediaItem. Can you verify if MediaItem dominates or owns MediaMetadata in the heap dump /home/user/traces/app-heap.pb?"
+  expectations: "Agent executes query_heap_references.sql using trace_processor on the heap dump."
+  expectations: "Agent replaces placeholder '<owner_classname>' with 'MediaItem'."
+  expectations: "Agent replaces placeholder '<owned_classname>' with 'MediaMetadata'."
+  expectations: "Agent reports the results to confirm the ownership relationship."
+}
+
+cases {
+  name: "deep_code_analysis"
+  prompt: "We found a candidate class com.google.android.apps.photos.MediaMetadata which is repeated 15,000 times. The source code is in the workspace under src/com/google/android/apps/photos/MediaMetadata.java. Perform a deep analysis of references and present findings."
+  expectations: "Agent searches for and views the source file MediaMetadata.java and its referencing files in the workspace."
+  expectations: "Agent analyzes the reference hierarchy to identify the optimal location to cache."
+  expectations: "Agent presents findings in a markdown file and in the prompt, including memory savings estimate, explanation, implementation details, and file path."
+}
+
+cases {
+  name: "generate_implementation_plan_with_code"
+  prompt: "Create an implementation plan for the MediaMetadata caching opportunity. The codebase is in the workspace."
+  expectations: "Agent creates a detailed implementation plan with step-by-step instructions and code changes."
+  expectations: "Agent creates a detailed explanation doc called analysis.md."
+  expectations: "Agent includes in-depth reasoning of savings, why to cache, and trade-offs in analysis.md."
+}
+
+cases {
+  name: "generate_implementation_plan_no_code"
+  prompt: "Create an implementation plan for the MediaMetadata caching opportunity. We do not have access to the codebase."
+  expectations: "Agent provides a list of suggestions on what to look for in the codebase to implement caching."
+  expectations: "Agent creates a detailed explanation doc called analysis.md."
+  expectations: "Agent includes in-depth reasoning of savings and trade-offs in analysis.md."
+}
+
+cases {
+  name: "apply_caching_optimization"
+  prompt: "I have reviewed the implementation plan. Please apply the caching changes to MediaMetadata.java and its references."
+  expectations: "Agent applies the caching changes locally to MediaMetadata.java and referencing files."
+  expectations: "Agent preserves unrelated existing code, comments, and docstrings."
+  expectations: "Agent does not commit the changes and leaves it to the user."
+}
