@@ -88,6 +88,7 @@
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/args/args.h"
 #include "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h"
+#include "src/trace_processor/plugins/audio_frame_importer/audio_frame_importer.h"
 #include "src/trace_processor/plugins/base64_functions/base64_functions.h"
 #include "src/trace_processor/plugins/connected_flow/connected_flow.h"
 #include "src/trace_processor/plugins/core_functions/core_functions.h"
@@ -317,6 +318,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   ancestor::RegisterPlugin();
   args::RegisterPlugin();
   art_heap_graph_functions::RegisterPlugin();
+  audio_frame_importer::RegisterPlugin();
   base64_functions::RegisterPlugin();
   connected_flow::RegisterPlugin();
   core_functions::RegisterPlugin();

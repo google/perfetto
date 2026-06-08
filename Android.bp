@@ -3121,6 +3121,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":perfetto_src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",
@@ -3445,6 +3446,7 @@ cc_test {
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -18732,6 +18734,53 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/plugins/audio_frame_importer:audio_frame_importer
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
+    srcs: [
+        "src/trace_processor/plugins/audio_frame_importer/audio_frame_importer.cc",
+        "src/trace_processor/plugins/audio_frame_importer/audio_frame_module.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/audio_frame_importer:tables
+genrule {
+    name: "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
+    srcs: [
+        "src/trace_processor/plugins/audio_frame_importer/tables.py",
+    ],
+    tools: [
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables_binary",
+    ],
+    cmd: "$(location perfetto_src_trace_processor_plugins_audio_frame_importer_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
+    out: [
+        "src/trace_processor/plugins/audio_frame_importer/all_tables_fwd.h",
+        "src/trace_processor/plugins/audio_frame_importer/tables_fwd.h",
+        "src/trace_processor/plugins/audio_frame_importer/tables_py.h",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/audio_frame_importer:tables
+python_binary_host {
+    name: "perfetto_src_trace_processor_plugins_audio_frame_importer_tables_binary",
+    srcs: [
+        "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/util.py",
+        "src/trace_processor/plugins/audio_frame_importer/tables.py",
+        "tools/gen_tp_table_headers.py",
+    ],
+    main: "tools/gen_tp_table_headers.py",
+}
+
+// GN: //src/trace_processor/plugins/audio_frame_importer:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_audio_frame_importer_unittests",
+    srcs: [
+        "src/trace_processor/plugins/audio_frame_importer/audio_frame_module_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/plugins/base64_functions:base64_functions
 filegroup {
     name: "perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
@@ -20253,6 +20302,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":perfetto_src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",
@@ -20436,6 +20486,7 @@ cc_library_static {
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -20536,6 +20587,7 @@ cc_library_static {
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -22883,6 +22935,8 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_ancestor_unittests",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":perfetto_src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
+        ":perfetto_src_trace_processor_plugins_audio_frame_importer_unittests",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_connected_flow_unittests",
@@ -23278,6 +23332,7 @@ cc_test {
         "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -23953,6 +24008,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":perfetto_src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",
@@ -24124,6 +24180,7 @@ cc_library_static {
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -24220,6 +24277,7 @@ cc_library_static {
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -24608,6 +24666,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":perfetto_src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",
@@ -24789,6 +24848,7 @@ cc_binary_host {
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
+        "perfetto_src_trace_processor_plugins_audio_frame_importer_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",

@@ -466,6 +466,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
+        ":src_trace_processor_plugins_audio_frame_importer_tables",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -757,6 +759,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
+        ":src_trace_processor_plugins_audio_frame_importer_tables",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -4342,6 +4346,30 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.cc",
         "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/audio_frame_importer:audio_frame_importer
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
+    srcs = [
+        "src/trace_processor/plugins/audio_frame_importer/audio_frame_importer.cc",
+        "src/trace_processor/plugins/audio_frame_importer/audio_frame_importer.h",
+        "src/trace_processor/plugins/audio_frame_importer/audio_frame_module.cc",
+        "src/trace_processor/plugins/audio_frame_importer/audio_frame_module.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/audio_frame_importer:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_audio_frame_importer_tables",
+    srcs = [
+        "src/trace_processor/plugins/audio_frame_importer/tables.py",
+    ],
+    outs = [
+        "src/trace_processor/plugins/audio_frame_importer/all_tables_fwd.h",
+        "src/trace_processor/plugins/audio_frame_importer/tables_fwd.h",
+        "src/trace_processor/plugins/audio_frame_importer/tables_py.h",
     ],
 )
 
@@ -10477,6 +10505,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
+        ":src_trace_processor_plugins_audio_frame_importer_tables",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -10798,6 +10828,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_audio_frame_importer_audio_frame_importer",
+        ":src_trace_processor_plugins_audio_frame_importer_tables",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",

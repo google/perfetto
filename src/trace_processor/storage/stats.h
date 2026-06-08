@@ -58,6 +58,21 @@ namespace perfetto::trace_processor::stats {
   F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video stream exceeded the parse-time size cap; frames " \
       "dropped. See the trace_import_logs table for the affected display."),   \
+  F(android_audio_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.audio producer hit the per-stream size cap; stream torn down. " \
+      "See trace_import_logs for the affected stream."),                       \
+  F(android_audio_codec_error,            kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.audio MediaCodec error. See trace_import_logs for the "         \
+      "affected stream."),                                                     \
+  F(android_audio_no_encoder,             kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.audio has no encoder for the requested format. See "            \
+      "trace_import_logs for the affected stream."),                           \
+  F(android_audio_tap_failed,             kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.audio could not attach the output tap. See trace_import_logs "  \
+      "for the affected stream."),                                             \
+  F(android_audio_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.audio stream exceeded the parse-time size cap; frames dropped. "\
+      "See the trace_import_logs table for the affected stream."),             \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

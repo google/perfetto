@@ -106,10 +106,75 @@ message VideoFrameError {
   optional Reason reason = 2;
 }
 
+// A captured audio frame from a device audio stream (e.g. the output mix).
+//
+// Each stream is an encoded elementary stream: a codec_config-only AudioFrame
+// first, then one AudioFrame per encoded frame carrying a single au_data.
+message AudioFrame {
+  // Per-session stream index (0, 1, ...). Groups frames into per-stream tracks.
+  optional uint32 stream_id = 1;
+
+  optional uint64 frame_number = 2;
+
+  enum Codec {
+    CODEC_UNSPECIFIED = 0;
+    CODEC_AAC_LC = 1;
+    CODEC_OPUS = 2;
+  }
+  optional Codec codec = 3;
+
+  // Decoder config, emitted once per stream before any au_data (AAC
+  // AudioSpecificConfig, or the Opus identification header). Required to
+  // decode au_data.
+  optional bytes codec_config = 4;
+
+  // One encoded audio frame.
+  optional bytes au_data = 5;
+
+  // Codec presentation timestamp (us) of au_data. Distinct from the
+  // TracePacket timestamp, which places the frame on the timeline.
+  optional uint64 pts_us = 6;
+
+  // Set on the codec_config packet only.
+  optional uint32 sample_rate = 7;
+  optional uint32 channels = 8;
+  optional string stream_name = 9;
+
+  // MIME/WebCodecs-style codec string (e.g. "mp4a.40.2" for AAC-LC, "opus"),
+  // identifying the elementary stream format for the decoder. Set on
+  // codec_config only.
+  optional string codec_string = 10;
+
+  // Normalized peak amplitude of this frame, 0..1000. Lets the UI draw the
+  // amplitude (waveform) counter track without decoding the audio.
+  optional uint32 peak = 11;
+}
+
+// Per-stream failure indicator, mirroring VideoFrameError. Trace processor
+// maps each reason to its own stat, keyed by stream_id.
+message AudioFrameError {
+  optional uint32 stream_id = 1;
+
+  enum Reason {
+    REASON_UNKNOWN = 0;
+    // Hit the per-stream size cap.
+    SIZE_CAP_HIT = 1;
+    // MediaCodec.Callback.onError fired.
+    CODEC_ERROR = 2;
+    // No MediaCodec encoder for the requested format on this device.
+    NO_ENCODER = 3;
+    // Could not attach the output tap.
+    TAP_FAILED = 4;
+  }
+  optional Reason reason = 2;
+}
+
 message FrameworksBaseTracePacket {
   extend perfetto.protos.TracePacket {
     optional AppWakelockBundle app_wakelock_bundle = 116;
     optional VideoFrame video_frame = 1000;
     optional VideoFrameError video_frame_error = 1001;
+    optional AudioFrame audio_frame = 1002;
+    optional AudioFrameError audio_frame_error = 1003;
   }
 }
