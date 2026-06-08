@@ -148,8 +148,8 @@ class TraceProcessorImpl : public TraceProcessor,
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
   // Whether independent queries may be dispatched concurrently across a worker
-  // pool. Resolved once at construction from Config::enable_parallel_queries and
-  // the PERFETTO_TP_PARALLEL_QUERIES env kill-switch. Consumed by the query
+  // pool. Resolved once at construction from Config::enable_parallel_queries
+  // and the PERFETTO_TP_PARALLEL_QUERIES env kill-switch. Consumed by the query
   // dispatch path in a later change; inert until then.
   bool IsParallelQueriesEnabled() const { return parallel_queries_enabled_; }
 

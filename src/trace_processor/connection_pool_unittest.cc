@@ -43,8 +43,7 @@ constexpr uint32_t kThreadCount = 8;
 // Filter + order query whose result we cross-check against a single-threaded
 // golden. The filter keeps roughly half the rows and the order is over the
 // string column so the comparison exercises both columns.
-constexpr char kQuery[] =
-    "SELECT v, s FROM t WHERE v >= 1000 ORDER BY s, v";
+constexpr char kQuery[] = "SELECT v, s FROM t WHERE v >= 1000 ORDER BY s, v";
 
 // A single result row of |kQuery|.
 struct Row {

@@ -71,14 +71,22 @@ class Rpc::Outbox {
       : send_(std::move(send)), close_(std::move(close)) {}
 
   void Send(Slices slices) {
-    if (send_) { send_(std::move(slices)); return; }
+    if (send_) {
+      send_(std::move(slices));
+      return;
+    }
     for (const auto& slice : slices) {
       auto range = slice.GetUsedRange();
       response_fn_(range.begin, static_cast<uint32_t>(range.size()));
     }
   }
 
-  void Close() { if (close_) close_(); else response_fn_(nullptr, 0); }
+  void Close() {
+    if (close_)
+      close_();
+    else
+      response_fn_(nullptr, 0);
+  }
   const RpcResponseFunction& response_fn() const { return response_fn_; }
 
  private:
@@ -371,7 +379,9 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
 }
 
 Rpc::Stream::Stream(Rpc& rpc, RpcResponseFunction response_fn)
-    : rpc_(rpc), outbox_(std::make_unique<Outbox>(std::move(response_fn))), weak_factory_(this) {}
+    : rpc_(rpc),
+      outbox_(std::make_unique<Outbox>(std::move(response_fn))),
+      weak_factory_(this) {}
 
 Rpc::Stream::~Stream() = default;
 
@@ -442,8 +452,10 @@ void Rpc::DrainStream(Stream& stream) {
   }
 }
 
-void Rpc::DispatchAsync(Stream& stream, protozero::ProtoRingBuffer::Message message) {
-  auto msg = std::make_shared<protozero::ProtoRingBuffer::Message>(std::move(message));
+void Rpc::DispatchAsync(Stream& stream,
+                        protozero::ProtoRingBuffer::Message message) {
+  auto msg =
+      std::make_shared<protozero::ProtoRingBuffer::Message>(std::move(message));
   base::TaskRunner* reply = stream.reply_runner_;
   base::WeakPtr<Stream> weak_stream = stream.weak_factory_.GetWeakPtr();
   tp_thread_->PostTask([this, reply, weak_stream, msg] {
@@ -452,12 +464,14 @@ void Rpc::DispatchAsync(Stream& stream, protozero::ProtoRingBuffer::Message mess
         [reply, weak_stream](Outbox::Slices slices) {
           auto owned = std::make_shared<Outbox::Slices>(std::move(slices));
           reply->PostTask([weak_stream, owned] {
-            if (weak_stream) weak_stream->outbox_->Send(std::move(*owned));
+            if (weak_stream)
+              weak_stream->outbox_->Send(std::move(*owned));
           });
         },
         [reply, weak_stream] {
           reply->PostTask([weak_stream] {
-            if (weak_stream) weak_stream->outbox_->Close();
+            if (weak_stream)
+              weak_stream->outbox_->Close();
           });
         });
     ParseRpcRequest(outbox, std::move(*msg));
@@ -805,17 +819,17 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
           ParseExportFormat(args.format());
       base::Status status =
           format ? ExportInternal(*format,
-                          [&](const uint8_t* chunk, size_t chunk_len,
-                              bool has_more) {
-                            Response resp(tx_seq_id_++, req_type);
-                            auto* result = resp->set_export_result();
-                            if (chunk && chunk_len > 0) {
-                              result->set_data(chunk, chunk_len);
-                            }
-                            result->set_has_more(has_more);
-                            resp.Send(outbox);
-                            return base::OkStatus();
-                          })
+                                  [&](const uint8_t* chunk, size_t chunk_len,
+                                      bool has_more) {
+                                    Response resp(tx_seq_id_++, req_type);
+                                    auto* result = resp->set_export_result();
+                                    if (chunk && chunk_len > 0) {
+                                      result->set_data(chunk, chunk_len);
+                                    }
+                                    result->set_has_more(has_more);
+                                    resp.Send(outbox);
+                                    return base::OkStatus();
+                                  })
                  : base::ErrStatus("Export format is required");
       if (!status.ok()) {
         Response resp(tx_seq_id_++, req_type);

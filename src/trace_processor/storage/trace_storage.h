@@ -205,9 +205,9 @@ class TraceStorage {
 
    private:
     // Guards all members below. Under the multi-connection design every query
-    // thread calls RecordQuery* concurrently on the same shared TraceStorage, so
-    // the deque mutations must be serialized. Uncontended in the single-threaded
-    // case (3 lock/unlocks per query, not per row).
+    // thread calls RecordQuery* concurrently on the same shared TraceStorage,
+    // so the deque mutations must be serialized. Uncontended in the
+    // single-threaded case (3 lock/unlocks per query, not per row).
     mutable std::mutex mutex_;
     uint32_t popped_queries_ = 0;
 

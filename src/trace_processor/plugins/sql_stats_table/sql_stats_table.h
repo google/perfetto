@@ -38,8 +38,8 @@ struct SqlStatsModule : sqlite::Module<SqlStatsModule> {
   struct Cursor : sqlite::Module<SqlStatsModule>::Cursor {
     const TraceStorage* storage = nullptr;
     size_t row = 0;
-    // Consistent snapshot taken at Filter() so iteration is stable and race-free
-    // even while other threads concurrently record query stats.
+    // Consistent snapshot taken at Filter() so iteration is stable and
+    // race-free even while other threads concurrently record query stats.
     TraceStorage::SqlStats::Snapshot snapshot;
   };
   enum Column {

@@ -167,7 +167,12 @@ void Httpd::Run(const std::string& listen_ip,
 uint8_t* Httpd::OnHttpRequestBody(const base::HttpRequest& req, size_t size) {
   ConnState& state = conns_[req.conn];
   if (req.uri == "/rpc") {
-    state.pending = GetRpcStream(req.conn).BeginRequest(size);
+    // /rpc is request/response: the chunked reply is closed as soon as
+    // OnHttpRequest() returns, so every response must be sent before that.
+    // Keep the stream synchronous (block-and-drain).
+    Rpc::Stream& stream = GetRpcStream(req.conn);
+    stream.SetReplyTaskRunner(nullptr);
+    state.pending = stream.BeginRequest(size);
     return state.pending.data();
   }
   if (size > state.payload_size) {
@@ -182,7 +187,14 @@ uint8_t* Httpd::OnHttpRequestBody(const base::HttpRequest& req, size_t size) {
 uint8_t* Httpd::OnWebsocketPayload(base::HttpServerConnection* conn,
                                    size_t size) {
   ConnState& state = conns_[conn];
-  state.pending = GetRpcStream(conn).BeginRequest(size);
+  // Websockets are a persistent, pipelined channel, so serve them
+  // asynchronously: EndRequest() dispatches the work to the TraceProcessor
+  // thread and returns immediately, keeping this (the HTTP server) thread free
+  // to process further messages while a query runs. Responses are posted back
+  // to task_runner_ and sent from there through the stream's response function.
+  Rpc::Stream& stream = GetRpcStream(conn);
+  stream.SetReplyTaskRunner(&task_runner_);
+  state.pending = stream.BeginRequest(size);
   return state.pending.data();
 }
 
@@ -396,6 +408,10 @@ Rpc::Stream& Httpd::GetRpcStream(base::HttpServerConnection* conn) {
 void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
   // A peer that goes away mid-payload leaves a reservation open; the bytes it
   // managed to send are an incomplete message and are dropped with it.
+  // Erasing the state also destroys the stream, so replies still queued on
+  // task_runner_ for a websocket become no-ops instead of writing to a
+  // destroyed connection. This runs on the same thread as those replies, so it
+  // is serialized with them.
   ConnState* state = conns_.Find(conn);
   if (state && state->pending)
     state->pending.AbortRequest();
