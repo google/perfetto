@@ -140,6 +140,28 @@ cases {
 }
 
 # ===========================================================================
+# infra-references/recording_android_traces.md
+# ===========================================================================
+
+cases {
+  name: "record_system_trace"
+  prompt: "How do I record a new system trace (scheduling, gfx) from an Android device?"
+  expectations: "The agent uses the `record_android_trace` helper script (fetched from raw.githubusercontent.com/google/perfetto) with categories such as `sched`/`gfx`."
+}
+
+cases {
+  name: "record_java_heap_dump"
+  prompt: "How do I capture a Java heap dump from an Android app to investigate a memory leak?"
+  expectations: "The agent uses the `java_heap_dump` helper script with `-n <package>` and `-o <output>`."
+}
+
+cases {
+  name: "record_custom_config"
+  prompt: "I need a trace combining ftrace and memory counters that the specialized scripts don't cover. How?"
+  expectations: "The agent drafts a custom text config and runs it via `record_android_trace -c <config>`."
+}
+
+# ===========================================================================
 # workflows/android_memory/heap_dump.md
 # ===========================================================================
 
