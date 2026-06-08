@@ -35,6 +35,7 @@ import {
   LONG,
   NUM,
   NUM_NULL,
+  type SqlValue,
   STR_NULL,
   UNKNOWN,
 } from '../../trace_processor/query_result';
@@ -291,7 +292,7 @@ export class SliceSelectionAggregator implements Aggregator {
           title: 'ID',
           columnId: 'id_with_lineage',
           formatHint: 'ID',
-          cellRenderer: (value: unknown) => {
+          cellRenderer: (value: SqlValue) => {
             // Value is a JSON object {id, groupid, partition}
             if (typeof value !== 'string') {
               return String(value);
@@ -300,7 +301,7 @@ export class SliceSelectionAggregator implements Aggregator {
             const parsed = JSON.parse(value) as {
               id: number;
               groupid: number;
-              partition: unknown;
+              partition: SqlValue;
             };
             const {id, groupid, partition} = parsed;
 
@@ -347,7 +348,10 @@ export class SliceSelectionAggregator implements Aggregator {
   /**
    * Resolve a track from lineage information.
    */
-  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+  private resolveTrack(
+    groupId: number,
+    partition: SqlValue,
+  ): Track | undefined {
     if (!this.trackDatasetMap) return undefined;
 
     // Ensure partition is a valid SqlValue
