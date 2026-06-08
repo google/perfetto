@@ -25,6 +25,7 @@
     - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
     - [Boot Tracing](case-studies/android-boot-tracing.md) {.tag-android}
     - [OutOfMemoryError](case-studies/android-outofmemoryerror.md) {.tag-android}
+    - [Using AI with Perfetto](getting-started/using-ai.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
 
   - [Case Studies](#)
 
@@ -91,6 +92,7 @@
     - [Data Explorer](visualization/data-explorer.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Opening Large Traces](visualization/large-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Deep Linking](visualization/deep-linking-to-perfetto-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [Embedding the UI](visualization/embedding-the-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Heap Dump Explorer](visualization/heap-dump-explorer.md) {.tag-android}
 
@@ -150,6 +152,7 @@
     - [Synthetic Track Events](reference/synthetic-track-event.md) {.tag-perf}
     - [Kernel Track Events](reference/kernel-track-event.md) {.tag-android .tag-linux}
     - [Extension Server Protocol](visualization/extension-server-protocol.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [Embedding API](visualization/embedding-api-reference.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Android Version Notes](reference/android-version-notes.md) {.tag-android}
 
   - [Advanced Topics](#)

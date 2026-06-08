@@ -36,7 +36,7 @@ import dev.perfetto.sdk.PerfettoTrackEventExtra.Proto;
 
 /** Builder for Perfetto track event extras. */
 public final class PerfettoTrackEventBuilder {
-  private static final int DEFAULT_EXTRA_CACHE_SIZE = 5;
+  private static final int DEFAULT_EXTRA_CACHE_SIZE = 16;
   private static final int DEFAULT_PENDING_POINTERS_LIST_SIZE = 16;
 
   private PerfettoTrackEventExtra mExtra;

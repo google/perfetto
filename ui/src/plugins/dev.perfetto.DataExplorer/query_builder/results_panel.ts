@@ -591,7 +591,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           columns: this.columns,
           fillHeight: true,
           data: attrs.dataSource,
-          enablePivotControls: false,
+          disablePivotControls: true,
           structuredQueryCompatMode: true,
           canAddColumns: false,
           canRemoveColumns: false,

@@ -29,7 +29,7 @@ import {
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
 import {showModal} from '../widgets/modal';
-import {assertExists} from '../base/assert';
+import {assertExists, assertIsArrayBufferView} from '../base/assert';
 
 const TRACE_SUFFIX = '.perfetto-trace';
 
@@ -137,6 +137,32 @@ async function finaliseMetatrace(engine: Engine) {
   if (result.error.length !== 0) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
+
+  // There are a few confounding problems here:
+  // 1. In TS 5.7, the TypedArrays and other array view and wrapper types were
+  //    made to be generic, in order to distinguish those backed by ArrayBuffers
+  //    vs those backed by SharedArrayBuffers.
+  // 2. Protobufjs's .finish() method returns a Uint8Array which doesn't specify
+  //    whether it's a Uint8Array or not. In reality it's always going to be an
+  //    ArrayBuffer (not shared) unless the library is monkey-patched to
+  //    override Writer.alloc(), but the type system won't know that anyway. The
+  //    acutal fix is that the protobufjs library should update the return type
+  //    of finish() to be Uint8Array<ArrayBuffer> specifically. Another solution
+  //    could be to update to the latest protobufjs which has
+  //    Writer.finishInto() which takes an array to copy the bypes into, leaving
+  //    us in control of the types, however the latest protobuf version has
+  //    other type issues. See https://github.com/protobufjs/protobuf.js/pull/2196/changes.
+  // 3. The other problem is that Blob() actually doesn't care whether the
+  //    underlying buffer is shared or not, it'll take it at runtime in the
+  //    browser and node.js no problem. The types are the problem.
+  //
+  // So, we could just cast away the types here, but that might be unsafe in the
+  // future if anything changes, so we use this assert to ensure that these
+  // types are definitely not shared and throw if they are. This means we can
+  // fail fast if the landscape changes, and we avoid having to do any
+  // hand-wavey type assertions.
+  assertIsArrayBufferView(result.metatrace);
+  assertIsArrayBufferView(jsEvents);
 
   download({
     fileName: 'metatrace',

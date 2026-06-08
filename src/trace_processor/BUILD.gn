@@ -250,6 +250,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/tree_functions",
       "plugins/type_builder_functions",
       "plugins/utils_functions",
+      "plugins/video_frame_importer",
       "plugins/wattson",
       "plugins/window_operator",
       "sqlite",
@@ -435,6 +436,7 @@ perfetto_unittest_source_set("unittests") {
       "plugins/experimental_slice_layout:unittests",
       "plugins/span_join_operator:unittests",
       "plugins/string_functions:unittests",
+      "plugins/video_frame_importer:unittests",
       "sqlite:unittests",
     ]
   }

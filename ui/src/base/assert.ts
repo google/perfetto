@@ -77,3 +77,25 @@ export function assertUnreachable(value: never, optMsg?: string): never {
     optMsg ?? `This code should not be reachable ${value as unknown}`,
   );
 }
+
+/**
+ * In TS 5.7, the TypedArrays and other array view and wrapper types were made
+ * to be generic, in order to distinguish those backed by ArrayBuffers vs
+ * SharedArrayBuffers, defaulting to a union of these two if the type is lefe
+ * unspecified (ArrayBufferLike). This is a good thing in general as the two
+ * buffer types have differing interfaces, however the main problem with this is
+ * that a lot of libraries have not been updated to reflect which buffer type
+ * they actually use and return.
+ *
+ * @see https://github.com/microsoft/TypeScript/issues/60579
+ */
+export function assertIsArrayBufferView(
+  view: ArrayBufferView,
+): asserts view is ArrayBufferView<ArrayBuffer> {
+  if (view.buffer instanceof SharedArrayBuffer) {
+    // Copy the underlying buffer into the array, trimming to the byte bounds of the view
+    throw new Error(
+      "Underlying view is a SAB. If this is a problem we could convert it but we're being defensive as this could be expensive",
+    );
+  }
+}

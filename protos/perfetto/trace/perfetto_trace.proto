@@ -959,6 +959,34 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/display_video_config.proto
+
+// Config for the "android.display.video" data source. Unset/0 fields use
+// the producer's default.
+message DisplayVideoConfig {
+  enum Format {
+    // Default (H.264).
+    FORMAT_UNSPECIFIED = 0;
+    FORMAT_H264 = 1;
+    FORMAT_HEVC = 2;
+  }
+
+  // Scale applied to each display's resolution before capture (0.25 =
+  // quarter size).
+  optional float scale = 1;
+
+  optional Format format = 2;
+
+  // Keyframe interval in seconds. Smaller = snappier seeking, larger trace.
+  optional uint32 key_frame_interval_secs = 3;
+
+  // Per-display cap on emitted bytes. On reaching it the stream is torn
+  // down with a VideoFrameError (SIZE_CAP_HIT).
+  optional uint64 max_stream_size_bytes = 4;
+}
+
+// End of protos/perfetto/config/android/display_video_config.proto
+
 // Begin of protos/perfetto/config/android/inputmethod_config.proto
 
 // Custom configuration for the "android.inputmethod" data source.
@@ -1394,9 +1422,9 @@ message EtwConfig {
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
   // Provides events relating to file I/O.
-  repeated string file_provider_events = 4;
+  repeated string file_provider_events = 4 [deprecated = true];
   // Events for which stacks should be collected.
-  repeated string stack_sampling_events = 5 [deprecated = true];
+  repeated string stack_sampling_events = 5;
   // Provides events relating to disk I/O.
   repeated string disk_provider_events = 6 [deprecated = true];
   // Provides events relating to multiple kinds of IO including disk, cache, and
@@ -4642,7 +4670,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 142
+// Next id: 143
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4885,6 +4913,9 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.display.video
+  optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -9988,6 +10019,11 @@ message DpuDispFrameStartMissingFtraceEvent {
   optional int32 frames_pending = 3;
   optional int32 te_count = 4;
 }
+message DpuDispDpuLineUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -14233,6 +14269,7 @@ message FtraceEvent {
     DpuDispFrameStartMissingFtraceEvent dpu_disp_frame_start_missing = 610;
     PanelSettingsFullFtraceEvent panel_settings_full = 611;
     PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
+    DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
   }
 }
 
