@@ -100,8 +100,8 @@ SETUP_VARIANT = {
 # (re-emitted as SKILL.md), the unselected setup variants (re-emitted as
 # setup.md), and dev/test metadata.
 _EMIT_IGNORE = shutil.ignore_patterns(SKILL_TEMPLATE, 'setup-bundled.md',
-                                      'setup-standalone.md', 'EVAL.txtpb',
-                                      'OWNERS', 'TEST.md', 'BUILD')
+                                      'setup-standalone.md', 'OWNERS',
+                                      'TEST.md', 'BUILD')
 
 
 def _emit_skill(variant: str, dest_dir: Path) -> str:
