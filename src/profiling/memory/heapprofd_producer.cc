@@ -863,11 +863,11 @@ void HeapprofdProducer::SocketDelegate::OnNewIncomingConnection(
     std::unique_ptr<base::UnixSocket> new_connection) {
   Process peer_process;
   peer_process.pid = new_connection->peer_pid_linux();
-  if (!GetCmdlineForPID(peer_process.pid, &peer_process.cmdline)) {
-    PERFETTO_PLOG("Failed to get cmdline for %d", peer_process.pid);
-  }
-  if (!glob_aware::ReadProcCmdlineForPID(peer_process.pid,
-                                         &peer_process.raw_cmdline)) {
+  bool cmdline_ok = true;
+  cmdline_ok &= GetCmdlineForPID(peer_process.pid, &peer_process.cmdline);
+  cmdline_ok &= glob_aware::ReadProcCmdlineForPID(peer_process.pid,
+                                         &peer_process.raw_cmdline);
+  if (!cmdline_ok) {
     PERFETTO_PLOG("Failed to get cmdline for %d", peer_process.pid);
   }
   producer_->HandleClientConnection(std::move(new_connection), peer_process);
