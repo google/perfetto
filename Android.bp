@@ -1839,6 +1839,9 @@ java_library {
     proto: {
         type: "lite",
         canonical_path_from_root: false,
+        local_include_dirs: [
+            ".",
+        ],
     },
 }
 
@@ -22266,6 +22269,9 @@ java_library {
     proto: {
         type: "lite",
         canonical_path_from_root: false,
+        local_include_dirs: [
+            ".",
+        ],
     },
 }
 
@@ -25507,6 +25513,7 @@ java_library_host {
     name: "perfetto_config-full",
     proto: {
         type: "full",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/config/perfetto_config.proto",
@@ -25517,6 +25524,7 @@ java_library {
     name: "perfetto_config-lite",
     proto: {
         type: "lite",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/config/perfetto_config.proto",
@@ -25528,6 +25536,7 @@ java_library_host {
     proto: {
         type: "full",
         canonical_path_from_root: false,
+        local_include_dirs: ["."],
     },
     static_libs: [
         "libprotobuf-java-full",
@@ -25543,6 +25552,7 @@ java_library_host {
     name: "perfetto_trace-full",
     proto: {
         type: "full",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/trace/perfetto_trace.proto",
@@ -25555,6 +25565,7 @@ java_library_host {
     name: "perfetto_metrics-full",
     proto: {
         type: "full",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/metrics/perfetto_merged_metrics.proto",
@@ -25651,6 +25662,8 @@ filegroup {
     name: "perfetto-trace-processor-python-srcs",
     srcs: [
         "python/perfetto/common/*.py",
+        "python/perfetto/prebuilts/*.py",
+        "python/perfetto/prebuilts/manifests/*.py",
         "python/perfetto/trace_processor/*.py",
     ],
     path: "python",
@@ -25748,6 +25761,7 @@ java_library {
         type: "lite",
         include_dirs: ["external/protobuf/src"],
         canonical_path_from_root: false,
+        local_include_dirs: ["."],
     },
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
@@ -25771,6 +25785,7 @@ java_library {
     proto: {
         type: "lite",
         canonical_path_from_root: false,
+        local_include_dirs: ["."],
     },
     sdk_version: "system_server_current",
     min_sdk_version: "35",
@@ -25832,8 +25847,8 @@ phony {
             required: [
                 "system_tracing_protos_descriptor",
             ],
-        }
-    }
+        },
+    },
 }
 
 filegroup {
