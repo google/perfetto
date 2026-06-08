@@ -45,7 +45,17 @@ retention, or optimize heap usage:
     across a process, read
     [heap_dump_cluster.md](workflows/android_memory/heap_dump_cluster.md).
 
-## 3. Are you trying to do ad-hoc trace analysis?
+## 3. Are you trying to analyze GPU/accelerator performance?
+
+If you have a resolved trace with GPU activity and want to know whether the
+workload is GPU-bound or host-bound:
+
+*   **GPU timeline occupancy:** To decompose the GPU timeline into device-busy
+    vs idle time, get per-GPU busy percentages, and find the largest idle gaps
+    with host-side attribution, read
+    [timeline_occupancy.md](workflows/gpu/timeline_occupancy.md).
+
+## 4. Are you trying to do ad-hoc trace analysis?
 
 If you want to load a trace and write custom PerfettoSQL queries:
 
