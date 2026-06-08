@@ -833,7 +833,6 @@ pub struct PerfettoTeHlNestedTrackNamed {
     pub header: PerfettoTeHlNestedTrack,
     pub name: *const ::std::os::raw::c_char,
     pub id: u64,
-    pub is_name_static: bool,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
