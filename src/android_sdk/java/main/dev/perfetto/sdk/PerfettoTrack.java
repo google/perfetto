@@ -63,9 +63,7 @@ public final class PerfettoTrack {
 
   // Frees a handle's native track when the handle is collected. SystemCleaner
   // needs no native lib, so it is safe to hold statically.
-  private static final PerfettoNativeMemoryCleaner sCleaner =
-      new PerfettoNativeMemoryCleaner(
-          PerfettoTrackEventBuilder.getNativeAllocationStats());
+  private static final PerfettoNativeMemoryCleaner sCleaner = new PerfettoNativeMemoryCleaner();
 
   private PerfettoTrack(int rootType, String[] names, long[] ids) {
     mRootType = rootType;
