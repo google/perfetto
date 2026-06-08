@@ -37,6 +37,9 @@ export interface ProfileView {
 const SNAPSHOT_INTERVAL_MS = 3_000; // How over to take a snapshot of the runnign trace and extract data.
 const INITIAL_SNAPSHOT_INTERVAL_MS = 1_000; // Use a shorter interval for the first snapshot to get data on screen faster.
 const POLLING_INTERVAL_MS = 1_000; // Recording config polling interval for process stats and system stats.
+// Dedicated buffer for the optional display-video capture, so encoded frames
+// never evict memory data.
+const VIDEO_BUFFER_SIZE_KB = 256 * 1024;
 
 let engineCounter = 0;
 
@@ -100,6 +103,7 @@ export class LiveSession {
   private readonly sessionName: string;
   private readonly device?: AdbDevice;
   private readonly linuxTarget?: TracedWebsocketTarget;
+  private readonly captureVideo: boolean;
   private timer?: ReturnType<typeof setTimeout>;
   private snapshotInFlight = false;
   private isDisposed = false;
@@ -145,6 +149,7 @@ export class LiveSession {
     this.device = conn.device;
     this.linuxTarget = conn.linuxTarget;
     this.deviceName = conn.deviceName;
+    this.captureVideo = conn.captureVideo ?? false;
     this.sessionName = `livemem-${uuidv4().substring(0, 8)}`;
     this.startAndPoll();
   }
@@ -236,7 +241,7 @@ export class LiveSession {
   }
 
   private async startAndPoll(): Promise<void> {
-    const config = createMonitoringConfig(this.sessionName);
+    const config = createMonitoringConfig(this.sessionName, this.captureVideo);
     const result = this.linuxTarget
       ? await this.linuxTarget.startTracing(config)
       : await createAdbTracingSession(this.device!, config);
@@ -326,8 +331,9 @@ export class LiveSession {
 
 function createMonitoringConfig(
   uniqueSessionName: string,
+  captureVideo: boolean,
 ): protos.ITraceConfig {
-  return {
+  const config: protos.ITraceConfig = {
     uniqueSessionName,
     buffers: [
       {
@@ -438,6 +444,27 @@ function createMonitoringConfig(
       },
     ],
   };
+
+  // Optionally pair the memory timeline with display frames.
+  if (captureVideo) {
+    config.buffers!.push({
+      name: 'video',
+      sizeKb: VIDEO_BUFFER_SIZE_KB,
+      fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+    });
+    config.dataSources!.push({
+      config: {
+        name: 'android.display.video',
+        targetBufferName: 'video',
+        displayVideoConfig: {
+          format: protos.DisplayVideoConfig.Format.FORMAT_H264,
+          maxStreamSizeBytes: VIDEO_BUFFER_SIZE_KB * 1024,
+        },
+      },
+    });
+  }
+
+  return config;
 }
 
 interface ExtractResult {
