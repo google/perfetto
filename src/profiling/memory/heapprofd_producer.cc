@@ -42,6 +42,8 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "src/profiling/common/proc_cmdline.h"
+#include "src/profiling/common/proc_utils.h"
 #include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
@@ -83,7 +85,7 @@ std::vector<UnwindingWorker> MakeUnwindingWorkers(HeapprofdProducer* delegate,
 
 bool ConfigTargetsProcess(const HeapprofdConfig& cfg,
                           const Process& proc,
-                          const std::vector<std::string>& normalized_cmdlines) {
+                          const CmdlinePatterns& cmdline_patterns) {
   if (cfg.all())
     return true;
 
@@ -93,8 +95,12 @@ bool ConfigTargetsProcess(const HeapprofdConfig& cfg,
     return true;
   }
 
-  if (std::find(normalized_cmdlines.cbegin(), normalized_cmdlines.cend(),
-                proc.cmdline) != normalized_cmdlines.cend()) {
+  const auto& exact = cmdline_patterns.exact_patterns;
+  if (std::find(exact.cbegin(), exact.cend(), proc.cmdline) != exact.cend()) {
+    return true;
+  }
+  if (glob_aware::MatchCmdlineGlobPatterns(proc.raw_cmdline,
+                                           cmdline_patterns.glob_patterns)) {
     return true;
   }
   return false;
@@ -226,7 +232,8 @@ HeapprofdProducer::~HeapprofdProducer() = default;
 void HeapprofdProducer::SetTargetProcess(pid_t target_pid,
                                          std::string target_cmdline) {
   target_process_.pid = target_pid;
-  target_process_.cmdline = target_cmdline;
+  target_process_.cmdline = std::move(target_cmdline);
+  glob_aware::ReadProcCmdlineForPID(target_pid, &target_process_.raw_cmdline);
 }
 
 void HeapprofdProducer::SetDataSourceCallback(std::function<void()> fn) {
@@ -395,10 +402,25 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
 
-  std::optional<std::vector<std::string>> normalized_cmdlines =
+  std::optional<CmdlinePatterns> cmdline_patterns =
       NormalizeCmdlines(heapprofd_config.process_cmdline());
-  if (!normalized_cmdlines.has_value()) {
+  if (!cmdline_patterns.has_value()) {
     PERFETTO_ELOG("Rejecting data source due to invalid cmdline in config.");
+    return;
+  }
+
+  // Glob cmdline patterns are only supported for already-running processes, as
+  // the startup path relies on the self-triggering code to derive a single
+  // android sysprop to check (whereas with globs, it would need to check
+  // against all patterns).
+  // Reject configs that don't explicitly opt out of startup profiling to make
+  // this clear.
+  if (!cmdline_patterns->glob_patterns.empty() &&
+      (!heapprofd_config.no_startup() || heapprofd_config.no_running())) {
+    PERFETTO_ELOG(
+        "Rejecting data source: wildcard process_cmdline patterns cannot "
+        "profile processes from startup. Set no_startup=true, no_running=false "
+        "to use them.");
     return;
   }
 
@@ -406,7 +428,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   // already-connected process.
   if (mode_ == HeapprofdMode::kChild) {
     if (!ConfigTargetsProcess(heapprofd_config, target_process_,
-                              normalized_cmdlines.value())) {
+                              cmdline_patterns.value())) {
       PERFETTO_DLOG("Child mode skipping setup of unrelated data source.");
       return;
     }
@@ -440,7 +462,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   data_source.config = heapprofd_config;
   data_source.ds_config = ds_config;
-  data_source.normalized_cmdlines = std::move(normalized_cmdlines.value());
+  data_source.cmdline_patterns = std::move(cmdline_patterns.value());
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms()
                                     ? ds_config.stop_timeout_ms()
                                     : 5000 /* kDataSourceStopTimeoutMs */;
@@ -474,9 +496,14 @@ void HeapprofdProducer::SetStartupProperties(DataSource* data_source) {
   if (heapprofd_config.all())
     data_source->properties.emplace_back(properties_.SetAll());
 
-  for (std::string cmdline : data_source->normalized_cmdlines)
-    data_source->properties.emplace_back(
-        properties_.SetProperty(std::move(cmdline)));
+  // Android: only non-glob patterns are compatible with startup properties (so
+  // that the startup codepaths can derive a single sysprop to check from its
+  // cmdline). SetupDataSource enforces that any configs with glob patterns have
+  // |no_startup| set, so we can ignore globs here.
+  for (const std::string& cmdline :
+       data_source->cmdline_patterns.exact_patterns) {
+    data_source->properties.emplace_back(properties_.SetProperty(cmdline));
+  }
 }
 
 void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
@@ -488,8 +515,14 @@ void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
   for (uint64_t pid : heapprofd_config.pid())
     pids.emplace(static_cast<pid_t>(pid));
 
-  if (!data_source->normalized_cmdlines.empty())
-    FindPidsForCmdlines(data_source->normalized_cmdlines, &pids);
+  const CmdlinePatterns& cmdline_patterns = data_source->cmdline_patterns;
+  if (!cmdline_patterns.exact_patterns.empty()) {
+    FindPidsForCmdlines(cmdline_patterns.exact_patterns, &pids);
+  }
+  if (!cmdline_patterns.glob_patterns.empty()) {
+    glob_aware::FindPidsForCmdlinePatterns(cmdline_patterns.glob_patterns,
+                                           &pids);
+  }
 
   if (heapprofd_config.min_anonymous_memory_kb() > 0)
     RemoveUnderAnonThreshold(heapprofd_config.min_anonymous_memory_kb(), &pids);
@@ -830,9 +863,13 @@ void HeapprofdProducer::SocketDelegate::OnNewIncomingConnection(
     std::unique_ptr<base::UnixSocket> new_connection) {
   Process peer_process;
   peer_process.pid = new_connection->peer_pid_linux();
-  if (!GetCmdlineForPID(peer_process.pid, &peer_process.cmdline))
+  if (!GetCmdlineForPID(peer_process.pid, &peer_process.cmdline)) {
     PERFETTO_PLOG("Failed to get cmdline for %d", peer_process.pid);
-
+  }
+  if (!glob_aware::ReadProcCmdlineForPID(peer_process.pid,
+                                         &peer_process.raw_cmdline)) {
+    PERFETTO_PLOG("Failed to get cmdline for %d", peer_process.pid);
+  }
   producer_->HandleClientConnection(std::move(new_connection), peer_process);
 }
 
@@ -923,7 +960,7 @@ HeapprofdProducer::DataSource* HeapprofdProducer::GetDataSourceForProcess(
     const Process& proc) {
   for (auto& ds_id_and_datasource : data_sources_) {
     DataSource& ds = ds_id_and_datasource.second;
-    if (ConfigTargetsProcess(ds.config, proc, ds.normalized_cmdlines))
+    if (ConfigTargetsProcess(ds.config, proc, ds.cmdline_patterns))
       return &ds;
   }
   return nullptr;
@@ -934,7 +971,7 @@ void HeapprofdProducer::RecordOtherSourcesAsRejected(DataSource* active_ds,
   for (auto& ds_id_and_datasource : data_sources_) {
     DataSource& ds = ds_id_and_datasource.second;
     if (&ds != active_ds &&
-        ConfigTargetsProcess(ds.config, proc, ds.normalized_cmdlines))
+        ConfigTargetsProcess(ds.config, proc, ds.cmdline_patterns))
       ds.rejected_pids.emplace(proc.pid);
   }
 }
