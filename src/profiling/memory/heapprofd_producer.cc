@@ -866,7 +866,7 @@ void HeapprofdProducer::SocketDelegate::OnNewIncomingConnection(
   bool cmdline_ok = true;
   cmdline_ok &= GetCmdlineForPID(peer_process.pid, &peer_process.cmdline);
   cmdline_ok &= glob_aware::ReadProcCmdlineForPID(peer_process.pid,
-                                         &peer_process.raw_cmdline);
+                                                  &peer_process.raw_cmdline);
   if (!cmdline_ok) {
     PERFETTO_PLOG("Failed to get cmdline for %d", peer_process.pid);
   }

@@ -323,7 +323,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   std::map<DataSourceInstanceID, DataSource> data_sources_;
 
   // Specific to mode_ == kChild
-  Process target_process_{base::kInvalidPid, /*cmdline=*/"", /*raw_cmdline=*/""};
+  Process target_process_{base::kInvalidPid, /*cmdline=*/"",
+                          /*raw_cmdline=*/""};
   std::optional<std::function<void()>> data_source_callback_;
 
   SocketDelegate socket_delegate_;
