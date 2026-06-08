@@ -32,6 +32,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -40,6 +41,7 @@
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
+#include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 #include "perfetto/protozero/field.h"
@@ -64,18 +66,25 @@ class Rpc::Outbox {
   explicit Outbox(RpcResponseFunction response_fn)
       : response_fn_(std::move(response_fn)) {}
 
-  void Send(std::vector<protozero::ScatteredHeapBuffer::Slice> slices) {
+  using Slices = std::vector<protozero::ScatteredHeapBuffer::Slice>;
+  Outbox(std::function<void(Slices)> send, std::function<void()> close)
+      : send_(std::move(send)), close_(std::move(close)) {}
+
+  void Send(Slices slices) {
+    if (send_) { send_(std::move(slices)); return; }
     for (const auto& slice : slices) {
       auto range = slice.GetUsedRange();
       response_fn_(range.begin, static_cast<uint32_t>(range.size()));
     }
   }
 
-  void Close() { response_fn_(nullptr, 0); }
+  void Close() { if (close_) close_(); else response_fn_(nullptr, 0); }
   const RpcResponseFunction& response_fn() const { return response_fn_; }
 
  private:
   RpcResponseFunction response_fn_;
+  std::function<void(Slices)> send_;
+  std::function<void()> close_;
 };
 
 namespace {
@@ -362,7 +371,7 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
 }
 
 Rpc::Stream::Stream(Rpc& rpc, RpcResponseFunction response_fn)
-    : rpc_(rpc), outbox_(std::make_unique<Outbox>(std::move(response_fn))) {}
+    : rpc_(rpc), outbox_(std::make_unique<Outbox>(std::move(response_fn))), weak_factory_(this) {}
 
 Rpc::Stream::~Stream() = default;
 
@@ -422,11 +431,37 @@ void Rpc::DrainStream(Stream& stream) {
       }
       break;
     }
+    if (stream.reply_runner_ && tp_thread_) {
+      DispatchAsync(stream, std::move(msg));
+      continue;
+    }
     RunOnTpThread(stream.outbox_->response_fn(), [&](const EmitFn& emit) {
       Outbox outbox(emit);
       ParseRpcRequest(outbox, std::move(msg));
     });
   }
+}
+
+void Rpc::DispatchAsync(Stream& stream, protozero::ProtoRingBuffer::Message message) {
+  auto msg = std::make_shared<protozero::ProtoRingBuffer::Message>(std::move(message));
+  base::TaskRunner* reply = stream.reply_runner_;
+  base::WeakPtr<Stream> weak_stream = stream.weak_factory_.GetWeakPtr();
+  tp_thread_->PostTask([this, reply, weak_stream, msg] {
+    // Transfer the owned response buffers to the transport's thread.
+    Outbox outbox(
+        [reply, weak_stream](Outbox::Slices slices) {
+          auto owned = std::make_shared<Outbox::Slices>(std::move(slices));
+          reply->PostTask([weak_stream, owned] {
+            if (weak_stream) weak_stream->outbox_->Send(std::move(*owned));
+          });
+        },
+        [reply, weak_stream] {
+          reply->PostTask([weak_stream] {
+            if (weak_stream) weak_stream->outbox_->Close();
+          });
+        });
+    ParseRpcRequest(outbox, std::move(*msg));
+  });
 }
 
 namespace {

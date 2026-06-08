@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "test/gtest_and_gmock.h"
 
@@ -296,6 +297,94 @@ TEST(RpcThreadTest, DirectLegacyMethodsRunOnTpThread) {
   ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
   std::vector<uint8_t> status = rpc.GetStatus();
   EXPECT_FALSE(status.empty());
+}
+
+// With a reply task runner set, EndRequest must return WITHOUT having
+// delivered the response: the result is only delivered when the runner is
+// pumped. This proves the receiving thread is not blocked on the query.
+TEST(RpcThreadTest, AsyncEndRequestStaysResponsive) {
+  base::UnixTaskRunner runner;
+  Rpc rpc;
+  ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
+
+  std::vector<uint8_t> resp;
+  // Runs on the runner (this) thread. Quit once the single-row result arrives.
+  Rpc::Stream stream(rpc, [&](const void* data, uint32_t len) {
+    if (!data)
+      return;
+    const auto* p = static_cast<const uint8_t*>(data);
+    resp.insert(resp.end(), p, p + len);
+    if (!DecodeVarints(resp).empty())
+      runner.Quit();
+  });
+  stream.SetReplyTaskRunner(&runner);
+
+  Write(stream, EncodeQuery(/*seq=*/1, "SELECT 42"));
+
+  // Responsiveness: the reply is posted to the runner, which we have not pumped
+  // yet, so nothing has been delivered. (A blocking EndRequest would already
+  // have populated |resp|.)
+  EXPECT_TRUE(resp.empty());
+
+  runner.Run();  // Delivers the reply; the response function quits the runner.
+
+  auto vals = DecodeVarints(resp);
+  ASSERT_EQ(vals.size(), 1u);
+  EXPECT_EQ(vals[0], 42);
+}
+
+// Multiple async requests are processed in order on the TP thread and their
+// responses arrive in order on the runner.
+TEST(RpcThreadTest, AsyncRequestsPreserveOrder) {
+  base::UnixTaskRunner runner;
+  Rpc rpc;
+  ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
+
+  constexpr int kNumQueries = 8;
+  std::vector<int64_t> got;
+  Rpc::Stream stream(rpc, [&](const void* data, uint32_t len) {
+    if (!data)
+      return;
+    std::vector<uint8_t> buf(static_cast<const uint8_t*>(data),
+                             static_cast<const uint8_t*>(data) + len);
+    for (int64_t v : DecodeVarints(buf))
+      got.push_back(v);
+    if (got.size() == static_cast<size_t>(kNumQueries))
+      runner.Quit();
+  });
+  stream.SetReplyTaskRunner(&runner);
+
+  for (int i = 0; i < kNumQueries; ++i)
+    Write(stream, EncodeQuery(/*seq=*/i + 1, "SELECT " + std::to_string(i)));
+  EXPECT_TRUE(got.empty());  // Still responsive: nothing delivered yet.
+
+  runner.Run();
+
+  ASSERT_EQ(got.size(), static_cast<size_t>(kNumQueries));
+  for (int i = 0; i < kNumQueries; ++i)
+    EXPECT_EQ(got[static_cast<size_t>(i)], i) << "position " << i;
+}
+
+// A peer that disconnects while its replies are still queued on the runner
+// must not have them delivered to a response function that no longer exists.
+TEST(RpcThreadTest, AsyncRepliesDroppedOnceStreamIsGone) {
+  base::UnixTaskRunner runner;
+  Rpc rpc;
+  ASSERT_TRUE(rpc.NotifyEndOfFile().ok());
+
+  bool delivered = false;
+  {
+    Rpc::Stream stream(rpc, [&](const void*, uint32_t) { delivered = true; });
+    stream.SetReplyTaskRunner(&runner);
+    Write(stream, EncodeQuery(/*seq=*/1, "SELECT 42"));
+    // The TP thread is FIFO, so once this blocking call returns the query has
+    // run and its replies sit in |runner|'s queue.
+    EXPECT_FALSE(rpc.GetStatus().empty());
+  }
+
+  runner.PostTask([&] { runner.Quit(); });
+  runner.Run();
+  EXPECT_FALSE(delivered);
 }
 
 }  // namespace

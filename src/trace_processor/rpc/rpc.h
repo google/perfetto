@@ -29,6 +29,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -39,8 +40,9 @@
 namespace perfetto {
 
 namespace base {
+class TaskRunner;
 class ThreadTaskRunner;
-}
+}  // namespace base
 
 namespace protos::pbzero {
 class ComputeMetricResult;
@@ -156,6 +158,22 @@ class Rpc {
     // peer's bytes in order and without gaps.
     PERFETTO_WARN_UNUSED_RESULT RequestHandle BeginRequest(size_t size);
 
+    // Opts this stream into asynchronous (non-blocking) mode. |runner| must be
+    // the task runner of the thread that calls EndRequest(). When set,
+    // EndRequest() dispatches the completed messages to the TP thread and
+    // returns immediately instead of blocking; the TP thread posts response
+    // chunks back to |runner|, which invokes |response_fn|. Pass nullptr to
+    // return to synchronous (block-and-drain) behaviour.
+    //
+    // Lifetime contract: this stream may be destroyed while replies are still
+    // queued on |runner|; they are then dropped. |runner| and the Rpc must
+    // instead outlive every request dispatched through them: the TP thread
+    // posts to |runner| until the request is done. Only usable on platforms
+    // with a TP thread (ignored under inline/wasm mode).
+    void SetReplyTaskRunner(base::TaskRunner* runner) {
+      reply_runner_ = runner;
+    }
+
    private:
     friend class Rpc;
     friend class RequestHandle;
@@ -166,6 +184,8 @@ class Rpc {
     std::unique_ptr<Outbox> outbox_;
     protozero::ProtoRingBuffer rxbuf_;
     bool request_in_flight_ = false;
+    base::TaskRunner* reply_runner_ = nullptr;
+    base::WeakPtrFactory<Stream> weak_factory_;  // Keep last.
   };
 
   // 2. TraceProcessor legacy RPC endpoints.
@@ -250,6 +270,12 @@ class Rpc {
   // back to the receiving thread. The *Internal helpers below assume the same
   // (on-TP-thread) context; the like-named public methods wrap them in
   // RunOnTpThread for direct (httpd) callers.
+  // Asynchronous counterpart of the blocking RunOnTpThread dispatch: owns the
+  // message, posts ParseRpcRequest to the TP thread and returns immediately.
+  // The handler's emitted chunks are posted back to the stream's reply runner.
+  // Only called when that is set (see Stream::SetReplyTaskRunner).
+  void DispatchAsync(Stream&, protozero::ProtoRingBuffer::Message);
+
   base::Status ParseInternal(TraceBlobView);
   base::Status NotifyEndOfFileInternal();
   void EnableMetatraceInternal(const uint8_t*, size_t);
