@@ -19,7 +19,7 @@ import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import type {Engine} from '../../trace_processor/engine';
-import { assertExists } from '../../base/assert';
+import {assertExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AvfVmCpuTimeline';
