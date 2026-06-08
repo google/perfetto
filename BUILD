@@ -3183,6 +3183,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.cc",
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.h",
+        "src/trace_processor/importers/proto/android_job_scheduler_tracker.cc",
+        "src/trace_processor/importers/proto/android_job_scheduler_tracker.h",
         "src/trace_processor/importers/proto/app_wakelock_module.cc",
         "src/trace_processor/importers/proto/app_wakelock_module.h",
         "src/trace_processor/importers/proto/args_parser.cc",
@@ -3863,6 +3865,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/io.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states_track_events.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/kernel_wakelocks.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/network_packets.sql",

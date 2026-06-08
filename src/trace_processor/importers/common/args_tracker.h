@@ -96,6 +96,8 @@ class ArgsTracker {
           reinterpret_cast<uintptr_t>(ptr_), col_, row_, key)];
     }
 
+    uint32_t row() const { return row_; }
+
    protected:
     BoundInserter(ArgsTracker* args_tracker,
                   dataframe::Dataframe* dataframe,
