@@ -2336,15 +2336,12 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
   EXPECT_NE(0, descs[2].process().pid());
   EXPECT_EQ("goodbye.exe", descs[2].name());
 
-  // The child thread records only its own thread descriptor (twice, since it
-  // was mutated).
-  ASSERT_EQ(2u, thread_descs.size());
+  // The child thread records only its own thread descriptor (once, since we
+  // defer writes).
+  ASSERT_EQ(1u, thread_descs.size());
   EXPECT_EQ("TestThread", thread_descs[0].name());
   EXPECT_NE(0, thread_descs[0].thread().pid());
   EXPECT_NE(0, thread_descs[0].thread().tid());
-  EXPECT_EQ("TestThread", thread_descs[1].name());
-  EXPECT_NE(0, thread_descs[1].thread().pid());
-  EXPECT_NE(0, thread_descs[1].thread().tid());
   EXPECT_NE(0, descs[2].process().pid());
   EXPECT_EQ("goodbye.exe", descs[2].name());
 }
@@ -2368,6 +2365,9 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
       static_cast<int32_t>(perfetto::base::GetThreadId()));
   desc.mutable_chrome_process()->set_process_priority(123);
   perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
+
+  // Emit an event to trigger the descriptor write.
+  TRACE_EVENT_INSTANT("test", "Event");
 
   auto trace = StopSessionAndReturnParsedTrace(tracing_session);
 
@@ -2819,6 +2819,127 @@ TEST_P(PerfettoApiTest, TrackDescriptorWrittenBeforeEvent) {
     EXPECT_TRUE(seen_descriptors.find(track_event.track_uuid()) !=
                 seen_descriptors.end());
   }
+}
+
+TEST_P(PerfettoApiTest, DeferredTrackDescriptorWrite) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  // Register parent track.
+  perfetto::Track track_parent(0x1000);
+  auto desc_parent = track_parent.Serialize();
+  desc_parent.set_name("ParentTrack");
+  perfetto::TrackEvent::SetTrackDescriptor(track_parent,
+                                           std::move(desc_parent));
+
+  // Register child track (used).
+  perfetto::Track track_used(0x1001, track_parent);
+  auto desc_used = track_used.Serialize();
+  desc_used.set_name("UsedTrack");
+  perfetto::TrackEvent::SetTrackDescriptor(track_used, std::move(desc_used));
+
+  perfetto::Track track_unused(0x1002);
+  auto desc_unused = track_unused.Serialize();
+  desc_unused.set_name("UnusedTrack");
+  perfetto::TrackEvent::SetTrackDescriptor(track_unused,
+                                           std::move(desc_unused));
+
+  // Emit an event only on track_used.
+  TRACE_EVENT_INSTANT("test", "EventOnUsed", track_used);
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  bool found_parent = false;
+  bool found_used = false;
+  bool found_unused = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor()) {
+      auto td = packet.track_descriptor();
+      if (td.uuid() == track_parent.uuid) {
+        EXPECT_EQ("ParentTrack", td.name());
+        found_parent = true;
+      }
+      if (td.uuid() == track_used.uuid) {
+        EXPECT_EQ("UsedTrack", td.name());
+        found_used = true;
+      }
+      if (td.uuid() == track_unused.uuid) {
+        found_unused = true;
+      }
+    }
+  }
+  EXPECT_TRUE(found_parent);
+  EXPECT_TRUE(found_used);
+  EXPECT_FALSE(found_unused);
+}
+
+TEST_P(PerfettoApiTest, DeferredTrackDescriptorWriteTwoSessions) {
+  // Session A: enables "foo" category.
+  perfetto::TraceConfig cfg_a;
+  cfg_a.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg_a = cfg_a.add_data_sources()->mutable_config();
+  ds_cfg_a->set_name("track_event");
+  perfetto::protos::gen::TrackEventConfig te_cfg_a;
+  te_cfg_a.add_enabled_categories("foo");
+  te_cfg_a.add_disabled_categories("*");
+  ds_cfg_a->set_track_event_config_raw(te_cfg_a.SerializeAsString());
+
+  // Session B: enables "bar" category.
+  perfetto::TraceConfig cfg_b;
+  cfg_b.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg_b = cfg_b.add_data_sources()->mutable_config();
+  ds_cfg_b->set_name("track_event");
+  perfetto::protos::gen::TrackEventConfig te_cfg_b;
+  te_cfg_b.add_enabled_categories("bar");
+  te_cfg_b.add_disabled_categories("*");
+  ds_cfg_b->set_track_event_config_raw(te_cfg_b.SerializeAsString());
+
+  auto* session_a = NewTrace(cfg_a);
+  session_a->get()->StartBlocking();
+
+  auto* session_b = NewTrace(cfg_b);
+  session_b->get()->StartBlocking();
+
+  // Register a custom track.
+  perfetto::Track track(0x1001);
+  auto desc = track.Serialize();
+  desc.set_name("CustomTrack");
+  perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
+
+  // Emit event on "foo" category using the custom track.
+  // This should only go to Session A.
+  TRACE_EVENT_INSTANT("foo", "FooEvent", track);
+
+  auto trace_a = StopSessionAndReturnParsedTrace(session_a);
+  auto trace_b = StopSessionAndReturnParsedTrace(session_b);
+
+  // Verify track descriptor is in Session A's trace.
+  bool found_in_a = false;
+  for (const auto& packet : trace_a.packet()) {
+    if (packet.has_track_descriptor() &&
+        packet.track_descriptor().uuid() == track.uuid) {
+      found_in_a = true;
+    }
+  }
+  EXPECT_TRUE(found_in_a);
+
+  // Verify track descriptor is NOT in Session B's trace.
+  bool found_in_b = false;
+  for (const auto& packet : trace_b.packet()) {
+    if (packet.has_track_descriptor() &&
+        packet.track_descriptor().uuid() == track.uuid) {
+      found_in_b = true;
+    }
+  }
+  EXPECT_FALSE(found_in_b);
 }
 
 TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
