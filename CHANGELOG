@@ -6,12 +6,24 @@ Unreleased:
       on only for the named producer sockets listed in
       `PERFETTO_PRODUCER_SOCK_NAME`. `--enable-relay-endpoint` retains its
       existing semantics for the common single-socket multi-machine setup.
+    * Allocation profiling (heapprofd): added partial wildcard matching support
+      to HeapprofdConfig.process_cmdline. The main limitation is that it is
+      incompatible with from-startup profiling on android, and therefore the
+      config should specify no_startup=true if any wildcard patterns are
+      included in process_cmdline. Otherwise the matching semantics are the same
+      as the perf profiling and java heap dump data sources.
   Trace Processor:
    *
   UI:
    *
   SDK:
    *
+
+v56.1 - 2026-06-04:
+  SDK:
+    * Fixed C++ SDK build failure on aarch64 with recent libstdc++ versions
+      (e.g. 12.5.0) caused by `CircularQueue::Iterator` not being default
+      constructible.
 
 v56.0 - 2026-05-21:
   Tracing service and probes:

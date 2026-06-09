@@ -588,7 +588,7 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     final long fieldId = 1;
-    final long internedTypeId = 44; // InternedData.android_job_name
+    final long internedTypeId = 2; // InternedData.event_names
     final String stringToIntern = "my_interned_string";
 
     PerfettoTrace.instant(FOO_CATEGORY, "event_with_interning")
@@ -607,9 +607,10 @@ public class PerfettoTraceTest {
     for (TracePacket packet : trace.getPacketList()) {
       if (packet.hasInternedData()) {
         InternedData internedData = packet.getInternedData();
-        if (internedData.getAndroidJobNameCount() > 0) {
-          if (internedData.getAndroidJobName(0).getName().equals(stringToIntern)) {
+        for (int i = 0; i < internedData.getEventNamesCount(); i++) {
+          if (internedData.getEventNames(i).getName().equals(stringToIntern)) {
             hasInternedString = true;
+            break;
           }
         }
       }

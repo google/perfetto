@@ -46,8 +46,14 @@ message AppWakelockInfo {
   optional int32 work_uid = 6;
 }
 
+message AndroidJobName {
+  optional uint64 iid = 1;
+  optional string name = 2;
+}
+
 message FrameworksBaseInternedData {
   extend perfetto.protos.InternedData {
     repeated AppWakelockInfo app_wakelock_info = 42;
+    repeated AndroidJobName android_job_name = 44;
   }
 }

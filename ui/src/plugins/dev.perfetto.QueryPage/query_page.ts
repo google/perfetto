@@ -17,7 +17,6 @@ import {Engine} from 'syntaqlite';
 import {assetSrc} from '../../base/assets';
 import {Icons} from '../../base/semantic_icons';
 import type {QueryResponse} from '../../components/query_table/queries';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
@@ -33,7 +32,6 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {Anchor} from '../../widgets/anchor';
-import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
 import {ResultsTable} from './results_table';
@@ -44,6 +42,7 @@ const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 export interface QueryEditorTab {
   readonly id: string;
   editorText: string;
+  queryId?: number; // Unique ID associated with the current query result (session unique only, not universally unique).
   queryResult?: QueryResponse;
   isLoading: boolean;
   title: string;
@@ -90,12 +89,6 @@ export interface QueryPageAttrs {
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  // Map of tab ID to DataSource for each tab's query results
-  private dataSources = new Map<string, DataSource>();
-
-  // Track previous query results to detect changes
-  private prevQueryResults = new Map<string, QueryResponse | undefined>();
-
   // Lazily-initialized SQL formatter engine, scoped to this component instance.
   private formatterEnginePromise?: Promise<Engine>;
 
@@ -121,31 +114,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
     const sidebarVisible = attrs.sidebarVisibleSetting.get();
-
-    // Update data sources for tabs whose results have changed
-    for (const tab of editorTabs) {
-      const prevResult = this.prevQueryResults.get(tab.id);
-      if (tab.queryResult !== prevResult) {
-        if (tab.queryResult) {
-          this.dataSources.set(
-            tab.id,
-            new InMemoryDataSource(tab.queryResult.rows),
-          );
-        } else {
-          this.dataSources.delete(tab.id);
-        }
-        this.prevQueryResults.set(tab.id, tab.queryResult);
-      }
-    }
-
-    // Clean up data sources for removed tabs
-    const tabIds = new Set(editorTabs.map((t) => t.id));
-    for (const id of this.dataSources.keys()) {
-      if (!tabIds.has(id)) {
-        this.dataSources.delete(id);
-        this.prevQueryResults.delete(id);
-      }
-    }
 
     // Build editor tabs for the left panel
     const leftTabs: TabsTab[] = editorTabs.map((tab) => ({
@@ -239,7 +207,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     tab: QueryEditorTab,
   ): m.Children {
     const {trace} = attrs;
-    const dataSource = this.dataSources.get(tab.id);
 
     const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
@@ -342,13 +309,13 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     const resp = tab.queryResult;
     const resultsPanel = resp
       ? m(ResultsTable, {
+          key: tab.queryId, // Force remount when query changes to reset internal state
           data: resp.error
             ? {kind: 'error', errorMessage: resp.error}
             : {
                 kind: 'success',
                 columns: resp.columns,
                 rows: resp.rows,
-                dataSource: dataSource!,
                 rowCount: resp.totalRowCount,
                 queryTimeMs: resp.durationMs,
                 query: resp.query,

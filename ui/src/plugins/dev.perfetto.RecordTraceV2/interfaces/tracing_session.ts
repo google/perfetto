@@ -34,7 +34,7 @@ export interface TracingSession {
   getBufferUsagePct(): Promise<number | undefined>;
 
   /** Returns the trace file captured once state === 'FINISHED'. */
-  getTraceData(): Uint8Array | undefined;
+  getTraceData(): ArrayBuffer | undefined;
 
   /**
    * Take a snapshot of this in-progress session and return its trace bytes.

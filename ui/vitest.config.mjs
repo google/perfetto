@@ -37,8 +37,10 @@ export default defineConfig({
     'process.env.NODE_ENV': JSON.stringify('test'),
   },
   test: {
-    environment: 'happy-dom',
+    environment: 'jsdom',
     globals: true,
     include: ['src/**/*_unittest.ts', 'src/**/*_jsdomtest.ts'],
+    // Registers @testing-library/jest-dom matchers (toBeInTheDocument, etc.).
+    setupFiles: ['vitest.setup.ts'],
   },
 });

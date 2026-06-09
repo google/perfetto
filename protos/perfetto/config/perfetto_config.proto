@@ -959,6 +959,34 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/display_video_config.proto
+
+// Config for the "android.display.video" data source. Unset/0 fields use
+// the producer's default.
+message DisplayVideoConfig {
+  enum Format {
+    // Default (H.264).
+    FORMAT_UNSPECIFIED = 0;
+    FORMAT_H264 = 1;
+    FORMAT_HEVC = 2;
+  }
+
+  // Scale applied to each display's resolution before capture (0.25 =
+  // quarter size).
+  optional float scale = 1;
+
+  optional Format format = 2;
+
+  // Keyframe interval in seconds. Smaller = snappier seeking, larger trace.
+  optional uint32 key_frame_interval_secs = 3;
+
+  // Per-display cap on emitted bytes. On reaching it the stream is torn
+  // down with a VideoFrameError (SIZE_CAP_HIT).
+  optional uint64 max_stream_size_bytes = 4;
+}
+
+// End of protos/perfetto/config/android/display_video_config.proto
+
 // Begin of protos/perfetto/config/android/inputmethod_config.proto
 
 // Custom configuration for the "android.inputmethod" data source.
@@ -2182,13 +2210,26 @@ message HeapprofdConfig {
   // this value.
   optional uint64 adaptive_sampling_max_sampling_interval_bytes = 25;
 
-  // E.g. surfaceflinger, com.android.phone
+  // Names of process cmdlines to profile. The semantics before perfetto v57 are
+  // as the following section (A), and on newer versions are both (A) and (B):
+  //
+  // (A) E.g. surfaceflinger, com.android.phone
   // This input is normalized in the following way: if it contains slashes,
   // everything up to the last slash is discarded. If it contains "@",
   // everything after the first @ is discared.
   // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
   // This transformation is also applied to the processes' command lines when
   // matching.
+  //
+  // (B) Perfetto v57+: a pattern may also contain a wildcard ('*'), in which
+  // case it is matched against running processes' command lines using glob
+  // semantics. If the pattern starts with '/' it is matched against the full
+  // argv0 (e.g. "/system/bin/*"), otherwise it is matched against the binary
+  // name part of argv0 (e.g. "system_*"). Wildcard patterns are *not*
+  // normalized as described above.
+  // Wildcard patterns are supported only for profiling already-running
+  // processes. A config must set no_startup=true if using wildcards, or it will
+  // be rejected.
   repeated string process_cmdline = 2;
 
   // For watermark based triggering or local debugging.
@@ -2472,6 +2513,9 @@ message JavaHprofConfig {
 
   // Do not profile processes whose anon RSS + swap < given value.
   optional uint32 min_anonymous_memory_kb = 4;
+
+  // Do not profile processes whose Java heap size < given value.
+  optional uint32 min_java_heap_size_kb = 9;
 
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
@@ -4642,7 +4686,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 142
+// Next id: 143
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4885,6 +4929,9 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.display.video
+  optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

@@ -26,6 +26,7 @@ import {chromeRecordSection} from './pages/chrome';
 import {cpuRecordSection} from './pages/cpu';
 import {gpuRecordSection} from './pages/gpu';
 import {instructionsPage} from './pages/instructions_page';
+import {linuxRecordSection} from './pages/linux';
 import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
@@ -119,6 +120,7 @@ export default class implements PerfettoPlugin {
         gpuRecordSection(),
         powerRecordSection(),
         memoryRecordSection(),
+        linuxRecordSection(),
         androidRecordSection(),
         perfettoSDKRecordSection(),
         stackSamplingRecordSection(),
