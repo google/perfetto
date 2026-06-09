@@ -152,7 +152,7 @@ function classifyError(status: number, body: string): StreamEvent {
   if (status === 429) kind = 'rate-limit';
   else if (status === 401 || status === 403) kind = 'auth';
   else if (status === 400 && /context|maximum.*token|too long/i.test(body))
-    kind = 'context-length';
+    {kind = 'context-length';}
   else kind = 'unknown';
   return {
     type: 'stop',
@@ -194,7 +194,12 @@ const CREDENTIAL_FIELDS: ReadonlyArray<CredentialField> = [
 class ToolCallAssembler {
   private readonly byKey = new Map<
     string,
-    {id?: string; name: string; argsStr: string; argsObj?: Record<string, unknown>}
+    {
+      id?: string;
+      name: string;
+      argsStr: string;
+      argsObj?: Record<string, unknown>;
+    }
   >();
   private fallbackSeq = 0;
 
@@ -206,7 +211,7 @@ class ToolCallAssembler {
       const key =
         tc.index !== undefined
           ? `i${tc.index}`
-          : (tc.id ?? `seq${this.fallbackSeq++}`);
+          : tc.id ?? `seq${this.fallbackSeq++}`;
       const cur = this.byKey.get(key) ?? {name: '', argsStr: ''};
 
       const rawArgs = tc.function?.arguments;
@@ -274,7 +279,7 @@ export class OpenAiProtocol implements Protocol {
         : {}),
     };
 
-    // eslint-disable-next-line no-console
+
     DEBUG_SSE &&
       console.log(
         '[openai-sse] request tools:',
@@ -319,7 +324,6 @@ export class OpenAiProtocol implements Protocol {
         yield {type: 'text', text: delta.content};
       }
       if (delta?.tool_calls) {
-        // eslint-disable-next-line no-console
         DEBUG_SSE &&
           console.log(
             '[openai-sse] tool_calls delta:',
@@ -346,7 +350,7 @@ export class OpenAiProtocol implements Protocol {
 
     // Emit assembled tool calls (if any) before the terminal stop event.
     const calls = assembler.finish();
-    // eslint-disable-next-line no-console
+
     DEBUG_SSE &&
       console.log('[openai-sse] assembled calls:', JSON.stringify(calls));
     for (const call of calls) {
@@ -388,7 +392,7 @@ async function* parseSse(
         .map((l) => l.slice(5).trimStart())
         .join('');
       if (!payload || payload === '[DONE]') continue;
-      // eslint-disable-next-line no-console
+
       DEBUG_SSE && console.log('[openai-sse] raw:', payload);
       try {
         yield JSON.parse(payload) as StreamChunk;

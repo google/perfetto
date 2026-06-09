@@ -66,7 +66,9 @@ export const PROVIDER_SCHEMA = z.object({
   label: z.string(),
   // Credential bag keyed by the protocol's CredentialField.key. API keys live
   // here; mark the field secret in the protocol so export can strip it.
-  credentials: z.record(z.string(), z.string().meta({secret: true})).default({}),
+  credentials: z
+    .record(z.string(), z.string().meta({secret: true}))
+    .default({}),
   // The models this provider surfaces.
   models: z.array(MODEL_SCHEMA).default([]),
 });

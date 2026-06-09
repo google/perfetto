@@ -29,10 +29,7 @@ import {
   SELECTED_MODEL_SCHEMA,
   type SelectedModelRef,
 } from './provider';
-import {
-  renderDefaultModelSetting,
-  renderProvidersSetting,
-} from './settings_ui';
+import {renderDefaultModelSetting, renderProvidersSetting} from './settings_ui';
 
 export default class LlmPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Llm';

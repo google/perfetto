@@ -168,9 +168,7 @@ function renderProvider(
 
     // The model catalog.
     m('.pf-llm-provider__models-label', 'Models'),
-    provider.models.map((model) =>
-      renderModelRow(setting, provider, model),
-    ),
+    provider.models.map((model) => renderModelRow(setting, provider, model)),
     m(Button, {
       label: 'Add model',
       icon: 'add',

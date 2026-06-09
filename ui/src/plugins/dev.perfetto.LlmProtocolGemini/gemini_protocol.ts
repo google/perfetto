@@ -141,7 +141,7 @@ function classifyError(status: number, body: string): StreamEvent {
   if (status === 429) kind = 'rate-limit';
   else if (status === 401 || status === 403) kind = 'auth';
   else if (status === 400 && /token|context|too long/i.test(body))
-    kind = 'context-length';
+    {kind = 'context-length';}
   else kind = 'unknown';
   return {
     type: 'stop',
