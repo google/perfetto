@@ -37,6 +37,7 @@ import {
   LONG,
   NUM,
   NUM_NULL,
+  type SqlValue,
   STR,
   STR_NULL,
   UNKNOWN,
@@ -148,7 +149,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         });
 
         const states: BarChartData[] = [];
-        for (let i = 0; it.valid(); ++i, it.next()) {
+        for (; it.valid(); it.next()) {
           const name = it.state ?? 'Unknown';
           states.push({
             title: `${name}: ${Duration.humanise(it.totalDur)}`,
@@ -199,7 +200,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             const parsed = JSON.parse(value) as {
               id: number;
               groupid: number;
-              partition: unknown;
+              partition: SqlValue;
             };
             const {id, groupid, partition} = parsed;
 
@@ -280,7 +281,10 @@ export class ThreadStateSelectionAggregator implements Aggregator {
   /**
    * Resolve a track from lineage information.
    */
-  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+  private resolveTrack(
+    groupId: number,
+    partition: SqlValue,
+  ): Track | undefined {
     if (!this.trackDatasetMap || !this.unionDataset) return undefined;
 
     // Ensure partition is a valid SqlValue

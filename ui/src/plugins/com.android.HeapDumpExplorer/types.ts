@@ -126,7 +126,7 @@ export interface InstanceDetail {
     width: number;
     height: number;
     format: string;
-    data: Uint8Array;
+    data: Uint8Array<ArrayBuffer>;
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];

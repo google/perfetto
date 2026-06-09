@@ -402,7 +402,7 @@ struct PerfettoTeHlMacroNameAndType {
       struct PerfettoTeHlNestedTrack*,           \
       PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(       \
           PerfettoTeHlNestedTrackNamed,          \
-          {{PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED}, NAME, ID}))
+          {{PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED}, NAME, ID, false}))
 
 // A track uniquely identified by `ID` (a uint64_t) and its parent hierarchy.
 // The rest of the params should be PERFETTO_TE_PROTO_FIELD_* macros and should

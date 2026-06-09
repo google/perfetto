@@ -1191,6 +1191,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDpuDispDpuLineUnderrunFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispDpuLineUnderrun(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kDpuDispFrameStartTimeoutFieldNumber: {
         pixel_display_tracker_.ParseDpuDispFrameStartTimeout(ts, fld_bytes);
         break;

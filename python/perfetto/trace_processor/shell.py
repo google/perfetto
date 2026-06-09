@@ -44,12 +44,14 @@ def load_shell(
     load_timeout: int = 2,
     extra_flags: Optional[List[str]] = None,
     add_sql_packages: Optional[List[Union[str, 'SqlPackage']]] = None,
+    fetch_latest_trace_processor: bool = False,
 ):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
   url = f'{addr}:{str(port)}'
 
-  shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
+  shell_path = platform_delegate.get_shell_path(
+      bin_path=bin_path, fetch_latest=fetch_latest_trace_processor)
 
   # get Python interpreter path
   if not getattr(sys, 'frozen', False):

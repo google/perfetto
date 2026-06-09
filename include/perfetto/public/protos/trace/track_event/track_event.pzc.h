@@ -47,7 +47,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TaskExecution);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent_Callstack);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent_Callstack_Frame);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent_LegacyEvent);
-PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent_State);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackEvent, Type){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackEvent,
@@ -300,11 +299,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   chrome_mojo_event_info,
                   38);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
-                  MSG,
-                  perfetto_protos_TrackEvent_State,
-                  state,
-                  57);
-PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   VARINT,
                   int64_t,
                   timestamp_delta_us,
@@ -421,8 +415,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_LegacyEvent,
                   int32_t,
                   tid_override,
                   19);
-
-PERFETTO_PB_MSG(perfetto_protos_TrackEvent_State);
 
 PERFETTO_PB_MSG(perfetto_protos_TrackEvent_Callstack);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_Callstack,

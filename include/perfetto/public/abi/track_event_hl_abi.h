@@ -322,6 +322,8 @@ struct PerfettoTeHlNestedTrackNamed {
   const char* name;
   // Partially identifies the track, along `name` and the parent hierarchy.
   uint64_t id;
+  // If true, `name` is a compile-time constant and is emitted as static_name.
+  bool is_name_static;
 };
 
 struct PerfettoTeHlNestedTrackProto {

@@ -20,17 +20,19 @@ from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 ARGS_WITH_DEFAULTS_TABLE = Table(
     python_module=__file__,
     class_name='WinscopeArgsWithDefaultsTable',
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name='__intrinsic_winscope_proto_to_args_with_defaults',
     columns=[
         C("table_name",
           CppString(),
           flags=ColumnFlag.HIDDEN,
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C(
             'base64_proto_id',
             CppUint32(),
@@ -39,12 +41,12 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
         C(
             'flat_key',
             CppString(),
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
             'key',
             CppString(),
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
             'int_value',
@@ -54,7 +56,7 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
         C(
             'string_value',
             CppOptional(CppString()),
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
             'real_value',
@@ -64,7 +66,7 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
         C(
             'value_type',
             CppString(),
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
     ],
 )

@@ -959,6 +959,34 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/display_video_config.proto
+
+// Config for the "android.display.video" data source. Unset/0 fields use
+// the producer's default.
+message DisplayVideoConfig {
+  enum Format {
+    // Default (H.264).
+    FORMAT_UNSPECIFIED = 0;
+    FORMAT_H264 = 1;
+    FORMAT_HEVC = 2;
+  }
+
+  // Scale applied to each display's resolution before capture (0.25 =
+  // quarter size).
+  optional float scale = 1;
+
+  optional Format format = 2;
+
+  // Keyframe interval in seconds. Smaller = snappier seeking, larger trace.
+  optional uint32 key_frame_interval_secs = 3;
+
+  // Per-display cap on emitted bytes. On reaching it the stream is torn
+  // down with a VideoFrameError (SIZE_CAP_HIT).
+  optional uint64 max_stream_size_bytes = 4;
+}
+
+// End of protos/perfetto/config/android/display_video_config.proto
+
 // Begin of protos/perfetto/config/android/inputmethod_config.proto
 
 // Custom configuration for the "android.inputmethod" data source.
@@ -1394,9 +1422,9 @@ message EtwConfig {
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
   // Provides events relating to file I/O.
-  repeated string file_provider_events = 4;
+  repeated string file_provider_events = 4 [deprecated = true];
   // Events for which stacks should be collected.
-  repeated string stack_sampling_events = 5 [deprecated = true];
+  repeated string stack_sampling_events = 5;
   // Provides events relating to disk I/O.
   repeated string disk_provider_events = 6 [deprecated = true];
   // Provides events relating to multiple kinds of IO including disk, cache, and
@@ -2182,13 +2210,26 @@ message HeapprofdConfig {
   // this value.
   optional uint64 adaptive_sampling_max_sampling_interval_bytes = 25;
 
-  // E.g. surfaceflinger, com.android.phone
+  // Names of process cmdlines to profile. The semantics before perfetto v57 are
+  // as the following section (A), and on newer versions are both (A) and (B):
+  //
+  // (A) E.g. surfaceflinger, com.android.phone
   // This input is normalized in the following way: if it contains slashes,
   // everything up to the last slash is discarded. If it contains "@",
   // everything after the first @ is discared.
   // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
   // This transformation is also applied to the processes' command lines when
   // matching.
+  //
+  // (B) Perfetto v57+: a pattern may also contain a wildcard ('*'), in which
+  // case it is matched against running processes' command lines using glob
+  // semantics. If the pattern starts with '/' it is matched against the full
+  // argv0 (e.g. "/system/bin/*"), otherwise it is matched against the binary
+  // name part of argv0 (e.g. "system_*"). Wildcard patterns are *not*
+  // normalized as described above.
+  // Wildcard patterns are supported only for profiling already-running
+  // processes. A config must set no_startup=true if using wildcards, or it will
+  // be rejected.
   repeated string process_cmdline = 2;
 
   // For watermark based triggering or local debugging.
@@ -2472,6 +2513,9 @@ message JavaHprofConfig {
 
   // Do not profile processes whose anon RSS + swap < given value.
   optional uint32 min_anonymous_memory_kb = 4;
+
+  // Do not profile processes whose Java heap size < given value.
+  optional uint32 min_java_heap_size_kb = 9;
 
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
@@ -4642,7 +4686,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 142
+// Next id: 143
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4885,6 +4929,9 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.display.video
+  optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -9988,6 +10035,11 @@ message DpuDispFrameStartMissingFtraceEvent {
   optional int32 frames_pending = 3;
   optional int32 te_count = 4;
 }
+message DpuDispDpuLineUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -14233,6 +14285,7 @@ message FtraceEvent {
     DpuDispFrameStartMissingFtraceEvent dpu_disp_frame_start_missing = 610;
     PanelSettingsFullFtraceEvent panel_settings_full = 611;
     PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
+    DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
   }
 }
 
@@ -16274,10 +16327,12 @@ message TrackEvent {
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
 
-    // Event that provides a state value update for a state track. |track_uuid|
-    // should refer to a state track, and the state value update is carried in
-    // the |state| field. An empty or unset state field indicates "no state" /
-    // "idle".
+    // Event that provides a state value update for a state track. Think of this
+    // as a symbolic counter (a TYPE_COUNTER with literals rather then numbers).
+    // |track_uuid| should refer to a state track, and the state value update is
+    // carried in the |state| field. An empty or unset state field indicates "no
+    // state" / "idle". For more details, see
+    // [RFC-0023](https://github.com/google/perfetto/discussions/5549).
     TYPE_STATE = 5;
   }
   optional Type type = 9;
@@ -16495,16 +16550,6 @@ message TrackEvent {
 
   optional ChromeMessagePump chrome_message_pump = 35;
   optional ChromeMojoEventInfo chrome_mojo_event_info = 38;
-
-  // Represents the state value for a state track.
-  message State {
-    // Extension range for typed events defined in external projects.
-    // See protos/perfetto/trace/extensions.json for the allocation registry and
-    // docs/instrumentation/extensions.md for more details.
-    extensions 1000 to 9999;
-  }
-  // State update value. Only supported/set when type is TYPE_STATE.
-  optional State state = 57;
 
   // New argument types go here :)
 
@@ -16777,28 +16822,24 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
-  // Interned job names for Android Job Names. These are separate from
-  // other strings because they are under app control.
-  repeated AndroidJobName android_job_name = 44;
-
   // Description of GPU counters available in a data source.
   repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
 
-  // App wakelock (AppWakelockInfo). Schema:
+  // Extensions reserved for Android frameworks/base interned data. Schema:
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
+
+  // App wakelock (AppWakelockInfo).
   extensions 42;
+
+  // Android job names (AndroidJobName).
+  extensions 44;
 
   // Extension range for domain-specific interned data. See
   // protos/perfetto/trace/extensions.json for the allocation registry.
   extensions 1000 to 9999;
-}
-
-message AndroidJobName {
-  optional uint64 iid = 1;
-  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto

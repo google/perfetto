@@ -87,25 +87,6 @@
       ]
     },
     {
-      "scope": "perfetto.protos.TrackEvent.State",
-      "range": [1000, 9999],
-      "allocations": [
-        {
-          "name": "unallocated",
-          "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1000, 8999]
-        },
-        {
-          "name": "perfetto_tests",
-          "range": [9000, 9999],
-          "contact": "perfetto-dev@googlegroups.com",
-          "description": "Reserved for Perfetto unit and integration tests",
-          "proto": "protos/perfetto/trace/test_extensions.proto"
-        }
-      ]
-    },
-
-    {
       "scope": "perfetto.protos.TracePacket",
       "ranges": [[116, 116], [1000, 1999]],
       "allocations": [
@@ -114,22 +95,23 @@
           "description": "frameworks/base TracePacket extensions",
           "comment": [
             "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto.",
-            "Wrapper: FrameworksBaseTracePacket."
+            "Wrapper: FrameworksBaseTracePacket.",
+            "1000: VideoFrame video_frame, 1001: VideoFrameError video_frame_error."
           ],
-          "range": [116, 116],
+          "ranges": [[116, 116], [1000, 1001]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },
         {
           "name": "unallocated",
           "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1000, 1999]
+          "range": [1002, 1999]
         }
       ]
     },
     {
       "scope": "perfetto.protos.InternedData",
-      "ranges": [[42, 42], [1000, 9999]],
+      "ranges": [[42, 42], [44, 44], [1000, 9999]],
       "allocations": [
         {
           "name": "android_frameworks_base",
@@ -138,7 +120,7 @@
             "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto.",
             "Wrapper: FrameworksBaseInternedData."
           ],
-          "range": [42, 42],
+          "ranges": [[42, 42], [44, 44]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },

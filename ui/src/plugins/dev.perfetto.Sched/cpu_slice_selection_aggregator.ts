@@ -31,7 +31,12 @@ import {
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
 import type {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, UNKNOWN} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  type SqlValue,
+  UNKNOWN,
+} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
 const CPU_SLICE_SPEC = {
@@ -158,7 +163,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             const parsed = JSON.parse(value) as {
               id: number;
               groupid: number;
-              partition: unknown;
+              partition: SqlValue;
             };
             const {id, groupid, partition} = parsed;
 
@@ -230,7 +235,10 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   /**
    * Resolve a track from lineage information.
    */
-  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+  private resolveTrack(
+    groupId: number,
+    partition: SqlValue,
+  ): Track | undefined {
     if (!this.trackDatasetMap || !this.unionDataset) return undefined;
 
     // Ensure partition is a valid SqlValue
