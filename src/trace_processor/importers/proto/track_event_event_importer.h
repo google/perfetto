@@ -676,76 +676,23 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
-  std::optional<std::string> FormatStateValue(ConstBytes state_bytes) {
-    using protos::pbzero::FieldDescriptorProto;
-
-    protozero::ProtoDecoder decoder(state_bytes.data, state_bytes.size);
-
-    auto state_idx = context_->descriptor_pool_->FindDescriptorIdx(
-        ".perfetto.protos.TrackEvent.State");
-    const ProtoDescriptor* state_desc =
-        state_idx ? &context_->descriptor_pool_->descriptors()[*state_idx]
-                  : nullptr;
-
-    for (auto field = decoder.ReadField(); field.valid();
-         field = decoder.ReadField()) {
-      const FieldDescriptor* field_desc =
-          state_desc ? state_desc->FindFieldByTag(field.id()) : nullptr;
-      if (field_desc && field_desc->is_extension()) {
-        // For enums, look up the string name.
-        if (field_desc->type() == FieldDescriptorProto::TYPE_ENUM) {
-          auto enum_idx = context_->descriptor_pool_->FindDescriptorIdx(
-              field_desc->resolved_type_name());
-          if (enum_idx) {
-            const ProtoDescriptor* enum_desc =
-                &context_->descriptor_pool_->descriptors()[*enum_idx];
-            auto enum_name = enum_desc->FindEnumString(field.as_int32());
-            if (enum_name) {
-              return *enum_name;
-            }
-          }
-          return std::to_string(field.as_int32());
-        }
-        // For strings, get the string directly.
-        if (field_desc->type() == FieldDescriptorProto::TYPE_STRING) {
-          return field.as_std_string();
-        }
-        // For all integer and numeric types.
-        if (field.type() == protozero::proto_utils::ProtoWireType::kVarInt) {
-          return std::to_string(field.as_int64());
-        }
-        // Fallback:
-        return "Field " + std::to_string(field.id());
-      }
-    }
-    return std::nullopt;
-  }
-
   base::Status ParseStateEvent() {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationState());
 
     StringId state_id = kNullStringId;
     bool is_termination = true;
 
-    if (event_.has_state()) {
-      auto formatted = FormatStateValue(event_.state());
-      if (formatted.has_value()) {
+    if (event_.has_name_iid()) {
+      auto* decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kEventNamesFieldNumber,
+          protos::pbzero::EventName>(event_.name_iid());
+      if (decoder) {
         is_termination = false;
-        state_id = storage_->InternString(base::StringView(*formatted));
+        state_id = storage_->InternString(decoder->name());
       }
-    } else {
-      if (event_.has_name_iid()) {
-        auto* decoder = sequence_state_->LookupInternedMessage<
-            protos::pbzero::InternedData::kEventNamesFieldNumber,
-            protos::pbzero::EventName>(event_.name_iid());
-        if (decoder) {
-          is_termination = false;
-          state_id = storage_->InternString(decoder->name());
-        }
-      } else if (event_.has_name()) {
-        is_termination = false;
-        state_id = storage_->InternString(event_.name());
-      }
+    } else if (event_.has_name()) {
+      is_termination = false;
+      state_id = storage_->InternString(event_.name());
     }
 
     if (is_termination) {
