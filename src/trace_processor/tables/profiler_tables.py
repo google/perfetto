@@ -663,7 +663,7 @@ HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphJavaOomeDetailsTable',
     sql_name='__intrinsic_heap_graph_java_oome_details',
-    wrapping_sql_view=WrappingSqlView('heap_graph_java_oome_details'),
+    wrapping_sql_view=WrappingSqlView('android_heap_graph_java_oome_details'),
     columns=[
         C(
             'heap_graph_id',

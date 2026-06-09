@@ -1,0 +1,235 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/plugins/art_oome_importer/art_oome_module.h"
+
+#include <cstdint>
+#include <optional>
+#include <vector>
+
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/profiling/art_process_metadata.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+
+namespace perfetto::trace_processor {
+
+using protos::pbzero::TracePacket;
+
+namespace {
+
+UniquePid GetOrCreateProcess(TraceProcessorContext* context,
+                             uint32_t pid,
+                             std::optional<base::StringView> process_name,
+                             std::optional<uint32_t> uid) {
+  context->process_tracker->UpdateThread(pid, pid);
+  UniquePid upid = context->process_tracker->GetOrCreateProcess(pid);
+
+  if (process_name.has_value()) {
+    StringId process_name_id = context->storage->InternString(*process_name);
+    context->process_tracker->UpdateProcessName(
+        upid, process_name_id, ProcessNamePriority::kTrackDescriptor);
+  }
+  if (uid.has_value()) {
+    context->process_tracker->SetProcessUid(upid, *uid);
+  }
+  return upid;
+}
+
+void UpdatePackageList(TraceProcessorContext* context,
+                       base::StringView package_name,
+                       int64_t uid) {
+  StringId package_name_id = context->storage->InternString(package_name);
+  auto* package_list = context->storage->mutable_package_list_table();
+  bool found = false;
+  for (auto it = package_list->IterateRows(); it; ++it) {
+    if (it.package_name() == package_name_id && it.uid() == uid) {
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    context->storage->mutable_package_list_table()->Insert(
+        {package_name_id, uid, /*debuggable*/ false,
+         /*profileable_from_shell*/ false, /*version_code*/ 0});
+  }
+}
+
+tables::HeapGraphTable::Id InsertHeapGraph(TraceProcessorContext* context,
+                                           int64_t ts,
+                                           UniquePid upid) {
+  tables::HeapGraphTable::Row heap_graph_row;
+  heap_graph_row.ts = ts;
+  heap_graph_row.upid = upid;
+  heap_graph_row.dump_reason = context->storage->InternString("OOME");
+
+  return context->storage->mutable_heap_graph_table()
+      ->Insert(heap_graph_row)
+      .id;
+}
+
+void InsertOomeDetails(TraceProcessorContext* context,
+                       tables::HeapGraphTable::Id heap_graph_id,
+                       int64_t byte_count,
+                       int64_t total_bytes_free,
+                       int64_t free_bytes_until_oom,
+                       std::optional<base::StringView> error_msg) {
+  tables::HeapGraphJavaOomeDetailsTable::Row oome_details_row;
+  oome_details_row.heap_graph_id = heap_graph_id;
+  oome_details_row.byte_count = byte_count;
+  oome_details_row.total_bytes_free = total_bytes_free;
+  oome_details_row.free_bytes_until_oom = free_bytes_until_oom;
+
+  if (error_msg.has_value()) {
+    oome_details_row.error_msg = context->storage->InternString(*error_msg);
+  }
+
+  context->storage->mutable_heap_graph_java_oome_details_table()->Insert(
+      oome_details_row);
+}
+
+void InsertOomeHeapGraphCallsite(TraceProcessorContext* context,
+                                 tables::HeapGraphTable::Id heap_graph_id,
+                                 uint32_t pid,
+                                 protozero::ConstBytes stack_bytes,
+                                 DummyMemoryMapping*& art_oome_mapping) {
+  protos::pbzero::JavaStack::Decoder stack_decoder(stack_bytes.data,
+                                                   stack_bytes.size);
+
+  std::vector<::protozero::ConstBytes> raw_frames;
+  for (auto it = stack_decoder.frames(); it; ++it) {
+    raw_frames.push_back(*it);
+  }
+
+  std::optional<CallsiteId> current_callsite_id = std::nullopt;
+  uint32_t depth = 0;
+
+  if (!art_oome_mapping) {
+    art_oome_mapping =
+        &context->mapping_tracker->CreateDummyMapping("art_oome");
+  }
+
+  for (auto it = raw_frames.rbegin(); it != raw_frames.rend(); ++it) {
+    protos::pbzero::JavaFrame::Decoder frame_decoder(*it);
+    if (!frame_decoder.has_method_name()) {
+      continue;
+    }
+
+    base::StringView method_name(
+        reinterpret_cast<const char*>(frame_decoder.method_name().data),
+        frame_decoder.method_name().size);
+
+    std::optional<base::StringView> source_file = std::nullopt;
+    if (frame_decoder.has_source_file()) {
+      source_file = base::StringView(
+          reinterpret_cast<const char*>(frame_decoder.source_file().data),
+          frame_decoder.source_file().size);
+    }
+
+    std::optional<uint32_t> line_number = std::nullopt;
+    if (frame_decoder.has_line_number()) {
+      line_number = static_cast<uint32_t>(frame_decoder.line_number());
+    }
+
+    FrameId frame_id = art_oome_mapping->InternDummyFrame(
+        method_name, source_file, line_number);
+
+    current_callsite_id = context->stack_profile_tracker->InternCallsite(
+        current_callsite_id, frame_id, depth++);
+  }
+
+  tables::HeapGraphThreadCallsiteTable::Row callsite_row;
+  callsite_row.heap_graph_id = heap_graph_id;
+  UniqueTid utid = context->process_tracker->UpdateThread(pid, pid);
+  callsite_row.utid = utid;
+  callsite_row.callsite_id = current_callsite_id;
+
+  context->storage->mutable_heap_graph_thread_callsite_table()->Insert(
+      callsite_row);
+}
+
+}  // namespace
+
+ArtOomeModule::ArtOomeModule(ProtoImporterModuleContext* module_context,
+                             TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kArtProcessMetadataFieldNumber);
+}
+
+ArtOomeModule::~ArtOomeModule() = default;
+
+void ArtOomeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
+                                         int64_t ts,
+                                         const TracePacketData&,
+                                         uint32_t field_id) {
+  switch (field_id) {
+    case TracePacket::kArtProcessMetadataFieldNumber:
+      ParseArtProcessMetadata(ts, decoder.art_process_metadata());
+      return;
+  }
+}
+
+void ArtOomeModule::ParseArtProcessMetadata(int64_t ts,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::ArtProcessMetadata::Decoder decoder(blob.data, blob.size);
+  if (!decoder.has_oom_allocation_size()) {
+    return;
+  }
+
+  uint32_t pid = static_cast<uint32_t>(decoder.pid());
+  std::optional<base::StringView> process_name;
+  if (decoder.has_process_name()) {
+    process_name = decoder.process_name();
+  }
+  std::optional<uint32_t> uid;
+  if (decoder.has_uid()) {
+    uid = static_cast<uint32_t>(decoder.uid());
+  }
+
+  UniquePid upid = GetOrCreateProcess(context_, pid, process_name, uid);
+
+  if (decoder.has_package_name() && decoder.has_uid()) {
+    UpdatePackageList(context_, decoder.package_name(), decoder.uid());
+  }
+
+  tables::HeapGraphTable::Id heap_graph_id =
+      InsertHeapGraph(context_, ts, upid);
+
+  std::optional<base::StringView> error_msg;
+  if (decoder.has_oom_error_msg()) {
+    error_msg = decoder.oom_error_msg();
+  }
+
+  InsertOomeDetails(context_, heap_graph_id,
+                    static_cast<int64_t>(decoder.oom_allocation_size()),
+                    static_cast<int64_t>(decoder.oom_total_bytes_free()),
+                    static_cast<int64_t>(decoder.oom_free_bytes_until_oom()),
+                    error_msg);
+
+  if (decoder.has_oom_thread_java_stack()) {
+    InsertOomeHeapGraphCallsite(context_, heap_graph_id, pid,
+                                decoder.oom_thread_java_stack(),
+                                art_oome_mapping_);
+  }
+}
+
+}  // namespace perfetto::trace_processor

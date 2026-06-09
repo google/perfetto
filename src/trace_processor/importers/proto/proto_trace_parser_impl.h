@@ -53,7 +53,6 @@ class ProtoTraceParserImpl {
   void ParseInlineSchedWaking(uint32_t cpu,
                               int64_t /*ts*/,
                               InlineSchedWaking data);
-  void ParseArtProcessMetadata(int64_t ts, ConstBytes blob);
 
  private:
   StringId GetMetatraceInternedString(uint64_t iid);
@@ -72,7 +71,6 @@ class ProtoTraceParserImpl {
   const StringId missing_metatrace_interned_string_id_;
 
   base::FlatHashMap<uint64_t, StringId> metatrace_interned_strings_;
-  DummyMemoryMapping* art_oome_mapping_ = nullptr;
 };
 
 }  // namespace trace_processor

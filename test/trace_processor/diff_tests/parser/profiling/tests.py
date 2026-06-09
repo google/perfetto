@@ -629,6 +629,8 @@ class Profiling(TestSuite):
         }
         """),
         query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
+
         SELECT
           g.ts,
           p.name AS process_name,
@@ -638,7 +640,7 @@ class Profiling(TestSuite):
           o.free_bytes_until_oom,
           o.error_msg
         FROM heap_graph g
-        JOIN heap_graph_java_oome_details o ON o.heap_graph_id = g.id
+        JOIN android_heap_graph_java_oome_details o ON o.heap_graph_id = g.id
         JOIN process p ON g.upid = p.upid;
         """,
         out=Csv("""
