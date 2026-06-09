@@ -10,6 +10,32 @@ I am far from having a full complete design. But it's time to drop thoughts onto
 a document to have a skeleton with the big picture. We'll fan out dedicated RFCs
 from here once things crystallise.
 
+## Status update and open TODOs
+
+Last Update: 2026-06-09.
+
+A number of things here require re-thinking and update of this RFC:
+
+- We need to rethink the Writer ID in the Chunk header. After writing
+  [RFC 28](0028-tracing-protocol-routing.md) I realized that QoS needs to be
+  a key part of the new protocol.
+- QoS channels - which then will map to SMB Ring Buffers - needs more thinking
+  about all the possible edge cases, as we are introducing a new concept that
+  spands across the lifetime of one session.
+- For non-routing-aware cases, we need to put the target buffer ID somewhere
+  in the chunk. Today the buffer ID is known by traced in two ways:
+  - For regular commits it's part of the CommitDataRequest IPC. But this no
+    longer holds in the new protocol as we are getting rid of IPCs to make
+    commits and replacing them with a futex.
+  - For SMB scraping, it relies on RegisterTraceWriter IPCs, which I never liked
+    as an abstraction since the day they have been introduced.
+- Chunk header: i'm conflicted on whether we should use:
+  - the payload size (which in theory could stay local, and not in the SMB).
+    The main issue here is the drama of "what if we want > 256 bytes?"
+  - the number of fragments
+  - Nothing, and instead we use an EGROUP after each packet/fragment as an EOF
+    marker.
+
 ## Problems
 
 Over the years we have accumulated a number of issues with the current tracing
