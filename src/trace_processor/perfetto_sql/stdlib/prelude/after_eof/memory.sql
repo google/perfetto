@@ -282,3 +282,57 @@ CREATE PERFETTO VIEW memory_snapshot_edge(
 AS
 SELECT id, source_node_id, target_node_id, importance
 FROM __intrinsic_memory_snapshot_edge;
+
+-- A list of heap graphs (heap dumps) captured during the trace.
+CREATE PERFETTO VIEW heap_graph(
+  -- Unique identifier for this heap graph instance.
+  id ID,
+  -- Timestamp of the heap dump in nanoseconds.
+  ts TIMESTAMP,
+  -- Unique PID of the target.
+  upid JOINID(process.upid),
+  -- Reason why the heap graph was dumped (e.g. OOME, periodic, manual).
+  dump_reason STRING
+)
+AS
+SELECT id, ts, upid, dump_reason FROM __intrinsic_heap_graph;
+
+-- Callstack profiles of threads at the time of heap graphs.
+CREATE PERFETTO VIEW heap_graph_thread_callsite(
+  -- Unique identifier for this mapping row.
+  id ID,
+  -- The heap graph instance.
+  heap_graph_id JOINID(heap_graph.id),
+  -- The thread ID.
+  utid JOINID(thread.id),
+  -- The callsite of the leaf frame of the stacktrace.
+  callsite_id JOINID(stack_profile_callsite.id)
+)
+AS
+SELECT id, heap_graph_id, utid, callsite_id
+FROM __intrinsic_heap_graph_thread_callsite;
+
+-- Details of Java OutOfMemoryError exceptions that triggered heap dumps.
+CREATE PERFETTO VIEW heap_graph_java_oome_details(
+  -- Unique identifier for this details row.
+  id ID,
+  -- The heap graph instance this OOM trigger details belongs to.
+  heap_graph_id JOINID(heap_graph.id),
+  -- Number of bytes that triggered the OOME.
+  byte_count LONG,
+  -- Total free bytes in the Java heap at OOME time.
+  total_bytes_free LONG,
+  -- Free bytes remaining until OOME.
+  free_bytes_until_oom LONG,
+  -- Error message associated with the OOME exception.
+  error_msg STRING
+)
+AS
+SELECT
+  id,
+  heap_graph_id,
+  byte_count,
+  total_bytes_free,
+  free_bytes_until_oom,
+  error_msg
+FROM __intrinsic_heap_graph_java_oome_details;
