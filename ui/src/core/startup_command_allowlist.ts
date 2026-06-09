@@ -42,6 +42,10 @@ export const STARTUP_COMMAND_ALLOWLIST: string[] = [
   // Note commands
   'dev.perfetto.AddNoteAtTimestamp',
 
+  // Android CUJ commands
+  'com.android.PinAndPanCujByName',
+  'com.android.PinAndPanCujById',
+
   // Commands will be added here based on user suggestions
 ];
 

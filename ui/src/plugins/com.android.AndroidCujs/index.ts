@@ -16,6 +16,8 @@ import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
+import {focusOnSlice} from './trackUtils';
+import {NUM, STR} from '../../trace_processor/query_result';
 
 /**
  * Adds the Debug Slice Track for given Jank CUJ name
@@ -329,6 +331,26 @@ export default class implements PerfettoPlugin {
         );
       },
     });
+
+    ctx.commands.registerCommand({
+      id: 'com.android.PinAndPanCujByName',
+      name: 'Pin and Pan: Android CUJ by name',
+      callback: async (cujName?: unknown) => {
+        const name = typeof cujName === 'string' ? cujName : await ctx.omnibox.prompt('CUJ name');
+        if (name === undefined) return;
+        await this.pinAndPanCuj(ctx, name, undefined);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'com.android.PinAndPanCujById',
+      name: 'Pin and Pan: Android CUJ by ID',
+      callback: async (cujId?: unknown) => {
+        const id = typeof cujId === 'string' || typeof cujId === 'number' ? String(cujId) : await ctx.omnibox.prompt('CUJ ID');
+        if (id === undefined) return;
+        await this.pinAndPanCuj(ctx, undefined, id);
+      },
+    });
   }
 
   async pinJankCujs(ctx: Trace) {
@@ -345,5 +367,60 @@ export default class implements PerfettoPlugin {
       },
       title: 'Latency CUJs',
     });
+  }
+
+  private async pinAndPanCuj(
+    ctx: Trace,
+    cujName?: string,
+    cujId?: string,
+  ): Promise<void> {
+    await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+    `);
+
+    let query = '';
+    if (cujId !== undefined) {
+      const idNum = parseInt(cujId, 10);
+      if (isNaN(idNum)) return;
+      query = `
+        SELECT slice_id, cuj_name, cuj_type
+        FROM android_jank_latency_cujs
+        WHERE cuj_id = ${idNum} OR id = ${idNum}
+        LIMIT 1
+      `;
+    } else if (cujName !== undefined) {
+      const cleanName = cujName.replace(/^J<|>$|^L</g, '');
+      query = `
+        SELECT slice_id, cuj_name, cuj_type
+        FROM android_jank_latency_cujs
+        WHERE cuj_name = "${cleanName}" OR cuj_slice_name = "${cujName}"
+        LIMIT 1
+      `;
+    } else {
+      return;
+    }
+
+    const res = await ctx.engine.query(query);
+    if (res.numRows() === 0) {
+      return;
+    }
+
+    const row = res.firstRow({
+      slice_id: NUM,
+      cuj_name: STR,
+      cuj_type: STR,
+    });
+
+    if (row.cuj_type === 'latency') {
+      await addLatencyCUJDebugTrack(
+        ctx,
+        `Latency CUJ: ${row.cuj_name}`,
+        row.cuj_name,
+      );
+    } else {
+      await addJankCUJDebugTrack(ctx, `Jank CUJ: ${row.cuj_name}`, row.cuj_name);
+    }
+
+    focusOnSlice(ctx, row.slice_id);
   }
 }
