@@ -41,15 +41,3 @@ message TestExtensionChild {
 
   repeated DebugAnnotation debug_annotations = 99;
 }
-
-enum TestStateEnum {
-  TEST_STATE_UNKNOWN = 0;
-  TEST_STATE_ACTIVE = 1;
-  TEST_STATE_INACTIVE = 2;
-}
-
-message TestStateExtension {
-  extend TrackEvent.State {
-    optional TestStateEnum test_state_enum_value = 9900;
-  }
-}

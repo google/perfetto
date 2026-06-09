@@ -1,9 +1,8 @@
 {
   "comment": [
     "Allocation registry for out-of-tree extensions against Perfetto trace",
-    "protos. 4 scopes are tracked here:",
+    "protos. Three scopes are tracked here:",
     "  * TrackEvent   -- typed-event payloads emitted on a track (`extend TrackEvent`)",
-    "  * TrackEvent.State   -- typed value emitted for a state track (`extend TrackEvent.State`)",
     "  * TracePacket  -- top-level trace packet types (`extend TracePacket`)",
     "  * InternedData -- per-sequence interned data types (`extend InternedData`)",
     "",
@@ -77,24 +76,6 @@
           "registry": "/vendor/google/data/etc/tracing/vendor_tracing_protos.json",
           "repo": "android-internal",
           "range": [5000, 8999]
-        },
-        {
-          "name": "perfetto_tests",
-          "range": [9000, 9999],
-          "contact": "perfetto-dev@googlegroups.com",
-          "description": "Reserved for Perfetto unit and integration tests",
-          "proto": "protos/perfetto/trace/test_extensions.proto"
-        }
-      ]
-    },
-    {
-      "scope": "perfetto.protos.TrackEvent.State",
-      "range": [1000, 9999],
-      "allocations": [
-        {
-          "name": "unallocated",
-          "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1000, 8999]
         },
         {
           "name": "perfetto_tests",

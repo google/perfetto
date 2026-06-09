@@ -16280,10 +16280,12 @@ message TrackEvent {
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
 
-    // Event that provides a state value update for a state track. |track_uuid|
-    // should refer to a state track, and the state value update is carried in
-    // the |state| field. An empty or unset state field indicates "no state" /
-    // "idle".
+    // Event that provides a state value update for a state track. Think of this
+    // as a symbolic counter (a TYPE_COUNTER with literals rather then numbers).
+    // |track_uuid| should refer to a state track, and the state value update is
+    // carried in the |state| field. An empty or unset state field indicates "no
+    // state" / "idle". For more details, see
+    // [RFC-0023](https://github.com/google/perfetto/discussions/5549).
     TYPE_STATE = 5;
   }
   optional Type type = 9;
@@ -16501,16 +16503,6 @@ message TrackEvent {
 
   optional ChromeMessagePump chrome_message_pump = 35;
   optional ChromeMojoEventInfo chrome_mojo_event_info = 38;
-
-  // Represents the state value for a state track.
-  message State {
-    // Extension range for typed events defined in external projects.
-    // See protos/perfetto/trace/extensions.json for the allocation registry and
-    // docs/instrumentation/extensions.md for more details.
-    extensions 1000 to 9999;
-  }
-  // State update value. Only supported/set when type is TYPE_STATE.
-  optional State state = 57;
 
   // New argument types go here :)
 
