@@ -179,6 +179,42 @@ class NamedTrack {
   PerfettoTeHlExtraNamedTrack track_;
 };
 
+// Root scope of a nested-track chain. Values match PerfettoTrack (Java) and are
+// passed verbatim over JNI.
+enum class RootType : int {
+  kGlobal = 0,
+  kProcess = 1,
+  kThread = 2,
+};
+
+/**
+ * @brief A nested chain of named tracks (the HL NESTED_TRACKS extra).
+ *
+ * The chain is, outermost first: an optional root (process or thread; global
+ * roots have none) followed by one named level per name. The native HL path
+ * derives the per-level uuids and emits a descriptor for each level.
+ */
+class NestedTracks {
+ public:
+  NestedTracks(RootType root_type,
+               const std::vector<std::string>& names,
+               const std::vector<uint64_t>& ids);
+
+  static void delete_track(NestedTracks* track);
+
+  const PerfettoTeHlExtraNestedTracks* get() const { return &extra_; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NestedTracks);
+  // ptrs_ point into named_/root_ and named_[i].name into names_; nothing is
+  // resized after construction, so the pointers stay valid.
+  std::vector<std::string> names_;
+  PerfettoTeHlNestedTrack root_;
+  std::vector<PerfettoTeHlNestedTrackNamed> named_;
+  std::vector<PerfettoTeHlNestedTrack*> ptrs_;
+  PerfettoTeHlExtraNestedTracks extra_;
+};
+
 /**
  * @brief Represents a registered track.
  */
