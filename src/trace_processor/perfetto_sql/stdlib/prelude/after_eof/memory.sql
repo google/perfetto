@@ -292,10 +292,12 @@ CREATE PERFETTO VIEW heap_graph(
   -- Unique PID of the target.
   upid JOINID(process.upid),
   -- Reason why the heap graph was dumped (e.g. OOME, periodic, manual).
-  dump_reason STRING
+  dump_reason STRING,
+  -- Total bytes allocated in the heap as reported by the VM.
+  heap_size LONG
 )
 AS
-SELECT id, ts, upid, dump_reason FROM __intrinsic_heap_graph;
+SELECT id, ts, upid, dump_reason, heap_size FROM __intrinsic_heap_graph;
 
 -- Callstack profiles of threads at the time of heap graphs.
 CREATE PERFETTO VIEW heap_graph_thread_callsite(
@@ -311,5 +313,3 @@ CREATE PERFETTO VIEW heap_graph_thread_callsite(
 AS
 SELECT id, heap_graph_id, utid, callsite_id
 FROM __intrinsic_heap_graph_thread_callsite;
-
-

@@ -77,14 +77,26 @@ void UpdatePackageList(TraceProcessorContext* context,
 tables::HeapGraphTable::Id InsertHeapGraph(TraceProcessorContext* context,
                                            int64_t ts,
                                            UniquePid upid) {
+  auto& heap_graph_table = *context->storage->mutable_heap_graph_table();
+  std::optional<tables::HeapGraphTable::Id> heap_graph_id;
+  for (auto it = heap_graph_table.IterateRows(); it; ++it) {
+    if (it.upid() == upid && it.ts() == ts) {
+      heap_graph_id = it.id();
+      break;
+    }
+  }
+  if (heap_graph_id) {
+    auto row_ref = heap_graph_table[*heap_graph_id];
+    row_ref.set_dump_reason(context->storage->InternString("OOME"));
+    return *heap_graph_id;
+  }
+
   tables::HeapGraphTable::Row heap_graph_row;
   heap_graph_row.ts = ts;
   heap_graph_row.upid = upid;
   heap_graph_row.dump_reason = context->storage->InternString("OOME");
 
-  return context->storage->mutable_heap_graph_table()
-      ->Insert(heap_graph_row)
-      .id;
+  return heap_graph_table.Insert(heap_graph_row).id;
 }
 
 void InsertOomeDetails(TraceProcessorContext* context,

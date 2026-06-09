@@ -710,3 +710,113 @@ class Profiling(TestSuite):
         1,"com.example.oometest.MainActivity.oomeInducer","MainActivity.java",42
         2,"com.example.oometest.MainActivity.oomeInducer","MainActivity.java",45
         """))
+
+  def test_art_oome_order_oome_then_heap_graph(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.example.oometest"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 2
+            uid: 1000
+            process_name: "com.example.oometest"
+            oom_allocation_size: 100
+            oom_total_bytes_free: 200
+            oom_free_bytes_until_oom: 300
+            oom_error_msg: "OOM"
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 2
+          heap_graph {
+            pid: 2
+            heap_bytes_allocated: 100000
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dump_reason, heap_size
+        FROM heap_graph;
+        """,
+        out=Csv("""
+        "ts","dump_reason","heap_size"
+        10,"OOME",100000
+        """))
+
+  def test_art_oome_order_heap_graph_then_oome(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.example.oometest"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 2
+          heap_graph {
+            pid: 2
+            heap_bytes_allocated: 100000
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 2
+            uid: 1000
+            process_name: "com.example.oometest"
+            oom_allocation_size: 100
+            oom_total_bytes_free: 200
+            oom_free_bytes_until_oom: 300
+            oom_error_msg: "OOM"
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dump_reason, heap_size
+        FROM heap_graph;
+        """,
+        out=Csv("""
+        "ts","dump_reason","heap_size"
+        10,"OOME",100000
+        """))

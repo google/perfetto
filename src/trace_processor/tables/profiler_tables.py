@@ -598,14 +598,30 @@ HEAP_GRAPH_TABLE = Table(
     sql_name='__intrinsic_heap_graph',
     wrapping_sql_view=WrappingSqlView('heap_graph'),
     columns=[
-        C('ts', CppInt64()),
+        C(
+            'ts',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'upid',
             CppUint32(),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('dump_reason', CppOptional(CppString())),
+        C(
+            'dump_reason',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'heap_size',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='A list of heap graphs (heap dumps) captured during the trace.',
@@ -617,6 +633,8 @@ HEAP_GRAPH_TABLE = Table(
                 'Unique ID of the process whose heap was dumped. Joinable with process.upid.',
             'dump_reason':
                 'Reason why the heap graph was dumped (e.g. OOME, periodic, manual).',
+            'heap_size':
+                'Total bytes allocated in the heap as reported by the VM.',
         }),
 )
 

@@ -129,6 +129,7 @@ class HeapGraphTracker : public Destructible {
   void FinalizeProfile(uint32_t seq);
   void FinalizeAllProfiles();
   void SetPacketIndex(uint32_t seq_id, uint64_t index);
+  void SetHeapSize(uint32_t seq_id, int64_t heap_size);
 
   ~HeapGraphTracker() override;
 
@@ -217,6 +218,7 @@ class HeapGraphTracker : public Destructible {
     // "libcore.util.NativeAllocationRegistry" object.
     std::map<tables::HeapGraphObjectTable::Id, int64_t> nar_size_by_obj_id;
     bool truncated = false;
+    std::optional<int64_t> heap_size;
   };
 
   SequenceState& GetOrCreateSequence(uint32_t seq_id);

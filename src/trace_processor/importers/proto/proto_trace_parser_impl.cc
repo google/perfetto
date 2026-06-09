@@ -370,8 +370,6 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     context_->stats_tracker->IncrementStats(stats::metatrace_overruns);
 }
 
-
-
 StringId ProtoTraceParserImpl::GetMetatraceInternedString(uint64_t iid) {
   StringId* maybe_id = metatrace_interned_strings_.Find(iid);
   if (!maybe_id)
