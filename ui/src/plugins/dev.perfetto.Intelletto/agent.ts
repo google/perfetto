@@ -28,7 +28,7 @@ import type {
   NeutralToolDef,
   NeutralToolResult,
 } from '../dev.perfetto.Llm/protocol';
-import {ToolRegistry} from './tools';
+import type {ToolRegistry} from './tools';
 
 // Hard bound on tool-use rounds per user turn. Stops a misbehaving model from
 // looping forever (and caps token spend). Hitting it surfaces to the user

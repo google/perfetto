@@ -20,7 +20,6 @@
 
 import {z} from 'zod';
 import type {Trace} from '../../public/trace';
-import {Time} from '../../base/time';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {runQueryForModel} from './query';
 import type {ToolRegistry} from './tools';
@@ -28,7 +27,7 @@ import type {ToolRegistry} from './tools';
 export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
   const engine = trace.engine;
 
-  reg.register({
+  reg.registerTool({
     name: 'run_query',
     description:
       'Run a PerfettoSQL query against the open trace and return the rows ' +
@@ -37,25 +36,25 @@ export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
       '(COUNT / GROUP BY / LIMIT) over pulling raw rows - results are row-' +
       'capped and large raw result sets are truncated. Use get_schema first ' +
       "if you're unsure which tables/columns exist. Some stdlib tables need " +
-      "an `INCLUDE PERFETTO MODULE <name>;` first, run as a separate query.",
+      'an `INCLUDE PERFETTO MODULE <name>;` first, run as a separate query.',
     shape: {
       sql: z.string().describe('The PerfettoSQL query to execute.'),
     },
     callback: async ({sql}) => runQueryForModel(engine, sql),
   });
 
-  reg.register({
+  reg.registerTool({
     name: 'get_schema',
     description:
       'List the trace tables/views (no argument) or the columns of one table ' +
-      "(pass `table`). Use this to write valid SQL without guessing schema. " +
+      '(pass `table`). Use this to write valid SQL without guessing schema. ' +
       'Internal sqlite_* and _-prefixed tables are omitted from the table ' +
       'list.',
     shape: {
       table: z
         .string()
         .optional()
-        .describe('If set, return this table\'s columns instead of the list.'),
+        .describe("If set, return this table's columns instead of the list."),
     },
     callback: async ({table}) => {
       if (table !== undefined && table !== '') {
@@ -75,7 +74,7 @@ export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
     },
   });
 
-  reg.register({
+  reg.registerTool({
     name: 'get_selection',
     description:
       'Read what the user currently has selected in the UI (a track event, a ' +
@@ -110,46 +109,12 @@ export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
     },
   });
 
-  reg.register({
-    name: 'select_event',
-    description:
-      'Select a single trace event by its SQL table and row id (e.g. table ' +
-      '"slice", id 1234), scrolling the timeline to it. Use this to point the ' +
-      'user at a specific slice/event you found via run_query.',
-    mutating: true,
-    shape: {
-      table: z.string().describe('SQL table the id refers to, e.g. "slice".'),
-      id: z.number().describe('Row id within that table.'),
-    },
-    callback: async ({table, id}) => {
-      trace.selection.selectSqlEvent(table, id, {
-        scrollToSelection: true,
-        switchToCurrentSelectionTab: true,
-      });
-      return 'OK';
-    },
-  });
+  // Note: select_event / show_timeline / select_area / get_viewport are
+  // timeline-specific and live in the dev.perfetto.IntellettoTimelineTools
+  // plugin, which registers them against this same registry when both the
+  // Timeline and Intelletto plugins are enabled.
 
-  reg.register({
-    name: 'show_timeline',
-    description:
-      'Pan/zoom the timeline to a time range so the user can see it. ' +
-      'Timestamps are trace-processor nanoseconds (bigints sent as strings); ' +
-      'query the min/max of the relevant table to get a valid range.',
-    mutating: true,
-    shape: {
-      startTime: z.string().describe('Range start, ns, as a string bigint.'),
-      endTime: z.string().describe('Range end, ns, as a string bigint.'),
-    },
-    callback: async ({startTime, endTime}) => {
-      const start = Time.fromRaw(BigInt(startTime));
-      const end = Time.fromRaw(BigInt(endTime));
-      trace.timeline.panSpanIntoView(start, end, {align: 'zoom'});
-      return 'OK';
-    },
-  });
-
-  reg.register({
+  reg.registerTool({
     name: 'show_query',
     description:
       'Open a PerfettoSQL query in the Query page results view so the user ' +
@@ -168,7 +133,7 @@ export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
     },
   });
 
-  reg.register({
+  reg.registerTool({
     name: 'navigate',
     description:
       'Switch the UI to a top-level page by its route, e.g. "/viewer" for ' +

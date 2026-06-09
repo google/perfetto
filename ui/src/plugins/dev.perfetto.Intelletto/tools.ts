@@ -20,6 +20,7 @@
 // exception in plugin code.
 
 import {z, type ZodObject, type ZodRawShape} from 'zod';
+import type {IntellettoToolRegistrar, ToolRegistration} from './api';
 
 // A tool's callback returns a string (the tool result fed back to the model).
 // Read tools return data; mutating tools just ack ('OK') or throw.
@@ -34,19 +35,16 @@ export interface ToolDef {
   readonly callback: (args: unknown) => Promise<string>;
 }
 
-export class ToolRegistry {
+// The concrete registry behind the public IntellettoToolRegistrar. Core tools
+// and plugin-contributed tools both land here; the agent reads it to expose
+// tools to the model.
+export class ToolRegistry implements IntellettoToolRegistrar {
   private readonly tools = new Map<string, ToolDef>();
 
   // Register a tool. `shape` is a zod raw shape (e.g. {sql: z.string()}); we
   // wrap it in a ZodObject so we can both validate at call time and emit JSON
   // Schema for the model.
-  register<S extends ZodRawShape>(opts: {
-    name: string;
-    description: string;
-    shape: S;
-    mutating?: boolean;
-    callback: (args: z.infer<ZodObject<S>>) => Promise<string>;
-  }): void {
+  registerTool<S extends ZodRawShape>(opts: ToolRegistration<S>): void {
     if (this.tools.has(opts.name)) {
       throw new Error(`Tool "${opts.name}" already registered`);
     }

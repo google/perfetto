@@ -19,18 +19,14 @@
 // configuration is independent of any loaded trace.
 
 import type {Setting} from '../../public/settings';
+import type {NeutralRequest, Protocol, StreamEvent} from './protocol';
 import type {
-  NeutralRequest,
-  Protocol,
-  StreamEvent,
-} from './protocol';
-import {
-  type Model,
-  type ModelRole,
-  type Provider,
-  type ProvidersSetting,
-  type ResolvedModel,
-  type SelectedModelRef,
+  Model,
+  ModelRole,
+  Provider,
+  ProvidersSetting,
+  ResolvedModel,
+  SelectedModelRef,
 } from './provider';
 
 // What a consumer needs to actually drive a turn: the resolved model plus the
@@ -172,7 +168,10 @@ function hasRole(model: Model, role: ModelRole): boolean {
   return model.roles.includes(role);
 }
 
-function makeHandle(resolved: ResolvedModel, protocol: Protocol): LlmModelHandle {
+function makeHandle(
+  resolved: ResolvedModel,
+  protocol: Protocol,
+): LlmModelHandle {
   const {provider, model} = resolved;
   return {
     resolved,
