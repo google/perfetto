@@ -22,6 +22,11 @@ namespace perfetto::trace_processor {
 
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
   auto trace_priority = [](TraceType type) -> int {
+    if (type == kPerfettoMetadataTraceType)
+      // perfetto_metadata config files override clock/machine handling for
+      // the other files in the archive, so they must be parsed before any
+      // of them.
+      return -1;
     if (type == kSymbolsTraceType)
       // Traces with symbols should be the last ones to be read.
       // TODO(carlscab): Proto traces with just ModuleSymbols packets should be

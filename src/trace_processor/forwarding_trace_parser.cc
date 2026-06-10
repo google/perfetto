@@ -16,13 +16,17 @@
 
 #include "src/trace_processor/forwarding_trace_parser.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -33,6 +37,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_metadata_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -73,6 +78,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kNinjaLogTraceType:
     case kPerfDataTraceType:
     case kPerfTextTraceType:
+    case kPerfettoMetadataTraceType:
     case kPprofTraceType:
     case kPrimesTraceType:
     case kSimpleperfProtoTraceType:
@@ -125,6 +131,10 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
         "you.");
   }
 
+  if (trace_type_ == kPerfettoMetadataTraceType) {
+    RETURN_IF_ERROR(RegisterPerfettoMetadataFile());
+  }
+
   std::optional<TraceSorter::SortingMode> minimum_sorting_mode =
       GetMinimumSortingMode(trace_type_, *input_context_);
   if (minimum_sorting_mode) {
@@ -132,7 +142,18 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   input_context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
-  if (IsContainerTraceType(trace_type_)) {
+  // Consume the perfetto_metadata entry matching this file's path within its
+  // archive, if any: entries which remain unmatched once the whole input has
+  // been parsed are a configuration error.
+  RETURN_IF_ERROR(FindMetadataEntry().status());
+
+  if (IsContainerTraceType(trace_type_) ||
+      trace_type_ == kPerfettoMetadataTraceType) {
+    // perfetto_metadata files produce no events: like containers they do not
+    // fork a per-trace context. This matters for clock composition: forking
+    // would create the per-machine state and make this file the "primary"
+    // trace for its machine, demoting the real traces (parsed later) to
+    // non-primary and isolating their clock snapshots in private syncs.
     PERFETTO_DCHECK(!input_context_->trace_state);
     trace_context_ = input_context_;
   } else {
@@ -168,8 +189,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // from primary_trace_clock, set later, so here we only register BOOTTIME as
   // the deferred fallback and do not claim the global clock now.
   //
-  // TODO: once traces can carry a JSON schema that overrides clock handling,
-  // the per-format selection below should consult it.
+  // TODO: once a perfetto_metadata entry can carry clock overrides, the
+  // per-format selection below should consult it.
   using ClockId = ClockTracker::ClockId;
   std::optional<ClockId> trace_clock;
   bool claim_global_clock = true;
@@ -198,7 +219,59 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     }
     trace_context_->clock_tracker->AddDeferredIdentitySync(*trace_clock);
   }
+
   return base::OkStatus();
+}
+
+base::Status ForwardingTraceParser::RegisterPerfettoMetadataFile() {
+  // The check is parent-based (rather than e.g. file_id == 0) so that
+  // wrapping the metadata file in gzip cannot smuggle it past it: a gzipped
+  // member would lose the parse-before-other-members ordering guarantee that
+  // archive sorting provides for the kPerfettoMetadataTraceType.
+  const auto& table = input_context_->storage->trace_file_table();
+  auto row = table[file_id_];
+  if (row.parent_id()) {
+    base::StringView parent_type = input_context_->storage->GetString(
+        table[*row.parent_id()].trace_type());
+    if (parent_type == TraceTypeToString(kZipFile) ||
+        parent_type == TraceTypeToString(kTarTraceType)) {
+      input_context_->trace_metadata_state->config_archive_file_id =
+          row.parent_id()->value;
+      return base::OkStatus();
+    }
+  }
+  return base::ErrStatus(
+      "perfetto_metadata file must be directly inside an archive (zip/tar) "
+      "containing the trace files it describes");
+}
+
+base::StatusOr<TraceMetadataState::FileEntry*>
+ForwardingTraceParser::FindMetadataEntry() const {
+  auto* state = input_context_->trace_metadata_state.get();
+  if (!state || state->files.empty()) {
+    return nullptr;
+  }
+  auto row = input_context_->storage->trace_file_table()[file_id_];
+  // Entries only apply to files in the same archive as the metadata file:
+  // member names are not qualified by their containing archive, so a global
+  // match would leak overrides into same-named files in nested archives.
+  if (!row.name() || !row.parent_id() || !state->config_archive_file_id ||
+      row.parent_id()->value != *state->config_archive_file_id) {
+    return nullptr;
+  }
+  std::string name =
+      input_context_->storage->GetString(*row.name()).ToStdString();
+  TraceMetadataState::FileEntry* entry = state->FindEntry(name);
+  if (!entry) {
+    return nullptr;
+  }
+  if (entry->matched) {
+    return base::ErrStatus(
+        "perfetto_metadata: multiple files in the archive match path: %s",
+        name.c_str());
+  }
+  entry->matched = true;
+  return entry;
 }
 
 base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {

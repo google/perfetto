@@ -116,6 +116,7 @@
 #include "src/trace_processor/plugins/metadata/metadata.h"
 #include "src/trace_processor/plugins/package_lookup/package_lookup.h"
 #include "src/trace_processor/plugins/perf_counter/perf_counter.h"
+#include "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata.h"
 #include "src/trace_processor/plugins/pprof_functions/pprof_functions.h"
 #include "src/trace_processor/plugins/slice_mipmap_operator/slice_mipmap_operator.h"
 #include "src/trace_processor/plugins/span_join_operator/span_join_operator.h"
@@ -345,6 +346,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   metadata::RegisterPlugin();
   package_lookup::RegisterPlugin();
   perf_counter::RegisterPlugin();
+  perfetto_metadata::RegisterPlugin();
   pprof_functions::RegisterPlugin();
   slice_mipmap_operator::RegisterPlugin();
   span_join_operator::RegisterPlugin();
