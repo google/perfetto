@@ -50,12 +50,6 @@ SELECT track_id AS id, min(ts) AS min_ts
 FROM slice
 JOIN _track_event_tracks_unordered AS t ON slice.track_id = t.id
 GROUP BY
-  track_id
-UNION ALL
-SELECT track_id AS id, min(ts) AS min_ts
-FROM state
-JOIN _track_event_tracks_unordered AS t ON state.track_id = t.id
-GROUP BY
   track_id;
 
 CREATE PERFETTO TABLE _track_event_has_children AS

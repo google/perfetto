@@ -529,7 +529,8 @@ class TrackEventEventImporter {
 
   base::StatusOr<TrackId> ParseTrackAssociationState() {
     if (!track_uuid_ && fallback_to_legacy_pid_tid_tracks_) {
-      return ParseTrackAssociationInternal(std::nullopt);
+      return base::ErrStatus(
+          "State events are not supported with legacy pid/tid tracks");
     }
     return ParseTrackAssociationInternal(
         track_event_tracker_->InternDescriptorTrackState(

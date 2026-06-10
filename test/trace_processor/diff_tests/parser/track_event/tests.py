@@ -1140,7 +1140,7 @@ class TrackEvent(TestSuite):
         1,3000,1000,"state_cat","state_idle","MyStateTrack"
         """))
 
-  def test_state_track_ui_auto_discovery(self):
+  def test_state_track_legacy_fallback_error(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
@@ -1148,8 +1148,7 @@ class TrackEvent(TestSuite):
           timestamp: 0
           incremental_state_cleared: true
           track_descriptor {
-            uuid: 10
-            name: "MyStateTrack"
+            uuid: 0
             state {}
           }
         }
@@ -1157,143 +1156,18 @@ class TrackEvent(TestSuite):
           trusted_packet_sequence_id: 1
           timestamp: 1000
           track_event {
-            track_uuid: 10
+            track_uuid: 0
             type: 5
-            name: "state_active"
+            legacy_event {
+              pid_override: 10
+            }
           }
         }
         """),
         query="""
-        include perfetto module viz.summary.slices;
-        include perfetto module viz.summary.states;
-
-
-        -- Define the UI's max depth function inline!
-        CREATE PERFETTO FUNCTION __max_layout_depth(track_count INT, track_ids STRING)
-        RETURNS INT AS
-        SELECT iif(
-          $track_count = 1,
-          (
-            SELECT max_depth
-            FROM _slice_track_summary
-            WHERE id = cast($track_ids AS int)
-          ),
-          (
-            SELECT max(layout_depth)
-            FROM experimental_slice_layout($track_ids)
-          )
-        );
-
-        -- The exact discovery query from the UI!
-        WITH grouped AS (
-          SELECT
-            t.type,
-            MIN(t.name) as name,
-            COUNT() as trackCount,
-            GROUP_CONCAT(t.id) as trackIds
-          FROM _state_track_summary s
-          JOIN track t USING (id)
-          GROUP BY type, t.track_group_id, IFNULL(t.track_group_id, t.id)
-        )
-        SELECT
-          name,
-          trackCount,
-          trackIds,
-          -- This would return NULL without the UI's ifnull fix!
-          ifnull(__max_layout_depth(trackCount, trackIds), 0) AS maxDepth
-        FROM grouped;
-
-
+        SELECT name, value FROM stats WHERE name = 'track_event_parser_errors';
         """,
         out=Csv("""
-        "name","trackCount","trackIds","maxDepth"
-        "MyStateTrack",1,"0",0
-        """))
-
-  def test_state_track_sibling_merge(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 0
-          incremental_state_cleared: true
-          track_descriptor {
-            uuid: 1
-            name: "ParentFolder"
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 0
-          track_descriptor {
-            uuid: 10
-            parent_uuid: 1
-            name: "StateTrackA"
-            sibling_merge_behavior: 3  # BY_SIBLING_MERGE_KEY
-            sibling_merge_key: "state_sibling_group"
-            state {}
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 0
-          track_descriptor {
-            uuid: 11
-            parent_uuid: 1
-            name: "StateTrackB"
-            sibling_merge_behavior: 3  # BY_SIBLING_MERGE_KEY
-            sibling_merge_key: "state_sibling_group"
-            state {}
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 1000
-          track_event {
-            track_uuid: 10
-            type: 5
-            name: "Active"
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 2000
-          track_event {
-            track_uuid: 11
-            type: 5
-            name: "Running"
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 3000
-          track_event {
-            track_uuid: 10
-            type: 5
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 4000
-          track_event {
-            track_uuid: 11
-            type: 5
-          }
-        }
-        """),
-        query="""
-        SELECT
-          t.id,
-          t.name,
-          t.type,
-          t.parent_id,
-          t.track_group_id IS NOT NULL AS has_group_id
-        FROM track t
-        ORDER BY t.id;
-        """,
-        out=Csv("""
-        "id","name","type","parent_id","has_group_id"
-        0,"ParentFolder","global_merged_track_event","[NULL]",1
-        1,"StateTrackA","global_state_merged_track_event",0,1
-        2,"StateTrackB","global_state_merged_track_event",0,1
+        "name","value"
+        "track_event_parser_errors",1
         """))
