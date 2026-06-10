@@ -7042,6 +7042,106 @@ perfetto_dart_proto_library(
     ],
 )
 
+# GN target: [//protos/third_party/android:android_extensions_source_set]
+perfetto_proto_library(
+    name = "android_extensions_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_common_protos",
+        ":protos_perfetto_common_semantic_type_protos",
+        ":protos_perfetto_config_android_protos",
+        ":protos_perfetto_config_ftrace_protos",
+        ":protos_perfetto_config_gpu_protos",
+        ":protos_perfetto_config_inode_file_protos",
+        ":protos_perfetto_config_interceptors_protos",
+        ":protos_perfetto_config_linux_protos",
+        ":protos_perfetto_config_power_protos",
+        ":protos_perfetto_config_priority_boost_protos",
+        ":protos_perfetto_config_process_stats_protos",
+        ":protos_perfetto_config_profiling_protos",
+        ":protos_perfetto_config_protos",
+        ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
+        ":protos_perfetto_config_statsd_protos",
+        ":protos_perfetto_config_sys_stats_protos",
+        ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_track_event_protos",
+        ":protos_perfetto_protovm_protos",
+        ":protos_perfetto_trace_android_protos",
+        ":protos_perfetto_trace_chrome_protos",
+        ":protos_perfetto_trace_etw_protos",
+        ":protos_perfetto_trace_filesystem_protos",
+        ":protos_perfetto_trace_ftrace_protos",
+        ":protos_perfetto_trace_generic_kernel_protos",
+        ":protos_perfetto_trace_gpu_protos",
+        ":protos_perfetto_trace_interned_data_protos",
+        ":protos_perfetto_trace_linux_protos",
+        ":protos_perfetto_trace_minimal_protos",
+        ":protos_perfetto_trace_non_minimal_protos",
+        ":protos_perfetto_trace_perfetto_protos",
+        ":protos_perfetto_trace_power_protos",
+        ":protos_perfetto_trace_profiling_protos",
+        ":protos_perfetto_trace_ps_protos",
+        ":protos_perfetto_trace_statsd_protos",
+        ":protos_perfetto_trace_sys_stats_protos",
+        ":protos_perfetto_trace_system_info_protos",
+        ":protos_perfetto_trace_track_event_protos",
+        ":protos_perfetto_trace_translation_protos",
+        ":protos_third_party_android_android_extensions_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
+        ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_protos",
+        ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_regular_protos",
+    ],
+)
+
+# GN target: [//protos/third_party/android:android_extensions_source_set]
+perfetto_cc_proto_library(
+    name = "android_extensions_cc_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":android_extensions_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/android:android_extensions_source_set]
+perfetto_java_proto_library(
+    name = "android_extensions_java_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":android_extensions_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/android:android_extensions_source_set]
+perfetto_java_lite_proto_library(
+    name = "android_extensions_java_proto_lite",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":android_extensions_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/android:android_extensions_source_set]
+perfetto_py_proto_library(
+    name = "android_extensions_py_pb2",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":android_extensions_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/android:android_extensions_source_set]
+perfetto_dart_proto_library(
+    name = "android_extensions_dart_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":android_extensions_proto",
+    ],
+)
+
 # GN target: [//protos/perfetto/metrics/chrome:source_set]
 perfetto_proto_library(
     name = "chrome_metrics_proto",

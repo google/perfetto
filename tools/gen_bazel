@@ -153,6 +153,12 @@ proto_groups = {
         'sources': ['//protos/third_party/chromium:source_set',],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
     },
+    'android_extensions': {
+        'sources': [
+            '//protos/third_party/android:android_extensions_source_set',
+        ],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
     'chrome_metrics': {
         'sources': ['//protos/perfetto/metrics/chrome:source_set',],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
