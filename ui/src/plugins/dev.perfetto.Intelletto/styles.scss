@@ -178,6 +178,17 @@
     }
   }
 
+  &__system-prompt {
+    margin: 0;
+    max-width: 70vw;
+    max-height: 60vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--pf-font-monospace);
+    font-size: 0.9em;
+  }
+
   &__tokens {
     font-size: 0.8em;
     color: var(--pf-color-text-muted);

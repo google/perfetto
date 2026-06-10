@@ -69,10 +69,7 @@ function fetchKey(provider: Provider): string {
 // Returns the current fetch state for a provider's available models, kicking off
 // a background fetch (and a redraw on completion) if none is in flight for the
 // current key.
-function availableModels(
-  gateway: LlmGateway,
-  provider: Provider,
-): FetchState {
+function availableModels(gateway: LlmGateway, provider: Provider): FetchState {
   const key = fetchKey(provider);
   const cached = providerModelsCache.get(provider.id);
   if (cached !== undefined && cached.key === key) {
