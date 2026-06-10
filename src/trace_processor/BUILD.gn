@@ -192,6 +192,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/ninja",
       "importers/perf",
       "importers/perf_text",
+      "importers/perfetto_metadata",
       "importers/pprof",
       "importers/primes",
       "importers/proto:full",

@@ -16,6 +16,9 @@
 from python.generators.diff_tests.testing import Csv, Path, DataPath
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import TextProto
+from python.generators.diff_tests.testing import Tar
+from python.generators.diff_tests.testing import Zip as ZipTrace
 
 
 class Zip(TestSuite):
@@ -114,6 +117,60 @@ class Zip(TestSuite):
         out=Csv('''
         "count"
         58
+        '''))
+
+  # A zip assembled inline from blueprint members: a textproto-defined proto
+  # trace and a raw-text systrace. Proto members are processed first.
+  def test_zip_blueprint_inline_members(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a.systrace': '''# tracer: nop
+#
+  app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|zip_slice
+  app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100
+''',
+            'b.pb': TextProto('''
+              packet {
+                timestamp: 1
+                process_tree {
+                  processes { pid: 5 ppid: 0 cmdline: "proc_in_zip" }
+                }
+              }
+            '''),
+        }),
+        query='''
+          SELECT name, trace_type, processing_order
+          FROM __intrinsic_trace_file
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","trace_type","processing_order"
+        "[NULL]","zip",0
+        "b.pb","proto",1
+        "a.systrace","systrace",2
+        '''))
+
+  # A tar archive with an external file (DataPath) as a member: the raw bytes
+  # of the checked-in trace are included verbatim.
+  def test_tar_blueprint_external_member(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'sched.pb': DataPath('synth_1.pb'),
+            'log.systrace': '''# tracer: nop
+#
+  app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|tar_slice
+  app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100
+''',
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT count(*) FROM __intrinsic_trace_file
+             WHERE name = 'sched.pb') AS named_member;
+        ''',
+        out=Csv('''
+        "sched_count","named_member"
+        8,1
         '''))
 
   def test_multi_trace_single_machine_clock(self):

@@ -55,6 +55,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
+#include "src/trace_processor/importers/perfetto_metadata/perfetto_metadata_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
@@ -463,6 +464,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kSimpleperfProtoTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
+  context()->reader_registry->RegisterTraceReader<PerfettoMetadataReader>(
+      kPerfettoMetadataTraceType);
   context()->reader_registry->RegisterTraceReader<primes::PrimesTraceTokenizer>(
       kPrimesTraceType);
 

@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -33,6 +34,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_metadata_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -73,6 +75,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kNinjaLogTraceType:
     case kPerfDataTraceType:
     case kPerfTextTraceType:
+    case kPerfettoMetadataTraceType:
     case kPprofTraceType:
     case kPrimesTraceType:
     case kSimpleperfProtoTraceType:
@@ -91,6 +94,19 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
           "This trace type should be handled at the ZipParser level");
   }
   PERFETTO_FATAL("For GCC");
+}
+
+// Multiplier from a trace format's native timestamp unit to nanoseconds,
+// used to scale perfetto_metadata anchor timestamps ("a ts as written in the
+// file") into the clock graph's nanosecond domain.
+int64_t FileUnitToNs(TraceType trace_type) {
+  if (trace_type == kJsonTraceType) {
+    return 1000;  // microseconds
+  }
+  if (trace_type == kGeckoTraceType) {
+    return 1000000;  // milliseconds
+  }
+  return 1;
 }
 
 }  // namespace
@@ -125,6 +141,12 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
         "you.");
   }
 
+  if (file_id_.value == 0 && trace_type_ == kPerfettoMetadataTraceType) {
+    return base::ErrStatus(
+        "perfetto_metadata file must be inside an archive (zip/tar) "
+        "containing the trace files it describes");
+  }
+
   std::optional<TraceSorter::SortingMode> minimum_sorting_mode =
       GetMinimumSortingMode(trace_type_, *input_context_);
   if (minimum_sorting_mode) {
@@ -132,16 +154,43 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   input_context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
-  if (IsContainerTraceType(trace_type_)) {
+  // If a perfetto_metadata file in the same archive has an entry for this
+  // file (matched by exact path), it overrides clock/machine handling below.
+  TraceMetadataState::FileEntry* metadata_entry = FindMetadataEntry();
+  if (metadata_entry && IsContainerTraceType(trace_type_) &&
+      (metadata_entry->machine_id || metadata_entry->clocks)) {
+    return base::ErrStatus(
+        "perfetto_metadata: overrides are not supported for archive members "
+        "which are themselves archives: %s", metadata_entry->path.c_str());
+  }
+
+  if (IsContainerTraceType(trace_type_) ||
+      trace_type_ == kPerfettoMetadataTraceType) {
+    // perfetto_metadata files produce no events: like containers they do not
+    // fork a per-trace context. This matters for clock composition: forking
+    // would create the per-machine state and make this file the "primary"
+    // trace for its machine, demoting the real traces (parsed later) to
+    // non-primary and isolating their clock snapshots in private syncs.
     PERFETTO_DCHECK(!input_context_->trace_state);
     trace_context_ = input_context_;
   } else {
+    uint32_t raw_machine_id =
+        metadata_entry && metadata_entry->machine_id
+            ? *metadata_entry->machine_id
+            : 0;
     // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
     // parsed first so that we do not get issues with
     // SetPidZeroIsUpidZeroIdleProcess()
-    trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
+    trace_context_ =
+        input_context_->ForkContextForTrace(file_id_, raw_machine_id);
     if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
       trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+    }
+    if (metadata_entry) {
+      trace_context_->trace_state->has_clock_override =
+          metadata_entry->clocks.has_value();
+      trace_context_->trace_state->has_machine_override =
+          metadata_entry->machine_id.has_value();
     }
   }
   ASSIGN_OR_RETURN(reader_, input_context_->reader_registry->CreateTraceReader(
@@ -168,8 +217,11 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // from primary_trace_clock, set later, so here we only register BOOTTIME as
   // the deferred fallback and do not claim the global clock now.
   //
-  // TODO: once traces can carry a JSON schema that overrides clock handling,
-  // the per-format selection below should consult it.
+  // A perfetto_metadata entry for this file can override the selection:
+  // "native" reinterprets which clock the file's timestamps are on,
+  // "offset_ns" shifts the file's events relative to where they would land
+  // by default and "anchor" pins a file timestamp to a value on a named
+  // clock domain.
   using ClockId = ClockTracker::ClockId;
   std::optional<ClockId> trace_clock;
   bool claim_global_clock = true;
@@ -192,6 +244,44 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
              trace_type_ == kAndroidLogcatTraceType) {
     trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
   }
+  if (metadata_entry && metadata_entry->clocks) {
+    const TraceMetadataState::ClocksOverride& clocks = *metadata_entry->clocks;
+    if (clocks.native) {
+      ClockId native_clock = ClockId::Machine(*clocks.native);
+      if (trace_clock && *trace_clock != native_clock) {
+        trace_context_->clock_tracker->SetNativeClockRemap(*trace_clock,
+                                                           native_clock);
+      }
+      trace_clock = native_clock;
+    }
+    if (clocks.offset_ns) {
+      trace_context_->clock_tracker->SetTraceTimeOffsetNs(*clocks.offset_ns);
+    }
+    if (clocks.anchor && trace_clock) {
+      const TraceMetadataState::Anchor& anchor = *clocks.anchor;
+      // The anchor source timestamp is expressed in the file's native units;
+      // scale it into the nanosecond domain the clock graph operates in.
+      int64_t src_ts_ns = static_cast<int64_t>(
+          anchor.file_ts * static_cast<double>(FileUnitToNs(trace_type_)));
+      // Inject the edge into the machine's shared clock graph (instead of
+      // this file's ClockTracker) so it composes with snapshots from other
+      // traces on the same machine (e.g. a proto trace's REALTIME<->BOOTTIME
+      // snapshot). This is collision-safe: for the formats which use it the
+      // source side is this file's unique TraceFile clock.
+      RETURN_IF_ERROR(trace_context_->primary_clock_sync
+                          ->AddSnapshot({{*trace_clock, src_ts_ns},
+                                         {ClockId::Machine(anchor.target_clock),
+                                          anchor.target_ts_ns}})
+                          .status());
+    }
+    if (trace_type_ == kProtoTraceType && trace_clock) {
+      // Proto packets without an explicit timestamp_clock_id skip clock
+      // conversion entirely; route them through the trace default clock so
+      // that offset/anchor overrides take effect.
+      trace_context_->clock_tracker->SetTraceDefaultClock(*trace_clock);
+    }
+  }
+
   if (trace_clock) {
     if (claim_global_clock) {
       trace_context_->clock_tracker->SetGlobalClock(*trace_clock);
@@ -199,6 +289,25 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     trace_context_->clock_tracker->AddDeferredIdentitySync(*trace_clock);
   }
   return base::OkStatus();
+}
+
+TraceMetadataState::FileEntry* ForwardingTraceParser::FindMetadataEntry()
+    const {
+  auto* state = input_context_->trace_metadata_state.get();
+  if (!state || state->files.empty()) {
+    return nullptr;
+  }
+  auto row = input_context_->storage->trace_file_table()[file_id_];
+  if (!row.name()) {
+    return nullptr;
+  }
+  std::string name =
+      input_context_->storage->GetString(*row.name()).ToStdString();
+  TraceMetadataState::FileEntry* entry = state->FindEntry(name);
+  if (entry) {
+    entry->matched = true;
+  }
+  return entry;
 }
 
 base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {

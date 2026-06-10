@@ -441,6 +441,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
+        ":src_trace_processor_importers_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
@@ -732,6 +733,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
+        ":src_trace_processor_importers_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
@@ -2942,6 +2944,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.cc",
         "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/perfetto_metadata:perfetto_metadata
+perfetto_filegroup(
+    name = "src_trace_processor_importers_perfetto_metadata_perfetto_metadata",
+    srcs = [
+        "src/trace_processor/importers/perfetto_metadata/perfetto_metadata_reader.cc",
+        "src/trace_processor/importers/perfetto_metadata/perfetto_metadata_reader.h",
     ],
 )
 
@@ -10452,6 +10463,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
+        ":src_trace_processor_importers_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
@@ -10773,6 +10785,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
+        ":src_trace_processor_importers_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",

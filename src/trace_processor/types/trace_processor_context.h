@@ -68,6 +68,7 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TraceMetadataState;
 struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
 
@@ -99,6 +100,13 @@ class TraceProcessorContext {
 
   struct TraceState {
     TraceId trace_id;
+
+    // Set when a perfetto_metadata entry with a clocks/machine section
+    // matched this trace file. Such overrides are only valid for files which
+    // are single-clock / single-machine in practice; these flags let the
+    // proto reader enforce that lazily when the file proves otherwise.
+    bool has_clock_override = false;
+    bool has_machine_override = false;
   };
 
   struct UuidState {
@@ -156,6 +164,7 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TraceTimeState> trace_time_state;
+  GlobalPtr<TraceMetadataState> trace_metadata_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
