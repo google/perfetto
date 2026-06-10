@@ -15,6 +15,7 @@
 import os
 import sys
 import signal
+import subprocess
 import dataclasses as dc
 from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional, Union
@@ -40,6 +41,8 @@ TraceReference = registry.TraceReference
 # Custom exception raised if any trace_processor functions return a
 # response with an error defined
 TraceProcessorException = PerfettoException
+
+_TP_CLOSE_TIMEOUT_SECONDS = 5
 
 
 @dc.dataclass
@@ -352,13 +355,21 @@ class TraceProcessor:
 
   def close(self):
     if hasattr(self, 'subprocess') and self.subprocess:
+      wait_timeout = None
       # On Windows, we need to send a break signal to terminate the whole process group.
       # On other platforms, killing the parent process is sufficient.
       if sys.platform == 'win32':
         self.subprocess.send_signal(signal.CTRL_BREAK_EVENT)
+        wait_timeout = _TP_CLOSE_TIMEOUT_SECONDS
       else:
         self.subprocess.kill()
-      self.subprocess.wait()
+
+      try:
+        self.subprocess.wait(timeout=wait_timeout)
+      except subprocess.TimeoutExpired:
+        self.subprocess.kill()
+        self.subprocess.wait(timeout=wait_timeout)
+
       # Set to None so __del__ doesn't call this again.
       self.subprocess = None
       if hasattr(self, '_tp_stdout') and self._tp_stdout:
