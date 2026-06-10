@@ -132,9 +132,23 @@
           "proto": "protos/perfetto/trace/gpu/gpu_interned_data.proto"
         },
         {
+          "name": "chromium",
+          "range": [1100, 1999],
+          "contact": "tracing@chromium.org",
+          "description": "Chrome browser and chromium-based projects",
+          "comment": [
+            "The source of truth lives in chromium. A copy exists in ",
+            "the Perfetto GitHub repo under ",
+            "protos/third_party/chromium/chrome_track_event.proto ",
+            "and is kept up-to-date via a Skia autoroller."
+          ],
+          "repo": "https://chromium.googlesource.com/chromium/src",
+          "proto": "base/tracing/protos/chrome_track_event.proto"
+        },
+        {
           "name": "unallocated",
           "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1100, 9999]
+          "range": [2000, 9999]
         }
       ]
     }
