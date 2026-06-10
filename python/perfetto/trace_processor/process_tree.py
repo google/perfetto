@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2020 The Android Open Source Project
+# Copyright (C) 2026 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ platforms need different machinery:
   configured to kill all member processes when its last handle is closed;
   terminate_process_tree() calls TerminateJobObject. Closing the handle also
   means the tree is torn down if the owning Python process dies for any reason.
+
+Note that POSIX has no equivalent of the Windows kill-on-close guarantee: if
+the Python process dies without calling terminate_process_tree(), the process
+group is orphaned rather than killed by the kernel.
 """
 
 import os

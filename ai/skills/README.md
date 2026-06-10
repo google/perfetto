@@ -26,17 +26,9 @@ to and loads on demand. This keeps a single, broad `description` in
 the agent's context budget instead of many sibling skills competing to
 match, and lets each piece be loaded only when the task needs it.
 
-> **Legacy `perfetto_*` directories.** The older one-directory-per-skill
-> layout (`perfetto_infra_*`, `perfetto_workflow_*`, each with its own
-> `BUILD`/`OWNERS`/`TEST`/`EVAL`) is retained **only** because Google-internal
-> (G3) build targets still reference those paths. OSS bundling ignores them
-> entirely — `build_ai_agents.py` consumes only `perfetto/`. Don't add to
-> them; new content goes in `perfetto/`.
-
 ```
 ai/skills/perfetto/
 ├── SKILL-template.md            # the router (see below — NOT named SKILL.md)
-├── EVAL.txtpb                   # one eval suite for the whole skill
 ├── infra-references/
 │   └── querying.md              # how to run trace_processor + PerfettoSQL
 ├── environment-references/
@@ -114,7 +106,5 @@ links breaking, and it is verified at build time.
   scripts in a sibling `scripts/`. Write the body in the imperative,
   like a runbook. Pull in `../../infra-references/querying.md` rather
   than re-explaining how to query.
-- **Add eval cases** to the single top-level `EVAL.txtpb`, grouped
-  under the file they exercise.
 - **Test against a real trace** before checking in. Files that have
   never been run end up with broken syntax and wrong column names.

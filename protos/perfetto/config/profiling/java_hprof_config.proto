@@ -78,6 +78,9 @@ message JavaHprofConfig {
   // Do not profile processes whose anon RSS + swap < given value.
   optional uint32 min_anonymous_memory_kb = 4;
 
+  // Do not profile processes whose Java heap size < given value.
+  optional uint32 min_java_heap_size_kb = 9;
+
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
   // * start with /system

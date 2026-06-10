@@ -157,6 +157,50 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
 }
 
+NestedTracks::NestedTracks(RootType root_type,
+                           const std::vector<std::string>& names,
+                           const std::vector<uint64_t>& ids)
+    : names_(names), root_{}, extra_{} {
+  const size_t count = names_.size();
+  named_.reserve(count);
+  ptrs_.reserve(count + 2);
+
+  // Outermost entry: the root scope. A process or thread root prepends one
+  // entry; a global root has none -- its first named level hangs off uuid 0.
+  switch (root_type) {
+    case RootType::kProcess:
+      root_.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS;
+      ptrs_.push_back(&root_);
+      break;
+    case RootType::kThread:
+      root_.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD;
+      ptrs_.push_back(&root_);
+      break;
+    case RootType::kGlobal:
+      break;  // No root entry; the chain hangs off uuid 0.
+  }
+
+  // reserve(count) above prevents reallocation, so the &named_.back() pointers
+  // stay valid.
+  for (size_t i = 0; i < count; i++) {
+    PerfettoTeHlNestedTrackNamed entry{};
+    entry.header.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED;
+    entry.name = names_[i].c_str();
+    entry.id = ids[i];
+    entry.is_name_static = true;
+    named_.push_back(entry);
+    ptrs_.push_back(reinterpret_cast<PerfettoTeHlNestedTrack*>(&named_.back()));
+  }
+  ptrs_.push_back(nullptr);
+
+  extra_.header.type = PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS;
+  extra_.tracks = ptrs_.data();
+}
+
+void NestedTracks::delete_track(NestedTracks* ptr) {
+  delete ptr;
+}
+
 RegisteredTrack::RegisteredTrack(uint64_t id,
                                  uint64_t parent_uuid,
                                  const std::string& name,
