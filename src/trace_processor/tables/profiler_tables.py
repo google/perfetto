@@ -27,6 +27,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppUint32 as CppBool
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import SqlAccess
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
@@ -1301,6 +1302,7 @@ GpuRenderStageEvent packets.''',
 EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
     python_module=__file__,
     class_name='ExperimentalFlamegraphTable',
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name='experimental_flamegraph',
     columns=[
         C(

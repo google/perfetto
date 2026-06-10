@@ -589,7 +589,12 @@ int PERFETTO_EXPORT_ENTRYPOINT RelayServiceMain(int argc, char** argv) {
   } else {
     auto listen_socket = GetProducerSocket();
     remove(listen_socket);
-    if (!listen_socket_group.empty()) {
+    svc->Start(listen_socket, GetRelaySocket());
+
+    // Start() creates the socket file, so permissions must be set after it.
+    // Only unix sockets have a file to chmod.
+    if (!listen_socket_group.empty() &&
+        base::GetSockFamily(listen_socket) == base::SockFamily::kUnix) {
       auto status = base::SetFilePermissions(listen_socket, listen_socket_group,
                                              listen_socket_mode_bits);
       if (!status.ok()) {
@@ -598,8 +603,6 @@ int PERFETTO_EXPORT_ENTRYPOINT RelayServiceMain(int argc, char** argv) {
         return 1;
       }
     }
-
-    svc->Start(listen_socket, GetRelaySocket());
   }
 
   // If the TRACED_RELAY_NOTIFY_FD env var is set, write 1 and close the FD.
