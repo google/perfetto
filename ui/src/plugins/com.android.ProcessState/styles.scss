@@ -1,0 +1,402 @@
+// com.android.ProcessState explorer styles.
+// Layout: a fixed seek bar + device chips on top, the graph and a bottom
+// tabbed panel splitting the remaining height. The page is overflow:hidden so
+// the flex children are bounded and the fill-height DataGrids size correctly.
+
+.pf-ps-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--pf-font-family, sans-serif);
+  font-size: 12px;
+
+  .pf-ps-empty {
+    padding: 24px;
+    color: var(--pf-color-text-muted, #888);
+  }
+  .pf-ps-none {
+    padding: 8px 10px;
+    color: var(--pf-color-text-muted, #999);
+  }
+  .pf-ps-link {
+    color: var(--pf-color-primary, #1565c0);
+    cursor: pointer;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // ---- seek bar ----
+  .pf-ps-seekwrap {
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--pf-color-border, #ddd);
+    padding: 6px 10px 4px;
+  }
+  .pf-ps-seekrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pf-ps-step {
+    border: 1px solid var(--pf-color-border, #ccc);
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 8px;
+  }
+  .pf-ps-pos {
+    font-family: monospace;
+    color: var(--pf-color-text-muted, #777);
+    white-space: nowrap;
+  }
+  .pf-ps-seek {
+    position: relative;
+    flex: 1;
+    height: 22px;
+    cursor: pointer;
+    touch-action: none;
+    .pf-ps-seek-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 2px;
+      background: var(--pf-color-border, #ccc);
+    }
+    .pf-ps-seek-tick {
+      position: absolute;
+      top: 6px;
+      width: 1px;
+      height: 10px;
+      background: var(--pf-color-border, #bbb);
+      transform: translateX(-0.5px);
+    }
+    .pf-ps-seek-tick--on {
+      background: var(--pf-color-primary, #1565c0);
+    }
+    .pf-ps-seek-head {
+      position: absolute;
+      top: 1px;
+      width: 3px;
+      height: 20px;
+      border-radius: 2px;
+      background: var(--pf-color-primary, #1565c0);
+      transform: translateX(-1.5px);
+    }
+  }
+
+  // ---- graph ----
+  // max-height guarantees the bottom panel (tabs + tables) is always visible, no
+  // matter how far the splitter is dragged — so you can never "lose" the tables.
+  .pf-ps-graphwrap {
+    flex: 1 1 46%;
+    min-height: 0;
+    display: flex;
+    max-height: calc(100% - 190px);
+  }
+  // draggable splitter between the graph and the bottom panel
+  .pf-ps-resize {
+    flex: 0 0 7px;
+    cursor: row-resize;
+    background: var(--pf-color-border, #eee);
+    border-top: 1px solid var(--pf-color-background, #fff);
+    border-bottom: 1px solid var(--pf-color-background, #fff);
+    &:hover {
+      background: var(--pf-color-primary, #1565c0);
+    }
+  }
+
+  // ---- bottom tabbed panel ----
+  .pf-ps-bottom {
+    flex: 1 1 54%;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--pf-color-border, #ddd);
+  }
+  .pf-ps-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+    padding: 4px 8px 0;
+    border-bottom: 1px solid var(--pf-color-border, #eee);
+  }
+  .pf-ps-tab {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-bottom: 2px solid transparent;
+    color: var(--pf-color-text-muted, #777);
+  }
+  .pf-ps-tab--on {
+    color: var(--pf-color-text, #111);
+    font-weight: bold;
+    border-bottom-color: var(--pf-color-primary, #1565c0);
+  }
+  .pf-ps-tabbody {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .pf-ps-tabbody > .pf-data-grid {
+    flex: 1;
+    min-height: 0;
+  }
+  .pf-ps-tabbody--scroll {
+    display: block;
+    overflow: auto;
+    padding: 8px;
+  }
+
+  // ---- detail pane: labelled cards, each holding a DataGrid ----
+  .pf-ps-detailpane {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  // two side-by-side columns of cards to use the width
+  .pf-ps-cards {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .pf-ps-col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pf-ps-detail-h {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .pf-ps-detail-title {
+    font-size: 15px;
+    font-weight: bold;
+  }
+  .pf-ps-detail-sub {
+    font-family: monospace;
+    color: var(--pf-color-text-muted, #777);
+  }
+  .pf-ps-card {
+    border: 1px solid var(--pf-color-border, #e2e2e2);
+    .pf-data-grid {
+      max-height: 320px;
+    } // tall grids scroll within the card
+  }
+  .pf-ps-card-h {
+    background: var(--pf-color-background-secondary);
+    padding: 4px 10px;
+    font-weight: bold;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--pf-color-text-muted, #555);
+  }
+  .pf-ps-card-b {
+    padding: 8px 10px;
+  }
+}
+
+// ---- graph internals (shared with the timeline details panel) ----
+.pf-ps-graph {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  .pf-ps-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    padding: 3px 10px;
+    color: var(--pf-color-text-muted, #888);
+    .pf-ps-grow {
+      flex: 1;
+    }
+    // match the actual edge colours (EDGE_SERVICE / EDGE_FG / EDGE_PROVIDER)
+    .sv {
+      color: #bab0ac;
+    }
+    .fg {
+      color: #e15759;
+    }
+    .pv {
+      color: #4e79a7;
+    }
+    .pf-ps-fit {
+      font-size: 11px;
+      padding: 1px 8px;
+      cursor: pointer;
+      border: 1px solid var(--pf-color-border, #ccc);
+      background: transparent;
+      border-radius: 4px;
+    }
+  }
+  .pf-ps-svg {
+    flex: 1;
+    min-height: 0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    &:active {
+      cursor: grabbing;
+    }
+    // Faint off-white canvas so the graph reads as a distinct, pannable surface
+    // (the dot grid was distracting behind the labels/edges, so just the tint).
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-background) 94%,
+      var(--pf-color-border-secondary) 6%
+    );
+  }
+  .pf-ps-edge {
+    cursor: pointer;
+  }
+  .pf-ps-node {
+    cursor: pointer;
+  }
+  // Node ring is theme-aware: a background-coloured halo at rest (separates the
+  // dot from edges), the text colour on hover/selection (contrasts in both
+  // light and dark mode — the old hard-coded #222 was invisible on dark).
+  .pf-ps-node circle {
+    stroke: var(--pf-color-background);
+    stroke-width: 0.6;
+  }
+  .pf-ps-node:hover circle {
+    stroke: var(--pf-color-text);
+    stroke-width: 1.5;
+  }
+  .pf-ps-node--sel circle {
+    stroke: var(--pf-color-text);
+    stroke-width: 2;
+  }
+  text {
+    fill: var(--pf-color-text, #222);
+  }
+  .pf-ps-col {
+    fill: var(--pf-color-text-muted, #666);
+  }
+  .pf-ps-nlabel {
+    fill: var(--pf-color-text, #222);
+    stroke: var(--pf-color-background, #fff);
+    stroke-width: 2.6px;
+    paint-order: stroke;
+    stroke-linejoin: round;
+    font-family: var(--pf-font-monospace, monospace);
+  }
+}
+
+// hover tooltip (inside the Perfetto CursorTooltip portal). Deliberately light:
+// a name/kind line + a muted sub-line. Long names wrap rather than widen it.
+.pf-ps-tip {
+  max-width: 300px;
+  overflow-wrap: anywhere;
+  .pf-ps-tip-name {
+    font-size: 12px;
+    font-family: var(--pf-font-monospace, monospace);
+  }
+  .pf-ps-tip-sub {
+    font-size: 11px;
+    margin-top: 2px;
+    color: var(--pf-color-text-muted, #888);
+  }
+}
+
+// timeline details-panel: a two-column split (graph | properties).
+// `.pf-ps-detailpanel` is the DetailsShell ROOT; its `.pf-content` holds the
+// split. That content div is display:block by default, so a flex child can't
+// fill it and the split instead took the graph SVG's intrinsic aspect height
+// (overflowing the drawer and shrinking the divider as the graph narrowed).
+// Making .pf-content a flex column gives the split the drawer's real height.
+.pf-ps-detailpanel {
+  height: 100%;
+  min-height: 0;
+  .pf-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .pf-ps-panelsplit {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+  }
+  .pf-ps-detailgraph {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    .pf-ps-graph {
+      flex: 1;
+      min-height: 0;
+    }
+  }
+  .pf-ps-vresize {
+    flex: 0 0 7px;
+    cursor: col-resize;
+    background: var(--pf-color-border, #eee);
+    border-left: 1px solid var(--pf-color-background, #fff);
+    border-right: 1px solid var(--pf-color-background, #fff);
+    &:hover {
+      background: var(--pf-color-primary, #1565c0);
+    }
+  }
+  .pf-ps-panelprops {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: auto;
+    padding-left: 12px;
+  }
+  // card styles for the panel's DataGrid sections
+  .pf-ps-card {
+    border: 1px solid var(--pf-color-border, #e2e2e2);
+    margin-bottom: 8px;
+    .pf-data-grid {
+      max-height: 220px;
+    }
+  }
+  .pf-ps-card:last-child {
+    margin-bottom: 0;
+  }
+  .pf-ps-card-h {
+    background: var(--pf-color-background-secondary);
+    padding: 4px 10px;
+    font-weight: bold;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--pf-color-text-muted, #555);
+  }
+  .pf-ps-card-b {
+    padding: 8px 10px;
+  }
+  .pf-ps-detail-h {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .pf-ps-detail-title {
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .pf-ps-detail-sub {
+    font-family: monospace;
+    color: var(--pf-color-text-muted, #777);
+  }
+  .pf-ps-none {
+    padding: 6px 2px;
+    color: var(--pf-color-text-muted, #999);
+    font-size: 12px;
+  }
+}
