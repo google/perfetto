@@ -268,6 +268,7 @@ class HeapGraphTracker : public Destructible {
   tables::HeapGraphObjectTable::Cursor superclass_cursor_;
   tables::HeapGraphReferenceTable::Cursor reference_cursor_;
   tables::HeapGraphReferenceTable::Cursor referred_cursor_;
+  tables::HeapGraphTable::Cursor heap_graph_cursor_;
 
   std::map<std::pair<std::optional<StringId>, StringId>,
            std::vector<tables::HeapGraphClassTable::RowNumber>>

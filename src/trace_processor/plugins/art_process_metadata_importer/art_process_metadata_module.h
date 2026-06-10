@@ -19,6 +19,7 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto::trace_processor {
 
@@ -41,6 +42,7 @@ class ArtProcessMetadataModule : public ProtoImporterModule {
 
   TraceProcessorContext* const context_;
   DummyMemoryMapping* art_process_metadata_mapping_ = nullptr;
+  tables::PackageListTable::Cursor package_list_cursor_;
 };
 
 }  // namespace perfetto::trace_processor

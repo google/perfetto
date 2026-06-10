@@ -57,24 +57,10 @@ UniquePid GetOrCreateProcess(TraceProcessorContext* context,
 }
 
 void UpdatePackageList(TraceProcessorContext* context,
+                       tables::PackageListTable::Cursor& cursor,
                        base::StringView package_name,
                        int64_t uid) {
   StringId package_name_id = context->storage->InternString(package_name);
-  auto* package_list = context->storage->mutable_package_list_table();
-  auto cursor = package_list->CreateCursor({
-      dataframe::FilterSpec{
-          tables::PackageListTable::ColumnIndex::package_name,
-          0,
-          dataframe::Eq{},
-          {},
-      },
-      dataframe::FilterSpec{
-          tables::PackageListTable::ColumnIndex::uid,
-          1,
-          dataframe::Eq{},
-          {},
-      },
-  });
   cursor.SetFilterValueUnchecked(0, package_name_id.raw_id());
   cursor.SetFilterValueUnchecked(1, uid);
   cursor.Execute();
@@ -90,32 +76,6 @@ tables::HeapGraphTable::Id InsertHeapGraph(TraceProcessorContext* context,
                                            int64_t ts,
                                            UniquePid upid) {
   auto& heap_graph_table = *context->storage->mutable_heap_graph_table();
-  std::optional<tables::HeapGraphTable::Id> heap_graph_id;
-  auto cursor = heap_graph_table.CreateCursor({
-      dataframe::FilterSpec{
-          tables::HeapGraphTable::ColumnIndex::upid,
-          0,
-          dataframe::Eq{},
-          {},
-      },
-      dataframe::FilterSpec{
-          tables::HeapGraphTable::ColumnIndex::ts,
-          1,
-          dataframe::Eq{},
-          {},
-      },
-  });
-  cursor.SetFilterValueUnchecked(0, upid);
-  cursor.SetFilterValueUnchecked(1, ts);
-  cursor.Execute();
-  if (!cursor.Eof()) {
-    heap_graph_id = cursor.id();
-  }
-  if (heap_graph_id) {
-    auto row_ref = heap_graph_table[*heap_graph_id];
-    row_ref.set_dump_reason(context->storage->InternString("OOME"));
-    return *heap_graph_id;
-  }
 
   tables::HeapGraphTable::Row heap_graph_row;
   heap_graph_row.ts = ts;
@@ -211,7 +171,23 @@ void InsertOomeHeapGraphCallsite(
 ArtProcessMetadataModule::ArtProcessMetadataModule(
     ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
-    : ProtoImporterModule(module_context), context_(context) {
+    : ProtoImporterModule(module_context),
+      context_(context),
+      package_list_cursor_(
+          context->storage->mutable_package_list_table()->CreateCursor({
+              dataframe::FilterSpec{
+                  tables::PackageListTable::ColumnIndex::package_name,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              },
+              dataframe::FilterSpec{
+                  tables::PackageListTable::ColumnIndex::uid,
+                  1,
+                  dataframe::Eq{},
+                  {},
+              },
+          })) {
   RegisterForField(TracePacket::kArtProcessMetadataFieldNumber);
 }
 
@@ -247,7 +223,8 @@ void ArtProcessMetadataModule::ParseArtProcessMetadata(
   UniquePid upid = GetOrCreateProcess(context_, pid, process_name, uid);
 
   if (decoder.has_package_name() && decoder.has_uid()) {
-    UpdatePackageList(context_, decoder.package_name(), decoder.uid());
+    UpdatePackageList(context_, package_list_cursor_, decoder.package_name(),
+                      decoder.uid());
   }
 
   if (!decoder.has_oom_allocation_size()) {

@@ -315,6 +315,20 @@ HeapGraphTracker::HeapGraphTracker(TraceStorage* storage,
                   {},
               },
           })),
+      heap_graph_cursor_(storage->mutable_heap_graph_table()->CreateCursor({
+          dataframe::FilterSpec{
+              tables::HeapGraphTable::ColumnIndex::upid,
+              0,
+              dataframe::Eq{},
+              {},
+          },
+          dataframe::FilterSpec{
+              tables::HeapGraphTable::ColumnIndex::ts,
+              1,
+              dataframe::Eq{},
+              {},
+          },
+      })),
       cleaner_thunk_str_id_(storage_->InternString("sun.misc.Cleaner.thunk")),
       referent_str_id_(
           storage_->InternString("java.lang.ref.Reference.referent")),
@@ -820,25 +834,13 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
   auto& heap_graph_table = *storage_->mutable_heap_graph_table();
   std::optional<tables::HeapGraphTable::Id> heap_graph_id;
-  auto cursor = heap_graph_table.CreateCursor({
-      dataframe::FilterSpec{
-          tables::HeapGraphTable::ColumnIndex::upid,
-          0,
-          dataframe::Eq{},
-          {},
-      },
-      dataframe::FilterSpec{
-          tables::HeapGraphTable::ColumnIndex::ts,
-          1,
-          dataframe::Eq{},
-          {},
-      },
-  });
-  cursor.SetFilterValueUnchecked(0, sequence_state.current_upid);
-  cursor.SetFilterValueUnchecked(1, sequence_state.current_ts);
-  cursor.Execute();
-  if (!cursor.Eof()) {
-    heap_graph_id = cursor.id();
+  heap_graph_cursor_.SetFilterValueUnchecked(0, sequence_state.current_upid);
+  heap_graph_cursor_.SetFilterValueUnchecked(1, sequence_state.current_ts);
+  heap_graph_cursor_.Execute();
+  if (!heap_graph_cursor_.Eof()) {
+    heap_graph_id = heap_graph_cursor_.id();
+    heap_graph_cursor_.Next();
+    PERFETTO_DCHECK(heap_graph_cursor_.Eof());
   }
   if (heap_graph_id) {
     if (sequence_state.heap_size) {

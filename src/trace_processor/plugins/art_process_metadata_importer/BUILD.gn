@@ -32,6 +32,7 @@ source_set("art_process_metadata_importer") {
     "../../importers/common",
     "../../importers/proto:proto_importer_module",
     "../../storage",
+    "../../tables",
     "../../types",
   ]
 }
