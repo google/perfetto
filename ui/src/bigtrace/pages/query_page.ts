@@ -32,8 +32,8 @@ interface QueryPageAttrs {
   useBigtraceBackend?: boolean;
 }
 
-// Lets the globally-registered keyboard command reach into the active
-// QueryPage instance. Same pattern as sidebarToggleFn in index.ts.
+// Lets the global keyboard command reach the active QueryPage instance
+// (same pattern as sidebarToggleFn in index.ts).
 export let queryRightSidebarToggleFn: (() => void) | undefined;
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
@@ -61,8 +61,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view() {
-    // Process initialQuery set by home-page example buttons.
-    // Read-and-clear: each value is consumed exactly once.
+    // Read-and-clear initialQuery (set by home-page example buttons);
+    // consumed exactly once.
     const initialQuery = queryState.initialQuery;
     if (initialQuery !== undefined) {
       queryState.initialQuery = undefined;
@@ -76,12 +76,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       this.tabsState.markDirty();
     }
 
-    // Build editor tabs for the Tabs widget.
     const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({
       key: tab.id,
       title: tab.title,
-      // Spinner on tabs with a query in flight, so tab-switching
-      // doesn't make the running query "disappear".
+      // Spinner on in-flight tabs so switching away doesn't hide the run.
       leftIcon: tab.isLoading ? 'progress_activity' : 'code',
       closeButton: this.tabsState.tabs.length > 1,
       content: m(EditorTabView, {
@@ -103,11 +101,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       },
       onTabRename: (key, newTitle) => this.tabsState.renameTab(key, newTitle),
       onTabClose: async (key) => {
-        // closeTab is a no-op when only one tab remains; bail before
-        // the confirm so middle-click doesn't dead-end.
+        // closeTab is a no-op with one tab left; bail before the confirm
+        // so middle-click doesn't dead-end.
         if (this.tabsState.tabs.length <= 1) return;
         // Confirm only for ephemeral queries — closing loses the results.
-        // Persistent queries keep running on the backend (reopen from History).
+        // Persistent queries keep running and can be reopened from History.
         const tab = this.tabsState.tabs.find((t) => t.id === key);
         if (tab?.isLoading && !tab.materialize) {
           let confirmed = false;
@@ -158,8 +156,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       tabs: [
         {
           key: 'history',
-          // No leftIcon — the ~20px is better spent on the label at
-          // narrow viewports.
+          // No leftIcon — spend the ~20px on the label at narrow viewports.
           title: 'History',
           content: m(QueryHistoryComponent, {
             className: 'pf-bt-query-page__history',
@@ -191,8 +188,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         },
         {
           key: 'tables',
-          // Hide the count until the loader settles so we don't
-          // flash "(0)" on mount.
+          // Hide the count until the loader settles, to avoid flashing
+          // "(0)" on mount.
           title:
             sqlTablesLoader.modules && !sqlTablesLoader.isLoading
               ? `Stdlib Schemas (${sqlTablesLoader.modules.listTables().length})`
@@ -212,8 +209,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         direction: 'horizontal',
         initialSplit: {percent: 25},
         controlledPanel: 'second',
-        // Floor for the History meta-band layout; dismiss the
-        // sidebar entirely (Ctrl+Shift+B) for narrower screens.
+        // Floor for the History meta-band layout; dismiss the sidebar
+        // entirely (Ctrl+Shift+B) on narrower screens.
         minSize: 280,
         firstPanel: leftPanel,
         secondPanel: sidebarPanel,

@@ -29,7 +29,7 @@ import {formatDate} from '../../base/time';
 import {showModal} from '../../widgets/modal';
 import {historyStore, formatCompactDate} from './history_store';
 
-// Open-an-existing-history-entry callback.
+// Reopens an existing history entry.
 export type OpenQueryFn = (
   query: string,
   uuid: string,
@@ -40,10 +40,9 @@ export type OpenQueryFn = (
 ) => void;
 
 // SQL block clamped to ~4 lines with a fade-out mask; click to expand.
-// Used by both the sidebar history row and the delete-confirm modal.
-// The sidebar inherits its frame from `.pf-query-history__item pre`; the
-// modal uses `standalone: true` for the `--standalone` CSS class.
-// Expand state is a Mithril instance field so it survives redraws.
+// Used by the sidebar history row and the delete-confirm modal (the latter
+// passes `standalone: true`). Expand state lives on the instance so it
+// survives redraws.
 interface ClampedQueryAttrs {
   readonly queryText: string;
   readonly standalone?: boolean;
@@ -80,13 +79,12 @@ class ClampedQuery implements m.ClassComponent<ClampedQueryAttrs> {
   }
 }
 
-// UUIDs whose full SQL has already been fetched via the per-uuid endpoint.
-// Capped to avoid unbounded growth over long sessions.
+// UUIDs whose full SQL has already been fetched. Capped to bound growth.
 const FETCHED_SQL_MAX = 500;
 const fetchedFullSql = new Set<string>();
 
-// Returns an onExpand callback that fetches the full SQL on first expand,
-// or undefined if already fetched / no uuid.
+// onExpand callback that fetches the full SQL on first expand, or undefined
+// if already fetched / no uuid.
 function makeFullSqlExpander(
   uuid: string | undefined,
   currentText: string,
@@ -94,7 +92,7 @@ function makeFullSqlExpander(
   if (!uuid || fetchedFullSql.has(uuid)) return undefined;
   return () => {
     if (fetchedFullSql.size >= FETCHED_SQL_MAX) {
-      // Evict oldest entry (Set iteration order = insertion order).
+      // Evict oldest (Set iteration order = insertion order).
       const first = fetchedFullSql.values().next().value;
       if (first !== undefined) fetchedFullSql.delete(first);
     }
@@ -220,9 +218,7 @@ export function renderHistoryItem(
         ),
       ]),
     ]),
-    // Separate section (materialized only): a banded strip between the
-    // meta header and the SQL pre, with its own background and borders so
-    // it reads as a distinct section, not a row inside the header card.
+    // Materialized only: a banded strip between the header and the SQL pre.
     isMaterialized &&
       m(
         'div.pf-bt-history-item-details',
@@ -251,10 +247,7 @@ export function renderHistoryItem(
           `${formatCompact(rows)} ${rows === 1 ? 'row' : 'rows'}`,
         ),
       ),
-    // Sidebar uses the .pf-query-history__item pre rule for the
-    // monospace look; modal callers opt in via `{standalone: true}`.
-    // /query_executions clips perfettoSql; first expand fetches the
-    // full text via the per-uuid endpoint.
+    // /query_executions clips perfettoSql; first expand fetches the full text.
     m(ClampedQuery, {
       queryText,
       onExpand: makeFullSqlExpander(uuid, queryText),
