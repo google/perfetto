@@ -40,7 +40,11 @@ import {Icons} from '../../../base/semantic_icons';
 import {shareRecordConfig} from '../config/config_sharing';
 import {Card} from '../../../widgets/card';
 import {showModal} from '../../../widgets/modal';
-import {traceConfigToPb} from '../../../base/proto_utils_wasm';
+import {
+  traceConfigToPb,
+  traceConfigToTxt,
+} from '../../../base/proto_utils_wasm';
+import {base64Decode} from '../../../base/string_utils';
 import protos from '../../../protos';
 import {ImportConfigDialog} from '../views/import_config';
 
@@ -290,6 +294,16 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
                     }
                   },
                 }),
+              isCustom &&
+                m(Button, {
+                  icon: 'edit',
+                  compact: true,
+                  title: 'Edit textproto',
+                  onclick: (e: Event) => {
+                    e.stopPropagation();
+                    this.editSavedConfig(recMgr, saved);
+                  },
+                }),
               m(Button, {
                 icon: 'share',
                 compact: true,
@@ -346,6 +360,19 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
                 : 'Custom',
             ),
             m('.pf-preset-card__subtitle', 'Click to save'),
+            hasUnsavedCustomConfig &&
+              m(
+                '.pf-preset-card__actions',
+                m(Button, {
+                  icon: 'edit',
+                  compact: true,
+                  title: 'Edit textproto',
+                  onclick: (e: Event) => {
+                    e.stopPropagation();
+                    this.editActiveCustomConfig(recMgr);
+                  },
+                }),
+              ),
           ),
         this.renderImportCard(recMgr),
       ]),
@@ -372,6 +399,78 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
       m('.pf-preset-card__title', 'Import'),
       m('.pf-preset-card__subtitle', 'Load textproto'),
     );
+  }
+
+  // Edit a saved custom config: round-trips the stored binary back to textproto,
+  // and on save overwrites the saved entry (keeping its name) and reloads it.
+  private async editSavedConfig(
+    recMgr: RecordingManager,
+    saved: SavedSessionSchema,
+  ) {
+    if (saved.config.kind !== 'custom') return;
+    const fileName = saved.config.customConfigFileName ?? 'textproto';
+    const bytes = base64Decode(saved.config.customTraceConfigBase64);
+    const initialText = await traceConfigToTxt(bytes);
+    this.openEditDialog(
+      recMgr,
+      `Edit config "${saved.name}"`,
+      initialText,
+      (parsed) => {
+        recMgr.setCustomTraceConfig(parsed, fileName);
+        const updated = recMgr.saveConfig(saved.name);
+        this.loadSavedConfig(recMgr, updated);
+      },
+    );
+  }
+
+  // Edit the active (unsaved) custom config: pre-fills from the live config and
+  // on save replaces it in place, leaving it unsaved.
+  private async editActiveCustomConfig(recMgr: RecordingManager) {
+    if (!recMgr.hasCustomTraceConfig) return;
+    const fileName = recMgr.customConfigFileName ?? 'textproto';
+    const initialText = await traceConfigToTxt(recMgr.genTraceConfig());
+    this.openEditDialog(recMgr, 'Edit config', initialText, (parsed) => {
+      recMgr.setCustomTraceConfig(parsed, fileName);
+    });
+  }
+
+  // Shared edit dialog: shows the textproto editor pre-filled with `initialText`
+  // and, on save, parses it and hands the decoded TraceConfig to `onSave`.
+  private openEditDialog(
+    recMgr: RecordingManager,
+    title: string,
+    initialText: string,
+    onSave: (parsed: protos.TraceConfig) => void,
+  ) {
+    let config = initialText;
+    showModal({
+      title,
+      content: () =>
+        m(ImportConfigDialog, {
+          config,
+          onUpdate: (x) => {
+            config = x;
+          },
+        }),
+      buttons: [
+        {
+          text: 'Save',
+          primary: true,
+          action: async () => {
+            const res = await traceConfigToPb(config);
+            if (!res.ok) {
+              showModal({
+                title: 'Import error',
+                content: `Failed to parse config: ${res.error}`,
+              });
+              return;
+            }
+            onSave(protos.TraceConfig.decode(res.value));
+            recMgr.app.raf.scheduleFullRedraw();
+          },
+        },
+      ],
+    });
   }
 
   private openRawTextProtoModal(recMgr: RecordingManager) {
