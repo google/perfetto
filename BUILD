@@ -9803,6 +9803,7 @@ perfetto_proto_library(
         ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_regular_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
+        ":protos_perfetto_trace_non_minimal_protos",
         ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_regular_protos",
     ],
 )
