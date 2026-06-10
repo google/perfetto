@@ -111,6 +111,24 @@ type SnapshotEntry =
   | {kind: 'profile'; row: HeapProfileRow}
   | {kind: 'smaps'; row: SmapsSummaryRow};
 
+// Everything derived from (raw data, selected process) that doesn't depend on
+// per-frame state. Computed once per selection in computeViewModel() and reused
+// across redraws — the data is immutable after load, so none of this changes
+// until the user picks a different process.
+interface ViewModel {
+  filteredData: Data;
+  hdChartData?: LineChartData;
+  npChartData?: LineChartData;
+  smapsChartData?: LineChartData;
+  snapshots: SnapshotEntry[];
+  // Δ in native unreleased vs the previous heapprofd sample, keyed by eventId.
+  nativeDeltaByEventId: Map<number, number>;
+  // Reachable Java heap bytes per dump, keyed by `upid-ts`.
+  reachableByDump: Map<string, number>;
+  // Δ in reachable bytes vs the previous dump, keyed by `upid-ts`.
+  javaReachableDeltaByKey: Map<string, number>;
+}
+
 async function loadData(trace: Trace): Promise<Data> {
   const heapDumps: HeapDumpRow[] = [];
   const dumpRes = await trace.engine.query(`
@@ -713,12 +731,126 @@ function describeGrowth(g: GrowthTrend): string {
   return `${verb} by ${formatBytes(Math.abs(g.delta))} over ${durationS}`;
 }
 
+// Does all the per-process data-prep up front: filter to the selected process,
+// build the three chart datasets, sort the snapshot list, and precompute the
+// delta maps the snapshot table needs. Pure function of (trace, data, process);
+// the result is cached by the caller and reused across redraws.
+function computeViewModel(
+  trace: Trace,
+  data: Data,
+  processName?: string,
+): ViewModel {
+  const filteredData: Data = {
+    heapDumps: data.heapDumps.filter((r) => r.processName === processName),
+    heapDumpClasses: data.heapDumpClasses.filter(
+      (r) => r.processName === processName,
+    ),
+    heapProfiles: data.heapProfiles.filter(
+      (r) => r.processName === processName,
+    ),
+    javaHeapCounters: data.javaHeapCounters.filter(
+      (r) => r.processName === processName,
+    ),
+    smapsSummaries: data.smapsSummaries.filter(
+      (r) => r.processName === processName,
+    ),
+  };
+
+  const hdChartData = buildHeapDumpsChartData(
+    trace,
+    filteredData.heapDumpClasses,
+  );
+  const npChartData = buildHeapProfilesChartData(
+    trace,
+    filteredData.heapProfiles,
+  );
+  const smapsChartData =
+    filteredData.smapsSummaries.length > 1
+      ? buildSmapsChartData(trace, filteredData.smapsSummaries)
+      : undefined;
+
+  // Δ in native unreleased since the previous heapprofd sample of the same
+  // (process, heap). Keyed by eventId; absent for the first sample of a heap.
+  const nativeDeltaByEventId = new Map<number, number>();
+  const prevUnreleased = new Map<string, number>();
+  for (const r of filteredData.heapProfiles) {
+    const key = `${r.upid} - ${r.heapName}`;
+    const prev = prevUnreleased.get(key);
+    if (prev !== undefined) {
+      nativeDeltaByEventId.set(r.eventId, r.unreleasedSize - prev);
+    }
+    prevUnreleased.set(key, r.unreleasedSize);
+  }
+
+  // Reachable Java heap bytes per dump (summed from the per-class rows), plus
+  // the Δ vs the previous dump of the same process. Keyed by `upid-ts`.
+  const reachableByDump = new Map<string, number>();
+  for (const r of filteredData.heapDumpClasses) {
+    if (!r.reachable) continue;
+    const key = `${r.upid}-${r.ts}`;
+    reachableByDump.set(key, (reachableByDump.get(key) ?? 0) + r.size);
+  }
+  const javaReachableDeltaByKey = new Map<string, number>();
+  const prevReachable = new Map<number, number>();
+  // Iterate dumps in ts order so "previous" is well-defined per process.
+  for (const r of [...filteredData.heapDumps].sort((a, b) =>
+    a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0,
+  )) {
+    const key = `${r.upid}-${r.ts}`;
+    const abs = reachableByDump.get(key) ?? 0;
+    const prev = prevReachable.get(r.upid);
+    if (prev !== undefined) {
+      javaReachableDeltaByKey.set(key, abs - prev);
+    }
+    prevReachable.set(r.upid, abs);
+  }
+
+  return {
+    filteredData,
+    hdChartData,
+    npChartData,
+    smapsChartData,
+    snapshots: getSortedSnapshots(filteredData),
+    nativeDeltaByEventId,
+    reachableByDump,
+    javaReachableDeltaByKey,
+  };
+}
+
 export class MemscopeLandingPage implements m.ClassComponent<{trace: Trace}> {
   private readonly dataSlot = new QuerySlot<Data>();
   private selectedProcessName?: string;
 
+  // Memoized view model. The heavy data-prep (filtering, chart building, delta
+  // maps) only depends on the loaded data and the selected process, neither of
+  // which changes per redraw — so compute it once and reuse it until either
+  // input changes. Without this, every mithril redraw (hover, mouse move, …)
+  // re-derived everything and the page felt sluggish.
+  private cachedViewModel?: ViewModel;
+  private cachedForData?: Data;
+  private cachedForProcess?: string;
+
   onremove() {
     this.dataSlot.dispose();
+  }
+
+  private getViewModel(
+    trace: Trace,
+    data: Data,
+    processName?: string,
+  ): ViewModel {
+    if (
+      this.cachedViewModel !== undefined &&
+      this.cachedForData === data &&
+      this.cachedForProcess === processName
+    ) {
+      return this.cachedViewModel;
+    }
+    const vm = computeViewModel(trace, data, processName);
+    this.cachedViewModel = vm;
+    this.cachedForData = data;
+    this.cachedForProcess = processName;
+    return vm;
   }
 
   view({attrs}: m.Vnode<{trace: Trace}>) {
@@ -747,23 +879,7 @@ export class MemscopeLandingPage implements m.ClassComponent<{trace: Trace}> {
         this.selectedProcessName = best.name;
       }
 
-      const filteredData: Data = {
-        heapDumps: data.heapDumps.filter(
-          (r) => r.processName === this.selectedProcessName,
-        ),
-        heapDumpClasses: data.heapDumpClasses.filter(
-          (r) => r.processName === this.selectedProcessName,
-        ),
-        heapProfiles: data.heapProfiles.filter(
-          (r) => r.processName === this.selectedProcessName,
-        ),
-        javaHeapCounters: data.javaHeapCounters.filter(
-          (r) => r.processName === this.selectedProcessName,
-        ),
-        smapsSummaries: data.smapsSummaries.filter(
-          (r) => r.processName === this.selectedProcessName,
-        ),
-      };
+      const vm = this.getViewModel(trace, data, this.selectedProcessName);
 
       filteredSections = [
         processes.length > 1 &&
@@ -783,8 +899,8 @@ export class MemscopeLandingPage implements m.ClassComponent<{trace: Trace}> {
               ),
             ),
           ]),
-        this.renderCaptureStrip(trace, filteredData),
-        this.renderSections(trace, filteredData),
+        this.renderCaptureStrip(trace, vm.filteredData),
+        this.renderSections(trace, vm),
       ];
     }
 
@@ -1010,7 +1126,8 @@ export class MemscopeLandingPage implements m.ClassComponent<{trace: Trace}> {
     );
   }
 
-  private renderSections(trace: Trace, data: Data): m.Children {
+  private renderSections(trace: Trace, vm: ViewModel): m.Children {
+    const data = vm.filteredData;
     if (
       data.heapDumps.length === 0 &&
       data.heapProfiles.length === 0 &&
@@ -1025,48 +1142,14 @@ export class MemscopeLandingPage implements m.ClassComponent<{trace: Trace}> {
 
     const traceDurationS =
       Number(trace.traceInfo.end - trace.traceInfo.start) / 1e9;
-    const hdChartData = buildHeapDumpsChartData(trace, data.heapDumpClasses);
-    const npChartData = buildHeapProfilesChartData(trace, data.heapProfiles);
-    const smapsChartData =
-      data.smapsSummaries.length > 1
-        ? buildSmapsChartData(trace, data.smapsSummaries)
-        : undefined;
-
-    // Δ in native unreleased since the previous heapprofd sample of the same
-    // (process, heap). Keyed by eventId; absent for the first sample of a heap.
-    const nativeDeltaByEventId = new Map<number, number>();
-    const prevUnreleased = new Map<string, number>();
-    for (const r of data.heapProfiles) {
-      const key = `${r.upid} - ${r.heapName}`;
-      const prev = prevUnreleased.get(key);
-      if (prev !== undefined) {
-        nativeDeltaByEventId.set(r.eventId, r.unreleasedSize - prev);
-      }
-      prevUnreleased.set(key, r.unreleasedSize);
-    }
-
-    // Reachable Java heap bytes per dump (summed from the per-class rows),
-    // plus the Δ vs the previous dump of the same process. Keyed by `upid-ts`.
-    const reachableByDump = new Map<string, number>();
-    for (const r of data.heapDumpClasses) {
-      if (!r.reachable) continue;
-      const key = `${r.upid}-${r.ts}`;
-      reachableByDump.set(key, (reachableByDump.get(key) ?? 0) + r.size);
-    }
-    const javaReachableDeltaByKey = new Map<string, number>();
-    const prevReachable = new Map<number, number>();
-    // Iterate dumps in ts order so "previous" is well-defined per process.
-    for (const r of [...data.heapDumps].sort((a, b) =>
-      a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0,
-    )) {
-      const key = `${r.upid}-${r.ts}`;
-      const abs = reachableByDump.get(key) ?? 0;
-      const prev = prevReachable.get(r.upid);
-      if (prev !== undefined) {
-        javaReachableDeltaByKey.set(key, abs - prev);
-      }
-      prevReachable.set(r.upid, abs);
-    }
+    const {
+      hdChartData,
+      npChartData,
+      smapsChartData,
+      nativeDeltaByEventId,
+      reachableByDump,
+      javaReachableDeltaByKey,
+    } = vm;
 
     return [
       m(
@@ -1166,7 +1249,7 @@ export class MemscopeLandingPage implements m.ClassComponent<{trace: Trace}> {
         ),
         m(
           'tbody',
-          getSortedSnapshots(data).map((entry) => {
+          vm.snapshots.map((entry) => {
             if (entry.kind === 'dump') {
               const dump = entry.row;
               const viewOnTimeline = m(Button, {
