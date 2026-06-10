@@ -379,7 +379,7 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
 //   TRACE_STATE(category, state_value, track, ...)
 //   TRACE_STATE(category, state_field, my_value, track, ...)
 #define TRACE_STATE(category, ...) \
-  PERFETTO_INTERNAL_TRACK_STATE(category, ##__VA_ARGS__)
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(TraceState, category, ##__VA_ARGS__)
 
 // End a slice under |category|.
 #define TRACE_EVENT_END(category, ...)              \

@@ -200,6 +200,9 @@ namespace internal {
 template <typename Derived, uint64_t Magic>
 class NamedTrackImpl : public Track {
  public:
+  // `name` is hashed to get a uuid identifying the track. Optionally specify
+  // `id` to differentiate between multiple tracks with the same `name` and
+  // `parent`.
   NamedTrackImpl(DynamicString name,
                  uint64_t id = 0,
                  Track parent = MakeProcessTrack())
@@ -261,42 +264,12 @@ class NamedTrackImpl : public Track {
     return Derived(std::forward<TrackEventName>(name), id, Track());
   }
 
-  constexpr Derived disable_sibling_merge() const {
-    return Derived(
-        *static_cast<const Derived*>(this),
-        perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
-        nullptr, std::nullopt);
-  }
-
-  constexpr Derived set_sibling_merge_key(const char* key) {
-    return Derived(*static_cast<const Derived*>(this),
-                   perfetto::protos::gen::TrackDescriptor::
-                       SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
-                   key, std::nullopt);
-  }
-
-  constexpr Derived set_sibling_merge_key(uint64_t key) {
-    return Derived(*static_cast<const Derived*>(this),
-                   perfetto::protos::gen::TrackDescriptor::
-                       SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
-                   nullptr, key);
-  }
-
   protos::gen::TrackDescriptor Serialize() const {
     auto desc = Track::Serialize();
     if (static_name_) {
       desc.set_static_name(static_name_.value);
     } else {
       desc.set_name(dynamic_name_.value);
-    }
-    if (sibling_merge_behavior_ != perfetto::protos::gen::TrackDescriptor::
-                                       SIBLING_MERGE_BEHAVIOR_UNSPECIFIED) {
-      desc.set_sibling_merge_behavior(sibling_merge_behavior_);
-    }
-    if (sibling_merge_key_) {
-      desc.set_sibling_merge_key(sibling_merge_key_);
-    } else if (sibling_merge_key_int_.has_value()) {
-      desc.set_sibling_merge_key_int(*sibling_merge_key_int_);
     }
     return desc;
   }
@@ -308,26 +281,8 @@ class NamedTrackImpl : public Track {
   }
 
  protected:
-  constexpr NamedTrackImpl(
-      const NamedTrackImpl& other,
-      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
-          sibling_merge_behavior,
-      const char* sibling_merge_key,
-      std::optional<uint64_t> sibling_merge_key_int)
-      : Track(other),
-        static_name_(other.static_name_),
-        dynamic_name_(other.dynamic_name_),
-        sibling_merge_behavior_(sibling_merge_behavior),
-        sibling_merge_key_(sibling_merge_key),
-        sibling_merge_key_int_(std::move(sibling_merge_key_int)) {}
-
   StaticString static_name_;
   DynamicString dynamic_name_;
-  perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
-      sibling_merge_behavior_{perfetto::protos::gen::TrackDescriptor::
-                                  SIBLING_MERGE_BEHAVIOR_UNSPECIFIED};
-  const char* sibling_merge_key_{nullptr};
-  std::optional<uint64_t> sibling_merge_key_int_ = std::nullopt;
 };
 
 static constexpr uint64_t kNamedTrackMagic = 0xCD571EC5EAD37024ul;
@@ -342,10 +297,48 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack
   using NamedTrackImpl::NamedTrackImpl;
   using NamedTrackImpl::Serialize;
 
+  constexpr NamedTrack disable_sibling_merge() const {
+    return NamedTrack(
+        *this,
+        perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
+        nullptr, std::nullopt);
+  }
+
+  constexpr NamedTrack set_sibling_merge_key(const char* key) const {
+    return NamedTrack(*this,
+                      perfetto::protos::gen::TrackDescriptor::
+                          SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                      key, std::nullopt);
+  }
+
+  constexpr NamedTrack set_sibling_merge_key(uint64_t key) const {
+    return NamedTrack(*this,
+                      perfetto::protos::gen::TrackDescriptor::
+                          SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                      nullptr, key);
+  }
+
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
   friend class internal::NamedTrackImpl<NamedTrack, internal::kNamedTrackMagic>;
+
+  constexpr NamedTrack(
+      const NamedTrack& other,
+      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+          sibling_merge_behavior,
+      const char* sibling_merge_key,
+      std::optional<uint64_t> sibling_merge_key_int)
+      : NamedTrackImpl(other),
+        sibling_merge_behavior_(sibling_merge_behavior),
+        sibling_merge_key_(sibling_merge_key),
+        sibling_merge_key_int_(std::move(sibling_merge_key_int)) {}
+
+  perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+      sibling_merge_behavior_{perfetto::protos::gen::TrackDescriptor::
+                                  SIBLING_MERGE_BEHAVIOR_UNSPECIFIED};
+  const char* sibling_merge_key_{nullptr};
+  std::optional<uint64_t> sibling_merge_key_int_ = std::nullopt;
 };
 
 // A track for recording state values with the TRACE_STATE macro, with similar
