@@ -215,6 +215,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.sched_slice_table().mutations() + s.counter_table().mutations() +
            s.slice_table().mutations() +
            s.heap_profile_allocation_table().mutations() +
+           s.profiler_smaps_table().mutations() +
            s.thread_state_table().mutations() + s.log_table().mutations() +
            s.heap_graph_object_table().mutations() +
            s.perf_sample_table().mutations() +
@@ -243,6 +244,10 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       end_ns = std::max(it.ts() + it.dur(), end_ns);
     }
     for (auto it = s.heap_profile_allocation_table().IterateRows(); it; ++it) {
+      start_ns = std::min(it.ts(), start_ns);
+      end_ns = std::max(it.ts(), end_ns);
+    }
+    for (auto it = s.profiler_smaps_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }
