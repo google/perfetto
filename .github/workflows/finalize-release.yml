@@ -174,10 +174,23 @@ jobs:
           VERSION: ${{ inputs.version }}
           REPO: ${{ github.repository }}
         run: |
-          # Overlay this release's skills onto the rolled tree; everything else
-          # (rolled trace_processor, stamped manifests + installer) stays.
-          git checkout "$VERSION" -- ai/skills
-          tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
+          # The bundle ships THIS tag's skills. Check the tag out into its
+          # own worktree and point the bundler at it, leaving the rolled main
+          # checkout untouched; everything else (rolled trace_processor,
+          # stamped manifests + installer) still comes from this checkout.
+          # Tags from before the single-skill layout (#6156) have no
+          # bundleable skill; skip the bundle (never substitute main's
+          # skills) rather than failing the whole finalize run.
+          git worktree add --detach /tmp/release-tag-tree "$VERSION"
+          SKILLS_SRC=/tmp/release-tag-tree/ai/skills
+          if [[ ! -f "$SKILLS_SRC/perfetto/SKILL-template.md" ]]; then
+            echo "::warning::$VERSION predates the single-skill layout (#6156); skipping the agent-skills bundle."
+            git worktree remove --force /tmp/release-tag-tree
+            exit 0
+          fi
+          tools/release/build_ai_agents.py --output /tmp/ai-agents-tree \
+            --skills-src "$SKILLS_SRC"
+          git worktree remove --force /tmp/release-tag-tree
 
           BRANCH="dev/github-bot/ai-agents-bundle"
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"

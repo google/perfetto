@@ -53,11 +53,13 @@ This script does no stamping: the release version is written into the
 source manifests and the bundled `agents-install` by tools/release/
 roll-prebuilts (alongside the prebuilt binary roll), so this just copies
 already-versioned files. At release time the finalize-release GitHub
-Action rolls the prebuilts, overlays this tag's ai/skills, runs this, then
-opens a PR (base: ai-agents) for a maintainer to review and merge — the
-bundle is never pushed to ai-agents directly.
+Action rolls the prebuilts, checks the release tag out into a separate
+worktree, runs this with `--skills-src <worktree>/ai/skills` (so the
+bundle ships the tag's skills, not main's), then opens a PR (base:
+ai-agents) for a maintainer to review and merge — the bundle is never
+pushed to ai-agents directly.
 
-Local usage (builds the tree only):
+Local usage (builds the tree only, skills from this checkout):
     tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
 
 `--commit-and-git-init` additionally inits a throwaway orphan repo in the
@@ -75,9 +77,8 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
+DEFAULT_SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
 SKILL_NAME = 'perfetto'
-SKILL_SRC = SKILLS_SRC / SKILL_NAME
 EXTENSIONS_SRC = REPO_ROOT / 'ai' / 'extensions'
 TRACE_PROCESSOR_SRC = REPO_ROOT / 'tools' / 'trace_processor'
 AGENTS_INSTALL_SRC = REPO_ROOT / 'tools' / 'agents-install'
@@ -104,7 +105,7 @@ _EMIT_IGNORE = shutil.ignore_patterns(SKILL_TEMPLATE, 'setup-bundled.md',
                                       'TEST.md', 'BUILD')
 
 
-def _emit_skill(variant: str, dest_dir: Path) -> str:
+def _emit_skill(skill_src: Path, variant: str, dest_dir: Path) -> str:
   """Emit the single `perfetto` skill into dest_dir, resolved for `variant`.
 
   Copies the skill tree verbatim except for the two source-only transforms:
@@ -112,11 +113,11 @@ def _emit_skill(variant: str, dest_dir: Path) -> str:
   Returns the emitted skill name.
   """
   out_dir = dest_dir / SKILL_NAME
-  shutil.copytree(SKILL_SRC, out_dir, ignore=_EMIT_IGNORE)
+  shutil.copytree(skill_src, out_dir, ignore=_EMIT_IGNORE)
   # Router: SKILL-template.md -> SKILL.md (verbatim, no content rewrite).
-  shutil.copy(SKILL_SRC / SKILL_TEMPLATE, out_dir / 'SKILL.md')
+  shutil.copy(skill_src / SKILL_TEMPLATE, out_dir / 'SKILL.md')
   # Environment setup: select the variant for this target class.
-  shutil.copy(SKILL_SRC / ENV_REF_DIR / SETUP_VARIANT[variant],
+  shutil.copy(skill_src / ENV_REF_DIR / SETUP_VARIANT[variant],
               out_dir / ENV_REF_DIR / 'setup.md')
   return SKILL_NAME
 
@@ -147,7 +148,12 @@ def _main_sha() -> str:
       ['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD']).decode().strip()
 
 
-def build(output: Path) -> None:
+def build(output: Path, skills_src: Path) -> None:
+  skill_src = skills_src / SKILL_NAME
+  if not (skill_src / SKILL_TEMPLATE).is_file():
+    sys.exit(f'error: {skill_src / SKILL_TEMPLATE} not found. The skills '
+             'source must use the single-skill layout (#6156); release tags '
+             'from before that migration cannot be bundled.')
   if output.exists():
     shutil.rmtree(output)
   output.mkdir(parents=True)
@@ -171,8 +177,8 @@ def build(output: Path) -> None:
   (output / 'bin' / 'trace_processor').chmod(0o755)
   (output / 'agents-install').chmod(0o755)
 
-  _emit_skill('plugin', output / 'plugins' / 'perfetto' / 'skills')
-  _emit_skill('fallback', output / 'skills')
+  _emit_skill(skill_src, 'plugin', output / 'plugins' / 'perfetto' / 'skills')
+  _emit_skill(skill_src, 'fallback', output / 'skills')
   _write_index(output / 'skills')
 
   # Branch metadata. The version is read from the source manifests, which
@@ -191,6 +197,7 @@ def build(output: Path) -> None:
    'BRANCH_METADATA.json').write_text(json.dumps(meta, indent=2) + '\n')
 
   print(f'Built ai-agents tree at {output}')
+  print(f'  skills src:     {skills_src}')
   print(f'  plugin skill:   {SKILL_NAME} (setup: {SETUP_VARIANT["plugin"]})')
   print(f'  fallback skill: {SKILL_NAME} (setup: {SETUP_VARIANT["fallback"]})')
   print(f'  main_sha:  {meta["main_sha"]}')
@@ -222,6 +229,13 @@ def main() -> int:
       help='Directory to write the assembled tree into '
       '(will be removed if it exists).')
   ap.add_argument(
+      '--skills-src',
+      type=Path,
+      default=DEFAULT_SKILLS_SRC,
+      help='ai/skills tree to bundle, e.g. from a worktree of the release '
+      'tag (default: this checkout\'s ai/skills). Everything else (manifests, '
+      'trace_processor wrapper, installer) always comes from this checkout.')
+  ap.add_argument(
       '--commit-and-git-init',
       action='store_true',
       help='After assembling, initialize the output as a fresh git repo '
@@ -229,7 +243,7 @@ def main() -> int:
       'against a personal fork).')
   args = ap.parse_args()
 
-  build(args.output)
+  build(args.output, args.skills_src.resolve())
   if args.commit_and_git_init:
     commit(args.output, f'RFC-0026 ai-agents branch (built from {_main_sha()})')
     print(f'  committed to {args.output}/.git (branch: ai-agents)')
