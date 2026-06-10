@@ -300,9 +300,13 @@ class TraceProcessor:
 
   def _create_tp_http(self, addr: str) -> TraceProcessorHttp:
     if addr:
+      # Without a scheme (e.g. 'localhost:9123'), urlparse treats the host as
+      # the scheme and the port as the path, so we'd connect to the wrong
+      # address. Adding an explicit http:// makes parsing unambiguous.
       p = urlparse(addr)
-      parsed = p.netloc if p.netloc else p.path
-      return TraceProcessorHttp(parsed, protos=self.protos)
+      if p.scheme not in ('http', 'https'):
+        p = urlparse('http://' + addr)
+      return TraceProcessorHttp(p.netloc, protos=self.protos)
 
     (url, self.subprocess, self._tp_stdout, self._tp_stderr,
      self._job_handle) = load_shell(
