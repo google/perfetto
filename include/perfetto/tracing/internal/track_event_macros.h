@@ -160,7 +160,6 @@
     }                                                                          \
   } while (false)
 
-
 // C++17 doesn't like a move constructor being defined for the EventFinalizer
 // class but C++11 and MSVC doesn't compile without it being defined so support
 // both.
