@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "src/trace_processor/types/trace_metadata_state.h"
-
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -57,6 +55,7 @@
 #include "src/trace_processor/importers/proto/user_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_metadata_state.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 

@@ -17,12 +17,9 @@
 #include "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata_reader.h"
 
 #include <cinttypes>
-#include <cmath>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <string>
-#include <utility>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -41,92 +38,12 @@
 namespace perfetto::trace_processor::perfetto_metadata {
 namespace {
 
-using FileEntry = TraceMetadataState::FileEntry;
-
-// Strict counterpart of json::Dom::AsInt64: rejects (rather than silently
-// truncating or UB-casting) values which are fractional or outside int64
-// range.
-base::StatusOr<int64_t> ParseStrictInt64(const json::Dom& value,
-                                         const char* what) {
-  if (value.IsInt()) {
-    return value.AsInt64();
-  }
-  if (value.IsUint()) {
-    uint64_t v = value.AsUint64();
-    if (v > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-      return base::ErrStatus("perfetto_metadata: %s is out of range", what);
-    }
-    return static_cast<int64_t>(v);
-  }
-  if (value.IsDouble()) {
-    double d = value.AsDouble();
-    // 2^63 (and -2^63) are exactly representable as doubles; values >= 2^63
-    // are out of range.
-    if (!(d >= -9223372036854775808.0 && d < 9223372036854775808.0) ||
-        d != std::floor(d)) {
-      return base::ErrStatus(
-          "perfetto_metadata: %s must be an integer in int64 range", what);
-    }
-    return static_cast<int64_t>(d);
-  }
-  return base::ErrStatus("perfetto_metadata: %s must be a number", what);
-}
-
-base::Status CheckAllowedFields(const json::Dom& obj,
-                                std::initializer_list<const char*> allowed,
-                                const char* prefix) {
-  for (const std::string& key : obj.GetMemberNames()) {
-    bool ok = false;
-    for (const char* a : allowed) {
-      if (key == a) {
-        ok = true;
-        break;
-      }
-    }
-    if (!ok) {
-      return base::ErrStatus("%s: unknown field: %s", prefix, key.c_str());
-    }
-  }
-  return base::OkStatus();
-}
-
-base::StatusOr<uint32_t> ParseClockNameOrError(const json::Dom& value) {
+base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
   if (!value.IsString()) {
     return base::ErrStatus("perfetto_metadata: clock name must be a string");
   }
-  std::string name = value.AsString();
-  auto clock = PerfettoMetadataReader::ParseClockName(name);
-  if (!clock) {
-    return base::ErrStatus("perfetto_metadata: unknown clock name: %s",
-                           name.c_str());
-  }
-  return *clock;
-}
-
-base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
-  if (!file.IsObject()) {
-    return base::ErrStatus("perfetto_metadata: files entries must be objects");
-  }
-  RETURN_IF_ERROR(CheckAllowedFields(file, {"path"}, "perfetto_metadata"));
-  if (!file.HasMember("path") || !file["path"].IsString()) {
-    return base::ErrStatus("perfetto_metadata: missing required field: path");
-  }
-  FileEntry entry;
-  entry.path = file["path"].AsString();
-  return entry;
-}
-
-}  // namespace
-
-PerfettoMetadataReader::PerfettoMetadataReader(TraceProcessorContext* context)
-    : context_(context) {}
-
-PerfettoMetadataReader::~PerfettoMetadataReader() = default;
-
-// static
-std::optional<uint32_t> PerfettoMetadataReader::ParseClockName(
-    const std::string& name) {
   using protos::pbzero::BuiltinClock;
+  std::string name = value.AsString();
   if (name == "REALTIME")
     return BuiltinClock::BUILTIN_CLOCK_REALTIME;
   if (name == "REALTIME_COARSE")
@@ -139,8 +56,17 @@ std::optional<uint32_t> PerfettoMetadataReader::ParseClockName(
     return BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
   if (name == "BOOTTIME")
     return BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
-  return std::nullopt;
+  return base::ErrStatus("perfetto_metadata: unknown clock name: %s",
+                         name.c_str());
 }
+
+}  // namespace
+
+PerfettoMetadataReader::PerfettoMetadataReader(TraceProcessorContext* context,
+                                               uint32_t file_id)
+    : context_(context), file_id_(file_id) {}
+
+PerfettoMetadataReader::~PerfettoMetadataReader() = default;
 
 base::Status PerfettoMetadataReader::Parse(TraceBlobView blob) {
   buffer_.append(reinterpret_cast<const char*>(blob.data()), blob.size());
@@ -164,23 +90,22 @@ base::Status PerfettoMetadataReader::OnPushDataToSorter() {
   }
   const json::Dom& meta = root["perfetto_metadata"];
 
-  RETURN_IF_ERROR(CheckAllowedFields(
-      meta, {"version", "trace_time_clock", "files"}, "perfetto_metadata"));
-
-  if (!meta.HasMember("version") || !meta["version"].IsNumeric()) {
+  if (!meta.HasMember("version")) {
     return base::ErrStatus(
         "perfetto_metadata: missing required field: version");
   }
-  ASSIGN_OR_RETURN(int64_t version,
-                   ParseStrictInt64(meta["version"], "version"));
-  if (version != 1) {
+  const json::Dom& version = meta["version"];
+  if (!version.IsInt() && !version.IsUint()) {
+    return base::ErrStatus("perfetto_metadata: version must be an integer");
+  }
+  if (version.AsInt64() != 1) {
     return base::ErrStatus("perfetto_metadata: unsupported version: %" PRId64,
-                           version);
+                           version.AsInt64());
   }
 
   if (meta.HasMember("trace_time_clock")) {
     ASSIGN_OR_RETURN(uint32_t clock,
-                     ParseClockNameOrError(meta["trace_time_clock"]));
+                     ParseClockName(meta["trace_time_clock"]));
     state->trace_time_clock = clock;
   }
 
@@ -189,26 +114,23 @@ base::Status PerfettoMetadataReader::OnPushDataToSorter() {
       return base::ErrStatus("perfetto_metadata: files must be an array");
     }
     for (const json::Dom& file : meta["files"]) {
-      ASSIGN_OR_RETURN(FileEntry entry, ParseFileEntry(file));
-      if (state->FindEntry(entry.path)) {
+      if (!file["path"].IsString()) {
         return base::ErrStatus(
-            "perfetto_metadata: duplicate entry for path: %s",
-            entry.path.c_str());
+            "perfetto_metadata: files entries must be objects with a string "
+            "path");
       }
-      state->files.push_back(std::move(entry));
+      state->files.push_back({file["path"].AsString()});
     }
   }
 
-  // Claim the global trace time clock now, before any other archive member
-  // is parsed. This file has no per-trace context (and thus no ClockTracker)
-  // so write the shared TraceTimeState directly; the sentinel owner id
-  // ensures no later trace file can override the choice, as SetGlobalClock
-  // only allows changes by the owning trace file.
+  // This file has no per-trace context (and thus no ClockTracker), so it
+  // cannot go through ClockTracker::SetGlobalClock. Claim the trace time
+  // clock on the shared state directly via the same primitive, using this
+  // file's id as the owner: it is unique, so no later trace file's
+  // SetGlobalClock can override the choice.
   if (state->trace_time_clock) {
-    auto* trace_time = context_->trace_time_state.get();
-    trace_time->clock_id = ClockId::Machine(*state->trace_time_clock);
-    trace_time->trace_time_clock_owner =
-        TraceMetadataState::kClockOwnerSentinel;
+    context_->trace_time_state->TrySetClock(
+        ClockId::Machine(*state->trace_time_clock), file_id_);
     context_->global_metadata_tracker->SetMetadata(
         std::nullopt, std::nullopt, metadata::trace_time_clock_id,
         Variadic::Integer(*state->trace_time_clock));

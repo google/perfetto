@@ -48,7 +48,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
-#include "src/trace_processor/types/trace_metadata_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -146,16 +145,6 @@ base::Status TraceProcessorStorageImpl::OnPushDataToSorter() {
   }
   if (parser_) {
     RETURN_IF_ERROR(parser_->OnPushDataToSorter());
-  }
-  if (eof_ && context()->trace_metadata_state) {
-    // A perfetto_metadata entry whose path no archive member matched is a
-    // configuration error (e.g. a typo'd path).
-    if (const std::string* path =
-            context()->trace_metadata_state->FirstUnmatchedPath()) {
-      return base::ErrStatus(
-          "perfetto_metadata: no file in archive matches path: %s",
-          path->c_str());
-    }
   }
   if (context()->sorter) {
     context()->sorter->ExtractEventsForced();

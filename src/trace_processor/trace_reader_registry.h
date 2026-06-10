@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_READER_REGISTRY_H_
 #define SRC_TRACE_PROCESSOR_TRACE_READER_REGISTRY_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <utility>
@@ -41,9 +42,19 @@ class TraceReaderRegistry {
   // subclass. Only one such mapping can be registered per `TraceType` value.
   template <typename Reader>
   void RegisterTraceReader(TraceType trace_type) {
-    RegisterFactory(trace_type, [](TraceProcessorContext* ctxt) {
+    RegisterFactory(trace_type, [](TraceProcessorContext* ctxt, uint32_t) {
       return std::make_unique<Reader>(ctxt);
     });
+  }
+
+  // Like RegisterTraceReader, but for readers whose constructor also takes the
+  // trace_file_table id of the file being read (e.g. to use as a clock owner).
+  template <typename Reader>
+  void RegisterTraceReaderWithFileId(TraceType trace_type) {
+    RegisterFactory(trace_type,
+                    [](TraceProcessorContext* ctxt, uint32_t file_id) {
+                      return std::make_unique<Reader>(ctxt, file_id);
+                    });
   }
 
   // Registers a trace reader factory that captures its own state (e.g. a
@@ -53,21 +64,21 @@ class TraceReaderRegistry {
       TraceType trace_type,
       std::function<std::unique_ptr<ChunkedTraceReader>()> factory);
 
-  // Creates a new `ChunkedTraceReader` instance for the given `type`. Returns
+  // Creates a new `ChunkedTraceReader` instance for the given `type`,
+  // `file_id` being the trace_file_table id of the file being read. Returns
   // an error if no mapping has been previously registered.
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateTraceReader(
       TraceType type,
-      TraceProcessorContext* context);
+      TraceProcessorContext* context,
+      uint32_t file_id);
 
  private:
   using Factory = std::function<std::unique_ptr<ChunkedTraceReader>(
-      TraceProcessorContext*)>;
+      TraceProcessorContext*,
+      uint32_t)>;
   void RegisterFactory(TraceType trace_type, Factory factory);
 
-  base::FlatHashMap<TraceType,
-                    std::function<std::unique_ptr<ChunkedTraceReader>(
-                        TraceProcessorContext*)>>
-      factories_;
+  base::FlatHashMap<TraceType, Factory> factories_;
 };
 
 }  // namespace perfetto::trace_processor

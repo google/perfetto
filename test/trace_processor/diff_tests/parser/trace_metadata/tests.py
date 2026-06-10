@@ -14,9 +14,7 @@
 # limitations under the License.
 
 import gzip
-import io
 import json
-import zipfile
 
 from python.generators.diff_tests.testing import Csv, ExpectedError, RawText
 from python.generators.diff_tests.testing import Tar, TextProto, Zip
@@ -81,19 +79,12 @@ def _meta(payload):
   return json.dumps({'perfetto_metadata': payload})
 
 
-def _zip_bytes(members):
-  buf = io.BytesIO()
-  with zipfile.ZipFile(buf, 'w') as z:
-    for name, data in members.items():
-      z.writestr(name, data)
-  return buf.getvalue()
-
-
 class TraceMetadata(TestSuite):
   """Tests for the perfetto_metadata sidecar JSON.
 
-  A perfetto_metadata file inside an archive (zip/tar) overrides clock and
-  machine handling for the other files in the archive.
+  A perfetto_metadata file, as the first file of the trace (typically inside
+  an archive, where sorting puts it first), overrides clock and machine
+  handling for the files that follow.
   """
 
   # --- Detection & envelope ---
@@ -228,18 +219,6 @@ class TraceMetadata(TestSuite):
         query='SELECT 1;',
         out=ExpectedError('perfetto_metadata: version must be an integer'))
 
-  def test_error_unknown_field(self):
-    return DiffTestBlueprint(
-        trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'bogus': True
-            }),
-            'app.json': _json_trace('json_slice'),
-        }),
-        query='SELECT 1;',
-        out=ExpectedError('perfetto_metadata: unknown field: bogus'))
-
   def test_error_unknown_clock_name(self):
     return DiffTestBlueprint(
         trace=Zip({
@@ -252,29 +231,35 @@ class TraceMetadata(TestSuite):
         query='SELECT 1;',
         out=ExpectedError('perfetto_metadata: unknown clock name: BOOTIME'))
 
-  # A perfetto_metadata file fed to trace_processor on its own (not inside an
-  # archive) is an error: it configures nothing.
-  def test_error_standalone_config(self):
+  # A perfetto_metadata file fed to trace_processor on its own is trivially
+  # the first file of the trace, so it parses fine (and configures nothing).
+  def test_standalone_config(self):
     return DiffTestBlueprint(
-        trace=RawText('{"perfetto_metadata": {"version": 1}}'),
-        query='SELECT 1;',
-        out=ExpectedError(
-            'perfetto_metadata file must be directly inside an archive'))
+        trace=RawText(_meta({
+            'version': 1,
+            'trace_time_clock': 'REALTIME'
+        })),
+        query='''
+          SELECT int_value FROM metadata WHERE name = 'trace_time_clock_id';
+        ''',
+        out=Csv('''
+        "int_value"
+        1
+        '''))
 
-  # Wrapping the metadata file in gzip would defeat the parse-first ordering
-  # guarantee (the member sorts as a gzip container, after proto traces), so
-  # it is rejected like a standalone file.
-  def test_error_gzipped_config(self):
+  # A gzip-wrapped metadata file sorts as a container, after proto traces:
+  # by the time it is parsed it is no longer the first trace file.
+  def test_error_gzipped_config_after_proto(self):
     return DiffTestBlueprint(
         trace=Zip({
             'meta.json.gz': gzip.compress(_meta({
                 'version': 1
             }).encode()),
-            'app.json': _json_trace('json_slice'),
+            'spine.pb': SPINE,
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'perfetto_metadata file must be directly inside an archive'))
+            'perfetto_metadata file must be the first trace file'))
 
   def test_error_multiple_configs(self):
     return DiffTestBlueprint(
@@ -285,97 +270,3 @@ class TraceMetadata(TestSuite):
         }),
         query='SELECT 1;',
         out=ExpectedError('multiple perfetto_metadata files in archive'))
-
-  # --- files entry errors ---
-
-  def test_error_path_no_match(self):
-    return DiffTestBlueprint(
-        trace=Zip({
-            'meta.json':
-                _meta({
-                    'version': 1,
-                    'files': [{
-                        'path': 'missing.json'
-                    }],
-                }),
-            'app.json':
-                _json_trace('json_slice'),
-        }),
-        query='SELECT 1;',
-        out=ExpectedError(
-            'perfetto_metadata: no file in archive matches path: missing.json'))
-
-  def test_error_duplicate_path(self):
-    return DiffTestBlueprint(
-        trace=Zip({
-            'meta.json':
-                _meta({
-                    'version': 1,
-                    'files': [
-                        {
-                            'path': 'app.json'
-                        },
-                        {
-                            'path': 'app.json'
-                        },
-                    ],
-                }),
-            'app.json':
-                _json_trace('json_slice'),
-        }),
-        query='SELECT 1;',
-        out=ExpectedError(
-            'perfetto_metadata: duplicate entry for path: app.json'))
-
-  # --- Nested archives ---
-
-  # Entries are scoped to the archive containing the metadata file: a
-  # same-named file inside a nested archive does not consume the entry, and
-  # both files parse.
-  def test_nested_archive_same_name_scoped(self):
-    return DiffTestBlueprint(
-        trace=Zip({
-            'meta.json':
-                _meta({
-                    'version': 1,
-                    'files': [{
-                        'path': 'a.json'
-                    }],
-                }),
-            'a.json':
-                _json_trace('outer_slice', pid=10),
-            'inner.zip':
-                _zip_bytes({'a.json': _json_trace('inner_slice', pid=11)}),
-        }),
-        query='''
-          SELECT name, ts FROM slice
-          WHERE name IN ('outer_slice', 'inner_slice')
-          ORDER BY name;
-        ''',
-        out=Csv('''
-        "name","ts"
-        "inner_slice",2000000
-        "outer_slice",2000000
-        '''))
-
-  # An entry whose path only exists inside a nested archive is out of scope
-  # for the metadata file and therefore stays unmatched.
-  def test_error_nested_archive_path_out_of_scope(self):
-    return DiffTestBlueprint(
-        trace=Zip({
-            'meta.json':
-                _meta({
-                    'version': 1,
-                    'files': [{
-                        'path': 'inner_only.json'
-                    }],
-                }),
-            'app.json':
-                _json_trace('json_slice'),
-            'inner.zip':
-                _zip_bytes(
-                    {'inner_only.json': _json_trace('inner_slice', pid=11)}),
-        }),
-        query='SELECT 1;',
-        out=ExpectedError('perfetto_metadata: no file in archive matches path: '
-                          'inner_only.json'))

@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_READER_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_READER_H_
 
-#include <optional>
+#include <cstdint>
 #include <string>
 
 #include "perfetto/base/status.h"
@@ -30,14 +30,17 @@ class TraceProcessorContext;
 
 namespace perfetto::trace_processor::perfetto_metadata {
 
-// Reads a perfetto_metadata sidecar file: a JSON file inside an archive
-// (zip/tar) which overrides clock and machine handling for the other files
-// in the archive. The parsed configuration is stored on the global
-// TraceMetadataState and consulted by ForwardingTraceParser when each other
-// archive member is initialized.
+// Reads a perfetto_metadata sidecar file: a JSON file which, as the first
+// file of the trace, overrides clock and machine handling for the files
+// that follow. The parsed configuration is stored on the global
+// TraceMetadataState and consulted by ForwardingTraceParser for each trace
+// file.
 class PerfettoMetadataReader : public ChunkedTraceReader {
  public:
-  explicit PerfettoMetadataReader(TraceProcessorContext* context);
+  // `file_id` is this file's trace_file_table id, used as the owner when the
+  // file claims the trace time clock; it is unique, so no later trace file
+  // can override the choice.
+  PerfettoMetadataReader(TraceProcessorContext* context, uint32_t file_id);
   ~PerfettoMetadataReader() override;
 
   // ChunkedTraceReader implementation.
@@ -45,12 +48,9 @@ class PerfettoMetadataReader : public ChunkedTraceReader {
   base::Status OnPushDataToSorter() override;
   void OnEventsFullyExtracted() override {}
 
-  // Parses a builtin clock name ("BOOTTIME", "REALTIME", ...) into its
-  // protos::pbzero::BuiltinClock value.
-  static std::optional<uint32_t> ParseClockName(const std::string& name);
-
  private:
   TraceProcessorContext* const context_;
+  const uint32_t file_id_;
   std::string buffer_;
 };
 

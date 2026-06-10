@@ -32,7 +32,7 @@ class PerfettoMetadataPlugin : public Plugin<PerfettoMetadataPlugin> {
   ~PerfettoMetadataPlugin() override;
 
   void RegisterImporters(TraceReaderRegistry& registry) override {
-    registry.RegisterTraceReader<PerfettoMetadataReader>(
+    registry.RegisterTraceReaderWithFileId<PerfettoMetadataReader>(
         kPerfettoMetadataTraceType);
   }
 };

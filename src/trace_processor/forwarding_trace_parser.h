@@ -21,7 +21,6 @@
 #include <memory>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -48,15 +47,9 @@ class ForwardingTraceParser : public ChunkedTraceReader {
  private:
   base::Status Init(const TraceBlobView&);
 
-  // Validates that this perfetto_metadata file is a direct member of a
-  // zip/tar archive and records that archive as the scope its entries apply
-  // to.
-  base::Status RegisterPerfettoMetadataFile();
-
-  // Returns the perfetto_metadata entry matching this file's path within the
-  // archive the metadata file lives in (marking it as matched), nullptr if
-  // none, or an error if another file already matched the same entry.
-  base::StatusOr<TraceMetadataState::FileEntry*> FindMetadataEntry() const;
+  // Returns the perfetto_metadata entry matching this file's path, or
+  // nullptr if none.
+  TraceMetadataState::FileEntry* FindMetadataEntry() const;
 
   TraceProcessorContext* const input_context_;
 
