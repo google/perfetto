@@ -152,9 +152,9 @@ function classifyError(status: number, body: string): StreamEvent {
   let kind: 'rate-limit' | 'auth' | 'context-length' | 'network' | 'unknown';
   if (status === 429) kind = 'rate-limit';
   else if (status === 401 || status === 403) kind = 'auth';
-  else if (status === 400 && /context|maximum.*token|too long/i.test(body))
-    {kind = 'context-length';}
-  else kind = 'unknown';
+  else if (status === 400 && /context|maximum.*token|too long/i.test(body)) {
+    kind = 'context-length';
+  } else kind = 'unknown';
   return {
     type: 'stop',
     reason: 'error',
@@ -307,7 +307,6 @@ export class OpenAiProtocol implements Protocol {
         ? {max_tokens: request.params.maxOutputTokens}
         : {}),
     };
-
 
     DEBUG_SSE &&
       console.log(

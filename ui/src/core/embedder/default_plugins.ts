@@ -18,7 +18,7 @@
 // In order to get a plugin into this list it must:
 // - Use only the available plugin API (no hacks).
 // - Follow naming conventions for tracks and plugins.
-// - Not directly rely on any other plugins.
+// - Any inter-plugin dependencies must be explicitly declared.
 // - Be approved by one of Perfetto UI owners.
 export const defaultPlugins = [
   'com.android.AndroidAnr',
@@ -73,8 +73,13 @@ export const defaultPlugins = [
   'dev.perfetto.JournaldLog',
   'dev.perfetto.HeapProfile',
   'dev.perfetto.InstrumentsSamplesProfile',
+  'dev.perfetto.Intelletto',
+  'dev.perfetto.IntellettoTimelineTools',
   'dev.perfetto.KernelTrackEvent',
   'dev.perfetto.LinuxPerf',
+  'dev.perfetto.Llm',
+  'dev.perfetto.LlmProtocolGemini',
+  'dev.perfetto.LlmProtocolOpenAi',
   'dev.perfetto.MetricsPage',
   'dev.perfetto.Notes',
   'dev.perfetto.PowerRails',

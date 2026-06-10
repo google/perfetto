@@ -51,10 +51,47 @@ export interface ToolRegistration<S extends ZodRawShape = ZodRawShape> {
   readonly callback: (args: z.infer<ZodObject<S>>) => Promise<string>;
 }
 
+// What a context provider returns when it has something relevant to say about
+// the current UI state. Both halves come from one callback so what the user
+// sees (the chip) and what the model receives (the payload) cannot drift apart.
+export interface ContextSnapshot {
+  // Plain-language summary, shown on the chip in the context strip.
+  readonly summary: string;
+  // JSON-serialisable payload sent to the model with the next prompt, and what
+  // the user sees when they expand the chip. Keep it small - it travels with
+  // every user turn. If the underlying data is large, expose it via a tool
+  // instead and put a reference here.
+  readonly data: unknown;
+}
+
+// What a plugin provides to register a context provider: a live view of some
+// piece of UI state the model should know about when answering ("what is the
+// user looking at?").
+export interface ContextProviderRegistration {
+  // Stable, unique id, e.g. 'dev.perfetto.Timeline#selection'. Used by the
+  // context strip to track which items the user toggled off.
+  readonly id: string;
+
+  // Optional *invariant* explanation of the payload format (units, what ids
+  // mean, which tools accept them). Folded once into the system prompt - NOT
+  // repeated with every user message - so it must not contain anything that
+  // changes per turn; volatile data belongs in the snapshot payload.
+  readonly description?: string;
+
+  // Called when a prompt is about to be sent (and continuously to render the
+  // context strip). Return undefined when there is nothing relevant right now:
+  // the chip disappears and nothing is sent.
+  getContext(): ContextSnapshot | undefined;
+}
+
 // The capability IntellettoPlugin exposes to dependent plugins. Obtain it with
 // `ctx.plugins.getPlugin(IntellettoPlugin)` in your plugin's onTraceLoad.
 export interface IntellettoToolRegistrar {
   // Register a tool the assistant can call. Tools are trace-scoped: register in
   // onTraceLoad; they live for the lifetime of the loaded trace.
   registerTool<S extends ZodRawShape>(tool: ToolRegistration<S>): void;
+
+  // Register a context provider: a callback sampled on every prompt that
+  // describes what the user is currently looking at. Trace-scoped, like tools.
+  registerContextProvider(provider: ContextProviderRegistration): void;
 }

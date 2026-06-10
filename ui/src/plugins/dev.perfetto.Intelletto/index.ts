@@ -23,8 +23,14 @@ import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import LlmPlugin from '../dev.perfetto.Llm';
-import type {IntellettoToolRegistrar, ToolRegistration} from './api';
+import type {
+  ContextProviderRegistration,
+  IntellettoToolRegistrar,
+  ToolRegistration,
+} from './api';
 import {ChatPanel} from './chat_panel';
+import {ChatSession} from './chat_session';
+import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
 import {ToolRegistry} from './tools';
 import type {ZodRawShape} from 'zod';
@@ -49,8 +55,21 @@ export default class IntellettoPlugin
   // other plugins land here; the chat panel hands it to the agent.
   private readonly tools = new ToolRegistry();
 
+  // The shared context-provider registry for this trace. Core providers (page,
+  // selection) plus any contributed by other plugins; the chat panel samples it
+  // for the context strip and the prompt.
+  private readonly context = new ContextRegistry();
+
+  // The conversation state for this trace. Owned here - not by the chat panel
+  // component - so the conversation survives the side panel being closed and
+  // reopened. Created lazily on first panel open, so context providers
+  // registered by dependent plugins are in by the time the system prompt is
+  // assembled.
+  private session?: ChatSession;
+
   constructor(private readonly trace: Trace) {
     registerCoreTools(this.tools, this.trace);
+    registerCoreContextProviders(this.context, this.trace);
   }
 
   // IntellettoToolRegistrar: contribute a tool the assistant can call. Call
@@ -59,18 +78,32 @@ export default class IntellettoPlugin
     this.tools.registerTool(tool);
   }
 
+  // IntellettoToolRegistrar: contribute a context provider describing what the
+  // user is currently looking at. Call from a dependent plugin's onTraceLoad.
+  registerContextProvider(provider: ContextProviderRegistration): void {
+    this.context.registerContextProvider(provider);
+  }
+
   async onTraceLoad(trace: Trace): Promise<void> {
     const gateway = LlmPlugin.gateway;
 
-    // One chat panel per trace - the conversation is scoped to the open trace
-    // and kept in memory only (re-created on the next trace load). It reads the
-    // shared registry, so tools registered by other plugins (before or after
-    // the panel is first opened) are all visible to the agent.
+    // One chat session per trace - the conversation is scoped to the open
+    // trace and kept in memory only (re-created on the next trace load). It
+    // reads the shared registries, so tools registered by other plugins
+    // (before or after the panel is first opened) are all visible to the
+    // agent.
     trace.sidePanel.registerTab({
       uri: SIDE_PANEL_URI,
       title: 'Intelletto',
       icon: 'smart_toy',
-      render: () => m(ChatPanel, {trace, gateway, tools: this.tools}),
+      render: () => {
+        this.session ??= new ChatSession(gateway, this.tools, this.context);
+        return m(ChatPanel, {
+          gateway,
+          session: this.session,
+          context: this.context,
+        });
+      },
     });
 
     trace.commands.registerCommand({
@@ -84,4 +117,9 @@ export default class IntellettoPlugin
 
 // Re-export the public API types so dependents can import them from the plugin
 // entry point: `import IntellettoPlugin, {ToolRegistration} from '...'`.
-export type {IntellettoToolRegistrar, ToolRegistration} from './api';
+export type {
+  ContextProviderRegistration,
+  ContextSnapshot,
+  IntellettoToolRegistrar,
+  ToolRegistration,
+} from './api';

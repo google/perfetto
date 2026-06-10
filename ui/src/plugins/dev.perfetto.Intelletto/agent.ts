@@ -33,7 +33,7 @@ import type {ToolRegistry} from './tools';
 // Hard bound on tool-use rounds per user turn. Stops a misbehaving model from
 // looping forever (and caps token spend). Hitting it surfaces to the user
 // rather than failing silently.
-const MAX_ITERATIONS = 20;
+const MAX_ITERATIONS = 50;
 
 // What the UI consumes as a turn streams.
 export type AgentEvent =
@@ -85,9 +85,16 @@ export class Agent {
   // Run one user turn to completion, yielding events as they stream. Honours
   // `signal` for cancellation: an aborted turn stops cleanly and what completed
   // stays in the history (the transcript stays truthful).
+  //
+  // `dequeueFollowUp` implements queued follow-ups: it is polled once at the
+  // top of each tool-use round, and any message it returns is appended to the
+  // history as a user message, so something the user typed mid-loop ("oh wait,
+  // also check X") reaches the model at the next round without any
+  // interruption machinery.
   async *sendMessage(
     userText: string,
     signal?: AbortSignal,
+    dequeueFollowUp?: () => string | undefined,
   ): AsyncGenerator<AgentEvent, void, void> {
     this.history.push({role: 'user', text: userText});
 
@@ -114,6 +121,12 @@ export class Agent {
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       if (signal?.aborted) return;
+
+      // Pick up any follow-up the user queued while the loop was running.
+      const followUp = dequeueFollowUp?.();
+      if (followUp !== undefined) {
+        this.history.push({role: 'user', text: followUp});
+      }
 
       const toolDefs = this.buildToolDefs(loaded);
       const calls: NeutralToolCall[] = [];
