@@ -13,18 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import os
 import struct
 import subprocess
 import sys
+import tarfile
 import tempfile
-from typing import Any, IO, List, Optional
+import zipfile
+from typing import Any, IO, List, Optional, Union
 
 from google.protobuf import text_format
 
 from python.generators.diff_tests.testing import (DataPath, Path,
-                                                  SimpleperfProto, TextProto,
-                                                  TraceInjector)
+                                                  SimpleperfProto, Tar,
+                                                  TextProto, TraceInjector,
+                                                  Zip)
 from python.generators.diff_tests.utils import ProtoManager
 
 ROOT_DIR = os.path.dirname(
@@ -72,6 +76,48 @@ class TraceGenerator:
     # protobuf to crash mid-operation.
     subprocess.check_call(
         python_cmd, env=env, stdout=out_stream, start_new_session=True)
+
+  def serialize_member(self, blueprint: Any,
+                       member: Union[str, TextProto, Path, DataPath]) -> bytes:
+    """Serializes a single archive member to bytes (see Zip/Tar docs)."""
+    if isinstance(member, TextProto):
+      proto = ProtoManager([self.trace_descriptor_path] +
+                           self.extension_descriptor_paths).create_message(
+                               'perfetto.protos.Trace')()
+      text_format.Merge(member.contents, proto)
+      return proto.SerializeToString()
+    if isinstance(member, DataPath):
+      path = os.path.join(blueprint.test_data_dir, member.filename)
+      with open(path, 'rb') as f:
+        return f.read()
+    if isinstance(member, Path):
+      path = os.path.abspath(os.path.join(blueprint.index_dir,
+                                          member.filename))
+      with open(path, 'rb') as f:
+        return f.read()
+    assert isinstance(member, str)
+    return member.encode('utf-8')
+
+  def serialize_zip_trace(self, blueprint: Any, archive: Zip,
+                          out_stream: IO[bytes]):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w') as z:
+      for name, member in archive.members.items():
+        z.writestr(name, self.serialize_member(blueprint, member))
+    out_stream.write(buf.getvalue())
+    out_stream.flush()
+
+  def serialize_tar_trace(self, blueprint: Any, archive: Tar,
+                          out_stream: IO[bytes]):
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode='w') as t:
+      for name, member in archive.members.items():
+        data = self.serialize_member(blueprint, member)
+        info = tarfile.TarInfo(name)
+        info.size = len(data)
+        t.addfile(info, io.BytesIO(data))
+    out_stream.write(buf.getvalue())
+    out_stream.flush()
 
   def serialize_simpleperf_proto_trace(self, simpleperf_trace: SimpleperfProto,
                                        out_stream: IO[bytes]):
@@ -136,6 +182,18 @@ def generate_trace_file(test_case: Any, trace_descriptor_path: str,
     text_format.Merge(test_case.blueprint.trace.contents, proto)
     gen_trace_file.write(proto.SerializeToString())
     gen_trace_file.flush()
+
+  elif test_case.blueprint.is_trace_zip():
+    gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
+    trace_generator.serialize_zip_trace(test_case.blueprint,
+                                        test_case.blueprint.trace,
+                                        gen_trace_file)
+
+  elif test_case.blueprint.is_trace_tar():
+    gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
+    trace_generator.serialize_tar_trace(test_case.blueprint,
+                                        test_case.blueprint.trace,
+                                        gen_trace_file)
 
   elif test_case.blueprint.is_trace_simpleperf_proto():
     gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
