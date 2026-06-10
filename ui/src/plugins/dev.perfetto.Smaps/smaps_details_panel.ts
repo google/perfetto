@@ -19,6 +19,7 @@ import type {
   ColumnSchema,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
+import type {Column} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../components/widgets/datagrid/sql_schema';
 import {asUpid} from '../../components/sql_utils/core_types';
@@ -53,15 +54,29 @@ const COLUMNS: ReadonlyArray<{name: string; title: string}> = [
   {name: 'locked_kb', title: 'Locked (KB)'},
 ];
 
+function buildGridSchema(): SchemaRegistry {
+  const mapping: ColumnSchema = {};
+  for (const col of COLUMNS) {
+    mapping[col.name] = {
+      title: col.title,
+      columnType: col.name === 'path' ? 'text' : 'quantitative',
+    };
+  }
+  return {[ROOT_SCHEMA]: mapping};
+}
+
+// Datagrid schema with all possible underlying columns.
+const SMAPS_SCHEMA = buildGridSchema();
+
 // Computes the columns worth showing in the datagrid, using the entire table
 // of memory mapping snapshots. For the memory value columns, which might not
 // all be recorded: the sql columns are not nullable, so instead we show any
 // column that has non-zero values (which is indistinguishable from truly
 // all-zeroes readings). Similarly, the aggregate count is only shown if it's
 // ever >1.
-export async function computeSmapsSchema(
+export async function computeInitialColumns(
   engine: Engine,
-): Promise<SchemaRegistry> {
+): Promise<ReadonlyArray<Column>> {
   const numeric = COLUMNS.filter((c) => c.name !== 'path');
   const result = await engine.query(`
     SELECT ${numeric.map((c) => `MAX(${c.name}) AS ${c.name}`).join(', ')}
@@ -73,31 +88,28 @@ export async function computeSmapsSchema(
   }
   const agg = result.firstRow(spec);
 
-  const mapping: ColumnSchema = {};
+  const initialColumns: Column[] = [];
   for (const col of COLUMNS) {
-    if (col.name === 'path') {
-      mapping[col.name] = {title: col.title, columnType: 'text'};
-      continue;
+    if (col.name !== 'path') {
+      const max = Number(agg[col.name] ?? 0);
+      const show = col.name === 'aggregate_count' ? max !== 1 : max !== 0;
+      if (!show) continue;
     }
-
-    const max = Number(agg[col.name] ?? 0);
-    const visible = col.name === 'aggregate_count' ? max !== 1 : max !== 0;
-    if (!visible) continue;
-    mapping[col.name] = {title: col.title, columnType: 'quantitative'};
+    initialColumns.push({id: col.name, field: col.name});
   }
-  return {[ROOT_SCHEMA]: mapping};
+  return initialColumns;
 }
 
 export class SmapsDetailsPanel implements TrackEventDetailsPanel {
   private processName?: string;
-  private schema?: SchemaRegistry;
+  private initialColumns?: ReadonlyArray<Column>;
   private readonly dataSource: SQLDataSource;
 
   constructor(
     private readonly trace: Trace,
     private readonly upid: number,
     private readonly ts: time,
-    private readonly getSchema: () => Promise<SchemaRegistry>,
+    private readonly getInitialColumns: () => Promise<ReadonlyArray<Column>>,
   ) {
     // Instead of showing an is_deleted column, use it to reconstruct the
     // original VMA name as reported by the kernel (i.e. suffix it with
@@ -119,12 +131,12 @@ export class SmapsDetailsPanel implements TrackEventDetailsPanel {
   }
 
   async load(): Promise<void> {
-    const [info, schema] = await Promise.all([
+    const [info, initialColumns] = await Promise.all([
       getProcessInfo(this.trace.engine, asUpid(this.upid)),
-      this.getSchema(),
+      this.getInitialColumns(),
     ]);
     this.processName = getProcessName(info) ?? `upid: ${this.upid}`;
-    this.schema = schema;
+    this.initialColumns = initialColumns;
   }
 
   render(): m.Children {
@@ -143,14 +155,15 @@ export class SmapsDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderContent(): m.Children {
-    const {schema} = this;
-    if (schema === undefined) {
+    const {initialColumns} = this;
+    if (initialColumns === undefined) {
       return m(Spinner);
     }
     return m(DataGrid, {
       fillHeight: true,
-      schema,
+      schema: SMAPS_SCHEMA,
       rootSchema: ROOT_SCHEMA,
+      initialColumns,
       data: this.dataSource,
       showExportButton: true,
     });

@@ -22,7 +22,7 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {computeSmapsSchema, SmapsDetailsPanel} from './smaps_details_panel';
+import {computeInitialColumns, SmapsDetailsPanel} from './smaps_details_panel';
 
 // One row per smaps snapshot (a group of rows from process_memory_mappings),
 // keyed by {upid, ts}.
@@ -37,9 +37,9 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   // Typically not all memory metrics are recorded in a trace, so we might not
-  // show all of the columns. Decide on the schema to use once, lazily when the
-  // details panel is first opened.
-  private smapsSchema?: ReturnType<typeof computeSmapsSchema>;
+  // show all of the columns. Decide on the set once, lazily when the details
+  // panel is first opened.
+  private initialColumns?: ReturnType<typeof computeInitialColumns>;
 
   async onTraceLoad(trace: Trace): Promise<void> {
     await createPerfettoTable({
@@ -55,12 +55,12 @@ export default class implements PerfettoPlugin {
     const upids = await this.getUpids(trace);
     const groupsPlugin = trace.plugins.getPlugin(ProcessThreadGroupsPlugin);
 
-    // Lazily compute the datagrid schema.
-    const getSchema = () => {
-      if (this.smapsSchema === undefined) {
-        this.smapsSchema = computeSmapsSchema(trace.engine);
+    // Lazily compute the initial set of columns.
+    const getInitialColumns = () => {
+      if (this.initialColumns === undefined) {
+        this.initialColumns = computeInitialColumns(trace.engine);
       }
-      return this.smapsSchema;
+      return this.initialColumns;
     };
 
     for (const upid of upids) {
@@ -79,7 +79,12 @@ export default class implements PerfettoPlugin {
         colorizer: () => materialColorScheme('smaps'), // single colour
         tooltip: () => 'Memory mapping snapshot',
         detailsPanel: (row) =>
-          new SmapsDetailsPanel(trace, upid, Time.fromRaw(row.ts), getSchema),
+          new SmapsDetailsPanel(
+            trace,
+            upid,
+            Time.fromRaw(row.ts),
+            getInitialColumns,
+          ),
       });
       trace.tracks.registerTrack({uri, renderer, tags: {upid}});
 
