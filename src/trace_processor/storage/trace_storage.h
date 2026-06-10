@@ -663,6 +663,59 @@ class TraceStorage {
     return mutable_table<tables::ProcessMemorySnapshotTable>();
   }
 
+  const tables::ProcessStateSnapshotTable& process_state_snapshot_table()
+      const {
+    return table<tables::ProcessStateSnapshotTable>();
+  }
+  tables::ProcessStateSnapshotTable* mutable_process_state_snapshot_table() {
+    return mutable_table<tables::ProcessStateSnapshotTable>();
+  }
+
+  const tables::ProcessStateProcessTable& process_state_process_table() const {
+    return table<tables::ProcessStateProcessTable>();
+  }
+  tables::ProcessStateProcessTable* mutable_process_state_process_table() {
+    return mutable_table<tables::ProcessStateProcessTable>();
+  }
+
+  const tables::ProcessStateUidTable& process_state_uid_table() const {
+    return table<tables::ProcessStateUidTable>();
+  }
+  tables::ProcessStateUidTable* mutable_process_state_uid_table() {
+    return mutable_table<tables::ProcessStateUidTable>();
+  }
+
+  const tables::ProcessStateServiceTable& process_state_service_table() const {
+    return table<tables::ProcessStateServiceTable>();
+  }
+  tables::ProcessStateServiceTable* mutable_process_state_service_table() {
+    return mutable_table<tables::ProcessStateServiceTable>();
+  }
+
+  const tables::ProcessStateBindingTable& process_state_binding_table() const {
+    return table<tables::ProcessStateBindingTable>();
+  }
+  tables::ProcessStateBindingTable* mutable_process_state_binding_table() {
+    return mutable_table<tables::ProcessStateBindingTable>();
+  }
+
+  const tables::ProcessStateProviderTable& process_state_provider_table()
+      const {
+    return table<tables::ProcessStateProviderTable>();
+  }
+  tables::ProcessStateProviderTable* mutable_process_state_provider_table() {
+    return mutable_table<tables::ProcessStateProviderTable>();
+  }
+
+  const tables::ProcessStateProviderBindingTable&
+  process_state_provider_binding_table() const {
+    return table<tables::ProcessStateProviderBindingTable>();
+  }
+  tables::ProcessStateProviderBindingTable*
+  mutable_process_state_provider_binding_table() {
+    return mutable_table<tables::ProcessStateProviderBindingTable>();
+  }
+
   const tables::MemorySnapshotNodeTable& memory_snapshot_node_table() const {
     return table<tables::MemorySnapshotNodeTable>();
   }

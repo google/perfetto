@@ -3207,6 +3207,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/packet_sequence_state_generation.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker.h",
+        "src/trace_processor/importers/proto/process_state_module.cc",
+        "src/trace_processor/importers/proto/process_state_module.h",
         "src/trace_processor/importers/proto/profile_packet_sequence_state.cc",
         "src/trace_processor/importers/proto/profile_packet_sequence_state.h",
         "src/trace_processor/importers/proto/profile_packet_utils.cc",
@@ -3782,6 +3784,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/memory/lmk.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/memory_breakdown.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/process.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/process_state.sql",
     ],
 )
 
@@ -7577,6 +7580,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
         "protos/perfetto/config/android/pixel_modem_config.proto",
+        "protos/perfetto/config/android/process_state_config.proto",
         "protos/perfetto/config/android/protolog_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
@@ -8547,6 +8551,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/process_state_data.proto",
         "protos/perfetto/trace/android/user_list.proto",
     ],
     visibility = [

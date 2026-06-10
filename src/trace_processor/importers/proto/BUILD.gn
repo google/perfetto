@@ -47,6 +47,8 @@ source_set("minimal") {
     "packet_sequence_state_generation.cc",
     "perf_sample_tracker.cc",
     "perf_sample_tracker.h",
+    "process_state_module.cc",
+    "process_state_module.h",
     "profile_packet_sequence_state.cc",
     "profile_packet_sequence_state.h",
     "profile_packet_utils.cc",

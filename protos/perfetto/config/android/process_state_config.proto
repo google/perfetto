@@ -1,0 +1,78 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Config for the android.process_state data source. The data source lives in
+// system_server and snapshots ProcessStateController's internal state — every
+// process, service, content provider, binding and the global state that
+// influences oom_adj — into a single TracePacket per snapshot. Snapshots are
+// emitted on each oom_adj recomputation (capped by `min_emit_interval_ms`)
+// plus once on session start.
+//
+// Use this to answer at any timestamp: who is alive, who is bound to whom,
+// which BIND_* flags, what hosting components, why the process state /
+// oom_adj is what it is.
+message ProcessStateConfig {
+  // Don't emit snapshots faster than this. 0 (default) means "every adj
+  // recomputation". Typical phones see 10-100 oom_adj cycles per minute
+  // under load; setting 200ms here is plenty for human inspection and
+  // keeps producer overhead negligible.
+  optional int32 min_emit_interval_ms = 1;
+
+  // If true, drop the per-process `package_name` and `process_name` strings
+  // and only emit pid/uid. Useful for privacy-sensitive captures.
+  optional bool drop_process_names = 2;
+
+  // If false (default), only emit oom-adj-relevant fields. If true, emit a
+  // richer snapshot including timing fields, last-top time, restart counts,
+  // executing-service counts. The richer snapshot is ~2× larger.
+  optional bool include_timing_details = 3;
+
+  // Restrict the snapshot to processes in these UIDs. Empty (default) means
+  // all UIDs. Useful for targeting a single app.
+  repeated int32 uid_allowlist = 4;
+
+  // If true, also dump on the "follow-up" deferred adj recomputations
+  // (OOM_ADJ_REASON_FOLLOW_UP). These tend to fire in batches just after
+  // a state change finishes settling.
+  optional bool emit_on_follow_up = 5;
+
+  // If true, snapshots are also written on session OnFlush in addition to
+  // their normal emission cadence. Default true.
+  optional bool emit_on_flush = 6;
+
+  // If > 0, also emit a snapshot every `tick_interval_ms` regardless of
+  // oom_adj activity. Without this, a quiet system (no adj cycles) leaves
+  // gaps in the trace. Useful when aligning with other periodic data
+  // sources or for "always have a snapshot within X ms" guarantees.
+  // Default 0 (disabled).
+  optional int32 tick_interval_ms = 7;
+
+  // If true, the per-process / per-service / per-binding records emitted in
+  // each snapshot are restricted to those whose state CHANGED since the
+  // previous snapshot. Unchanged records are silently dropped from the
+  // packet. Anchor (full) snapshots are still emitted once every
+  // `delta_full_every_n` deltas (default 25) so consumers can recover.
+  //
+  // Reduces trace bandwidth by ~20-30× on a stable system at the cost of
+  // requiring consumers to query LAST_VALUE() / window functions to
+  // reconstruct full state at an arbitrary timestamp.
+  optional bool delta_snapshots = 8;
+  optional int32 delta_full_every_n = 9;
+}

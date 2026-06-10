@@ -1,0 +1,647 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Top-level packet. One of:
+//   * `snapshot`  — full state of ProcessStateController at a moment.
+//   * `events`    — a batch of mutation events since the previous packet.
+//   * `adj_compute_trace` — a single oom_adj computation, with the
+//                          chain of conditions that matched.
+//
+// Together these compose a "winscope for OomAdjuster": readers can scrub
+// any timestamp, see the full state via the most-recent snapshot + replay
+// events forward, AND drill into "why did this adj change?" via the
+// computation trace that fired immediately before.
+//
+// This is wire field 142 in TracePacket.
+message ProcessStateSnapshot {
+  // Reason that triggered THIS snapshot (i.e. the OomAdjReason passed to
+  // ProcessStateController.runUpdate). Mirrors
+  // android.app.ActivityManagerInternal.OomAdjReason. 0 == NONE.
+  optional int32 oom_adj_reason = 1;
+
+  // Process / package / service / hosting-type / adj-type names live here,
+  // referenced by index from the snapshot's *_idx fields. Cleared each
+  // snapshot — readers should NOT assume incremental_state interning.
+  // (Per-session interning is too fragile across producer restarts and
+  // doesn't compose with our "every snapshot is self-contained" model.)
+  repeated string interned_strings = 2;
+
+  // ====== Global / system-wide state ======
+  optional GlobalState global_state = 3;
+
+  // ====== Per-process records ======
+  repeated ProcessRecord process = 4;
+
+  // ====== UID-level records (one per active uid) ======
+  repeated UidRecord uid = 5;
+
+  // ====== Component-level records ======
+  repeated ServiceRecord service = 6;
+  repeated ServiceBinding binding = 7;
+  repeated ContentProviderRecord provider = 8;
+  repeated ContentProviderBinding provider_binding = 9;
+
+  // For backward compat / queryability: the timestamp the snapshot
+  // ITSELF observed. Distinct from TracePacket.timestamp which is the
+  // emit-from-producer time. Boot-clock nanoseconds.
+  optional int64 snapshot_boottime_ns = 10;
+
+  // ====== Optional: events since the previous snapshot ======
+  // When the data source is rate-limited (`min_emit_interval_ms`) the
+  // producer accumulates mutation events between snapshot emissions and
+  // dumps them here. Replaying these on top of the prior snapshot lets a
+  // viewer scrub through every state change, winscope-style, without
+  // the proto bandwidth of a full snapshot per change.
+  repeated MutationEvent event = 11;
+
+  // ====== Optional: computation traces ======
+  // Each adj computation can attach the ordered list of conditions that
+  // matched (e.g. "is persistent → ADJ_PERSISTENT" or
+  // "client process state TOP via BIND_INCLUDE_CAPABILITIES"). One entry
+  // per ProcessRecord that was recomputed in this cycle. Empty when not
+  // requested by config.
+  repeated AdjComputeTrace adj_compute = 12;
+
+  // Kind of snapshot. Always written by the producer.
+  enum Kind {
+    KIND_UNKNOWN = 0;
+    // Every process / uid / service / binding / provider currently in AMS
+    // is present in this packet.
+    KIND_ANCHOR = 1;
+    // Only records whose fields changed vs the previous packet are present.
+    // Reconstruct full state at any point with a window function over
+    // snapshot_id; see android_process_state_process docs.
+    KIND_DELTA = 2;
+  }
+  optional Kind kind = 13;
+}
+
+// ----------------------------------------------------------------------
+// MutationEvent — a single state-change inside ProcessStateController.
+// Mirrors the call sites that ProcessStateController has setters for.
+// Designed to be cheap to emit (small, no allocations on hot path).
+// ----------------------------------------------------------------------
+message MutationEvent {
+  enum Kind {
+    KIND_UNKNOWN = 0;
+    PROCESS_BEGIN = 1;
+    PROCESS_END = 2;
+    // proc; before/after adj fields filled
+    OOM_ADJ_RECOMPUTE = 3;
+    SERVICE_START = 4;
+    SERVICE_STOP = 5;
+    // service binding created
+    SERVICE_BIND = 6;
+    SERVICE_UNBIND = 7;
+    // BIND_UPDATEABLE_FLAGS rebind
+    SERVICE_REBIND = 8;
+    FGS_START = 9;
+    FGS_STOP = 10;
+    FGS_TYPE_CHANGE = 11;
+    SHORT_FGS_START = 12;
+    // short FGS hit its grace deadline
+    SHORT_FGS_TIMEOUT = 13;
+    PROVIDER_INSTALL = 20;
+    PROVIDER_UNINSTALL = 21;
+    PROVIDER_BIND = 22;
+    PROVIDER_UNBIND = 23;
+    BROADCAST_DISPATCH_BEGIN = 30;
+    BROADCAST_DISPATCH_END = 31;
+    UID_PROC_STATE_CHANGE = 40;
+    UID_IDLE_CHANGE = 41;
+    UID_ALLOWLIST_CHANGE = 42;
+    UID_RESTRICTION_CHANGE = 43;
+    // SCREEN_OFF/ON
+    WAKEFULNESS_CHANGE = 50;
+    TOP_PROCESS_CHANGE = 51;
+    HOME_PROCESS_CHANGE = 52;
+    HEAVY_WEIGHT_PROCESS_CHANGE = 53;
+    PREVIOUS_PROCESS_CHANGE = 54;
+    BACKUP_TARGET_CHANGE = 55;
+    NOTIFICATION_SHADE_CHANGE = 56;
+    UNLOCKING_CHANGE = 57;
+    MEMORY_LEVEL_CHANGE = 58;
+    // CachedAppOptimizer freeze/unfreeze
+    FROZEN_CHANGE = 60;
+    HOSTING_TYPE_CHANGE = 70;
+    CAPABILITY_CHANGE = 71;
+    SCHED_GROUP_CHANGE = 72;
+    INSTRUMENTATION_BEGIN = 80;
+    INSTRUMENTATION_END = 81;
+  }
+
+  optional Kind kind = 1;
+  optional int64 boottime_ns = 2;
+
+  // Subject of the event. Most events have either a process or a
+  // component (service / provider / binding). Some have both.
+  optional int32 pid = 3;
+  optional int32 uid = 4;
+  optional int32 service_id = 5;
+  optional int32 binding_id = 6;
+  optional int32 provider_id = 7;
+  optional int32 provider_binding_id = 8;
+
+  // For OOM_ADJ_RECOMPUTE: the BEFORE / AFTER fields that changed.
+  optional int32 prev_adj = 20;
+  optional int32 next_adj = 21;
+  optional int32 prev_proc_state = 22;
+  optional int32 next_proc_state = 23;
+  optional int32 prev_capability = 24;
+  optional int32 next_capability = 25;
+  optional int32 prev_sched_group = 26;
+  optional int32 next_sched_group = 27;
+  // ActivityManagerInternal.OomAdjReason
+  optional int32 oom_adj_reason = 28;
+
+  // For BIND/UNBIND/REBIND: the BIND_* flag bitmask (long).
+  optional int64 bind_flags = 30;
+
+  // For FGS_*: the FOREGROUND_SERVICE_TYPE_* bitmask.
+  optional int32 fg_service_types = 40;
+
+  // For BROADCAST_DISPATCH_*: the broadcast intent action (interned).
+  optional int32 broadcast_action_idx = 50;
+  optional int32 broadcast_receiver_count = 51;
+
+  // Free-form short label (interned). E.g. for HOSTING_TYPE_CHANGE this
+  // describes the symbolic adj_type ("fg-service", "top-activity", etc.).
+  optional int32 label_idx = 60;
+}
+
+// ----------------------------------------------------------------------
+// AdjComputeTrace — for one process, the ORDERED list of conditions that
+// matched during computeOomAdj (the "why" annotated path).
+//
+// The trace records the conditions in the order OomAdjusterImpl evaluates
+// them. Each condition has a code (enum), a result value, and optionally
+// the source PID / binding ID that contributed.
+//
+// This is the heart of the winscope-replay capability: with a trace per
+// adj recomputation, the UI can show a step-by-step "this is how we
+// arrived at adj=N" tree.
+// ----------------------------------------------------------------------
+message AdjComputeTrace {
+  optional int32 pid = 1;
+  optional int64 start_boottime_ns = 2;
+  optional int64 duration_ns = 3;
+  // OomAdjReason
+  optional int32 oom_adj_reason = 4;
+  optional int32 final_adj = 5;
+  optional int32 final_proc_state = 6;
+  optional int32 final_capability = 7;
+  optional int32 final_sched_group = 8;
+
+  // Pre-state.
+  optional int32 prev_adj = 10;
+  optional int32 prev_proc_state = 11;
+  optional int32 prev_capability = 12;
+  optional int32 prev_sched_group = 13;
+
+  // Ordered list of conditions that matched.
+  repeated AdjStep step = 20;
+}
+
+message AdjStep {
+  enum Kind {
+    KIND_UNKNOWN = 0;
+    // Constants / starting points.
+    // proc is mPersistent
+    PERSISTENT_FLOOR = 1;
+    SYSTEM_PROCESS = 2;
+    // hit ProcessRecord.mMaxAdj limit
+    MAX_ADJ_CAP = 3;
+    // Activity contributions.
+    HAS_VISIBLE_ACTIVITY = 10;
+    HAS_RESUMED_ACTIVITY = 11;
+    HAS_VISIBLE_TASK = 12;
+    HAS_RECENT_TASK = 13;
+    PERCEPTIBLE_TASK_GRACE = 14;
+    HAS_TOP_UI = 15;
+    HAS_OVERLAY_UI = 16;
+    RUNNING_REMOTE_ANIMATION = 17;
+    // Service contributions.
+    HAS_FOREGROUND_SERVICE = 20;
+    HAS_NON_SHORT_FGS = 21;
+    SHORT_FGS_GRACE = 22;
+    HAS_STARTED_SERVICE = 23;
+    HAS_EXECUTING_SERVICE = 24;
+    HAS_CLIENT_ACTIVITIES = 25;
+    HAS_ABOVE_CLIENT = 26;
+    // Receiver / provider / instrumentation.
+    IS_RECEIVING_BROADCAST = 30;
+    IS_PROVIDER_HOSTING = 31;
+    HAS_PROVIDER_CLIENT = 32;
+    HAS_INSTRUMENTATION = 33;
+    IS_BACKUP_TARGET = 34;
+    // Bindings (transitive).
+    BINDING_FROM_TOP = 40;
+    BINDING_FROM_FOREGROUND = 41;
+    BINDING_INCLUDE_CAPABILITIES = 42;
+    BINDING_TREAT_LIKE_VISIBLE_FGS = 43;
+    BINDING_ABOVE_CLIENT = 44;
+    BINDING_NOT_FOREGROUND = 45;
+    BINDING_WAIVE_PRIORITY = 46;
+    BINDING_NOT_PERCEPTIBLE = 47;
+    BINDING_ALMOST_PERCEPTIBLE = 48;
+    BINDING_IMPORTANT = 49;
+    BINDING_IMPORTANT_BACKGROUND = 50;
+    BINDING_ADJUST_WITH_ACTIVITY = 51;
+    BINDING_FOREGROUND_SERVICE = 52;
+    BINDING_SCHEDULE_LIKE_TOP_APP = 53;
+    BINDING_BYPASS_POWER_NETWORK = 54;
+    // Special-role processes.
+    IS_TOP_PROCESS = 60;
+    IS_HOME_PROCESS = 61;
+    IS_HEAVY_WEIGHT_PROCESS = 62;
+    IS_PREVIOUS_PROCESS = 63;
+    IS_DOZING_UI_PROCESS = 64;
+    // UID-level.
+    UID_IDLE = 70;
+    UID_DEVICE_IDLE_ALLOWLISTED = 71;
+    UID_TEMP_ALLOWLISTED = 72;
+    UID_BACKGROUND_RESTRICTED = 73;
+    // Cache levels.
+    LRU_RANK = 80;
+    CACHED_LEVEL_BUMP = 81;
+    EMPTY_APP_FLOOR = 82;
+    // Decisions.
+    FINAL_ADJ_CHOSEN = 90;
+    FINAL_PROC_STATE_CHOSEN = 91;
+    FINAL_CAPABILITY_CHOSEN = 92;
+    FINAL_SCHED_GROUP_CHOSEN = 93;
+  }
+
+  optional Kind kind = 1;
+
+  // Numeric value associated with the step. Interpretation depends on
+  // kind: e.g. for HAS_FOREGROUND_SERVICE this is the FGS type bitmask;
+  // for BINDING_* this is the contributing binding's flags; for
+  // FINAL_ADJ_CHOSEN this is the adj value.
+  optional int64 value = 2;
+
+  // For binding-driven steps: which binding contributed.
+  optional int32 binding_id = 3;
+  // For binding-driven steps: which process is on the OTHER end (client).
+  optional int32 source_pid = 4;
+  // For chain analysis: this step inherited via this many transitive hops
+  // (0 = direct).
+  optional int32 chain_depth = 5;
+
+  // Optional human-readable note (interned). The producer keeps these
+  // short — UI uses kind for layout, this for pasting into details.
+  optional int32 note_idx = 6;
+}
+
+// ----------------------------------------------------------------------
+// GlobalState — fields in ProcessStateController.GlobalState plus a few
+// other system-wide signals that influence adj.
+// ----------------------------------------------------------------------
+message GlobalState {
+  // From ProcessStateController.GlobalState
+  // PowerManager.WAKEFULNESS_AWAKE
+  optional bool is_awake = 1;
+  // ActivityManager.PROCESS_STATE_*
+  optional int32 top_process_state = 2;
+  // device-unlock flow active
+  optional bool unlocking = 3;
+  optional bool expanded_notification_shade = 4;
+  optional bool last_memory_level_normal = 5;
+
+  // Special-role processes (pids; may be 0 if unset)
+  optional int32 top_pid = 10;
+  optional int32 home_pid = 11;
+  optional int32 heavy_weight_pid = 12;
+  optional int32 previous_pid = 13;
+  optional int32 dozing_ui_pid = 14;
+
+  // BackupTarget per user. Parallel arrays so the proto stays simple.
+  repeated int32 backup_user_id = 20;
+  repeated int32 backup_pid = 21;
+
+  // Extra: device-wide caches / restrictions snapshotted here so the
+  // single packet is a one-stop shop for "system context".
+  // Deeplyidle/standby allowlist (app-ids).
+  repeated int32 device_idle_allowlist_app_ids = 30;
+  // Apps currently temp-allowlisted for PendingIntent etc.
+  repeated int32 temp_allowlist_app_ids = 31;
+}
+
+// ----------------------------------------------------------------------
+// ProcessRecord — one entry per ProcessRecord. ALL the fields read by
+// OomAdjusterImpl when computing adj for this process.
+// ----------------------------------------------------------------------
+message ProcessRecord {
+  optional int32 pid = 1;
+  optional int32 uid = 2;
+  optional int32 user_id = 3;
+
+  // interned
+  optional int32 process_name_idx = 4;
+  // interned
+  optional int32 package_name_idx = 5;
+
+  // ===== oom_adj scores =====
+  optional int32 cur_adj = 10;
+  optional int32 cur_raw_adj = 11;
+  optional int32 set_adj = 12;
+  optional int32 verified_adj = 13;
+  optional int32 max_adj = 14;
+
+  // ===== process state =====
+  // ActivityManager.PROCESS_STATE_*
+  optional int32 cur_proc_state = 20;
+  optional int32 set_proc_state = 21;
+  optional int32 rep_proc_state = 22;
+  optional int32 cur_raw_proc_state = 23;
+
+  // ===== capabilities (bitmask of PROCESS_CAPABILITY_*) =====
+  optional int32 cur_capability = 30;
+  optional int32 set_capability = 31;
+
+  // ===== sched group =====
+  // ProcessList.SCHED_GROUP_*
+  optional int32 cur_sched_group = 40;
+  optional int32 set_sched_group = 41;
+
+  // ===== hosting components (bitmask of HOSTING_COMPONENT_TYPE_*) =====
+  optional int32 hosting_component_types = 50;
+  optional int32 hosting_component_types_for_oom_adj = 51;
+
+  // ===== UI / activity flags =====
+  optional bool has_foreground_activities = 60;
+  optional bool has_top_ui = 61;
+  optional bool has_overlay_ui = 62;
+  optional bool has_shown_ui = 63;
+  optional bool running_remote_animation = 64;
+  optional bool forcing_to_important = 65;
+  optional bool system_no_ui = 66;
+  optional bool has_visible_activities = 67;
+  optional bool has_recent_tasks = 68;
+  // Packed bits from WindowProcessController.mActivityStateFlags
+  optional int32 activity_state_flags = 69;
+
+  // ===== service flags =====
+  optional bool has_started_services = 70;
+  optional bool has_foreground_services = 71;
+  optional bool has_non_short_foreground_services = 72;
+  // bitmask of FOREGROUND_SERVICE_TYPE_*
+  optional int32 fg_service_types = 73;
+  optional bool has_executing_services = 74;
+  optional int32 num_executing_services = 75;
+  optional bool exec_services_fg = 76;
+  optional bool has_client_activities = 77;
+  optional bool has_above_client = 78;
+  optional bool has_top_started_almost_perceptible_services = 79;
+
+  // ===== broadcasts =====
+  optional bool is_receiving_broadcast = 80;
+  optional int32 broadcast_receiver_sched_group = 81;
+  optional int32 num_pending_receivers = 82;
+
+  // ===== background restriction =====
+  optional bool background_restricted = 90;
+  optional bool cur_bound_by_non_bg_restricted_app = 91;
+
+  // ===== persistent / instrumentation / backup =====
+  optional bool persistent = 100;
+  optional bool isolated = 101;
+  optional bool is_sdk_sandbox = 102;
+  optional bool has_active_instrumentation = 103;
+  optional bool is_backup_target = 104;
+  // interned, 0 if absent
+  optional int32 instrumentation_class_idx = 105;
+  // interned
+  optional int32 backup_agent_name_idx = 106;
+
+  // ===== adj source / target / type (the "why" chain) =====
+  optional int32 adj_type_idx =
+      // interned, e.g. "fg-service" "top-activity"
+      110;
+  optional int32 adj_type_code =
+      // ActivityManager.RunningAppProcessInfo.REASON_*
+      111;
+  // who is bumping us up
+  optional int32 adj_source_pid = 112;
+  // who we are propagating up to
+  optional int32 adj_target_pid = 113;
+  optional int32 adj_source_proc_state = 114;
+
+  // ===== timing (only emitted when config.include_timing_details) =====
+  optional int64 last_top_time_ms = 120;
+  optional int64 when_unimportant_ms = 121;
+  optional int64 interaction_event_time_ms = 122;
+  optional int64 fg_interaction_time_ms = 123;
+  optional int64 last_provider_time_ms = 124;
+  optional int64 perceptible_task_stopped_time_ms = 125;
+  optional int64 last_top_almost_perceptible_bind_request_uptime_ms = 126;
+
+  // ===== freezing =====
+  optional bool is_frozen = 130;
+  // 0 if not frozen
+  optional int64 frozen_since_ms = 131;
+
+  // ===== sequence tracking =====
+  optional int32 adj_seq = 140;
+  optional int32 completed_adj_seq = 141;
+  optional int32 lru_seq = 142;
+  // position in mLruProcesses (0 = MRU)
+  optional int32 lru_index = 143;
+
+  // ===== cached activity-derived snapshot =====
+  optional int32 cached_adj = 150;
+  optional bool cached_foreground_activities = 151;
+  optional int32 cached_proc_state = 152;
+  optional int32 cached_sched_group = 153;
+  optional int32 cached_adj_type_idx = 154;
+
+  // ===== memory =====
+  optional int64 last_pss_kb = 160;
+  optional int64 last_cached_pss_kb = 161;
+
+  // ===== pointers into the snapshot's other tables =====
+  // Indices into ProcessStateSnapshot.binding for bindings where THIS
+  // process is the client (i.e. it bound to others).
+  repeated int32 outgoing_binding_idx = 170;
+  // Indices into ProcessStateSnapshot.service for services hosted here.
+  repeated int32 hosted_service_idx = 171;
+  // Indices into ProcessStateSnapshot.provider_binding for provider
+  // connections where this process is the client.
+  repeated int32 outgoing_provider_binding_idx = 172;
+  // Indices into ProcessStateSnapshot.provider for providers hosted here.
+  repeated int32 hosted_provider_idx = 173;
+}
+
+// ----------------------------------------------------------------------
+// UidRecord — system-wide per-uid state.
+// ----------------------------------------------------------------------
+message UidRecord {
+  optional int32 uid = 1;
+  // PROCESS_STATE_*
+  optional int32 cur_proc_state = 2;
+  optional int32 set_proc_state = 3;
+  optional int32 cur_capability = 4;
+  optional int32 set_capability = 5;
+  optional bool idle = 6;
+  optional bool running = 7;
+  optional bool ephemeral = 8;
+  optional int64 last_background_time_ms = 9;
+  optional bool device_idle_allowlisted = 10;
+  optional bool temp_allowlisted = 11;
+  // Restriction level (from AppRestrictionController). Mirrors
+  // ActivityManagerInternal.RESTRICTION_LEVEL_*.
+  optional int32 restriction_level = 12;
+  // App standby bucket (UsageStatsManager.STANDBY_BUCKET_*).
+  optional int32 standby_bucket = 13;
+}
+
+// ----------------------------------------------------------------------
+// ServiceRecord — one per active ServiceRecord.
+// ----------------------------------------------------------------------
+message ServiceRecord {
+  // unique within snapshot
+  optional int32 id = 1;
+  // ProcessRecord this service runs in
+  optional int32 owning_pid = 2;
+  // interned: ComponentName short
+  optional int32 short_name_idx = 3;
+  // interned
+  optional int32 package_name_idx = 4;
+  // interned
+  optional int32 class_name_idx = 5;
+
+  // ===== foreground state =====
+  optional bool is_foreground = 10;
+  // notification id (0 if absent)
+  optional int32 foreground_id = 11;
+  optional int32 foreground_service_type =
+      // bitmask of ServiceInfo.FOREGROUND_SERVICE_TYPE_*
+      12;
+
+  // Short FGS (FOREGROUND_SERVICE_TYPE_SHORT_SERVICE) tracking.
+  optional bool is_short_fgs = 20;
+  optional int64 short_fgs_start_uptime_ms = 21;
+  optional int64 short_fgs_timeout_uptime_ms = 22;
+  optional int64 short_fgs_proc_state_demote_uptime_ms = 23;
+  optional int64 short_fgs_anr_uptime_ms = 24;
+
+  // ===== execution / lifecycle =====
+  // startService() called >=1
+  optional bool start_requested = 30;
+  optional bool delayed = 31;
+  optional bool delayed_stop = 32;
+  optional bool created_from_fg = 33;
+  optional int32 execute_nesting = 34;
+  optional bool execute_fg = 35;
+  optional int64 executing_start_uptime_ms = 36;
+  optional int64 last_activity_uptime_ms = 37;
+
+  // ===== restart tracking =====
+  optional int64 restart_uptime_ms = 40;
+  optional int64 next_restart_uptime_ms = 41;
+  optional int32 restart_count = 42;
+  optional int32 crash_count = 43;
+  optional int32 restart_delay_ms = 44;
+
+  // Indices into ProcessStateSnapshot.binding for connections to this svc.
+  repeated int32 binding_idx = 50;
+
+  optional bool is_isolated = 60;
+}
+
+// ----------------------------------------------------------------------
+// ServiceBinding — one ConnectionRecord, between a client process and a svc.
+// ----------------------------------------------------------------------
+message ServiceBinding {
+  // unique within snapshot
+  optional int32 id = 1;
+  // who bound
+  optional int32 client_pid = 2;
+  // → ServiceRecord.id
+  optional int32 service_id = 3;
+
+  // Long bitmask of Context.BIND_*. Stored as int64 because there are
+  // BIND_* constants beyond 32 bits (e.g. BIND_EXTERNAL_SERVICE_LONG = 1<<62).
+  optional int64 flags = 4;
+
+  // Decomposed common flags for query convenience (no need to do bit-math
+  // in SQL). Kept in addition to `flags` because the long-form bitmask is
+  // the source of truth.
+  optional bool flag_auto_create = 10;
+  optional bool flag_foreground_service = 11;
+  optional bool flag_not_foreground = 12;
+  optional bool flag_above_client = 13;
+  optional bool flag_allow_oom_management = 14;
+  optional bool flag_waive_priority = 15;
+  optional bool flag_important = 16;
+  optional bool flag_adjust_with_activity = 17;
+  optional bool flag_not_perceptible = 18;
+  optional bool flag_almost_perceptible = 19;
+  optional bool flag_include_capabilities = 20;
+  optional bool flag_treat_like_visible_fgs = 21;
+  optional bool flag_treat_like_activity = 22;
+  optional bool flag_schedule_like_top_app = 23;
+  optional bool flag_bypass_power_network_restrictions = 24;
+  optional bool flag_allow_background_activity_starts = 25;
+
+  // Connection metadata
+  optional int32 client_label = 30;
+  optional int32 client_uid = 31;
+  optional int32 client_process_name_idx = 32;
+  optional bool service_dead = 33;
+  optional int32 ongoing_calls = 34;
+  // freezer participation
+  optional bool has_bound_service_session = 35;
+
+  // For chains: if this connection bumped the service up, what process state
+  // it inherited. Useful for debugging unexpected priority propagation.
+  optional int32 effective_proc_state = 40;
+  optional int32 effective_capability = 41;
+}
+
+// ----------------------------------------------------------------------
+// ContentProviderRecord — a registered content provider.
+// ----------------------------------------------------------------------
+message ContentProviderRecord {
+  optional int32 id = 1;
+  optional int32 owning_pid = 2;
+  // interned (e.g. "com.android.contacts")
+  optional int32 authority_idx = 3;
+  optional int32 package_name_idx = 4;
+  optional int32 class_name_idx = 5;
+  optional int32 external_handle_count = 6;
+  optional bool launched = 7;
+}
+
+// ----------------------------------------------------------------------
+// ContentProviderBinding — a ContentProviderConnection.
+// ----------------------------------------------------------------------
+message ContentProviderBinding {
+  optional int32 id = 1;
+  optional int32 client_pid = 2;
+  // → ContentProviderRecord.id
+  optional int32 provider_id = 3;
+  optional int32 stable_count = 4;
+  optional int32 unstable_count = 5;
+  optional bool dead = 6;
+  // initial getProvider blocked
+  optional bool waiting = 7;
+  optional int64 last_ref_uptime_ms = 8;
+}

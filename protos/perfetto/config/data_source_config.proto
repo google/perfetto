@@ -32,6 +32,7 @@ import "protos/perfetto/config/android/kernel_wakelocks_config.proto";
 import "protos/perfetto/config/android/network_trace_config.proto";
 import "protos/perfetto/config/android/packages_list_config.proto";
 import "protos/perfetto/config/android/pixel_modem_config.proto";
+import "protos/perfetto/config/android/process_state_config.proto";
 import "protos/perfetto/config/android/protolog_config.proto";
 import "protos/perfetto/config/android/display_video_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_layers_config.proto";
@@ -312,6 +313,11 @@ message DataSourceConfig {
 
   // Data source name: android.display.video
   optional DisplayVideoConfig display_video_config = 142 [lazy = true];
+
+  // Data source name: android.process_state — snapshots ProcessStateController
+  // internal state (process records, service/provider bindings, oom_adj fields,
+  // and the oom-adj "why" computation chain) on each adj recomputation.
+  optional ProcessStateConfig process_state_config = 143 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

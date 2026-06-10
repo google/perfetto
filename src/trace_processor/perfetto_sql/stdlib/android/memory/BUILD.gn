@@ -25,5 +25,6 @@ perfetto_sql_source_set("memory") {
     "lmk.sql",
     "memory_breakdown.sql",
     "process.sql",
+    "process_state.sql",
   ]
 }

@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 #include "src/trace_processor/importers/proto/pixel_modem_module.h"
+#include "src/trace_processor/importers/proto/process_state_module.h"
 #include "src/trace_processor/importers/proto/profile_module.h"
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
@@ -88,6 +89,8 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
       new ProfileModule(module_context, context));
   module_context->modules.emplace_back(
       new AppWakelockModule(module_context, context));
+  module_context->modules.emplace_back(
+      new ProcessStateModule(module_context, context));
   module_context->modules.emplace_back(
       new GenericKernelModule(module_context, context));
 

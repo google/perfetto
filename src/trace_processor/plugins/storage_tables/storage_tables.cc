@@ -127,6 +127,13 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_user_list_table());
     AddDataframe(out, s->mutable_perf_session_table());
     AddDataframe(out, s->mutable_process_memory_snapshot_table());
+    AddDataframe(out, s->mutable_process_state_snapshot_table());
+    AddDataframe(out, s->mutable_process_state_process_table());
+    AddDataframe(out, s->mutable_process_state_uid_table());
+    AddDataframe(out, s->mutable_process_state_service_table());
+    AddDataframe(out, s->mutable_process_state_binding_table());
+    AddDataframe(out, s->mutable_process_state_provider_table());
+    AddDataframe(out, s->mutable_process_state_provider_binding_table());
     AddDataframe(out, s->mutable_profiler_smaps_table());
     AddDataframe(out, s->mutable_protolog_table());
     AddDataframe(out, s->mutable_winscope_trace_rect_table());
@@ -220,7 +227,8 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.heap_graph_object_table().mutations() +
            s.perf_sample_table().mutations() +
            s.instruments_sample_table().mutations() +
-           s.cpu_profile_stack_sample_table().mutations();
+           s.cpu_profile_stack_sample_table().mutations() +
+           s.process_state_snapshot_table().mutations();
   }
 
   std::pair<int64_t, int64_t> GetTimestampBounds() override {
@@ -272,6 +280,13 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       end_ns = std::max(it.ts(), end_ns);
     }
     for (auto it = s.cpu_profile_stack_sample_table().IterateRows(); it; ++it) {
+      start_ns = std::min(it.ts(), start_ns);
+      end_ns = std::max(it.ts(), end_ns);
+    }
+    // Process-state snapshots are often the only timed data in an
+    // android.process_state-only trace; without this the timeline has no
+    // bounds and the snapshot track can't render.
+    for (auto it = s.process_state_snapshot_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }
