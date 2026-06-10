@@ -100,6 +100,17 @@ class BinaryProto:
 
 
 @dataclass
+class ExpectedError:
+  """Represents an expectation that loading the trace fails.
+
+  The test passes iff trace_processor exits with a non-zero exit code AND
+  its stderr contains the |contains| substring. Use this to test strict
+  parsing/import errors where the whole trace load is expected to fail.
+  """
+  contains: str
+
+
+@dataclass
 class SimpleperfProto:
   """Represents a simpleperf_proto binary file with inline generation."""
   records: List[str]  # List of textproto strings for Record messages
@@ -165,7 +176,7 @@ class DiffTestBlueprint:
   trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText]
   query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto,
                StructuredQuery]
-  out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
+  out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto, ExpectedError]
   trace_modifier: Union[TraceInjector, None] = None
   register_files_dir: Optional[DataPath] = None
   # If set, this test will only be run if all of these module_dependencies are enabled.
@@ -217,6 +228,9 @@ class DiffTestBlueprint:
 
   def is_out_csv(self):
     return isinstance(self.out, Csv)
+
+  def is_out_expected_error(self):
+    return isinstance(self.out, ExpectedError)
 
 
 def removeprefix(s: str, prefix: str):
