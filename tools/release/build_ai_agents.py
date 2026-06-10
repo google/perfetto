@@ -184,7 +184,7 @@ def build(output: Path) -> None:
       'tag':
           version,
       'built_at':
-          datetime.datetime.now(datetime.UTC
+          datetime.datetime.now(datetime.timezone.utc
                                ).isoformat().replace('+00:00', 'Z'),
   }
   (output /
