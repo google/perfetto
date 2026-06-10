@@ -140,7 +140,7 @@ Methods cannot take arguments and have to return a `DiffTestBlueprint`:
 class DiffTestBlueprint:
   trace: Union[Path, Json, Systrace, TextProto]
   query: Union[str, Path, Metric]
-  out: Union[Path, Json, Csv, TextProto]
+  out: Union[Path, Json, Csv, TextProto, ExpectedError]
 ```
 
 _Trace_ and _Out_: For every type apart from `Path`, contents of the object
@@ -149,6 +149,12 @@ will be treated as file contents so it has to follow the same rules.
 _Query_: For metric tests it is enough to provide the metric name. For query
 tests there can be a raw SQL statement, for example `"SELECT * FROM SLICE"`,
 or a path to an `.sql` file.
+
+_ExpectedError_: Setting `out=ExpectedError('error substring')` inverts the
+test: it passes if and only if loading the trace fails and the error message
+printed by `trace_processor_shell` contains the given substring. Use this to
+test strict parsing/import errors where the whole trace load is expected to
+fail. The query is still required but is never executed.
 
 NOTE: `trace_processor_shell` and the associated proto descriptors need to
 be built before running `tools/diff_test_trace_processor.py`. The easiest
