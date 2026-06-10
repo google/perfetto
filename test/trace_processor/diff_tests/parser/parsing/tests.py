@@ -16,6 +16,7 @@
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
+from python.generators.diff_tests.testing import ExpectedError, RawText
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -27,7 +28,17 @@ class Parsing(TestSuite):
   # http://perfetto/dev/docs/analysis/trace-processor#diff-tests for choosing
   # folder to add a new test to. TODO(lalitm): some tests here should be moved
   # of here and into the area folders; they are only here because they predate
-  # modularisation of diff tests. Sched
+  # modularisation of diff tests.
+
+  # Feeding trace_processor a file which is not a trace in any known format
+  # should fail the load with a clear error.
+  def test_unknown_trace_type_load_error(self):
+    return DiffTestBlueprint(
+        trace=RawText('this is garbage and not a trace in any known format'),
+        query='SELECT 1;',
+        out=ExpectedError('Unknown trace type provided (ERR:fmt)'))
+
+  # Sched
   def test_ts_desc_filter_android_sched_and_ps(self):
     return DiffTestBlueprint(
         trace=DataPath('android_sched_and_ps.pb'),
