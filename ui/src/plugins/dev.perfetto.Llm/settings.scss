@@ -51,6 +51,27 @@
   &__models-label {
     font-weight: bold;
     margin-top: 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+}
+
+.pf-llm-models-status-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: normal;
+}
+
+.pf-llm-models-status {
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--pf-color-text-muted);
+
+  &--error {
+    color: var(--pf-color-danger);
+    cursor: help;
   }
 }
 
@@ -71,6 +92,12 @@
   gap: 8px;
 
   .pf-text-input {
+    flex: 1;
+  }
+
+  // The model-name combobox wraps its input in a Popup; make the wrapper flex
+  // like the sibling text inputs so the row lays out evenly.
+  &__name {
     flex: 1;
   }
 

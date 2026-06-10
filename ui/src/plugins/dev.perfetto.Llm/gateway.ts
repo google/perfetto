@@ -19,7 +19,12 @@
 // configuration is independent of any loaded trace.
 
 import type {Setting} from '../../public/settings';
-import type {NeutralRequest, Protocol, StreamEvent} from './protocol';
+import type {
+  AvailableModel,
+  NeutralRequest,
+  Protocol,
+  StreamEvent,
+} from './protocol';
 import type {
   Model,
   ModelRole,
@@ -88,6 +93,19 @@ export class LlmGateway {
   // No precedence: a logical model appearing in both is just two entries.
   listProviders(): ReadonlyArray<Provider> {
     return [...this.providersSetting.get(), ...this.extensionProviders];
+  }
+
+  // Ask a provider's backend which models it can serve. Returns undefined if
+  // the provider's protocol isn't registered or doesn't support listing;
+  // rethrows network/auth errors so the caller can surface them. The settings
+  // UI uses this to populate the model-name combobox.
+  async listAvailableModels(
+    provider: Provider,
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<AvailableModel> | undefined> {
+    const protocol = this.protocols.get(provider.protocol);
+    if (protocol?.listModels === undefined) return undefined;
+    return protocol.listModels(provider.credentials, signal);
   }
 
   private sourceOf(providerId: string): 'user' | 'extension-server' {
