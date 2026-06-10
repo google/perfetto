@@ -49,8 +49,14 @@ class StateTracker {
 
  private:
   struct ActiveState {
+    ActiveState(tables::StateTable::RowNumber r,
+                StringId v,
+                TraceProcessorContext* context)
+        : row(r), value(v), args_tracker(context) {}
+
     tables::StateTable::RowNumber row;
     StringId value;
+    ArgsTracker args_tracker;
   };
 
   TraceProcessorContext* const context_;

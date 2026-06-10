@@ -38,8 +38,7 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
     if (active->value == value_id) {
       // Augment current state with new arguments
       if (args_callback) {
-        ArgsTracker args_tracker(context_);
-        auto bound_inserter = args_tracker.AddArgsTo(ref.id());
+        auto bound_inserter = active->args_tracker.AddArgsTo(ref.id());
         args_callback(&bound_inserter);
       }
       return ref.id();
@@ -62,14 +61,15 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
     auto id_and_row = states->Insert(row);
     auto ref = (*states)[id_and_row.row];
 
+    ActiveState active_state(tables::StateTable::RowNumber(id_and_row.row),
+                             value_id, context_);
+
     if (args_callback) {
-      ArgsTracker args_tracker(context_);
-      auto bound_inserter = args_tracker.AddArgsTo(ref.id());
+      auto bound_inserter = active_state.args_tracker.AddArgsTo(ref.id());
       args_callback(&bound_inserter);
     }
 
-    active_states_.Insert(
-        track_id, {tables::StateTable::RowNumber(id_and_row.row), value_id});
+    active_states_.Insert(track_id, std::move(active_state));
 
     return ref.id();
   }

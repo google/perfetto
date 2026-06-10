@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/common/state_tracker.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -28,6 +29,8 @@ class StateTrackerTest : public ::testing::Test {
  protected:
   StateTrackerTest() {
     context_.storage.reset(new TraceStorage());
+    context_.global_args_tracker.reset(
+        new GlobalArgsTracker(context_.storage.get()));
     context_.state_tracker =
         TraceProcessorContextPtr<StateTracker>::MakeRoot(&context_);
   }
@@ -72,6 +75,56 @@ TEST_F(StateTrackerTest, UpdateState) {
   EXPECT_EQ(sr1.dur(), 5);  // 15 - 10
   EXPECT_EQ(sr1.value().raw_id(), state2.raw_id());
   EXPECT_EQ(sr1.category().value_or(kNullStringId).raw_id(), cat2.raw_id());
+}
+
+TEST_F(StateTrackerTest, MergeArgs) {
+  auto* tracker = context_.state_tracker.get();
+
+  constexpr TrackId track{22u};
+  const StringId state1 = context_.storage->InternString("state1");
+  const StringId cat1 = context_.storage->InternString("cat1");
+  const StringId key1 = context_.storage->InternString("key1");
+  const StringId key2 = context_.storage->InternString("key2");
+
+  // 1. Start state1 with arg1
+  tracker->UpdateState(2 /*ts*/, track, state1, cat1,
+                       [&](ArgsTracker::BoundInserter* inserter) {
+                         inserter->AddArg(key1, Variadic::Integer(10));
+                       });
+
+  // 2. Update with same state and arg2
+  tracker->UpdateState(5 /*ts*/, track, state1, cat1,
+                       [&](ArgsTracker::BoundInserter* inserter) {
+                         inserter->AddArg(key2, Variadic::Integer(20));
+                       });
+
+  // 3. End state
+  tracker->UpdateState(10 /*ts*/, track, kNullStringId);
+
+  const auto& states = context_.storage->state_table();
+  EXPECT_EQ(states.row_count(), 1u);
+
+  auto sr0 = states[0];
+  EXPECT_EQ(sr0.ts(), 2);
+  EXPECT_EQ(sr0.dur(), 8);
+  EXPECT_EQ(sr0.value().raw_id(), state1.raw_id());
+
+  auto set_id = sr0.arg_set_id();
+  ASSERT_TRUE(set_id.has_value());
+
+  const auto& args = context_.storage->arg_table();
+  // We expect 2 args in the table.
+  EXPECT_EQ(args.row_count(), 2u);
+
+  auto ar0 = args[0];
+  auto ar1 = args[1];
+  EXPECT_EQ(ar0.arg_set_id(), *set_id);
+  EXPECT_EQ(ar0.key().raw_id(), key1.raw_id());
+  EXPECT_EQ(ar0.int_value(), 10);
+
+  EXPECT_EQ(ar1.arg_set_id(), *set_id);
+  EXPECT_EQ(ar1.key().raw_id(), key2.raw_id());
+  EXPECT_EQ(ar1.int_value(), 20);
 }
 
 }  // namespace
