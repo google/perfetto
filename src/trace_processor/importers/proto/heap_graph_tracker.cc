@@ -820,12 +820,25 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
   auto& heap_graph_table = *storage_->mutable_heap_graph_table();
   std::optional<tables::HeapGraphTable::Id> heap_graph_id;
-  for (auto it = heap_graph_table.IterateRows(); it; ++it) {
-    if (it.upid() == sequence_state.current_upid &&
-        it.ts() == sequence_state.current_ts) {
-      heap_graph_id = it.id();
-      break;
-    }
+  auto cursor = heap_graph_table.CreateCursor({
+      dataframe::FilterSpec{
+          tables::HeapGraphTable::ColumnIndex::upid,
+          0,
+          dataframe::Eq{},
+          {},
+      },
+      dataframe::FilterSpec{
+          tables::HeapGraphTable::ColumnIndex::ts,
+          1,
+          dataframe::Eq{},
+          {},
+      },
+  });
+  cursor.SetFilterValueUnchecked(0, sequence_state.current_upid);
+  cursor.SetFilterValueUnchecked(1, sequence_state.current_ts);
+  cursor.Execute();
+  if (!cursor.Eof()) {
+    heap_graph_id = cursor.id();
   }
   if (heap_graph_id) {
     if (sequence_state.heap_size) {

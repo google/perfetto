@@ -14,12 +14,12 @@
 
 import("../../../../gn/perfetto.gni")
 
-source_set("art_oome_importer") {
+source_set("art_process_metadata_importer") {
   sources = [
-    "art_oome_importer.cc",
-    "art_oome_importer.h",
-    "art_oome_module.cc",
-    "art_oome_module.h",
+    "art_process_metadata_importer.cc",
+    "art_process_metadata_importer.h",
+    "art_process_metadata_module.cc",
+    "art_process_metadata_module.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -27,6 +27,7 @@ source_set("art_oome_importer") {
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
     "../../../protozero",
+    "../../core/dataframe",
     "../../core/plugin",
     "../../importers/common",
     "../../importers/proto:proto_importer_module",

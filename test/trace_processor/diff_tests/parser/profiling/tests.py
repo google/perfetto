@@ -635,7 +635,7 @@ class Profiling(TestSuite):
           g.ts,
           p.name AS process_name,
           g.dump_reason,
-          o.byte_count,
+          o.allocation_size_bytes,
           o.total_bytes_free,
           o.free_bytes_until_oom,
           o.error_msg
@@ -644,7 +644,7 @@ class Profiling(TestSuite):
         JOIN process p ON g.upid = p.upid;
         """,
         out=Csv("""
-        "ts","process_name","dump_reason","byte_count","total_bytes_free","free_bytes_until_oom","error_msg"
+        "ts","process_name","dump_reason","allocation_size_bytes","total_bytes_free","free_bytes_until_oom","error_msg"
         1234567890123456,"com.example.oometest","OOME",1048576,512000,204800,"Failed to allocate 1048576 bytes"
         """))
 

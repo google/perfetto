@@ -299,7 +299,7 @@ CREATE PERFETTO VIEW heap_graph(
 AS
 SELECT id, ts, upid, dump_reason, heap_size FROM __intrinsic_heap_graph;
 
--- Callstack profiles of threads at the time of heap graphs.
+-- Callstack profiles of threads at the time the heap graph was collected.
 CREATE PERFETTO VIEW heap_graph_thread_callsite(
   -- Unique identifier for this mapping row.
   id ID,

@@ -3064,7 +3064,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":perfetto_src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",
@@ -18358,12 +18358,12 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/plugins/art_oome_importer:art_oome_importer
+// GN: //src/trace_processor/plugins/art_process_metadata_importer:art_process_metadata_importer
 filegroup {
-    name: "perfetto_src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+    name: "perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
     srcs: [
-        "src/trace_processor/plugins/art_oome_importer/art_oome_importer.cc",
-        "src/trace_processor/plugins/art_oome_importer/art_oome_module.cc",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.cc",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_module.cc",
     ],
 }
 
@@ -19872,7 +19872,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":perfetto_src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",
@@ -22460,7 +22460,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_ancestor_unittests",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":perfetto_src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_connected_flow_unittests",
@@ -23466,7 +23466,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":perfetto_src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",
@@ -24113,7 +24113,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":perfetto_src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":perfetto_src_trace_processor_plugins_base64_functions_base64_functions",
         ":perfetto_src_trace_processor_plugins_connected_flow_connected_flow",
         ":perfetto_src_trace_processor_plugins_core_functions_core_functions",

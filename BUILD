@@ -457,7 +457,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -747,7 +747,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -4343,14 +4343,14 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/plugins/art_oome_importer:art_oome_importer
+# GN target: //src/trace_processor/plugins/art_process_metadata_importer:art_process_metadata_importer
 perfetto_filegroup(
-    name = "src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+    name = "src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
     srcs = [
-        "src/trace_processor/plugins/art_oome_importer/art_oome_importer.cc",
-        "src/trace_processor/plugins/art_oome_importer/art_oome_importer.h",
-        "src/trace_processor/plugins/art_oome_importer/art_oome_module.cc",
-        "src/trace_processor/plugins/art_oome_importer/art_oome_module.h",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.cc",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_module.cc",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_module.h",
     ],
 )
 
@@ -10556,7 +10556,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -10876,7 +10876,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
-        ":src_trace_processor_plugins_art_oome_importer_art_oome_importer",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",

@@ -14,39 +14,40 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/plugins/art_oome_importer/art_oome_importer.h"
+#include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h"
 
 #include <memory>
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/plugins/art_oome_importer/art_oome_module.h"
+#include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_module.h"
 
-namespace perfetto::trace_processor::art_oome_importer {
+namespace perfetto::trace_processor::art_process_metadata_importer {
 
-class ArtOomeImporter : public Plugin<ArtOomeImporter> {
+class ArtProcessMetadataImporter : public Plugin<ArtProcessMetadataImporter> {
  public:
-  ~ArtOomeImporter() override;
+  ~ArtProcessMetadataImporter() override;
 
   void RegisterProtoImporterModules(
       ProtoImporterModuleContext* module_context,
       TraceProcessorContext* trace_context) override {
     module_context->modules.emplace_back(
-        new ArtOomeModule(module_context, trace_context));
+        new ArtProcessMetadataModule(module_context, trace_context));
   }
 };
 
-ArtOomeImporter::~ArtOomeImporter() = default;
+ArtProcessMetadataImporter::~ArtProcessMetadataImporter() = default;
 
 void RegisterPlugin() {
   static PluginRegistration reg(
       []() -> std::unique_ptr<PluginBase> {
-        return std::make_unique<ArtOomeImporter>();
+        return std::make_unique<ArtProcessMetadataImporter>();
       },
-      ArtOomeImporter::kPluginId, ArtOomeImporter::kDepIds.data(),
-      ArtOomeImporter::kDepIds.size());
+      ArtProcessMetadataImporter::kPluginId,
+      ArtProcessMetadataImporter::kDepIds.data(),
+      ArtProcessMetadataImporter::kDepIds.size());
   base::ignore_result(reg);
 }
 
-}  // namespace perfetto::trace_processor::art_oome_importer
+}  // namespace perfetto::trace_processor::art_process_metadata_importer

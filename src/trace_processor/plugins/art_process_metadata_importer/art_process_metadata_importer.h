@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PLUGINS_ART_OOME_IMPORTER_ART_OOME_IMPORTER_H_
-#define SRC_TRACE_PROCESSOR_PLUGINS_ART_OOME_IMPORTER_ART_OOME_IMPORTER_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_ART_PROCESS_METADATA_IMPORTER_ART_PROCESS_METADATA_IMPORTER_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_ART_PROCESS_METADATA_IMPORTER_ART_PROCESS_METADATA_IMPORTER_H_
 
-namespace perfetto::trace_processor::art_oome_importer {
+namespace perfetto::trace_processor::art_process_metadata_importer {
 
 void RegisterPlugin();
 
-}  // namespace perfetto::trace_processor::art_oome_importer
+}  // namespace perfetto::trace_processor::art_process_metadata_importer
 
-#endif  // SRC_TRACE_PROCESSOR_PLUGINS_ART_OOME_IMPORTER_ART_OOME_IMPORTER_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_ART_PROCESS_METADATA_IMPORTER_ART_PROCESS_METADATA_IMPORTER_H_

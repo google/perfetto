@@ -601,8 +601,6 @@ HEAP_GRAPH_TABLE = Table(
         C(
             'ts',
             CppInt64(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'upid',
@@ -614,13 +612,11 @@ HEAP_GRAPH_TABLE = Table(
             'dump_reason',
             CppOptional(CppString()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'heap_size',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
@@ -653,8 +649,6 @@ HEAP_GRAPH_THREAD_CALLSITE_TABLE = Table(
         C(
             'utid',
             CppUint32(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'callsite_id',
@@ -664,7 +658,7 @@ HEAP_GRAPH_THREAD_CALLSITE_TABLE = Table(
         ),
     ],
     tabledoc=TableDoc(
-        doc='Callstack profiles of threads at the time of heap graphs.',
+        doc='Callstack profiles of threads at the time the heap graph was collected.',
         group='Callstack profilers',
         columns={
             'heap_graph_id':
@@ -686,10 +680,8 @@ HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
         C(
             'heap_graph_id',
             CppTableId(HEAP_GRAPH_TABLE),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('byte_count', CppInt64()),
+        C('allocation_size_bytes', CppInt64()),
         C('total_bytes_free', CppInt64()),
         C('free_bytes_until_oom', CppInt64()),
         C('error_msg', CppOptional(CppString())),
@@ -700,7 +692,7 @@ HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
         columns={
             'heap_graph_id':
                 'The heap graph instance this OOM trigger details belongs to. Joinable with heap_graph.id.',
-            'byte_count':
+            'allocation_size_bytes':
                 'Number of bytes that triggered the OOME.',
             'total_bytes_free':
                 'Total free bytes in the Java heap at OOME time.',

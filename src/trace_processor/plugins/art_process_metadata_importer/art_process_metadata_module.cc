@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/plugins/art_oome_importer/art_oome_module.h"
+#include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_module.h"
 
 #include <cstdint>
 #include <optional>
@@ -24,6 +24,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/profiling/art_process_metadata.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -60,13 +61,24 @@ void UpdatePackageList(TraceProcessorContext* context,
                        int64_t uid) {
   StringId package_name_id = context->storage->InternString(package_name);
   auto* package_list = context->storage->mutable_package_list_table();
-  bool found = false;
-  for (auto it = package_list->IterateRows(); it; ++it) {
-    if (it.package_name() == package_name_id && it.uid() == uid) {
-      found = true;
-      break;
-    }
-  }
+  auto cursor = package_list->CreateCursor({
+      dataframe::FilterSpec{
+          tables::PackageListTable::ColumnIndex::package_name,
+          0,
+          dataframe::Eq{},
+          {},
+      },
+      dataframe::FilterSpec{
+          tables::PackageListTable::ColumnIndex::uid,
+          1,
+          dataframe::Eq{},
+          {},
+      },
+  });
+  cursor.SetFilterValueUnchecked(0, package_name_id.raw_id());
+  cursor.SetFilterValueUnchecked(1, uid);
+  cursor.Execute();
+  bool found = !cursor.Eof();
   if (!found) {
     context->storage->mutable_package_list_table()->Insert(
         {package_name_id, uid, /*debuggable*/ false,
@@ -79,11 +91,25 @@ tables::HeapGraphTable::Id InsertHeapGraph(TraceProcessorContext* context,
                                            UniquePid upid) {
   auto& heap_graph_table = *context->storage->mutable_heap_graph_table();
   std::optional<tables::HeapGraphTable::Id> heap_graph_id;
-  for (auto it = heap_graph_table.IterateRows(); it; ++it) {
-    if (it.upid() == upid && it.ts() == ts) {
-      heap_graph_id = it.id();
-      break;
-    }
+  auto cursor = heap_graph_table.CreateCursor({
+      dataframe::FilterSpec{
+          tables::HeapGraphTable::ColumnIndex::upid,
+          0,
+          dataframe::Eq{},
+          {},
+      },
+      dataframe::FilterSpec{
+          tables::HeapGraphTable::ColumnIndex::ts,
+          1,
+          dataframe::Eq{},
+          {},
+      },
+  });
+  cursor.SetFilterValueUnchecked(0, upid);
+  cursor.SetFilterValueUnchecked(1, ts);
+  cursor.Execute();
+  if (!cursor.Eof()) {
+    heap_graph_id = cursor.id();
   }
   if (heap_graph_id) {
     auto row_ref = heap_graph_table[*heap_graph_id];
@@ -101,13 +127,13 @@ tables::HeapGraphTable::Id InsertHeapGraph(TraceProcessorContext* context,
 
 void InsertOomeDetails(TraceProcessorContext* context,
                        tables::HeapGraphTable::Id heap_graph_id,
-                       int64_t byte_count,
+                       int64_t allocation_size_bytes,
                        int64_t total_bytes_free,
                        int64_t free_bytes_until_oom,
                        std::optional<base::StringView> error_msg) {
   tables::HeapGraphJavaOomeDetailsTable::Row oome_details_row;
   oome_details_row.heap_graph_id = heap_graph_id;
-  oome_details_row.byte_count = byte_count;
+  oome_details_row.allocation_size_bytes = allocation_size_bytes;
   oome_details_row.total_bytes_free = total_bytes_free;
   oome_details_row.free_bytes_until_oom = free_bytes_until_oom;
 
@@ -119,11 +145,12 @@ void InsertOomeDetails(TraceProcessorContext* context,
       oome_details_row);
 }
 
-void InsertOomeHeapGraphCallsite(TraceProcessorContext* context,
-                                 tables::HeapGraphTable::Id heap_graph_id,
-                                 uint32_t pid,
-                                 protozero::ConstBytes stack_bytes,
-                                 DummyMemoryMapping*& art_oome_mapping) {
+void InsertOomeHeapGraphCallsite(
+    TraceProcessorContext* context,
+    tables::HeapGraphTable::Id heap_graph_id,
+    uint32_t pid,
+    protozero::ConstBytes stack_bytes,
+    DummyMemoryMapping*& art_process_metadata_mapping) {
   protos::pbzero::JavaStack::Decoder stack_decoder(stack_bytes.data,
                                                    stack_bytes.size);
 
@@ -135,9 +162,9 @@ void InsertOomeHeapGraphCallsite(TraceProcessorContext* context,
   std::optional<CallsiteId> current_callsite_id = std::nullopt;
   uint32_t depth = 0;
 
-  if (!art_oome_mapping) {
-    art_oome_mapping =
-        &context->mapping_tracker->CreateDummyMapping("art_oome");
+  if (!art_process_metadata_mapping) {
+    art_process_metadata_mapping =
+        &context->mapping_tracker->CreateDummyMapping("art_process_metadata");
   }
 
   for (auto it = raw_frames.rbegin(); it != raw_frames.rend(); ++it) {
@@ -162,7 +189,7 @@ void InsertOomeHeapGraphCallsite(TraceProcessorContext* context,
       line_number = static_cast<uint32_t>(frame_decoder.line_number());
     }
 
-    FrameId frame_id = art_oome_mapping->InternDummyFrame(
+    FrameId frame_id = art_process_metadata_mapping->InternDummyFrame(
         method_name, source_file, line_number);
 
     current_callsite_id = context->stack_profile_tracker->InternCallsite(
@@ -181,18 +208,20 @@ void InsertOomeHeapGraphCallsite(TraceProcessorContext* context,
 
 }  // namespace
 
-ArtOomeModule::ArtOomeModule(ProtoImporterModuleContext* module_context,
-                             TraceProcessorContext* context)
+ArtProcessMetadataModule::ArtProcessMetadataModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
     : ProtoImporterModule(module_context), context_(context) {
   RegisterForField(TracePacket::kArtProcessMetadataFieldNumber);
 }
 
-ArtOomeModule::~ArtOomeModule() = default;
+ArtProcessMetadataModule::~ArtProcessMetadataModule() = default;
 
-void ArtOomeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
-                                         int64_t ts,
-                                         const TracePacketData&,
-                                         uint32_t field_id) {
+void ArtProcessMetadataModule::ParseTracePacketData(
+    const TracePacket::Decoder& decoder,
+    int64_t ts,
+    const TracePacketData&,
+    uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kArtProcessMetadataFieldNumber:
       ParseArtProcessMetadata(ts, decoder.art_process_metadata());
@@ -200,12 +229,10 @@ void ArtOomeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
   }
 }
 
-void ArtOomeModule::ParseArtProcessMetadata(int64_t ts,
-                                            protozero::ConstBytes blob) {
+void ArtProcessMetadataModule::ParseArtProcessMetadata(
+    int64_t ts,
+    protozero::ConstBytes blob) {
   protos::pbzero::ArtProcessMetadata::Decoder decoder(blob.data, blob.size);
-  if (!decoder.has_oom_allocation_size()) {
-    return;
-  }
 
   uint32_t pid = static_cast<uint32_t>(decoder.pid());
   std::optional<base::StringView> process_name;
@@ -221,6 +248,10 @@ void ArtOomeModule::ParseArtProcessMetadata(int64_t ts,
 
   if (decoder.has_package_name() && decoder.has_uid()) {
     UpdatePackageList(context_, decoder.package_name(), decoder.uid());
+  }
+
+  if (!decoder.has_oom_allocation_size()) {
+    return;
   }
 
   tables::HeapGraphTable::Id heap_graph_id =
@@ -240,7 +271,7 @@ void ArtOomeModule::ParseArtProcessMetadata(int64_t ts,
   if (decoder.has_oom_thread_java_stack()) {
     InsertOomeHeapGraphCallsite(context_, heap_graph_id, pid,
                                 decoder.oom_thread_java_stack(),
-                                art_oome_mapping_);
+                                art_process_metadata_mapping_);
   }
 }
 

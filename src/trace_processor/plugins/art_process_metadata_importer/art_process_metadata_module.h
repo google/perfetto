@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PLUGINS_ART_OOME_IMPORTER_ART_OOME_MODULE_H_
-#define SRC_TRACE_PROCESSOR_PLUGINS_ART_OOME_IMPORTER_ART_OOME_MODULE_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_ART_PROCESS_METADATA_IMPORTER_ART_PROCESS_METADATA_MODULE_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_ART_PROCESS_METADATA_IMPORTER_ART_PROCESS_METADATA_MODULE_H_
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -25,11 +25,11 @@ namespace perfetto::trace_processor {
 class DummyMemoryMapping;
 class TraceProcessorContext;
 
-class ArtOomeModule : public ProtoImporterModule {
+class ArtProcessMetadataModule : public ProtoImporterModule {
  public:
-  ArtOomeModule(ProtoImporterModuleContext* module_context,
-                TraceProcessorContext* context);
-  ~ArtOomeModule() override;
+  ArtProcessMetadataModule(ProtoImporterModuleContext* module_context,
+                           TraceProcessorContext* context);
+  ~ArtProcessMetadataModule() override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
                             int64_t ts,
@@ -40,9 +40,9 @@ class ArtOomeModule : public ProtoImporterModule {
   void ParseArtProcessMetadata(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* const context_;
-  DummyMemoryMapping* art_oome_mapping_ = nullptr;
+  DummyMemoryMapping* art_process_metadata_mapping_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PLUGINS_ART_OOME_IMPORTER_ART_OOME_MODULE_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_ART_PROCESS_METADATA_IMPORTER_ART_PROCESS_METADATA_MODULE_H_

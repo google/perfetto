@@ -21,7 +21,7 @@ CREATE PERFETTO VIEW android_heap_graph_java_oome_details(
   -- The heap graph instance this OOM trigger details belongs to.
   heap_graph_id JOINID(heap_graph.id),
   -- Number of bytes that triggered the OOME.
-  byte_count LONG,
+  allocation_size_bytes LONG,
   -- Total free bytes in the Java heap at OOME time.
   total_bytes_free LONG,
   -- Free bytes remaining until OOME.
@@ -33,7 +33,7 @@ AS
 SELECT
   id,
   heap_graph_id,
-  byte_count,
+  allocation_size_bytes,
   total_bytes_free,
   free_bytes_until_oom,
   error_msg
