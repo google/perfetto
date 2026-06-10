@@ -358,7 +358,27 @@ public final class PerfettoTrackEventBuilder {
     return this;
   }
 
-  /** Adds the events to a named track instead of the thread track where the event occurred. */
+  /**
+   * Emits this event on {@code track}, a (possibly nested) named track. The
+   * descriptor for each level of the chain is emitted once per sequence; the
+   * native side derives the per-level uuids. The handle owns its native track
+   * (built once on first use, reused for its lifetime), so a reused {@code track}
+   * -- the intended {@code static final} usage -- is allocation-free.
+   */
+  public PerfettoTrackEventBuilder usingTrack(PerfettoTrack track) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkNotBuildingProto();
+    }
+
+    // The handle owns its native track (built once, reused for its lifetime), so
+    // there is no builder-side cache to consult -- just hand it over.
+    addPerfettoPointerToExtra(track.nestedTracks());
+    return this;
+  }
+
   public PerfettoTrackEventBuilder usingNamedTrack(
           long id, @CompileTimeConstant String name, long parentUuid) {
       return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ true);

@@ -39,7 +39,7 @@ interface JobCompletedArgs {
 
 interface DownloadFileArgs {
   kind: 'downloadFile';
-  buffer: Uint8Array;
+  buffer: Uint8Array<ArrayBuffer>;
   name: string;
 }
 

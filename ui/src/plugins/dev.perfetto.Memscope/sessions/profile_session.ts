@@ -120,7 +120,7 @@ export class ProfileSession {
   }
 
   /** Returns the trace buffer once state is 'finished'. */
-  getTraceData(): Uint8Array | undefined {
+  getTraceData(): ArrayBuffer | undefined {
     return this.inner?.getTraceData();
   }
 }

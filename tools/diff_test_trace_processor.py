@@ -68,6 +68,11 @@ def main():
   parser.add_argument('--simpleperf-descriptor', type=str, default=None)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
+      '--compare-perf',
+      type=str,
+      help='Compare current performance against a saved performance JSON file')
+
+  parser.add_argument(
       '--override-sql-package', type=str, action='append', default=[])
   parser.add_argument('--test-dir', type=str, default=ROOT_DIR)
   parser.add_argument(
@@ -96,6 +101,34 @@ def main():
   parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
+
+  baseline = {}
+  if args.compare_perf:
+    if not os.path.exists(args.compare_perf):
+      sys.stderr.write(f'Error: Baseline file {args.compare_perf} not found\n')
+      return 1
+
+    with open(args.compare_perf, 'r') as f:
+      try:
+        baseline_data = json.load(f)
+      except json.JSONDecodeError:
+        sys.stderr.write(
+            f'Error: Failed to parse baseline file {args.compare_perf}\n')
+        return 1
+
+    for m in baseline_data.get('metrics', []):
+      tags = m.get('tags', {})
+      test_name = tags.get('test_name')
+      if not test_name:
+        continue
+      metric = m.get('metric')
+      val = m.get('value')
+      if test_name not in baseline:
+        baseline[test_name] = {}
+      if metric == 'tp_perf_test_ingest_time':
+        baseline[test_name]['ingest'] = val
+      elif metric == 'perf_test_real_time':
+        baseline[test_name]['query'] = val
 
   out_path = os.path.dirname(args.trace_processor)
   protos_path = os.path.join(out_path, 'gen', 'protos')
@@ -145,6 +178,84 @@ def main():
   test_runner = DiffTestsRunner(config)
   results = test_runner.run()
   sys.stderr.write(results.str(args.no_colors))
+
+  if args.compare_perf:
+    sys.stderr.write('\n--- Performance Comparison ---\n\n')
+
+    sys.stderr.write(
+        f'{"Test Name":<60} | {"Ingest Diff":<16} | {"Query Diff":<16} | {"Total Diff":<16}\n'
+    )
+    sys.stderr.write('-' * 117 + '\n')
+
+    improved_cnt = 0
+    regressed_cnt = 0
+
+    CLR_RED = '' if args.no_colors else '\033[91m'
+    CLR_GRN = '' if args.no_colors else '\033[92m'
+    CLR_RST = '' if args.no_colors else '\033[0m'
+    CLR_BLD = '' if args.no_colors else '\033[1m'
+
+    import re
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    for curr in results.perf_data:
+      name = curr.test.name
+      if name not in baseline:
+        continue
+
+      curr_ingest = float(curr.ingest_time_ns) / 1e9
+      curr_query = float(curr.real_time_ns) / 1e9
+      curr_total = curr_ingest + curr_query
+
+      base_ingest = baseline[name].get('ingest', 0.0)
+      base_query = baseline[name].get('query', 0.0)
+      base_total = base_ingest + base_query
+
+      def get_diff_str(curr_val, base_val):
+        if base_val == 0:
+          return "N/A"
+        diff_pct = (curr_val - base_val) / base_val * 100
+        diff_val = curr_val - base_val
+        val_str = f"{diff_pct:+.1f}% ({diff_val:+.3f}s)"
+        if diff_pct < -5:
+          return f"{CLR_GRN}{val_str}{CLR_RST}"
+        elif diff_pct > 5:
+          return f"{CLR_RED}{val_str}{CLR_RST}"
+        return val_str
+
+      ingest_diff_str = get_diff_str(curr_ingest, base_ingest)
+      query_diff_str = get_diff_str(curr_query, base_query)
+      total_diff_str = get_diff_str(curr_total, base_total)
+
+      def pad_ansi(s, width, align='left'):
+        raw_len = len(ansi_escape.sub('', s))
+        padding = max(0, width - raw_len)
+        if align == 'left':
+          return s + ' ' * padding
+        else:
+          return ' ' * padding + s
+
+      ingest_padded = pad_ansi(ingest_diff_str, 16, 'right')
+      query_padded = pad_ansi(query_diff_str, 16, 'right')
+      total_padded = pad_ansi(total_diff_str, 16, 'right')
+
+      sys.stderr.write(
+          f'{name:<60} | {ingest_padded} | {query_padded} | {total_padded}\n')
+
+      if base_total > 0:
+        pct = (curr_total - base_total) / base_total * 100
+        if pct < -5:
+          improved_cnt += 1
+        elif pct > 5:
+          regressed_cnt += 1
+
+    sys.stderr.write(f'\nCompared {len(results.perf_data)} tests.\n')
+    sys.stderr.write(
+        f'{CLR_BLD}Improved (>5% faster):{CLR_RST} {CLR_GRN}{improved_cnt}{CLR_RST}\n'
+    )
+    sys.stderr.write(
+        f'{CLR_BLD}Regressed (>5% slower):{CLR_RST} {CLR_RED}{regressed_cnt}{CLR_RST}\n'
+    )
 
   if args.print_slowest_tests:
     sys.stderr.write('\n--- Slowest tests ---\n')
