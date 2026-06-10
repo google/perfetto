@@ -353,15 +353,8 @@ perfetto_cc_binary(
     name = "proto_merger",
     srcs = [
         ":src_protozero_multifile_error_collector",
-        "src/tools/proto_merger/allowlist.cc",
-        "src/tools/proto_merger/allowlist.h",
+        ":src_tools_proto_merger_lib",
         "src/tools/proto_merger/main.cc",
-        "src/tools/proto_merger/proto_file.cc",
-        "src/tools/proto_merger/proto_file.h",
-        "src/tools/proto_merger/proto_file_serializer.cc",
-        "src/tools/proto_merger/proto_file_serializer.h",
-        "src/tools/proto_merger/proto_merger.cc",
-        "src/tools/proto_merger/proto_merger.h",
     ],
     deps = [
         ":src_base_base",
@@ -2321,6 +2314,21 @@ perfetto_filegroup(
         "src/shared_lib/stream_writer.h",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
+    ],
+)
+
+# GN target: //src/tools/proto_merger:lib
+perfetto_filegroup(
+    name = "src_tools_proto_merger_lib",
+    srcs = [
+        "src/tools/proto_merger/allowlist.cc",
+        "src/tools/proto_merger/allowlist.h",
+        "src/tools/proto_merger/proto_file.cc",
+        "src/tools/proto_merger/proto_file.h",
+        "src/tools/proto_merger/proto_file_serializer.cc",
+        "src/tools/proto_merger/proto_file_serializer.h",
+        "src/tools/proto_merger/proto_merger.cc",
+        "src/tools/proto_merger/proto_merger.h",
     ],
 )
 
