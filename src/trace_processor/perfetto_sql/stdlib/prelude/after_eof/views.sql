@@ -31,7 +31,8 @@ CREATE PERFETTO VIEW counter(
 AS
 SELECT id, ts, track_id, value, arg_set_id FROM __intrinsic_counter;
 
--- Contains updatable state tracking slices.
+-- Contains state from userspace which reads like a symbolic counter with
+-- literals rather than numbers.
 CREATE PERFETTO VIEW state(
   -- Unique id of a state slice
   id ID,
