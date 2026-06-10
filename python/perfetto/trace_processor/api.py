@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
-import signal
 import dataclasses as dc
 from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional, Union
@@ -25,6 +22,7 @@ from perfetto.trace_processor.http import TraceProcessorHttp
 from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.shell import load_shell
+from perfetto.trace_processor.process_tree import terminate_process_tree
 from perfetto.trace_uri_resolver import registry
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
@@ -306,18 +304,19 @@ class TraceProcessor:
       parsed = p.netloc if p.netloc else p.path
       return TraceProcessorHttp(parsed, protos=self.protos)
 
-    url, self.subprocess, self._tp_stdout, self._tp_stderr = load_shell(
-        self.config.bin_path,
-        self.config.unique_port,
-        self.config.verbose,
-        self.config.ingest_ftrace_in_raw,
-        self.config.enable_dev_features,
-        self.platform_delegate,
-        self.config.load_timeout,
-        self.config.extra_flags,
-        self.config.add_sql_packages,
-        self.config.fetch_latest_trace_processor,
-    )
+    (url, self.subprocess, self._tp_stdout, self._tp_stderr,
+     self._job_handle) = load_shell(
+         self.config.bin_path,
+         self.config.unique_port,
+         self.config.verbose,
+         self.config.ingest_ftrace_in_raw,
+         self.config.enable_dev_features,
+         self.platform_delegate,
+         self.config.load_timeout,
+         self.config.extra_flags,
+         self.config.add_sql_packages,
+         self.config.fetch_latest_trace_processor,
+     )
     return TraceProcessorHttp(url, protos=self.protos)
 
   def _parse_trace(self, trace: TraceReference):
@@ -351,25 +350,19 @@ class TraceProcessor:
     return False
 
   def close(self):
-    if hasattr(self, 'subprocess') and self.subprocess:
-      # On Windows, we need to send a break signal to terminate the whole process group.
-      # On other platforms, killing the parent process is sufficient.
-      if sys.platform == 'win32':
-        self.subprocess.send_signal(signal.CTRL_BREAK_EVENT)
-      else:
-        self.subprocess.kill()
-      self.subprocess.wait()
-      # Set to None so __del__ doesn't call this again.
+    if getattr(self, 'subprocess', None):
+      # Force-kill the whole process tree (the trace_processor subprocess and
+      # any descendants). This never blocks, so it cannot hang on shutdown.
+      terminate_process_tree(self.subprocess, self._job_handle)
+      # Set to None so a second close() is a no-op.
       self.subprocess = None
-      if hasattr(self, '_tp_stdout') and self._tp_stdout:
+      self._job_handle = None
+      if getattr(self, '_tp_stdout', None):
         self._tp_stdout.close()
         self._tp_stdout = None
-      if hasattr(self, '_tp_stderr') and self._tp_stderr:
+      if getattr(self, '_tp_stderr', None):
         self._tp_stderr.close()
         self._tp_stderr = None
 
     if hasattr(self, 'http'):
       self.http.conn.close()
-
-  def __del__(self):
-    self.close()

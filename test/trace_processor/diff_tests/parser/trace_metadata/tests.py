@@ -121,13 +121,15 @@ class TraceMetadata(TestSuite):
   def test_detected_and_processed_first(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json'
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'app.json'
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
         }),
         query='''
           SELECT name, trace_type, processing_order
@@ -174,26 +176,31 @@ class TraceMetadata(TestSuite):
   def test_json_offsets_two_files(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [
-                    {
-                        'path': 'a.json',
-                        'clocks': {
-                            'offset_ns': 500000000
-                        }
-                    },
-                    {
-                        'path': 'b.json',
-                        'clocks': {
-                            'offset_ns': -1000000
-                        }
-                    },
-                ],
-            }),
-            'a.json': _json_trace('a_slice', pid=10),
-            'b.json': _json_trace('b_slice', pid=11),
-            'spine.pb': SPINE,
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path': 'a.json',
+                            'clocks': {
+                                'offset_ns': 500000000
+                            }
+                        },
+                        {
+                            'path': 'b.json',
+                            'clocks': {
+                                'offset_ns': -1000000
+                            }
+                        },
+                    ],
+                }),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+            'b.json':
+                _json_trace('b_slice', pid=11),
+            'spine.pb':
+                SPINE,
         }),
         query='''
           SELECT name, ts, dur FROM slice
@@ -211,17 +218,21 @@ class TraceMetadata(TestSuite):
   def test_offset_in_tar(self):
     return DiffTestBlueprint(
         trace=Tar({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'a.json',
-                    'clocks': {
-                        'offset_ns': 500000000
-                    }
-                }],
-            }),
-            'a.json': _json_trace('a_slice'),
-            'spine.pb': SPINE,
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'a.json',
+                        'clocks': {
+                            'offset_ns': 500000000
+                        }
+                    }],
+                }),
+            'a.json':
+                _json_trace('a_slice'),
+            'spine.pb':
+                SPINE,
         }),
         query='''
           SELECT name, ts FROM slice
@@ -243,23 +254,27 @@ class TraceMetadata(TestSuite):
   def test_json_anchor_to_boottime(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json',
-                    'clocks': {
-                        'anchor': {
-                            'ts': 1000,
-                            'is': {
-                                'clock': 'BOOTTIME',
-                                'ts': 1500000000
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'anchor': {
+                                'ts': 1000,
+                                'is': {
+                                    'clock': 'BOOTTIME',
+                                    'ts': 1500000000
+                                },
                             },
                         },
-                    },
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
-            'spine.pb': SPINE,
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+            'spine.pb':
+                SPINE,
         }),
         query='''
           SELECT name, ts FROM slice
@@ -281,22 +296,26 @@ class TraceMetadata(TestSuite):
   def test_json_anchor_to_utc(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json',
-                    'clocks': {
-                        'anchor': {
-                            'ts': 0,
-                            'is': {
-                                'utc': '2023-11-14T22:13:21.5Z'
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'anchor': {
+                                'ts': 0,
+                                'is': {
+                                    'utc': '2023-11-14T22:13:21.5Z'
+                                },
                             },
                         },
-                    },
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
-            'spine.pb': SPINE,
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+            'spine.pb':
+                SPINE,
         }),
         query='''
           SELECT name, ts FROM slice
@@ -333,17 +352,21 @@ class TraceMetadata(TestSuite):
   def test_systrace_native_clock_override(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'sys.systrace',
-                    'clocks': {
-                        'native': 'BOOTTIME'
-                    }
-                }],
-            }),
-            'sys.systrace': SYSTRACE,
-            'spine.pb': SPINE,
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'sys.systrace',
+                        'clocks': {
+                            'native': 'BOOTTIME'
+                        }
+                    }],
+                }),
+            'sys.systrace':
+                SYSTRACE,
+            'spine.pb':
+                SPINE,
         }),
         query='''
           SELECT name, ts, dur FROM slice WHERE name = 'sys_slice';
@@ -360,17 +383,21 @@ class TraceMetadata(TestSuite):
   def test_json_only_trace_time_and_offset(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'trace_time_clock': 'BOOTTIME',
-                'files': [{
-                    'path': 'app.json',
-                    'clocks': {
-                        'offset_ns': 1000000
-                    }
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'trace_time_clock':
+                        'BOOTTIME',
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'offset_ns': 1000000
+                        }
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
         }),
         query='''
           SELECT
@@ -391,16 +418,19 @@ class TraceMetadata(TestSuite):
   def test_proto_single_clock_offset(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'solo.pb',
-                    'clocks': {
-                        'offset_ns': 250
-                    }
-                }],
-            }),
-            'solo.pb': SOLO_PROTO,
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'solo.pb',
+                        'clocks': {
+                            'offset_ns': 250
+                        }
+                    }],
+                }),
+            'solo.pb':
+                SOLO_PROTO,
         }),
         query='''
           SELECT name, ts FROM slice WHERE name = 'proto_slice';
@@ -418,17 +448,20 @@ class TraceMetadata(TestSuite):
   def test_machine_assignment_fresh_machine(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json',
-                    'machine': {
-                        'id': 7
-                    }
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
-            'spine.pb': SPINE,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'app.json',
+                        'machine': {
+                            'id': 7
+                        }
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+            'spine.pb':
+                SPINE,
         }),
         query='''
           SELECT s.name, m.raw_id, s.ts
@@ -450,18 +483,20 @@ class TraceMetadata(TestSuite):
   def test_machine_assignment_merges_with_proto(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json',
-                    'machine': {
-                        'id': 7
-                    }
-                }],
-            }),
-            'app.json': _json_trace('m7_json_slice', pid=30),
-            'spine.pb': TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE +
-                                  _M7_PROCESS),
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'app.json',
+                        'machine': {
+                            'id': 7
+                        }
+                    }],
+                }),
+            'app.json':
+                _json_trace('m7_json_slice', pid=30),
+            'spine.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_PROCESS),
         }),
         query='''
           SELECT
@@ -484,27 +519,31 @@ class TraceMetadata(TestSuite):
   def test_machine_anchor_in_machine_domain(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json',
-                    'machine': {
-                        'id': 7
-                    },
-                    'clocks': {
-                        'anchor': {
-                            'ts': 0,
-                            'is': {
-                                'clock': 'BOOTTIME',
-                                'ts': 50000000000
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'machine': {
+                            'id': 7
+                        },
+                        'clocks': {
+                            'anchor': {
+                                'ts': 0,
+                                'is': {
+                                    'clock': 'BOOTTIME',
+                                    'ts': 50000000000
+                                },
                             },
                         },
-                    },
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
-            'spine.pb': TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE +
-                                  _M7_CLOCK_SNAPSHOT),
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+            'spine.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE +
+                          _M7_CLOCK_SNAPSHOT),
         }),
         query='''
           SELECT name, ts FROM slice
@@ -526,8 +565,7 @@ class TraceMetadata(TestSuite):
             'app.json': _json_trace('json_slice'),
         }),
         query='SELECT 1;',
-        out=ExpectedError(
-            'perfetto_metadata: missing required field: version'))
+        out=ExpectedError('perfetto_metadata: missing required field: version'))
 
   def test_error_unsupported_version(self):
     return DiffTestBlueprint(
@@ -568,8 +606,7 @@ class TraceMetadata(TestSuite):
     return DiffTestBlueprint(
         trace=RawText('{"perfetto_metadata": {"version": 1}}'),
         query='SELECT 1;',
-        out=ExpectedError(
-            'perfetto_metadata file must be inside an archive'))
+        out=ExpectedError('perfetto_metadata file must be inside an archive'))
 
   def test_error_multiple_configs(self):
     return DiffTestBlueprint(
@@ -586,40 +623,44 @@ class TraceMetadata(TestSuite):
   def test_error_path_no_match(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'missing.json'
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'missing.json'
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'perfetto_metadata: no file in archive matches path: missing.json'
-        ))
+            'perfetto_metadata: no file in archive matches path: missing.json'))
 
   def test_error_duplicate_path(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [
-                    {
-                        'path': 'app.json',
-                        'clocks': {
-                            'offset_ns': 1
-                        }
-                    },
-                    {
-                        'path': 'app.json',
-                        'clocks': {
-                            'offset_ns': 2
-                        }
-                    },
-                ],
-            }),
-            'app.json': _json_trace('json_slice'),
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path': 'app.json',
+                            'clocks': {
+                                'offset_ns': 1
+                            }
+                        },
+                        {
+                            'path': 'app.json',
+                            'clocks': {
+                                'offset_ns': 2
+                            }
+                        },
+                    ],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
         }),
         query='SELECT 1;',
         out=ExpectedError(
@@ -628,23 +669,26 @@ class TraceMetadata(TestSuite):
   def test_error_offset_and_anchor_exclusive(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json',
-                    'clocks': {
-                        'offset_ns': 1,
-                        'anchor': {
-                            'ts': 0,
-                            'is': {
-                                'clock': 'BOOTTIME',
-                                'ts': 1
-                            }
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'offset_ns': 1,
+                            'anchor': {
+                                'ts': 0,
+                                'is': {
+                                    'clock': 'BOOTTIME',
+                                    'ts': 1
+                                }
+                            },
                         },
-                    },
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
         }),
         query='SELECT 1;',
         out=ExpectedError(
@@ -653,18 +697,21 @@ class TraceMetadata(TestSuite):
   def test_error_anchor_missing_is(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'app.json',
-                    'clocks': {
-                        'anchor': {
-                            'ts': 0
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'anchor': {
+                                'ts': 0
+                            }
                         }
-                    }
-                }],
-            }),
-            'app.json': _json_trace('json_slice'),
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
         }),
         query='SELECT 1;',
         out=ExpectedError(
@@ -677,16 +724,18 @@ class TraceMetadata(TestSuite):
   def test_error_proto_multi_clock(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'spine.pb',
-                    'clocks': {
-                        'offset_ns': 1
-                    }
-                }],
-            }),
-            'spine.pb': SPINE,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'spine.pb',
+                        'clocks': {
+                            'offset_ns': 1
+                        }
+                    }],
+                }),
+            'spine.pb':
+                SPINE,
         }),
         query='SELECT 1;',
         out=ExpectedError(
@@ -697,39 +746,42 @@ class TraceMetadata(TestSuite):
   def test_error_proto_multi_machine_clock_override(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'spine.pb',
-                    'clocks': {
-                        'offset_ns': 1
-                    }
-                }],
-            }),
-            'spine.pb': TextProto(_PROTO_SLICE + _M7_PROCESS),
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'spine.pb',
+                        'clocks': {
+                            'offset_ns': 1
+                        }
+                    }],
+                }),
+            'spine.pb':
+                TextProto(_PROTO_SLICE + _M7_PROCESS),
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'clock overrides require the trace to come from a single machine')
-    )
+            'clock overrides require the trace to come from a single machine'))
 
   # A machine override on a proto trace containing packets from a remote
   # machine fails: the trace manages its own machine identity.
   def test_error_proto_multi_machine_machine_override(self):
     return DiffTestBlueprint(
         trace=Zip({
-            'meta.json': _meta({
-                'version': 1,
-                'files': [{
-                    'path': 'spine.pb',
-                    'machine': {
-                        'id': 3
-                    }
-                }],
-            }),
-            'spine.pb': TextProto(_PROTO_SLICE + _M7_PROCESS),
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'spine.pb',
+                        'machine': {
+                            'id': 3
+                        }
+                    }],
+                }),
+            'spine.pb':
+                TextProto(_PROTO_SLICE + _M7_PROCESS),
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'machine override requires the trace to come from a single machine'
-        ))
+            'machine override requires the trace to come from a single machine')
+    )

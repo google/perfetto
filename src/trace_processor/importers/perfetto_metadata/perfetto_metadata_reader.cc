@@ -28,10 +28,10 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
-#include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/types/trace_metadata_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_value.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -101,8 +101,8 @@ base::StatusOr<uint32_t> ParseClockNameOrError(const json::Dom& value) {
 }
 
 base::StatusOr<Anchor> ParseAnchor(const json::Dom& anchor) {
-  RETURN_IF_ERROR(CheckAllowedFields(anchor, {"ts", "is"},
-                                     "perfetto_metadata: anchor"));
+  RETURN_IF_ERROR(
+      CheckAllowedFields(anchor, {"ts", "is"}, "perfetto_metadata: anchor"));
   if (!anchor.HasMember("ts") || !anchor["ts"].IsNumeric()) {
     return base::ErrStatus(
         "perfetto_metadata: anchor: missing required field: ts");
@@ -177,14 +177,12 @@ base::StatusOr<ClocksOverride> ParseClocks(const json::Dom& clocks) {
 
 base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   if (!file.IsObject()) {
-    return base::ErrStatus(
-        "perfetto_metadata: files entries must be objects");
+    return base::ErrStatus("perfetto_metadata: files entries must be objects");
   }
   RETURN_IF_ERROR(CheckAllowedFields(file, {"path", "machine", "clocks"},
                                      "perfetto_metadata"));
   if (!file.HasMember("path") || !file["path"].IsString()) {
-    return base::ErrStatus(
-        "perfetto_metadata: missing required field: path");
+    return base::ErrStatus("perfetto_metadata: missing required field: path");
   }
   FileEntry entry;
   entry.path = file["path"].AsString();

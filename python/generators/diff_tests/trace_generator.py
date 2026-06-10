@@ -27,8 +27,7 @@ from google.protobuf import text_format
 
 from python.generators.diff_tests.testing import (DataPath, Path,
                                                   SimpleperfProto, Tar,
-                                                  TextProto, TraceInjector,
-                                                  Zip)
+                                                  TextProto, TraceInjector, Zip)
 from python.generators.diff_tests.utils import ProtoManager
 
 ROOT_DIR = os.path.dirname(
@@ -77,8 +76,8 @@ class TraceGenerator:
     subprocess.check_call(
         python_cmd, env=env, stdout=out_stream, start_new_session=True)
 
-  def serialize_member(self, blueprint: Any,
-                       member: Union[str, TextProto, Path, DataPath]) -> bytes:
+  def serialize_member(self, blueprint: Any, member: Union[str, TextProto, Path,
+                                                           DataPath]) -> bytes:
     """Serializes a single archive member to bytes (see Zip/Tar docs)."""
     if isinstance(member, TextProto):
       proto = ProtoManager([self.trace_descriptor_path] +
@@ -91,8 +90,7 @@ class TraceGenerator:
       with open(path, 'rb') as f:
         return f.read()
     if isinstance(member, Path):
-      path = os.path.abspath(os.path.join(blueprint.index_dir,
-                                          member.filename))
+      path = os.path.abspath(os.path.join(blueprint.index_dir, member.filename))
       with open(path, 'rb') as f:
         return f.read()
     assert isinstance(member, str)

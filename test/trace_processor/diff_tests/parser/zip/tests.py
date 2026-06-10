@@ -124,12 +124,14 @@ class Zip(TestSuite):
   def test_zip_blueprint_inline_members(self):
     return DiffTestBlueprint(
         trace=ZipTrace({
-            'a.systrace': '''# tracer: nop
+            'a.systrace':
+                '''# tracer: nop
 #
   app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|zip_slice
   app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100
 ''',
-            'b.pb': TextProto('''
+            'b.pb':
+                TextProto('''
               packet {
                 timestamp: 1
                 process_tree {
@@ -155,8 +157,10 @@ class Zip(TestSuite):
   def test_tar_blueprint_external_member(self):
     return DiffTestBlueprint(
         trace=Tar({
-            'sched.pb': DataPath('synth_1.pb'),
-            'log.systrace': '''# tracer: nop
+            'sched.pb':
+                DataPath('synth_1.pb'),
+            'log.systrace':
+                '''# tracer: nop
 #
   app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|tar_slice
   app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100

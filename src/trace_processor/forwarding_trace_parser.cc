@@ -161,7 +161,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
       (metadata_entry->machine_id || metadata_entry->clocks)) {
     return base::ErrStatus(
         "perfetto_metadata: overrides are not supported for archive members "
-        "which are themselves archives: %s", metadata_entry->path.c_str());
+        "which are themselves archives: %s",
+        metadata_entry->path.c_str());
   }
 
   if (IsContainerTraceType(trace_type_) ||
@@ -174,10 +175,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     PERFETTO_DCHECK(!input_context_->trace_state);
     trace_context_ = input_context_;
   } else {
-    uint32_t raw_machine_id =
-        metadata_entry && metadata_entry->machine_id
-            ? *metadata_entry->machine_id
-            : 0;
+    uint32_t raw_machine_id = metadata_entry && metadata_entry->machine_id
+                                  ? *metadata_entry->machine_id
+                                  : 0;
     // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
     // parsed first so that we do not get issues with
     // SetPidZeroIsUpidZeroIdleProcess()
