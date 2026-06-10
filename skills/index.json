@@ -1,21 +1,28 @@
 {
   "skills": [
     {
-      "name": "perfetto-infra-getting-trace-processor",
+      "name": "perfetto",
       "files": [
-        "SKILL.md"
-      ]
-    },
-    {
-      "name": "perfetto-infra-querying-traces",
-      "files": [
-        "SKILL.md"
-      ]
-    },
-    {
-      "name": "perfetto-workflow-android-heap-dump",
-      "files": [
-        "SKILL.md"
+        "SKILL.md",
+        "environment-references/setup.md",
+        "infra-references/querying.md",
+        "infra-references/recording_android_traces.md",
+        "workflows/android_memory/heap_dump.md",
+        "workflows/android_memory/heap_dump_caching_optimizer.md",
+        "workflows/android_memory/heap_dump_cluster.md",
+        "workflows/android_memory/scripts/cluster_paths.py",
+        "workflows/android_memory/scripts/query_heap_references.sql",
+        "workflows/android_memory/scripts/query_most_repeated_objects.sql",
+        "workflows/android_memory/scripts/query_size_frequencies.sql",
+        "workflows/android_memory/scripts/summarize_clusters.py",
+        "workflows/android_memory/scripts/triage_dominator_path.sql",
+        "workflows/gpu/frequency_residency.md",
+        "workflows/gpu/scripts/gpu_dvfs_ramp.sql",
+        "workflows/gpu/scripts/gpu_frequency_residency.sql",
+        "workflows/gpu/scripts/gpu_idle_gaps.sql",
+        "workflows/gpu/scripts/gpu_sustained_throttle.sql",
+        "workflows/gpu/scripts/gpu_timeline_decomposition.sql",
+        "workflows/gpu/timeline_occupancy.md"
       ]
     }
   ]
