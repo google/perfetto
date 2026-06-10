@@ -163,6 +163,13 @@ export interface CredentialField {
   readonly placeholder?: string;
 }
 
+// One model the backend reports it can serve, as returned by listModels(). Just
+// the backend's own model identifier (e.g. 'gemini-2.5-flash') for now - the
+// settings UI uses these to populate the model-name combobox.
+export interface AvailableModel {
+  readonly name: string;
+}
+
 // The contract a protocol implementation must satisfy. Implemented by protocol
 // plugins (e.g. dev.perfetto.LlmProtocolGemini) and registered with the gateway
 // via registerProtocol().
@@ -174,6 +181,16 @@ export interface Protocol {
   readonly capabilities: ProtocolCapabilities;
   // The credential fields a provider using this protocol must supply.
   readonly credentialFields: ReadonlyArray<CredentialField>;
+
+  // Ask the backend which models it can serve, using the provider's
+  // credentials. Optional: a protocol that has no models endpoint (or doesn't
+  // implement it) simply omits this, and the settings UI falls back to a
+  // free-text model name. Throws on a network/auth error so the caller can
+  // tell "couldn't reach the backend" from "backend served an empty list".
+  listModels?(
+    credentials: Readonly<Record<string, string>>,
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<AvailableModel>>;
 
   // Take a neutral request and stream back a normalised response. The protocol
   // owns translating tool defs/calls/results to and from the backend's native

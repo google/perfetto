@@ -20,6 +20,7 @@
 // here; this just turns one neutral request into one streamed turn.
 
 import type {
+  AvailableModel,
   CredentialField,
   NeutralMessage,
   NeutralRequest,
@@ -178,6 +179,31 @@ export class GeminiProtocol implements Protocol {
   readonly label = 'Google Gemini';
   readonly capabilities = CAPABILITIES;
   readonly credentialFields = CREDENTIAL_FIELDS;
+
+  // GET {base}/models lists every model the key can reach. The names come back
+  // prefixed ('models/gemini-2.5-flash'); strip that to the bare model name the
+  // generateContent path expects.
+  async listModels(
+    credentials: Readonly<Record<string, string>>,
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<AvailableModel>> {
+    const apiKey = credentials.apiKey ?? '';
+    const base = credentials.endpoint || ENDPOINT;
+    const resp = await fetch(`${base}/models?key=${apiKey}&pageSize=1000`, {
+      signal,
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '<no body>');
+      throw new Error(`Gemini listModels error ${resp.status}: ${text}`);
+    }
+    const json = (await resp.json()) as {
+      readonly models?: ReadonlyArray<{readonly name?: string}>;
+    };
+    return (json.models ?? [])
+      .map((m) => m.name ?? '')
+      .filter((name) => name !== '')
+      .map((name) => ({name: name.replace(/^models\//, '')}));
+  }
 
   async *createStream(
     request: NeutralRequest,

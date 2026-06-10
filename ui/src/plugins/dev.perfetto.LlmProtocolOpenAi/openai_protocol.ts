@@ -20,6 +20,7 @@
 // whether an API key is required (local servers usually run without one).
 
 import type {
+  AvailableModel,
   CredentialField,
   NeutralMessage,
   NeutralRequest,
@@ -254,6 +255,34 @@ export class OpenAiProtocol implements Protocol {
   readonly label = 'OpenAI-compatible (OpenAI, llama-server, vLLM, ...)';
   readonly capabilities = CAPABILITIES;
   readonly credentialFields = CREDENTIAL_FIELDS;
+
+  // GET {base}/models is part of the OpenAI spec and implemented by virtually
+  // every compatible server (OpenAI, llama-server, vLLM, LM Studio, Ollama).
+  // Returns {data: [{id, ...}]}.
+  async listModels(
+    credentials: Readonly<Record<string, string>>,
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<AvailableModel>> {
+    const base = (credentials.endpoint || DEFAULT_BASE_URL).replace(/\/$/, '');
+    const apiKey = credentials.apiKey ?? '';
+    const resp = await fetch(`${base}/models`, {
+      headers: apiKey ? {Authorization: `Bearer ${apiKey}`} : {},
+      signal,
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '<no body>');
+      throw new Error(
+        `OpenAI-compatible listModels error ${resp.status}: ${text}`,
+      );
+    }
+    const json = (await resp.json()) as {
+      readonly data?: ReadonlyArray<{readonly id?: string}>;
+    };
+    return (json.data ?? [])
+      .map((m) => m.id ?? '')
+      .filter((id) => id !== '')
+      .map((id) => ({name: id}));
+  }
 
   async *createStream(
     request: NeutralRequest,
