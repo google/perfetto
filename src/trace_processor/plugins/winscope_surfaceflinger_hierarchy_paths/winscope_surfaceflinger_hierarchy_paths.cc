@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
@@ -49,7 +49,7 @@ namespace perfetto::trace_processor::winscope_surfaceflinger_hierarchy_paths {
 
 namespace {
 
-using LayerDecoder = protos::pbzero::LayerProto::Decoder;
+using LayerDecoder = com::android::internal::pbzero::LayerProto::Decoder;
 
 class WinscopeSurfaceFlingerHierarchyPaths : public StaticTableFunction {
  public:
@@ -115,8 +115,9 @@ base::Status InsertRows(
     const auto blob = *base::Base64Decode(raw_proto);
     const auto cb = protozero::ConstBytes{
         reinterpret_cast<const uint8_t*>(blob.data()), blob.size()};
-    protos::pbzero::LayersSnapshotProto::Decoder snapshot(cb);
-    protos::pbzero::LayersProto::Decoder layers(snapshot.layers());
+    com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot(cb);
+    com::android::internal::pbzero::LayersProto::Decoder layers(
+        snapshot.layers());
 
     const auto& layers_by_id =
         winscope::surfaceflinger_layers::ExtractLayersById(layers);

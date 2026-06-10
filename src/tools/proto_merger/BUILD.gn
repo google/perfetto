@@ -13,20 +13,31 @@
 # limitations under the License.
 
 import("../../../gn/perfetto_host_executable.gni")
+import("../../../gn/test.gni")
 
 perfetto_host_executable("proto_merger") {
   testonly = true
   deps = [
+    ":lib",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
     "../../base",
     "../../base:version",
     "../../protozero:multifile_error_collector",
   ]
+  sources = [ "main.cc" ]
+}
+
+source_set("lib") {
+  testonly = true
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../base",
+  ]
   sources = [
     "allowlist.cc",
     "allowlist.h",
-    "main.cc",
     "proto_file.cc",
     "proto_file.h",
     "proto_file_serializer.cc",
@@ -34,4 +45,16 @@ perfetto_host_executable("proto_merger") {
     "proto_merger.cc",
     "proto_merger.h",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":lib",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../gn:protobuf_full",
+    "../../base",
+  ]
+  sources = [ "proto_file_serializer_unittest.cc" ]
 }

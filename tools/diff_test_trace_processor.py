@@ -139,8 +139,9 @@ def main():
     args.test_extensions = os.path.join(protos_path, 'perfetto', 'trace',
                                         'test_extensions.descriptor')
   if args.winscope_extensions is None:
-    args.winscope_extensions = os.path.join(protos_path, 'perfetto', 'trace',
-                                            'android', 'winscope.descriptor')
+    args.winscope_extensions = os.path.join(protos_path, 'third_party',
+                                            'android',
+                                            'android_extension.descriptor')
   if args.gpu_extensions is None:
     args.gpu_extensions = os.path.join(protos_path, 'perfetto', 'trace', 'gpu',
                                        'gpu_track_event.descriptor')

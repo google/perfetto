@@ -37,8 +37,8 @@ packet {
   previous_packet_dropped: true
   trusted_pid: 2798
   first_packet_on_sequence: true
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.inputmethod_clients] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.inputmethod_clients] {
       where: "InputMethodManager#showSoftInput"
       client {
         input_method_manager {
@@ -145,8 +145,8 @@ packet {
   trusted_packet_sequence_id: 2
   trusted_pid: 2798
 
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.inputmethod_clients] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.inputmethod_clients] {
       where: "InputMethodManager#showSoftInput"
       client {
         input_method_manager {
