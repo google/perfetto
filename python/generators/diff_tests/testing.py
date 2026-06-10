@@ -100,6 +100,28 @@ class BinaryProto:
 
 
 @dataclass
+class Zip:
+  """A zip archive trace assembled from the given members.
+
+  Keys are the paths of the members within the archive. Values define the
+  member contents:
+    - str: written verbatim (text members, e.g. JSON traces or systrace)
+    - TextProto: serialized as a binary perfetto.protos.Trace
+    - Path/DataPath: the raw bytes of an external file
+  """
+  members: Dict[str, Union[str, 'TextProto', Path, DataPath]]
+
+
+@dataclass
+class Tar:
+  """A tar archive trace assembled from the given members.
+
+  Member semantics are identical to Zip.
+  """
+  members: Dict[str, Union[str, 'TextProto', Path, DataPath]]
+
+
+@dataclass
 class ExpectedError:
   """Represents an expectation that loading the trace fails.
 
@@ -173,7 +195,7 @@ class DiffTestBlueprint:
   a DiffTestBlueprint.
   """
 
-  trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText]
+  trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText, Zip, Tar]
   query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto,
                StructuredQuery]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto, ExpectedError]
@@ -201,6 +223,12 @@ class DiffTestBlueprint:
 
   def is_trace_simpleperf_proto(self):
     return isinstance(self.trace, SimpleperfProto)
+
+  def is_trace_zip(self):
+    return isinstance(self.trace, Zip)
+
+  def is_trace_tar(self):
+    return isinstance(self.trace, Tar)
 
   def is_query_file(self):
     return isinstance(self.query, Path)
