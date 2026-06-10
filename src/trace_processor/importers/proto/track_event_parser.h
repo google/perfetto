@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
+#include "src/trace_processor/importers/proto/track_event_plugin.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
@@ -49,7 +50,9 @@ class DummyMemoryMapping;
 
 class TrackEventParser {
  public:
-  TrackEventParser(TraceProcessorContext*, TrackEventTracker*);
+  TrackEventParser(TraceProcessorContext*,
+                   TrackEventTracker*,
+                   const TrackEventPluginRegistry*);
 
   void ParseTrackDescriptor(int64_t packet_timestamp,
                             protozero::ConstBytes,
@@ -79,6 +82,7 @@ class TrackEventParser {
 
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;
+  const TrackEventPluginRegistry* plugins_;
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;
