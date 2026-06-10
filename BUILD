@@ -494,6 +494,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
@@ -783,6 +784,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
@@ -4729,6 +4731,17 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/plugins/perfetto_metadata:perfetto_metadata
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_perfetto_metadata_perfetto_metadata",
+    srcs = [
+        "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata.cc",
+        "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata.h",
+        "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata_reader.cc",
+        "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata_reader.h",
+    ],
+)
+
 # GN target: //src/trace_processor/plugins/pprof_functions:pprof_functions
 perfetto_filegroup(
     name = "src_trace_processor_plugins_pprof_functions_pprof_functions",
@@ -5424,6 +5437,7 @@ perfetto_filegroup(
         "src/trace_processor/types/task_state.cc",
         "src/trace_processor/types/task_state.h",
         "src/trace_processor/types/tcp_state.h",
+        "src/trace_processor/types/trace_metadata_state.h",
         "src/trace_processor/types/trace_processor_context.h",
         "src/trace_processor/types/trace_processor_context_ptr.h",
         "src/trace_processor/types/variadic.h",
@@ -10479,6 +10493,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
@@ -10798,6 +10813,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perfetto_metadata_perfetto_metadata",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
