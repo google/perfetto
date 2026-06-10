@@ -36,8 +36,11 @@ Run this before any open-ended exploration. It produces the headline verdict.
 
     - **`busy_pct_of_active` is high (≳ 90%)** — within the window where the GPU
       is doing work, activity is packed back-to-back. This is **GPU-bound**: the
-      lever is the device work itself, not the host. Stop here unless the user
-      wants deeper device-side analysis.
+      lever is the device work itself, not the host. The first deeper
+      device-side question is *at what clock* the GPU ran while busy — a device
+      packed at half its peak frequency looks GPU-bound but is really
+      clock-limited. To check, read
+      [frequency_residency.md](frequency_residency.md).
     - **`busy_pct_of_active` is low** — there are meaningful idle gaps *between*
       activities even while the workload is "running." This is **host-bound** /
       stalled. Proceed to Phase 2 to find and attribute the gaps.
