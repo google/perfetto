@@ -165,15 +165,6 @@ inline bool UnorderedEqual(std::vector<std::string> vec1,
   return vec1 == vec2;
 }
 
-template <typename T,
-          std::enable_if_t<std::is_enum<typename std::decay<T>::type>::value,
-                           int> = 0>
-inline void WriteStateField(protos::pbzero::TrackEvent::State* state,
-                            uint32_t field_id,
-                            T value) {
-  state->AppendVarInt(field_id, static_cast<uint64_t>(value));
-}
-
 }  // namespace
 
 inline ::perfetto::DynamicString DecayEventNameType(
@@ -508,23 +499,6 @@ class TrackEvent {
                                     std::forward<StateValueType>(state_value),
                                     protos::pbzero::TrackEvent::TYPE_STATE,
                                     track, std::forward<Args>(args)...);
-  }
-
-  template <
-      typename CategoryType,
-      typename FieldIdType,
-      typename ValueType,
-      typename... Args,
-      std::enable_if_t<!internal::IsValidEventNameType<FieldIdType>, int> = 0>
-  static void TraceState(uint32_t instances,
-                         const CategoryType& category,
-                         FieldIdType field_id,
-                         ValueType&& value,
-                         const StateTrack& track,
-                         Args&&... args) PERFETTO_ALWAYS_INLINE {
-    TraceStateImpl(instances, DecayStrType(category), field_id,
-                   std::forward<ValueType>(value), track,
-                   std::forward<Args>(args)...);
   }
 
 #if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
@@ -1093,39 +1067,6 @@ class TrackEvent {
     TraceTimestamp trace_timestamp = TrackEventInternal::GetTraceTime();
     return WriteTrackEventImpl(ctx, category, event_name, type, track,
                                trace_timestamp);
-  }
-
-  template <typename CategoryType,
-            typename FieldIdType,
-            typename ValueType,
-            typename... Args>
-  static void TraceStateImpl(uint32_t instances,
-                             const CategoryType& category,
-                             FieldIdType,
-                             ValueType&& value,
-                             const StateTrack& track,
-                             Args&&... args) PERFETTO_NO_INLINE {
-    using CatTraits = CategoryTraits<CategoryType>;
-    TraceWithInstances(
-        instances, category, [&](TrackEventDataSource::TraceContext ctx) {
-          // If this category is dynamic, first check whether it's enabled.
-          if (CatTraits::kIsDynamic &&
-              !IsDynamicCategoryEnabled(
-                  &ctx, CatTraits::GetDynamicCategory(category))) {
-            return;
-          }
-
-          auto event_ctx =
-              WriteTrackEvent(ctx, category, /*name=*/nullptr,
-                              protos::pbzero::TrackEvent::TYPE_STATE, track);
-
-          auto* state_msg = event_ctx.event()->set_state();
-          internal::WriteStateField(state_msg, FieldIdType::kFieldId,
-                                    std::forward<ValueType>(value));
-
-          WriteTrackEventArgs(std::move(event_ctx),
-                              std::forward<Args>(args)...);
-        });
   }
 
   template <typename CategoryType,

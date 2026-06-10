@@ -4028,53 +4028,6 @@ TEST_P(PerfettoApiTest, TrackEventStateDescriptor) {
   EXPECT_TRUE(found_state_descriptor);
 }
 
-TEST_P(PerfettoApiTest, TrackEventStateCustomProto) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
-  // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
-  tracing_session->get()->StartBlocking();
-
-  perfetto::StateTrack track("MyState");
-  TRACE_STATE("test",
-              perfetto::protos::pbzero::TestStateExtension::kTestStateEnumValue,
-              perfetto::protos::pbzero::TEST_STATE_ACTIVE, track);
-
-  tracing_session->get()->StopBlocking();
-
-  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
-  perfetto::protos::pbzero::Trace_Decoder trace(
-      reinterpret_cast<uint8_t*>(raw_trace.data()), raw_trace.size());
-
-  bool found_custom_state = false;
-  for (auto it = trace.packet(); it; ++it) {
-    perfetto::protos::pbzero::TracePacket_Decoder packet(it->data(),
-                                                         it->size());
-    if (!packet.has_track_event())
-      continue;
-
-    auto track_event = packet.track_event();
-    protozero::ProtoDecoder decoder(track_event.data, track_event.size);
-    auto state_field = decoder.FindField(57 /* state field ID */);
-    if (state_field.valid()) {
-      protozero::ProtoDecoder state_decoder(state_field.data(),
-                                            state_field.size());
-      auto ext_field = state_decoder.FindField(9900 /* extension field ID */);
-      if (ext_field.valid() &&
-          ext_field.as_int32() == perfetto::protos::pbzero::TEST_STATE_ACTIVE) {
-        found_custom_state = true;
-      }
-    }
-  }
-
-  EXPECT_TRUE(found_custom_state);
-}
-
 TEST_P(PerfettoApiTest, TrackEventDefaultGlobalTrack) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
