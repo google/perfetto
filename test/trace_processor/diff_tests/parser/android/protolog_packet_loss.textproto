@@ -34,7 +34,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384130
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 6924537961316301726
     str_param_iids: 1
     str_param_iids: 1
@@ -46,7 +46,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384130
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 6924537961316301726
     str_param_iids: 1
     str_param_iids: 2
@@ -59,7 +59,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384130
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 6924537961316301726
     str_param_iids: 2
     str_param_iids: 2
@@ -90,7 +90,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384130
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 6924537961316301726
     str_param_iids: 1
     str_param_iids: 1
@@ -102,7 +102,7 @@ packet {
   previous_packet_dropped: true
   trusted_pid: 2063
   first_packet_on_sequence: true
-  protolog_viewer_config {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
     messages {
       message_id: 6924537961316301726
       message: "Test message with two strings: %s and %s"

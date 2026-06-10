@@ -145,12 +145,6 @@ proto_groups = {
         ],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
     },
-    'winscope': {
-        'sources': [
-            '//protos/perfetto/trace/android:winscope_extensions_source_set',
-        ],
-        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
-    },
     'metrics': {
         'sources': ['//protos/perfetto/metrics:source_set',],
         'visibility': ['//visibility:public'],

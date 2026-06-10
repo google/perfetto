@@ -19,17 +19,17 @@
 
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
 
-#include "protos/perfetto/trace/android/graphics/corner_radii.gen.h"
-#include "protos/perfetto/trace/android/graphics/rect.gen.h"
-#include "protos/perfetto/trace/android/surfaceflinger_common.gen.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.gen.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/corner_radii.gen.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.gen.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_common.gen.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.gen.h"
 
 namespace perfetto::trace_processor::winscope::geometry::test {
 
-using FloatRectProto = protos::gen::FloatRectProto;
-using RectProto = protos::gen::RectProto;
+using FloatRectProto = com::android::internal::gen::FloatRectProto;
+using RectProto = com::android::internal::gen::RectProto;
 
-inline void UpdateRect(protos::gen::FloatRectProto* rect_proto,
+inline void UpdateRect(com::android::internal::gen::FloatRectProto* rect_proto,
                        geometry::Rect rect) {
   rect_proto->set_left(static_cast<float>(rect.x));
   rect_proto->set_top(static_cast<float>(rect.y));
@@ -37,7 +37,7 @@ inline void UpdateRect(protos::gen::FloatRectProto* rect_proto,
   rect_proto->set_bottom(static_cast<float>(rect.y + rect.h));
 }
 
-inline void UpdateRect(protos::gen::RectProto* rect_proto,
+inline void UpdateRect(com::android::internal::gen::RectProto* rect_proto,
                        geometry::Rect rect) {
   rect_proto->set_left(static_cast<int32_t>(rect.x));
   rect_proto->set_top(static_cast<int32_t>(rect.y));
@@ -45,8 +45,9 @@ inline void UpdateRect(protos::gen::RectProto* rect_proto,
   rect_proto->set_bottom(static_cast<int32_t>(rect.y + rect.h));
 }
 
-inline void UpdateCornerRadii(protos::gen::CornerRadiiProto* corner_radii_proto,
-                              geometry::CornerRadii corner_radii) {
+inline void UpdateCornerRadii(
+    com::android::internal::gen::CornerRadiiProto* corner_radii_proto,
+    geometry::CornerRadii corner_radii) {
   corner_radii_proto->set_bl(static_cast<float>(corner_radii.bl));
   corner_radii_proto->set_br(static_cast<float>(corner_radii.br));
   corner_radii_proto->set_tl(static_cast<float>(corner_radii.tl));
