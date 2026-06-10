@@ -26,7 +26,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
@@ -36,11 +36,11 @@
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_context.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
-#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -51,7 +51,8 @@ SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(WinscopeContext* context)
 void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                        protozero::ConstBytes blob,
                                        std::optional<uint32_t> sequence_id) {
-  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(blob);
+  com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(
+      blob);
 
   const auto& snapshot_id = ParseSnapshot(timestamp, blob, sequence_id);
 
@@ -67,7 +68,7 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
     }
   }
 
-  protos::pbzero::LayersProto::Decoder layers_decoder(
+  com::android::internal::pbzero::LayersProto::Decoder layers_decoder(
       snapshot_decoder.layers());
 
   const std::unordered_map<int32_t, LayerDecoder>& layers_by_id =
@@ -117,7 +118,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
   auto* storage = context_->trace_processor_context_->storage.get();
   tables::SurfaceFlingerLayersSnapshotTable::Row snapshot;
   snapshot.ts = timestamp;
-  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(blob);
+  com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(
+      blob);
   snapshot.has_invalid_elapsed_ts =
       snapshot_decoder.elapsed_realtime_nanos() == 0;
   snapshot.base64_proto_id = storage->mutable_string_pool()

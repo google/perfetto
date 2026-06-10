@@ -984,6 +984,9 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
     auto trace_ts =
         context_->clock_tracker->ToTraceTime(trace_file_clock_, line.ts);
     if (trace_ts) {
+      // SystraceLineParser populates tables from line.ts, so the conversion
+      // must be written back, not just used as the sorting key.
+      line.ts = *trace_ts;
       systrace_stream_->Push(*trace_ts, std::move(line));
     }
   }

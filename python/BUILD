@@ -147,6 +147,7 @@ perfetto_py_library(
         "perfetto/trace_processor/api.py",
         "perfetto/trace_processor/http.py",
         "perfetto/trace_processor/platform.py",
+        "perfetto/trace_processor/process_tree.py",
         "perfetto/trace_processor/protos.py",
         "perfetto/trace_processor/shell.py",
     ],
