@@ -71,10 +71,10 @@ bool RequiresZlibSupport(TraceType type) {
 void TraceReaderRegistry::RegisterPluginTraceReader(
     TraceType trace_type,
     std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
-  RegisterFactory(trace_type, [f = std::move(factory)](TraceProcessorContext*,
-                                                       uint32_t) {
-    return f();
-  });
+  RegisterFactory(trace_type,
+                  [f = std::move(factory)](TraceProcessorContext*, uint32_t) {
+                    return f();
+                  });
 }
 
 void TraceReaderRegistry::RegisterFactory(TraceType trace_type,

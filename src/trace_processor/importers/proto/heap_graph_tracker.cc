@@ -315,6 +315,20 @@ HeapGraphTracker::HeapGraphTracker(TraceStorage* storage,
                   {},
               },
           })),
+      heap_graph_cursor_(storage->mutable_heap_graph_table()->CreateCursor({
+          dataframe::FilterSpec{
+              tables::HeapGraphTable::ColumnIndex::upid,
+              0,
+              dataframe::Eq{},
+              {},
+          },
+          dataframe::FilterSpec{
+              tables::HeapGraphTable::ColumnIndex::ts,
+              1,
+              dataframe::Eq{},
+              {},
+          },
+      })),
       cleaner_thunk_str_id_(storage_->InternString("sun.misc.Cleaner.thunk")),
       referent_str_id_(
           storage_->InternString("java.lang.ref.Reference.referent")),
@@ -637,6 +651,10 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
   sequence_state.prev_index = index;
 }
 
+void HeapGraphTracker::SetHeapSize(uint32_t seq_id, int64_t heap_size) {
+  GetOrCreateSequence(seq_id).heap_size = heap_size;
+}
+
 // This only works on Android S+ traces. We need to have ingested the whole
 // profile before calling this function (e.g. in FinalizeProfile).
 HeapGraphTracker::InternedType* HeapGraphTracker::GetSuperClass(
@@ -813,6 +831,32 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
   PopulateSuperClasses(sequence_state);
   PopulateNativeSize(sequence_state);
+
+  auto& heap_graph_table = *storage_->mutable_heap_graph_table();
+  std::optional<tables::HeapGraphTable::Id> heap_graph_id;
+  heap_graph_cursor_.SetFilterValueUnchecked(0, sequence_state.current_upid);
+  heap_graph_cursor_.SetFilterValueUnchecked(1, sequence_state.current_ts);
+  heap_graph_cursor_.Execute();
+  if (!heap_graph_cursor_.Eof()) {
+    heap_graph_id = heap_graph_cursor_.id();
+    heap_graph_cursor_.Next();
+    PERFETTO_DCHECK(heap_graph_cursor_.Eof());
+  }
+  if (heap_graph_id) {
+    if (sequence_state.heap_size) {
+      auto row_ref = heap_graph_table[*heap_graph_id];
+      row_ref.set_heap_size(*sequence_state.heap_size);
+    }
+  } else {
+    tables::HeapGraphTable::Row row;
+    row.upid = sequence_state.current_upid;
+    row.ts = sequence_state.current_ts;
+    if (sequence_state.heap_size) {
+      row.heap_size = *sequence_state.heap_size;
+    }
+    heap_graph_table.Insert(row);
+  }
+
   sequence_state_.erase(seq_id);
 }
 

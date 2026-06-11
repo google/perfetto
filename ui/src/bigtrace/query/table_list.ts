@@ -31,7 +31,7 @@ interface FilteredTable {
   segments: FuzzySegment[];
 }
 
-// Single source so run-query, body, title, and Copy text stay in sync.
+// Single source so run-query, title, and Copy text stay in sync.
 function includeStatement(includeKey: string): string {
   return `INCLUDE PERFETTO MODULE ${includeKey};`;
 }
@@ -132,13 +132,11 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
   private generateQuery(table: SqlTable): string {
     const lines: string[] = [];
 
-    // Add INCLUDE statement if needed
     if (table.includeKey) {
       lines.push(includeStatement(table.includeKey));
       lines.push('');
     }
 
-    // Build SELECT with all columns
     const columns =
       table.columns.length > 0
         ? table.columns.map((c) => c.name).join(',\n  ')
@@ -157,14 +155,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     onQueryTable?: (tableName: string, query: string) => void,
   ): m.Children {
     return [
-      // Description
       table.description &&
         m('.pf-bt-simple-table-list__description', table.description),
 
       m(
         '.pf-bt-simple-table-list__detail-row',
         m('span.pf-bt-simple-table-list__detail-label', 'Table name'),
-        // Ellipsis-truncated; tooltip reveals the full name without copying.
+        // Ellipsis-truncated; tooltip reveals the full name.
         m(
           'code.pf-bt-simple-table-list__detail-value',
           {title: table.name},
@@ -184,10 +181,8 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             onclick: () => onQueryTable(table.name, this.generateQuery(table)),
           }),
       ),
-      // Module
       table.includeKey && this.renderIncludeRow(table.includeKey),
 
-      // Columns
       table.columns.length > 0 &&
         m(
           '.pf-bt-simple-table-list__columns',

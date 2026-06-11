@@ -24,7 +24,7 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {endpointStorage} from '../settings/endpoint_storage';
+import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {setHistoryActiveTab} from '../query/query_history';
 import {BigtraceQueryClient} from '../query/bigtrace_query_client';
@@ -33,8 +33,12 @@ import {
   type BigTraceEditorTab,
   type QueryTabsState,
   deriveTitleFromQuery,
+  effectiveTabSettings,
 } from './query_tabs_state';
 import {renderResultsPanel} from './results_panel';
+import type {SettingCategory, SettingFilter} from '../settings/settings_types';
+import type {SettingsBindings} from '../settings/tab_bound_setting';
+import {BigtraceSettingsBar} from './bigtrace_settings_bar';
 
 export interface EditorTabViewAttrs {
   readonly tab: BigTraceEditorTab;
@@ -43,8 +47,8 @@ export interface EditorTabViewAttrs {
   readonly useBigtraceBackend: boolean;
 }
 
-// Thin orchestrator: split pane with editor on top, results on bottom.
-// Heavy rendering lives in results_panel.ts and status_box.ts.
+// Split pane with editor on top, results on bottom.
+// Rendering lives in results_panel.ts and status_box.ts.
 export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
   view({attrs}: m.Vnode<EditorTabViewAttrs>): m.Children {
     const {tab, tabsState, runner, useBigtraceBackend} = attrs;
@@ -58,18 +62,86 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
       tab.queryResult.totalRowCount = tab.execution.processedRows;
     }
 
-    return m(SplitPanel, {
-      direction: 'vertical',
-      initialSplit: {percent: 22},
-      minSize: 100,
-      firstPanel: renderEditorPanel(tab, tabsState, runner, useBigtraceBackend),
-      secondPanel: renderResultsPanel(tab, tabsState, runner),
-    });
+    return m('.pf-bt-editor-tab', [
+      m(BigtraceSettingsBar, {
+        tab,
+        tabsState,
+        bindings: buildTabBindings(tab, tabsState),
+      }),
+      m(SplitPanel, {
+        direction: 'vertical',
+        initialSplit: {percent: 22},
+        minSize: 100,
+        firstPanel: renderEditorPanel(
+          tab,
+          tabsState,
+          runner,
+          useBigtraceBackend,
+        ),
+        secondPanel: renderResultsPanel(tab, tabsState),
+      }),
+    ]);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Editor panel: toolbar (Run/Cancel + limit + Materialize) and the editor.
+// Per-tab bindings shared between the chip strip and any modal it opens.
+// Getters read live; setters mutate in place and mark dirty.
+// getEffectiveSettings layers per-tab overrides over global defaults so
+// /trace_metadata sees a complete settings array even before the user edits.
+// ---------------------------------------------------------------------------
+
+function buildTabBindings(
+  tab: BigTraceEditorTab,
+  tabsState: QueryTabsState,
+): SettingsBindings {
+  return {
+    getEffectiveSettings: () => effectiveTabSettings(tab),
+    getSettingValue: (id) => {
+      const entry = tab.querySettings.find((s) => s.settingId === id);
+      return entry?.values;
+    },
+    setSettingValue: (id, values, category) => {
+      const next = [...tab.querySettings];
+      const idx = next.findIndex((s) => s.settingId === id);
+      const entry: SettingFilter = {
+        settingId: id,
+        values: [...values],
+        category: category as SettingCategory,
+      };
+      if (idx >= 0) next[idx] = entry;
+      else next.push(entry);
+      tab.querySettings = next;
+      tabsState.markDirty();
+    },
+    getTraceFilters: () => tab.traceFilters,
+    setTraceFilters: (filters) => {
+      tab.traceFilters = [...filters];
+      tabsState.markDirty();
+    },
+    getTraceMetadataColumns: () => tab.traceMetadataColumns,
+    setTraceMetadataColumns: (cols) => {
+      tab.traceMetadataColumns = cols === null ? null : [...cols];
+      tabsState.markDirty();
+    },
+    getTraceOrderBy: () => tab.traceOrderBy,
+    setTraceOrderBy: (orderBy) => {
+      tab.traceOrderBy = orderBy;
+      tabsState.markDirty();
+    },
+    isSettingDisabled: (id) => tab.disabledSettings.includes(id),
+    setSettingDisabled: (id, disabled) => {
+      const set = new Set(tab.disabledSettings);
+      if (disabled) set.add(id);
+      else set.delete(id);
+      tab.disabledSettings = [...set];
+      tabsState.markDirty();
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Editor panel: toolbar (Run/Cancel + limit + Persistent) and the editor.
 // ---------------------------------------------------------------------------
 
 function renderEditorPanel(
@@ -166,7 +238,7 @@ function renderEditorPanel(
 }
 
 // ---------------------------------------------------------------------------
-// Lazily build the async data source for tabs restored from localStorage.
+// Lazily build the data source for tabs restored from localStorage.
 // ---------------------------------------------------------------------------
 
 function attachAsyncDataSource(
@@ -174,9 +246,7 @@ function attachAsyncDataSource(
   runner: QueryRunner,
 ): void {
   if (!tab.queryUuid) return;
-  const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-  const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
-  const queryClient = new BigtraceQueryClient(endpoint);
+  const queryClient = new BigtraceQueryClient(getBigtraceEndpoint());
   tab.queryClient = queryClient;
   if (!tab.materialize) {
     tab.dataSource = new InMemoryDataSource([]);

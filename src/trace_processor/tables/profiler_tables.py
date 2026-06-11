@@ -592,6 +592,117 @@ PERF_SAMPLE_TABLE = Table(
                    sample in __intrinsic_perf_counter_set.'''
         }))
 
+HEAP_GRAPH_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphTable',
+    sql_name='__intrinsic_heap_graph',
+    wrapping_sql_view=WrappingSqlView('heap_graph'),
+    columns=[
+        C(
+            'ts',
+            CppInt64(),
+        ),
+        C(
+            'upid',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'dump_reason',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'heap_size',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='A list of heap graphs (heap dumps) captured during the trace.',
+        group='Callstack profilers',
+        columns={
+            'ts':
+                'Timestamp of the heap dump in nanoseconds.',
+            'upid':
+                'Unique ID of the process whose heap was dumped. Joinable with process.upid.',
+            'dump_reason':
+                'Reason why the heap graph was dumped (e.g. OOME, periodic, manual).',
+            'heap_size':
+                'Total bytes allocated in the heap as reported by the VM.',
+        }),
+)
+
+HEAP_GRAPH_THREAD_CALLSITE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphThreadCallsiteTable',
+    sql_name='__intrinsic_heap_graph_thread_callsite',
+    wrapping_sql_view=WrappingSqlView('heap_graph_thread_callsite'),
+    columns=[
+        C(
+            'heap_graph_id',
+            CppTableId(HEAP_GRAPH_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'utid',
+            CppUint32(),
+        ),
+        C(
+            'callsite_id',
+            CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='Callstack profiles of threads at the time the heap graph was collected.',
+        group='Callstack profilers',
+        columns={
+            'heap_graph_id':
+                'The heap graph instance. Joinable with heap_graph.id.',
+            'utid':
+                'The thread ID. Joinable with thread.utid.',
+            'callsite_id':
+                '''The callsite of the leaf frame of the stacktrace.
+                              Joinable with stack_profile_callsite.id''',
+        }),
+)
+
+HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphJavaOomeDetailsTable',
+    sql_name='__intrinsic_heap_graph_java_oome_details',
+    wrapping_sql_view=WrappingSqlView('android_heap_graph_java_oome_details'),
+    columns=[
+        C(
+            'heap_graph_id',
+            CppTableId(HEAP_GRAPH_TABLE),
+        ),
+        C('allocation_size_bytes', CppInt64()),
+        C('total_bytes_free', CppInt64()),
+        C('free_bytes_until_oom', CppInt64()),
+        C('error_msg', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='Details of Java OutOfMemoryError exceptions that triggered heap dumps.',
+        group='Callstack profilers',
+        columns={
+            'heap_graph_id':
+                'The heap graph instance this OOM trigger details belongs to. Joinable with heap_graph.id.',
+            'allocation_size_bytes':
+                'Number of bytes that triggered the OOME.',
+            'total_bytes_free':
+                'Total free bytes in the Java heap at OOME time.',
+            'free_bytes_until_oom':
+                'Free bytes remaining until OOME.',
+            'error_msg':
+                'Error message associated with the OOME exception.',
+        }),
+)
+
 INSTRUMENTS_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='InstrumentsSampleTable',
@@ -1425,10 +1536,13 @@ ALL_TABLES = [
     GPU_CONTEXT_TABLE,
     GPU_COUNTER_GROUP_TABLE,
     HEAP_GRAPH_CLASS_TABLE,
+    HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE,
     HEAP_GRAPH_OBJECT_DATA_TABLE,
     HEAP_GRAPH_PRIMITIVE_TABLE,
     HEAP_GRAPH_OBJECT_TABLE,
     HEAP_GRAPH_REFERENCE_TABLE,
+    HEAP_GRAPH_TABLE,
+    HEAP_GRAPH_THREAD_CALLSITE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,

@@ -73,9 +73,9 @@ class TraceReaderRegistry {
       uint32_t file_id);
 
  private:
-  using Factory = std::function<std::unique_ptr<ChunkedTraceReader>(
-      TraceProcessorContext*,
-      uint32_t)>;
+  using Factory =
+      std::function<std::unique_ptr<ChunkedTraceReader>(TraceProcessorContext*,
+                                                        uint32_t)>;
   void RegisterFactory(TraceType trace_type, Factory factory);
 
   base::FlatHashMap<TraceType, Factory> factories_;

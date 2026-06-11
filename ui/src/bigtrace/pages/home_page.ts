@@ -41,8 +41,7 @@ GROUP BY p.name
 ORDER BY cpu_sec DESC
 LIMIT 10`;
 
-// One of the four landing-page action buttons (Quick start +
-// Example queries rows). Differs only by icon, label, and click.
+// Landing-page action button.
 function homeButton(
   label: string,
   icon: string,
@@ -56,8 +55,7 @@ function homeButton(
   );
 }
 
-// Example-query button: stash the query for the new tab to pick up,
-// then navigate to the editor.
+// Stash the query for the new tab to pick up, then open the editor.
 function exampleQueryButton(
   label: string,
   icon: string,
@@ -85,7 +83,6 @@ export class HomePage implements m.ClassComponent {
         ),
         m(
           '.pf-home-page__hints',
-          // Quick start section
           m(
             '.pf-home-page__section',
             m('.pf-home-page__section-title', 'Quick start'),
@@ -102,7 +99,6 @@ export class HomePage implements m.ClassComponent {
               ),
             ),
           ),
-          // Example queries section
           m(
             '.pf-home-page__section',
             m('.pf-home-page__section-title', 'Example queries'),
@@ -119,7 +115,7 @@ export class HomePage implements m.ClassComponent {
               ),
             ),
           ),
-          // Footer: theme toggle; full shortcut list lives in the help modal (?).
+          // Footer: theme toggle.
           m(
             '.pf-home-page__links',
             m(Switch, {

@@ -104,8 +104,7 @@ base::Status PerfettoMetadataReader::OnPushDataToSorter() {
   }
 
   if (meta.HasMember("trace_time_clock")) {
-    ASSIGN_OR_RETURN(uint32_t clock,
-                     ParseClockName(meta["trace_time_clock"]));
+    ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(meta["trace_time_clock"]));
     state->trace_time_clock = clock;
   }
 
