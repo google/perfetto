@@ -17836,6 +17836,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder_breakdown.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/bitmaps.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/blocking_calls_during_cujs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_type.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_per_uid.sql",

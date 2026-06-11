@@ -15,7 +15,7 @@
 
 -- This module primarily performs composition between the blocking calls, frames and CUJs.
 -- This is used for capturing blocking call per frame metrics, and the related plugins.
-INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+INCLUDE PERFETTO MODULE android.blocking_calls_during_cujs;
 
 INCLUDE PERFETTO MODULE android.cujs.base;
 
@@ -91,7 +91,7 @@ SELECT
   frame.layer_id,
   cuj_id,
   cuj_name
-FROM _android_critical_blocking_calls AS bc
+FROM _android_blocking_calls_during_cujs AS bc
 JOIN _extended_frame_boundary AS frame
   ON (bc.utid = frame.ui_thread_utid OR bc.utid = frame.render_thread_utid)
 -- The following condition to accommodate blocking call crossing frame boundary. The blocking
