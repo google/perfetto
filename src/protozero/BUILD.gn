@@ -30,6 +30,7 @@ perfetto_component("protozero") {
     "../base",
   ]
   sources = [
+    "decode_field_inl.h",
     "field.cc",
     "gen_field_helpers.cc",
     "message.cc",
