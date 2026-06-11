@@ -457,6 +457,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -746,6 +747,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -3758,6 +3760,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/heap_graph_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/helpers.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/object_tree.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/oome.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/raw_dominator_tree.sql",
     ],
 )
@@ -4337,6 +4340,17 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.cc",
         "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/art_process_metadata_importer:art_process_metadata_importer
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
+    srcs = [
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.cc",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_module.cc",
+        "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_module.h",
     ],
 )
 
@@ -10542,6 +10556,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
@@ -10861,6 +10876,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
+        ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
         ":src_trace_processor_plugins_base64_functions_base64_functions",
         ":src_trace_processor_plugins_connected_flow_connected_flow",
         ":src_trace_processor_plugins_connected_flow_tables",
