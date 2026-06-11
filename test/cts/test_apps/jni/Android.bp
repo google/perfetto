@@ -37,7 +37,7 @@ cc_library_shared {
     "libpcre2",
   ],
   compile_multilib: "both",
-  stl: "libc++_static",
+  stl: "libc++",
   defaults: [
     "perfetto_defaults",
   ],
