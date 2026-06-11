@@ -28,8 +28,6 @@ export interface PollingCallbacks {
 }
 
 // Owns the poll-until-terminal loop for async (materialized) queries.
-// Extracted from QueryRunner so dispatch logic stays separate from the
-// polling state machine.
 export class PollingController {
   constructor(private readonly cb: PollingCallbacks) {}
 
