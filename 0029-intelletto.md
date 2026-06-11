@@ -158,15 +158,13 @@ The assistant's UX surface is centered around three main concepts:
   user's view into the model, tooling feeds the model's actions back into the
   user's view.
 
-<p align="center">
-  <img src="media/0029/llm-sidebar.png"
-       alt="The Perfetto UI with the assistant sidebar open on the right: a
-chat conversation sits alongside the timeline, with the current area
-selection feeding the conversation as context.">
-</p>
-<p align="center"><em>Prototype: the assistant sidebar alongside the
-timeline, answering questions about the current selection. Note the context
-chips, tool use, and thought presentation.</em></p>
+![The Perfetto UI with the assistant sidebar open on the right: a chat
+conversation sits alongside the timeline, with the current area selection
+feeding the conversation as context.](media/0029/llm-sidebar.png)
+
+_Prototype: the assistant sidebar alongside the timeline, answering questions
+about the current selection. Note the context chips, tool use, and thought
+presentation._
 
 ### Trust & reliability
 
@@ -378,15 +376,13 @@ Since a provider is pure data, it's just a JSON blob:
 }
 ```
 
-<p align="center">
-  <img src="media/0029/llm-settings.png"
-       alt="The dev.perfetto.Llm settings panel: a default-model dropdown at
-the top, then a list of configured providers - an OpenAI-compatible llama.cpp
-server and a Google Gemini provider - each with credentials and a model list
-with per-model role checkboxes.">
-</p>
-<p align="center"><em>Prototype: the settings panel - providers, their model
-catalogs with role tags, and the default model selected in one place.</em></p>
+![The dev.perfetto.Llm settings panel: a default-model dropdown at the top,
+then a list of configured providers - an OpenAI-compatible llama.cpp server
+and a Google Gemini provider - each with credentials and a model list with
+per-model role checkboxes.](media/0029/llm-settings.png)
+
+_Prototype: the settings panel - providers, their model catalogs with role
+tags, and the default model selected in one place._
 
 The **Selected/Default Model** is the active `Provider:Model` for each role
 type, owned by `dev.perfetto.Llm` as a user setting
