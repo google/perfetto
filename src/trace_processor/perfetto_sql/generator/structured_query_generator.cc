@@ -560,11 +560,11 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   }
 
   std::string cols_str = "*";
-  if (sql.column_names()->size() != 0) {
-    std::vector<std::string> cols;
-    for (auto it = sql.column_names(); it; ++it) {
-      cols.push_back(it->as_std_string());
-    }
+  std::vector<std::string> cols;
+  for (auto it = sql.column_names(); it; ++it) {
+    cols.push_back(it->as_std_string());
+  }
+  if (!cols.empty()) {
     cols_str = base::Join(cols, ", ");
   }
 
