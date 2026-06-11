@@ -111,7 +111,7 @@ packet {
       memory_limit_kb: 1
       producer_id: [ 10, 11 ]
       state {
-        surfaceflinger_layers_snapshot {
+        [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_layers_snapshot] {
           where: "value set in initial state and never touched by the ProtoVM"
         }
       }
@@ -124,7 +124,7 @@ packet {
   first_packet_on_sequence: true
   timestamp: 2749532000000
   timestamp_clock_id: 3
-  surfaceflinger_transactions {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_transactions] {
     elapsed_realtime_nanos: 2749532000001
     vsync_id: 24776
   }
@@ -136,7 +136,7 @@ packet {
 packet {
   timestamp: 2749555000000
   timestamp_clock_id: 3
-  surfaceflinger_transactions {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_transactions] {
     elapsed_realtime_nanos: 2749555000001
     vsync_id: 24805
   }
@@ -157,6 +157,6 @@ packet {
 packet {
   timestamp: 2749570000000
   timestamp_clock_id: 3
-  surfaceflinger_transactions { elapsed_realtime_nanos: 0 vsync_id: 0 }
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_transactions] { elapsed_realtime_nanos: 0 vsync_id: 0 }
   trusted_packet_sequence_id: 3
 }

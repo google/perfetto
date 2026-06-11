@@ -88,29 +88,44 @@
     },
     {
       "scope": "perfetto.protos.TracePacket",
-      "ranges": [[116, 116], [1000, 1999]],
+      "ranges": [[93, 94], [96, 97], [104, 105], [112, 112], [116, 116], [1000, 1999]],
       "allocations": [
+        {
+          "name": "winscope",
+          "description": "Winscope TracePacket payloads (SurfaceFlinger, Shell, ProtoLog)",
+          "comment": [
+            "Defined in the Android tree under frameworks/{native,base}/tracing/winscope/,",
+            "mirrored here at third_party/android/frameworks/{native,base}/.../winscope/.",
+            "Wrappers: FrameworksNativeWinscopeTracePacket (93,94,104,105,112) and",
+            "FrameworksBaseWinscopeTracePacket (96,97). Field numbers match the original",
+            "in-tree fields for wire compatibility."
+          ],
+          "ranges": [[93, 94], [96, 97], [104, 105], [112, 112]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
         {
           "name": "android_frameworks_base",
           "description": "frameworks/base TracePacket extensions",
           "comment": [
             "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto.",
-            "Wrapper: FrameworksBaseTracePacket."
+            "Wrapper: FrameworksBaseTracePacket.",
+            "1000: VideoFrame video_frame, 1001: VideoFrameError video_frame_error."
           ],
-          "range": [116, 116],
+          "ranges": [[116, 116], [1000, 1001]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },
         {
           "name": "unallocated",
           "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1000, 1999]
+          "range": [1002, 1999]
         }
       ]
     },
     {
       "scope": "perfetto.protos.InternedData",
-      "ranges": [[42, 42], [1000, 9999]],
+      "ranges": [[42, 42], [44, 44], [1000, 9999]],
       "allocations": [
         {
           "name": "android_frameworks_base",
@@ -119,7 +134,7 @@
             "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto.",
             "Wrapper: FrameworksBaseInternedData."
           ],
-          "range": [42, 42],
+          "ranges": [[42, 42], [44, 44]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },

@@ -1075,6 +1075,7 @@ impl ToTeHlNestedTrack for TrackEventNestedTrack<'_> {
                         },
                         name: cname.as_ptr(),
                         id: *id,
+                        is_name_static: false,
                     },
                     cname,
                 )

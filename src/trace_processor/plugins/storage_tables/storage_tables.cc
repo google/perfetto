@@ -184,6 +184,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_heap_graph_class_table());
     AddDataframe(out, s->mutable_heap_profile_allocation_table());
     AddDataframe(out, s->mutable_perf_sample_table());
+    AddDataframe(out, s->mutable_heap_graph_table());
+    AddDataframe(out, s->mutable_heap_graph_thread_callsite_table());
+    AddDataframe(out, s->mutable_heap_graph_java_oome_details_table());
     AddDataframe(out, s->mutable_perf_counter_set_table());
     AddDataframe(out, s->mutable_stack_profile_mapping_table());
     AddDataframe(out, s->mutable_vulkan_memory_allocations_table());
@@ -215,6 +218,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.sched_slice_table().mutations() + s.counter_table().mutations() +
            s.slice_table().mutations() +
            s.heap_profile_allocation_table().mutations() +
+           s.profiler_smaps_table().mutations() +
            s.thread_state_table().mutations() + s.log_table().mutations() +
            s.heap_graph_object_table().mutations() +
            s.perf_sample_table().mutations() +
@@ -243,6 +247,10 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       end_ns = std::max(it.ts() + it.dur(), end_ns);
     }
     for (auto it = s.heap_profile_allocation_table().IterateRows(); it; ++it) {
+      start_ns = std::min(it.ts(), start_ns);
+      end_ns = std::max(it.ts(), end_ns);
+    }
+    for (auto it = s.profiler_smaps_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }

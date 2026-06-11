@@ -205,6 +205,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/ancestor",
       "plugins/args",
       "plugins/art_heap_graph_functions",
+      "plugins/art_process_metadata_importer",
       "plugins/base64_functions",
       "plugins/connected_flow",
       "plugins/core_functions",
@@ -233,6 +234,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/metadata",
       "plugins/package_lookup",
       "plugins/perf_counter",
+      "plugins/perfetto_metadata",
       "plugins/pprof_functions",
       "plugins/slice_mipmap_operator",
       "plugins/span_join_operator",
@@ -250,6 +252,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/tree_functions",
       "plugins/type_builder_functions",
       "plugins/utils_functions",
+      "plugins/video_frame_importer",
       "plugins/wattson",
       "plugins/window_operator",
       "sqlite",
@@ -435,6 +438,7 @@ perfetto_unittest_source_set("unittests") {
       "plugins/experimental_slice_layout:unittests",
       "plugins/span_join_operator:unittests",
       "plugins/string_functions:unittests",
+      "plugins/video_frame_importer:unittests",
       "sqlite:unittests",
     ]
   }
