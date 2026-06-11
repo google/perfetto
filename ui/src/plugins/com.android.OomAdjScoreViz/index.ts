@@ -84,13 +84,14 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
         }
 
         // Order buckets by their oom_score range (per oom_adjuster.sql): the
-        // highest-score bucket (cached) first down to the lowest (system).
+        // lowest-score, most-important bucket (system, <0) at the top down to
+        // the highest-score, most-disposable (cached, >=900) at the bottom.
         // The bucket is a function of score, so ordering by score reproduces
         // that order without duplicating the bucket list here.
         const buckets = await ctx.engine.query(
           `SELECT bucket FROM android_oom_adj_intervals
            WHERE ts < ${window.end} AND ts + dur > ${window.start}
-           GROUP BY bucket ORDER BY min(score) DESC`,
+           GROUP BY bucket ORDER BY min(score) ASC`,
         );
         for (const iter = buckets.iter({}); iter.valid(); iter.next()) {
           const bucket = iter.get('bucket') as string;
