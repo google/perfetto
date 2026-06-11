@@ -59,7 +59,10 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
       CREATE OR REPLACE PERFETTO TABLE ${OomAdjScoreViz.TBL_COUNT} AS
       SELECT
         ts,
-        lead(ts) OVER(PARTITION BY group_name ORDER BY ts) - ts AS dur,
+        coalesce(
+          lead(ts) OVER(PARTITION BY group_name ORDER BY ts) - ts,
+          trace_end() - ts
+        ) AS dur,
         group_name AS bucket,
         value AS concurrency
       FROM intervals_overlap_count_by_group!(${OomAdjScoreViz.TBL_INTERVALS}, ts, dur, bucket);
@@ -80,8 +83,14 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
           window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         }
 
+        // Order buckets by their oom_score range (per oom_adjuster.sql): the
+        // highest-score bucket (cached) first down to the lowest (system).
+        // The bucket is a function of score, so ordering by score reproduces
+        // that order without duplicating the bucket list here.
         const buckets = await ctx.engine.query(
-          `SELECT DISTINCT bucket FROM android_oom_adj_intervals WHERE ts < ${window.end} AND ts + dur > ${window.start}`,
+          `SELECT bucket FROM android_oom_adj_intervals
+           WHERE ts < ${window.end} AND ts + dur > ${window.start}
+           GROUP BY bucket ORDER BY min(score) DESC`,
         );
         for (const iter = buckets.iter({}); iter.valid(); iter.next()) {
           const bucket = iter.get('bucket') as string;
@@ -154,6 +163,7 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       renderer,
+      description: `This track shows the OOM adjustment score of process '${processName}' (${pid}) over time.`,
     });
     return new TrackNode({
       name,
