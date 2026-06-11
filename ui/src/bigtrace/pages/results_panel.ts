@@ -17,7 +17,6 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Spinner} from '../../widgets/spinner';
 import {Tabs} from '../../widgets/tabs';
 import {TERMINAL_STATUSES} from '../query/query_store';
-import type {QueryRunner} from '../query/query_runner';
 import type {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
 import {renderStatusBox, formatDurationS} from './status_box';
 import {renderResultsGrid} from './results_grid';
@@ -55,7 +54,6 @@ class RunningQuerySpinner implements m.ClassComponent<{startMs: number}> {
 export function renderResultsPanel(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
-  runner: QueryRunner,
 ): m.Children {
   const status = renderStatusBox(tab);
 
@@ -114,7 +112,7 @@ export function renderResultsPanel(
       fillHeight: true,
     });
   } else if (hasRowsToShow) {
-    tableContent = renderResultsGrid(tab, tabsState, runner);
+    tableContent = renderResultsGrid(tab, tabsState);
   } else if (tab.isLoading) {
     tableContent = m('div');
   } else {
@@ -142,7 +140,7 @@ export function renderResultsPanel(
 }
 
 // ---------------------------------------------------------------------------
-// Tabs (Error / Table / Chart) and grid rendering.
+// Error / Table / Chart tabs.
 // ---------------------------------------------------------------------------
 
 function renderErrorTab(tab: BigTraceEditorTab): m.Children {

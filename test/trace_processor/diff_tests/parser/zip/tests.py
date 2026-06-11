@@ -152,6 +152,38 @@ class Zip(TestSuite):
         "a.systrace","systrace",2
         '''))
 
+  # Systrace timestamps must be written back after clock conversion: inside a
+  # zip with a proto trace providing a MONOTONIC<->BOOTTIME snapshot the
+  # conversion is not the identity, and the value written to tables must be
+  # the converted one (which is also the sorting key). The 1.0s MONOTONIC
+  # slice lands at BOOTTIME 1_000_000_000 + 500_000_000.
+  def test_zip_systrace_converted_timestamps(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'sys.systrace':
+                '''# tracer: nop
+#
+  app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|sys_slice
+  app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100
+''',
+            'spine.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  clocks { clock_id: 6 timestamp: 1000000000 }
+                  clocks { clock_id: 3 timestamp: 500000000 }
+                }
+              }
+            '''),
+        }),
+        query='''
+          SELECT name, ts, dur FROM slice WHERE name = 'sys_slice';
+        ''',
+        out=Csv('''
+        "name","ts","dur"
+        "sys_slice",1500000000,500000000
+        '''))
+
   # A tar archive with an external file (DataPath) as a member: the raw bytes
   # of the checked-in trace are included verbatim.
   def test_tar_blueprint_external_member(self):

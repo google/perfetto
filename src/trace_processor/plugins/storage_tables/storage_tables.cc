@@ -184,6 +184,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_heap_graph_class_table());
     AddDataframe(out, s->mutable_heap_profile_allocation_table());
     AddDataframe(out, s->mutable_perf_sample_table());
+    AddDataframe(out, s->mutable_heap_graph_table());
+    AddDataframe(out, s->mutable_heap_graph_thread_callsite_table());
+    AddDataframe(out, s->mutable_heap_graph_java_oome_details_table());
     AddDataframe(out, s->mutable_perf_counter_set_table());
     AddDataframe(out, s->mutable_stack_profile_mapping_table());
     AddDataframe(out, s->mutable_vulkan_memory_allocations_table());
