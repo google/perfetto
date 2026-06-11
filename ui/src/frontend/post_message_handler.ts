@@ -103,7 +103,7 @@ function isUserTrustedOrigin(hostname: string): boolean {
 // Saves the given hostname as a trusted origin.
 // This is used for user convenience: if it fails for any reason, it's not a
 // big deal.
-function saveUserTrustedOrigin(hostname: string) {
+export function saveUserTrustedOrigin(hostname: string) {
   const s = window.localStorage.getItem(TRUSTED_ORIGINS_KEY);
   let origins: string[];
   try {
