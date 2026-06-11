@@ -58,6 +58,18 @@ ClockTracker::ClockTracker(
 
 base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     const std::vector<ClockTimestamp>& clock_timestamps) {
+  // A snapshot correlates multiple clock domains, which proves this trace is
+  // not single-clock; perfetto_metadata clock overrides are only valid for
+  // single-clock traces. This is the chokepoint for callers which bypass
+  // ProtoTraceReader::ParseClockSnapshot (instruments, ftrace bundles,
+  // remote clock syncs); rejecting the snapshot here also prevents a
+  // non-primary trace from switching away from the (anchored) primary sync.
+  if (PERFETTO_UNLIKELY(context_->trace_state &&
+                        context_->trace_state->has_clock_override)) {
+    return base::ErrStatus(
+        "perfetto_metadata: clock overrides require the trace to use a "
+        "single clock");
+  }
   if (PERFETTO_UNLIKELY(!is_primary_)) {
     // Non-primary trace: if we were using the primary's pool and already
     // converted timestamps, those conversions may have used different clock

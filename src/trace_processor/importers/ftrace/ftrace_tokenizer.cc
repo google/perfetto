@@ -505,6 +505,18 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
           "Unable to parse ftrace packets with unknown clock");
   }
 
+  // A non-BOOTTIME ftrace clock proves this trace is not single-clock, the
+  // same way a ClockSnapshot packet does in ProtoTraceReader; without this
+  // check the AddSnapshot below would bypass the perfetto_metadata
+  // single-clock enforcement.
+  if (PERFETTO_UNLIKELY(context_->trace_state &&
+                        context_->trace_state->has_clock_override) &&
+      clock_id != ClockId::Machine(BuiltinClock::BUILTIN_CLOCK_BOOTTIME)) {
+    return base::ErrStatus(
+        "perfetto_metadata: clock overrides require the trace to use a "
+        "single clock");
+  }
+
   // Add the {boottime, clock_id} timestamp pair as a clock snapshot, skipping
   // duplicates since multiple sequential ftrace bundles can share a snapshot.
   if (decoder.has_ftrace_timestamp() && decoder.has_boot_timestamp() &&

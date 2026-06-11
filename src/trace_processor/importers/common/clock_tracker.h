@@ -19,8 +19,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -66,6 +68,10 @@ class ClockTracker {
       int64_t timestamp,
       std::optional<size_t> byte_offset = std::nullopt,
       bool suppress_errors = false) {
+    if (PERFETTO_UNLIKELY(native_clock_remap_.has_value()) &&
+        clock_id == native_clock_remap_->first) {
+      clock_id = native_clock_remap_->second;
+    }
     if (PERFETTO_UNLIKELY(deferred_identity_clock_.has_value())) {
       FlushDeferredIdentitySync();
     }
@@ -73,7 +79,22 @@ class ClockTracker {
     ++num_conversions_;
     auto ts = active_sync_->Convert(clock_id, timestamp, state->clock_id,
                                     byte_offset, suppress_errors);
-    return ts ? std::optional(ToHostTraceTime(*ts)) : ts;
+    if (!ts) {
+      return ts;
+    }
+    int64_t res = ToHostTraceTime(*ts);
+    if (PERFETTO_UNLIKELY(trace_time_offset_ns_ != 0)) {
+      // The offset is user-supplied (perfetto_metadata "offset_ns"): the
+      // addition must not be allowed to overflow (UB).
+      if ((trace_time_offset_ns_ > 0 &&
+           res > std::numeric_limits<int64_t>::max() - trace_time_offset_ns_) ||
+          (trace_time_offset_ns_ < 0 &&
+           res < std::numeric_limits<int64_t>::min() - trace_time_offset_ns_)) {
+        return std::nullopt;
+      }
+      res += trace_time_offset_ns_;
+    }
+    return res;
   }
 
   // Converts a timestamp between two arbitrary clock domains.
@@ -107,6 +128,18 @@ class ClockTracker {
   // fails, a zero-offset edge between |clock_id| and the global trace time
   // clock will be injected and the conversion retried.
   void AddDeferredIdentitySync(ClockId clock_id);
+
+  // Remaps this trace file's declared native clock to another domain at
+  // conversion time. Implements the perfetto_metadata "native" override.
+  void SetNativeClockRemap(ClockId from, ClockId to) {
+    native_clock_remap_ = std::make_pair(from, to);
+  }
+
+  // Shifts every trace-time conversion result for this trace file by
+  // |offset_ns|. Implements the perfetto_metadata "offset_ns" override.
+  void SetTraceTimeOffsetNs(int64_t offset_ns) {
+    trace_time_offset_ns_ = offset_ns;
+  }
 
   // Returns the trace default clock, if one has been set.
   std::optional<ClockId> trace_default_clock() const {
@@ -169,6 +202,14 @@ class ClockTracker {
   // first ToTraceTime call: if the clock is not yet in the graph, a 0:0
   // identity edge is injected.
   std::optional<ClockId> deferred_identity_clock_;
+
+  // If set, ToTraceTime calls with the first clock are remapped to the
+  // second (perfetto_metadata "native" override).
+  std::optional<std::pair<ClockId, ClockId>> native_clock_remap_;
+
+  // Added to every trace-time conversion result (perfetto_metadata
+  // "offset_ns" override).
+  int64_t trace_time_offset_ns_ = 0;
 };
 
 class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {
