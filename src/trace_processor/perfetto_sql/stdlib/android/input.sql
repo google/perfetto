@@ -534,8 +534,117 @@ CREATE PERFETTO INDEX _frame_choreographer_lookup_idx ON _frame_choreographer_lo
   frame_id
 );
 
--- Retrieves the full lifecycle of an Android input event (Read -> Dispatch -> Receive -> Consume -> Frame)
+CREATE PERFETTO TABLE _draw_frames_lookup AS
+SELECT id, track_id, ts, dur, cast_int!(str_split(name, ' ', 1)) AS vsync_id
+FROM slice
+WHERE
+  name GLOB 'DrawFrames *';
+
+CREATE PERFETTO INDEX _draw_frames_lookup_idx ON _draw_frames_lookup(vsync_id);
+
+CREATE PERFETTO TABLE _input_sf_process AS
+SELECT upid FROM process WHERE name = '/system/bin/surfaceflinger' LIMIT 1;
+
+CREATE PERFETTO TABLE _input_sf_main_thread AS
+SELECT thread_track.id AS track_id
+FROM thread_track
+JOIN thread USING (utid)
+JOIN _input_sf_process USING (upid)
+WHERE
+  thread.is_main_thread;
+
+CREATE PERFETTO TABLE _surfaceflinger_composite_lookup AS
+SELECT id, track_id, ts, dur, cast_int!(str_split(name, ' ', 1)) AS vsync_id
+FROM slice
+WHERE
+  track_id IN (SELECT track_id FROM _input_sf_main_thread)
+  AND name GLOB 'composite *';
+
+CREATE PERFETTO INDEX _surfaceflinger_composite_lookup_idx ON _surfaceflinger_composite_lookup(
+  vsync_id
+);
+
+-- Retrieves the full lifecycle of an Android input event (Read -> Dispatch -> Receive -> Consume -> Frame -> DrawFrames -> SurfaceFlinger)
 -- by matching a given slice ID from any stage of the pipeline.
+CREATE PERFETTO TABLE _input_reader_notify_lookup AS
+SELECT
+  id,
+  ts,
+  dur,
+  track_id,
+  str_split(str_split(str_split(name, 'id=', 1), ',', 0), ')', 0) AS reader_input_id
+FROM slice
+WHERE
+  name GLOB 'UnwantedInteractionBlocker::notifyMotion*';
+
+CREATE PERFETTO INDEX _input_reader_notify_lookup_idx ON _input_reader_notify_lookup(
+  reader_input_id
+);
+
+CREATE PERFETTO TABLE _prepare_dispatch_cycle_lookup AS
+SELECT
+  id,
+  str_split(str_split(str_split(name, 'id=', 1), ',', 0), ')', 0) AS dispatch_id,
+  str_split(str_split(name, 'inputChannel=', 1), ', id=', 0) AS event_channel
+FROM slice
+WHERE
+  name GLOB 'prepareDispatchCycleLocked*';
+
+CREATE PERFETTO INDEX _prepare_dispatch_cycle_lookup_idx ON _prepare_dispatch_cycle_lookup(
+  dispatch_id
+);
+
+CREATE PERFETTO TABLE _send_message_lookup AS
+SELECT
+  id,
+  ts,
+  dur,
+  track_id,
+  str_split(str_split(name, '=', 2), ',', 0) AS event_seq,
+  str_split(str_split(name, '=', 1), ',', 0) AS event_channel
+FROM slice
+WHERE
+  name GLOB 'sendMessage(*type=MOTION)'
+  OR name GLOB 'sendMessage(*type=KEY)';
+
+CREATE PERFETTO INDEX _send_message_lookup_idx ON _send_message_lookup(
+  event_seq,
+  event_channel
+);
+
+CREATE PERFETTO TABLE _receive_message_lookup AS
+SELECT
+  id,
+  ts,
+  dur,
+  track_id,
+  str_split(str_split(name, '=', 2), ',', 0) AS event_seq,
+  str_split(str_split(name, '=', 1), ',', 0) AS event_channel
+FROM slice
+WHERE
+  name GLOB 'receiveMessage(*type=MOTION)'
+  OR name GLOB 'receiveMessage(*type=KEY)';
+
+CREATE PERFETTO INDEX _receive_message_lookup_idx ON _receive_message_lookup(id);
+
+CREATE PERFETTO TABLE _deliver_input_event_lookup AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  str_split(s.name, '=', 3) AS input_event_id,
+  t.upid
+FROM slice AS s
+JOIN thread_track AS tt ON s.track_id = tt.id
+JOIN thread AS t USING (utid)
+WHERE
+  s.name GLOB 'deliverInputEvent src=*';
+
+CREATE PERFETTO INDEX _deliver_input_event_lookup_idx ON _deliver_input_event_lookup(
+  input_event_id
+);
+
 CREATE PERFETTO FUNCTION _android_input_lifecycle_by_slice_id(
   -- The Slice ID any slice in the input lifecycle.
   slice_id LONG
@@ -553,6 +662,8 @@ RETURNS TABLE(
   ts_receive LONG,
   ts_consume LONG,
   ts_frame LONG,
+  ts_draw_frames LONG,
+  ts_sf LONG,
   -- InputReader Stage
   id_reader LONG,
   track_reader LONG,
@@ -573,47 +684,207 @@ RETURNS TABLE(
   id_frame LONG,
   track_frame LONG,
   dur_frame LONG,
+  -- DrawFrames Stage
+  id_draw_frames LONG,
+  track_draw_frames LONG,
+  dur_draw_frames LONG,
+  -- SurfaceFlinger Stage
+  id_sf LONG,
+  track_sf LONG,
+  dur_sf LONG,
   is_speculative_frame BOOL
 )
 AS
+WITH
+  resolved_input_event_id AS (
+    SELECT
+      COALESCE(
+        -- Case 1: Clicked Reader (UnwantedInteractionBlocker)
+        (
+          SELECT reader_input_id
+          FROM _input_reader_notify_lookup
+          WHERE
+            id = $slice_id
+        ),
+        -- Case 2: Clicked prepareDispatchCycleLocked
+        (
+          SELECT dispatch_id
+          FROM _prepare_dispatch_cycle_lookup
+          WHERE
+            id = $slice_id
+        ),
+        -- Case 3: Clicked deliverInputEvent itself
+        (
+          SELECT input_event_id
+          FROM _deliver_input_event_lookup
+          WHERE
+            id = $slice_id
+        )
+      ) AS input_event_id
+  ),
+  resolved_keys AS (
+    SELECT sm.event_seq, sm.event_channel
+    FROM resolved_input_event_id AS r
+    JOIN _prepare_dispatch_cycle_lookup AS prep
+      ON prep.dispatch_id = r.input_event_id
+    JOIN descendant_slice(prep.id) AS child
+    JOIN _send_message_lookup AS sm
+      ON sm.id = child.id
+    WHERE
+      r.input_event_id IS NOT NULL
+    LIMIT 1
+  ),
+  base_event AS (
+    -- Match by explicit socket key (Reader, Prepare, deliverInputEvent)
+    SELECT e.*
+    FROM android_input_events AS e
+    JOIN resolved_keys AS rk
+      ON e.event_seq = rk.event_seq
+      AND e.event_channel = rk.event_channel
+    UNION ALL
+    -- Match by explicit (seq, channel) directly (Clicked sendMessage)
+    SELECT e.*
+    FROM android_input_events AS e
+    JOIN _send_message_lookup AS sm
+      ON sm.id = $slice_id
+      AND e.event_seq = sm.event_seq
+      AND e.event_channel = sm.event_channel
+    WHERE
+      NOT EXISTS (SELECT 1 FROM resolved_keys)
+    UNION ALL
+    -- Match by explicit (seq, channel) directly (Clicked receiveMessage)
+    SELECT e.*
+    FROM android_input_events AS e
+    JOIN _receive_message_lookup AS rm
+      ON rm.id = $slice_id
+      AND e.event_seq = rm.event_seq
+      AND e.event_channel = rm.event_channel
+    WHERE
+      NOT EXISTS (SELECT 1 FROM resolved_keys)
+    UNION ALL
+    -- Match by Consumer Cookie directly (Clicked InputConsumer)
+    SELECT e.*
+    FROM android_input_events AS e
+    JOIN _input_consumers_lookup AS cons
+      ON cons.id = $slice_id
+      AND e.event_seq = cons.cookie
+    WHERE
+      NOT EXISTS (SELECT 1 FROM resolved_keys)
+    UNION ALL
+    -- Match by Choreographer Frame directly
+    SELECT e.*
+    FROM android_input_events AS e
+    JOIN _frame_choreographer_lookup AS chor
+      ON chor.id = $slice_id
+      AND e.frame_id = chor.frame_id
+    WHERE
+      NOT EXISTS (SELECT 1 FROM resolved_keys)
+    UNION ALL
+    -- Match by DrawFrames Vsync directly
+    SELECT e.*
+    FROM android_input_events AS e
+    JOIN _draw_frames_lookup AS draw
+      ON draw.id = $slice_id
+      AND e.frame_id = draw.vsync_id
+    WHERE
+      NOT EXISTS (SELECT 1 FROM resolved_keys)
+    UNION ALL
+    -- Match by SurfaceFlinger Vsync directly
+    SELECT e.*
+    FROM android_input_events AS e
+    JOIN _surfaceflinger_composite_lookup AS sf
+      ON sf.id = $slice_id
+    JOIN actual_frame_timeline_slice AS sf_timeline
+      ON sf_timeline.name = CAST(sf.vsync_id AS TEXT)
+      AND sf_timeline.upid IN (SELECT upid FROM _input_sf_process)
+    JOIN flow
+      ON flow.slice_in = sf_timeline.id
+    JOIN actual_frame_timeline_slice AS app_timeline
+      ON app_timeline.id = flow.slice_out
+    WHERE
+      e.frame_id = CAST(app_timeline.name AS LONG)
+      AND NOT EXISTS (SELECT 1 FROM resolved_keys)
+  ),
+  sf_resolved AS (
+    SELECT s.id, s.track_id, s.ts, s.dur, base.frame_id
+    FROM base_event AS base
+    JOIN actual_frame_timeline_slice AS app_timeline
+      ON app_timeline.name = CAST(base.frame_id AS TEXT)
+    JOIN flow
+      ON flow.slice_out = app_timeline.id
+    JOIN actual_frame_timeline_slice AS sf_timeline
+      ON sf_timeline.id = flow.slice_in
+    JOIN _surfaceflinger_composite_lookup AS s
+      ON s.vsync_id = CAST(sf_timeline.name AS LONG)
+    WHERE
+      sf_timeline.upid IN (SELECT upid FROM _input_sf_process)
+    LIMIT 1
+  )
 SELECT
   e.input_event_id AS input_id,
   e.event_channel AS channel,
   e.end_to_end_latency_dur AS total_latency,
-  e.read_time AS ts_reader,
-  e.dispatch_ts AS ts_dispatch,
-  e.receive_ts AS ts_receive,
-  s_cons.ts AS ts_consume,
-  s_frame.ts AS ts_frame,
-  s_read.id AS id_reader,
-  s_read.track_id AS track_reader,
-  s_read.dur AS dur_reader,
-  s_disp.id AS id_dispatch,
-  e.dispatch_track_id AS track_dispatch,
-  s_disp.dur AS dur_dispatch,
+  reader.ts AS ts_reader,
+  disp.ts AS ts_dispatch,
+  s_recv.ts AS ts_receive,
+  cons.ts AS ts_consume,
+  chor.ts AS ts_frame,
+  draw.ts AS ts_draw_frames,
+  sf.ts AS ts_sf,
+  reader.id AS id_reader,
+  reader.track_id AS track_reader,
+  reader.dur AS dur_reader,
+  disp.id AS id_dispatch,
+  disp.track_id AS track_dispatch,
+  disp.dur AS dur_dispatch,
   s_recv.id AS id_receive,
   e.receive_track_id AS track_receive,
   s_recv.dur AS dur_receive,
-  s_cons.id AS id_consume,
-  s_cons.track_id AS track_consume,
-  s_cons.dur AS dur_consume,
-  s_frame.id AS id_frame,
-  s_frame.track_id AS track_frame,
-  s_frame.dur AS dur_frame,
+  cons.id AS id_consume,
+  cons.track_id AS track_consume,
+  cons.dur AS dur_consume,
+  chor.id AS id_frame,
+  chor.track_id AS track_frame,
+  chor.dur AS dur_frame,
+  draw.id AS id_draw_frames,
+  draw.track_id AS track_draw_frames,
+  draw.dur AS dur_draw_frames,
+  sf.id AS id_sf,
+  sf.track_id AS track_sf,
+  sf.dur AS dur_sf,
   e.is_speculative_frame
-FROM android_input_events AS e
-LEFT JOIN slice AS s_read
-  ON s_read.ts = e.read_time
-  AND s_read.track_id != 0
-LEFT JOIN slice AS s_disp
-  ON s_disp.ts = e.dispatch_ts
-  AND s_disp.track_id = e.dispatch_track_id
+FROM base_event AS e
+LEFT JOIN _input_reader_notify_lookup AS reader
+  ON reader.ts = e.read_time
+LEFT JOIN _send_message_lookup AS disp
+  ON disp.ts = e.dispatch_ts
+  AND disp.track_id = e.dispatch_track_id
 LEFT JOIN slice AS s_recv
   ON s_recv.ts = e.receive_ts
   AND s_recv.track_id = e.receive_track_id
-LEFT JOIN _input_consumers_lookup AS s_cons
-  ON s_cons.cookie = e.event_seq
-LEFT JOIN _frame_choreographer_lookup AS s_frame
-  ON s_frame.frame_id = CAST(e.frame_id AS LONG)
+LEFT JOIN _input_consumers_lookup AS cons
+  ON cons.cookie = e.event_seq
+LEFT JOIN _frame_choreographer_lookup AS chor
+  ON chor.frame_id = CAST(e.frame_id AS LONG)
+LEFT JOIN _draw_frames_lookup AS draw
+  ON draw.vsync_id = CAST(e.frame_id AS LONG)
+LEFT JOIN sf_resolved AS sf
+  ON sf.frame_id = e.frame_id
+LEFT JOIN _prepare_dispatch_cycle_lookup AS prep
+  ON prep.dispatch_id = e.input_event_id
+  AND prep.event_channel = e.event_channel
+LEFT JOIN _deliver_input_event_lookup AS del
+  ON del.input_event_id = e.input_event_id
+  AND del.upid = e.upid
 WHERE
-  $slice_id IN (s_read.id, s_disp.id, s_recv.id, s_cons.id, s_frame.id);
+  $slice_id IN (
+    reader.id,
+    disp.id,
+    s_recv.id,
+    cons.id,
+    chor.id,
+    draw.id,
+    sf.id,
+    prep.id,
+    del.id
+  );
