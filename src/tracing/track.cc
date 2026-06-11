@@ -117,12 +117,7 @@ void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
 }
 
 protos::gen::TrackDescriptor NamedTrack::Serialize() const {
-  auto desc = Track::Serialize();
-  if (static_name_) {
-    desc.set_static_name(static_name_.value);
-  } else {
-    desc.set_name(dynamic_name_.value);
-  }
+  auto desc = NamedTrackImpl::Serialize();
   if (sibling_merge_behavior_ != perfetto::protos::gen::TrackDescriptor::
                                      SIBLING_MERGE_BEHAVIOR_UNSPECIFIED) {
     desc.set_sibling_merge_behavior(sibling_merge_behavior_);
@@ -135,9 +130,10 @@ protos::gen::TrackDescriptor NamedTrack::Serialize() const {
   return desc;
 }
 
-void NamedTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
-  auto bytes = Serialize().SerializeAsString();
-  desc->AppendRawProtoBytes(bytes.data(), bytes.size());
+protos::gen::TrackDescriptor StateTrack::Serialize() const {
+  auto desc = NamedTrackImpl::Serialize();
+  desc.mutable_state();
+  return desc;
 }
 
 protos::gen::TrackDescriptor CounterTrack::Serialize() const {
