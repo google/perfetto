@@ -16,7 +16,7 @@ packet {
   first_packet_on_sequence: true
   timestamp: 2749532892211
   timestamp_clock_id: 3
-  surfaceflinger_transactions {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_transactions] {
     elapsed_realtime_nanos: 2749532892211
     vsync_id: 24776
     transactions {
@@ -57,7 +57,7 @@ packet {
 packet {
   timestamp: 2749555538126
   timestamp_clock_id: 3
-  surfaceflinger_transactions {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_transactions] {
     elapsed_realtime_nanos: 2749555538126
     vsync_id: 24805
     transactions {
@@ -100,7 +100,7 @@ packet {
 packet {
   timestamp: 2749578184041
   timestamp_clock_id: 3
-  surfaceflinger_transactions {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_transactions] {
     elapsed_realtime_nanos: 2749578184041
     vsync_id: 24900
     transactions {

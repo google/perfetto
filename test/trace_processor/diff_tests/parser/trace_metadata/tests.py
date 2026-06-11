@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gzip
+import io
 import json
+import zipfile
 
 from python.generators.diff_tests.testing import Csv, ExpectedError, RawText
 from python.generators.diff_tests.testing import Tar, TextProto, Zip
@@ -61,6 +64,9 @@ SPINE = TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE)
 # The same proto trace without any clock snapshot: a single-clock proto trace.
 SOLO_PROTO = TextProto(_PROTO_SLICE)
 
+# A second single-clock proto trace whose slice is named 'm7_slice'.
+M7_PROTO = TextProto(_PROTO_SLICE.replace('proto_slice', 'm7_slice'))
+
 # Packets emitted by a remote machine (machine_id 7).
 _M7_PROCESS = '''
   packet {
@@ -102,8 +108,37 @@ def _json_trace(name, pid=10):
   })
 
 
+# A Chrome JSON trace with one complete event at ts=2000us, dur=500us and an
+# embedded systrace ('systemTraceEvents') with one slice 'sys_in_json' from
+# 1.0s to 1.5s.
+def _json_trace_with_systrace(name, pid=10):
+  return json.dumps({
+      'traceEvents': [{
+          'pid': pid,
+          'tid': pid,
+          'ts': 2000,
+          'dur': 500,
+          'ph': 'X',
+          'name': name,
+      }],
+      'systemTraceEvents':
+          '# tracer: nop\n'
+          '  app-100 (  100) [001] ...1  1.000000: '
+          'tracing_mark_write: B|100|sys_in_json\n'
+          '  app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100\n',
+  })
+
+
 def _meta(payload):
   return json.dumps({'perfetto_metadata': payload})
+
+
+def _zip_bytes(members):
+  buf = io.BytesIO()
+  with zipfile.ZipFile(buf, 'w') as z:
+    for name, data in members.items():
+      z.writestr(name, data)
+  return buf.getvalue()
 
 
 class TraceMetadata(TestSuite):
@@ -247,10 +282,11 @@ class TraceMetadata(TestSuite):
 
   # --- anchor ---
 
-  # An anchor pins a timestamp as written in the file (file-native units, us
-  # for JSON) to a value on a named builtin clock. ts=1000us corresponds to
-  # BOOTTIME 1_500_000_000, so the slice at 2000us lands at
-  # 1_500_000_000 + (2000 - 1000) * 1000 = 1_501_000_000.
+  # An anchor pins a file timestamp (always nanoseconds, the unit every
+  # tokenizer normalizes to) to a value on a named builtin clock.
+  # ts=1_000_000 (the file's 1000us point) corresponds to BOOTTIME
+  # 1_500_000_000, so the slice at 2000us lands at
+  # 1_500_000_000 + 1_000_000 = 1_501_000_000.
   def test_json_anchor_to_boottime(self):
     return DiffTestBlueprint(
         trace=Zip({
@@ -262,7 +298,7 @@ class TraceMetadata(TestSuite):
                         'path': 'app.json',
                         'clocks': {
                             'anchor': {
-                                'ts': 1000,
+                                'ts': 1000000,
                                 'is': {
                                     'clock': 'BOOTTIME',
                                     'ts': 1500000000
@@ -287,7 +323,7 @@ class TraceMetadata(TestSuite):
         "proto_slice",1100000000
         '''))
 
-  # A utc anchor is sugar for clock=REALTIME. ts=0us corresponds to
+  # A utc anchor is sugar for clock=REALTIME. ts=0 (ns) corresponds to
   # 2023-11-14T22:13:21.5Z = REALTIME 1_700_000_001_500_000_000. Via the proto
   # spine's REALTIME<->BOOTTIME snapshot the slice at 2000us lands at
   # 1_500_000_000 + 2_000_000 = 1_502_000_000. This exercises routing the
@@ -606,7 +642,23 @@ class TraceMetadata(TestSuite):
     return DiffTestBlueprint(
         trace=RawText('{"perfetto_metadata": {"version": 1}}'),
         query='SELECT 1;',
-        out=ExpectedError('perfetto_metadata file must be inside an archive'))
+        out=ExpectedError(
+            'perfetto_metadata file must be directly inside an archive'))
+
+  # Wrapping the metadata file in gzip would defeat the parse-first ordering
+  # guarantee (the member sorts as a gzip container, after proto traces), so
+  # it is rejected like a standalone file.
+  def test_error_gzipped_config(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json.gz': gzip.compress(_meta({
+                'version': 1
+            }).encode()),
+            'app.json': _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_metadata file must be directly inside an archive'))
 
   def test_error_multiple_configs(self):
     return DiffTestBlueprint(
@@ -785,3 +837,293 @@ class TraceMetadata(TestSuite):
         out=ExpectedError(
             'machine override requires the trace to come from a single machine')
     )
+
+  # A machine override works alongside a sibling proto trace on the host
+  # machine: each proto keeps its own machine attribution.
+  def test_machine_override_with_sibling_proto(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'm7.pb',
+                        'machine': {
+                            'id': 7
+                        }
+                    }],
+                }),
+            'm7.pb':
+                M7_PROTO,
+            'solo.pb':
+                SOLO_PROTO,
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM slice) AS slices,
+            (SELECT m.raw_id
+             FROM slice s
+             JOIN track t ON s.track_id = t.id
+             JOIN machine m ON t.machine_id = m.id
+             WHERE s.name = 'm7_slice') AS m7_machine;
+        ''',
+        out=Csv('''
+        "slices","m7_machine"
+        2,7
+        '''))
+
+  # --- Clock override validation ---
+
+  # An anchor overrides the weak per-format clock guess (MONOTONIC for
+  # systrace): the anchored file is pinned via its own private TraceFile
+  # clock, so a sibling systrace without an override still converts through
+  # the spine's real MONOTONIC<->BOOTTIME snapshot, unaffected by the anchor.
+  def test_systrace_anchor_overrides_weak_clock(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'sys.systrace',
+                        'clocks': {
+                            'anchor': {
+                                'ts': 1000000000,
+                                'is': {
+                                    'clock': 'BOOTTIME',
+                                    'ts': 5000000000
+                                },
+                            },
+                        },
+                    }],
+                }),
+            'sys.systrace':
+                SYSTRACE,
+            'sys2.systrace':
+                SYSTRACE,
+            'spine.pb':
+                SPINE,
+        }),
+        query='''
+          SELECT name, ts, dur FROM slice
+          WHERE name = 'sys_slice'
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+        "name","ts","dur"
+        "sys_slice",1500000000,500000000
+        "sys_slice",5000000000,500000000
+        '''))
+
+  def test_error_native_and_anchor_exclusive(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'native': 'BOOTTIME',
+                            'anchor': {
+                                'ts': 0,
+                                'is': {
+                                    'clock': 'BOOTTIME',
+                                    'ts': 1
+                                }
+                            },
+                        },
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_metadata: native and anchor are mutually exclusive'))
+
+  # --- Value validation ---
+
+  def test_error_machine_id_out_of_range(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'machine': {
+                            'id': 4294967296
+                        }
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_metadata: machine: id must be in [1, 4294967295]'))
+
+  def test_error_version_not_integer(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json': _meta({'version': 1.5}),
+            'app.json': _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError('perfetto_metadata: version must be an integer'))
+
+  def test_error_utc_impossible_date(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'anchor': {
+                                'ts': 0,
+                                'is': {
+                                    'utc': '2026-13-40T99:00:00Z'
+                                }
+                            },
+                        },
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError('perfetto_metadata: anchor: invalid utc timestamp'))
+
+  # --- ClockConverter visibility ---
+
+  # The anchor correlation is mirrored into the clock_snapshot table so that
+  # ClockConverter (to_realtime, abs_time_str, the UI wall-clock axis) can
+  # see it even when no proto trace provides snapshots.
+  def test_utc_anchor_visible_in_clock_snapshot_table(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'anchor': {
+                                'ts': 0,
+                                'is': {
+                                    'utc': '2023-11-14T22:13:21.5Z'
+                                },
+                            },
+                        },
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='''
+          SELECT clock_id, clock_name, ts, clock_value FROM clock_snapshot;
+        ''',
+        out=Csv('''
+        "clock_id","clock_name","ts","clock_value"
+        1,"REALTIME",0,1700000001500000000
+        '''))
+
+  # --- Embedded systrace in JSON ---
+
+  # Clock overrides on a JSON file also apply to the sched/slice rows derived
+  # from its embedded systrace (systemTraceEvents), not just to traceEvents.
+  def test_json_embedded_systrace_offset(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'clocks': {
+                            'offset_ns': 500000000
+                        }
+                    }],
+                }),
+            'app.json':
+                _json_trace_with_systrace('json_slice'),
+        }),
+        query='''
+          SELECT name, ts, dur FROM slice
+          WHERE name IN ('json_slice', 'sys_in_json')
+          ORDER BY name;
+        ''',
+        out=Csv('''
+        "name","ts","dur"
+        "json_slice",502000000,500000
+        "sys_in_json",1500000000,500000000
+        '''))
+
+  # --- Nested archives ---
+
+  # Entries are scoped to the archive containing the metadata file: a
+  # same-named file inside a nested archive must not receive the override.
+  def test_nested_archive_same_name_not_matched(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'a.json',
+                        'clocks': {
+                            'offset_ns': 500000000
+                        }
+                    }],
+                }),
+            'a.json':
+                _json_trace('outer_slice', pid=10),
+            'inner.zip':
+                _zip_bytes({'a.json': _json_trace('inner_slice', pid=11)}),
+        }),
+        query='''
+          SELECT name, ts FROM slice
+          WHERE name IN ('outer_slice', 'inner_slice')
+          ORDER BY name;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "inner_slice",2000000
+        "outer_slice",502000000
+        '''))
+
+  # A perfetto_metadata entry pointing at another perfetto_metadata file is
+  # rejected: such files have no per-trace clock state to override.
+  def test_error_override_on_metadata_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta1.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'meta2.json',
+                        'clocks': {
+                            'offset_ns': 1
+                        }
+                    }],
+                }),
+            'meta2.json':
+                _meta({'version': 1}),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'overrides are not supported for archive members which are '
+            'themselves archives or perfetto_metadata files'))

@@ -22,18 +22,18 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/shell_transition.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/shell_transition.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/shell_transitions_tracker.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_context.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -44,7 +44,7 @@ ShellTransitionsParser::ShellTransitionsParser(
       args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
 
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
-  protos::pbzero::ShellTransition::Decoder transition(blob);
+  com::android::internal::pbzero::ShellTransition::Decoder transition(blob);
   auto transition_id = transition.id();
 
   auto* storage = context_->trace_processor_context_->storage.get();
@@ -133,7 +133,8 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
       tables::WindowManagerShellTransitionParticipantsTable::Row
           participant_row;
       participant_row.transition_id = transition_id;
-      protos::pbzero::ShellTransition::Change::Decoder change(*it);
+      com::android::internal::pbzero::ShellTransition::Change::Decoder change(
+          *it);
       if (change.has_layer_id()) {
         participant_row.layer_id = change.layer_id();
       }
@@ -159,13 +160,15 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
         participant_row.end_rotation = change.end_rotation();
       }
       if (change.has_start_absolute_bounds()) {
-        protos::pbzero::RectProto::Decoder rect(change.start_absolute_bounds());
+        com::android::internal::pbzero::RectProto::Decoder rect(
+            change.start_absolute_bounds());
         winscope::geometry::Rect geometry_rect(rect);
         participant_row.start_abs_bounds_rect_id =
             context_->rect_tracker_.GetOrInsertRow(geometry_rect);
       }
       if (change.has_end_absolute_bounds()) {
-        protos::pbzero::RectProto::Decoder rect(change.end_absolute_bounds());
+        com::android::internal::pbzero::RectProto::Decoder rect(
+            change.end_absolute_bounds());
         winscope::geometry::Rect geometry_rect(rect);
         participant_row.end_abs_bounds_rect_id =
             context_->rect_tracker_.GetOrInsertRow(geometry_rect);
@@ -191,9 +194,11 @@ void ShellTransitionsParser::ParseHandlerMappings(protozero::ConstBytes blob) {
   auto* shell_handlers_table =
       storage->mutable_window_manager_shell_transition_handlers_table();
 
-  protos::pbzero::ShellHandlerMappings::Decoder handler_mappings(blob);
+  com::android::internal::pbzero::ShellHandlerMappings::Decoder
+      handler_mappings(blob);
   for (auto it = handler_mappings.mapping(); it; ++it) {
-    protos::pbzero::ShellHandlerMapping::Decoder mapping(it.field().as_bytes());
+    com::android::internal::pbzero::ShellHandlerMapping::Decoder mapping(
+        it.field().as_bytes());
 
     tables::WindowManagerShellTransitionHandlersTable::Row row;
     row.handler_id = mapping.id();

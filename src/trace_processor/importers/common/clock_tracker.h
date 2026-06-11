@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -78,8 +79,22 @@ class ClockTracker {
     ++num_conversions_;
     auto ts = active_sync_->Convert(clock_id, timestamp, state->clock_id,
                                     byte_offset, suppress_errors);
-    return ts ? std::optional(ToHostTraceTime(*ts) + trace_time_offset_ns_)
-              : ts;
+    if (!ts) {
+      return ts;
+    }
+    int64_t res = ToHostTraceTime(*ts);
+    if (PERFETTO_UNLIKELY(trace_time_offset_ns_ != 0)) {
+      // The offset is user-supplied (perfetto_metadata "offset_ns"): the
+      // addition must not be allowed to overflow (UB).
+      if ((trace_time_offset_ns_ > 0 &&
+           res > std::numeric_limits<int64_t>::max() - trace_time_offset_ns_) ||
+          (trace_time_offset_ns_ < 0 &&
+           res < std::numeric_limits<int64_t>::min() - trace_time_offset_ns_)) {
+        return std::nullopt;
+      }
+      res += trace_time_offset_ns_;
+    }
+    return res;
   }
 
   // Converts a timestamp between two arbitrary clock domains.

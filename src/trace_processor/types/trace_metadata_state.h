@@ -35,10 +35,14 @@ struct TraceMetadataState {
   static constexpr uint32_t kClockOwnerSentinel = 0xffffffffu;
 
   struct Anchor {
-    // A timestamp as written in the file, in the file's native units.
-    double file_ts = 0;
+    // A timestamp from the file, in nanoseconds (the unit every tokenizer
+    // normalizes to before clock conversion).
+    int64_t file_ts_ns = 0;
     // The clock domain the anchor target is expressed in (builtin clock id).
     uint32_t target_clock = 0;
+    // Name of |target_clock| (e.g. "REALTIME"), recorded in the
+    // clock_snapshot table.
+    std::string target_clock_name;
     // The anchor target value, in nanoseconds.
     int64_t target_ts_ns = 0;
   };
@@ -68,6 +72,10 @@ struct TraceMetadataState {
   // True once a perfetto_metadata file has been parsed; a second one in the
   // same trace is an error.
   bool config_seen = false;
+
+  // trace_file_table id of the archive (zip/tar) directly containing the
+  // perfetto_metadata file; entries only apply to files in that archive.
+  std::optional<uint32_t> config_archive_file_id;
 
   std::optional<uint32_t> trace_time_clock;
   std::vector<FileEntry> files;

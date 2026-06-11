@@ -296,9 +296,13 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     }
   }
   // Assert that the packet is parsed using the right instance of reader.
-  // machine_id is set only for remote machines.
-  PERFETTO_DCHECK(decoder.has_machine_id() ==
-                  (context_->machine_id() != MachineId(kDefaultMachineId)));
+  // machine_id is set only for remote machines, except when a
+  // perfetto_metadata machine override attributed this whole trace to a
+  // non-default machine.
+  PERFETTO_DCHECK(
+      decoder.has_machine_id() ==
+          (context_->machine_id() != MachineId(kDefaultMachineId)) ||
+      (context_->trace_state && context_->trace_state->has_machine_override));
 
   // Execute ProtoVM logic right after the "machine ID fork" as detailed in
   // go/perfetto-proto-vm.
@@ -784,6 +788,22 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
 }
 
 base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
+  // Remote clock syncs prove the trace is multi-machine/multi-clock. The
+  // machine_id branch in ParsePacket normally rejects overridden traces
+  // first, but a packet carrying remote_clock_sync without a machine_id
+  // would bypass it (the DCHECK above is a no-op in release builds).
+  if (context_->trace_state) {
+    if (context_->trace_state->has_clock_override) {
+      return base::ErrStatus(
+          "perfetto_metadata: clock overrides require the trace to come "
+          "from a single machine");
+    }
+    if (context_->trace_state->has_machine_override) {
+      return base::ErrStatus(
+          "perfetto_metadata: machine override requires the trace to come "
+          "from a single machine");
+    }
+  }
   protos::pbzero::RemoteClockSync::Decoder evt(blob);
 
   std::vector<SyncClockSnapshots> sync_clock_snapshots;

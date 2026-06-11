@@ -42,8 +42,11 @@ permissions: {}
 
 jobs:
   finalize:
-    runs-on: ubuntu-latest
+    # Self-hosted runners have ambient gcloud credentials, needed by
+    # install-build-deps to restore the buildtools cache from GCS.
+    runs-on: self-hosted
     environment: perfetto-automation
+    timeout-minutes: 60
     steps:
       - name: Validate input
         env:
@@ -70,6 +73,26 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ steps.app-token.outputs.token }}
+
+      # Self-hosted runners don't come with the GitHub CLI preinstalled.
+      - name: Install GitHub CLI
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            # When bumping, re-verify GH_SHA256 against the upstream checksums:
+            # https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt
+            GH_VERSION=2.90.0
+            GH_SHA256=b2aef7b23ec6899bf27f37a32c57a7935d0a178568ac33dc9bb03842f724195a
+            GH_TARBALL="gh_${GH_VERSION}_linux_amd64.tar.gz"
+            mkdir -p "$HOME/.local/bin"
+            curl -fsSLO "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${GH_TARBALL}"
+            echo "${GH_SHA256}  ${GH_TARBALL}" | sha256sum --check --status
+            tar -xzf "${GH_TARBALL}" --strip-components=2 -C "$HOME/.local/bin" \
+              "gh_${GH_VERSION}_linux_amd64/bin/gh"
+            rm "${GH_TARBALL}"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+          gh --version
 
       - name: Verify draft release exists
         env:
@@ -151,10 +174,23 @@ jobs:
           VERSION: ${{ inputs.version }}
           REPO: ${{ github.repository }}
         run: |
-          # Overlay this release's skills onto the rolled tree; everything else
-          # (rolled trace_processor, stamped manifests + installer) stays.
-          git checkout "$VERSION" -- ai/skills
-          tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
+          # The bundle ships THIS tag's skills. Check the tag out into its
+          # own worktree and point the bundler at it, leaving the rolled main
+          # checkout untouched; everything else (rolled trace_processor,
+          # stamped manifests + installer) still comes from this checkout.
+          # Tags from before the single-skill layout (#6156) have no
+          # bundleable skill; skip the bundle (never substitute main's
+          # skills) rather than failing the whole finalize run.
+          git worktree add --detach /tmp/release-tag-tree "$VERSION"
+          SKILLS_SRC=/tmp/release-tag-tree/ai/skills
+          if [[ ! -f "$SKILLS_SRC/perfetto/SKILL-template.md" ]]; then
+            echo "::warning::$VERSION predates the single-skill layout (#6156); skipping the agent-skills bundle."
+            git worktree remove --force /tmp/release-tag-tree
+            exit 0
+          fi
+          tools/release/build_ai_agents.py --output /tmp/ai-agents-tree \
+            --skills-src "$SKILLS_SRC"
+          git worktree remove --force /tmp/release-tag-tree
 
           BRANCH="dev/github-bot/ai-agents-bundle"
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"

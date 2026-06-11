@@ -17,14 +17,18 @@
 #include "src/trace_processor/importers/perfetto_metadata/perfetto_metadata_reader.h"
 
 #include <cinttypes>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
@@ -43,30 +47,87 @@ using FileEntry = TraceMetadataState::FileEntry;
 using ClocksOverride = TraceMetadataState::ClocksOverride;
 using Anchor = TraceMetadataState::Anchor;
 
-// Days from 1970-01-01 to the given civil date (Howard Hinnant's algorithm).
-int64_t DaysFromCivil(int64_t y, int64_t m, int64_t d) {
-  y -= m <= 2;
-  int64_t era = (y >= 0 ? y : y - 399) / 400;
-  int64_t yoe = y - era * 400;
-  int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-  int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097 + doe - 719468;
+bool IsLeapYear(int y) {
+  return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
 }
 
 // Parses an ISO-8601 UTC timestamp ("2026-06-10T10:15:30.123Z") into
-// nanoseconds since the unix epoch.
+// nanoseconds since the unix epoch. All fields are range-validated and the
+// arithmetic is integer-only: a double-based epoch computation loses up to
+// ~256ns near the current epoch (1.7e18 ns exceeds double's 2^53
+// exact-integer range). The seconds fraction is parsed by hand to stay
+// independent of the LC_NUMERIC locale of embedding applications.
 std::optional<int64_t> ParseUtcTimestamp(const std::string& utc) {
-  int y, mon, day, h, min;
-  double sec;
-  char zone;
-  if (sscanf(utc.c_str(), "%d-%d-%dT%d:%d:%lf%c", &y, &mon, &day, &h, &min,
-             &sec, &zone) != 7 ||
-      zone != 'Z') {
+  int y, mon, day, h, min, sec;
+  int consumed = 0;
+  if (sscanf(utc.c_str(), "%4d-%2d-%2dT%2d:%2d:%2d%n", &y, &mon, &day, &h, &min,
+             &sec, &consumed) != 6) {
     return std::nullopt;
   }
-  int64_t days = DaysFromCivil(y, mon, day);
-  double epoch_s = static_cast<double>(days * 86400 + h * 3600 + min * 60);
-  return static_cast<int64_t>((epoch_s + sec) * 1e9);
+  // The upper year bound keeps the result well inside int64 nanoseconds
+  // (which overflows in 2262).
+  static constexpr int kDaysPerMonth[] = {31, 28, 31, 30, 31, 30,
+                                          31, 31, 30, 31, 30, 31};
+  if (y < 1970 || y > 2200 || mon < 1 || mon > 12 || h < 0 || h > 23 ||
+      min < 0 || min > 59 || sec < 0 || sec > 60) {
+    return std::nullopt;
+  }
+  int max_day = kDaysPerMonth[mon - 1] + (mon == 2 && IsLeapYear(y) ? 1 : 0);
+  if (day < 1 || day > max_day) {
+    return std::nullopt;
+  }
+  const char* rest = utc.c_str() + consumed;
+  int64_t frac_ns = 0;
+  if (*rest == '.') {
+    ++rest;
+    int significant = 0;
+    int total = 0;
+    for (; *rest >= '0' && *rest <= '9'; ++rest, ++total) {
+      if (significant < 9) {
+        frac_ns = frac_ns * 10 + (*rest - '0');
+        ++significant;
+      }
+    }
+    if (total == 0) {
+      return std::nullopt;
+    }
+    for (; significant < 9; ++significant) {
+      frac_ns *= 10;
+    }
+  }
+  if (rest[0] != 'Z' || rest[1] != '\0') {
+    return std::nullopt;
+  }
+  return base::MkTime(y, mon, day, h, min, sec) * 1000000000 + frac_ns;
+}
+
+// Strict counterpart of json::Dom::AsInt64: rejects (rather than silently
+// truncating or UB-casting) values which are fractional or outside int64
+// range.
+base::StatusOr<int64_t> ParseStrictInt64(const json::Dom& value,
+                                         const char* what) {
+  if (value.IsInt()) {
+    return value.AsInt64();
+  }
+  if (value.IsUint()) {
+    uint64_t v = value.AsUint64();
+    if (v > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+      return base::ErrStatus("perfetto_metadata: %s is out of range", what);
+    }
+    return static_cast<int64_t>(v);
+  }
+  if (value.IsDouble()) {
+    double d = value.AsDouble();
+    // 2^63 (and -2^63) are exactly representable as doubles; values >= 2^63
+    // are out of range.
+    if (!(d >= -9223372036854775808.0 && d < 9223372036854775808.0) ||
+        d != std::floor(d)) {
+      return base::ErrStatus(
+          "perfetto_metadata: %s must be an integer in int64 range", what);
+    }
+    return static_cast<int64_t>(d);
+  }
+  return base::ErrStatus("perfetto_metadata: %s must be a number", what);
 }
 
 base::Status CheckAllowedFields(const json::Dom& obj,
@@ -112,7 +173,8 @@ base::StatusOr<Anchor> ParseAnchor(const json::Dom& anchor) {
         "perfetto_metadata: anchor: missing required field: is");
   }
   Anchor result;
-  result.file_ts = anchor["ts"].AsDouble();
+  ASSIGN_OR_RETURN(result.file_ts_ns,
+                   ParseStrictInt64(anchor["ts"], "anchor: ts"));
 
   const json::Dom& is = anchor["is"];
   RETURN_IF_ERROR(CheckAllowedFields(is, {"clock", "ts", "utc"},
@@ -132,6 +194,7 @@ base::StatusOr<Anchor> ParseAnchor(const json::Dom& anchor) {
           "perfetto_metadata: anchor: invalid utc timestamp: %s", utc.c_str());
     }
     result.target_clock = protos::pbzero::BUILTIN_CLOCK_REALTIME;
+    result.target_clock_name = "REALTIME";
     result.target_ts_ns = *ts;
     return result;
   }
@@ -144,7 +207,9 @@ base::StatusOr<Anchor> ParseAnchor(const json::Dom& anchor) {
         "perfetto_metadata: anchor: missing required field: ts");
   }
   ASSIGN_OR_RETURN(result.target_clock, ParseClockNameOrError(is["clock"]));
-  result.target_ts_ns = is["ts"].AsInt64();
+  result.target_clock_name = is["clock"].AsString();
+  ASSIGN_OR_RETURN(result.target_ts_ns,
+                   ParseStrictInt64(is["ts"], "anchor: is.ts"));
   return result;
 }
 
@@ -160,11 +225,18 @@ base::StatusOr<ClocksOverride> ParseClocks(const json::Dom& clocks) {
     return base::ErrStatus(
         "perfetto_metadata: offset_ns and anchor are mutually exclusive");
   }
+  // An anchor's source clock must be the file's own (per-file) clock: with a
+  // "native" override the source would be a machine-shared builtin clock and
+  // the anchor edge would collide with real snapshots in the shared clock
+  // graph.
+  if (clocks.HasMember("native") && clocks.HasMember("anchor")) {
+    return base::ErrStatus(
+        "perfetto_metadata: native and anchor are mutually exclusive");
+  }
   if (clocks.HasMember("offset_ns")) {
-    if (!clocks["offset_ns"].IsNumeric()) {
-      return base::ErrStatus("perfetto_metadata: offset_ns must be a number");
-    }
-    result.offset_ns = clocks["offset_ns"].AsInt64();
+    ASSIGN_OR_RETURN(int64_t offset_ns,
+                     ParseStrictInt64(clocks["offset_ns"], "offset_ns"));
+    result.offset_ns = offset_ns;
   }
   if (clocks.HasMember("anchor")) {
     if (!clocks["anchor"].IsObject()) {
@@ -196,7 +268,13 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
       return base::ErrStatus(
           "perfetto_metadata: machine: missing required field: id");
     }
-    entry.machine_id = static_cast<uint32_t>(machine["id"].AsUint64());
+    ASSIGN_OR_RETURN(int64_t machine_id,
+                     ParseStrictInt64(machine["id"], "machine: id"));
+    if (machine_id < 1 || machine_id > std::numeric_limits<uint32_t>::max()) {
+      return base::ErrStatus(
+          "perfetto_metadata: machine: id must be in [1, 4294967295]");
+    }
+    entry.machine_id = static_cast<uint32_t>(machine_id);
   }
   if (file.HasMember("clocks")) {
     if (!file["clocks"].IsObject()) {
@@ -262,7 +340,8 @@ base::Status PerfettoMetadataReader::OnPushDataToSorter() {
     return base::ErrStatus(
         "perfetto_metadata: missing required field: version");
   }
-  int64_t version = meta["version"].AsInt64();
+  ASSIGN_OR_RETURN(int64_t version,
+                   ParseStrictInt64(meta["version"], "version"));
   if (version != 1) {
     return base::ErrStatus("perfetto_metadata: unsupported version: %" PRId64,
                            version);

@@ -206,6 +206,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/ancestor",
       "plugins/args",
       "plugins/art_heap_graph_functions",
+      "plugins/art_process_metadata_importer",
       "plugins/base64_functions",
       "plugins/connected_flow",
       "plugins/core_functions",

@@ -24,26 +24,21 @@ import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_storage';
 import {SettingsLoader} from './settings_loader';
 import m from 'mithril';
 
-// Public interface consumed by the loader. Keeps the loader decoupled from
-// the concrete store implementation.
+// Decouples the loader from the concrete store implementation.
 export interface BigTraceSettingsStore {
   register<T>(setting: SettingDescriptor<T>): Setting<T>;
   get<T>(id: string): Setting<T> | undefined;
   getAllSettings(): ReadonlyArray<Setting<unknown>>;
-  buildSettingFilters(): SettingFilter[];
-  removeByCategory(category: string): void;
-  snapshotMetadataFilters(filters: SettingFilter[]): void;
+  buildSettingFilters(opts?: {includeDisabled?: boolean}): SettingFilter[];
   clear(): void;
 }
 
-// Synchronous store for backend-provided settings. All async orchestration
-// lives in SettingsLoader which calls back into this store's register().
+// Synchronous store for backend-provided settings; async orchestration lives
+// in SettingsLoader, which calls back into register().
 class BigTraceSettingsStoreImpl implements BigTraceSettingsStore {
   private settings = new Map<string, Setting<unknown>>();
   private readonly storage: LocalStorage;
-  private lastLoadedMetadataFilters: string | null = null;
 
-  // Loading is handled by the companion SettingsLoader instance.
   readonly loader: SettingsLoader;
 
   constructor(storage: LocalStorage) {
@@ -57,32 +52,12 @@ class BigTraceSettingsStoreImpl implements BigTraceSettingsStore {
     return this.loader.loadSettings(force);
   }
 
-  async reloadMetadataSettings(): Promise<void> {
-    return this.loader.reloadMetadataSettings();
-  }
-
-  get loadError(): string | undefined {
-    return this.loader.loadError;
-  }
-
-  get isLoading(): boolean {
-    return this.loader.isLoading;
-  }
-
   get isExecConfigLoading(): boolean {
     return this.loader.loadingPhase === 'exec';
   }
 
   get execConfigLoadError(): string | undefined {
     return this.loader.execConfigLoadError;
-  }
-
-  get isMetadataLoading(): boolean {
-    return this.loader.loadingPhase === 'metadata';
-  }
-
-  get metadataLoadError(): string | undefined {
-    return this.loader.metadataLoadError;
   }
 
   // ----- Store CRUD -----
@@ -118,10 +93,17 @@ class BigTraceSettingsStoreImpl implements BigTraceSettingsStore {
 
   // ----- Filter assembly -----
 
-  buildSettingFilters(): SettingFilter[] {
+  // `includeDisabled` emits filters for every categorised setting regardless of
+  // enabled state, so the per-tab merge can apply the tab's own disabled set on
+  // top and override the global enabled default.
+  buildSettingFilters(opts?: {includeDisabled?: boolean}): SettingFilter[] {
+    const includeDisabled = opts?.includeDisabled ?? false;
     const filters: SettingFilter[] = [];
     for (const setting of this.getAllSettings()) {
-      if (!setting.isDisabled() && setting.category !== undefined) {
+      if (
+        setting.category !== undefined &&
+        (includeDisabled || !setting.isDisabled())
+      ) {
         let values: string[] = [];
         const val = setting.get();
         if (Array.isArray(val)) {
@@ -147,32 +129,6 @@ class BigTraceSettingsStoreImpl implements BigTraceSettingsStore {
       }
     }
     return filters;
-  }
-
-  // ----- Reload detection -----
-
-  snapshotMetadataFilters(filters: SettingFilter[]): void {
-    this.lastLoadedMetadataFilters = JSON.stringify(
-      filters.filter((f) => f.category === 'TRACE_ADDRESS'),
-    );
-  }
-
-  isReloadRequired(): boolean {
-    if (this.lastLoadedMetadataFilters === null) return false;
-    const currentFilters = this.buildSettingFilters().filter(
-      (f) => f.category === 'TRACE_ADDRESS',
-    );
-    return JSON.stringify(currentFilters) !== this.lastLoadedMetadataFilters;
-  }
-
-  // ----- Bulk operations (used by loader) -----
-
-  removeByCategory(category: string): void {
-    for (const [id, setting] of this.settings) {
-      if (setting.category === category) {
-        this.settings.delete(id);
-      }
-    }
   }
 
   clear(): void {

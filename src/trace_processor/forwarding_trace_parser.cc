@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/forwarding_trace_parser.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,6 +25,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -96,19 +99,6 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
   PERFETTO_FATAL("For GCC");
 }
 
-// Multiplier from a trace format's native timestamp unit to nanoseconds,
-// used to scale perfetto_metadata anchor timestamps ("a ts as written in the
-// file") into the clock graph's nanosecond domain.
-int64_t FileUnitToNs(TraceType trace_type) {
-  if (trace_type == kJsonTraceType) {
-    return 1000;  // microseconds
-  }
-  if (trace_type == kGeckoTraceType) {
-    return 1000000;  // milliseconds
-  }
-  return 1;
-}
-
 }  // namespace
 
 ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context,
@@ -141,10 +131,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
         "you.");
   }
 
-  if (file_id_.value == 0 && trace_type_ == kPerfettoMetadataTraceType) {
-    return base::ErrStatus(
-        "perfetto_metadata file must be inside an archive (zip/tar) "
-        "containing the trace files it describes");
+  if (trace_type_ == kPerfettoMetadataTraceType) {
+    RETURN_IF_ERROR(RegisterPerfettoMetadataFile());
   }
 
   std::optional<TraceSorter::SortingMode> minimum_sorting_mode =
@@ -156,12 +144,15 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
 
   // If a perfetto_metadata file in the same archive has an entry for this
   // file (matched by exact path), it overrides clock/machine handling below.
-  TraceMetadataState::FileEntry* metadata_entry = FindMetadataEntry();
-  if (metadata_entry && IsContainerTraceType(trace_type_) &&
+  ASSIGN_OR_RETURN(TraceMetadataState::FileEntry * metadata_entry,
+                   FindMetadataEntry());
+  if (metadata_entry &&
+      (IsContainerTraceType(trace_type_) ||
+       trace_type_ == kPerfettoMetadataTraceType) &&
       (metadata_entry->machine_id || metadata_entry->clocks)) {
     return base::ErrStatus(
         "perfetto_metadata: overrides are not supported for archive members "
-        "which are themselves archives: %s",
+        "which are themselves archives or perfetto_metadata files: %s",
         metadata_entry->path.c_str());
   }
 
@@ -178,6 +169,15 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     uint32_t raw_machine_id = metadata_entry && metadata_entry->machine_id
                                   ? *metadata_entry->machine_id
                                   : 0;
+    if (raw_machine_id != 0) {
+      // Machine table rows are allocated in fork order and the host machine
+      // is identified as the first row (MachineId(kDefaultMachineId))
+      // throughout the codebase. Fork the host context for this trace first
+      // so a machine override parsed before any host trace cannot steal that
+      // slot; this mirrors the host+remote context shape of multi-machine
+      // proto traces.
+      input_context_->ForkContextForTrace(file_id_, 0);
+    }
     // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
     // parsed first so that we do not get issues with
     // SetPidZeroIsUpidZeroIdleProcess()
@@ -244,9 +244,12 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
              trace_type_ == kAndroidLogcatTraceType) {
     trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
   }
+  std::optional<uint32_t> anchor_snapshot_id;
   if (metadata_entry && metadata_entry->clocks) {
     const TraceMetadataState::ClocksOverride& clocks = *metadata_entry->clocks;
     if (clocks.native) {
+      // The per-format clock above is only a weak guess; the metadata is
+      // authoritative for which clock the file's timestamps are on.
       ClockId native_clock = ClockId::Machine(*clocks.native);
       if (trace_clock && *trace_clock != native_clock) {
         trace_context_->clock_tracker->SetNativeClockRemap(*trace_clock,
@@ -257,22 +260,27 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     if (clocks.offset_ns) {
       trace_context_->clock_tracker->SetTraceTimeOffsetNs(*clocks.offset_ns);
     }
-    if (clocks.anchor && trace_clock) {
+    if (clocks.anchor) {
       const TraceMetadataState::Anchor& anchor = *clocks.anchor;
-      // The anchor source timestamp is expressed in the file's native units;
-      // scale it into the nanosecond domain the clock graph operates in.
-      int64_t src_ts_ns = static_cast<int64_t>(
-          anchor.file_ts * static_cast<double>(FileUnitToNs(trace_type_)));
-      // Inject the edge into the machine's shared clock graph (instead of
-      // this file's ClockTracker) so it composes with snapshots from other
-      // traces on the same machine (e.g. a proto trace's REALTIME<->BOOTTIME
-      // snapshot). This is collision-safe: for the formats which use it the
-      // source side is this file's unique TraceFile clock.
-      RETURN_IF_ERROR(trace_context_->primary_clock_sync
-                          ->AddSnapshot({{*trace_clock, src_ts_ns},
-                                         {ClockId::Machine(anchor.target_clock),
-                                          anchor.target_ts_ns}})
-                          .status());
+      // An anchor pins the file's private timeline to a point on a shared
+      // clock, overriding the weak per-format clock guess above: the file is
+      // remapped onto its own unique TraceFile clock and the anchor edge is
+      // injected from there into the machine's shared clock graph, where it
+      // composes with snapshots from other traces on the same machine (e.g.
+      // a proto trace's REALTIME<->BOOTTIME snapshot) without ever colliding
+      // with real edges between builtin clocks.
+      ClockId file_clock = ClockId::TraceFile(trace_context_->trace_id().value);
+      if (trace_clock && *trace_clock != file_clock) {
+        trace_context_->clock_tracker->SetNativeClockRemap(*trace_clock,
+                                                           file_clock);
+      }
+      trace_clock = file_clock;
+      ASSIGN_OR_RETURN(
+          uint32_t snapshot_id,
+          trace_context_->primary_clock_sync->AddSnapshot(
+              {{file_clock, anchor.file_ts_ns},
+               {ClockId::Machine(anchor.target_clock), anchor.target_ts_ns}}));
+      anchor_snapshot_id = snapshot_id;
     }
     if (trace_type_ == kProtoTraceType && trace_clock) {
       // Proto packets without an explicit timestamp_clock_id skip clock
@@ -288,25 +296,79 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     }
     trace_context_->clock_tracker->AddDeferredIdentitySync(*trace_clock);
   }
+
+  if (anchor_snapshot_id) {
+    // Mirror the anchor into the clock_snapshot table: ClockConverter (which
+    // backs abs_time_str/to_realtime and the UI wall-clock axis) reads the
+    // table, not the in-memory clock graph.
+    const TraceMetadataState::Anchor& anchor = *metadata_entry->clocks->anchor;
+    std::optional<int64_t> trace_ts =
+        trace_context_->clock_tracker->ToTraceTime(
+            *trace_clock, anchor.file_ts_ns, std::nullopt,
+            /*suppress_errors=*/true);
+    if (trace_ts) {
+      tables::ClockSnapshotTable::Row row;
+      row.ts = *trace_ts;
+      row.clock_id = static_cast<int64_t>(anchor.target_clock);
+      row.clock_value = anchor.target_ts_ns;
+      row.clock_name = input_context_->storage->InternString(
+          base::StringView(anchor.target_clock_name));
+      row.snapshot_id = *anchor_snapshot_id;
+      row.machine_id = trace_context_->machine_id();
+      input_context_->storage->mutable_clock_snapshot_table()->Insert(row);
+    }
+  }
   return base::OkStatus();
 }
 
-TraceMetadataState::FileEntry* ForwardingTraceParser::FindMetadataEntry()
-    const {
+base::Status ForwardingTraceParser::RegisterPerfettoMetadataFile() {
+  // The check is parent-based (rather than e.g. file_id == 0) so that
+  // wrapping the metadata file in gzip cannot smuggle it past it: a gzipped
+  // member would lose the parse-before-other-members ordering guarantee that
+  // archive sorting provides for the kPerfettoMetadataTraceType.
+  const auto& table = input_context_->storage->trace_file_table();
+  auto row = table[file_id_];
+  if (row.parent_id()) {
+    base::StringView parent_type = input_context_->storage->GetString(
+        table[*row.parent_id()].trace_type());
+    if (parent_type == TraceTypeToString(kZipFile) ||
+        parent_type == TraceTypeToString(kTarTraceType)) {
+      input_context_->trace_metadata_state->config_archive_file_id =
+          row.parent_id()->value;
+      return base::OkStatus();
+    }
+  }
+  return base::ErrStatus(
+      "perfetto_metadata file must be directly inside an archive (zip/tar) "
+      "containing the trace files it describes");
+}
+
+base::StatusOr<TraceMetadataState::FileEntry*>
+ForwardingTraceParser::FindMetadataEntry() const {
   auto* state = input_context_->trace_metadata_state.get();
   if (!state || state->files.empty()) {
     return nullptr;
   }
   auto row = input_context_->storage->trace_file_table()[file_id_];
-  if (!row.name()) {
+  // Entries only apply to files in the same archive as the metadata file:
+  // member names are not qualified by their containing archive, so a global
+  // match would leak overrides into same-named files in nested archives.
+  if (!row.name() || !row.parent_id() || !state->config_archive_file_id ||
+      row.parent_id()->value != *state->config_archive_file_id) {
     return nullptr;
   }
   std::string name =
       input_context_->storage->GetString(*row.name()).ToStdString();
   TraceMetadataState::FileEntry* entry = state->FindEntry(name);
-  if (entry) {
-    entry->matched = true;
+  if (!entry) {
+    return nullptr;
   }
+  if (entry->matched) {
+    return base::ErrStatus(
+        "perfetto_metadata: multiple files in the archive match path: %s",
+        name.c_str());
+  }
+  entry->matched = true;
   return entry;
 }
 
