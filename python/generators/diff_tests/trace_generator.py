@@ -76,9 +76,12 @@ class TraceGenerator:
     subprocess.check_call(
         python_cmd, env=env, stdout=out_stream, start_new_session=True)
 
-  def serialize_member(self, blueprint: Any, member: Union[str, TextProto, Path,
-                                                           DataPath]) -> bytes:
+  def serialize_member(
+      self, blueprint: Any, member: Union[str, bytes, TextProto, Path,
+                                          DataPath]) -> bytes:
     """Serializes a single archive member to bytes (see Zip/Tar docs)."""
+    if isinstance(member, bytes):
+      return member
     if isinstance(member, TextProto):
       proto = ProtoManager([self.trace_descriptor_path] +
                            self.extension_descriptor_paths).create_message(
