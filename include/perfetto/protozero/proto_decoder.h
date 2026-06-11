@@ -335,17 +335,22 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   // specialization at<kFieldNumber>().
   const Field& Get(uint32_t id) const {
     // HasField(id) implies the slot was written, so fields_[id] is safe to
-    // read. Out-of-range or never-seen ids resolve to a static invalid field.
+    // read. Out-of-range or never-seen ids resolve to a static invalid field
+    // (the field storage is uninitialized, so no slot can stand in for it).
     if (PERFETTO_LIKELY(id < num_fields_) && HasField(id))
       return fields_[id];
     return kInvalidField;
   }
 
-  // True if the field with the given id was seen while decoding. The presence
-  // bitmap replaces zero-initializing the whole field storage (a 1.6KB memset)
-  // with a clear of num_fields_/8 bytes.
+  // True if the field with the given id was seen while decoding: tests bit
+  // |id| of the presence bitmap. The caller must check that |id| is within
+  // range, i.e. < num_fields_.
   bool HasField(uint32_t id) const {
-    return (presence_[id >> 6] >> (id & 63)) & 1u;
+    PERFETTO_DCHECK(id < num_fields_);
+    constexpr uint32_t kBitsPerWord = sizeof(*presence_) * 8;
+    const uint32_t word_idx = id / kBitsPerWord;
+    const uint32_t bit_off = id % kBitsPerWord;
+    return (presence_[word_idx] & (1ULL << bit_off)) != 0;
   }
 
   // Like Get(), but also resolves "extension" fields whose id exceeds the
@@ -467,6 +472,10 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   }
 
  protected:
+  // Returned by Get()/at() for fields that were not seen while decoding.
+  // Always !valid() (id == 0).
+  static const Field kInvalidField;
+
   TypedProtoDecoderBase(Field* storage,
                         uint64_t* presence,
                         uint32_t num_fields,
@@ -482,9 +491,9 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
         // fields < INITIAL_STACK_CAPACITY (which is the most common case).
         size_(std::min(num_fields, capacity - 1)),
         capacity_(capacity) {
-    // Field storage is left uninitialized (reads gated on HasField()); only the
-    // presence bitmap is cleared. Field must stay trivial for this to be well
-    // defined.
+    // Field storage is left uninitialized (reads gated on HasField()); only
+    // the presence bitmap is cleared. Field must stay trivial for this to be
+    // well defined.
     static_assert(std::is_trivially_constructible<Field>::value &&
                       std::is_trivially_destructible<Field>::value &&
                       std::is_trivial<Field>::value,
@@ -493,12 +502,9 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
     PERFETTO_DCHECK(capacity > 0);
   }
 
-  // Marks the field with the given id as present. See HasField().
-  void SetField(uint32_t id) { presence_[id >> 6] |= uint64_t(1) << (id & 63); }
-
-  // Returned by Get()/at() for fields that were not seen while decoding. Always
-  // !valid() (id == 0).
-  static const Field kInvalidField;
+  // Marks the field with the given id as seen: sets bit |id| of the presence
+  // bitmap. |id| must be < num_fields_.
+  void SetField(uint32_t id) { presence_[id / 64] |= 1ULL << (id % 64); }
 
   void ParseAllFields();
 
@@ -632,8 +638,12 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
            sizeof(presence_storage_));
   }
 
-  Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
+  // The presence bitmap is declared before the (much larger) field storage:
+  // it is touched on every Get()/at(), so keeping it at a small offset from
+  // |this| helps the dcache and lets arm compute the address in fewer
+  // instructions.
   uint64_t presence_storage_[(MAX_FIELD_ID + 1 + 63) / 64];
+  Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
 };
 
 }  // namespace protozero
