@@ -765,3 +765,54 @@ class Profiling(TestSuite):
         "ts","dump_reason","heap_size"
         10,"OOME",100000
         """))
+
+  def test_art_process_metadata_non_oome(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.example.normaldump"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 2
+            uid: 1000
+            process_name: "com.example.normaldump"
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 2
+          heap_graph {
+            pid: 2
+            heap_bytes_allocated: 100000
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dump_reason, heap_size
+        FROM heap_graph;
+        """,
+        out=Csv("""
+        "ts","dump_reason","heap_size"
+        10,"[NULL]",100000
+        """))

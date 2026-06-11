@@ -74,13 +74,16 @@ void UpdatePackageList(TraceProcessorContext* context,
 
 tables::HeapGraphTable::Id InsertHeapGraph(TraceProcessorContext* context,
                                            int64_t ts,
-                                           UniquePid upid) {
+                                           UniquePid upid,
+                                           bool is_oome) {
   auto& heap_graph_table = *context->storage->mutable_heap_graph_table();
 
   tables::HeapGraphTable::Row heap_graph_row;
   heap_graph_row.ts = ts;
   heap_graph_row.upid = upid;
-  heap_graph_row.dump_reason = context->storage->InternString("OOME");
+  if (is_oome) {
+    heap_graph_row.dump_reason = context->storage->InternString("OOME");
+  }
 
   return heap_graph_table.Insert(heap_graph_row).id;
 }
@@ -227,12 +230,13 @@ void ArtProcessMetadataModule::ParseArtProcessMetadata(
                       decoder.uid());
   }
 
-  if (!decoder.has_oom_allocation_size()) {
+  bool is_oome = decoder.has_oom_allocation_size();
+  tables::HeapGraphTable::Id heap_graph_id =
+      InsertHeapGraph(context_, ts, upid, is_oome);
+
+  if (!is_oome) {
     return;
   }
-
-  tables::HeapGraphTable::Id heap_graph_id =
-      InsertHeapGraph(context_, ts, upid);
 
   std::optional<base::StringView> error_msg;
   if (decoder.has_oom_error_msg()) {
