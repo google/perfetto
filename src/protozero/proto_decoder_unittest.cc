@@ -694,5 +694,137 @@ TEST(ProtoDecoderTest, RepeatedMaxFieldIdStack) {
   }
 }
 
+TEST(ProtoDecoderTest, SpillMaskSplitsDenseAndSpilled) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/3, 30);
+  message->AppendVarInt(/*field_id=*/2, 20);
+  message->AppendString(/*field_id=*/4, "spilled");
+  message->AppendVarInt(/*field_id=*/1, 10);
+  message->AppendVarInt(/*field_id=*/2, 21);  // Repeated spilled occurrence.
+  auto data = message.SerializeAsArray();
+
+  // The mask sizes itself to its highest id (3): field 4 below spills via the
+  // range check, field 2 via its unset mask bit.
+  static constexpr SelectiveDecodeMask<1, 3> mask{};
+  SelectiveTypedProtoDecoder<10> tpd(data.data(), data.size(), mask);
+
+  // Allowlisted ids are dense, with the usual O(1) access.
+  EXPECT_EQ(tpd.Get(1).as_int32(), 10);
+  EXPECT_EQ(tpd.Get(3).as_int32(), 30);
+
+  // Non-allowlisted ids are not visible to Get(), even though in range.
+  EXPECT_FALSE(tpd.Get(2).valid());
+  EXPECT_FALSE(tpd.Get(4).valid());
+
+  // Spilled fields come back in wire order, once per occurrence.
+  std::vector<std::pair<uint32_t, std::string>> spilled;
+  for (const Field& f : tpd.unknown_fields()) {
+    spilled.emplace_back(f.id(), f.type() == ProtoWireType::kLengthDelimited
+                                     ? f.as_std_string()
+                                     : std::to_string(f.as_int64()));
+  }
+  EXPECT_THAT(spilled, ElementsAre(std::make_pair(2u, "20"),
+                                   std::make_pair(4u, "spilled"),
+                                   std::make_pair(2u, "21")));
+}
+
+TEST(ProtoDecoderTest, SpillMaskSpillsExtensionIds) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/1, 11);
+  // Beyond MAX_FIELD_ID below: an out-of-tree extension field, which the
+  // mask-less constructor drops.
+  message->AppendVarInt(/*field_id=*/1000, 99);
+  auto data = message.SerializeAsArray();
+
+  static constexpr SelectiveDecodeMask<1> mask{};
+  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
+  EXPECT_EQ(tpd.Get(1).as_int32(), 11);
+  auto unknown = tpd.unknown_fields();
+  ASSERT_EQ(unknown.end() - unknown.begin(), 1);
+  EXPECT_EQ(unknown.begin()->id(), 1000u);
+  EXPECT_EQ(unknown.begin()->as_int32(), 99);
+}
+
+TEST(ProtoDecoderTest, SpillMaskAtBeyondDenseWindow) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/1, 11);
+  message->AppendVarInt(/*field_id=*/70, 99);
+  auto data = message.SerializeAsArray();
+
+  // The mask shrinks the dense window to id 1; ids above it -- including 70,
+  // whose presence bit lives in a bitmap word beyond the shrunk window --
+  // spill, and at<>()/Get() see an invalid field.
+  static constexpr SelectiveDecodeMask<1> mask{};
+  SelectiveTypedProtoDecoder<70> tpd(data.data(), data.size(), mask);
+
+  EXPECT_EQ(tpd.Get(1).as_int32(), 11);
+  EXPECT_FALSE(tpd.at<70>().valid());
+  EXPECT_FALSE(tpd.Get(70).valid());
+  auto unknown = tpd.unknown_fields();
+  ASSERT_EQ(unknown.end() - unknown.begin(), 1);
+  EXPECT_EQ(unknown.begin()->id(), 70u);
+  EXPECT_EQ(unknown.begin()->as_int32(), 99);
+}
+
+TEST(ProtoDecoderTest, SpillMaskHeapExpansion) {
+  HeapBuffered<Message> message;
+  // More spilled fields than the decoder's inline spill slots, to exercise
+  // the heap fallback.
+  constexpr uint32_t kNumSpilled = 100;
+  for (uint32_t i = 0; i < kNumSpilled; i++)
+    message->AppendVarInt(/*field_id=*/2, i);
+  auto data = message.SerializeAsArray();
+
+  static constexpr SelectiveDecodeMask<1> mask{};
+  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
+  auto unknown = tpd.unknown_fields();
+  ASSERT_EQ(unknown.end() - unknown.begin(),
+            static_cast<ptrdiff_t>(kNumSpilled));
+  uint32_t i = 0;
+  for (const Field& f : unknown) {
+    EXPECT_EQ(f.id(), 2u);
+    EXPECT_EQ(f.as_uint32(), i++);
+  }
+}
+
+TEST(ProtoDecoderTest, SpillMaskDenseRepeatedUnaffected) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/1, 1);
+  message->AppendVarInt(/*field_id=*/2, 91);  // Spilled.
+  message->AppendVarInt(/*field_id=*/1, 2);
+  message->AppendVarInt(/*field_id=*/1, 3);
+  auto data = message.SerializeAsArray();
+
+  static constexpr SelectiveDecodeMask<1> mask{};
+  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
+
+  // Dense repeated fields keep their FIFO iteration and last-wins Get().
+  std::vector<int32_t> res;
+  for (auto it = tpd.GetRepeated<int32_t>(1); it; it++)
+    res.push_back(*it);
+  EXPECT_THAT(res, ElementsAre(1, 2, 3));
+  EXPECT_EQ(tpd.Get(1).as_int32(), 3);
+
+  // Spilled occurrences are not visible to GetRepeated().
+  EXPECT_FALSE(tpd.GetRepeated<int32_t>(2));
+}
+
+TEST(ProtoDecoderTest, SpillMaskMovePreservesSpill) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/1, 11);
+  message->AppendVarInt(/*field_id=*/2, 22);  // Spilled, in inline storage.
+  auto data = message.SerializeAsArray();
+
+  static constexpr SelectiveDecodeMask<1> mask{};
+  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
+  SelectiveTypedProtoDecoder<3> moved(std::move(tpd));
+
+  EXPECT_EQ(moved.Get(1).as_int32(), 11);
+  auto unknown = moved.unknown_fields();
+  ASSERT_EQ(unknown.end() - unknown.begin(), 1);
+  EXPECT_EQ(unknown.begin()->id(), 2u);
+  EXPECT_EQ(unknown.begin()->as_int32(), 22);
+}
+
 }  // namespace
 }  // namespace protozero
