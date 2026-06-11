@@ -23,28 +23,32 @@ FROM track AS t
 WHERE
   type = 'android_kernel_wakelock';
 
+-- Create a VIEW to defer the cost of counter_leading_intervals.
+-- This VIEW calculates the duration and value changes for kernel wakelock counters.
+CREATE PERFETTO VIEW _kernel_wakelock_intervals AS
+SELECT ts, dur, track_id, value, next_value
+FROM counter_leading_intervals!((
+    SELECT id, ts, track_id, value
+    FROM counter
+    WHERE
+      track_id IN (SELECT id FROM _kernel_wakelock_track)
+  ));
+
+-- This base table joins the interval data from the VIEW with the track information.
+-- The expensive computation from counter_leading_intervals is only triggered when this table
+-- (or tables depending on it) is queried.
 CREATE PERFETTO TABLE _android_kernel_wakelocks_base AS
-WITH
-  kernel_wakelock_counter AS (
-    SELECT *
-    FROM counter_leading_intervals!((
-        SELECT id, ts, track_id, value
-        FROM counter
-        WHERE
-          track_id IN (SELECT id FROM _kernel_wakelock_track)
-      ))
-  )
 SELECT
-  ts,
-  ts AS original_ts,
-  dur,
-  name,
-  hash(name) AS name_int,
-  type,
-  next_value - value AS held_dur
-FROM kernel_wakelock_counter AS c
+  i.ts,
+  i.ts AS original_ts,
+  i.dur,
+  t.name,
+  hash(t.name) AS name_int,
+  t.type,
+  i.next_value - i.value AS held_dur
+FROM _kernel_wakelock_intervals AS i
 JOIN _kernel_wakelock_track AS t
-  ON t.id = c.track_id;
+  ON t.id = i.track_id;
 
 CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join(_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
 
@@ -53,19 +57,19 @@ CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join(_android_k
 -- Subtracts suspended time from each period to calculate the
 -- fraction of awake time for which the wakelock was held.
 CREATE PERFETTO TABLE android_kernel_wakelocks(
-  -- Timestamp.
+  -- Timestamp of the start of the interval.
   ts TIMESTAMP,
-  -- Duration.
+  -- Duration of the interval.
   dur DURATION,
-  -- Duration spent awake.
+  -- Duration within the interval spent awake (not suspended).
   awake_dur DURATION,
   -- Kernel or native wakelock name.
   name STRING,
-  -- 'kernel' or 'native'.
+  -- Type of wakelock, e.g., 'kernel' or 'native'.
   type STRING,
-  -- Time the wakelock was held.
+  -- Time the wakelock was actively held during the interval.
   held_dur DURATION,
-  -- Fraction of awake (not suspended) time the wakelock was held.
+  -- Fraction of the awake duration (awake_dur) that the wakelock was held.
   held_ratio DOUBLE
 )
 AS
