@@ -117,7 +117,10 @@ group("unittests") {
   deps = [ ":tracing_proto_extensions_unittests" ]
 
   if (current_toolchain == host_toolchain) {
-    deps += [ "ftrace_proto_gen:unittests" ]
+    deps += [
+      "ftrace_proto_gen:unittests",
+      "proto_merger:unittests",
+    ]
   }
 }
 

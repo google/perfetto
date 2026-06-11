@@ -29,6 +29,17 @@
   pointer-events: none;
 }
 
+// Settings-card title row (bigtrace): Switch + title left, optional per-setting
+// reset pushed right. pf-bt classes — not the shared pf-settings-card BEM.
+.pf-bt-settings-card-title {
+  display: flex;
+  align-items: center;
+}
+
+.pf-bt-settings-card-reset {
+  margin-left: auto;
+}
+
 .pf-bt-settings-category-header {
   display: flex;
   align-items: center;
@@ -295,10 +306,30 @@
 // Anchors the abs-positioned buttons; the shared float made a BFC that
 // squeezed the meta card.
 .pf-query-history__item {
-  // margin-bottom: 10px;
+  // Real gap between entries so each reads as a distinct unit. Safe to set now
+  // that the buttons are position:absolute / float:none — the old float BFC
+  // that squeezed the meta card (and forced this margin off) is gone.
+  margin-bottom: 12px;
   max-height: none;
   overflow-y: visible;
   position: relative;
+}
+
+// Whole-entry hover highlight. The shared widgets/query_history.scss provides
+// this via color_hover(), but the bigtrace bundle re-implements the history
+// styles and dropped it — restate it here. The entry's surfaces (meta /
+// details / pre) are opaque and layered, so overlay the translucent tint via
+// background-image (which paints over each surface's background-color) instead
+// of replacing the background.
+.pf-query-history__item:hover {
+  .pf-bt-history-item-meta,
+  .pf-bt-history-item-details,
+  pre {
+    background-image: linear-gradient(
+      color_hover(transparent),
+      color_hover(transparent)
+    );
+  }
 }
 
 .pf-query-history__item-buttons {
@@ -710,5 +741,116 @@ pre.pf-bt-history-item-query--standalone {
     padding: 8px 12px;
     background: var(--pf-minimal-background);
     border-radius: 4px;
+  }
+
+  // The settings cards live in a CardStack, but BigTraceSettingsCard wraps
+  // each Card in a <div> for its disabled-state class — that wrapper hides the
+  // cards from CardStack's unified-seam styling, so they render flush with no
+  // gap. Render every settings card as a distinct, spaced, bordered card
+  // instead (clearer for the mix of simple key/value settings and the compound
+  // Traces / Query Result Columns cards).
+  .pf-card-stack {
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+    gap: 12px;
+  }
+
+  .pf-card-stack > .pf-card,
+  .pf-card-stack > div > .pf-card {
+    border: solid 1px var(--pf-color-border);
+    border-radius: 4px;
+  }
+}
+
+// ---------- Query-page settings bar + per-chip modals ----------
+
+.pf-bt-editor-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-editor-tab > .pf-split-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pf-bt-settings-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+  flex: 0 0 auto;
+
+  &__chips {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  // Only the "Edit settings" chip is clickable — give it the pointer cursor.
+  // The other chips are read-only display (× still removes), so they keep the
+  // default cursor.
+  &__add {
+    cursor: pointer;
+  }
+}
+
+// "Traces" card header — title with the refresh icon directly to its
+// right. Used by both /settings and the embedded SettingsPage (+Add modal).
+.pf-bt-trace-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .pf-settings-card__title {
+    margin: 0;
+  }
+}
+
+// Per-chip edit modal — narrow, content stacked vertically. The +Add modal
+// hosts the full SettingsPage embedded view (.pf-bt-settings-embedded below).
+.pf-bt-settings-chip-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 320px;
+  padding: 4px 0;
+}
+
+.pf-bt-settings-chip-modal__description {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+  line-height: 1.4;
+}
+
+.pf-bt-settings-chip-modal__control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// Vertical column of checkboxes for the "Show with results" picker.
+.pf-bt-settings-chip-modal__checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+// Settings sub-tab embedded SettingsPage — scrollable container, no
+// SettingsShell chrome.
+.pf-bt-settings-embedded {
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 16px 20px 24px;
+
+  .pf-bt-settings-page {
+    margin: 0;
   }
 }

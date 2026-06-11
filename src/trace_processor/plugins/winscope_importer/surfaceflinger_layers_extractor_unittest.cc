@@ -28,16 +28,18 @@ namespace {
 
 std::unordered_map<int32_t, LayerDecoder> ExtractById(
     const std::string& snapshot) {
-  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(snapshot);
-  protos::pbzero::LayersProto::Decoder layers_decoder(
+  com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(
+      snapshot);
+  com::android::internal::pbzero::LayersProto::Decoder layers_decoder(
       snapshot_decoder.layers());
   return ExtractLayersById(layers_decoder);
 }
 
 void CheckExtractionTopToBottom(const std::string& snapshot,
                                 const std::vector<int32_t> expected) {
-  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(snapshot);
-  protos::pbzero::LayersProto::Decoder layers_decoder(
+  com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(
+      snapshot);
+  com::android::internal::pbzero::LayersProto::Decoder layers_decoder(
       snapshot_decoder.layers());
   const auto& result = ExtractLayersTopToBottom(layers_decoder);
 

@@ -25,7 +25,7 @@
 namespace perfetto::trace_processor::winscope {
 
 namespace {
-using InternedString = protos::pbzero::InternedString;
+using InternedString = perfetto::protos::pbzero::InternedString;
 using ViewCaptureRow = tables::ViewCaptureTable::RowReference;
 using ViewRow = tables::ViewCaptureViewTable::RowReference;
 using ConstChars = protozero::ConstChars;
@@ -90,7 +90,7 @@ bool ViewCaptureArgsParser::TryAddDeinternedString(const Key& key,
 std::optional<ConstChars> ViewCaptureArgsParser::TryDeinternString(
     const Key& key,
     uint64_t iid) {
-  using protos::pbzero::InternedData;
+  using perfetto::protos::pbzero::InternedData;
   if (base::EndsWith(key.key, "class_name_iid")) {
     return DeinternString<InternedData::kViewcaptureClassNameFieldNumber>(
         iid, view_row_, &ViewRow::set_class_name);

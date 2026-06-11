@@ -45,7 +45,7 @@ packet {
 }
 packet {
   first_packet_on_sequence: true
-  shell_transition {
+  [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
     id: 729
     changes {
       flags: 1048577
@@ -59,7 +59,7 @@ packet {
 packet {
   first_packet_on_sequence: true
   timestamp: 7527511238900
-  protolog_viewer_config {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 10
@@ -68,7 +68,7 @@ packet {
 }
 packet {
   first_packet_on_sequence: true
-  shell_transition {
+  [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
     id: 729
     handler: 2
   }
@@ -79,7 +79,7 @@ packet {
 }
 packet {
   first_packet_on_sequence: true
-  shell_handler_mappings {
+  [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_handler_mappings] {
     mapping {
       id: 2
       name: "com.android.wm.shell.recents.RecentsTransitionHandler"

@@ -99,6 +99,9 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(heap_graph.pid()));
   heap_graph_tracker->SetPacketIndex(seq_id, heap_graph.index());
+  if (heap_graph.has_heap_bytes_allocated()) {
+    heap_graph_tracker->SetHeapSize(seq_id, heap_graph.heap_bytes_allocated());
+  }
   for (auto it = heap_graph.objects(); it; ++it) {
     protos::pbzero::HeapGraphObject::Decoder object(*it);
     HeapGraphTracker::SourceObject obj;
