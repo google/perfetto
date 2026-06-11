@@ -82,7 +82,8 @@ const LoadedTrace& GetTrace(const char* name) {
         trace.ftrace_bundles.push_back(pf.as_bytes());
         trace.ftrace_bundles_bytes += static_cast<int64_t>(pf.size());
         ProtoDecoder bundle(pf.as_bytes());
-        for (auto bf = bundle.ReadField(); bf.valid(); bf = bundle.ReadField()) {
+        for (auto bf = bundle.ReadField(); bf.valid();
+             bf = bundle.ReadField()) {
           if (bf.id() == pbzero::FtraceEventBundle::kEventFieldNumber)
             trace.num_ftrace_events++;
         }
@@ -186,7 +187,9 @@ void BM_TrackEventScan(benchmark::State& state, const char* trace_name) {
                           static_cast<int64_t>(trace.track_events.size()));
 }
 
-BENCHMARK_CAPTURE(BM_TracePacketScan, android_30s, "example_android_trace_30s.pb");
+BENCHMARK_CAPTURE(BM_TracePacketScan,
+                  android_30s,
+                  "example_android_trace_30s.pb");
 BENCHMARK_CAPTURE(BM_TracePacketScan,
                   chrome_rendering,
                   "chrome_rendering_desktop.pftrace");
@@ -194,7 +197,9 @@ BENCHMARK_CAPTURE(BM_TracePacketScan,
                   android_postboot,
                   "android_postboot_unlock.pftrace");
 
-BENCHMARK_CAPTURE(BM_FtraceEventScan, android_30s, "example_android_trace_30s.pb");
+BENCHMARK_CAPTURE(BM_FtraceEventScan,
+                  android_30s,
+                  "example_android_trace_30s.pb");
 BENCHMARK_CAPTURE(BM_FtraceEventScan, sched_and_ps, "android_sched_and_ps.pb");
 BENCHMARK_CAPTURE(BM_FtraceEventScan, android_boot, "android_boot.pftrace");
 

@@ -334,8 +334,8 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   // If the field |id| is known at compile time, prefer the templated
   // specialization at<kFieldNumber>().
   const Field& Get(uint32_t id) const {
-    // HasField(id) implies the slot was written, so fields_[id] is safe to read.
-    // Out-of-range or never-seen ids resolve to a static invalid field.
+    // HasField(id) implies the slot was written, so fields_[id] is safe to
+    // read. Out-of-range or never-seen ids resolve to a static invalid field.
     if (PERFETTO_LIKELY(id < num_fields_) && HasField(id))
       return fields_[id];
     return kInvalidField;
@@ -494,9 +494,7 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   }
 
   // Marks the field with the given id as present. See HasField().
-  void SetField(uint32_t id) {
-    presence_[id >> 6] |= uint64_t(1) << (id & 63);
-  }
+  void SetField(uint32_t id) { presence_[id >> 6] |= uint64_t(1) << (id & 63); }
 
   // Returned by Get()/at() for fields that were not seen while decoding. Always
   // !valid() (id == 0).
@@ -575,7 +573,8 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
   const Field& at() const {
     static_assert(FIELD_ID <= MAX_FIELD_ID, "FIELD_ID > MAX_FIELD_ID");
     // For ids < the on-stack capacity, fields_[FIELD_ID] always exists, so just
-    // gate the read on the presence bit. The branch is resolved at compile time.
+    // gate the read on the presence bit. The branch is resolved at compile
+    // time.
     if (FIELD_ID < PROTOZERO_DECODER_INITIAL_STACK_CAPACITY) {
       return HasField(FIELD_ID) ? fields_[FIELD_ID] : kInvalidField;
     } else {
