@@ -22,6 +22,7 @@
 
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/protozero/selective_proto_decoder.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -76,15 +77,11 @@ HeapGraphModule::HeapGraphModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kHeapGraphFieldNumber);
 }
 
-void HeapGraphModule::ParseTracePacketData(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void HeapGraphModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kHeapGraphFieldNumber:
-      ParseHeapGraph(decoder.trusted_packet_sequence_id(), ts,
-                     decoder.heap_graph());
+      ParseHeapGraph(args.decoder.trusted_packet_sequence_id(), args.ts,
+                     args.field.Cast<TracePacket::kHeapGraph>());
       return;
     default:
       break;

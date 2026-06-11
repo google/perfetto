@@ -32,10 +32,7 @@ class ArtProcessMetadataModule : public ProtoImporterModule {
                            TraceProcessorContext* context);
   ~ArtProcessMetadataModule() override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData& data,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   void ParseArtProcessMetadata(int64_t ts, protozero::ConstBytes blob);

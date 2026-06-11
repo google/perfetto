@@ -21,6 +21,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/selective_proto_decoder.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -46,16 +47,11 @@ PixelModemModule::PixelModemModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kPixelModemTokenDatabaseFieldNumber);
 }
 
-ModuleResult PixelModemModule::TokenizePacket(
-    const protos::pbzero::TracePacket_Decoder& decoder,
-    TraceBlobView* /* packet */,
-    int64_t packet_timestamp,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
+ModuleResult PixelModemModule::TokenizePacket(const TokenizePacketArgs& args) {
   // The database packet does not have a timestamp so needs to be handled at
   // the tokenization phase.
-  if (field_id == TracePacket::kPixelModemTokenDatabaseFieldNumber) {
-    auto db = decoder.pixel_modem_token_database();
+  if (args.field.id() == TracePacket::kPixelModemTokenDatabaseFieldNumber) {
+    auto db = args.field.Cast<TracePacket::kPixelModemTokenDatabase>();
     protos::pbzero::PixelModemTokenDatabase::Decoder database(db);
 
     base::Status status = parser_.SetDatabase(database.database());
@@ -65,7 +61,7 @@ ModuleResult PixelModemModule::TokenizePacket(
     return ModuleResult::Error(status.message());
   }
 
-  if (field_id != TracePacket::kPixelModemEventsFieldNumber) {
+  if (args.field.id() != TracePacket::kPixelModemEventsFieldNumber) {
     return ModuleResult::Ignored();
   }
 
@@ -77,7 +73,7 @@ ModuleResult PixelModemModule::TokenizePacket(
   // a lot of machinery to shepherd these events through the sorting queues
   // in a special way. Therefore, we just forge new packets and sort them as if
   // they came from the underlying trace.
-  auto events = decoder.pixel_modem_events();
+  auto events = args.field.Cast<TracePacket::kPixelModemEvents>();
   protos::pbzero::PixelModemEvents::Decoder evt(events.data, events.size);
 
   // To reduce overhead we store events and timestamps in parallel lists.
@@ -97,30 +93,28 @@ ModuleResult PixelModemModule::TokenizePacket(
         context_->blob_packet_writer->WritePacket([&](auto* data_packet) {
           // Keep the original timestamp to later extract as an arg; the sorter
           // does not read this.
-          data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
+          data_packet->set_timestamp(
+              static_cast<uint64_t>(args.packet_timestamp));
           data_packet->set_pixel_modem_events()->add_events(event_bytes);
         });
     module_context_->trace_packet_stream->Push(
-        ts, TracePacketData{std::move(tbv), state});
+        ts, TracePacketData{std::move(tbv), args.state});
   }
 
   return ModuleResult::Handled();
 }
 
-void PixelModemModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
-                                            int64_t ts,
-                                            const TracePacketData&,
-                                            uint32_t field_id) {
-  if (field_id != TracePacket::kPixelModemEventsFieldNumber) {
+void PixelModemModule::ParseField(const ParseFieldArgs& args) {
+  if (args.field.id() != TracePacket::kPixelModemEventsFieldNumber) {
     return;
   }
 
-  auto events = decoder.pixel_modem_events();
-  protos::pbzero::PixelModemEvents::Decoder evt(events.data, events.size);
+  protos::pbzero::PixelModemEvents::Decoder evt(
+      args.field.Cast<TracePacket::kPixelModemEvents>());
   auto it = evt.events();
 
   // We guarantee above there will be exactly one event.
-  parser_.ParseEvent(ts, decoder.timestamp(), *it);
+  parser_.ParseEvent(args.ts, args.decoder.timestamp(), *it);
 }
 
 }  // namespace perfetto::trace_processor

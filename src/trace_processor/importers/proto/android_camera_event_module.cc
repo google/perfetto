@@ -49,32 +49,25 @@ AndroidCameraEventModule::AndroidCameraEventModule(
 AndroidCameraEventModule::~AndroidCameraEventModule() = default;
 
 ModuleResult AndroidCameraEventModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kAndroidCameraFrameEventFieldNumber) {
+    const TokenizePacketArgs& args) {
+  if (args.field.id() != TracePacket::kAndroidCameraFrameEventFieldNumber) {
     return ModuleResult::Ignored();
   }
   const auto android_camera_frame_event =
       protos::pbzero::AndroidCameraFrameEvent::Decoder(
-          decoder.android_camera_frame_event());
+          args.field.Cast<TracePacket::kAndroidCameraFrameEvent>());
   module_context_->trace_packet_stream->Push(
       android_camera_frame_event.request_processing_started_ns(),
-      TracePacketData{std::move(*packet), state});
+      TracePacketData{std::move(*args.packet), args.state});
   return ModuleResult::Handled();
 }
 
-void AndroidCameraEventModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t /*ts*/,
-    const TracePacketData&,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kAndroidCameraFrameEventFieldNumber) {
+void AndroidCameraEventModule::ParseField(const ParseFieldArgs& args) {
+  if (args.field.id() != TracePacket::kAndroidCameraFrameEventFieldNumber) {
     return;
   }
-  InsertCameraFrameSlice(decoder.android_camera_frame_event());
+  InsertCameraFrameSlice(
+      args.field.Cast<TracePacket::kAndroidCameraFrameEvent>());
 }
 
 void AndroidCameraEventModule::InsertCameraFrameSlice(

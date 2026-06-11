@@ -33,14 +33,11 @@ LinuxProbesModule::LinuxProbesModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kJournaldEventFieldNumber);
 }
 
-void LinuxProbesModule::ParseTracePacketData(
-    const protos::pbzero::TracePacket_Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void LinuxProbesModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kJournaldEventFieldNumber:
-      parser_.ParseSystemdJournaldEvent(ts, decoder.journald_event());
+      parser_.ParseSystemdJournaldEvent(
+          args.ts, args.field.Cast<TracePacket::kJournaldEvent>());
       return;
     default:
       PERFETTO_FATAL("Unexpected field_id in LinuxProbesModule");

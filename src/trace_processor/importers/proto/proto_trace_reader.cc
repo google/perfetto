@@ -38,6 +38,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/selective_proto_decoder.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -499,19 +500,20 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
   auto& modules = module_context_.modules_by_field;
-  // GetExtensionSlowly() (not Get()) so modules registered for a field id in
-  // the out-of-tree `extensions 1000 to 1999` range are dispatched: Get()
-  // can't see fields beyond the highest in-tree field id. It fast-paths
-  // in-tree ids, and the scan only runs for the (rare) registered high ids.
-  for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
-    if (!modules[field_id].empty() &&
-        decoder.GetExtensionSlowly(field_id).valid()) {
-      for (ProtoImporterModule* module : modules[field_id]) {
-        ModuleResult res = module->TokenizePacket(
-            decoder, &packet, timestamp, state->current_generation(), field_id);
-        if (!res.ignored())
-          return res.ToStatus();
-      }
+  // One pass over the packet, dispatching registered fields as they are
+  // found. This also covers fields in the out-of-tree `extensions 1000 to
+  // 1999` range, which the typed |decoder| does not store.
+  SelectiveTracePacketDecoder packet_fields(
+      decoder.begin(), static_cast<size_t>(decoder.end() - decoder.begin()));
+  for (const protozero::Field& f : packet_fields.unknown_fields()) {
+    if (f.id() >= modules.size() || modules[f.id()].empty())
+      continue;
+    for (ProtoImporterModule* module : modules[f.id()]) {
+      ModuleResult res = module->TokenizePacket(
+          {packet_fields, &packet, timestamp, state->current_generation(),
+           TracePacketField(f)});
+      if (!res.ignored())
+        return res.ToStatus();
     }
   }
 
