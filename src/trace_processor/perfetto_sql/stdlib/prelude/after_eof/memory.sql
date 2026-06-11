@@ -282,3 +282,34 @@ CREATE PERFETTO VIEW memory_snapshot_edge(
 AS
 SELECT id, source_node_id, target_node_id, importance
 FROM __intrinsic_memory_snapshot_edge;
+
+-- A list of heap graphs (heap dumps) captured during the trace.
+CREATE PERFETTO VIEW heap_graph(
+  -- Unique identifier for this heap graph instance.
+  id ID,
+  -- Timestamp of the heap dump in nanoseconds.
+  ts TIMESTAMP,
+  -- Unique PID of the target.
+  upid JOINID(process.upid),
+  -- Reason why the heap graph was dumped (e.g. OOME, periodic, manual).
+  dump_reason STRING,
+  -- Total bytes allocated in the heap as reported by the VM.
+  heap_size LONG
+)
+AS
+SELECT id, ts, upid, dump_reason, heap_size FROM __intrinsic_heap_graph;
+
+-- Callstack profiles of threads at the time the heap graph was collected.
+CREATE PERFETTO VIEW heap_graph_thread_callsite(
+  -- Unique identifier for this mapping row.
+  id ID,
+  -- The heap graph instance.
+  heap_graph_id JOINID(heap_graph.id),
+  -- The thread ID.
+  utid JOINID(thread.id),
+  -- The callsite of the leaf frame of the stacktrace.
+  callsite_id JOINID(stack_profile_callsite.id)
+)
+AS
+SELECT id, heap_graph_id, utid, callsite_id
+FROM __intrinsic_heap_graph_thread_callsite;

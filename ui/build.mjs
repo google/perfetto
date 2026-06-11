@@ -560,6 +560,13 @@ function copyUiTestArtifactsAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outUiTestArtifactsDir, dst)]);
 }
 
+function postProcessProtosDts() {
+  const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
+  let content = fs.readFileSync(dstTs, 'utf8');
+  content = content.replace(/import Long = require\("long"\);\r?\n/g, '');
+  fs.writeFileSync(dstTs, content, 'utf8');
+}
+
 function compileProtos() {
   const dstJs = pjoin(cfg.outGenDir, 'protos.js');
   const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
@@ -594,6 +601,7 @@ function compileProtos() {
   // pinning a CPU core the whole time.
   const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execModule, ['pbts', pbtsArgs]);
+  addTask(postProcessProtosDts, []);
 }
 
 // Generates a .ts source that defines the VERSION and SCM_REVISION constants.
@@ -688,7 +696,7 @@ function buildWasm(skipWasmBuild) {
 
 function copySyntaqliteRuntime() {
   const srcDir = pjoin(ROOT_DIR, 'ui/node_modules/syntaqlite/wasm');
-  const dstDir = pjoin(cfg.outDistRootDir, 'assets');
+  const dstDir = pjoin(cfg.outDistDir, 'assets');
   for (const fname of [
     'syntaqlite-runtime.js',
     'syntaqlite-runtime.wasm',
@@ -721,7 +729,7 @@ function buildSyntaqlitePerfettoDialect() {
     ROOT_DIR,
     'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
   );
-  const dst = pjoin(cfg.outDistRootDir, 'assets', 'syntaqlite-perfetto.wasm');
+  const dst = pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm');
   try {
     const srcMtime = fs.statSync(src).mtimeMs;
     const dstMtime = fs.statSync(dst).mtimeMs;

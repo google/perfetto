@@ -73,6 +73,7 @@ class ProfileModule : public ProtoImporterModule {
                           protozero::ConstBytes);
   void ParseModuleSymbols(protozero::ConstBytes);
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
+  void ParsePackedSmaps(int64_t ts, UniquePid upid, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;

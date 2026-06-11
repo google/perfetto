@@ -21,6 +21,7 @@ import "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
 import "protos/perfetto/trace/track_event/counter_descriptor.proto";
+import "protos/perfetto/trace/track_event/state_descriptor.proto";
 
 package perfetto.protos;
 
@@ -37,7 +38,7 @@ package perfetto.protos;
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 18.
+// Next id: 19.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -168,6 +169,10 @@ message TrackDescriptor {
   // TYPE_COUNTER TrackEvents (and values provided via TrackEvent's
   // |extra_counter_values|).
   optional CounterDescriptor counter = 8;
+
+  // Descriptor for a state track. If set, the track will support
+  // TYPE_STATE TrackEvents.
+  optional StateDescriptor state = 18;
 
   // If true, forces Trace Processor to use separate tracks for track events
   // and system events for the same thread.

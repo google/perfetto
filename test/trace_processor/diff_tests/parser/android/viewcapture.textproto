@@ -15,8 +15,8 @@ packet {
 packet {
   first_packet_on_sequence: true
   timestamp: 448881087865
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.viewcapture] {
       package_name_iid: 1
       window_name_iid: 1
       views {
@@ -74,8 +74,8 @@ packet {
 
 packet {
   timestamp: 448883575576
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.viewcapture] {
       package_name_iid: 1
       window_name_iid: 1
       views {
@@ -116,8 +116,8 @@ packet {
 
 packet {
   timestamp: 448883575876
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.viewcapture] {
       window_name_iid: 2
       views {
         parent_id: -1

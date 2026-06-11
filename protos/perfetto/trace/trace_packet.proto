@@ -26,7 +26,6 @@ import "protos/perfetto/trace/android/android_aflags.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
-import "protos/perfetto/trace/android/app_wakelock_data.proto";
 import "protos/perfetto/trace/android/bluetooth_trace.proto";
 import "protos/perfetto/trace/android/camera_event.proto";
 import "protos/perfetto/trace/android/cpu_per_uid_data.proto";
@@ -38,12 +37,7 @@ import "protos/perfetto/trace/android/kernel_wakelock_data.proto";
 import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
 import "protos/perfetto/trace/android/pixel_modem_events.proto";
-import "protos/perfetto/trace/android/protolog.proto";
-import "protos/perfetto/trace/android/shell_transition.proto";
-import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
-import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
 import "protos/perfetto/trace/android/user_list.proto";
-import "protos/perfetto/trace/android/winscope_extensions.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_trace_event.proto";
@@ -277,15 +271,6 @@ message TracePacket {
     // Represents one or more packets sent or received by the network.
     NetworkPacketBundle network_packet_bundle = 92;
 
-    // Winscope traces
-    LayersSnapshotProto surfaceflinger_layers_snapshot = 93;
-    TransactionTraceEntry surfaceflinger_transactions = 94;
-    ShellTransition shell_transition = 96;
-    ShellHandlerMappings shell_handler_mappings = 97;
-    ProtoLogMessage protolog_message = 104;
-    ProtoLogViewerConfig protolog_viewer_config = 105;
-    WinscopeExtensions winscope_extensions = 112;
-
     // Events from the Windows etw infrastructure.
     EtwTraceEventBundle etw_events = 95;
 
@@ -305,8 +290,6 @@ message TracePacket {
     BluetoothTraceEvent bluetooth_trace_event = 114;
 
     KernelWakelockData kernel_wakelock_data = 115;
-
-    AppWakelockBundle app_wakelock_bundle = 116;
 
     CpuPerUidData cpu_per_uid_data = 119;
 
@@ -330,6 +313,21 @@ message TracePacket {
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 55;
+
+  // App wakelock (AppWakelockBundle). Schema:
+  // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto
+  extensions 116;
+
+  // Winscope payloads, now defined out-of-tree as extensions. Schema:
+  // protos/third_party/android/frameworks/native/tracing/winscope/frameworks_native_winscope.proto
+  // (93, 94, 112)
+  // protos/third_party/android/frameworks/base/proto/tracing/winscope/frameworks_base_winscope.proto
+  // (96, 97, 104, 105)
+  extensions 93, 94, 96, 97, 104, 105, 112;
+
+  // Reserved for future OOT extensions. New allocations are carved out of this
+  // range and registered in protos/perfetto/trace/extensions.json.
+  extensions 1000 to 1999;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.

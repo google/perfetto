@@ -34,6 +34,30 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_video_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video producer hit max_stream_size_bytes; stream torn " \
+      "down. See trace_import_logs for the affected display."),                \
+  F(android_video_codec_error,            kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video MediaCodec error. See trace_import_logs for the " \
+      "affected display."),                                                    \
+  F(android_video_display_gone,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video source display removed mid-session. See "         \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_no_encoder,             kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video has no encoder for the requested format. See "    \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_display_not_found,      kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video display not found at session start. See "         \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_encoder_setup_failed,   kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video encoder setup failed. See trace_import_logs for " \
+      "the affected display."),                                                \
+  F(android_video_virtual_display_failed, kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video createVirtualDisplay failed. See "                \
+      "trace_import_logs for the affected display."),                          \
+  F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "android.display.video stream exceeded the parse-time size cap; frames " \
+      "dropped. See the trace_import_logs table for the affected display."),   \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
@@ -108,6 +132,11 @@ namespace perfetto::trace_processor::stats {
        "Invalid order of generic task state events. Should never happen."),    \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(gpu_counters_missing_spec,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(gpu_counters_missing_timestamp,       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,           \
+      "A GpuCounterEvent packet was received without a timestamp on the "      \
+      "containing TracePacket. Without a timestamp the counter samples cannot "\
+      "be placed on the trace timeline, so the packet is dropped. This "       \
+      "indicates a bug in the trace producer."),                              \
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(graphics_frame_event_parser_errors,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(guess_trace_type_duration_ns,         kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
@@ -178,6 +207,8 @@ namespace perfetto::trace_processor::stats {
   F(stackprofile_invalid_frame_id,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_invalid_callstack_id,    kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_parser_error,            kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(smaps_parser_errors,                  kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
+      "Count of malformed PackedSmaps packets. Data in smaps tables unreliable."),                      \
   F(systemd_journal_num_failed,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(systemd_journal_num_total,            kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(systrace_parse_failure,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

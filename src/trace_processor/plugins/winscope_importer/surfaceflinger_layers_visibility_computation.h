@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_utils.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
@@ -28,7 +28,7 @@
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
 namespace {
-using LayerDecoder = protos::pbzero::LayerProto::Decoder;
+using LayerDecoder = com::android::internal::pbzero::LayerProto::Decoder;
 }
 
 // Computes visibility properties for every layer in hierarchy, based on its
@@ -47,7 +47,8 @@ struct VisibilityProperties {
 class VisibilityComputation {
  public:
   explicit VisibilityComputation(
-      const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder,
+      const com::android::internal::pbzero::LayersSnapshotProto::Decoder&
+          snapshot_decoder,
       const std::vector<LayerDecoder>& layers_top_to_bottom,
       const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
       StringPool* pool);
@@ -55,7 +56,8 @@ class VisibilityComputation {
   std::unordered_map<int32_t, VisibilityProperties> Compute();
 
  private:
-  const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder_;
+  const com::android::internal::pbzero::LayersSnapshotProto::Decoder&
+      snapshot_decoder_;
   const std::vector<LayerDecoder>& layers_top_to_bottom_;
   const std::unordered_map<int32_t, LayerDecoder>& layers_by_id_;
 

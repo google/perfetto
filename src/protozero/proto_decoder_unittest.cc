@@ -616,6 +616,42 @@ TEST(ProtoDecoderTest, OneBigFieldIdOnly) {
   ASSERT_FALSE(field.valid());
 }
 
+// GetExtensionSlowly() resolves fields whose id is beyond MAX_FIELD_ID (i.e.
+// out-of-tree extensions), which ParseAllFields() does not store and Get()
+// therefore cannot see.
+TEST(ProtoDecoderTest, GetExtensionSlowly) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/1, 11);
+  message->AppendVarInt(/*field_id=*/2, 12);
+  // Beyond MAX_FIELD_ID below; an out-of-tree extension field.
+  message->AppendVarInt(/*field_id=*/65535, 99);
+  auto data = message.SerializeAsArray();
+
+  TypedProtoDecoder<3> tpd(data.data(), data.size());
+
+  // Fast path: for in-tree ids GetExtensionSlowly matches Get().
+  EXPECT_EQ(tpd.GetExtensionSlowly(1).as_int32(), 11);
+  EXPECT_EQ(tpd.GetExtensionSlowly(2).as_int32(), 12);
+
+  // Get() can't see the extension field (id > MAX_FIELD_ID)...
+  EXPECT_FALSE(tpd.Get(65535).valid());
+  // ...but GetExtensionSlowly() finds it via a buffer re-scan.
+  ASSERT_TRUE(tpd.GetExtensionSlowly(65535).valid());
+  EXPECT_EQ(tpd.GetExtensionSlowly(65535).as_int32(), 99);
+
+  // An absent extension field is reported invalid.
+  EXPECT_FALSE(tpd.GetExtensionSlowly(1234).valid());
+
+  // The templated TypedProtoDecoder::GetExtensionSlowly<>() decides the
+  // in-tree (<= MAX_FIELD_ID) vs extension split at compile time, but yields
+  // the same results as the runtime overload.
+  EXPECT_EQ(tpd.GetExtensionSlowly<1>().as_int32(), 11);
+  EXPECT_EQ(tpd.GetExtensionSlowly<2>().as_int32(), 12);
+  ASSERT_TRUE(tpd.GetExtensionSlowly<65535>().valid());
+  EXPECT_EQ(tpd.GetExtensionSlowly<65535>().as_int32(), 99);
+  EXPECT_FALSE(tpd.GetExtensionSlowly<1234>().valid());
+}
+
 // Check what happens when trying to parse packed repeated field and finding a
 // mismatching wire type instead. A compliant protobuf decoder should accept it,
 // but protozero doesn't handle that. At least it shouldn't crash.

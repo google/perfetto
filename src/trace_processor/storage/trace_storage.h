@@ -340,11 +340,11 @@ class TraceStorage {
     return mutable_table<tables::AndroidCpuPerUidTrackTable>();
   }
 
-  const tables::AndroidLogTable& android_log_table() const {
-    return table<tables::AndroidLogTable>();
+  const tables::LogTable& log_table() const {
+    return table<tables::LogTable>();
   }
-  tables::AndroidLogTable* mutable_android_log_table() {
-    return mutable_table<tables::AndroidLogTable>();
+  tables::LogTable* mutable_log_table() {
+    return mutable_table<tables::LogTable>();
   }
 
   const tables::AndroidDumpstateTable& android_dumpstate_table() const {
@@ -514,6 +514,31 @@ class TraceStorage {
   }
   tables::AndroidUserListTable* mutable_user_list_table() {
     return mutable_table<tables::AndroidUserListTable>();
+  }
+
+  const tables::HeapGraphTable& heap_graph_table() const {
+    return table<tables::HeapGraphTable>();
+  }
+  tables::HeapGraphTable* mutable_heap_graph_table() {
+    return mutable_table<tables::HeapGraphTable>();
+  }
+
+  const tables::HeapGraphThreadCallsiteTable& heap_graph_thread_callsite_table()
+      const {
+    return table<tables::HeapGraphThreadCallsiteTable>();
+  }
+  tables::HeapGraphThreadCallsiteTable*
+  mutable_heap_graph_thread_callsite_table() {
+    return mutable_table<tables::HeapGraphThreadCallsiteTable>();
+  }
+
+  const tables::HeapGraphJavaOomeDetailsTable&
+  heap_graph_java_oome_details_table() const {
+    return table<tables::HeapGraphJavaOomeDetailsTable>();
+  }
+  tables::HeapGraphJavaOomeDetailsTable*
+  mutable_heap_graph_java_oome_details_table() {
+    return mutable_table<tables::HeapGraphJavaOomeDetailsTable>();
   }
 
   const tables::AndroidGameInterventionListTable&

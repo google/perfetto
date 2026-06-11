@@ -542,6 +542,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       gpu_power_state_off_id_(context->storage->InternString("OFF")),
       gpu_power_state_pg_id_(context->storage->InternString("PG")),
       gpu_power_state_on_id_(context->storage->InternString("ON")),
+      gpu_cmdbatch_slice_name_id_(context->storage->InternString("GPU")),
       ddic_underrun_id_(context_->storage->InternString("ddic_underrun")),
       panel_settings_full_id_(
           context_->storage->InternString("panel_settings_full")),
@@ -892,13 +893,19 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     }
 
     ConstBytes fld_bytes = fld.as_bytes();
-    if (fld.id() == FtraceEvent::kGenericFieldNumber) {
-      ParseLegacyGenericFtrace(ts, cpu, pid, fld_bytes);
-    } else if (GenericFtraceTracker::IsGenericFtraceEvent(fld.id())) {
-      ParseGenericFtrace(fld.id(), ts, cpu, pid, fld_bytes);
-    } else if (fld.id() != FtraceEvent::kSchedSwitchFieldNumber) {
-      // sched_switch parsing populates the raw table by itself
-      ParseTypedFtraceToRaw(fld.id(), ts, cpu, pid, fld_bytes, seq_state);
+
+    if (data.insert_ftrace_event) {
+      if (fld.id() == FtraceEvent::kGenericFieldNumber) {
+        ParseLegacyGenericFtrace(ts, cpu, pid, fld_bytes);
+      } else if (GenericFtraceTracker::IsGenericFtraceEvent(fld.id())) {
+        ParseGenericFtrace(fld.id(), ts, cpu, pid, fld_bytes);
+      } else if (fld.id() != FtraceEvent::kSchedSwitchFieldNumber) {
+        // sched_switch parsing populates the raw table by itself
+        ParseTypedFtraceToRaw(fld.id(), ts, cpu, pid, fld_bytes, seq_state);
+      }
+    }
+    if (!data.parse_event) {
+      return base::OkStatus();
     }
 
     // Skip everything besides the |raw| write if we're at the start of the
@@ -941,6 +948,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kKgslGpuFrequencyFieldNumber: {
         ParseKgslGpuFreq(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kKgslAdrenoCmdbatchQueuedFieldNumber: {
+        ParseKgslAdrenoCmdbatchQueued(pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kKgslAdrenoCmdbatchRetiredFieldNumber: {
+        ParseKgslAdrenoCmdbatchRetired(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCpuIdleFieldNumber: {
@@ -1174,6 +1189,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kDpuDispDpuUnderrunFieldNumber: {
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDpuDispDpuLineUnderrunFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispDpuLineUnderrun(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kDpuDispFrameStartTimeoutFieldNumber: {
@@ -1941,6 +1960,72 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
       tracks::kGpuFrequencyBlueprint,
       tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
+}
+
+void FtraceParser::ParseKgslAdrenoCmdbatchQueued(uint32_t pid,
+                                                 protozero::ConstBytes data) {
+  protos::pbzero::KgslAdrenoCmdbatchQueuedFtraceEvent::Decoder evt(data);
+  adreno_cmdbatch_ctx_tids_.Insert(evt.id(), pid);
+}
+
+void FtraceParser::ParseKgslAdrenoCmdbatchRetired(int64_t ts,
+                                                  protozero::ConstBytes data) {
+  protos::pbzero::KgslAdrenoCmdbatchRetiredFtraceEvent::Decoder evt(data);
+
+  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+      "adreno_gpu_cmdbatch",
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("context_id"),
+                                  tracks::UintDimensionBlueprint("prio")),
+      tracks::DynamicNameBlueprint());
+
+  if (evt.retire() < evt.start()) {
+    return;
+  }
+
+  constexpr int64_t kAdrenoXoFreqHz = 19200000;
+  const int64_t duration = static_cast<int64_t>(evt.retire() - evt.start()) *
+                           1000000000 / kAdrenoXoFreqHz;
+
+  const uint32_t context_id = evt.id();
+  const uint32_t prio = static_cast<uint32_t>(evt.prio());
+
+  // Resolve process name from queued event's tid.
+  std::optional<base::StringView> pname;
+  auto* queued_tid = adreno_cmdbatch_ctx_tids_.Find(context_id);
+  if (queued_tid) {
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(*queued_tid);
+    auto upid = context_->storage->thread_table()[utid].upid();
+    if (upid.has_value()) {
+      auto name_id = context_->storage->process_table()[*upid].name();
+      if (name_id.has_value())
+        pname = context_->storage->GetString(*name_id);
+    }
+  }
+
+  StringId track_name;
+  if (pname.has_value()) {
+    base::StackString<256> name("GPU %.*s (Ctx=%u, Prio=%u)",
+                                static_cast<int>(pname->size()), pname->data(),
+                                context_id, prio);
+    track_name = context_->storage->InternString(name.string_view());
+  } else {
+    base::StackString<64> name("GPU (Ctx=%u, Prio=%u)", context_id, prio);
+    track_name = context_->storage->InternString(name.string_view());
+  }
+
+  TrackId track_id = context_->track_compressor->InternScoped(
+      kBlueprint, tracks::Dimensions(context_id, prio), ts, duration,
+      tracks::DynamicName(track_name));
+
+  // Update the track name in case the track was previously created with the
+  // fallback name (no process name available at that time).
+  if (pname.has_value()) {
+    auto rr = (*context_->storage->mutable_track_table())[track_id];
+    rr.set_name(track_name);
+  }
+
+  context_->slice_tracker->Scoped(ts, track_id, kNullStringId,
+                                  gpu_cmdbatch_slice_name_id_, duration);
 }
 
 void FtraceParser::ParseCpuIdle(int64_t timestamp, ConstBytes blob) {
@@ -3364,8 +3449,11 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
     return;
   }
 
-  // Skip invalid TCP state.
-  if (evt.newstate() >= TCP_MAX_STATES || evt.oldstate() >= TCP_MAX_STATES) {
+  // Skip invalid TCP state. Note: newstate()/oldstate() are signed, so we must
+  // also reject negative values to avoid an out-of-bounds read into
+  // kTcpStateNames below.
+  if (evt.newstate() < 0 || evt.newstate() >= TCP_MAX_STATES ||
+      evt.oldstate() < 0 || evt.oldstate() >= TCP_MAX_STATES) {
     PERFETTO_ELOG("skip invalid tcp state");
     return;
   }

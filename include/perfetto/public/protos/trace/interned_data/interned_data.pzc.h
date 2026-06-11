@@ -25,8 +25,6 @@
 
 #include "perfetto/public/pb_macros.h"
 
-PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidJobName);
-PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Callstack);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DebugAnnotationName);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DebugAnnotationValueTypeName);
@@ -48,10 +46,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_Mapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketContext);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SourceLocation);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UnsymbolizedSourceLocation);
-
-PERFETTO_PB_MSG(perfetto_protos_AndroidJobName);
-PERFETTO_PB_FIELD(perfetto_protos_AndroidJobName, VARINT, uint64_t, iid, 1);
-PERFETTO_PB_FIELD(perfetto_protos_AndroidJobName, STRING, const char*, name, 2);
 
 PERFETTO_PB_MSG(perfetto_protos_InternedData);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
@@ -226,19 +220,9 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   46);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
-                  perfetto_protos_AppWakelockInfo,
-                  app_wakelock_info,
-                  42);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
                   perfetto_protos_InternedString,
                   correlation_id_str,
                   43);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_AndroidJobName,
-                  android_job_name,
-                  44);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedGpuCounterDescriptor,

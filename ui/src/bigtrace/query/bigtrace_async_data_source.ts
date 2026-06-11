@@ -41,7 +41,7 @@ export class BigtraceAsyncDataSource implements DataSource {
   // Window in `loadedRows`, for range-change detection.
   private loadedOffset = 0;
   private loadedLimit = 0;
-  // AIP-132 §Ordering. Empty = materialization order.
+  // AIP-132 §Ordering. Empty = default order.
   private currentOrderBy = '';
   // Aliases pre-resolved to field names. `currentFilterKey` is the JSON
   // form for cheap equality checks.
@@ -49,9 +49,21 @@ export class BigtraceAsyncDataSource implements DataSource {
   private currentFilterKey = '';
   // `useRows` falls back to `getTotalRows()` when undefined.
   private _filteredTotalRows: number | undefined;
+  // Field-mask shipped as `:fetch_results` `columns`. Tracks the visible
+  // results-grid columns so a column toggle refetches a narrower page (and
+  // pulls in a metadata column when the user just enabled it).
+  private currentColumns: readonly string[] = [];
+  private currentColumnsKey = '';
+  // availableColumnNames from the last fetch — the results-page column picker
+  // reads this to know what's selectable.
+  private _availableColumnNames: ReadonlyArray<string> | undefined;
 
   get filteredTotalRows(): number | undefined {
     return this._filteredTotalRows;
+  }
+
+  get availableColumnNames(): ReadonlyArray<string> | undefined {
+    return this._availableColumnNames;
   }
 
   // `signal`: owner aborts on close. `getTotalRows`: scrollbar sizing.
@@ -69,17 +81,29 @@ export class BigtraceAsyncDataSource implements DataSource {
     const wantedFilterKey = encodeFilters(wantedFilter);
     const wantedOffset = model.pagination?.offset ?? 0;
     const wantedLimit = model.pagination?.limit ?? 0;
+    // Columns the grid is currently displaying; shipped as the `:fetch_results`
+    // `columns` field-mask.
+    const wantedColumns = (model.columns ?? []).map((c) => c.field);
+    const wantedColumnsKey = JSON.stringify(wantedColumns);
 
-    // Fetch on sort/filter/range/initial change; skip if in flight (avoids redraw storms).
+    // Fetch on sort/filter/range/columns/initial change; skip if in flight
+    // (avoids redraw storms).
     const sortChanged = wantedOrderBy !== this.currentOrderBy;
     const filterChanged = wantedFilterKey !== this.currentFilterKey;
     const rangeChanged =
       this.hasInitialFetchCompleted &&
       (wantedOffset !== this.loadedOffset ||
         (wantedLimit > 0 && wantedLimit !== this.loadedLimit));
+    const columnsChanged =
+      this.hasInitialFetchCompleted &&
+      wantedColumnsKey !== this.currentColumnsKey;
     const needsInitial = !this.hasInitialFetchCompleted && wantedLimit > 0;
     if (
-      (sortChanged || filterChanged || rangeChanged || needsInitial) &&
+      (sortChanged ||
+        filterChanged ||
+        rangeChanged ||
+        columnsChanged ||
+        needsInitial) &&
       !this.isFetching
     ) {
       this.currentOrderBy = wantedOrderBy;
@@ -89,6 +113,8 @@ export class BigtraceAsyncDataSource implements DataSource {
         // Briefly oversized scrollbar > briefly collapsed while refetching.
         this._filteredTotalRows = undefined;
       }
+      this.currentColumns = wantedColumns;
+      this.currentColumnsKey = wantedColumnsKey;
       // First render may have limit=0; fall back so the schema comes back.
       const fetchLimit = wantedLimit > 0 ? wantedLimit : 100;
       this.fetchMoreRows(wantedOffset, fetchLimit);
@@ -116,7 +142,7 @@ export class BigtraceAsyncDataSource implements DataSource {
     };
   }
 
-  // Resolve widget alias → SELECT field (backend whitelists fields).
+  // Resolve widget alias → backend field name for the order_by wire string.
   private formatOrderBy(model: ModelWithColumns): string {
     const sort = model.sort;
     if (!sort) return '';
@@ -157,12 +183,14 @@ export class BigtraceAsyncDataSource implements DataSource {
         this.signal,
         this.currentOrderBy,
         this.currentFilter,
+        this.currentColumns.length > 0 ? this.currentColumns : undefined,
       );
       this.loadedRows = [...result.rows];
       this.loadedOffset = offset;
       this.loadedLimit = limit;
       this.hasInitialFetchCompleted = true;
       this._filteredTotalRows = result.totalFilteredRows;
+      this._availableColumnNames = result.availableColumnNames;
 
       if (this.columns.length === 0 && result.columns.length > 0) {
         this.columns = [...result.columns];

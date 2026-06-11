@@ -4,7 +4,7 @@ packet {
   previous_packet_dropped: true
   trusted_pid: 3981
   first_packet_on_sequence: true
-  shell_handler_mappings {
+  [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_handler_mappings] {
     mapping {
         id: 1
         name: "DefaultTransitionHandler"

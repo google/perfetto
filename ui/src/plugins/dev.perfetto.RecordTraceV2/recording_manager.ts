@@ -436,7 +436,7 @@ export class CurrentTracingSession {
   }
 
   openTrace() {
-    const traceData: Uint8Array | undefined = this.session?.getTraceData();
+    const traceData = this.session?.getTraceData();
     if (traceData === undefined) return;
     this.recMgr.app.openTraceFromBuffer({
       buffer: traceData,

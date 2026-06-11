@@ -16,9 +16,10 @@
 
 #include "src/tracing/service/zlib_compressor.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-#error "Zlib must be enabled to compile this file."
-#endif
+#include "perfetto/base/build_config.h"
+
+// File compiles to nothing when the buildflag is off (e.g. SDK opt-out).
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 #include <zlib.h>
 
@@ -171,3 +172,5 @@ void ZlibCompressFn(std::vector<TracePacket>* packets) {
 }
 
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)

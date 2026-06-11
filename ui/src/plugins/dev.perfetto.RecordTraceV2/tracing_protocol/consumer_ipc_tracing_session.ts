@@ -151,9 +151,9 @@ export class ConsumerIpcTracingSession implements TracingSession {
     stream.onTraceData = this.onTraceData.bind(this);
   }
 
-  getTraceData(): Uint8Array | undefined {
+  getTraceData(): ArrayBuffer | undefined {
     if (this._state !== 'FINISHED') return undefined;
-    const buf = this.traceBuf.get();
+    const buf = this.traceBuf.getBuffer();
     return buf;
   }
 

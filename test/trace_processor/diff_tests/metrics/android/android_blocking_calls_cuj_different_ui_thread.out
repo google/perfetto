@@ -12,6 +12,16 @@ android_blocking_calls_cuj_metric {
     ts: 0
     dur: 18000000
     blocking_calls {
+      name: "DrawFrames"
+      cnt: 1
+      total_dur_ms: 6
+      max_dur_ms: 6
+      min_dur_ms: 6
+      total_dur_ns: 6000000
+      max_dur_ns: 6000000
+      min_dur_ns: 6000000
+    }
+    blocking_calls {
       name: "measure"
       cnt: 1
       total_dur_ms: 2
@@ -34,6 +44,16 @@ android_blocking_calls_cuj_metric {
     }
     ts: 0
     dur: 18000000
+    blocking_calls {
+      name: "DrawFrames"
+      cnt: 1
+      total_dur_ms: 6
+      max_dur_ms: 6
+      min_dur_ms: 6
+      total_dur_ns: 6000000
+      max_dur_ns: 6000000
+      min_dur_ns: 6000000
+    }
     blocking_calls {
       name: "animation"
       cnt: 1

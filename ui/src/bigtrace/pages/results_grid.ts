@@ -23,10 +23,13 @@ import type {
   ColumnSchema,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import type {SettingFilter} from '../settings/settings_types';
+import type {
+  Column,
+  SortDirection,
+} from '../../components/widgets/datagrid/model';
+import {LINK_COLUMN, resolveResultColumns} from '../settings/column_order';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {TERMINAL_STATUSES} from '../query/query_store';
-import type {QueryRunner} from '../query/query_runner';
 import type {
   BigTraceEditorTab,
   QueryResponse,
@@ -34,10 +37,17 @@ import type {
 } from './query_tabs_state';
 import {formatDurationS} from './status_box';
 
+// Per-tab results sort. DataGrid carries sort on the Column object, so
+// controlled-mode `columns` must splice it back each render or a header click
+// is dropped on our redraws. Not persisted, unlike the visible-columns set.
+const resultsSortByTab = new WeakMap<
+  BigTraceEditorTab,
+  {field: string; direction: SortDirection}
+>();
+
 export function renderResultsGrid(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
-  runner: QueryRunner,
 ): m.Children {
   const queryResult = tab.queryResult!;
   const dataSource = tab.dataSource!;
@@ -104,24 +114,31 @@ export function renderResultsGrid(
   }
 
   tableContent.push(
-    renderDataGrid(tab, tabsState, runner, columns, queryResult, dataSource),
+    renderDataGrid(tab, tabsState, columns, queryResult, dataSource),
   );
   return tableContent;
 }
 
 function renderDataGrid(
   tab: BigTraceEditorTab,
-  _tabsState: QueryTabsState,
-  _runner: QueryRunner,
+  tabsState: QueryTabsState,
   columns: ReadonlyArray<string>,
   queryResult: QueryResponse,
   dataSource: DataSource,
 ): m.Children {
-  const querySettings: SettingFilter[] = tab.querySettings;
+  // "+ Add column" choices. Async: the full union (result ∪ metadata) from
+  // availableColumnNames. Sync / pre-fetch: fall back to the result columns.
+  let allColumns: ReadonlyArray<string> = columns;
+  if (dataSource instanceof BigtraceAsyncDataSource) {
+    const available = dataSource.availableColumnNames;
+    if (available !== undefined && available.length > 0) {
+      allColumns = available;
+    }
+  }
 
   const columnSchema: ColumnSchema = {};
-  for (const column of columns) {
-    if (column === 'link') {
+  for (const column of allColumns) {
+    if (column === LINK_COLUMN) {
       columnSchema[column] = {
         cellRenderer: (value) => {
           if (value === null || value === undefined) return '';
@@ -134,25 +151,49 @@ function renderDataGrid(
   }
   const schema: SchemaRegistry = {data: columnSchema};
 
+  // Per-tab visible subset (empty/unset → all); shipped as the
+  // `:fetch_results` `columns` projection.
+  const visible = resolveResultColumns(tab.resultColumns, allColumns);
+  const isAsync = dataSource instanceof BigtraceAsyncDataSource;
+  const sortState = resultsSortByTab.get(tab);
+
   return m(DataGrid, {
     schema,
     rootSchema: 'data',
-    enablePivotControls: false,
-    initialColumns: columns
-      .filter((col) => {
-        if (!col.startsWith('_')) return true;
-        if (col === '_trace_id') return true;
-        const settingId = col.substring(1);
-        return querySettings.some(
-          (s) => s.settingId === settingId && s.category === 'TRACE_METADATA',
-        );
-      })
-      .map((col) => ({id: col, field: col})),
+    disablePivotControls: true,
+    // Splice per-tab sort onto its column so a header click survives redraws.
+    columns: visible.map((col) => {
+      const base: Column = {id: col, field: col};
+      if (sortState && sortState.field === col) {
+        return {...base, sort: sortState.direction};
+      }
+      return base;
+    }),
+    onColumnsChanged: (cols: ReadonlyArray<Column>) => {
+      // Stash sort before collapsing to string[], else it's lost next render.
+      const sorted = cols.find((c) => c.sort);
+      if (sorted && sorted.sort !== undefined) {
+        resultsSortByTab.set(tab, {
+          field: sorted.field,
+          direction: sorted.sort,
+        });
+      } else {
+        resultsSortByTab.delete(tab);
+      }
+      const nextColumns = cols.map((c) => c.field);
+      tab.resultColumns = nextColumns.length === 0 ? null : nextColumns;
+      tabsState.markDirty();
+    },
+    canAddColumns: true,
+    canRemoveColumns: true,
     className: 'pf-bt-query-page__results',
     data: dataSource,
     fillHeight: true,
     showExportButton: true,
-    emptyStateMessage: 'Query returned no rows',
+    emptyStateMessage:
+      isAsync && allColumns.length === visible.length
+        ? 'Query returned no rows'
+        : 'No rows match the visible columns',
     toolbarItemsLeft: [
       m('span.pf-bt-results-summary', renderResultsSummary(tab, queryResult)),
     ],

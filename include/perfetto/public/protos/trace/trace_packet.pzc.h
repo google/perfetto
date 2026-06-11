@@ -33,7 +33,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidUserList);
-PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelockBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ArtProcessMetadata);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BluetoothTraceEvent);
@@ -69,7 +68,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileMap);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InterruptInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelockData);
-PERFETTO_PB_MSG_DECL(perfetto_protos_LayersSnapshotProto);
 PERFETTO_PB_MSG_DECL(perfetto_protos_MemoryTrackerSnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ModuleSymbols);
 PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketBundle);
@@ -84,11 +82,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfilePacket);
-PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogMessage);
-PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogViewerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_RemoteClockSync);
-PERFETTO_PB_MSG_DECL(perfetto_protos_ShellHandlerMappings);
-PERFETTO_PB_MSG_DECL(perfetto_protos_ShellTransition);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SmapsPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdAtom);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingAllocation);
@@ -112,7 +106,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TracingServiceEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventRangeOfInterest);
-PERFETTO_PB_MSG_DECL(perfetto_protos_TransactionTraceEntry);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TranslationTable);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Trigger);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UiState);
@@ -124,7 +117,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_V8WasmCode);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VmProgram);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanApiEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanMemoryEvent);
-PERFETTO_PB_MSG_DECL(perfetto_protos_WinscopeExtensions);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TracePacket, SequenceFlags){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
@@ -509,41 +501,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   92);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_LayersSnapshotProto,
-                  surfaceflinger_layers_snapshot,
-                  93);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_TransactionTraceEntry,
-                  surfaceflinger_transactions,
-                  94);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_ShellTransition,
-                  shell_transition,
-                  96);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_ShellHandlerMappings,
-                  shell_handler_mappings,
-                  97);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_ProtoLogMessage,
-                  protolog_message,
-                  104);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_ProtoLogViewerConfig,
-                  protolog_viewer_config,
-                  105);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_WinscopeExtensions,
-                  winscope_extensions,
-                  112);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_EtwTraceEventBundle,
                   etw_events,
                   95);
@@ -602,11 +559,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_KernelWakelockData,
                   kernel_wakelock_data,
                   115);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_AppWakelockBundle,
-                  app_wakelock_bundle,
-                  116);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_CpuPerUidData,

@@ -216,6 +216,18 @@ struct TraceTimeState {
   // the primary trace's clock choice.
   std::optional<uint32_t> trace_time_clock_owner;
 
+  // Sets the trace time clock on behalf of `owner`, respecting ownership: the
+  // first owner wins, the same owner may re-set it, and other owners are
+  // ignored. Returns true if the clock was (re)set, in which case the caller
+  // should record it in metadata.
+  bool TrySetClock(ClockId new_clock_id, uint32_t owner) {
+    if (trace_time_clock_owner && *trace_time_clock_owner != owner)
+      return false;
+    trace_time_clock_owner = owner;
+    clock_id = new_clock_id;
+    return true;
+  }
+
   std::optional<int64_t> timezone_offset;
 
   // TODO(lalitm): remote_clock_offsets is a hack. We should have a proper
