@@ -68,6 +68,8 @@ source_set("common") {
     "slice_translation_table.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
+    "state_tracker.cc",
+    "state_tracker.h",
     "symbol_tracker.cc",
     "symbol_tracker.h",
     "system_info_tracker.cc",
@@ -176,6 +178,7 @@ source_set("unittests") {
     "process_tracker_unittest.cc",
     "slice_tracker_unittest.cc",
     "slice_translation_table_unittest.cc",
+    "state_tracker_unittest.cc",
     "thread_state_tracker_unittest.cc",
     "track_compressor_unittest.cc",
   ]
