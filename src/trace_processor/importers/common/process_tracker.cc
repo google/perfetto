@@ -431,6 +431,22 @@ void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
   rr.set_android_user_id(uid / 100000);
 }
 
+void ProcessTracker::SetProcessSortIndex(UniquePid upid, int32_t sort_index) {
+  if (processes_with_sort_index_.insert(upid).second) {
+    auto inserter = AddArgsToProcess(upid);
+    inserter.AddArg(context_->storage->InternString("process_sort_index_hint"),
+                    Variadic::Integer(sort_index));
+  }
+}
+
+void ProcessTracker::SetThreadSortIndex(UniqueTid utid, int32_t sort_index) {
+  if (threads_with_sort_index_.insert(utid).second) {
+    auto inserter = AddArgsToThread(utid);
+    inserter.AddArg(context_->storage->InternString("thread_sort_index_hint"),
+                    Variadic::Integer(sort_index));
+  }
+}
+
 void ProcessTracker::UpdateProcessName(UniquePid upid,
                                        StringId process_name_id,
                                        ProcessNamePriority priority) {

@@ -176,6 +176,12 @@ class ProcessTracker {
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);
 
+  // Sets the sort index of a process with "first writer wins" semantics.
+  void SetProcessSortIndex(UniquePid upid, int32_t sort_index);
+
+  // Sets the sort index of a thread with "first writer wins" semantics.
+  void SetThreadSortIndex(UniqueTid utid, int32_t sort_index);
+
   // Assigns the given name to the process if the new name has a higher or
   // equal priority than the existing one.
   virtual void UpdateProcessName(UniquePid upid,
@@ -345,6 +351,9 @@ class ProcessTracker {
 
   UniquePid swapper_upid_ = 0;
   UniqueTid swapper_utid_ = 0;
+
+  std::unordered_set<UniquePid> processes_with_sort_index_;
+  std::unordered_set<UniqueTid> threads_with_sort_index_;
 };
 
 }  // namespace perfetto::trace_processor

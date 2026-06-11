@@ -248,6 +248,18 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       context_->process_tracker->GetTrustedPid(uuid);
   DescriptorTrackReservation& reservation = state_ptr->reservation;
 
+  bool process_ordering_explicit = false;
+  bool thread_ordering_explicit = false;
+  if (State* root_state =
+          descriptor_tracks_state_.Find(kDefaultDescriptorTrackUuid)) {
+    process_ordering_explicit =
+        (root_state->reservation.process_ordering ==
+         DescriptorTrackReservation::ProcessOrdering::kExplicit);
+    thread_ordering_explicit =
+        (root_state->reservation.thread_ordering ==
+         DescriptorTrackReservation::ThreadOrdering::kExplicit);
+  }
+
   // Try to resolve to root-level pid and tid if the process is pid-namespaced.
   if (trusted_pid && reservation.pid) {
     std::optional<uint32_t> resolved_pid =
@@ -300,6 +312,10 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
           *reservation.tid, *reservation.pid);
       PERFETTO_CHECK(updated_utid == utid);
     }
+    if (thread_ordering_explicit && reservation.sibling_order_rank) {
+      context_->process_tracker->SetThreadSortIndex(
+          utid, *reservation.sibling_order_rank);
+    }
     return ResolvedDescriptorTrack::Thread(utid, reservation.is_counter, true);
   }
 
@@ -324,6 +340,10 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       upid = context_->process_tracker->StartNewProcess(
           std::nullopt, std::nullopt, *reservation.pid, kNullStringId,
           ThreadNamePriority::kTrackDescriptor);
+    }
+    if (process_ordering_explicit && reservation.sibling_order_rank) {
+      context_->process_tracker->SetProcessSortIndex(
+          upid, *reservation.sibling_order_rank);
     }
     return ResolvedDescriptorTrack::Process(upid, reservation.is_counter, true);
   }
