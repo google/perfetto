@@ -20,6 +20,7 @@ import type {
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row, SqlValue} from '../../trace_processor/query_result';
 import type {QueryResult} from '../../base/query_slot';
+import type {SettingFilter} from '../settings/settings_types';
 import {
   type BigtraceQueryClient,
   QueryCancelledError,
@@ -27,12 +28,27 @@ import {
 import {encodeFilters} from './filter_encoding';
 import m from 'mithril';
 
+// Pivot / tree models don't expose `columns`; only the flat model does. Read
+// it through a structural type to avoid an `any` cast.
 type ModelWithColumns = DataSourceModel & {
-  columns?: Array<{field: string; alias?: string}>;
+  readonly columns?: ReadonlyArray<{readonly field: string}>;
 };
 
-// DataSource adapter paging `:fetch_results` into the DataGrid widget.
-export class BigtraceAsyncDataSource implements DataSource {
+// Only TRACE_ADDRESS settings change which traces exist, so the grid refetches
+// on those alone — editing another setting leaves the trace set unchanged. The
+// full settings array is still sent on each fetch; this only narrows change
+// detection.
+function traceSourceSettingsKey(
+  settings: ReadonlyArray<SettingFilter>,
+): string {
+  return JSON.stringify(settings.filter((s) => s.category === 'TRACE_ADDRESS'));
+}
+
+// DataSource adapter paging `/trace_metadata` into the DataGrid widget — the
+// sibling of `BigtraceAsyncDataSource`. Same sort / filter / pagination model,
+// but pointed at /trace_metadata instead of a query's results, and re-reading
+// the current settings (which carry the trace source) on every fetch.
+export class BigtraceTraceListDataSource implements DataSource {
   private loadedRows: Row[] = [];
   private isFetching = false;
   private columns: string[] = [];
@@ -41,59 +57,60 @@ export class BigtraceAsyncDataSource implements DataSource {
   // Window in `loadedRows`, for range-change detection.
   private loadedOffset = 0;
   private loadedLimit = 0;
-  // AIP-132 §Ordering. Empty = default order.
+  // AIP-132 §Ordering. Empty = backend enumeration order.
   private currentOrderBy = '';
-  // Aliases pre-resolved to field names. `currentFilterKey` is the JSON
-  // form for cheap equality checks.
+  // `currentFilterKey` is the JSON form for cheap equality checks. No alias
+  // remap: trace-list columns bind `field === alias`.
   private currentFilter: ReadonlyArray<Filter> = [];
   private currentFilterKey = '';
-  // `useRows` falls back to `getTotalRows()` when undefined.
   private _filteredTotalRows: number | undefined;
-  // Field-mask shipped as `:fetch_results` `columns`. Tracks the visible
-  // results-grid columns so a column toggle refetches a narrower page (and
-  // pulls in a metadata column when the user just enabled it).
+  // Settings key at the last fetch. A change (e.g. editing the trace source)
+  // invalidates the previous result.
+  private lastSettingsKey = '';
+  // Visible-column projection at the last fetch — both a change trigger and
+  // the `columns` field-mask shipped on the next request.
   private currentColumns: readonly string[] = [];
   private currentColumnsKey = '';
-  // availableColumnNames from the last fetch — the results-page column picker
-  // reads this to know what's selectable.
-  private _availableColumnNames: ReadonlyArray<string> | undefined;
 
   get filteredTotalRows(): number | undefined {
     return this._filteredTotalRows;
   }
 
-  get availableColumnNames(): ReadonlyArray<string> | undefined {
-    return this._availableColumnNames;
-  }
-
-  // `signal`: owner aborts on close. `getTotalRows`: scrollbar sizing.
+  // `getSettings` is a thunk so the Settings page can pass
+  // `() => bigTraceSettingsStorage.buildSettingFilters()` and have us re-read
+  // it on every render — mirrors `BigtraceAsyncDataSource.getTotalRows`.
+  // `onOrderByChange` fires on grid sort change, letting the owner persist the
+  // processing order (the snapshot's `trace_order_by`).
   constructor(
-    private readonly queryUuid: string,
     private readonly queryClient: BigtraceQueryClient,
-    private readonly getTotalRows: () => number,
+    private readonly getSettings: () => ReadonlyArray<SettingFilter>,
     private readonly signal?: AbortSignal,
+    private readonly onOrderByChange?: (orderBy: string) => void,
   ) {}
 
-  useRows(_model: DataSourceModel): DataSourceRows {
-    const model = _model as ModelWithColumns;
+  useRows(model: DataSourceModel): DataSourceRows {
     const wantedOrderBy = this.formatOrderBy(model);
-    const wantedFilter = this.formatFilter(model);
+    const wantedFilter = model.filters ?? [];
     const wantedFilterKey = encodeFilters(wantedFilter);
     const wantedOffset = model.pagination?.offset ?? 0;
     const wantedLimit = model.pagination?.limit ?? 0;
-    // Columns the grid is currently displaying; shipped as the `:fetch_results`
-    // `columns` field-mask.
-    const wantedColumns = (model.columns ?? []).map((c) => c.field);
+    const wantedSettings = this.getSettings();
+    const wantedSettingsKey = traceSourceSettingsKey(wantedSettings);
+    // Flat model carries the visible-column field-mask; pivot / tree models
+    // don't — those ship no projection, so the server returns defaults.
+    const wantedColumns =
+      (model as ModelWithColumns).columns?.map((c) => c.field) ?? [];
     const wantedColumnsKey = JSON.stringify(wantedColumns);
 
-    // Fetch on sort/filter/range/columns/initial change; skip if in flight
-    // (avoids redraw storms).
     const sortChanged = wantedOrderBy !== this.currentOrderBy;
     const filterChanged = wantedFilterKey !== this.currentFilterKey;
     const rangeChanged =
       this.hasInitialFetchCompleted &&
       (wantedOffset !== this.loadedOffset ||
         (wantedLimit > 0 && wantedLimit !== this.loadedLimit));
+    const settingsChanged =
+      this.hasInitialFetchCompleted &&
+      wantedSettingsKey !== this.lastSettingsKey;
     const columnsChanged =
       this.hasInitialFetchCompleted &&
       wantedColumnsKey !== this.currentColumnsKey;
@@ -102,114 +119,100 @@ export class BigtraceAsyncDataSource implements DataSource {
       (sortChanged ||
         filterChanged ||
         rangeChanged ||
+        settingsChanged ||
         columnsChanged ||
         needsInitial) &&
       !this.isFetching
     ) {
       this.currentOrderBy = wantedOrderBy;
+      // Persist on a real sort change (not the initial fetch, where
+      // wantedOrderBy is still '').
+      if (sortChanged) {
+        this.onOrderByChange?.(wantedOrderBy);
+      }
       if (filterChanged) {
         this.currentFilter = wantedFilter;
         this.currentFilterKey = wantedFilterKey;
-        // Briefly oversized scrollbar > briefly collapsed while refetching.
+        // Briefly oversized scrollbar beats briefly collapsed while refetching.
         this._filteredTotalRows = undefined;
       }
       this.currentColumns = wantedColumns;
       this.currentColumnsKey = wantedColumnsKey;
-      // First render may have limit=0; fall back so the schema comes back.
       const fetchLimit = wantedLimit > 0 ? wantedLimit : 100;
-      this.fetchMoreRows(wantedOffset, fetchLimit);
+      this.fetchWindow(wantedOffset, fetchLimit, wantedSettings);
     }
 
-    const mappedRows = this.loadedRows.map((row) => {
-      const mappedRow: Row = {};
-      for (const key in row) {
-        if (Object.prototype.hasOwnProperty.call(row, key)) {
-          const col = model.columns?.find((c) => c.field === key);
-          const alias =
-            col !== undefined && col.alias !== undefined ? col.alias : key;
-          mappedRow[alias] = row[key];
-        }
-      }
-      return mappedRow;
-    });
-
     return {
-      rows: mappedRows,
-      // Filtered total; falls back to unfiltered while undefined.
-      totalRows: this._filteredTotalRows ?? this.getTotalRows(),
+      rows: this.loadedRows,
+      totalRows: this._filteredTotalRows,
       rowOffset: this.loadedOffset,
       isPending: this.isFetching,
     };
   }
 
-  // Resolve widget alias → backend field name for the order_by wire string.
-  private formatOrderBy(model: ModelWithColumns): string {
+  // Trace-list columns aren't aliased (grid binds `field === alias`), so no
+  // alias→field resolution (unlike BigtraceAsyncDataSource).
+  private formatOrderBy(model: DataSourceModel): string {
     const sort = model.sort;
     if (!sort) return '';
-    const col = model.columns?.find((c) => c.alias === sort.alias);
-    const field = col?.field ?? sort.alias;
-    return `${field} ${sort.direction.toLowerCase()}`;
+    return `${sort.alias} ${sort.direction.toLowerCase()}`;
   }
 
-  // Same alias→field remap as formatOrderBy; `fetchResults` does encoding.
-  private formatFilter(model: ModelWithColumns): ReadonlyArray<Filter> {
-    const filters = model.filters ?? [];
-    if (filters.length === 0) return [];
-    return filters.map((f) => {
-      const col = model.columns?.find((c) => c.alias === f.field);
-      const field = col?.field ?? f.field;
-      return {...f, field};
-    });
-  }
-
-  // Re-fetch the currently-loaded window. No-op if a fetch is in flight.
+  // Re-fetch the current window with the latest settings. Called by the
+  // Settings page when a setting edit doesn't change the grid model, so
+  // useRows change-detection wouldn't catch it.
   async refresh(): Promise<void> {
     if (this.isFetching) return;
     const offset = this.loadedOffset;
     const limit = this.loadedLimit > 0 ? this.loadedLimit : 100;
-    await this.fetchMoreRows(offset, limit);
+    await this.fetchWindow(offset, limit, this.getSettings());
   }
 
-  private async fetchMoreRows(offset: number, limit: number) {
+  private async fetchWindow(
+    offset: number,
+    limit: number,
+    settings: ReadonlyArray<SettingFilter>,
+  ): Promise<void> {
     if (this.signal?.aborted) return;
     this.error = null;
     this.isFetching = true;
+    this.lastSettingsKey = traceSourceSettingsKey(settings);
     m.redraw();
     try {
-      const result = await this.queryClient.fetchResults(
-        this.queryUuid,
+      const result = await this.queryClient.listTraceMetadata(
+        settings,
         limit,
         offset,
         this.signal,
         this.currentOrderBy,
         this.currentFilter,
+        // Empty projection → omit (backend returns its schema defaults).
         this.currentColumns.length > 0 ? this.currentColumns : undefined,
       );
       this.loadedRows = [...result.rows];
       this.loadedOffset = offset;
       this.loadedLimit = limit;
-      this.hasInitialFetchCompleted = true;
       this._filteredTotalRows = result.totalFilteredRows;
-      this._availableColumnNames = result.availableColumnNames;
-
-      if (this.columns.length === 0 && result.columns.length > 0) {
+      if (result.columns.length > 0) {
         this.columns = [...result.columns];
       }
     } catch (e) {
-      // Abort is expected when the owning tab closes; don't surface it.
       if (e instanceof QueryCancelledError) return;
-      console.error('[bigtrace] fetch_results failed:', e);
+      console.error('[bigtrace] trace_metadata failed:', e);
       this.error = e instanceof Error ? e.message : String(e);
+      // A 400 while the trace source is unset/unreadable is the common case
+      // mid-edit — drop the rows so the grid doesn't show stale matches.
+      this.loadedRows = [];
+      this._filteredTotalRows = 0;
     } finally {
+      // Flip the flag regardless of success/failure: the first fetch often
+      // 400s while the trace source is still empty. Flipping only on success
+      // would re-trigger that 400 every render and gate out the
+      // settings-changed branch when the user finally sets the source.
+      this.hasInitialFetchCompleted = true;
       this.isFetching = false;
       m.redraw();
     }
-  }
-
-  // Force the first window after SUCCESS without waiting for a render.
-  async ensureResultsLoaded(): Promise<void> {
-    if (this.hasInitialFetchCompleted) return;
-    await this.fetchMoreRows(0, 100);
   }
 
   getError(): string | null {
@@ -227,8 +230,8 @@ export class BigtraceAsyncDataSource implements DataSource {
   useDistinctValues(
     _column: string | undefined,
   ): QueryResult<readonly SqlValue[]> {
-    // `data: []` (not `undefined`) avoids a permanent "Loading…" in the
-    // column-filter "Equals" submenu. Cell-context menu filtering still works.
+    // `data: []` (not undefined) keeps the column-filter "Equals" submenu from
+    // sticking on "Loading…"; cell-context-menu filtering still works.
     return {data: [], isPending: false, isFresh: true};
   }
 
