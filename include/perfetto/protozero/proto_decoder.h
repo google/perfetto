@@ -334,14 +334,24 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   // If the field |id| is known at compile time, prefer the templated
   // specialization at<kFieldNumber>().
   const Field& Get(uint32_t id) const {
-    if (PERFETTO_LIKELY(id < num_fields_ && id < size_))
+    if (PERFETTO_LIKELY(id < num_fields_) && HasField(id))
       return fields_[id];
     // If id >= num_fields_, the field id is invalid (was not known in the
-    // .proto) and we return the 0th field, which is always !valid().
-    // If id >= size_ and <= num_fields, the id is valid but the field has not
-    // been seen while decoding (hence the stack storage has not been expanded)
-    // so we return the 0th invalid field.
-    return fields_[0];
+    // .proto). Otherwise the id is valid but the field has not been seen
+    // while decoding. Either way return a shared invalid field: the backing
+    // slot cannot stand in for it because the storage is uninitialized.
+    return kInvalidField;
+  }
+
+  // True if the field with the given id was seen while decoding: tests bit
+  // |id| of the presence bitmap. The caller must check that |id| is within
+  // range, i.e. < num_fields_.
+  bool HasField(uint32_t id) const {
+    PERFETTO_DCHECK(id < num_fields_);
+    constexpr uint32_t kBitsPerWord = sizeof(*presence_) * 8;
+    const uint32_t word_idx = id / kBitsPerWord;
+    const uint32_t bit_off = id % kBitsPerWord;
+    return (presence_[word_idx] & (1ULL << bit_off)) != 0;
   }
 
   // Like Get(), but also resolves "extension" fields whose id exceeds the
@@ -463,13 +473,19 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   }
 
  protected:
+  // Returned by Get()/at() for fields that were not seen while decoding.
+  // Always !valid() (id == 0).
+  static const Field kInvalidField;
+
   TypedProtoDecoderBase(Field* storage,
+                        uint64_t* presence,
                         uint32_t num_fields,
                         uint32_t capacity,
                         const uint8_t* buffer,
                         size_t length)
       : ProtoDecoder(buffer, length),
         fields_(storage),
+        presence_(presence),
         num_fields_(num_fields),
         // The reason for "capacity -1" is to avoid hitting the expansion path
         // in TypedProtoDecoderBase::ParseAllFields() when we are just setting
@@ -477,16 +493,20 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
         size_(std::min(num_fields, capacity - 1)),
         capacity_(capacity) {
     // The reason why Field needs to be trivially de/constructible is to avoid
-    // implicit initializers on all the ~1000 entries. We need it to initialize
-    // only on the first |max_field_id| fields, the remaining capacity doesn't
-    // require initialization.
+    // implicit initializers on all the ~1000 entries. The field storage is
+    // left uninitialized (reads are gated on HasField()); only the presence
+    // bitmap is cleared.
     static_assert(std::is_trivially_constructible<Field>::value &&
                       std::is_trivially_destructible<Field>::value &&
                       std::is_trivial<Field>::value,
                   "Field must be a trivial aggregate type");
-    memset(fields_, 0, sizeof(Field) * capacity_);
+    memset(presence_, 0, sizeof(uint64_t) * ((num_fields_ + 63) / 64));
     PERFETTO_DCHECK(capacity > 0);
   }
+
+  // Marks the field with the given id as seen: sets bit |id| of the presence
+  // bitmap. |id| must be < num_fields_.
+  void SetField(uint32_t id) { presence_[id / 64] |= 1ULL << (id % 64); }
 
   void ParseAllFields();
 
@@ -502,6 +522,10 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   // specialization) or |heap_storage_| after ExpandHeapStorage() is called, in
   // case of a large number of repeated fields.
   Field* fields_;
+
+  // Presence bitmap, 1 bit per field id, sized to cover [0, num_fields_).
+  // Provided by the template specialization (always on-stack). See HasField().
+  uint64_t* presence_;
 
   // Number of known fields, without accounting repeated storage. This is equal
   // to MAX_FIELD_ID + 1 (to account for the invalid 0th field). It never
@@ -545,6 +569,7 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
  public:
   TypedProtoDecoder(const uint8_t* buffer, size_t length)
       : TypedProtoDecoderBase(on_stack_storage_,
+                              presence_storage_,
                               /*num_fields=*/MAX_FIELD_ID + 1,
                               PROTOZERO_DECODER_INITIAL_STACK_CAPACITY,
                               buffer,
@@ -560,7 +585,7 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
     // back on the heap. Because both terms of the if () are known at compile
     // time, the compiler elides the branch for ids < INITIAL_STACK_CAPACITY.
     if (FIELD_ID < PROTOZERO_DECODER_INITIAL_STACK_CAPACITY) {
-      return fields_[FIELD_ID];
+      return HasField(FIELD_ID) ? fields_[FIELD_ID] : kInvalidField;
     } else {
       // Otherwise use the slowpath Get() which will do a runtime check.
       return Get(FIELD_ID);
@@ -610,8 +635,17 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
       memcpy(on_stack_storage_, other.on_stack_storage_,
              sizeof(on_stack_storage_));
     }
+    // The presence bitmap is always on-stack; repoint and copy it.
+    presence_ = presence_storage_;
+    memcpy(presence_storage_, other.presence_storage_,
+           sizeof(presence_storage_));
   }
 
+  // The presence bitmap is declared before the (much larger) field storage:
+  // it is touched on every Get()/at(), so keeping it at a small offset from
+  // |this| helps the dcache and lets arm compute the address in fewer
+  // instructions.
+  uint64_t presence_storage_[(MAX_FIELD_ID + 1 + 63) / 64];
   Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
 };
 
