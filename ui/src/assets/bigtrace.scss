@@ -808,6 +808,15 @@ pre.pf-bt-history-item-query--standalone {
   &__chips {
     flex: 1 1 auto;
     min-width: 0;
+
+    // A chip with a long value (e.g. a trace-path filter) must ellipsize, not
+    // grow the editor panel past the split and scroll the whole page. The
+    // shared chip pins min-width: max-content, so cap and let it shrink here;
+    // its label already has text-overflow: ellipsis.
+    .pf-chip {
+      min-width: 0;
+      max-width: 100%;
+    }
   }
 
   // Only the "Edit settings" chip is clickable — give it the pointer cursor.
