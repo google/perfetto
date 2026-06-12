@@ -157,9 +157,10 @@ function renderDataGrid(
   }
   const schema: SchemaRegistry = {data: columnSchema};
 
-  // Per-tab visible subset (empty/unset → all); shipped as the
+  // Per-tab visible subset (empty/unset → defaults); shipped as the
   // `:fetch_results` `columns` projection.
   const visible = resolveResultColumns(tab.resultColumns, allColumns);
+  const defaultVisible = resolveResultColumns(null, allColumns);
   const isAsync = dataSource instanceof BigtraceAsyncDataSource;
   const sortState = resultsSortByTab.get(tab);
 
@@ -197,7 +198,7 @@ function renderDataGrid(
     fillHeight: true,
     showExportButton: true,
     emptyStateMessage:
-      isAsync && allColumns.length === visible.length
+      isAsync && visible.length >= defaultVisible.length
         ? 'Query returned no rows'
         : 'No rows match the visible columns',
     toolbarItemsLeft: [
