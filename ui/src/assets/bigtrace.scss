@@ -555,6 +555,25 @@ pre.pf-bt-history-item-query--standalone {
   white-space: pre-wrap;
 }
 
+// A fetch_results failure shown in place of the results grid: a short heading
+// plus the selectable, scrollable error body (reusing .pf-bt-error-content).
+.pf-bt-results-error {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  &__title {
+    padding: 12px 12px 0;
+    font-weight: 500;
+    color: var(--pf-color-danger);
+  }
+
+  .pf-bt-error-content {
+    flex: 1;
+  }
+}
+
 // min-height:0 chain lets DataGrid fillHeight work; only the body scrolls.
 .pf-bt-results-panel {
   display: flex;
