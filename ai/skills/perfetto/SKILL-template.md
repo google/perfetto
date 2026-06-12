@@ -44,6 +44,10 @@ retention, or optimize heap usage:
     dumps (or a batch of dominator paths) to identify common leak patterns
     across a process, read
     [heap_dump_cluster.md](workflows/android_memory/heap_dump_cluster.md).
+*   **Investigate Native Memory Usage (Native Heap Profile):** To investigate memory leaks, active memory growth, or total allocation hot paths in C/C++ code using native heap profiles, read
+    [native_heap.md](workflows/android_memory/native_heap.md).
+*   **Investigate Java Memory Churn (Java Allocation Profile):** To investigate memory churn, frequent GC lag, or temporary object allocations in Java/Kotlin code using allocation profiles, read
+    [java_allocation_profile.md](workflows/android_memory/java_allocation_profile.md).
 
 ## 3. Are you trying to analyze GPU/accelerator performance?
 
