@@ -128,6 +128,10 @@ class TrackEventParser {
   const StringId callsite_id_key_id_;
   const StringId end_callsite_id_key_id_;
 
+  // String IDs for sort index hints (used for thread/process ordering in UI)
+  const StringId thread_sort_index_hint_id_;
+  const StringId process_sort_index_hint_id_;
+
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;

@@ -1,0 +1,49 @@
+# Thread with legacy_sort_index
+packet {
+  track_descriptor {
+    uuid: 1
+    thread {
+      pid: 1234
+      tid: 1234
+      thread_name: "MainThread"
+      legacy_sort_index: 10
+    }
+  }
+  timestamp: 1000
+  track_event {
+    type: TYPE_INSTANT
+  }
+}
+
+# Thread without legacy_sort_index (should have default 0)
+packet {
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 1234
+      tid: 5678
+      thread_name: "WorkerThread"
+    }
+  }
+  timestamp: 1000
+  track_event {
+    type: TYPE_INSTANT
+  }
+}
+
+# Thread with higher sort_index (should appear first)
+packet {
+  track_descriptor {
+    uuid: 3
+    thread {
+      pid: 1234
+      tid: 9999
+      thread_name: "HighPriorityThread"
+      legacy_sort_index: 100
+    }
+  }
+  timestamp: 1000
+  track_event {
+    type: TYPE_INSTANT
+  }
+}
