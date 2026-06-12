@@ -691,8 +691,22 @@ function copySyntaqliteRuntime() {
     'syntaqlite-sqlite.wasm',
   ]) {
     addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
+    // The bigtrace bundle resolves assets against its own serving root.
+    if (cfg.bigtrace) {
+      addTask(cp, [
+        pjoin(srcDir, fname),
+        pjoin(cfg.outBigtraceDistDir, 'assets', fname),
+      ]);
+    }
   }
   addTask(buildSyntaqlitePerfettoDialect, []);
+  if (cfg.bigtrace) {
+    // Tasks run in queue order, so this copies the freshly-built dialect.
+    addTask(cp, [
+      pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+      pjoin(cfg.outBigtraceDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+    ]);
+  }
 }
 
 function getBuildToolsBinDir() {
