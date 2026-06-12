@@ -43,22 +43,18 @@ FtraceModuleImpl::FtraceModuleImpl(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kFtraceStatsFieldNumber);
 }
 
-ModuleResult FtraceModuleImpl::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> seq_state,
-    uint32_t field_id) {
-  switch (field_id) {
+ModuleResult FtraceModuleImpl::TokenizePacket(const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kFtraceEventsFieldNumber: {
-      auto ftrace_field = decoder.ftrace_events();
+      auto ftrace_field = args.field.Cast<TracePacket::kFtraceEvents>();
       return tokenizer_.TokenizeFtraceBundle(
-          packet->slice(ftrace_field.data, ftrace_field.size),
-          std::move(seq_state), decoder.trusted_packet_sequence_id());
+          args.packet->slice(ftrace_field.data, ftrace_field.size),
+          args.state, args.decoder.trusted_packet_sequence_id());
     }
     case TracePacket::kFtraceStatsFieldNumber: {
-      return parser_.ParseFtraceStats(decoder.ftrace_stats(),
-                                      decoder.trusted_packet_sequence_id());
+      return parser_.ParseFtraceStats(
+          args.field.Cast<TracePacket::kFtraceStats>(),
+          args.decoder.trusted_packet_sequence_id());
     }
     default:
       return ModuleResult::Ignored();

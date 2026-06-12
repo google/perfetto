@@ -196,14 +196,11 @@ ArtProcessMetadataModule::ArtProcessMetadataModule(
 
 ArtProcessMetadataModule::~ArtProcessMetadataModule() = default;
 
-void ArtProcessMetadataModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void ArtProcessMetadataModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kArtProcessMetadataFieldNumber:
-      ParseArtProcessMetadata(ts, decoder.art_process_metadata());
+      ParseArtProcessMetadata(
+          args.ts, args.field.Cast<TracePacket::kArtProcessMetadata>());
       return;
   }
 }

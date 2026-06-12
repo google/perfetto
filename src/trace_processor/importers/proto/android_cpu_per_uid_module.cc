@@ -80,17 +80,15 @@ AndroidCpuPerUidModule::AndroidCpuPerUidModule(
 
 AndroidCpuPerUidModule::~AndroidCpuPerUidModule() = default;
 
-void AndroidCpuPerUidModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData& packet,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kCpuPerUidDataFieldNumber) {
+void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
+  if (args.field.id() != TracePacket::kCpuPerUidDataFieldNumber) {
     return;
   }
 
-  auto* state = packet.sequence_state->GetCustomState<AndroidCpuPerUidState>();
-  protos::pbzero::CpuPerUidData::Decoder evt(decoder.cpu_per_uid_data());
+  auto* state =
+      args.data.sequence_state->GetCustomState<AndroidCpuPerUidState>();
+  protos::pbzero::CpuPerUidData::Decoder evt(
+      args.field.Cast<TracePacket::kCpuPerUidData>());
 
   if (evt.has_cluster_count()) {
     state->cluster_count = evt.cluster_count();
@@ -116,7 +114,7 @@ void AndroidCpuPerUidModule::ParseTracePacketData(
     }
 
     ComputeTotals(*uid_it, cluster, time_ms);
-    UpdateCounter(ts, *uid_it, cluster, time_ms);
+    UpdateCounter(args.ts, *uid_it, cluster, time_ms);
     cluster++;
     if (cluster >= state->cluster_count) {
       cluster = 0;
@@ -125,10 +123,10 @@ void AndroidCpuPerUidModule::ParseTracePacketData(
   }
 
   for (auto it = system_totals_.GetIterator(); it; ++it) {
-    UpdateTotals(ts, "System", it.key(), it.value());
+    UpdateTotals(args.ts, "System", it.key(), it.value());
   }
   for (auto it = app_totals_.GetIterator(); it; ++it) {
-    UpdateTotals(ts, "Apps", it.key(), it.value());
+    UpdateTotals(args.ts, "Apps", it.key(), it.value());
   }
 
   // Anything we knew about but didn't see in this packet must not have
@@ -140,7 +138,7 @@ void AndroidCpuPerUidModule::ParseTracePacketData(
     }
     uint32_t cluster_id = it.key() & 0xffffffff;
 
-    UpdateCounter(ts, uid, cluster_id, it.value());
+    UpdateCounter(args.ts, uid, cluster_id, it.value());
   }
 }
 
@@ -168,7 +166,7 @@ void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
 void AndroidCpuPerUidModule::ComputeTotals(uint32_t uid,
                                            uint32_t cluster,
                                            uint64_t time_ms) {
-  // Note: in ParseTracePacketData, previous is computed per intern sequence,
+  // Note: in ParseField, previous is computed per intern sequence,
   // whereas here it's computed globally post-interning.
   uint64_t key = MakeKey(uid, cluster);
   auto [previous, inserted] = last_value_.Insert(key, time_ms);

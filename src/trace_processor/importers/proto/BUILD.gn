@@ -255,12 +255,16 @@ source_set("proto_importer_module") {
   sources = [
     "proto_importer_module.cc",
     "proto_importer_module.h",
+    "selective_trace_packet_decoder.h",
+    "typed_proto_field.h",
   ]
   public_deps = [ ":packet_sequence_state_generation_hdr" ]
   deps = [
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/protozero",
     "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../protos/perfetto/trace:zero",
     "../../../base",
     "../../sorter",
     "../../types",

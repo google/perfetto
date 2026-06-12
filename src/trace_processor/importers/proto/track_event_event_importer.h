@@ -910,8 +910,14 @@ class TrackEventEventImporter {
                                     /* close_flow = */ true);
       }
     }
-    auto gpu_field = event_.GetExtensionSlowly<
-        protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber>();
+    // gpu_correlation is an out-of-tree extension of TrackEvent (id 3000),
+    // not stored by the typed decoder. FindField does a single early-exit
+    // scan; this runs per event, so avoid collecting all fields.
+    protozero::Field gpu_field =
+        protozero::ProtoDecoder(
+            event_.begin(), static_cast<size_t>(event_.end() - event_.begin()))
+            .FindField(
+                protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber);
     if (gpu_field.valid()) {
       protos::pbzero::GpuCorrelation::Decoder gpu(gpu_field.as_bytes());
       for (auto it = gpu.render_stage_submission_event_ids(); it; ++it) {
