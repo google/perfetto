@@ -343,6 +343,8 @@
 // Status-colored left bar, meta card only (clashes with the pre's border).
 .pf-bt-history-item-meta {
   border-left: 3px solid transparent;
+  // The band opens the query on click (same as the Open button).
+  cursor: pointer;
 }
 
 .pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
