@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -317,68 +318,41 @@ class UnifiedRepeatedFieldIterator {
   VariantType iter_;
 };
 
-// Shared base for decoders that store fields in a dense array indexed by
-// field id, with reads gated by a presence bitmap (so the field storage can
-// be left uninitialized). Used by TypedProtoDecoderBase and
-// SelectiveProtoDecoderBase; the storage is provided by their template
-// specializations.
-class PERFETTO_EXPORT_COMPONENT DenseProtoDecoderBase : public ProtoDecoder {
+// Whitelist for selective decoding, built at compile time from the field ids
+// given as template arguments and sized automatically to the highest of them.
+// The mask does not need to match the decoder's MAX_FIELD_ID: the selective
+// constructor caps the decoder's dense window at |kMaxFieldId|, so ids above
+// it simply spill and the mask is never read beyond its end.
+// Usage:
+//   static constexpr SelectiveDecodeMask<TracePacket::kTimestampFieldNumber,
+//                                        TracePacket::kInternedDataFieldNumber>
+//       kMask{};
+//   SelectiveTypedProtoDecoder<MAX_FIELD_ID> decoder(data, size, kMask);
+//   for (const Field& f : decoder.unknown_fields()) { ... }
+template <uint32_t... kFieldIds>
+class SelectiveDecodeMask {
  public:
-  // If the field |id| is known at compile time, prefer the templated
-  // specialization at<kFieldNumber>().
-  const Field& Get(uint32_t id) const {
-    // HasField(id) implies the slot was written, so fields_[id] is safe to
-    // read. Out-of-range or never-seen ids resolve to a static invalid field.
-    if (PERFETTO_LIKELY(id < num_fields_) && HasField(id))
-      return fields_[id];
-    return kInvalidField;
+  static_assert(sizeof...(kFieldIds) > 0, "Empty field id list");
+  static constexpr uint32_t kMaxFieldId = std::max({kFieldIds...});
+
+  constexpr SelectiveDecodeMask() : words_{} {
+    for (uint32_t id : {kFieldIds...})
+      words_[id / 64] |= uint64_t(1) << (id % 64);
   }
+  const uint64_t* data() const { return words_; }
 
-  // True if the field with the given id was seen while decoding. The presence
-  // bitmap replaces zero-initializing the whole field storage (a 1.6KB memset)
-  // with a clear of num_fields_/8 bytes.
-  bool HasField(uint32_t id) const {
-    return (presence_[id >> 6] >> (id & 63)) & 1u;
-  }
+ private:
+  uint64_t words_[kMaxFieldId / 64 + 1];
+};
 
- protected:
-  DenseProtoDecoderBase(const uint8_t* buffer,
-                        size_t length,
-                        Field* fields,
-                        uint64_t* presence,
-                        uint32_t num_fields)
-      : ProtoDecoder(buffer, length),
-        fields_(fields),
-        presence_(presence),
-        num_fields_(num_fields) {
-    // Field storage is left uninitialized (reads gated on HasField()); only
-    // the presence bitmap is cleared. Field must stay trivial for this to be
-    // well defined.
-    static_assert(std::is_trivially_constructible<Field>::value &&
-                      std::is_trivially_destructible<Field>::value &&
-                      std::is_trivial<Field>::value,
-                  "Field must be a trivial aggregate type");
-    memset(presence_, 0, sizeof(uint64_t) * ((num_fields_ + 63) / 64));
-  }
-
-  // Marks the field with the given id as present. See HasField().
-  void SetField(uint32_t id) { presence_[id >> 6] |= uint64_t(1) << (id & 63); }
-
-  // Returned by Get()/at() for fields that were not seen while decoding.
-  // Always !valid() (id == 0).
-  static const Field kInvalidField;
-
-  // Points to the storage provided by the template specialization (on-stack,
-  // or on-heap for TypedProtoDecoder after ExpandHeapStorage()).
-  Field* fields_;
-
-  // Presence bitmap, 1 bit per field id, sized to cover [0, num_fields_).
-  // Provided by the template specialization (always on-stack). See HasField().
-  uint64_t* presence_;
-
-  // Size of the dense field id space, i.e. max field id + 1 (to account for
-  // the invalid 0th field). It never changes after construction.
-  uint32_t num_fields_;
+// A range of fields spilled by a SelectiveTypedProtoDecoder, in wire order.
+// Repeated fields appear once per occurrence. Returned by
+// SelectiveTypedProtoDecoder::unknown_fields().
+struct UnknownFieldRange {
+  const Field* begin() const { return begin_; }
+  const Field* end() const { return end_; }
+  const Field* begin_;
+  const Field* end_;
 };
 
 // This decoder loads all fields upfront, without recursing in nested messages.
@@ -393,9 +367,33 @@ class PERFETTO_EXPORT_COMPONENT DenseProtoDecoderBase : public ProtoDecoder {
 //                                        num_fields_        size_
 // Note that if a message has high field numbers, upon creation |size_| can be
 // < |num_fields_| (until a heap expansion is hit while inserting).
-class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase
-    : public DenseProtoDecoderBase {
+class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
  public:
+  // If the field |id| is known at compile time, prefer the templated
+  // specialization at<kFieldNumber>().
+  const Field& Get(uint32_t id) const {
+    if (PERFETTO_LIKELY(id < num_fields_) && HasField(id))
+      return fields_[id];
+    // If id >= num_fields_, the field id is invalid (was not known in the
+    // .proto). Otherwise the id is valid but the field has not been seen
+    // while decoding. Either way return a shared invalid field: the backing
+    // slot cannot stand in for it because the storage is uninitialized.
+    return kInvalidField;
+  }
+
+  // True if the field with the given id was seen while decoding: tests bit
+  // |id| of the presence bitmap. The caller must check that |id| is within
+  // the bitmap, i.e. <= the decoder's MAX_FIELD_ID. Note that |id| may
+  // exceed |num_fields_|: the selective decoding constructor shrinks
+  // num_fields_ to the mask's extent but clears the full bitmap, so that
+  // at<>() can keep testing the bit directly.
+  bool HasField(uint32_t id) const {
+    constexpr uint32_t kBitsPerWord = sizeof(*presence_) * 8;
+    const uint32_t word_idx = id / kBitsPerWord;
+    const uint32_t bit_off = id % kBitsPerWord;
+    return (presence_[word_idx] & (1ULL << bit_off)) != 0;
+  }
+
   // Like Get(), but also resolves "extension" fields whose id exceeds the
   // highest field id known in-tree at compile time (i.e. id >= num_fields_,
   // which is MAX_FIELD_ID + 1). Such fields are NOT stored by ParseAllFields()
@@ -515,40 +513,82 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase
   }
 
  protected:
+  // Returned by Get()/at() for fields that were not seen while decoding.
+  // Always !valid() (id == 0).
+  static const Field kInvalidField;
+
   TypedProtoDecoderBase(Field* storage,
                         uint64_t* presence,
                         uint32_t num_fields,
                         uint32_t capacity,
                         const uint8_t* buffer,
                         size_t length)
-      : DenseProtoDecoderBase(buffer, length, storage, presence, num_fields),
+      : ProtoDecoder(buffer, length),
+        fields_(storage),
+        presence_(presence),
+        num_fields_(num_fields),
         // The reason for "capacity -1" is to avoid hitting the expansion path
         // in TypedProtoDecoderBase::ParseAllFields() when we are just setting
         // fields < INITIAL_STACK_CAPACITY (which is the most common case).
         size_(std::min(num_fields, capacity - 1)),
         capacity_(capacity) {
+    // The reason why Field needs to be trivially de/constructible is to avoid
+    // implicit initializers on all the ~1000 entries. The field storage is
+    // left uninitialized (reads are gated on HasField()); only the presence
+    // bitmap is cleared.
+    static_assert(std::is_trivially_constructible<Field>::value &&
+                      std::is_trivially_destructible<Field>::value &&
+                      std::is_trivial<Field>::value,
+                  "Field must be a trivial aggregate type");
+    memset(presence_, 0, sizeof(uint64_t) * ((num_fields_ + 63) / 64));
     PERFETTO_DCHECK(capacity > 0);
   }
 
+  // Marks the field with the given id as seen: sets bit |id| of the presence
+  // bitmap. |id| must be < num_fields_.
+  void SetField(uint32_t id) { presence_[id / 64] |= 1ULL << (id % 64); }
+
   void ParseAllFields();
+
+  // Selective-decoding flavour, driven by SelectiveTypedProtoDecoder. The
+  // spill arguments are in/out and deliberately arguments rather than
+  // members: as members they would cost an initialization per decoder
+  // construction (decoders are constructed per nested message). |*spill| is
+  // repointed at |*heap_spill| if its capacity is exhausted.
+  void ParseAllFieldsSelective(const uint64_t* dense_mask,
+                               Field** spill,
+                               uint32_t* spill_capacity,
+                               uint32_t* spill_size,
+                               std::unique_ptr<Field[]>* heap_spill);
 
   // Called when the default on-stack storage is exhausted and new repeated
   // fields need to be pushed.
   void ExpandHeapStorage();
 
   // Used only in presence of a large number of repeated fields, when the
-  // default on-stack storage is exhausted. |fields_| points into this after
-  // the first ExpandHeapStorage() call.
+  // default on-stack storage is exhausted.
   std::unique_ptr<Field[]> heap_storage_;
 
-  // Note on |num_fields_| (in DenseProtoDecoderBase): it is unrelated to
-  // |size_| and |capacity_|. If the highest field id of a proto message is
-  // 131, |num_fields_| will be = 132 but, on initialization,
+  // Points to the storage, either on-stack (default, provided by the template
+  // specialization) or |heap_storage_| after ExpandHeapStorage() is called, in
+  // case of a large number of repeated fields.
+  Field* fields_;
+
+  // Presence bitmap, 1 bit per field id, sized to cover [0, num_fields_).
+  // Provided by the template specialization (always on-stack). See HasField().
+  uint64_t* presence_;
+
+  // Number of known fields, without accounting repeated storage. This is equal
+  // to MAX_FIELD_ID + 1 (to account for the invalid 0th field). It never
+  // changes after construction.
+  // This is unrelated with |size_| and |capacity_|. If the highest field id of
+  // a proto message is 131, |num_fields_| will be = 132 but, on initialization,
   // |size_| = |capacity_| = 100 (INITIAL_STACK_CAPACITY).
   // One cannot generally assume that |fields_| has enough storage to
   // dereference every field. That is only true:
   // - For field ids < INITIAL_STACK_CAPACITY.
   // - After the first call to ExpandHeapStorage().
+  uint32_t num_fields_;
 
   // Number of active |fields_| entries. This is initially equal to
   // min(num_fields_, INITIAL_STACK_CAPACITY - 1) and after ExpandHeapStorage()
@@ -562,6 +602,18 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase
   // case it represents the size (#fields with each entry of a repeated field
   // counted individually) of the |heap_storage_| array.
   uint32_t capacity_;
+
+ private:
+  // Shared implementation of the two ParseAllFields() flavours above,
+  // instantiated twice (in the .cc) so that the plain decode path pays
+  // nothing for the mask support -- not even a null check on the mask, which
+  // is a per-field branch in the decode loop.
+  template <bool kSelective>
+  void ParseAllFieldsImpl(const uint64_t* dense_mask,
+                          Field** spill,
+                          uint32_t* spill_capacity,
+                          uint32_t* spill_size,
+                          std::unique_ptr<Field[]>* heap_spill);
 };
 
 // This constant is a tradeoff between having a larger stack frame and being
@@ -579,21 +631,20 @@ template <int MAX_FIELD_ID, bool = false>
 class TypedProtoDecoder : public TypedProtoDecoderBase {
  public:
   TypedProtoDecoder(const uint8_t* buffer, size_t length)
-      : TypedProtoDecoderBase(on_stack_storage_,
-                              presence_storage_,
-                              /*num_fields=*/MAX_FIELD_ID + 1,
-                              PROTOZERO_DECODER_INITIAL_STACK_CAPACITY,
-                              buffer,
-                              length) {
+      : TypedProtoDecoder(SkipParseTag{},
+                          buffer,
+                          length,
+                          /*num_fields=*/MAX_FIELD_ID + 1) {
     TypedProtoDecoderBase::ParseAllFields();
   }
 
   template <uint32_t FIELD_ID>
   const Field& at() const {
     static_assert(FIELD_ID <= MAX_FIELD_ID, "FIELD_ID > MAX_FIELD_ID");
-    // For ids < the on-stack capacity, fields_[FIELD_ID] always exists, so just
-    // gate the read on the presence bit. The branch is resolved at compile
-    // time.
+    // If the field id is < the on-stack capacity, it's safe to always
+    // dereference |fields_|, whether it's still using the stack or it fell
+    // back on the heap. Because both terms of the if () are known at compile
+    // time, the compiler elides the branch for ids < INITIAL_STACK_CAPACITY.
     if (FIELD_ID < PROTOZERO_DECODER_INITIAL_STACK_CAPACITY) {
       return HasField(FIELD_ID) ? fields_[FIELD_ID] : kInvalidField;
     } else {
@@ -636,6 +687,21 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
     return *this;
   }
 
+ protected:
+  // Sets up the storage but does not parse: for subclasses that drive
+  // ParseAllFields() themselves (see SelectiveTypedProtoDecoder).
+  struct SkipParseTag {};
+  TypedProtoDecoder(SkipParseTag,
+                    const uint8_t* buffer,
+                    size_t length,
+                    uint32_t num_fields)
+      : TypedProtoDecoderBase(on_stack_storage_,
+                              presence_storage_,
+                              num_fields,
+                              PROTOZERO_DECODER_INITIAL_STACK_CAPACITY,
+                              buffer,
+                              length) {}
+
  private:
   void MaybeCopyOnStackStorage(const TypedProtoDecoder& other) {
     // If the moved-from decoder was using on-stack storage, we need to update
@@ -651,8 +717,115 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
            sizeof(presence_storage_));
   }
 
-  Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
+  // The presence bitmap is declared before the (much larger) field storage:
+  // it is touched on every Get()/at(), so keeping it at a small offset from
+  // |this| helps the dcache and lets arm compute the address in fewer
+  // instructions.
   uint64_t presence_storage_[(MAX_FIELD_ID + 1 + 63) / 64];
+  Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
+};
+
+// TypedProtoDecoder with selective decoding. Ids whitelisted in the mask are
+// decoded into the O(1) dense storage as usual; every other field --
+// including ids beyond MAX_FIELD_ID, which TypedProtoDecoder drops -- is
+// appended, in wire order, to a spill area and can be iterated via
+// unknown_fields(). Spilled fields are not visible to Get()/at() (which
+// return an invalid field) or GetRepeated().
+//
+// This is a separate subclass rather than an extra TypedProtoDecoder
+// constructor so that the spill bookkeeping costs the plain decode path
+// nothing: decoders are constructed per nested message, and even
+// zero-initializing one extra pointer member per construction is measurable
+// end-to-end.
+// Usage:
+//   static constexpr SelectiveDecodeMask<TracePacket::kTimestampFieldNumber,
+//                                        TracePacket::kInternedDataFieldNumber>
+//       kMask{};
+//   SelectiveTypedProtoDecoder<MAX_FIELD_ID> decoder(data, size, kMask);
+//   for (const Field& f : decoder.unknown_fields()) { ... }
+template <int MAX_FIELD_ID>
+class SelectiveTypedProtoDecoder : public TypedProtoDecoder<MAX_FIELD_ID> {
+  using Base = TypedProtoDecoder<MAX_FIELD_ID>;
+
+ public:
+  // The dense window is capped at the mask's extent: |num_fields_| is the
+  // only id bound the decode loop checks, so capping it both bounds the mask
+  // read and makes every id above the mask spill, letting the mask be sized
+  // to the whitelisted ids only rather than to MAX_FIELD_ID.
+  // |mask| is only read during this call.
+  template <uint32_t... kFieldIds>
+  SelectiveTypedProtoDecoder(const uint8_t* buffer,
+                             size_t length,
+                             const SelectiveDecodeMask<kFieldIds...>& mask)
+      : Base(typename Base::SkipParseTag{},
+             buffer,
+             length,
+             /*num_fields=*/
+             std::min(static_cast<uint32_t>(MAX_FIELD_ID),
+                      SelectiveDecodeMask<kFieldIds...>::kMaxFieldId) +
+                 1) {
+    // The base constructor cleared the presence bitmap only up to the capped
+    // |num_fields_|. at<>() skips the range check for ids below the on-stack
+    // capacity and tests the presence bit directly, so the rest of the bitmap
+    // must be cleared too.
+    constexpr uint32_t kPresenceWords = (MAX_FIELD_ID + 1 + 63) / 64;
+    const uint32_t cleared_words = (this->num_fields_ + 63) / 64;
+    memset(this->presence_ + cleared_words, 0,
+           (kPresenceWords - cleared_words) * sizeof(uint64_t));
+    spill_ = spill_storage_;
+    uint32_t spill_capacity = kSpillStackCapacity;
+    this->ParseAllFieldsSelective(mask.data(), &spill_, &spill_capacity,
+                                  &spill_size_, &heap_spill_);
+  }
+
+  // The spilled fields, in wire order. Repeated fields appear once per
+  // occurrence.
+  UnknownFieldRange unknown_fields() const {
+    return {spill_, spill_ + spill_size_};
+  }
+
+  SelectiveTypedProtoDecoder(SelectiveTypedProtoDecoder&& other) noexcept
+      : Base(std::move(other)),
+        spill_(other.spill_),
+        spill_size_(other.spill_size_),
+        heap_spill_(std::move(other.heap_spill_)) {
+    MaybeCopyOnStackSpill(other);
+  }
+
+  SelectiveTypedProtoDecoder& operator=(
+      SelectiveTypedProtoDecoder&& other) noexcept {
+    if (this != &other) {
+      Base::operator=(std::move(other));
+      spill_ = other.spill_;
+      spill_size_ = other.spill_size_;
+      heap_spill_ = std::move(other.heap_spill_);
+      MaybeCopyOnStackSpill(other);
+    }
+    return *this;
+  }
+
+ private:
+  // Number of spill slots stored inline. Spills are rare and small (typically
+  // the one data field of a TracePacket plus a few extensions), so a handful
+  // of slots avoids the heap in the common case; ParseAllFieldsSelective()'s
+  // heap fallback handles the rest.
+  static constexpr uint32_t kSpillStackCapacity = 16;
+
+  void MaybeCopyOnStackSpill(const SelectiveTypedProtoDecoder& other) {
+    // As MaybeCopyOnStackStorage(): if the moved-from decoder's spill was
+    // inline, repoint to this decoder's storage and copy it.
+    if (spill_ == other.spill_storage_) {
+      spill_ = spill_storage_;
+      memcpy(spill_storage_, other.spill_storage_, sizeof(spill_storage_));
+    }
+  }
+
+  // Spill area: the non-whitelisted fields, in wire order. |spill_| points at
+  // |spill_storage_| or at |heap_spill_| after an expansion.
+  Field* spill_ = nullptr;
+  uint32_t spill_size_ = 0;
+  std::unique_ptr<Field[]> heap_spill_;
+  Field spill_storage_[kSpillStackCapacity];
 };
 
 }  // namespace protozero

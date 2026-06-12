@@ -30,7 +30,6 @@ perfetto_component("protozero") {
     "../base",
   ]
   sources = [
-    "decode_field_inl.h",
     "field.cc",
     "gen_field_helpers.cc",
     "message.cc",
@@ -40,7 +39,6 @@ perfetto_component("protozero") {
     "scattered_heap_buffer.cc",
     "scattered_stream_null_delegate.cc",
     "scattered_stream_writer.cc",
-    "selective_proto_decoder.cc",
     "static_buffer.cc",
     "virtual_destructors.cc",
   ]
@@ -97,7 +95,6 @@ perfetto_unittest_source_set("unittests") {
     "message_unittest.cc",
     "proto_decoder_unittest.cc",
     "proto_ring_buffer_unittest.cc",
-    "selective_proto_decoder_unittest.cc",
     "proto_utils_unittest.cc",
     "scattered_stream_writer_unittest.cc",
     "test/cppgen_conformance_unittest.cc",

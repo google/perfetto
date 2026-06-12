@@ -320,23 +320,24 @@ PERFETTO_ALWAYS_INLINE inline const uint8_t* ParseVarIntUnrolled(
     const uint8_t* p,
     uint64_t* out) {
   uint64_t value = p[0] & 0x7Fu;
-#define PERFETTO_PZ_VARINT_STEP(i)                           \
-  value |= static_cast<uint64_t>(p[i] & 0x7Fu) << (7 * (i)); \
-  if (PERFETTO_LIKELY(!(p[i] & 0x80))) {                     \
-    *out = value;                                            \
-    return p + (i) + 1;                                      \
+  const uint8_t* res = nullptr;
+  // One decode step for byte |i|: accumulates the payload bits and, if the
+  // continuation bit is clear, finishes the decode. Returns true while more
+  // bytes are needed, so the chain below stops at the terminating byte.
+  auto step = [&](uint64_t i) PERFETTO_ALWAYS_INLINE {
+    value |= static_cast<uint64_t>(p[i] & 0x7Fu) << (7 * i);
+    if (PERFETTO_LIKELY(!(p[i] & 0x80))) {
+      *out = value;
+      res = p + i + 1;
+      return false;
+    }
+    return true;
+  };
+  if (step(1) && step(2) && step(3) && step(4) && step(5) && step(6) &&
+      step(7) && step(8) && step(9)) {
+    return nullptr;  // Overlong (> 10 byte) varint.
   }
-  PERFETTO_PZ_VARINT_STEP(1)
-  PERFETTO_PZ_VARINT_STEP(2)
-  PERFETTO_PZ_VARINT_STEP(3)
-  PERFETTO_PZ_VARINT_STEP(4)
-  PERFETTO_PZ_VARINT_STEP(5)
-  PERFETTO_PZ_VARINT_STEP(6)
-  PERFETTO_PZ_VARINT_STEP(7)
-  PERFETTO_PZ_VARINT_STEP(8)
-  PERFETTO_PZ_VARINT_STEP(9)
-#undef PERFETTO_PZ_VARINT_STEP
-  return nullptr;
+  return res;
 }
 
 // Decodes a varint at |pos|: single-byte fastpath, then the unrolled decode
