@@ -2334,6 +2334,10 @@ message WebViewStartup {
     GET_PROFILE_STORE = 108;
     WEBVIEW_INSTANCE_GET_SETTINGS = 109;
     WEBVIEW_INSTANCE_GET_AW_CONTENTS = 110;
+    PROFILE_STORE_GET_PROFILE = 111;
+    PROFILE_STORE_GET_OR_CREATE_PROFILE = 112;
+    PROFILE_STORE_GET_ALL_PROFILE_NAMES = 113;
+    PROFILE_STORE_DELETE_PROFILE = 114;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }
