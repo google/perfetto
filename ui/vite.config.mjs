@@ -105,28 +105,73 @@ function pluginEmbedMinimalSourceMap() {
   };
 }
 
-// Generates barrel modules that import every plugin under ui/src/plugins (or
-// ui/src/core_plugins) and default-export an array of their default exports.
-// Replaces the on-disk barrels that tools/gen_ui_imports used to produce.
+// Shared helper for plugins that synthesise a module's source on the fly but
+// expose it via a normal relative import (typed by a colocated .d.ts).
 //
-// Exposed as virtual modules so consumers do:
-//   import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
-//   import CORE_PLUGINS     from 'virtual:perfetto/all_core_plugins';
-//
-// Types live in ui/src/types/virtual-modules.d.ts.
-function pluginAllPluginsBarrel() {
-  const VIRTUALS = {
-    'virtual:perfetto/all_plugins': path.join(SRC, 'plugins'),
-    'virtual:perfetto/all_core_plugins': path.join(SRC, 'core_plugins'),
+// `modules` maps an absolute path (no extension) — e.g. <SRC>/virtual/plugins
+// — to a function that returns the module source. resolveId intercepts both
+// file-style imports ('../virtual/plugins') and directory-style imports
+// ('../plugins' → '../plugins/index') before Vite's filesystem resolver runs.
+function makeSynthModulePlugin({name, modules}) {
+  const PREFIX = '\0' + name + ':';
+  return {
+    name,
+    enforce: 'pre',
+    resolveId(source, importer) {
+      if (!importer || !source.startsWith('.')) return null;
+      const stripped = source.replace(/\.(ts|js)$/, '');
+      const abs = path.resolve(path.dirname(importer), stripped);
+      for (const candidate of [abs, path.join(abs, 'index')]) {
+        if (!(candidate in modules)) continue;
+        // A real implementation next to the .d.ts would be silently shadowed
+        // by this plugin. Fail loudly instead.
+        for (const ext of ['.ts', '.js']) {
+          if (fs.existsSync(candidate + ext)) {
+            throw new Error(
+              `${path.relative(ROOT_DIR, candidate + ext)} shadows a ` +
+                `synthesised module (see ${name} in ui/vite.config.mjs); ` +
+                `delete the file.`,
+            );
+          }
+        }
+        return PREFIX + candidate;
+      }
+    },
+    load(id) {
+      if (!id.startsWith(PREFIX)) return;
+      const gen = modules[id.slice(PREFIX.length)];
+      if (gen) return gen(this);
+    },
   };
+}
+
+// Synthesises ui/src/virtual/plugins — a single barrel that imports every
+// sub-directory under ui/src/plugins and ui/src/core_plugins and exposes them
+// as two named arrays:
+//
+//   export const plugins:     PerfettoPluginStatic<PerfettoPlugin>[];
+//   export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];
+//
+// Types live alongside at ui/src/virtual/plugins.d.ts.
+function pluginPerfettoPluginBarrels() {
+  const SOURCES = [
+    {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
+    {
+      exportName: 'corePlugins',
+      dir: path.join(SRC, 'core_plugins'),
+      prefix: 'core_',
+    },
+  ];
+  const PLUGIN_DIRS = SOURCES.map((s) => s.dir);
+  const VIRTUAL_MODULE = path.join(SRC, 'virtual', 'plugins');
   const toCamelCase = (s) => {
     const [first, ...rest] = s.split(/[._]/);
     return (
       first + rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('')
     );
   };
-  const generate = (dir) => {
-    const entries = fs
+  const listEntries = (dir) =>
+    fs
       .readdirSync(dir)
       .map((name) => ({name, full: path.join(dir, name)}))
       .filter(({full}) => {
@@ -140,48 +185,47 @@ function pluginAllPluginsBarrel() {
         }
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-    const imports = entries
-      .map(({name, full}) => `import ${toCamelCase(name)} from '${full}';`)
-      .join('\n');
-    const arr = entries.map(({name}) => `  ${toCamelCase(name)},`).join('\n');
-    return `${imports}\n\nexport default [\n${arr}\n];\n`;
+  const generate = (ctx) => {
+    const importLines = [];
+    const exportLines = [];
+    for (const {exportName, dir, prefix} of SOURCES) {
+      const entries = listEntries(dir);
+      for (const {full} of entries) {
+        ctx.addWatchFile(path.join(full, 'index.ts'));
+      }
+      for (const {name, full} of entries) {
+        importLines.push(
+          `import ${toCamelCase(prefix + name)} from '${full}';`,
+        );
+      }
+      const arr = entries
+        .map(({name}) => `  ${toCamelCase(prefix + name)},`)
+        .join('\n');
+      exportLines.push(`export const ${exportName} = [\n${arr}\n];`);
+    }
+    return `${importLines.join('\n')}\n\n${exportLines.join('\n\n')}\n`;
   };
+  const base = makeSynthModulePlugin({
+    name: 'perfetto:plugin-barrels',
+    modules: {[VIRTUAL_MODULE]: generate},
+  });
   let server = null;
   return {
-    name: 'perfetto:all-plugins-barrel',
+    ...base,
     configureServer(s) {
       server = s;
       // Watch the parent dirs so adding/removing a plugin dir invalidates
-      // the barrel even before any file inside it changes. addWatchFile in
-      // load() only covers index.ts files that already exist at load time.
-      for (const dir of Object.values(VIRTUALS)) s.watcher.add(dir);
-    },
-    resolveId(id) {
-      if (id in VIRTUALS) return '\0' + id;
-    },
-    load(id) {
-      if (!id.startsWith('\0virtual:perfetto/')) return;
-      const realId = id.slice(1);
-      const dir = VIRTUALS[realId];
-      if (!dir) return;
-      // Tell Rollup we depend on every index.ts so edits/deletes trigger
-      // a rebuild in `vite build --watch`.
-      for (const name of fs.readdirSync(dir)) {
-        const idx = path.join(dir, name, 'index.ts');
-        if (fs.existsSync(idx)) this.addWatchFile(idx);
-      }
-      return generate(dir);
+      // the barrel even before any file inside it changes.
+      for (const dir of PLUGIN_DIRS) s.watcher.add(dir);
     },
     handleHotUpdate(ctx) {
-      // Invalidate the matching barrel when any file under one of the
-      // plugin parent dirs is added/changed/removed (catches new plugin
-      // dirs being dropped in). Edits to existing plugin source don't need
-      // to invalidate the barrel itself — Vite handles those normally.
       if (!server) return;
-      for (const [realId, dir] of Object.entries(VIRTUALS)) {
+      for (const dir of PLUGIN_DIRS) {
         if (!ctx.file.startsWith(dir + path.sep)) continue;
-        const mod = server.moduleGraph.getModuleById('\0' + realId);
+        const id = '\0perfetto:plugin-barrels:' + VIRTUAL_MODULE;
+        const mod = server.moduleGraph.getModuleById(id);
         if (mod) server.moduleGraph.invalidateModule(mod);
+        return;
       }
     },
   };
@@ -284,7 +328,7 @@ export default defineConfig(({command}) => {
     // magic "publicDir" handling so it doesn't try to serve it at /.
     publicDir: false,
     plugins: [
-      pluginAllPluginsBarrel(),
+      pluginPerfettoPluginBarrels(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
