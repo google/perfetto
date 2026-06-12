@@ -22,7 +22,6 @@
 
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/protozero/selective_proto_decoder.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"

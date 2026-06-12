@@ -23,7 +23,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/selective_proto_decoder.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/winscope/frameworks_base_winscope.pbzero.h"
@@ -138,10 +138,11 @@ void WinscopeModule::ParseField(const ParseFieldArgs& args) {
 void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
                                                  int64_t timestamp,
                                                  const TracePacketData& data) {
-  // WinscopeExtensions is purely a carrier of extension fields: collect them
-  // all and dispatch on the field id.
-  protozero::SelectiveProtoDecoder</*kStoreUnknownFields=*/true> decoder(blob);
-  for (const protozero::Field& f : decoder.unknown_fields()) {
+  // WinscopeExtensions is purely a carrier of extension fields: walk them
+  // all in wire order and dispatch on the field id.
+  protozero::ProtoDecoder decoder(blob);
+  for (protozero::Field f = decoder.ReadField(); f.valid();
+       f = decoder.ReadField()) {
     TypedProtoField field(f);
     switch (field.id()) {
       case FrameworksBaseWinscopeExtensions::kInputmethodClientsFieldNumber:

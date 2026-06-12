@@ -25,7 +25,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/selective_proto_decoder.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"

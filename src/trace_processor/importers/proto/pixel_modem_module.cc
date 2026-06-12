@@ -21,7 +21,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/selective_proto_decoder.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"

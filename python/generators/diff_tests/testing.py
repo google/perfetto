@@ -106,10 +106,11 @@ class Zip:
   Keys are the paths of the members within the archive. Values define the
   member contents:
     - str: written verbatim (text members, e.g. JSON traces or systrace)
+    - bytes: written verbatim (binary members, e.g. gzip or nested archives)
     - TextProto: serialized as a binary perfetto.protos.Trace
     - Path/DataPath: the raw bytes of an external file
   """
-  members: Dict[str, Union[str, 'TextProto', Path, DataPath]]
+  members: Dict[str, Union[str, bytes, 'TextProto', Path, DataPath]]
 
 
 @dataclass
@@ -118,7 +119,7 @@ class Tar:
 
   Member semantics are identical to Zip.
   """
-  members: Dict[str, Union[str, 'TextProto', Path, DataPath]]
+  members: Dict[str, Union[str, bytes, 'TextProto', Path, DataPath]]
 
 
 @dataclass

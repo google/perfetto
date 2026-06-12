@@ -20,12 +20,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <type_traits>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/proto_utils.h"
-#include "perfetto/protozero/selective_proto_decoder.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/proto/typed_proto_field.h"
 
@@ -34,9 +31,29 @@ namespace perfetto::trace_processor {
 // The fields handed to modules by the dispatchers are TracePacket fields.
 using TracePacketField = TypedProtoField;
 
+namespace internal {
 
-// Hand-maintained wrapper around protozero::SelectiveProtoDecoder for
-// TracePacket, used throughout tokenization/parsing and the module API.
+// The TracePacket metadata fields the pipeline reads by name (the dense
+// allowlist for selective decoding below).
+using TracePacketDenseMask = protozero::SelectiveDecodeMask<
+    protos::pbzero::TracePacket::kTimestampFieldNumber,
+    protos::pbzero::TracePacket::kTimestampClockIdFieldNumber,
+    protos::pbzero::TracePacket::kTrustedUidFieldNumber,
+    protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
+    protos::pbzero::TracePacket::kTrustedPidFieldNumber,
+    protos::pbzero::TracePacket::kInternedDataFieldNumber,
+    protos::pbzero::TracePacket::kSequenceFlagsFieldNumber,
+    protos::pbzero::TracePacket::kIncrementalStateClearedFieldNumber,
+    protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber,
+    protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber,
+    protos::pbzero::TracePacket::kMachineIdFieldNumber>;
+
+inline constexpr TracePacketDenseMask kTracePacketDenseMask{};
+
+}  // namespace internal
+
+// Hand-maintained wrapper around protozero::SelectiveTypedProtoDecoder
+// for TracePacket, used throughout tokenization/parsing and the module API.
 //
 // The explicit set is an allowlist of the packet *metadata* fields that the
 // pipeline reads by name; every other field -- including the per-packet data
@@ -51,9 +68,9 @@ class SelectiveTracePacketDecoder {
   using TracePacket = protos::pbzero::TracePacket;
 
   SelectiveTracePacketDecoder(const uint8_t* data, size_t length)
-      : decoder_(data, length) {}
+      : decoder_(data, length, internal::kTracePacketDenseMask) {}
   explicit SelectiveTracePacketDecoder(protozero::ConstBytes blob)
-      : decoder_(blob) {}
+      : SelectiveTracePacketDecoder(blob.data, blob.size) {}
 
   bool has_timestamp() const {
     return decoder_.at<TracePacket::kTimestampFieldNumber>().valid();
@@ -130,36 +147,28 @@ class SelectiveTracePacketDecoder {
 
   // All the fields not in the allowlist, in wire order, with repeated
   // occurrences preserved. Drives module dispatch.
-  protozero::SelectiveProtoDecoderBase::UnknownFieldRange unknown_fields()
-      const {
+  protozero::UnknownFieldRange unknown_fields() const {
     return decoder_.unknown_fields();
   }
 
   // Returns the first unknown field with the given id (invalid if absent).
+  // Linear, but the number of unknown fields per packet is tiny.
   TracePacketField FindUnknownField(uint32_t id) const {
-    return TracePacketField(decoder_.FindUnknownField(id));
+    for (const protozero::Field& f : decoder_.unknown_fields()) {
+      if (f.id() == id)
+        return TracePacketField(f);
+    }
+    return TracePacketField(protozero::Field{});
   }
 
   static constexpr bool ContainsField(uint32_t id) {
-    return Impl::ContainsField(id);
+    return internal::kTracePacketDenseMask.contains(id);
   }
 
  private:
-  using Impl = protozero::SelectiveProtoDecoder<
-      /*kStoreUnknownFields=*/true,
-      TracePacket::kTimestampFieldNumber,
-      TracePacket::kTimestampClockIdFieldNumber,
-      TracePacket::kTrustedUidFieldNumber,
-      TracePacket::kTrustedPacketSequenceIdFieldNumber,
-      TracePacket::kTrustedPidFieldNumber,
-      TracePacket::kInternedDataFieldNumber,
-      TracePacket::kSequenceFlagsFieldNumber,
-      TracePacket::kIncrementalStateClearedFieldNumber,
-      TracePacket::kPreviousPacketDroppedFieldNumber,
-      TracePacket::kFirstPacketOnSequenceFieldNumber,
-      TracePacket::kMachineIdFieldNumber>;
-
-  Impl decoder_;
+  protozero::SelectiveTypedProtoDecoder<
+      static_cast<int>(internal::TracePacketDenseMask::kMaxFieldId)>
+      decoder_;
 };
 
 }  // namespace perfetto::trace_processor

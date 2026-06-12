@@ -165,6 +165,42 @@ void BM_TracePacketScan(benchmark::State& state, const char* trace_name) {
                           static_cast<int64_t>(trace.packets.size()));
 }
 
+// Like ScanPackets(), but with selective decoding configured exactly like
+// trace_processor's planned SelectiveTracePacketDecoder: the allowlist is
+// the 11 packet *metadata* fields the pipeline reads by name; every other
+// field -- the per-packet data fields (track_event, ftrace_events, ...) and
+// out-of-tree extensions, which ScanPackets() cannot see at all -- is
+// consumed, in wire order, from the spill area, mirroring module dispatch.
+uint64_t ScanPacketsSelective(const LoadedTrace& trace) {
+  using TP = pbzero::TracePacket;
+  static constexpr int kMaxDirectFieldId = TP::kMachineIdFieldNumber;
+  static constexpr protozero::SelectiveDecodeMask<
+      TP::kTimestampFieldNumber, TP::kTimestampClockIdFieldNumber,
+      TP::kTrustedUidFieldNumber, TP::kTrustedPacketSequenceIdFieldNumber,
+      TP::kTrustedPidFieldNumber, TP::kInternedDataFieldNumber,
+      TP::kSequenceFlagsFieldNumber, TP::kIncrementalStateClearedFieldNumber,
+      TP::kPreviousPacketDroppedFieldNumber,
+      TP::kFirstPacketOnSequenceFieldNumber, TP::kMachineIdFieldNumber>
+      kDenseMask{};
+  uint64_t acc = 0;
+  for (const ConstBytes& p : trace.packets) {
+    protozero::SelectiveTypedProtoDecoder<kMaxDirectFieldId> d(p.data, p.size,
+                                                               kDenseMask);
+    if (d.at<TP::kTimestampFieldNumber>().valid())
+      acc += d.at<TP::kTimestampFieldNumber>().as_uint64();
+    acc += d.at<TP::kTrustedPacketSequenceIdFieldNumber>().as_uint32();
+    acc += d.at<TP::kSequenceFlagsFieldNumber>().as_uint32();
+    acc += d.at<TP::kInternedDataFieldNumber>().valid();
+    // The data fields are not allowlisted: like the real dispatchers, find
+    // them by switching on whatever the packet contains.
+    for (const protozero::Field& f : d.unknown_fields()) {
+      acc += f.id() == TP::kFtraceEventsFieldNumber;
+      acc += f.id() == TP::kTrackEventFieldNumber;
+    }
+  }
+  return acc;
+}
+
 void BM_FtraceEventScan(benchmark::State& state, const char* trace_name) {
   const LoadedTrace& trace = GetTrace(trace_name);
   for (auto _ : state) {
@@ -174,6 +210,52 @@ void BM_FtraceEventScan(benchmark::State& state, const char* trace_name) {
                           trace.ftrace_bundles_bytes);
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
                           static_cast<int64_t>(trace.num_ftrace_events));
+}
+
+// The pre-selective extension mechanism on top of ScanPackets(): each module
+// registered for an out-of-tree extension field probes the packet with a
+// FindField() buffer re-scan (what GetExtensionSlowly() used to do). Four
+// probed ids model a modest set of registered extension modules.
+uint64_t ScanPacketsExtensionsToday(const LoadedTrace& trace) {
+  uint64_t acc = 0;
+  static constexpr uint32_t kProbedExtensionIds[] = {551, 900, 1000, 1750};
+  for (const ConstBytes& p : trace.packets) {
+    pbzero::TracePacket::Decoder d(p.data, p.size);
+    if (d.has_timestamp())
+      acc += d.timestamp();
+    acc += d.trusted_packet_sequence_id();
+    acc += d.sequence_flags();
+    acc += d.has_ftrace_events();
+    acc += d.has_track_event();
+    acc += d.has_interned_data();
+    for (uint32_t ext_id : kProbedExtensionIds)
+      acc += ProtoDecoder(p.data, p.size).FindField(ext_id).valid();
+  }
+  return acc;
+}
+
+void BM_TracePacketScanExtensionsToday(benchmark::State& state,
+                                       const char* trace_name) {
+  const LoadedTrace& trace = GetTrace(trace_name);
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(ScanPacketsExtensionsToday(trace));
+  }
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                          trace.packets_bytes);
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(trace.packets.size()));
+}
+
+void BM_TracePacketScanSelective(benchmark::State& state,
+                                 const char* trace_name) {
+  const LoadedTrace& trace = GetTrace(trace_name);
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(ScanPacketsSelective(trace));
+  }
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                          trace.packets_bytes);
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(trace.packets.size()));
 }
 
 void BM_TrackEventScan(benchmark::State& state, const char* trace_name) {
@@ -194,6 +276,20 @@ BENCHMARK_CAPTURE(BM_TracePacketScan,
                   chrome_rendering,
                   "chrome_rendering_desktop.pftrace");
 BENCHMARK_CAPTURE(BM_TracePacketScan,
+                  android_postboot,
+                  "android_postboot_unlock.pftrace");
+
+BENCHMARK_CAPTURE(BM_TracePacketScanExtensionsToday,
+                  chrome_rendering,
+                  "chrome_rendering_desktop.pftrace");
+
+BENCHMARK_CAPTURE(BM_TracePacketScanSelective,
+                  android_30s,
+                  "example_android_trace_30s.pb");
+BENCHMARK_CAPTURE(BM_TracePacketScanSelective,
+                  chrome_rendering,
+                  "chrome_rendering_desktop.pftrace");
+BENCHMARK_CAPTURE(BM_TracePacketScanSelective,
                   android_postboot,
                   "android_postboot_unlock.pftrace");
 
