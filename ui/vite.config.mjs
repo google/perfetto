@@ -22,6 +22,7 @@
 import {defineConfig} from 'vite';
 import path from 'node:path';
 import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {SourceMapConsumer, SourceMapGenerator} from 'source-map';
 import {lezer} from '@lezer/generator/rollup';
@@ -108,9 +109,9 @@ function pluginEmbedMinimalSourceMap() {
 // Shared helper for plugins that synthesise a module's source on the fly but
 // expose it via a normal relative import (typed by a colocated .d.ts).
 //
-// `modules` maps an absolute path (no extension) — e.g. <SRC>/virtual/plugins
-// — to a function that returns the module source. resolveId intercepts both
-// file-style imports ('../virtual/plugins') and directory-style imports
+// `modules` maps an absolute path (no extension) — e.g. <SRC>/plugins/index —
+// to a function that returns the module source. resolveId intercepts both
+// file-style imports ('../base/version') and directory-style imports
 // ('../plugins' → '../plugins/index') before Vite's filesystem resolver runs.
 function makeSynthModulePlugin({name, modules}) {
   const PREFIX = '\0' + name + ':';
@@ -153,7 +154,7 @@ function makeSynthModulePlugin({name, modules}) {
 //   export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];
 //
 // Types live alongside at ui/src/virtual/plugins.d.ts.
-function pluginPerfettoPluginBarrels() {
+export function pluginPerfettoPluginBarrels() {
   const SOURCES = [
     {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
     {
@@ -229,6 +230,25 @@ function pluginPerfettoPluginBarrels() {
       }
     },
   };
+}
+
+// Exposes VERSION and SCM_REVISION via ui/src/virtual/version (typed by
+// version.d.ts). Replaces the on-disk ui/src/gen/perfetto_version.ts that
+// build.mjs used to generate via tools/write_version_header.py.
+export function pluginPerfettoVersion() {
+  const SCRIPT = path.join(ROOT_DIR, 'tools/write_version_header.py');
+  const generate = () => {
+    const out = execFileSync('python3', [SCRIPT, '--json'], {encoding: 'utf8'});
+    const {version, sha1} = JSON.parse(out);
+    return (
+      `export const VERSION = ${JSON.stringify(version)};\n` +
+      `export const SCM_REVISION = ${JSON.stringify(sha1)};\n`
+    );
+  };
+  return makeSynthModulePlugin({
+    name: 'perfetto:version',
+    modules: {[path.join(SRC, 'virtual', 'version')]: generate},
+  });
 }
 
 function pluginGenRelativeImports() {
@@ -329,6 +349,7 @@ export default defineConfig(({command}) => {
     publicDir: false,
     plugins: [
       pluginPerfettoPluginBarrels(),
+      pluginPerfettoVersion(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),

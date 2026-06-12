@@ -27,6 +27,7 @@ ui-canary/ui-stable branch.
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -95,6 +96,8 @@ def main():
   parser.add_argument('--cpp_out', help='Path of the generated .h file.')
   parser.add_argument('--ts_out', help='Path of the generated .ts file.')
   parser.add_argument('--stdout', help='Write to stdout', action='store_true')
+  parser.add_argument(
+      '--json', help='Emit {version, sha1} JSON to stdout', action='store_true')
   parser.add_argument('--changelog', help='Path to CHANGELOG.')
   args = parser.parse_args()
 
@@ -142,6 +145,9 @@ def main():
 
   if args.stdout:
     print(version)
+
+  if args.json:
+    print(json.dumps({'version': version, 'sha1': head_sha1}))
 
 
 if __name__ == '__main__':
