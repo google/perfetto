@@ -314,7 +314,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
     }
     if (thread_ordering_explicit && reservation.sibling_order_rank) {
       context_->process_tracker->SetThreadSortIndex(
-          utid, *reservation.sibling_order_rank);
+          utid, *reservation.sibling_order_rank,
+          SortIndexPriority::kTrackDescriptor);
     }
     return ResolvedDescriptorTrack::Thread(utid, reservation.is_counter, true);
   }
@@ -343,7 +344,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
     }
     if (process_ordering_explicit && reservation.sibling_order_rank) {
       context_->process_tracker->SetProcessSortIndex(
-          upid, *reservation.sibling_order_rank);
+          upid, *reservation.sibling_order_rank,
+          SortIndexPriority::kTrackDescriptor);
     }
     return ResolvedDescriptorTrack::Process(upid, reservation.is_counter, true);
   }

@@ -62,6 +62,13 @@ enum class ProcessNamePriority : uint8_t {
   kSystem = 4,
 };
 
+// Sort index priorities for process and thread tracks. Higher values overwrite
+// lower values.
+enum class SortIndexPriority : uint8_t {
+  kOther = 0,
+  kTrackDescriptor = 1,
+};
+
 class ProcessTracker {
  public:
   explicit ProcessTracker(TraceProcessorContext*);
@@ -176,11 +183,15 @@ class ProcessTracker {
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);
 
-  // Sets the sort index of a process with "first writer wins" semantics.
-  void SetProcessSortIndex(UniquePid upid, int32_t sort_index);
+  // Sets the sort index of a process with priority semantics.
+  void SetProcessSortIndex(UniquePid upid,
+                           int32_t sort_index,
+                           SortIndexPriority priority);
 
-  // Sets the sort index of a thread with "first writer wins" semantics.
-  void SetThreadSortIndex(UniqueTid utid, int32_t sort_index);
+  // Sets the sort index of a thread with priority semantics.
+  void SetThreadSortIndex(UniqueTid utid,
+                          int32_t sort_index,
+                          SortIndexPriority priority);
 
   // Assigns the given name to the process if the new name has a higher or
   // equal priority than the existing one.
@@ -352,8 +363,12 @@ class ProcessTracker {
   UniquePid swapper_upid_ = 0;
   UniqueTid swapper_utid_ = 0;
 
-  std::unordered_set<UniquePid> processes_with_sort_index_;
-  std::unordered_set<UniqueTid> threads_with_sort_index_;
+  struct SortIndex {
+    int32_t value;
+    SortIndexPriority priority;
+  };
+  base::FlatHashMap<UniquePid, SortIndex> process_sort_indexes_;
+  base::FlatHashMap<UniqueTid, SortIndex> thread_sort_indexes_;
 };
 
 }  // namespace perfetto::trace_processor
