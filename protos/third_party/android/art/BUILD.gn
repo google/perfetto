@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2026 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,10 @@
 
 import("../../../../gn/proto_library.gni")
 
-perfetto_proto_library("@TYPE@") {
-  deps = [ "../../common:@TYPE@" ]
-  sources = [
-    "art_process_metadata.proto",
-    "deobfuscation.proto",
-    "profile_common.proto",
-    "profile_packet.proto",
-    "smaps.proto",
+perfetto_proto_library("art_heap_graph_@TYPE@") {
+  sources = [ "heap_graph.proto" ]
+  public_deps = [
+    "../../../../protos/perfetto/trace:non_minimal_@TYPE@",
+    "../../../../protos/perfetto/trace/profiling:@TYPE@",
   ]
 }

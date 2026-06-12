@@ -56,13 +56,13 @@
 #include "protos/perfetto/trace/android/android_game_intervention_list.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/android_system_property.pbzero.h"
-#include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/packages/modules/bluetooth/tracing/bluetooth_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -673,7 +673,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
 }
 
 void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::BluetoothTraceEvent::Decoder evt(blob);
+  bluetooth::tracing::pbzero::BluetoothTraceEvent::Decoder evt(blob);
 
   static constexpr auto kBluetoothTraceEventBlueprint = tracks::SliceBlueprint(
       "bluetooth_trace_event", tracks::DimensionBlueprints(),
@@ -687,9 +687,9 @@ void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
       [&evt, this](ArgsTracker::BoundInserter* inserter) {
         if (evt.has_packet_type()) {
           StringId packet_type_str = context_->storage->InternString(
-              protos::pbzero::BluetoothTracePacketType_Name(
+              bluetooth::tracing::pbzero::BluetoothTracePacketType_Name(
                   static_cast<
-                      ::perfetto::protos::pbzero::BluetoothTracePacketType>(
+                      ::bluetooth::tracing::pbzero::BluetoothTracePacketType>(
                       evt.packet_type())));
           inserter->AddArg(bt_packet_type_id_,
                            Variadic::String(packet_type_str));
