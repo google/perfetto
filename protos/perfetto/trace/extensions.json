@@ -88,7 +88,7 @@
     },
     {
       "scope": "perfetto.protos.TracePacket",
-      "ranges": [[56, 56], [88, 88], [92, 92], [93, 94], [96, 97], [104, 105], [112, 112], [114, 114], [116, 116], [1000, 1999]],
+      "ranges": [[56, 56], [88, 88], [92, 92], [93, 94], [96, 97], [104, 105], [112, 112], [114, 114], [116, 116], [121, 121], [1000, 1999]],
       "allocations": [
         {
           "name": "android_frameworks_base",
@@ -99,6 +99,18 @@
             "1000: VideoFrame video_frame, 1001: VideoFrameError video_frame_error."
           ],
           "ranges": [[116, 116], [1000, 1001]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
+        {
+          "name": "android_frameworks_native",
+          "description": "frameworks/native TracePacket extensions",
+          "comment": [
+            "Defined in third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto.",
+            "Wrapper: FrameworksNativeTracePacket.",
+            "121: EvdevEvent evdev_event."
+          ],
+          "ranges": [[121, 121]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },
