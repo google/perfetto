@@ -36,7 +36,7 @@
 #if TRACE_BUFFER_V2_VERBOSE_LOGGING()
 #define TRACE_BUFFER_V2_DLOG PERFETTO_DLOG
 #else
-#define TRACE_BUFFER_V2_DLOG(...) base::ignore_result(__VA_ARGS__)
+#define TRACE_BUFFER_V2_DLOG(...)
 #endif
 
 using protozero::proto_utils::ParseVarInt;
