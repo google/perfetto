@@ -1458,23 +1458,6 @@ class VmstatCounters(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     VMSTAT_WORKINGSET_RESTORE_ANON: _ClassVar[VmstatCounters]
     VMSTAT_WORKINGSET_RESTORE_FILE: _ClassVar[VmstatCounters]
 
-class BluetoothTracePacketType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    HCI_CMD: _ClassVar[BluetoothTracePacketType]
-    HCI_EVT: _ClassVar[BluetoothTracePacketType]
-    HCI_ACL_RX: _ClassVar[BluetoothTracePacketType]
-    HCI_ACL_TX: _ClassVar[BluetoothTracePacketType]
-    HCI_SCO_RX: _ClassVar[BluetoothTracePacketType]
-    HCI_SCO_TX: _ClassVar[BluetoothTracePacketType]
-    HCI_ISO_RX: _ClassVar[BluetoothTracePacketType]
-    HCI_ISO_TX: _ClassVar[BluetoothTracePacketType]
-
-class TrafficDirection(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    DIR_UNSPECIFIED: _ClassVar[TrafficDirection]
-    DIR_INGRESS: _ClassVar[TrafficDirection]
-    DIR_EGRESS: _ClassVar[TrafficDirection]
-
 class FtraceParseStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     FTRACE_STATUS_UNSPECIFIED: _ClassVar[FtraceParseStatus]
@@ -2951,17 +2934,6 @@ VMSTAT_WORKINGSET_REFAULT_ANON: VmstatCounters
 VMSTAT_WORKINGSET_REFAULT_FILE: VmstatCounters
 VMSTAT_WORKINGSET_RESTORE_ANON: VmstatCounters
 VMSTAT_WORKINGSET_RESTORE_FILE: VmstatCounters
-HCI_CMD: BluetoothTracePacketType
-HCI_EVT: BluetoothTracePacketType
-HCI_ACL_RX: BluetoothTracePacketType
-HCI_ACL_TX: BluetoothTracePacketType
-HCI_SCO_RX: BluetoothTracePacketType
-HCI_SCO_TX: BluetoothTracePacketType
-HCI_ISO_RX: BluetoothTracePacketType
-HCI_ISO_TX: BluetoothTracePacketType
-DIR_UNSPECIFIED: TrafficDirection
-DIR_INGRESS: TrafficDirection
-DIR_EGRESS: TrafficDirection
 FTRACE_STATUS_UNSPECIFIED: FtraceParseStatus
 FTRACE_STATUS_OK: FtraceParseStatus
 FTRACE_STATUS_UNEXPECTED_READ_ERROR: FtraceParseStatus
@@ -5477,26 +5449,6 @@ class AndroidSystemProperty(_message.Message):
     values: _containers.RepeatedCompositeFieldContainer[AndroidSystemProperty.PropertyValue]
     def __init__(self, values: _Optional[_Iterable[_Union[AndroidSystemProperty.PropertyValue, _Mapping]]] = ...) -> None: ...
 
-class BluetoothTraceEvent(_message.Message):
-    __slots__ = ("packet_type", "count", "length", "duration", "op_code", "event_code", "subevent_code", "connection_handle")
-    PACKET_TYPE_FIELD_NUMBER: _ClassVar[int]
-    COUNT_FIELD_NUMBER: _ClassVar[int]
-    LENGTH_FIELD_NUMBER: _ClassVar[int]
-    DURATION_FIELD_NUMBER: _ClassVar[int]
-    OP_CODE_FIELD_NUMBER: _ClassVar[int]
-    EVENT_CODE_FIELD_NUMBER: _ClassVar[int]
-    SUBEVENT_CODE_FIELD_NUMBER: _ClassVar[int]
-    CONNECTION_HANDLE_FIELD_NUMBER: _ClassVar[int]
-    packet_type: BluetoothTracePacketType
-    count: int
-    length: int
-    duration: int
-    op_code: int
-    event_code: int
-    subevent_code: int
-    connection_handle: int
-    def __init__(self, packet_type: _Optional[_Union[BluetoothTracePacketType, str]] = ..., count: _Optional[int] = ..., length: _Optional[int] = ..., duration: _Optional[int] = ..., op_code: _Optional[int] = ..., event_code: _Optional[int] = ..., subevent_code: _Optional[int] = ..., connection_handle: _Optional[int] = ...) -> None: ...
-
 class AndroidCameraFrameEvent(_message.Message):
     __slots__ = ("session_id", "camera_id", "frame_number", "request_id", "request_received_ns", "request_processing_started_ns", "start_of_exposure_ns", "start_of_frame_ns", "responses_all_sent_ns", "capture_result_status", "skipped_sensor_frames", "capture_intent", "num_streams", "node_processing_details", "vendor_data_version", "vendor_data")
     class CaptureResultStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -5895,58 +5847,6 @@ class KernelWakelockData(_message.Message):
     time_held_millis: _containers.RepeatedScalarFieldContainer[int]
     error_flags: int
     def __init__(self, wakelock: _Optional[_Iterable[_Union[KernelWakelockData.Wakelock, _Mapping]]] = ..., wakelock_id: _Optional[_Iterable[int]] = ..., time_held_millis: _Optional[_Iterable[int]] = ..., error_flags: _Optional[int] = ...) -> None: ...
-
-class NetworkPacketEvent(_message.Message):
-    __slots__ = ("direction", "network_interface", "length", "uid", "tag", "ip_proto", "tcp_flags", "local_port", "remote_port", "icmp_type", "icmp_code")
-    DIRECTION_FIELD_NUMBER: _ClassVar[int]
-    NETWORK_INTERFACE_FIELD_NUMBER: _ClassVar[int]
-    LENGTH_FIELD_NUMBER: _ClassVar[int]
-    UID_FIELD_NUMBER: _ClassVar[int]
-    TAG_FIELD_NUMBER: _ClassVar[int]
-    IP_PROTO_FIELD_NUMBER: _ClassVar[int]
-    TCP_FLAGS_FIELD_NUMBER: _ClassVar[int]
-    LOCAL_PORT_FIELD_NUMBER: _ClassVar[int]
-    REMOTE_PORT_FIELD_NUMBER: _ClassVar[int]
-    ICMP_TYPE_FIELD_NUMBER: _ClassVar[int]
-    ICMP_CODE_FIELD_NUMBER: _ClassVar[int]
-    direction: TrafficDirection
-    network_interface: str
-    length: int
-    uid: int
-    tag: int
-    ip_proto: int
-    tcp_flags: int
-    local_port: int
-    remote_port: int
-    icmp_type: int
-    icmp_code: int
-    def __init__(self, direction: _Optional[_Union[TrafficDirection, str]] = ..., network_interface: _Optional[str] = ..., length: _Optional[int] = ..., uid: _Optional[int] = ..., tag: _Optional[int] = ..., ip_proto: _Optional[int] = ..., tcp_flags: _Optional[int] = ..., local_port: _Optional[int] = ..., remote_port: _Optional[int] = ..., icmp_type: _Optional[int] = ..., icmp_code: _Optional[int] = ...) -> None: ...
-
-class NetworkPacketBundle(_message.Message):
-    __slots__ = ("iid", "ctx", "packet_timestamps", "packet_lengths", "total_packets", "total_duration", "total_length")
-    IID_FIELD_NUMBER: _ClassVar[int]
-    CTX_FIELD_NUMBER: _ClassVar[int]
-    PACKET_TIMESTAMPS_FIELD_NUMBER: _ClassVar[int]
-    PACKET_LENGTHS_FIELD_NUMBER: _ClassVar[int]
-    TOTAL_PACKETS_FIELD_NUMBER: _ClassVar[int]
-    TOTAL_DURATION_FIELD_NUMBER: _ClassVar[int]
-    TOTAL_LENGTH_FIELD_NUMBER: _ClassVar[int]
-    iid: int
-    ctx: NetworkPacketEvent
-    packet_timestamps: _containers.RepeatedScalarFieldContainer[int]
-    packet_lengths: _containers.RepeatedScalarFieldContainer[int]
-    total_packets: int
-    total_duration: int
-    total_length: int
-    def __init__(self, iid: _Optional[int] = ..., ctx: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ..., packet_timestamps: _Optional[_Iterable[int]] = ..., packet_lengths: _Optional[_Iterable[int]] = ..., total_packets: _Optional[int] = ..., total_duration: _Optional[int] = ..., total_length: _Optional[int] = ...) -> None: ...
-
-class NetworkPacketContext(_message.Message):
-    __slots__ = ("iid", "ctx")
-    IID_FIELD_NUMBER: _ClassVar[int]
-    CTX_FIELD_NUMBER: _ClassVar[int]
-    iid: int
-    ctx: NetworkPacketEvent
-    def __init__(self, iid: _Optional[int] = ..., ctx: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ...) -> None: ...
 
 class PackagesList(_message.Message):
     __slots__ = ("packages", "parse_error", "read_error")
@@ -17971,7 +17871,7 @@ class EventName(_message.Message):
     def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ...) -> None: ...
 
 class InternedData(_message.Message):
-    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "kernel_symbols", "debug_annotation_string_values", "packet_context", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate", "protolog_string_args", "protolog_stacktrace", "viewcapture_package_name", "viewcapture_window_name", "viewcapture_view_id", "viewcapture_class_name", "viewcapture_content_description", "viewcapture_text", "correlation_id_str", "gpu_counter_descriptors")
+    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "kernel_symbols", "debug_annotation_string_values", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate", "protolog_string_args", "protolog_stacktrace", "viewcapture_package_name", "viewcapture_window_name", "viewcapture_view_id", "viewcapture_class_name", "viewcapture_content_description", "viewcapture_text", "correlation_id_str", "gpu_counter_descriptors")
     Extensions: _python_message._ExtensionDict
     EVENT_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     EVENT_NAMES_FIELD_NUMBER: _ClassVar[int]
@@ -17993,7 +17893,6 @@ class InternedData(_message.Message):
     GPU_SPECIFICATIONS_FIELD_NUMBER: _ClassVar[int]
     KERNEL_SYMBOLS_FIELD_NUMBER: _ClassVar[int]
     DEBUG_ANNOTATION_STRING_VALUES_FIELD_NUMBER: _ClassVar[int]
-    PACKET_CONTEXT_FIELD_NUMBER: _ClassVar[int]
     V8_JS_FUNCTION_NAME_FIELD_NUMBER: _ClassVar[int]
     V8_JS_FUNCTION_FIELD_NUMBER: _ClassVar[int]
     V8_JS_SCRIPT_FIELD_NUMBER: _ClassVar[int]
@@ -18029,7 +17928,6 @@ class InternedData(_message.Message):
     gpu_specifications: _containers.RepeatedCompositeFieldContainer[InternedGpuRenderStageSpecification]
     kernel_symbols: _containers.RepeatedCompositeFieldContainer[InternedString]
     debug_annotation_string_values: _containers.RepeatedCompositeFieldContainer[InternedString]
-    packet_context: _containers.RepeatedCompositeFieldContainer[NetworkPacketContext]
     v8_js_function_name: _containers.RepeatedCompositeFieldContainer[InternedV8String]
     v8_js_function: _containers.RepeatedCompositeFieldContainer[InternedV8JsFunction]
     v8_js_script: _containers.RepeatedCompositeFieldContainer[InternedV8JsScript]
@@ -18045,7 +17943,7 @@ class InternedData(_message.Message):
     viewcapture_text: _containers.RepeatedCompositeFieldContainer[InternedString]
     correlation_id_str: _containers.RepeatedCompositeFieldContainer[InternedString]
     gpu_counter_descriptors: _containers.RepeatedCompositeFieldContainer[InternedGpuCounterDescriptor]
-    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., packet_context: _Optional[_Iterable[_Union[NetworkPacketContext, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_content_description: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_text: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., gpu_counter_descriptors: _Optional[_Iterable[_Union[InternedGpuCounterDescriptor, _Mapping]]] = ...) -> None: ...
+    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_content_description: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_text: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., gpu_counter_descriptors: _Optional[_Iterable[_Union[InternedGpuCounterDescriptor, _Mapping]]] = ...) -> None: ...
 
 class SystemdJournaldEvent(_message.Message):
     __slots__ = ("pid", "tid", "uid", "gid", "prio", "tag", "message", "comm", "exe", "systemd_unit", "hostname", "transport", "num_total", "num_failed")
@@ -18441,158 +18339,6 @@ class DeobfuscationMapping(_message.Message):
     version_code: int
     obfuscated_classes: _containers.RepeatedCompositeFieldContainer[ObfuscatedClass]
     def __init__(self, package_name: _Optional[str] = ..., version_code: _Optional[int] = ..., obfuscated_classes: _Optional[_Iterable[_Union[ObfuscatedClass, _Mapping]]] = ...) -> None: ...
-
-class HeapGraphRoot(_message.Message):
-    __slots__ = ("object_ids", "root_type")
-    class Type(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = ()
-        ROOT_UNKNOWN: _ClassVar[HeapGraphRoot.Type]
-        ROOT_JNI_GLOBAL: _ClassVar[HeapGraphRoot.Type]
-        ROOT_JNI_LOCAL: _ClassVar[HeapGraphRoot.Type]
-        ROOT_JAVA_FRAME: _ClassVar[HeapGraphRoot.Type]
-        ROOT_NATIVE_STACK: _ClassVar[HeapGraphRoot.Type]
-        ROOT_STICKY_CLASS: _ClassVar[HeapGraphRoot.Type]
-        ROOT_THREAD_BLOCK: _ClassVar[HeapGraphRoot.Type]
-        ROOT_MONITOR_USED: _ClassVar[HeapGraphRoot.Type]
-        ROOT_THREAD_OBJECT: _ClassVar[HeapGraphRoot.Type]
-        ROOT_INTERNED_STRING: _ClassVar[HeapGraphRoot.Type]
-        ROOT_FINALIZING: _ClassVar[HeapGraphRoot.Type]
-        ROOT_DEBUGGER: _ClassVar[HeapGraphRoot.Type]
-        ROOT_REFERENCE_CLEANUP: _ClassVar[HeapGraphRoot.Type]
-        ROOT_VM_INTERNAL: _ClassVar[HeapGraphRoot.Type]
-        ROOT_JNI_MONITOR: _ClassVar[HeapGraphRoot.Type]
-    ROOT_UNKNOWN: HeapGraphRoot.Type
-    ROOT_JNI_GLOBAL: HeapGraphRoot.Type
-    ROOT_JNI_LOCAL: HeapGraphRoot.Type
-    ROOT_JAVA_FRAME: HeapGraphRoot.Type
-    ROOT_NATIVE_STACK: HeapGraphRoot.Type
-    ROOT_STICKY_CLASS: HeapGraphRoot.Type
-    ROOT_THREAD_BLOCK: HeapGraphRoot.Type
-    ROOT_MONITOR_USED: HeapGraphRoot.Type
-    ROOT_THREAD_OBJECT: HeapGraphRoot.Type
-    ROOT_INTERNED_STRING: HeapGraphRoot.Type
-    ROOT_FINALIZING: HeapGraphRoot.Type
-    ROOT_DEBUGGER: HeapGraphRoot.Type
-    ROOT_REFERENCE_CLEANUP: HeapGraphRoot.Type
-    ROOT_VM_INTERNAL: HeapGraphRoot.Type
-    ROOT_JNI_MONITOR: HeapGraphRoot.Type
-    OBJECT_IDS_FIELD_NUMBER: _ClassVar[int]
-    ROOT_TYPE_FIELD_NUMBER: _ClassVar[int]
-    object_ids: _containers.RepeatedScalarFieldContainer[int]
-    root_type: HeapGraphRoot.Type
-    def __init__(self, object_ids: _Optional[_Iterable[int]] = ..., root_type: _Optional[_Union[HeapGraphRoot.Type, str]] = ...) -> None: ...
-
-class HeapGraphType(_message.Message):
-    __slots__ = ("id", "location_id", "class_name", "object_size", "superclass_id", "reference_field_id", "kind", "classloader_id")
-    class Kind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = ()
-        KIND_UNKNOWN: _ClassVar[HeapGraphType.Kind]
-        KIND_NORMAL: _ClassVar[HeapGraphType.Kind]
-        KIND_NOREFERENCES: _ClassVar[HeapGraphType.Kind]
-        KIND_STRING: _ClassVar[HeapGraphType.Kind]
-        KIND_ARRAY: _ClassVar[HeapGraphType.Kind]
-        KIND_CLASS: _ClassVar[HeapGraphType.Kind]
-        KIND_CLASSLOADER: _ClassVar[HeapGraphType.Kind]
-        KIND_DEXCACHE: _ClassVar[HeapGraphType.Kind]
-        KIND_SOFT_REFERENCE: _ClassVar[HeapGraphType.Kind]
-        KIND_WEAK_REFERENCE: _ClassVar[HeapGraphType.Kind]
-        KIND_FINALIZER_REFERENCE: _ClassVar[HeapGraphType.Kind]
-        KIND_PHANTOM_REFERENCE: _ClassVar[HeapGraphType.Kind]
-    KIND_UNKNOWN: HeapGraphType.Kind
-    KIND_NORMAL: HeapGraphType.Kind
-    KIND_NOREFERENCES: HeapGraphType.Kind
-    KIND_STRING: HeapGraphType.Kind
-    KIND_ARRAY: HeapGraphType.Kind
-    KIND_CLASS: HeapGraphType.Kind
-    KIND_CLASSLOADER: HeapGraphType.Kind
-    KIND_DEXCACHE: HeapGraphType.Kind
-    KIND_SOFT_REFERENCE: HeapGraphType.Kind
-    KIND_WEAK_REFERENCE: HeapGraphType.Kind
-    KIND_FINALIZER_REFERENCE: HeapGraphType.Kind
-    KIND_PHANTOM_REFERENCE: HeapGraphType.Kind
-    ID_FIELD_NUMBER: _ClassVar[int]
-    LOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    CLASS_NAME_FIELD_NUMBER: _ClassVar[int]
-    OBJECT_SIZE_FIELD_NUMBER: _ClassVar[int]
-    SUPERCLASS_ID_FIELD_NUMBER: _ClassVar[int]
-    REFERENCE_FIELD_ID_FIELD_NUMBER: _ClassVar[int]
-    KIND_FIELD_NUMBER: _ClassVar[int]
-    CLASSLOADER_ID_FIELD_NUMBER: _ClassVar[int]
-    id: int
-    location_id: int
-    class_name: str
-    object_size: int
-    superclass_id: int
-    reference_field_id: _containers.RepeatedScalarFieldContainer[int]
-    kind: HeapGraphType.Kind
-    classloader_id: int
-    def __init__(self, id: _Optional[int] = ..., location_id: _Optional[int] = ..., class_name: _Optional[str] = ..., object_size: _Optional[int] = ..., superclass_id: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., kind: _Optional[_Union[HeapGraphType.Kind, str]] = ..., classloader_id: _Optional[int] = ...) -> None: ...
-
-class HeapGraphObject(_message.Message):
-    __slots__ = ("id", "id_delta", "type_id", "self_size", "reference_field_id_base", "reference_field_id", "reference_object_id", "heap_type_delta", "runtime_internal_object_id", "native_allocation_registry_size_field", "bitmap_id_field", "bitmap_source_id_field", "bitmap_width_field", "bitmap_height_field", "application_info_long_version_code_field")
-    class HeapType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = ()
-        HEAP_TYPE_UNKNOWN: _ClassVar[HeapGraphObject.HeapType]
-        HEAP_TYPE_APP: _ClassVar[HeapGraphObject.HeapType]
-        HEAP_TYPE_ZYGOTE: _ClassVar[HeapGraphObject.HeapType]
-        HEAP_TYPE_BOOT_IMAGE: _ClassVar[HeapGraphObject.HeapType]
-    HEAP_TYPE_UNKNOWN: HeapGraphObject.HeapType
-    HEAP_TYPE_APP: HeapGraphObject.HeapType
-    HEAP_TYPE_ZYGOTE: HeapGraphObject.HeapType
-    HEAP_TYPE_BOOT_IMAGE: HeapGraphObject.HeapType
-    ID_FIELD_NUMBER: _ClassVar[int]
-    ID_DELTA_FIELD_NUMBER: _ClassVar[int]
-    TYPE_ID_FIELD_NUMBER: _ClassVar[int]
-    SELF_SIZE_FIELD_NUMBER: _ClassVar[int]
-    REFERENCE_FIELD_ID_BASE_FIELD_NUMBER: _ClassVar[int]
-    REFERENCE_FIELD_ID_FIELD_NUMBER: _ClassVar[int]
-    REFERENCE_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
-    HEAP_TYPE_DELTA_FIELD_NUMBER: _ClassVar[int]
-    RUNTIME_INTERNAL_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
-    NATIVE_ALLOCATION_REGISTRY_SIZE_FIELD_FIELD_NUMBER: _ClassVar[int]
-    BITMAP_ID_FIELD_FIELD_NUMBER: _ClassVar[int]
-    BITMAP_SOURCE_ID_FIELD_FIELD_NUMBER: _ClassVar[int]
-    BITMAP_WIDTH_FIELD_FIELD_NUMBER: _ClassVar[int]
-    BITMAP_HEIGHT_FIELD_FIELD_NUMBER: _ClassVar[int]
-    APPLICATION_INFO_LONG_VERSION_CODE_FIELD_FIELD_NUMBER: _ClassVar[int]
-    id: int
-    id_delta: int
-    type_id: int
-    self_size: int
-    reference_field_id_base: int
-    reference_field_id: _containers.RepeatedScalarFieldContainer[int]
-    reference_object_id: _containers.RepeatedScalarFieldContainer[int]
-    heap_type_delta: HeapGraphObject.HeapType
-    runtime_internal_object_id: _containers.RepeatedScalarFieldContainer[int]
-    native_allocation_registry_size_field: int
-    bitmap_id_field: int
-    bitmap_source_id_field: int
-    bitmap_width_field: int
-    bitmap_height_field: int
-    application_info_long_version_code_field: int
-    def __init__(self, id: _Optional[int] = ..., id_delta: _Optional[int] = ..., type_id: _Optional[int] = ..., self_size: _Optional[int] = ..., reference_field_id_base: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., reference_object_id: _Optional[_Iterable[int]] = ..., heap_type_delta: _Optional[_Union[HeapGraphObject.HeapType, str]] = ..., runtime_internal_object_id: _Optional[_Iterable[int]] = ..., native_allocation_registry_size_field: _Optional[int] = ..., bitmap_id_field: _Optional[int] = ..., bitmap_source_id_field: _Optional[int] = ..., bitmap_width_field: _Optional[int] = ..., bitmap_height_field: _Optional[int] = ..., application_info_long_version_code_field: _Optional[int] = ...) -> None: ...
-
-class HeapGraph(_message.Message):
-    __slots__ = ("pid", "heap_bytes_allocated", "objects", "roots", "types", "field_names", "location_names", "continued", "index")
-    PID_FIELD_NUMBER: _ClassVar[int]
-    HEAP_BYTES_ALLOCATED_FIELD_NUMBER: _ClassVar[int]
-    OBJECTS_FIELD_NUMBER: _ClassVar[int]
-    ROOTS_FIELD_NUMBER: _ClassVar[int]
-    TYPES_FIELD_NUMBER: _ClassVar[int]
-    FIELD_NAMES_FIELD_NUMBER: _ClassVar[int]
-    LOCATION_NAMES_FIELD_NUMBER: _ClassVar[int]
-    CONTINUED_FIELD_NUMBER: _ClassVar[int]
-    INDEX_FIELD_NUMBER: _ClassVar[int]
-    pid: int
-    heap_bytes_allocated: int
-    objects: _containers.RepeatedCompositeFieldContainer[HeapGraphObject]
-    roots: _containers.RepeatedCompositeFieldContainer[HeapGraphRoot]
-    types: _containers.RepeatedCompositeFieldContainer[HeapGraphType]
-    field_names: _containers.RepeatedCompositeFieldContainer[InternedString]
-    location_names: _containers.RepeatedCompositeFieldContainer[InternedString]
-    continued: bool
-    index: int
-    def __init__(self, pid: _Optional[int] = ..., heap_bytes_allocated: _Optional[int] = ..., objects: _Optional[_Iterable[_Union[HeapGraphObject, _Mapping]]] = ..., roots: _Optional[_Iterable[_Union[HeapGraphRoot, _Mapping]]] = ..., types: _Optional[_Iterable[_Union[HeapGraphType, _Mapping]]] = ..., field_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., location_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., continued: bool = ..., index: _Optional[int] = ...) -> None: ...
 
 class ProfilePacket(_message.Message):
     __slots__ = ("strings", "mappings", "frames", "callstacks", "process_dumps", "continued", "index")
@@ -19755,7 +19501,7 @@ class UiState(_message.Message):
     def __init__(self, timeline_start_ts: _Optional[int] = ..., timeline_end_ts: _Optional[int] = ..., highlight_process: _Optional[_Union[UiState.HighlightProcess, _Mapping]] = ...) -> None: ...
 
 class TracePacket(_message.Message):
-    __slots__ = ("timestamp", "timestamp_clock_id", "track_event", "track_descriptor", "generic_kernel_task_state_event", "generic_kernel_cpu_freq_event", "generic_kernel_task_rename_event", "generic_kernel_process_tree", "generic_gpu_frequency_event", "process_tree", "track_event_range_of_interest", "process_stats", "inode_file_map", "chrome_events", "clock_snapshot", "sys_stats", "trace_uuid", "trace_config", "ftrace_stats", "trace_stats", "profile_packet", "streaming_allocation", "streaming_free", "battery", "power_rails", "android_log", "system_info", "trigger", "chrome_trigger", "packages_list", "chrome_benchmark_metadata", "perfetto_metatrace", "chrome_metadata", "gpu_counter_event", "gpu_render_stage_event", "streaming_profile_packet", "art_process_metadata", "heap_graph", "graphics_frame_event", "vulkan_memory_event", "gpu_log", "vulkan_api_event", "perf_sample", "cpu_info", "smaps_packet", "service_event", "initial_display_state", "gpu_mem_total_event", "memory_tracker_snapshot", "frame_timeline_event", "android_energy_estimation_breakdown", "ui_state", "android_camera_frame_event", "android_camera_session_stats", "translation_table", "android_game_intervention_list", "statsd_atom", "android_system_property", "entity_state_residency", "trace_provenance", "protovms", "trace_attributes", "android_aflags", "gpu_info", "interrupt_info", "module_symbols", "deobfuscation_mapping", "process_descriptor", "thread_descriptor", "ftrace_events", "synchronization_marker", "compressed_packets", "extension_descriptor", "network_packet", "network_packet_bundle", "etw_events", "v8_js_code", "v8_internal_code", "v8_wasm_code", "v8_reg_exp_code", "v8_code_move", "remote_clock_sync", "pixel_modem_events", "pixel_modem_token_database", "clone_snapshot_trigger", "bluetooth_trace_event", "kernel_wakelock_data", "cpu_per_uid_data", "evdev_event", "user_list", "journald_event", "for_testing", "trusted_uid", "trusted_packet_sequence_id", "trusted_pid", "interned_data", "sequence_flags", "incremental_state_cleared", "trace_packet_defaults", "previous_packet_dropped", "first_packet_on_sequence", "machine_id")
+    __slots__ = ("timestamp", "timestamp_clock_id", "track_event", "track_descriptor", "generic_kernel_task_state_event", "generic_kernel_cpu_freq_event", "generic_kernel_task_rename_event", "generic_kernel_process_tree", "generic_gpu_frequency_event", "process_tree", "track_event_range_of_interest", "process_stats", "inode_file_map", "chrome_events", "clock_snapshot", "sys_stats", "trace_uuid", "trace_config", "ftrace_stats", "trace_stats", "profile_packet", "streaming_allocation", "streaming_free", "battery", "power_rails", "android_log", "system_info", "trigger", "chrome_trigger", "packages_list", "chrome_benchmark_metadata", "perfetto_metatrace", "chrome_metadata", "gpu_counter_event", "gpu_render_stage_event", "streaming_profile_packet", "art_process_metadata", "graphics_frame_event", "vulkan_memory_event", "gpu_log", "vulkan_api_event", "perf_sample", "cpu_info", "smaps_packet", "service_event", "initial_display_state", "gpu_mem_total_event", "memory_tracker_snapshot", "frame_timeline_event", "android_energy_estimation_breakdown", "ui_state", "android_camera_frame_event", "android_camera_session_stats", "translation_table", "android_game_intervention_list", "statsd_atom", "android_system_property", "entity_state_residency", "trace_provenance", "protovms", "trace_attributes", "android_aflags", "gpu_info", "interrupt_info", "module_symbols", "deobfuscation_mapping", "process_descriptor", "thread_descriptor", "ftrace_events", "synchronization_marker", "compressed_packets", "extension_descriptor", "etw_events", "v8_js_code", "v8_internal_code", "v8_wasm_code", "v8_reg_exp_code", "v8_code_move", "remote_clock_sync", "pixel_modem_events", "pixel_modem_token_database", "clone_snapshot_trigger", "kernel_wakelock_data", "cpu_per_uid_data", "evdev_event", "user_list", "journald_event", "for_testing", "trusted_uid", "trusted_packet_sequence_id", "trusted_pid", "interned_data", "sequence_flags", "incremental_state_cleared", "trace_packet_defaults", "previous_packet_dropped", "first_packet_on_sequence", "machine_id")
     Extensions: _python_message._ExtensionDict
     class SequenceFlags(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
@@ -19818,7 +19564,6 @@ class TracePacket(_message.Message):
     GPU_RENDER_STAGE_EVENT_FIELD_NUMBER: _ClassVar[int]
     STREAMING_PROFILE_PACKET_FIELD_NUMBER: _ClassVar[int]
     ART_PROCESS_METADATA_FIELD_NUMBER: _ClassVar[int]
-    HEAP_GRAPH_FIELD_NUMBER: _ClassVar[int]
     GRAPHICS_FRAME_EVENT_FIELD_NUMBER: _ClassVar[int]
     VULKAN_MEMORY_EVENT_FIELD_NUMBER: _ClassVar[int]
     GPU_LOG_FIELD_NUMBER: _ClassVar[int]
@@ -19854,8 +19599,6 @@ class TracePacket(_message.Message):
     SYNCHRONIZATION_MARKER_FIELD_NUMBER: _ClassVar[int]
     COMPRESSED_PACKETS_FIELD_NUMBER: _ClassVar[int]
     EXTENSION_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
-    NETWORK_PACKET_FIELD_NUMBER: _ClassVar[int]
-    NETWORK_PACKET_BUNDLE_FIELD_NUMBER: _ClassVar[int]
     ETW_EVENTS_FIELD_NUMBER: _ClassVar[int]
     V8_JS_CODE_FIELD_NUMBER: _ClassVar[int]
     V8_INTERNAL_CODE_FIELD_NUMBER: _ClassVar[int]
@@ -19866,7 +19609,6 @@ class TracePacket(_message.Message):
     PIXEL_MODEM_EVENTS_FIELD_NUMBER: _ClassVar[int]
     PIXEL_MODEM_TOKEN_DATABASE_FIELD_NUMBER: _ClassVar[int]
     CLONE_SNAPSHOT_TRIGGER_FIELD_NUMBER: _ClassVar[int]
-    BLUETOOTH_TRACE_EVENT_FIELD_NUMBER: _ClassVar[int]
     KERNEL_WAKELOCK_DATA_FIELD_NUMBER: _ClassVar[int]
     CPU_PER_UID_DATA_FIELD_NUMBER: _ClassVar[int]
     EVDEV_EVENT_FIELD_NUMBER: _ClassVar[int]
@@ -19920,7 +19662,6 @@ class TracePacket(_message.Message):
     gpu_render_stage_event: GpuRenderStageEvent
     streaming_profile_packet: StreamingProfilePacket
     art_process_metadata: ArtProcessMetadata
-    heap_graph: HeapGraph
     graphics_frame_event: GraphicsFrameEvent
     vulkan_memory_event: VulkanMemoryEvent
     gpu_log: GpuLog
@@ -19956,8 +19697,6 @@ class TracePacket(_message.Message):
     synchronization_marker: bytes
     compressed_packets: bytes
     extension_descriptor: ExtensionDescriptor
-    network_packet: NetworkPacketEvent
-    network_packet_bundle: NetworkPacketBundle
     etw_events: EtwTraceEventBundle
     v8_js_code: V8JsCode
     v8_internal_code: V8InternalCode
@@ -19968,7 +19707,6 @@ class TracePacket(_message.Message):
     pixel_modem_events: PixelModemEvents
     pixel_modem_token_database: PixelModemTokenDatabase
     clone_snapshot_trigger: Trigger
-    bluetooth_trace_event: BluetoothTraceEvent
     kernel_wakelock_data: KernelWakelockData
     cpu_per_uid_data: CpuPerUidData
     evdev_event: EvdevEvent
@@ -19985,7 +19723,7 @@ class TracePacket(_message.Message):
     previous_packet_dropped: bool
     first_packet_on_sequence: bool
     machine_id: int
-    def __init__(self, timestamp: _Optional[int] = ..., timestamp_clock_id: _Optional[int] = ..., track_event: _Optional[_Union[TrackEvent, _Mapping]] = ..., track_descriptor: _Optional[_Union[TrackDescriptor, _Mapping]] = ..., generic_kernel_task_state_event: _Optional[_Union[GenericKernelTaskStateEvent, _Mapping]] = ..., generic_kernel_cpu_freq_event: _Optional[_Union[GenericKernelCpuFrequencyEvent, _Mapping]] = ..., generic_kernel_task_rename_event: _Optional[_Union[GenericKernelTaskRenameEvent, _Mapping]] = ..., generic_kernel_process_tree: _Optional[_Union[GenericKernelProcessTree, _Mapping]] = ..., generic_gpu_frequency_event: _Optional[_Union[GenericGpuFrequencyEvent, _Mapping]] = ..., process_tree: _Optional[_Union[ProcessTree, _Mapping]] = ..., track_event_range_of_interest: _Optional[_Union[TrackEventRangeOfInterest, _Mapping]] = ..., process_stats: _Optional[_Union[ProcessStats, _Mapping]] = ..., inode_file_map: _Optional[_Union[InodeFileMap, _Mapping]] = ..., chrome_events: _Optional[_Union[ChromeEventBundle, _Mapping]] = ..., clock_snapshot: _Optional[_Union[ClockSnapshot, _Mapping]] = ..., sys_stats: _Optional[_Union[SysStats, _Mapping]] = ..., trace_uuid: _Optional[_Union[TraceUuid, _Mapping]] = ..., trace_config: _Optional[_Union[TraceConfig, _Mapping]] = ..., ftrace_stats: _Optional[_Union[FtraceStats, _Mapping]] = ..., trace_stats: _Optional[_Union[TraceStats, _Mapping]] = ..., profile_packet: _Optional[_Union[ProfilePacket, _Mapping]] = ..., streaming_allocation: _Optional[_Union[StreamingAllocation, _Mapping]] = ..., streaming_free: _Optional[_Union[StreamingFree, _Mapping]] = ..., battery: _Optional[_Union[BatteryCounters, _Mapping]] = ..., power_rails: _Optional[_Union[PowerRails, _Mapping]] = ..., android_log: _Optional[_Union[AndroidLogPacket, _Mapping]] = ..., system_info: _Optional[_Union[SystemInfo, _Mapping]] = ..., trigger: _Optional[_Union[Trigger, _Mapping]] = ..., chrome_trigger: _Optional[_Union[ChromeTrigger, _Mapping]] = ..., packages_list: _Optional[_Union[PackagesList, _Mapping]] = ..., chrome_benchmark_metadata: _Optional[_Union[ChromeBenchmarkMetadata, _Mapping]] = ..., perfetto_metatrace: _Optional[_Union[PerfettoMetatrace, _Mapping]] = ..., chrome_metadata: _Optional[_Union[ChromeMetadataPacket, _Mapping]] = ..., gpu_counter_event: _Optional[_Union[GpuCounterEvent, _Mapping]] = ..., gpu_render_stage_event: _Optional[_Union[GpuRenderStageEvent, _Mapping]] = ..., streaming_profile_packet: _Optional[_Union[StreamingProfilePacket, _Mapping]] = ..., art_process_metadata: _Optional[_Union[ArtProcessMetadata, _Mapping]] = ..., heap_graph: _Optional[_Union[HeapGraph, _Mapping]] = ..., graphics_frame_event: _Optional[_Union[GraphicsFrameEvent, _Mapping]] = ..., vulkan_memory_event: _Optional[_Union[VulkanMemoryEvent, _Mapping]] = ..., gpu_log: _Optional[_Union[GpuLog, _Mapping]] = ..., vulkan_api_event: _Optional[_Union[VulkanApiEvent, _Mapping]] = ..., perf_sample: _Optional[_Union[PerfSample, _Mapping]] = ..., cpu_info: _Optional[_Union[CpuInfo, _Mapping]] = ..., smaps_packet: _Optional[_Union[SmapsPacket, _Mapping]] = ..., service_event: _Optional[_Union[TracingServiceEvent, _Mapping]] = ..., initial_display_state: _Optional[_Union[InitialDisplayState, _Mapping]] = ..., gpu_mem_total_event: _Optional[_Union[GpuMemTotalEvent, _Mapping]] = ..., memory_tracker_snapshot: _Optional[_Union[MemoryTrackerSnapshot, _Mapping]] = ..., frame_timeline_event: _Optional[_Union[FrameTimelineEvent, _Mapping]] = ..., android_energy_estimation_breakdown: _Optional[_Union[AndroidEnergyEstimationBreakdown, _Mapping]] = ..., ui_state: _Optional[_Union[UiState, _Mapping]] = ..., android_camera_frame_event: _Optional[_Union[AndroidCameraFrameEvent, _Mapping]] = ..., android_camera_session_stats: _Optional[_Union[AndroidCameraSessionStats, _Mapping]] = ..., translation_table: _Optional[_Union[TranslationTable, _Mapping]] = ..., android_game_intervention_list: _Optional[_Union[AndroidGameInterventionList, _Mapping]] = ..., statsd_atom: _Optional[_Union[StatsdAtom, _Mapping]] = ..., android_system_property: _Optional[_Union[AndroidSystemProperty, _Mapping]] = ..., entity_state_residency: _Optional[_Union[EntityStateResidency, _Mapping]] = ..., trace_provenance: _Optional[_Union[TraceProvenance, _Mapping]] = ..., protovms: _Optional[_Union[TracePacket.ProtoVms, _Mapping]] = ..., trace_attributes: _Optional[_Union[TraceAttributes, _Mapping]] = ..., android_aflags: _Optional[_Union[AndroidAflags, _Mapping]] = ..., gpu_info: _Optional[_Union[GpuInfo, _Mapping]] = ..., interrupt_info: _Optional[_Union[InterruptInfo, _Mapping]] = ..., module_symbols: _Optional[_Union[ModuleSymbols, _Mapping]] = ..., deobfuscation_mapping: _Optional[_Union[DeobfuscationMapping, _Mapping]] = ..., process_descriptor: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., thread_descriptor: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., ftrace_events: _Optional[_Union[FtraceEventBundle, _Mapping]] = ..., synchronization_marker: _Optional[bytes] = ..., compressed_packets: _Optional[bytes] = ..., extension_descriptor: _Optional[_Union[ExtensionDescriptor, _Mapping]] = ..., network_packet: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ..., network_packet_bundle: _Optional[_Union[NetworkPacketBundle, _Mapping]] = ..., etw_events: _Optional[_Union[EtwTraceEventBundle, _Mapping]] = ..., v8_js_code: _Optional[_Union[V8JsCode, _Mapping]] = ..., v8_internal_code: _Optional[_Union[V8InternalCode, _Mapping]] = ..., v8_wasm_code: _Optional[_Union[V8WasmCode, _Mapping]] = ..., v8_reg_exp_code: _Optional[_Union[V8RegExpCode, _Mapping]] = ..., v8_code_move: _Optional[_Union[V8CodeMove, _Mapping]] = ..., remote_clock_sync: _Optional[_Union[RemoteClockSync, _Mapping]] = ..., pixel_modem_events: _Optional[_Union[PixelModemEvents, _Mapping]] = ..., pixel_modem_token_database: _Optional[_Union[PixelModemTokenDatabase, _Mapping]] = ..., clone_snapshot_trigger: _Optional[_Union[Trigger, _Mapping]] = ..., bluetooth_trace_event: _Optional[_Union[BluetoothTraceEvent, _Mapping]] = ..., kernel_wakelock_data: _Optional[_Union[KernelWakelockData, _Mapping]] = ..., cpu_per_uid_data: _Optional[_Union[CpuPerUidData, _Mapping]] = ..., evdev_event: _Optional[_Union[EvdevEvent, _Mapping]] = ..., user_list: _Optional[_Union[AndroidUserList, _Mapping]] = ..., journald_event: _Optional[_Union[SystemdJournaldEvent, _Mapping]] = ..., for_testing: _Optional[_Union[TestEvent, _Mapping]] = ..., trusted_uid: _Optional[int] = ..., trusted_packet_sequence_id: _Optional[int] = ..., trusted_pid: _Optional[int] = ..., interned_data: _Optional[_Union[InternedData, _Mapping]] = ..., sequence_flags: _Optional[int] = ..., incremental_state_cleared: bool = ..., trace_packet_defaults: _Optional[_Union[TracePacketDefaults, _Mapping]] = ..., previous_packet_dropped: bool = ..., first_packet_on_sequence: bool = ..., machine_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., timestamp_clock_id: _Optional[int] = ..., track_event: _Optional[_Union[TrackEvent, _Mapping]] = ..., track_descriptor: _Optional[_Union[TrackDescriptor, _Mapping]] = ..., generic_kernel_task_state_event: _Optional[_Union[GenericKernelTaskStateEvent, _Mapping]] = ..., generic_kernel_cpu_freq_event: _Optional[_Union[GenericKernelCpuFrequencyEvent, _Mapping]] = ..., generic_kernel_task_rename_event: _Optional[_Union[GenericKernelTaskRenameEvent, _Mapping]] = ..., generic_kernel_process_tree: _Optional[_Union[GenericKernelProcessTree, _Mapping]] = ..., generic_gpu_frequency_event: _Optional[_Union[GenericGpuFrequencyEvent, _Mapping]] = ..., process_tree: _Optional[_Union[ProcessTree, _Mapping]] = ..., track_event_range_of_interest: _Optional[_Union[TrackEventRangeOfInterest, _Mapping]] = ..., process_stats: _Optional[_Union[ProcessStats, _Mapping]] = ..., inode_file_map: _Optional[_Union[InodeFileMap, _Mapping]] = ..., chrome_events: _Optional[_Union[ChromeEventBundle, _Mapping]] = ..., clock_snapshot: _Optional[_Union[ClockSnapshot, _Mapping]] = ..., sys_stats: _Optional[_Union[SysStats, _Mapping]] = ..., trace_uuid: _Optional[_Union[TraceUuid, _Mapping]] = ..., trace_config: _Optional[_Union[TraceConfig, _Mapping]] = ..., ftrace_stats: _Optional[_Union[FtraceStats, _Mapping]] = ..., trace_stats: _Optional[_Union[TraceStats, _Mapping]] = ..., profile_packet: _Optional[_Union[ProfilePacket, _Mapping]] = ..., streaming_allocation: _Optional[_Union[StreamingAllocation, _Mapping]] = ..., streaming_free: _Optional[_Union[StreamingFree, _Mapping]] = ..., battery: _Optional[_Union[BatteryCounters, _Mapping]] = ..., power_rails: _Optional[_Union[PowerRails, _Mapping]] = ..., android_log: _Optional[_Union[AndroidLogPacket, _Mapping]] = ..., system_info: _Optional[_Union[SystemInfo, _Mapping]] = ..., trigger: _Optional[_Union[Trigger, _Mapping]] = ..., chrome_trigger: _Optional[_Union[ChromeTrigger, _Mapping]] = ..., packages_list: _Optional[_Union[PackagesList, _Mapping]] = ..., chrome_benchmark_metadata: _Optional[_Union[ChromeBenchmarkMetadata, _Mapping]] = ..., perfetto_metatrace: _Optional[_Union[PerfettoMetatrace, _Mapping]] = ..., chrome_metadata: _Optional[_Union[ChromeMetadataPacket, _Mapping]] = ..., gpu_counter_event: _Optional[_Union[GpuCounterEvent, _Mapping]] = ..., gpu_render_stage_event: _Optional[_Union[GpuRenderStageEvent, _Mapping]] = ..., streaming_profile_packet: _Optional[_Union[StreamingProfilePacket, _Mapping]] = ..., art_process_metadata: _Optional[_Union[ArtProcessMetadata, _Mapping]] = ..., graphics_frame_event: _Optional[_Union[GraphicsFrameEvent, _Mapping]] = ..., vulkan_memory_event: _Optional[_Union[VulkanMemoryEvent, _Mapping]] = ..., gpu_log: _Optional[_Union[GpuLog, _Mapping]] = ..., vulkan_api_event: _Optional[_Union[VulkanApiEvent, _Mapping]] = ..., perf_sample: _Optional[_Union[PerfSample, _Mapping]] = ..., cpu_info: _Optional[_Union[CpuInfo, _Mapping]] = ..., smaps_packet: _Optional[_Union[SmapsPacket, _Mapping]] = ..., service_event: _Optional[_Union[TracingServiceEvent, _Mapping]] = ..., initial_display_state: _Optional[_Union[InitialDisplayState, _Mapping]] = ..., gpu_mem_total_event: _Optional[_Union[GpuMemTotalEvent, _Mapping]] = ..., memory_tracker_snapshot: _Optional[_Union[MemoryTrackerSnapshot, _Mapping]] = ..., frame_timeline_event: _Optional[_Union[FrameTimelineEvent, _Mapping]] = ..., android_energy_estimation_breakdown: _Optional[_Union[AndroidEnergyEstimationBreakdown, _Mapping]] = ..., ui_state: _Optional[_Union[UiState, _Mapping]] = ..., android_camera_frame_event: _Optional[_Union[AndroidCameraFrameEvent, _Mapping]] = ..., android_camera_session_stats: _Optional[_Union[AndroidCameraSessionStats, _Mapping]] = ..., translation_table: _Optional[_Union[TranslationTable, _Mapping]] = ..., android_game_intervention_list: _Optional[_Union[AndroidGameInterventionList, _Mapping]] = ..., statsd_atom: _Optional[_Union[StatsdAtom, _Mapping]] = ..., android_system_property: _Optional[_Union[AndroidSystemProperty, _Mapping]] = ..., entity_state_residency: _Optional[_Union[EntityStateResidency, _Mapping]] = ..., trace_provenance: _Optional[_Union[TraceProvenance, _Mapping]] = ..., protovms: _Optional[_Union[TracePacket.ProtoVms, _Mapping]] = ..., trace_attributes: _Optional[_Union[TraceAttributes, _Mapping]] = ..., android_aflags: _Optional[_Union[AndroidAflags, _Mapping]] = ..., gpu_info: _Optional[_Union[GpuInfo, _Mapping]] = ..., interrupt_info: _Optional[_Union[InterruptInfo, _Mapping]] = ..., module_symbols: _Optional[_Union[ModuleSymbols, _Mapping]] = ..., deobfuscation_mapping: _Optional[_Union[DeobfuscationMapping, _Mapping]] = ..., process_descriptor: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., thread_descriptor: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., ftrace_events: _Optional[_Union[FtraceEventBundle, _Mapping]] = ..., synchronization_marker: _Optional[bytes] = ..., compressed_packets: _Optional[bytes] = ..., extension_descriptor: _Optional[_Union[ExtensionDescriptor, _Mapping]] = ..., etw_events: _Optional[_Union[EtwTraceEventBundle, _Mapping]] = ..., v8_js_code: _Optional[_Union[V8JsCode, _Mapping]] = ..., v8_internal_code: _Optional[_Union[V8InternalCode, _Mapping]] = ..., v8_wasm_code: _Optional[_Union[V8WasmCode, _Mapping]] = ..., v8_reg_exp_code: _Optional[_Union[V8RegExpCode, _Mapping]] = ..., v8_code_move: _Optional[_Union[V8CodeMove, _Mapping]] = ..., remote_clock_sync: _Optional[_Union[RemoteClockSync, _Mapping]] = ..., pixel_modem_events: _Optional[_Union[PixelModemEvents, _Mapping]] = ..., pixel_modem_token_database: _Optional[_Union[PixelModemTokenDatabase, _Mapping]] = ..., clone_snapshot_trigger: _Optional[_Union[Trigger, _Mapping]] = ..., kernel_wakelock_data: _Optional[_Union[KernelWakelockData, _Mapping]] = ..., cpu_per_uid_data: _Optional[_Union[CpuPerUidData, _Mapping]] = ..., evdev_event: _Optional[_Union[EvdevEvent, _Mapping]] = ..., user_list: _Optional[_Union[AndroidUserList, _Mapping]] = ..., journald_event: _Optional[_Union[SystemdJournaldEvent, _Mapping]] = ..., for_testing: _Optional[_Union[TestEvent, _Mapping]] = ..., trusted_uid: _Optional[int] = ..., trusted_packet_sequence_id: _Optional[int] = ..., trusted_pid: _Optional[int] = ..., interned_data: _Optional[_Union[InternedData, _Mapping]] = ..., sequence_flags: _Optional[int] = ..., incremental_state_cleared: bool = ..., trace_packet_defaults: _Optional[_Union[TracePacketDefaults, _Mapping]] = ..., previous_packet_dropped: bool = ..., first_packet_on_sequence: bool = ..., machine_id: _Optional[int] = ...) -> None: ...
 
 class Trace(_message.Message):
     __slots__ = ("packet",)
