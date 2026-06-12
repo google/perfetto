@@ -334,11 +334,12 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   // If the field |id| is known at compile time, prefer the templated
   // specialization at<kFieldNumber>().
   const Field& Get(uint32_t id) const {
-    // HasField(id) implies the slot was written, so fields_[id] is safe to
-    // read. Out-of-range or never-seen ids resolve to a static invalid field
-    // (the field storage is uninitialized, so no slot can stand in for it).
     if (PERFETTO_LIKELY(id < num_fields_) && HasField(id))
       return fields_[id];
+    // If id >= num_fields_, the field id is invalid (was not known in the
+    // .proto). Otherwise the id is valid but the field has not been seen
+    // while decoding. Either way return a shared invalid field: the backing
+    // slot cannot stand in for it because the storage is uninitialized.
     return kInvalidField;
   }
 
@@ -491,9 +492,10 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
         // fields < INITIAL_STACK_CAPACITY (which is the most common case).
         size_(std::min(num_fields, capacity - 1)),
         capacity_(capacity) {
-    // Field storage is left uninitialized (reads gated on HasField()); only
-    // the presence bitmap is cleared. Field must stay trivial for this to be
-    // well defined.
+    // The reason why Field needs to be trivially de/constructible is to avoid
+    // implicit initializers on all the ~1000 entries. The field storage is
+    // left uninitialized (reads are gated on HasField()); only the presence
+    // bitmap is cleared.
     static_assert(std::is_trivially_constructible<Field>::value &&
                       std::is_trivially_destructible<Field>::value &&
                       std::is_trivial<Field>::value,
@@ -578,9 +580,10 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
   template <uint32_t FIELD_ID>
   const Field& at() const {
     static_assert(FIELD_ID <= MAX_FIELD_ID, "FIELD_ID > MAX_FIELD_ID");
-    // For ids < the on-stack capacity, fields_[FIELD_ID] always exists, so just
-    // gate the read on the presence bit. The branch is resolved at compile
-    // time.
+    // If the field id is < the on-stack capacity, it's safe to always
+    // dereference |fields_|, whether it's still using the stack or it fell
+    // back on the heap. Because both terms of the if () are known at compile
+    // time, the compiler elides the branch for ids < INITIAL_STACK_CAPACITY.
     if (FIELD_ID < PROTOZERO_DECODER_INITIAL_STACK_CAPACITY) {
       return HasField(FIELD_ID) ? fields_[FIELD_ID] : kInvalidField;
     } else {

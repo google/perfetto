@@ -49,79 +49,83 @@ struct ParseFieldResult {
 
 // Parses one field and returns the field itself and a pointer to the next
 // field to parse. If parsing fails, the returned |next| == |buffer|.
-// Force-inlined into ReadField() and the ParseAllFields() decode loop: the
-// result struct is decomposed by the compiler after inlining, so it does not
-// round-trip through memory.
+// Force-inlined so that, after inlining, the result struct is decomposed by
+// the compiler and does not round-trip through memory.
 PERFETTO_ALWAYS_INLINE ParseFieldResult
 ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
   ParseFieldResult res{ParseFieldResult::kAbort, buffer, Field{}};
 
+  const uint8_t* pos = buffer;
+
   // If we've already hit the end, just return an invalid field.
-  if (PERFETTO_UNLIKELY(buffer >= end))
+  if (PERFETTO_UNLIKELY(pos >= end))
     return res;
 
-  // Tag.
-  uint64_t preamble;
-  const uint8_t* pos = ParseVarIntFast(buffer, end, &preamble);
-  if (PERFETTO_UNLIKELY(!pos))
-    return res;  // Truncated tag.
-  const uint32_t field_id =
-      static_cast<uint32_t>(proto_utils::GetTagFieldId(preamble));
-  if (PERFETTO_UNLIKELY(field_id == 0))
-    return res;
-  const uint8_t wire_type =
-      static_cast<uint8_t>(proto_utils::GetTagFieldType(preamble));
-
-  // Value. If-chain ordered by frequency: wire types within a message are
-  // near-constant, so these branches predict better than a switch jump.
-  uint64_t int_value = 0;
-  uint32_t size = 0;
-  if (PERFETTO_LIKELY(wire_type ==
-                      static_cast<uint8_t>(ProtoWireType::kVarInt))) {
-    const uint8_t* next = ParseVarIntFast(pos, end, &int_value);
+  uint64_t preamble = 0;
+  if (PERFETTO_LIKELY(*pos < 0x80)) {  // Fastpath for fields with ID < 16.
+    preamble = *(pos++);
+  } else {
+    const uint8_t* next = ParseVarIntFast(pos, end, &preamble);
     if (PERFETTO_UNLIKELY(!next))
       return res;
     pos = next;
+  }
+
+  uint32_t field_id =
+      static_cast<uint32_t>(proto_utils::GetTagFieldId(preamble));
+  if (field_id == 0 || pos >= end)
+    return res;
+
+  auto field_type =
+      static_cast<uint8_t>(proto_utils::GetTagFieldType(preamble));
+  const uint8_t* new_pos = pos;
+  uint64_t int_value = 0;
+  uint64_t size = 0;
+
+  // If-chain ordered by observed frequency: wire types within a message are
+  // near-constant, so these branches predict better than a switch jump.
+  if (PERFETTO_LIKELY(field_type ==
+                      static_cast<uint8_t>(ProtoWireType::kVarInt))) {
+    new_pos = ParseVarIntFast(pos, end, &int_value);
+
+    // new_pos being null means ParseVarIntFast could not fully parse the
+    // number. This is because we are out of space in the buffer. Set the id
+    // to zero and return but don't update the offset so a future read can
+    // read this field.
+    if (PERFETTO_UNLIKELY(!new_pos))
+      return res;
   } else if (PERFETTO_LIKELY(
-                 wire_type ==
+                 field_type ==
                  static_cast<uint8_t>(ProtoWireType::kLengthDelimited))) {
     uint64_t payload_length;
-    const uint8_t* next = ParseVarIntFast(pos, end, &payload_length);
-    if (PERFETTO_UNLIKELY(!next))
+    new_pos = ParseVarIntFast(pos, end, &payload_length);
+    if (PERFETTO_UNLIKELY(!new_pos))
       return res;
-    pos = next;
-    if (PERFETTO_UNLIKELY(payload_length > static_cast<uint64_t>(end - pos)))
+
+    // ParseVarIntFast guarantees that |new_pos| <= |end| when it succeeds;
+    if (payload_length > static_cast<uint64_t>(end - new_pos))
       return res;
-    int_value = reinterpret_cast<uintptr_t>(pos);
-    pos += payload_length;
-    if (PERFETTO_UNLIKELY(payload_length > kMaxMessageLength)) {
-      // Skip the oversized field but keep parsing.
-      PERFETTO_DLOG("Skipping field %" PRIu32 " because it's too big (%" PRIu64
-                    " KB)",
-                    field_id, payload_length / 1024);
-      res.next = pos;
-      res.parse_res = ParseFieldResult::kSkip;
-      return res;
-    }
-    size = static_cast<uint32_t>(payload_length);
-  } else if (wire_type == static_cast<uint8_t>(ProtoWireType::kFixed64)) {
-    if (PERFETTO_UNLIKELY(end - pos < static_cast<ptrdiff_t>(sizeof(uint64_t))))
+
+    const uintptr_t payload_start = reinterpret_cast<uintptr_t>(new_pos);
+    int_value = payload_start;
+    size = payload_length;
+    new_pos += payload_length;
+  } else if (field_type == static_cast<uint8_t>(ProtoWireType::kFixed64)) {
+    new_pos = pos + sizeof(uint64_t);
+    if (PERFETTO_UNLIKELY(new_pos > end))
       return res;
     memcpy(&int_value, pos, sizeof(uint64_t));
-    pos += sizeof(uint64_t);
-  } else if (wire_type == static_cast<uint8_t>(ProtoWireType::kFixed32)) {
-    if (PERFETTO_UNLIKELY(end - pos < static_cast<ptrdiff_t>(sizeof(uint32_t))))
+  } else if (field_type == static_cast<uint8_t>(ProtoWireType::kFixed32)) {
+    new_pos = pos + sizeof(uint32_t);
+    if (PERFETTO_UNLIKELY(new_pos > end))
       return res;
-    uint32_t v32;
-    memcpy(&v32, pos, sizeof(uint32_t));
-    int_value = v32;
-    pos += sizeof(uint32_t);
+    memcpy(&int_value, pos, sizeof(uint32_t));
   } else {
-    PERFETTO_DLOG("Invalid proto field type: %u", wire_type);
+    PERFETTO_DLOG("Invalid proto field type: %u", field_type);
     return res;
   }
 
-  res.next = pos;
+  res.next = new_pos;
 
   if (PERFETTO_UNLIKELY(field_id > Field::kMaxId)) {
     PERFETTO_DLOG("Skipping field %" PRIu32 " because its id > %" PRIu32,
@@ -130,8 +134,17 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
     return res;
   }
 
+  if (PERFETTO_UNLIKELY(size > proto_utils::kMaxMessageLength)) {
+    PERFETTO_DLOG("Skipping field %" PRIu32 " because it's too big (%" PRIu64
+                  " KB)",
+                  field_id, size / 1024);
+    res.parse_res = ParseFieldResult::kSkip;
+    return res;
+  }
+
   res.parse_res = ParseFieldResult::kOk;
-  res.field.initialize(field_id, wire_type, int_value, size);
+  res.field.initialize(field_id, field_type, int_value,
+                       static_cast<uint32_t>(size));
   return res;
 }
 
@@ -161,51 +174,67 @@ Field ProtoDecoder::ReadField() {
 }
 
 void TypedProtoDecoderBase::ParseAllFields() {
-  // ParseOneField() is force-inlined here, so the ParseFieldResult is
-  // decomposed by the compiler and each Field is written straight into its
-  // storage slot.
-  const uint8_t* pos = begin_;
-  const uint8_t* const end = end_;
+  const uint8_t* cur = begin_;
+  ParseFieldResult res;
   for (;;) {
-    ParseFieldResult res = ParseOneField(pos, end);
-    PERFETTO_DCHECK(res.parse_res == ParseFieldResult::kAbort ||
-                    res.next != pos);
-    if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kAbort))
-      break;  // Truncated or malformed field; |pos| stays at its start.
-    pos = res.next;
+    res = ParseOneField(cur, end_);
+    PERFETTO_DCHECK(res.parse_res != ParseFieldResult::kOk || res.next != cur);
+    cur = res.next;
     if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kSkip))
-      continue;  // Skip the oversized field but keep parsing.
+      continue;
+    if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kAbort))
+      break;
 
+    PERFETTO_DCHECK(res.parse_res == ParseFieldResult::kOk);
     PERFETTO_DCHECK(res.field.valid());
-    const uint32_t field_id = res.field.id();
-
-    // Fields with an id beyond the in-tree range are out-of-tree extension
-    // fields; they are not stored here (callers resolve them via
-    // GetExtensionSlowly(), which re-scans the buffer).
+    auto field_id = res.field.id();
+    // Fields with an id beyond the highest field id known in-tree at compile
+    // time are out-of-tree "extension" fields (e.g. carved out of TracePacket's
+    // `extensions 1000 to 1999` range). They are intentionally not stored here
+    // because fields_ is indexed directly by field id, and extension ids are
+    // sparse and potentially very high. Callers that need them must use
+    // TypedProtoDecoderBase::GetExtensionSlowly().
+    // TODO: store extensions in a sparse, object-pooled side table so they stay
+    // accessible without a buffer re-scan. See GetExtensionSlowly() for the
+    // proposed design.
     if (PERFETTO_UNLIKELY(field_id >= num_fields_))
       continue;
 
-    // Expand if the id is beyond the current stack extent, or the overflow
-    // region is full.
+    // There are two reasons why we might want to expand the heap capacity:
+    // 1. We are writing a non-repeated field, which has an id >
+    //    INITIAL_STACK_CAPACITY. In this case ExpandHeapStorage() ensures to
+    //    allocate at least (num_fields_ + 1) slots.
+    // 2. We are writing a repeated field but ran out of capacity.
     if (PERFETTO_UNLIKELY(field_id >= size_ || size_ >= capacity_))
       ExpandHeapStorage();
-    PERFETTO_DCHECK(field_id < size_);
 
+    PERFETTO_DCHECK(field_id < size_);
+    Field* fld = &fields_[field_id];
     if (PERFETTO_LIKELY(!HasField(field_id))) {
-      // First time we see this field; presence is the bitmap, not validity.
+      // This is the first time we see this field.
       SetField(field_id);
-      fields_[field_id] = res.field;
+      *fld = std::move(res.field);
     } else {
-      // Repeated field: push the previous value to the overflow region (so
-      // RepeatedFieldIterator yields FIFO) and keep the last value in the slot.
-      if (PERFETTO_UNLIKELY(num_fields_ > size_))
+      // Repeated field case.
+      // In this case we need to:
+      // 1. Append the last value of the field to end of the repeated field
+      //    storage.
+      // 2. Replace the default instance at offset |field_id| with the current
+      //    value. This is because in case of repeated field a call to Get(X) is
+      //    supposed to return the last value of X, not the first one.
+      // This is so that the RepeatedFieldIterator will iterate in the right
+      // order, see comments on RepeatedFieldIterator.
+      if (num_fields_ > size_) {
         ExpandHeapStorage();
+        fld = &fields_[field_id];
+      }
+
       PERFETTO_DCHECK(size_ < capacity_);
-      fields_[size_++] = fields_[field_id];
-      fields_[field_id] = res.field;
+      fields_[size_++] = *fld;
+      *fld = std::move(res.field);
     }
   }
-  read_ptr_ = pos;
+  read_ptr_ = res.next;
 }
 
 void TypedProtoDecoderBase::ExpandHeapStorage() {
@@ -224,9 +253,10 @@ void TypedProtoDecoderBase::ExpandHeapStorage() {
   static_assert(std::is_trivially_copyable<Field>::value,
                 "Field must be trivially copyable");
 
-  // Newly-exposed known-field slots are left uninitialized; reads are gated on
-  // the presence bitmap. The repeated slots are written linearly with no gaps,
-  // always before incrementing |size_|.
+  // There is no need to initialize the slots for known field IDs: reads of
+  // them are gated on the presence bitmap. There is also no need to initialize
+  // the repeated slots, because they are written linearly with no gaps and are
+  // always initialized before incrementing |size_|.
   const uint32_t new_size = std::max(size_, num_fields_);
   memcpy(&new_storage[0], fields_, sizeof(Field) * size_);
 
