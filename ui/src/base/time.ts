@@ -318,8 +318,12 @@ export class Duration {
     return result.slice(0, -1);
   }
 
-  static formatSeconds(dur: duration): string {
-    return Duration.toSeconds(dur).toString() + ' s';
+  static formatSeconds(dur: duration, fixed?: number): string {
+    const duration = Duration.toSeconds(dur);
+    if (fixed !== undefined) {
+      return duration.toFixed(fixed) + ' s';
+    }
+    return duration.toString() + ' s';
   }
 
   static formatMilliseconds(dur: duration): string {

@@ -363,6 +363,12 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           m.redraw();
         });
       },
+      onStopAndDownload: () => {
+        session.stopAndDownloadProfile().then(() => {
+          this.profileBaseline = undefined;
+          m.redraw();
+        });
+      },
       onCancel: () => {
         session.cancelProfile().then(() => {
           this.profileBaseline = undefined;

@@ -16,10 +16,13 @@ import './styles.scss';
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import {NUM} from '../../trace_processor/query_result';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
 import {LiveSession} from './sessions/live_session';
+import {MemscopeLandingPage} from './views/memscope_landing';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
@@ -60,5 +63,30 @@ export default class implements PerfettoPlugin {
         }
       },
     });
+  }
+
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    const res = await ctx.engine.query(`
+      SELECT
+        (SELECT count(*) FROM heap_graph_object) AS dumps,
+        (SELECT count(*) FROM heap_profile_allocation) AS profs
+    `);
+    const it = res.firstRow({dumps: NUM, profs: NUM});
+    if (it.dumps === 0 && it.profs === 0) return;
+
+    ctx.pages.registerPage({
+      route: '/memscopelanding',
+      render: () => m(MemscopeLandingPage, {trace: ctx}),
+    });
+
+    ctx.sidebar.addMenuItem({
+      section: 'current_trace',
+      sortOrder: 25,
+      text: 'Memory Overview',
+      href: '#!/memscopelanding',
+      icon: 'memory',
+    });
+
+    ctx.initialPage.suggest('/memscopelanding', 500);
   }
 }

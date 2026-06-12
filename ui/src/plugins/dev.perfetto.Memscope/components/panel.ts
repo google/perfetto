@@ -18,6 +18,8 @@ import m from 'mithril';
 export interface PanelAttrs {
   readonly title: string;
   readonly subtitle?: string;
+  // Optional widgets rendered on the right-hand side of the title row.
+  readonly controls?: m.Children;
 }
 
 export const Panel: m.Component<PanelAttrs> = {
@@ -26,7 +28,12 @@ export const Panel: m.Component<PanelAttrs> = {
       '.pf-memscope-panel',
       m(
         '.pf-memscope-panel__header',
-        m('h2', attrs.title),
+        m(
+          '.pf-memscope-panel__title-row',
+          m('h2', attrs.title),
+          attrs.controls !== undefined &&
+            m('.pf-memscope-panel__controls', attrs.controls),
+        ),
         attrs.subtitle !== undefined && m('p', attrs.subtitle),
       ),
       m('.pf-memscope-panel__body', children),

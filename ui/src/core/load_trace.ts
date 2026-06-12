@@ -277,6 +277,7 @@ async function loadTraceIntoEngine(
 
   updateStatus(app, `Loading minimap`);
   await trace.minimap.load(traceDetails.start, traceDetails.end);
+  updateStatus(app, `Minimap loaded`);
 
   // Trace Processor doesn't support the reliable range feature for JSON
   // traces.
@@ -292,7 +293,9 @@ async function loadTraceIntoEngine(
   }
 
   // notify() will await that all listeners' promises have resolved.
+  updateStatus(app, `Notifying onTraceReady listeners`);
   await trace.onTraceReady.notify();
+  updateStatus(app, `Notified onTraceReady listeners`);
 
   if (serializedAppState !== undefined) {
     // Wait that plugins have completed their actions and then proceed with

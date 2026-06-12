@@ -36,6 +36,7 @@ export interface ProfilePageAttrs {
   readonly chartData?: LineChartData;
   readonly baseline?: {anonSwap: number; file: number; dmabuf: number};
   readonly onStop: () => void;
+  readonly onStopAndDownload: () => void;
   readonly onCancel: () => void;
 }
 
@@ -120,6 +121,13 @@ export class ProfilePage implements m.ClassComponent<ProfilePageAttrs> {
                 label: 'Cancel',
                 icon: 'close',
                 onclick: () => attrs.onCancel(),
+              }),
+              m(Button, {
+                label: 'Stop & Download',
+                icon: 'download',
+                variant: ButtonVariant.Filled,
+                intent: Intent.Primary,
+                onclick: () => attrs.onStopAndDownload(),
               }),
               m(Button, {
                 label: 'Stop & Open Trace',
