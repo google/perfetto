@@ -34,7 +34,7 @@ packet {
   trusted_uid: 10254
   timestamp: 119232512509
   trusted_packet_sequence_id: 2
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 2798
   first_packet_on_sequence: true
   [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {

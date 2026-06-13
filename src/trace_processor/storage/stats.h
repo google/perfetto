@@ -261,6 +261,27 @@ namespace perfetto::trace_processor::stats {
       "https://perfetto.dev/docs/concepts/buffers"                             \
       "#incremental-state-in-trace-packets"),                                  \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_data_loss_read_gap,        kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,        \
+      "TraceBufferV2: data losses where a read started on a non-successor "     \
+      "ChunkID (a gap in the stream)."),                                        \
+  F(traced_buf_data_loss_chunk_corrupted, kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,        \
+      "TraceBufferV2: data losses where a chunk's fragments couldn't be "       \
+      "tokenized (malformed or out-of-bounds)."),                               \
+  F(traced_buf_data_loss_orphan_continuation, kIndexed, kInfo, kTrace, Scope::kMachineAndTrace,        \
+      "TraceBufferV2: data losses with a continuation/end fragment but no "     \
+      "preceding begin fragment."),                                             \
+  F(traced_buf_data_loss_reassembly_gap,  kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,        \
+      "TraceBufferV2: data losses where multi-chunk reassembly hit a ChunkID "  \
+      "gap mid-packet."),                                                       \
+  F(traced_buf_data_loss_reassembly_broken_chain, kIndexed, kInfo, kTrace, Scope::kMachineAndTrace,    \
+      "TraceBufferV2: data losses where the fragment chain was broken despite " \
+      "contiguous ChunkIDs."),                                                  \
+  F(traced_buf_data_loss_overwrite,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,        \
+      "TraceBufferV2: data losses where unconsumed fragments were evicted on a "\
+      "ring-buffer wrap (expected by-design loss)."),                           \
+  F(traced_buf_data_loss_missing_chunks,  kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,        \
+      "TraceBufferV2: chunks missing across detected ChunkID gaps; a lower "    \
+      "bound. Overwrite eviction is counted by chunks_overwritten."),           \
   F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
        "Shadow mode: total packets read."),                                    \
   F(traced_buf_v2s_packets_in_both,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \

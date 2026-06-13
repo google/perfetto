@@ -24,7 +24,7 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 22.
+  // Next id: 29.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -118,6 +118,35 @@ message TraceStats {
     // indicating this loss to the service -- packets lost for other reasons are
     // not reflected in this stat.
     optional uint64 trace_writer_packet_loss = 19;
+
+    // TraceBufferV2-only diagnostic counters that break down why a data loss
+    // was detected. The authoritative loss signal stays
+    // traced_buf_sequence_packet_loss. A single data loss can have multiple
+    // causes, so one loss may be counted under more than one of these.
+
+    // Read started on a non-successor ChunkID (a gap in the stream).
+    optional uint64 data_loss_read_gap = 22;
+
+    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds).
+    optional uint64 data_loss_chunk_corrupted = 23;
+
+    // A continuation/end fragment with no preceding begin fragment.
+    optional uint64 data_loss_orphan_continuation = 24;
+
+    // Reassembly abandoned because of a ChunkID gap mid-packet.
+    optional uint64 data_loss_reassembly_gap = 25;
+
+    // Reassembly abandoned because the fragment chain was broken even though
+    // the ChunkIDs were contiguous.
+    optional uint64 data_loss_reassembly_broken_chain = 26;
+
+    // Unconsumed fragments evicted while overwriting (ring buffer wrap).
+    optional uint64 data_loss_overwrite = 27;
+
+    // Chunks missing across detected ChunkID gaps; a lower bound (counted once
+    // per cause until reported). Overwrite eviction is covered by
+    // chunks_overwritten.
+    optional uint64 data_loss_missing_chunks = 28;
 
     // Statistics for TRACE_BUFFER_V2_SHADOW_MODE comparison.
     // Only populated when the buffer is configured with shadow mode.

@@ -1072,6 +1072,28 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
+    // TraceBufferV2-only data-loss attribution counters.
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_read_gap, buf_num,
+        static_cast<int64_t>(buf.data_loss_read_gap()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_chunk_corrupted, buf_num,
+        static_cast<int64_t>(buf.data_loss_chunk_corrupted()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_orphan_continuation, buf_num,
+        static_cast<int64_t>(buf.data_loss_orphan_continuation()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_gap, buf_num,
+        static_cast<int64_t>(buf.data_loss_reassembly_gap()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_broken_chain, buf_num,
+        static_cast<int64_t>(buf.data_loss_reassembly_broken_chain()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_overwrite, buf_num,
+        static_cast<int64_t>(buf.data_loss_overwrite()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_missing_chunks, buf_num,
+        static_cast<int64_t>(buf.data_loss_missing_chunks()));
     if (buf.has_shadow_buffer_stats()) {
       protos::pbzero::TraceStats::BufferStats::ShadowBufferStats::Decoder sbs(
           buf.shadow_buffer_stats());
