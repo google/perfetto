@@ -1,0 +1,9 @@
+We have a writer that writers very sporadically.
+At some point it writes a packet that spans across two chunks.
+So the first chunk gets marked as kChunkNeedsPatching, and the patch gets stashed into SharedMemoryArbiterImpl.commit_data_req_, and start a new chunk with the continuation of the fragment
+Then the writer goes idle, so the 2nd chunk never gets committed officialy by the client
+Scraping happens. traced scrapes both chunks but the first one has still  kChunkNeedsPatching
+because we never receive the CommitDataRequest, essentially that chunk is "blocked", traced cannot read it fully, and eventually gets overwritten
+
+So now the real question is: when a trace packet is fully written, and the chunk list is populated, is there some code that guarrantees that the outstanding CommitDataRequest is eventually sent, even if the chunk is not full?
+
