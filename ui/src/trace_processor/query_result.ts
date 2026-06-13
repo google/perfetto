@@ -206,6 +206,130 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
   throw Error('invalid varint encoding');
 }
 
+// Allocation-free varint reader used by the iterator hot path.
+//
+// protobufjs's Reader.int64() allocates a LongBits object on every call (when
+// Long.js support is disabled, as it is here). In the iterator that's one
+// allocation per integer cell, which dominates the cost of loading large
+// tracks (millions of cells). readVarint() decodes a varint straight from the
+// byte buffer with zero allocations, writing its outputs into the module-level
+// scratch variables below. We use module-level vars (rather than returning an
+// object/tuple) precisely to avoid that per-cell allocation.
+//
+// After readVarint() returns:
+//  - varintLo / varintHi hold the low / high unsigned 32-bit halves.
+//  - varintPos holds the buffer position just past the decoded varint.
+// Use varintToNumber() / varintToBigInt() to materialise the value.
+//
+// The decode logic mirrors decodeInt64Varint() above (itself adapted from
+// protobufjs's Reader.readLongVarint()).
+let varintLo = 0;
+let varintHi = 0;
+let varintPos = 0;
+
+function readVarint(buf: Uint8Array, pos: number): void {
+  let hi = 0;
+  let lo = 0;
+  let i = 0;
+
+  if (buf.length - pos > 4) {
+    // fast route (lo)
+    for (; i < 4; ++i) {
+      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = 0;
+        varintPos = pos;
+        return;
+      }
+    }
+    // 5th
+    lo = (lo | ((buf[pos] & 127) << 28)) >>> 0;
+    hi = (hi | ((buf[pos] & 127) >> 4)) >>> 0;
+    if (buf[pos++] < 128) {
+      varintLo = lo;
+      varintHi = hi;
+      varintPos = pos;
+      return;
+    }
+    i = 0;
+  } else {
+    for (; i < 3; ++i) {
+      if (pos >= buf.length) {
+        throw Error('Index out of range');
+      }
+      // 1st..3rd
+      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = 0;
+        varintPos = pos;
+        return;
+      }
+    }
+    // 4th
+    lo = (lo | ((buf[pos++] & 127) << (i * 7))) >>> 0;
+    varintLo = lo;
+    varintHi = 0;
+    varintPos = pos;
+    return;
+  }
+  if (buf.length - pos > 4) {
+    // fast route (hi)
+    for (; i < 5; ++i) {
+      // 6th..10th
+      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = hi;
+        varintPos = pos;
+        return;
+      }
+    }
+  } else {
+    for (; i < 5; ++i) {
+      if (pos >= buf.length) {
+        throw Error('Index out of range');
+      }
+      // 6th..10th
+      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = hi;
+        varintPos = pos;
+        return;
+      }
+    }
+  }
+  throw Error('invalid varint encoding');
+}
+
+// Materialises the varint last read by readVarint() as a JS number, matching
+// the semantics of protobufjs's int64().toNumber() (signed, with the 2**53
+// precision caveat that applies throughout the UI - see static_initializers).
+function varintToNumber(): number {
+  const lo = varintLo;
+  const hi = varintHi;
+  if (hi >>> 31) {
+    // Negative: two's-complement negate the 64-bit value, then negate the
+    // resulting magnitude.
+    const nlo = (~lo + 1) >>> 0;
+    const nhi = (nlo === 0 ? ~hi + 1 : ~hi) >>> 0;
+    return -(nlo + nhi * 4294967296);
+  }
+  return lo + hi * 4294967296;
+}
+
+// Materialises the varint last read by readVarint() as a (signed) bigint,
+// matching decodeInt64Varint().
+function varintToBigInt(): bigint {
+  if (varintHi === 0) {
+    return BigInt(varintLo);
+  }
+  const big = (BigInt(varintHi) << SHIFT_32BITS) | BigInt(varintLo);
+  return BigInt.asIntN(64, big);
+}
+
 // Info that could help debug a query error. For example the query
 // in question, the stack where the query was issued, the active
 // plugin etc.
@@ -792,10 +916,18 @@ class RowIteratorImpl implements RowIteratorBase {
   private batchIdx = -1; // The batch index within |result.batches[]|.
   private batchBytes = new Uint8Array();
   private columnNames: string[] = [];
+  // The expected type for each column, in column order. This is the per-column
+  // value of |rowSpec|, precomputed once per batch so the next() hot loop can
+  // index it by position instead of doing a string-keyed lookup on rowSpec for
+  // every cell.
+  private expTypes: SqlValue[] = [];
   private numColumns = 0;
   private cellTypesEnd = -1; // -1 so the 1st next() hits tryMoveToNextBatch().
   private float64Cells = new Float64Array();
-  private varIntReader = protobuf.Reader.create(this.batchBytes);
+  // Offset into |batchBytes| of the next packed varint cell to be read. We read
+  // varints by hand (see readVarint) rather than via protobuf.Reader to avoid a
+  // per-cell LongBits allocation.
+  private varIntOff = 0;
   private blobCells: Uint8Array<ArrayBuffer>[] = [];
   private stringCells: string[] = [];
 
@@ -860,12 +992,15 @@ class RowIteratorImpl implements RowIteratorBase {
 
     const rowData = this.rowData;
     const numColumns = this.numColumns;
+    const columnNames = this.columnNames;
+    const expTypes = this.expTypes;
+    const batchBytes = this.batchBytes;
 
     // Read the current row.
     for (let i = 0; i < numColumns; i++) {
-      const cellType = this.batchBytes[this.nextCellTypeOff++];
-      const colName = this.columnNames[i];
-      const expType = this.rowSpec[colName];
+      const cellType = batchBytes[this.nextCellTypeOff++];
+      const colName = columnNames[i];
+      const expType = expTypes[i];
 
       switch (cellType) {
         case CellType.CELL_NULL:
@@ -873,21 +1008,14 @@ class RowIteratorImpl implements RowIteratorBase {
           break;
 
         case CellType.CELL_VARINT:
+          // Decode the varint once, allocation-free, advancing varIntOff.
+          readVarint(batchBytes, this.varIntOff);
+          this.varIntOff = varintPos;
           if (expType === NUM || expType === NUM_NULL) {
-            // This is very subtle. The return type of int64 can be either a
-            // number or a Long.js {high:number, low:number} if Long.js is
-            // installed. The default state seems different in node and browser.
-            // We force-disable Long.js support in the top of this source file.
-            const val = this.varIntReader.int64();
-            rowData[colName] = val as {} as number;
+            rowData[colName] = varintToNumber();
           } else {
-            // LONG, LONG_NULL, or unspecified - return as bigint
-            const value = decodeInt64Varint(
-              this.batchBytes,
-              this.varIntReader.pos,
-            );
-            rowData[colName] = value;
-            this.varIntReader.skip(); // Skips a varint
+            // LONG, LONG_NULL, or unspecified - return as bigint.
+            rowData[colName] = varintToBigInt();
           }
           break;
 
@@ -919,6 +1047,9 @@ class RowIteratorImpl implements RowIteratorBase {
 
     this.columnNames = this.resultObj.columnNames;
     this.numColumns = this.columnNames.length;
+    // Precompute the expected type per column so next() doesn't have to look it
+    // up by name on rowSpec for every cell.
+    this.expTypes = this.columnNames.map((name) => this.rowSpec[name]);
 
     this.batchIdx = nextBatchIdx;
     const batch = assertExists(this.resultObj.batches[nextBatchIdx]);
@@ -928,9 +1059,7 @@ class RowIteratorImpl implements RowIteratorBase {
     this.float64Cells = batch.float64Cells;
     this.blobCells = batch.blobCells;
     this.stringCells = batch.stringCells;
-    this.varIntReader = protobuf.Reader.create(batch.batchBytes);
-    this.varIntReader.pos = batch.varintOff;
-    this.varIntReader.len = batch.varintOff + batch.varintLen;
+    this.varIntOff = batch.varintOff;
     this.nextFloat64Cell = 0;
     this.nextStringCell = 0;
     this.nextBlobCell = 0;
