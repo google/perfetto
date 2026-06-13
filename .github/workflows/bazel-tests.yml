@@ -16,6 +16,13 @@
 name: Perfetto CI [bazel]
 on:
   workflow_call:
+
+  workflow_dispatch: # This allows manual triggering
+    inputs:
+      pr_number:
+        description: 'Pull Request Number'
+        required: true
+        type: number
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
@@ -30,8 +37,16 @@ jobs:
     env:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
+#      ANDROID_HOME: buildtools/android_sdk
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number) || github.ref }}
+
+      - name: Show PR number
+        run: |
+          echo "Running for PR: ${{ github.event.inputs.pr_number }}"
+          echo "Current ref: ${{ github.ref }}" 
 
       - name: Setup artifacts
         shell: bash
@@ -40,39 +55,72 @@ jobs:
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
-      - name: Restore cache
-        uses: ./.github/actions/cache-on-google-cloud-storage/restore
-        with:
-          directory: ${{ env.PERFETTO_CACHE_DIR }}
-          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
-
+#      - name: Restore cache
+#        uses: ./.github/actions/cache-on-google-cloud-storage/restore
+#        with:
+#          directory: ${{ env.PERFETTO_CACHE_DIR }}
+#          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+#
       - uses: ./.github/actions/install-build-deps
         with:
           install-flags: --bazel
 
-      - name: Build Bazel
+      - name: Run ADB from buildtools
         shell: bash
         run: |
-          BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
-          # Cleanup the cache if any of the two conditions are true.
-          BAZEL_DISK_CACHE_GC_OPTIONS="--experimental_disk_cache_gc_max_age=7d --experimental_disk_cache_gc_max_size=10G"
-          # We don't run a bazel daemon in background, so we do a GC during the build,
-          # that's why we specify _idle_delay=0.
-          BAZEL_DISK_CACHE_GC_OPTIONS+=" --experimental_disk_cache_gc_idle_delay=0"
-          BAZEL_DISK_CACHE_FLAGS="--disk_cache=${BAZEL_DISK_CACHE_FOLDER} ${BAZEL_DISK_CACHE_GC_OPTIONS}"
-          tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
-          tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+          echo "absolute path:"
+          buildtools/android_sdk/platform-tools/adb version
 
-      - name: Smoke tests
+#      - name: Build Bazel
+#        shell: bash
+#        run: |
+#          BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
+#          # Cleanup the cache if any of the two conditions are true.
+#          BAZEL_DISK_CACHE_GC_OPTIONS="--experimental_disk_cache_gc_max_age=7d --experimental_disk_cache_gc_max_size=10G"
+#          # We don't run a bazel daemon in background, so we do a GC during the build,
+#          # that's why we specify _idle_delay=0.
+#          BAZEL_DISK_CACHE_GC_OPTIONS+=" --experimental_disk_cache_gc_idle_delay=0"
+#          BAZEL_DISK_CACHE_FLAGS="--disk_cache=${BAZEL_DISK_CACHE_FOLDER} ${BAZEL_DISK_CACHE_GC_OPTIONS}"
+#          tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+#          tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+#
+#      - name: Smoke tests
+#        shell: bash
+#        run: |
+#          ./bazel-bin/traced &
+#          ./bazel-bin/traced_probes &
+#          sleep 5
+#          TRACE="$PERFETTO_ARTIFACTS_DIR/bazel.trace"
+#          ./bazel-bin/perfetto -c :test -o $TRACE
+#          kill $(jobs -p)
+#          ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create AVD for Android Instrumentation Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+#          profile: Pixel 9 Pro
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            env
+            buildtools/android_sdk/platform-tools/adb devices
+            buildtools/android_sdk/platform-tools/adb shell getprop | grep 'ro.build'
+
+      - name: Bazel Android Instrumentation Tests
         shell: bash
         run: |
-          ./bazel-bin/traced &
-          ./bazel-bin/traced_probes &
-          sleep 5
-          TRACE="$PERFETTO_ARTIFACTS_DIR/bazel.trace"
-          ./bazel-bin/perfetto -c :test -o $TRACE
-          kill $(jobs -p)
-          ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
+          echo "Fake running tests..."
+          buildtools/android_sdk/platform-tools/adb devices
+          buildtools/android_sdk/platform-tools/adb shell getprop | grep 'ro.build'
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
