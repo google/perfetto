@@ -65,6 +65,7 @@ import {
   type TracesSchemaResponse,
 } from '../query/bigtrace_query_client';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
+import {formatCompact} from '../query/query_store';
 import {
   traceFilterState as traceFiltersState,
   traceOrderByState,
@@ -636,16 +637,22 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     // show it without re-fetching. No-op on /settings (no onTraceMatchCount).
     this.bindings?.onTraceMatchCount?.(n);
     const hasFilter = this.traceFilterss.length > 0;
+    // Compact count (1.2K) like the history sidebar's row counts; the exact
+    // number lives in the hover title.
     const text =
       n === undefined
         ? 'Counting traces…'
         : hasFilter
-          ? `${n.toLocaleString()} trace${n === 1 ? '' : 's'} match`
-          : `${n.toLocaleString()} trace${n === 1 ? '' : 's'}`;
+          ? `${formatCompact(n)} trace${n === 1 ? '' : 's'} match`
+          : `${formatCompact(n)} trace${n === 1 ? '' : 's'}`;
     // Filled label that reads as a status, not a clickable chip.
     return m(
       'span.pf-bt-trace-match-count',
       {
+        title:
+          n === undefined
+            ? undefined
+            : `${n.toLocaleString()} trace${n === 1 ? '' : 's'}`,
         style: {
           display: 'inline-flex',
           alignItems: 'center',
