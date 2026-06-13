@@ -16,7 +16,10 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import type {FlamegraphState} from '../../widgets/flamegraph';
-import {createProfilingTrack} from './profiling_track';
+import {
+  createProfilingTrack,
+  createCallstackSlicesTrack,
+} from './profiling_track';
 
 export function createCpuProfileTrack(
   trace: Trace,
@@ -58,6 +61,53 @@ export function createCpuProfileTrack(
       panelTitle: 'CPU Profile Samples',
       sliceName: 'CPU Sample',
     },
+    detailsPanelState,
+    onDetailsPanelStateChange,
+  );
+}
+
+export async function createCpuProfileSlicesTrack(
+  trace: Trace,
+  uri: string,
+  tableName: string,
+  utid: number,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+) {
+  return await createCallstackSlicesTrack(
+    trace,
+    uri,
+    {
+      dataset: new SourceDataset({
+        schema: {
+          id: NUM,
+          ts: LONG,
+          callsiteId: NUM,
+        },
+        src: `
+          SELECT
+            id,
+            ts,
+            callsite_id AS callsiteId,
+            utid
+          FROM cpu_profile_stack_sample
+        `,
+        filter: {
+          col: 'utid',
+          eq: utid,
+        },
+      }),
+      callsiteQuery: (ts) => `
+        SELECT callsite_id
+        FROM cpu_profile_stack_sample
+        WHERE ts = ${ts} AND utid = ${utid}
+      `,
+      sqlModule: 'callstacks.stack_profile',
+      metricName: 'CPU Profile Samples',
+      panelTitle: 'CPU Profile Samples',
+      sliceName: 'CPU Sample',
+    },
+    tableName,
     detailsPanelState,
     onDetailsPanelStateChange,
   );

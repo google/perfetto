@@ -16,7 +16,10 @@ import m from 'mithril';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {createCpuProfileTrack} from './cpu_profile_track';
+import {
+  createCpuProfileTrack,
+  createCpuProfileSlicesTrack,
+} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
@@ -58,6 +61,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
     this.store = ctx.mountStore(CpuProfilePlugin.id, (init) =>
       this.migrateCpuProfilePluginState(init),
     );
+    await ctx.engine.query('INCLUDE PERFETTO MODULE callstacks.stack_profile;');
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (
         select distinct utid
@@ -103,6 +107,123 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
           },
         ),
       });
+      const slicesUri = `${uri}_slices`;
+      const tableName = `slices_${slicesUri.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      await ctx.engine.query(`
+        CREATE PERFETTO TABLE ${tableName} AS
+        WITH samples AS (
+          SELECT
+            id AS sample_id,
+            ts,
+            LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (ORDER BY ts) - ts AS dur,
+            callsite_id
+          FROM cpu_profile_stack_sample
+          WHERE utid = ${utid} AND callsite_id IS NOT NULL
+        ),
+        callstack_path AS (
+          SELECT
+            id AS callsite_id,
+            id AS current_callsite_id,
+            parent_id,
+            frame_id,
+            0 AS depth
+          FROM stack_profile_callsite
+          WHERE id IN (SELECT DISTINCT callsite_id FROM samples)
+
+          UNION ALL
+
+          SELECT
+            p.callsite_id,
+            c.id AS current_callsite_id,
+            c.parent_id,
+            c.frame_id,
+            p.depth + 1 AS depth
+          FROM callstack_path p
+          JOIN stack_profile_callsite c ON p.parent_id = c.id
+        ),
+        path_with_max_depth AS (
+          SELECT
+            callsite_id,
+            frame_id,
+            depth,
+            MAX(depth) OVER (PARTITION BY callsite_id) AS max_depth
+          FROM callstack_path
+        ),
+        raw_slices AS (
+          SELECT
+            s.ts,
+            s.dur,
+            f.name,
+            (p.max_depth - p.depth) AS depth,
+            s.callsite_id AS callsiteId
+          FROM samples s
+          JOIN path_with_max_depth p USING (callsite_id)
+          JOIN stack_profile_frame f ON p.frame_id = f.id
+        ),
+        islands AS (
+          SELECT
+            ts,
+            dur,
+            name,
+            depth,
+            callsiteId,
+            CASE
+              WHEN LAG(ts + dur) OVER (PARTITION BY depth, name ORDER BY ts) >= ts THEN 0
+              ELSE 1
+            END AS is_new_island
+          FROM raw_slices
+        ),
+        island_ids AS (
+          SELECT
+            ts,
+            dur,
+            name,
+            depth,
+            callsiteId,
+            SUM(is_new_island) OVER (PARTITION BY depth, name ORDER BY ts) AS island_id
+          FROM islands
+        )
+        SELECT
+          ROW_NUMBER() OVER (ORDER BY ts) AS id,
+          ts,
+          dur,
+          name,
+          depth,
+          callsiteId
+        FROM (
+          SELECT
+            MIN(ts) AS ts,
+            MAX(ts + dur) - MIN(ts) AS dur,
+            name,
+            depth,
+            MIN(callsiteId) AS callsiteId
+          FROM island_ids
+          GROUP BY depth, name, island_id
+        )
+      `);
+      await ctx.engine.query(
+        `CREATE PERFETTO INDEX ${tableName}_id ON ${tableName}(id);`,
+      );
+      ctx.tracks.registerTrack({
+        uri: slicesUri,
+        tags: {
+          kinds: [CPU_PROFILE_TRACK_KIND],
+          utid,
+          ...(exists(upid) && {upid}),
+        },
+        renderer: await createCpuProfileSlicesTrack(
+          ctx,
+          slicesUri,
+          tableName,
+          utid,
+          store.state.detailsPanelFlamegraphState,
+          (state) => {
+            store.edit((draft) => {
+              draft.detailsPanelFlamegraphState = state;
+            });
+          },
+        ),
+      });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
@@ -112,6 +233,12 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         sortOrder: -40,
       });
       group?.addChildInOrder(track);
+      const slicesTrack = new TrackNode({
+        uri: slicesUri,
+        name: `${threadName} (CPU Callstack Slices)`,
+        sortOrder: -39,
+      });
+      group?.addChildInOrder(slicesTrack);
     }
 
     ctx.selection.registerAreaSelectionTab(this.createAreaSelectionTab(ctx));
