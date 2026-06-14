@@ -8,9 +8,8 @@ but pinned at half its clock is leaving half its throughput on the table — and
 busy/idle view, or a steady-state frequency average, cannot see that.
 
 It works on any trace that has a canonical GPU **frequency** track — the
-`gpufreq` counter track (one per GPU) that the Perfetto UI renders as the
-per-GPU *Frequency* track. It catches the two classic, workload-agnostic
-clock pathologies:
+`gpufreq` counter track (one per GPU). It catches the two classic,
+workload-agnostic clock pathologies:
 
 - **Slow DVFS ramp** after an idle→busy transition: the clock starts at a floor
   state and takes time to ramp up, so the work that woke the GPU runs slow.
@@ -46,7 +45,10 @@ Run this before any open-ended exploration. It produces the headline verdict.
 
     - **`eff_occupancy_pct` ≈ `busy_pct_of_active`** — when the GPU is busy it
       runs at (near) peak clock. The clock is healthy; the lever is elsewhere —
-      the device work itself, or the idle between work, not the clock. Stop here.
+      the device work itself, or the idle between work, not the clock. When that
+      device work is GPU **compute** kernels, decompose it — which kernel, and
+      what bounds it — with
+      [compute/kernel_analysis.md](compute/kernel_analysis.md); otherwise stop here.
     - **`eff_occupancy_pct` ≪ `busy_pct_of_active`** — the GPU is busy but
       underclocked. The clock *is* the problem. Proceed to Phase 2 (ramp) and
       Phase 3 (throttling) to find out why.

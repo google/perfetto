@@ -54,6 +54,10 @@ retention, or optimize heap usage:
 If you have a resolved trace with GPU activity and want to know whether the
 workload is GPU-bound or host-bound:
 
+*   **GPU inventory:** To see what GPUs the trace describes — vendor, model,
+    architecture, per machine (multi-GPU and multi-machine aware), which decides
+    which vendor-specific analysis applies, read
+    [gpu_info.md](workflows/gpu/gpu_info.md).
 *   **GPU timeline occupancy:** To decompose the GPU timeline into device-busy
     vs idle time, get per-GPU busy percentages, and find the largest idle gaps
     with host-side attribution, read
