@@ -25,7 +25,7 @@ CREATE PERFETTO MACRO _get_devfreq_counters(
 -- Returns a pipeline of (id LONG, ts TIMESTAMP, dur DURATION, freq LONG).
 RETURNS Pipeline
 AS (
-  INTERVALS FROM EVENTS (
+  INTERVALS FROM CHANGES (
     FROM counter AS c
     |> JOIN track AS t ON t.id = c.track_id
     |> WHERE t.type = 'linux_device_frequency'

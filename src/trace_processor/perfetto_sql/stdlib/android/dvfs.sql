@@ -63,7 +63,7 @@ SUBPIPELINE dvfs_evts AS (
        counter.ts,
        counter.value
 )
-INTERVALS FROM EVENTS dvfs_evts PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES dvfs_evts PER track_id CLOSING LAST AT (trace_end())
 |> SELECT name, ts, value, dur
 |> ORDER BY ts;
 

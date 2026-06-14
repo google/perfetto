@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
--- NOTE (psqlnext): `counter_leading_intervals!` is `INTERVALS FROM EVENTS … PER
+-- NOTE (psqlnext): `counter_leading_intervals!` is `INTERVALS FROM CHANGES … PER
 -- track_id CLOSING LAST AT(trace_end())` plus `INTERVAL MERGE CONSECUTIVE BY
 -- value` to collapse equal-valued runs.
 
@@ -32,6 +32,6 @@ SUBPIPELINE power_state_events AS (
   |> JOIN counter_track AS t ON t.id = c.track_id AND t.name = 'mali_gpu_power_state'
   |> SELECT c.id, c.ts, c.track_id, c.value
 )
-INTERVALS FROM EVENTS power_state_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES power_state_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> SELECT ts, dur, cast_int!(value) AS power_state;

@@ -107,16 +107,16 @@ SUBPIPELINE idle_mod AS (
        idle
 )
 -- Use EITHER idle states as is OR device specific override of idle states.
--- The lead(ts) - ts duration construction per cpu is INTERVALS FROM EVENTS
+-- The lead(ts) - ts duration construction per cpu is INTERVALS FROM CHANGES
 -- closing the final interval at trace_end().
 SUBPIPELINE _cpu_idle AS (
   -- Idle state calculations as is
-  INTERVALS FROM EVENTS idle_mod PER cpu CLOSING LAST AT (trace_end())
+  INTERVALS FROM CHANGES idle_mod PER cpu CLOSING LAST AT (trace_end())
   |> WHERE NOT EXISTS (SELECT 1 FROM _idle_state_map_override)
   |> SELECT ts, dur, cpu, cast_int!(IIF(idle = 4294967295, -1, idle)) AS idle
   |> UNION ALL (
     -- Device specific override of idle states
-    INTERVALS FROM EVENTS idle_mod PER cpu CLOSING LAST AT (trace_end())
+    INTERVALS FROM CHANGES idle_mod PER cpu CLOSING LAST AT (trace_end())
     |> JOIN _idle_state_map_override AS idle_map ON idle = idle_map.nominal_idle
     |> WHERE EXISTS (SELECT 1 FROM _idle_state_map_override)
     |> SELECT ts, dur, cpu, override_idle AS idle

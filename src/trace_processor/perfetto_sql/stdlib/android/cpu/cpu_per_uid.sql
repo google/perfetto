@@ -69,7 +69,7 @@ SUBPIPELINE events AS (
   |> JOIN android_cpu_per_uid_track AS t ON t.id = c.track_id
   |> SELECT c.id, c.ts, c.track_id, c.value
 )
-INTERVALS FROM EVENTS events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
 |> EXTEND lead(value) OVER (PARTITION BY track_id ORDER BY ts) AS next_value
 |> WHERE next_value IS NOT NULL

@@ -26,7 +26,7 @@ FROM slice
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
 CREATE PERFETTO PIPELINE _activity_intent_recv_spans MATERIALIZED AS
-INTERVALS FROM EVENTS _activity_intent_received CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES _activity_intent_received CLOSING LAST AT (trace_end())
 |> SELECT ts, dur
 |> ORDER BY ts;
 

@@ -129,7 +129,7 @@ SUBPIPELINE freezer_transitions AS (
             str_split(name, ' ', 2) AS unfreeze_reason
      )
 )
-INTERVALS FROM EVENTS freezer_transitions PER upid CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES freezer_transitions PER upid CLOSING LAST AT (trace_end())
 -- The closing (unfreeze) event's reason is the next event's value in lane order.
 |> EXTEND
      cast_int!(lead(unfreeze_reason) OVER (PARTITION BY upid ORDER BY ts))

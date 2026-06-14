@@ -13,7 +13,7 @@
 -- limitations under the License.
 
 -- NOTE (psqlnext): the `counters.intervals` and `intervals.fill_gaps` modules are
--- DELETED — `counter_leading_intervals!` is `INTERVALS FROM EVENTS` (+`MERGE
+-- DELETED — `counter_leading_intervals!` is `INTERVALS FROM CHANGES` (+`MERGE
 -- CONSECUTIVE BY value`), and `_intervals_fill_gaps!` is `INTERVAL FILL … WITHIN`.
 
 -- Table of the screen state - on, off or doze (always on display).
@@ -39,7 +39,7 @@ SUBPIPELINE screen_state_events AS (
   |> SELECT counter.id, counter.ts, 0 AS track_id, counter.value
 )
 -- Counter samples become intervals of constant state; equal-valued runs coalesce.
-INTERVALS FROM EVENTS screen_state_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES screen_state_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> WHERE dur > 0
 |> SELECT

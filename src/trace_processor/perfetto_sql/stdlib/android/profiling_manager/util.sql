@@ -32,23 +32,16 @@ RETURNS TABLE(
   dur LONG
 )
 AS
+SUBPIPELINE end_slices AS (
+  FROM slice
+  |> WHERE name GLOB $end_pattern
+)
 FROM slice AS s
 |> WHERE s.name GLOB $start_pattern
+-- Attach the nearest end slice that begins after each start slice. Non-LEFT FIND
+-- drops start slices with no following end slice (the old `dur IS NOT NULL` filter).
+|> INTERVAL FIND end_slices AS e STARTING AFTER BEGIN
 |> SELECT
      s.name,
      s.ts,
-     -- Calculate duration by looking ahead for the nearest end slice
-     (
-       SELECT e.ts + iif($inclusive, e.dur, 0)
-       FROM slice AS e
-       WHERE
-         e.name GLOB $end_pattern
-         -- Ensure the end slice occurs after the start slice
-         AND e.ts > s.ts
-       ORDER BY
-         e.ts
-       LIMIT 1
-     )
-     - s.ts AS dur
--- Filter out start slices that did not find a matching end slice (where dur becomes NULL)
-|> WHERE dur IS NOT NULL;
+     e.ts + iif($inclusive, e.dur, 0) - s.ts AS dur;

@@ -39,7 +39,7 @@ SUBPIPELINE cpufreq_events AS (
     ON cct.id = c.track_id AND cct.name = 'cpufreq'
   |> SELECT c.id, c.ts, c.track_id, c.value
 )
-INTERVALS FROM EVENTS cpufreq_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES cpufreq_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
    AGGREGATE MIN(id) AS id, MIN(track_id) AS track_id
 |> JOIN cpu_counter_track AS cct ON track_id = cct.id

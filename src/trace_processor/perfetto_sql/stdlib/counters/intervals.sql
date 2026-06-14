@@ -14,5 +14,5 @@
 -- limitations under the License.
 --
 
--- DELETED: absorbed by INTERVALS FROM EVENTS ... CLOSING LAST AT (trace_end())
+-- DELETED: absorbed by INTERVALS FROM CHANGES ... CLOSING LAST AT (trace_end())
 -- (+ INTERVAL MERGE CONSECUTIVE BY value).

@@ -14,7 +14,7 @@
 --
 
 -- NOTE (psqlnext): `counters.intervals` is DELETED — `counter_leading_intervals!`
--- is `INTERVALS FROM EVENTS` (+`MERGE CONSECUTIVE BY value`); the partitioned
+-- is `INTERVALS FROM CHANGES` (+`MERGE CONSECUTIVE BY value`); the partitioned
 -- `span_join` with `android_suspend_state` is `INTERVAL SPLIT ... PER name_int`.
 
 INCLUDE PERFETTO MODULE android.suspend;
@@ -32,7 +32,7 @@ SUBPIPELINE kernel_wakelock_events AS (
 )
 -- Counter samples become leading intervals; `next_value` is the following
 -- sample's value (the held total at the next change) reached via lane order.
-INTERVALS FROM EVENTS kernel_wakelock_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES kernel_wakelock_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> EXTEND LEAD(value) OVER (PARTITION BY track_id ORDER BY ts) AS next_value
 |> JOIN _kernel_wakelock_track AS t

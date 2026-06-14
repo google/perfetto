@@ -39,7 +39,7 @@ SUBPIPELINE idle_events AS (
      ON cct.id = c.track_id AND cct.name = 'cpuidle'
   |> SELECT c.id, c.ts, c.track_id, c.value
 )
-INTERVALS FROM EVENTS idle_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES idle_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
 |> JOIN cpu_counter_track AS cct
    ON track_id = cct.id

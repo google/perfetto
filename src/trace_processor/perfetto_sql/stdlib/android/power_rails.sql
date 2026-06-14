@@ -52,7 +52,7 @@ SUBPIPELINE power_rail_counters AS (
   |> WHERE t.type = 'power_rails'
   |> SELECT c.id, c.ts, c.track_id, c.value, c.source_arg_set_id
 )
-INTERVALS FROM EVENTS power_rail_counters PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES power_rail_counters PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
 |> EXTEND next_value = LEAD(value) OVER (PARTITION BY track_id ORDER BY ts)
 |> EXTEND delta_value = value - LAG(value) OVER (PARTITION BY track_id ORDER BY ts)

@@ -13,7 +13,7 @@
 -- limitations under the License.
 
 -- NOTE (psqlnext): the `counters.intervals` module is DELETED —
--- `counter_leading_intervals!` is `INTERVALS FROM EVENTS` (+`MERGE CONSECUTIVE
+-- `counter_leading_intervals!` is `INTERVALS FROM CHANGES` (+`MERGE CONSECUTIVE
 -- BY value`).
 
 -- Light idle states. This is the state machine that quickly detects the
@@ -36,7 +36,7 @@ SUBPIPELINE doze_light_events AS (
   |> WHERE counter_track.name = 'DozeLightState'
   |> SELECT counter.id, counter.ts, 0 AS track_id, counter.value
 )
-INTERVALS FROM EVENTS doze_light_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES doze_light_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> SELECT
      id,
@@ -78,7 +78,7 @@ SUBPIPELINE doze_deep_events AS (
   |> WHERE counter_track.name = 'DozeDeepState'
   |> SELECT counter.id, counter.ts, 0 AS track_id, counter.value
 )
-INTERVALS FROM EVENTS doze_deep_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES doze_deep_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> SELECT
      id,

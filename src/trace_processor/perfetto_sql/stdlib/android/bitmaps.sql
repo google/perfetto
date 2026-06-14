@@ -40,7 +40,7 @@ SUBPIPELINE evts AS (
   |> WHERE pct.name = 'Bitmap Memory'
   |> SELECT c.id, c.track_id, c.ts, c.value
 )
-INTERVALS FROM EVENTS evts PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES evts PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
 |> JOIN process_counter_track AS pct ON pct.id = track_id
 |> SELECT id, upid, ts, dur, track_id, value
@@ -72,7 +72,7 @@ SUBPIPELINE evts AS (
   |> WHERE pct.name = 'Bitmap Count'
   |> SELECT c.id, c.track_id, c.ts, c.value
 )
-INTERVALS FROM EVENTS evts PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES evts PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
 |> JOIN process_counter_track AS pct ON pct.id = track_id
 |> SELECT id, upid, ts, dur, track_id, value

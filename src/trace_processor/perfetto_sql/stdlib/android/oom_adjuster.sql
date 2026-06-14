@@ -116,7 +116,7 @@ SUBPIPELINE evts AS (
     ON track.id = counter.track_id AND track.name = 'oom_score_adj'
   |> SELECT counter.id, counter.ts, counter.value, counter.track_id
 )
-INTERVALS FROM EVENTS evts PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES evts PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
 |> JOIN process_counter_track AS track ON track_id = track.id
 |> JOIN process USING (upid)

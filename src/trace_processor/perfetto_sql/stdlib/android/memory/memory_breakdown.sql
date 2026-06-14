@@ -15,7 +15,7 @@
 --
 
 -- NOTE (psqlnext): `counters.intervals` is DELETED — `counter_leading_intervals!`
--- is `INTERVALS FROM EVENTS` (+`MERGE CONSECUTIVE BY value`); the partitioned
+-- is `INTERVALS FROM CHANGES` (+`MERGE CONSECUTIVE BY value`); the partitioned
 -- `SPAN_LEFT_JOIN` with the OOM intervals is `INTERVAL SPLIT ... PER track_id`.
 
 INCLUDE PERFETTO MODULE android.oom_adjuster;
@@ -90,7 +90,7 @@ SUBPIPELINE mem_counters AS (
 -- Counter samples become leading intervals; equal-valued runs coalesce and
 -- `delta_value` is recovered from the previous value in lane order.
 SUBPIPELINE mem_intervals AS (
-  INTERVALS FROM EVENTS mem_counters PER track_id CLOSING LAST AT (trace_end())
+  INTERVALS FROM CHANGES mem_counters PER track_id CLOSING LAST AT (trace_end())
   |> INTERVAL MERGE CONSECUTIVE BY value
   |> SELECT
        ts,

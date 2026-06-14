@@ -22,7 +22,7 @@ SUBPIPELINE dmabuf_events AS (
     AND track.name = 'mem.dmabuf_rss'
   |> SELECT counter.id, counter.ts, counter.track_id, counter.value
 )
-INTERVALS FROM EVENTS dmabuf_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES dmabuf_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> JOIN process_counter_track ON track_id = process_counter_track.id
 |> SELECT upid, ts, dur, CAST(value AS INTEGER) AS dmabuf_rss;

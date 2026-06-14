@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
--- NOTE (psqlnext): `counter_leading_intervals!` is `INTERVALS FROM EVENTS … PER
+-- NOTE (psqlnext): `counter_leading_intervals!` is `INTERVALS FROM CHANGES … PER
 -- track_id CLOSING LAST AT(trace_end())` plus `INTERVAL MERGE CONSECUTIVE BY
 -- value` to collapse equal-valued runs. The leading/lagging samples (next_value)
 -- are recovered with §4 lane-ordered windowing.
@@ -40,7 +40,7 @@ SUBPIPELINE gpufreq_events AS (
   |> WHERE gpu_id IS NOT NULL
   |> SELECT c.id, c.ts, c.track_id, c.value, t.gpu_id
 )
-INTERVALS FROM EVENTS gpufreq_events PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES gpufreq_events PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> SELECT
   ts,

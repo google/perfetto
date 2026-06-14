@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- NOTE (psqlnext): the `counters.intervals` module is DELETED —
--- `counter_leading_intervals!` is `INTERVALS FROM EVENTS` (+`MERGE
+-- `counter_leading_intervals!` is `INTERVALS FROM CHANGES` (+`MERGE
 -- CONSECUTIVE BY value`).
 
 INCLUDE PERFETTO MODULE linux.memory.process;
@@ -31,7 +31,7 @@ SUBPIPELINE high_watermark_as_counter AS (
        -- `track_id` aliases `upid` so leading-interval lanes are per-process.
        upid AS track_id
 )
-INTERVALS FROM EVENTS high_watermark_as_counter PER track_id CLOSING LAST AT (trace_end())
+INTERVALS FROM CHANGES high_watermark_as_counter PER track_id CLOSING LAST AT (trace_end())
 |> INTERVAL MERGE CONSECUTIVE BY value
 |> SELECT ts, dur, track_id AS upid, cast_int!(value) AS rss_high_watermark;
 
