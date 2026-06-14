@@ -34,12 +34,11 @@ RETURNS TABLE(
   track_id LONG
 )
 AS
-SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
-JOIN android_jank_cuj AS cuj USING (upid)
-JOIN thread_track USING (utid)
-WHERE
-  thread.name = $thread_name;
+|> JOIN android_jank_cuj AS cuj USING (upid)
+|> JOIN thread_track USING (utid)
+|> WHERE thread.name = $thread_name
+|> SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id;
 
 -- Table captures thread information for 'RenderThread' for all CUJs.
 CREATE PERFETTO PIPELINE android_jank_cuj_render_thread(

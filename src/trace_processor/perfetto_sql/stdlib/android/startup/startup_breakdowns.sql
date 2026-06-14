@@ -109,12 +109,11 @@ FROM possibly_overlapping
 -- surviving ancestor via TREE CONTRACT.
 CREATE PERFETTO PIPELINE _startup_normalized_slices MATERIALIZED AS
 SUBPIPELINE relevant_startup_slices AS (
+  -- Keep only thread slices overlapping a startup root on the same thread.
+  -- Nothing from the startup root is read, so this is a temporal semijoin.
   FROM thread_slice AS slice
-  |> JOIN _startup_root_slices AS startup
-    ON slice.utid = startup.utid
-    AND max(slice.ts, startup.ts)
-    < min(slice.ts + slice.dur, startup.ts + startup.dur)
   |> WHERE slice.dur > 0
+  |> INTERVAL WHERE OVERLAPPING BOUNDS _startup_root_slices PER utid
   |> SELECT
     slice.id,
     slice.parent_id,

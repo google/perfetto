@@ -13,10 +13,14 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE graphs.scan;
-
 -- Given a list of classes as ancestor classes, return all the classes that
 -- descend from them.
+--
+-- The subclass spanning tree from the seed ancestors over the
+-- superclass->subclass forest. Each descendant inherits the seed ancestor at the
+-- root of its path via TREE ACCUMULATE DOWN FIRST(...) — what the old `_graph_scan!`
+-- propagated down by hand. (A class reachable from several seeds is deduped to its
+-- nearest seed ancestor, the natural spanning-tree semantics.)
 CREATE PERFETTO MACRO android_heap_graph_class_find_descendants(
   -- ancestor class `id`s from the heap_graph_class table containing a
   -- single column: `id`
@@ -27,37 +31,18 @@ CREATE PERFETTO MACRO android_heap_graph_class_find_descendants(
 -- id: `id` of the class as in heap_graph_class
 -- ancestor_class_id: `id` of the ancestor class as given in the input
 -- ancestor_class_name: `name` of the ancestor class as in heap_graph_class
-RETURNS TableOrSubquery
+RETURNS Pipeline
 AS (
-  WITH
-    class_forest(source_node_id, dest_node_id) AS (
-      SELECT
-        superclass_id AS source_node_id,
-        id AS dest_node_id
+  GRAPH BFS TREE
+    NODES (FROM heap_graph_class |> SELECT id AS node_id, name)
+    EDGES (
       FROM heap_graph_class
-      WHERE
-        superclass_id IS NOT NULL
-    ),
-    ancestors(id, ancestor_class_id, ancestor_class_name) AS (
-      SELECT
-        id,
-        id AS ancestor_class_id,
-        name AS ancestor_class_name
-      FROM $ancestor_class_ids
-      JOIN heap_graph_class
-        USING (id)
+      |> WHERE superclass_id IS NOT NULL
+      |> SELECT superclass_id AS source_node_id, id AS dest_node_id
     )
-  SELECT
-    id,
-    ancestor_class_id,
-    ancestor_class_name
-  FROM _graph_scan!(
-    class_forest,
-    ancestors,
-    (ancestor_class_id, ancestor_class_name),
-    (
-      SELECT id, ancestor_class_id, ancestor_class_name
-      FROM $table
-    )
-  )
+    FROM (FROM $ancestor_class_ids |> SELECT id AS node_id)
+  |> TREE ACCUMULATE DOWN
+       FIRST(node_id) AS ancestor_class_id,
+       FIRST(name) AS ancestor_class_name
+  |> SELECT node_id AS id, ancestor_class_id, ancestor_class_name
 );

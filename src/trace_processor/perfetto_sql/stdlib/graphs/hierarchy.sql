@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- DELETED: absorbed by TREE KEEP IF ANCESTOR OF … OVER. The
+-- DELETED: absorbed by TREE WHERE ANCESTOR OF … OVER. The
 -- `_tree_reachable_ancestors_or_self!` macro (a `graph_reachable_dfs` walk up a
--- tree) inlines into its consumers as `TREE KEEP IF ANCESTOR OF <set> OVER <tree>`.
+-- tree) inlines into its consumers as `TREE WHERE ANCESTOR OF <set> OVER <tree>`.

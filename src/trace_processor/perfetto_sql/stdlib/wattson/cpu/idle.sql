@@ -128,11 +128,10 @@ FROM _cpu_idle
 |> FORK AS first_cpu_idle_slices
 -- Prepend NULL slices up to first idle events on a per CPU basis.
 -- Construct slices from first cpu ts up to first freq event for each cpu
-FROM first_cpu_idle_slices AS first_slices
 |> SELECT
      trace_start() AS ts,
-     first_slices.ts - trace_start() AS dur,
-     first_slices.cpu AS cpu,
+     ts - trace_start() AS dur,
+     cpu,
      NULL AS idle
 |> WHERE dur > 0
 |> UNION ALL (

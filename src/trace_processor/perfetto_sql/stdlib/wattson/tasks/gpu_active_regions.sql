@@ -56,14 +56,12 @@ FROM _gpu_active_region_tasks
   min(CASE WHEN rnk_desc = 1 THEN uid END) AS last_uid
   GROUP BY region_id;
 
--- Step 4: Classify gaps within active regions
+-- Step 4: Classify gaps within active regions. A gap is the part of an active
+-- region not covered by any GPU task, i.e. the region with the task coverage
+-- removed.
 CREATE PERFETTO PIPELINE _gaps_in_active_regions MATERIALIZED AS
-SUBPIPELINE all_gaps AS (
-  FROM _gpu_active_task_count
-  |> WHERE active_tasks = 0
-  |> SELECT ts, dur
-)
-INTERVAL INTERSECTION OF (_gpu_active_regions AS r, all_gaps AS g)
+FROM _gpu_active_regions AS r
+|> INTERVAL SUBTRACT _gpu_tasks
 |> SELECT ts, dur, r.group_id AS region_id;
 
 CREATE PERFETTO PIPELINE _gpu_active_region_gaps MATERIALIZED AS

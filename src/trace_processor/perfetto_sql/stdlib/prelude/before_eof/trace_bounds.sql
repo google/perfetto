@@ -24,14 +24,16 @@ CREATE PERFETTO FUNCTION trace_start()
 -- Start of the trace.
 RETURNS TIMESTAMP
 AS
-SELECT start_ts FROM _trace_bounds;
+FROM _trace_bounds
+|> SELECT start_ts;
 
 -- Fetch end of the trace.
 CREATE PERFETTO FUNCTION trace_end()
 -- End of the trace.
 RETURNS TIMESTAMP
 AS
-SELECT end_ts FROM _trace_bounds;
+FROM _trace_bounds
+|> SELECT end_ts;
 
 -- Fetch duration of the trace.
 CREATE PERFETTO FUNCTION trace_dur()

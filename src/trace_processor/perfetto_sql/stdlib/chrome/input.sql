@@ -146,15 +146,12 @@ SUBPIPELINE send_touch_move_steps AS (
     AND dur > 0
 )
 -- By default, we map a scroll update event to an ancestor touch move event with
--- STEP_TOUCH_EVENT_HANDLED. We are interested in finding all of the
--- scroll_update_steps which have a "touch_move_handled" parent: we intersect
--- them and keep the intersections that fully cover a scroll_update_step (i.e.
--- the touch_move_handled step is an ancestor of the scroll_update_step).
+-- STEP_TOUCH_EVENT_HANDLED: for each scroll_update_step, find the
+-- touch_move_handled step whose bounds fully cover it (i.e. it is an ancestor of
+-- the scroll_update_step).
 SUBPIPELINE default_mapping AS (
-  INTERVAL INTERSECTION OF (
-    scroll_update_steps AS su, touch_handled_steps AS tm
-  ) PER utid
-  |> WHERE ts = su.ts AND dur = su.dur
+  FROM scroll_update_steps AS su
+  |> INTERVAL JOIN touch_handled_steps AS tm COVERING BOUNDS PER utid
   |> SELECT
     tm.latency_id AS touch_move_latency_id,
     su.latency_id AS scroll_update_latency_id
@@ -164,10 +161,8 @@ SUBPIPELINE default_mapping AS (
 -- try to fall back to an ancestor touch move event with STEP_SEND_INPUT_EVENT_UI
 -- instead.
 SUBPIPELINE fallback_mapping AS (
-  INTERVAL INTERSECTION OF (
-    scroll_update_steps AS su, send_touch_move_steps AS tm
-  ) PER utid
-  |> WHERE ts = su.ts AND dur = su.dur
+  FROM scroll_update_steps AS su
+  |> INTERVAL JOIN send_touch_move_steps AS tm COVERING BOUNDS PER utid
   |> SELECT
     tm.latency_id AS touch_move_latency_id,
     su.latency_id AS scroll_update_latency_id

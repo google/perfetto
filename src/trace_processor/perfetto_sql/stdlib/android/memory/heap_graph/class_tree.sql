@@ -52,102 +52,77 @@ GRAPH BFS TREE NODES nodes EDGES edges FROM roots
 |> SELECT node_id AS id, parent_node_id AS parent_id
 |> ORDER BY id;
 
-CREATE PERFETTO TABLE _heap_graph_path_hashes AS
-SELECT * FROM _heap_graph_type_path_hash!(_heap_graph_object_min_depth_tree);
-
-CREATE PERFETTO TABLE _heap_graph_path_hashes_aggregated AS
-SELECT * FROM _heap_graph_path_hash_aggregate!(_heap_graph_path_hashes);
-
-CREATE PERFETTO TABLE _heap_graph_class_tree AS
-SELECT *
-FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_path_hashes_aggregated);
+CREATE PERFETTO PIPELINE _heap_graph_class_tree MATERIALIZED AS
+_heap_graph_fold_to_class_tree!(_heap_graph_object_min_depth_tree);
 
 CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
   path_hashes TableOrSubquery,
   path_hash_values TableOrSubquery
 )
-RETURNS TableOrSubquery
+RETURNS Pipeline
 AS (
-  SELECT
-    coalesce(c.deobfuscated_name, c.name) AS class_name,
-    o.heap_type,
-    o.root_type,
-    o.reachable,
-    sum(o.self_size) AS total_size,
-    sum(o.native_size) AS total_native_size,
-    count() AS count
-  FROM graph_reachable_bfs
-    !(
-      (
-        SELECT
-          IFNULL(parent_id, id) AS source_node_id,
-          IFNULL(id, parent_id) AS dest_node_id
-        FROM _heap_graph_object_min_depth_tree
-      ),
-      (
-        SELECT o.id AS node_id
-        FROM $path_hashes h
-        JOIN heap_graph_object o
-          ON h.id = o.id
-        JOIN heap_graph_class c
-          ON o.type_id = c.id
-        JOIN $path_hash_values USING(path_hash)
-      )) AS b
-  JOIN heap_graph_object AS o
-    ON b.node_id = o.id
-  JOIN heap_graph_class AS c
-    ON o.type_id = c.id
-  GROUP BY
-    class_name,
-    heap_type,
-    root_type,
-    reachable
-  ORDER BY
-    count DESC
+  -- The objects retained by the selected set: BFS-reachable down the min-depth
+  -- tree (parent -> child) from the seed objects.
+  GRAPH BFS TREE
+    NODES (FROM heap_graph_object |> SELECT id AS node_id)
+    EDGES (
+      FROM _heap_graph_object_min_depth_tree
+      |> SELECT IFNULL(parent_id, id) AS source_node_id, IFNULL(id, parent_id) AS dest_node_id
+    )
+    FROM (
+      FROM $path_hashes AS h
+      |> JOIN heap_graph_object AS o ON h.id = o.id
+      |> JOIN heap_graph_class AS c ON o.type_id = c.id
+      |> JOIN $path_hash_values USING (path_hash)
+      |> SELECT o.id AS node_id
+    )
+  |> JOIN heap_graph_object AS o ON node_id = o.id
+  |> JOIN heap_graph_class AS c ON o.type_id = c.id
+  |> AGGREGATE
+       sum(o.self_size) AS total_size,
+       sum(o.native_size) AS total_native_size,
+       count() AS count
+     GROUP BY
+       coalesce(c.deobfuscated_name, c.name) AS class_name,
+       o.heap_type AS heap_type,
+       o.root_type AS root_type,
+       o.reachable AS reachable
+  |> ORDER BY count DESC
 );
 
 CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
   path_hashes TableOrSubquery,
   path_hash_values TableOrSubquery
 )
-RETURNS TableOrSubquery
+RETURNS Pipeline
 AS (
-  SELECT
-    coalesce(c.deobfuscated_name, c.name) AS class_name,
-    o.heap_type,
-    o.root_type,
-    o.reachable,
-    sum(o.self_size) AS total_size,
-    sum(o.native_size) AS total_native_size,
-    count() AS count
-  FROM graph_reachable_bfs
-    !(
-      (
-        SELECT
-          IFNULL(id, parent_id) AS source_node_id,
-          IFNULL(parent_id, id) AS dest_node_id
-        FROM _heap_graph_object_min_depth_tree
-      ),
-      (
-        SELECT o.id AS node_id
-        FROM $path_hashes h
-        JOIN heap_graph_object o
-          ON h.id = o.id
-        JOIN heap_graph_class c
-          ON o.type_id = c.id
-        JOIN $path_hash_values USING(path_hash)
-      )) AS b
-  JOIN heap_graph_object AS o
-    ON b.node_id = o.id
-  JOIN heap_graph_class AS c
-    ON o.type_id = c.id
-  GROUP BY
-    class_name,
-    heap_type,
-    root_type,
-    reachable
-  ORDER BY
-    count DESC
+  -- The objects retaining the selected set: BFS-reachable up the min-depth tree
+  -- (child -> parent) from the seed objects.
+  GRAPH BFS TREE
+    NODES (FROM heap_graph_object |> SELECT id AS node_id)
+    EDGES (
+      FROM _heap_graph_object_min_depth_tree
+      |> SELECT IFNULL(id, parent_id) AS source_node_id, IFNULL(parent_id, id) AS dest_node_id
+    )
+    FROM (
+      FROM $path_hashes AS h
+      |> JOIN heap_graph_object AS o ON h.id = o.id
+      |> JOIN heap_graph_class AS c ON o.type_id = c.id
+      |> JOIN $path_hash_values USING (path_hash)
+      |> SELECT o.id AS node_id
+    )
+  |> JOIN heap_graph_object AS o ON node_id = o.id
+  |> JOIN heap_graph_class AS c ON o.type_id = c.id
+  |> AGGREGATE
+       sum(o.self_size) AS total_size,
+       sum(o.native_size) AS total_native_size,
+       count() AS count
+     GROUP BY
+       coalesce(c.deobfuscated_name, c.name) AS class_name,
+       o.heap_type AS heap_type,
+       o.root_type AS root_type,
+       o.reachable AS reachable
+  |> ORDER BY count DESC
 );
 
 CREATE PERFETTO MACRO _heap_graph_duplicate_objects_agg(

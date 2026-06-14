@@ -19,12 +19,12 @@ RETURNS BOOL
 AS
 SELECT
   NOT EXISTS (
-    SELECT 1
     FROM counter_track
     JOIN args
       ON counter_track.dimension_arg_set_id = args.arg_set_id
-    WHERE
-      counter_track.id = $track_id
-      AND args.key != 'name'
-    LIMIT 1
+    |> WHERE
+         counter_track.id = $track_id
+         AND args.key != 'name'
+    |> SELECT 1
+    |> LIMIT 1
   );

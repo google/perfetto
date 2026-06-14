@@ -33,16 +33,13 @@ CREATE PERFETTO MACRO _interval_create(
   -- Table or subquery containing end timestamps (must have a `ts` column).
   ends_table TableOrSubquery
 )
--- Table with the schema:
+-- Pipeline with the schema:
 -- ts TIMESTAMP,
 --     The start timestamp.
 -- dur DURATION,
 --     The duration from start to the matched end.
-RETURNS TableOrSubquery
+RETURNS Pipeline
 AS (
-  SELECT
-    c0 AS ts,
-    c1 AS dur
   FROM __intrinsic_table_ptr(
     __intrinsic_interval_create(
       (
@@ -69,6 +66,7 @@ AS (
       )
     )
   )
-  WHERE
-    __intrinsic_table_ptr_bind(c0, 'ts') AND __intrinsic_table_ptr_bind(c1, 'dur')
+  |> WHERE
+       __intrinsic_table_ptr_bind(c0, 'ts') AND __intrinsic_table_ptr_bind(c1, 'dur')
+  |> SELECT c0 AS ts, c1 AS dur
 );

@@ -71,34 +71,28 @@ RETURNS TABLE(
   max_count_per_sec LONG
 )
 AS
-WITH
-  x AS (
-    SELECT
-      upid,
-      process.name AS process_name,
-      android_standardize_thread_name(thread.name) AS thread_name_prefix,
-      count(thread.start_ts) OVER (
-        PARTITION BY
-          upid,
-          android_standardize_thread_name(thread.name)
-        ORDER BY thread.start_ts
-        RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING
-      ) AS count
-    FROM thread
-    JOIN process USING (upid)
-    WHERE
-      ($max_thread_dur AND (thread.end_ts - thread.start_ts) <= $max_thread_dur)
-      OR $max_thread_dur IS NULL
-  )
-SELECT process_name, upid, thread_name_prefix, max(count) AS max_count_per_sec
-FROM x
-GROUP BY
-  upid,
-  thread_name_prefix
-HAVING
-  max_count_per_sec > 0
-ORDER BY
-  count DESC;
+FROM thread
+|> JOIN process USING (upid)
+|> WHERE
+     ($max_thread_dur AND (thread.end_ts - thread.start_ts) <= $max_thread_dur)
+     OR $max_thread_dur IS NULL
+|> SELECT
+     upid,
+     process.name AS process_name,
+     android_standardize_thread_name(thread.name) AS thread_name_prefix,
+     count(thread.start_ts) OVER (
+       PARTITION BY
+         upid,
+         android_standardize_thread_name(thread.name)
+       ORDER BY thread.start_ts
+       RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING
+     ) AS count
+|> AGGREGATE
+     max(count) AS max_count_per_sec
+   GROUP BY upid, thread_name_prefix, process_name
+|> WHERE max_count_per_sec > 0
+|> SELECT process_name, upid, thread_name_prefix, max_count_per_sec
+|> ORDER BY max_count_per_sec DESC;
 
 -- Per process stats of threads created in a process
 CREATE PERFETTO FUNCTION _android_thread_creation_spam_per_process(
@@ -118,28 +112,23 @@ RETURNS TABLE(
   max_count_per_sec LONG
 )
 AS
-WITH
-  x AS (
-    SELECT
-      upid,
-      process.name AS process_name,
-      count(thread.start_ts) OVER (
-        PARTITION BY
-          upid
-        ORDER BY thread.start_ts
-        RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING
-      ) AS count
-    FROM thread
-    JOIN process USING (upid)
-    WHERE
-      ($max_thread_dur AND (thread.end_ts - thread.start_ts) <= $max_thread_dur)
-      OR $max_thread_dur IS NULL
-  )
-SELECT process_name, upid, max(count) AS max_count_per_sec
-FROM x
-GROUP BY
-  upid
-HAVING
-  max_count_per_sec > 0
-ORDER BY
-  count DESC;
+FROM thread
+|> JOIN process USING (upid)
+|> WHERE
+     ($max_thread_dur AND (thread.end_ts - thread.start_ts) <= $max_thread_dur)
+     OR $max_thread_dur IS NULL
+|> SELECT
+     upid,
+     process.name AS process_name,
+     count(thread.start_ts) OVER (
+       PARTITION BY
+         upid
+       ORDER BY thread.start_ts
+       RANGE BETWEEN CURRENT ROW AND cast_int!($sliding_window_dur) FOLLOWING
+     ) AS count
+|> AGGREGATE
+     max(count) AS max_count_per_sec
+   GROUP BY upid, process_name
+|> WHERE max_count_per_sec > 0
+|> SELECT process_name, upid, max_count_per_sec
+|> ORDER BY max_count_per_sec DESC;

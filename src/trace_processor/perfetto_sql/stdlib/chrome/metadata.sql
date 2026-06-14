@@ -7,8 +7,6 @@
 CREATE PERFETTO FUNCTION chrome_hardware_class()
 -- Hardware class name.
 RETURNS STRING AS
-SELECT
-  str_value
 FROM metadata
-WHERE
-  name = "cr-hardware-class";
+|> WHERE name = "cr-hardware-class"
+|> SELECT str_value;

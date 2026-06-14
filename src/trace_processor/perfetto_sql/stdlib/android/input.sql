@@ -129,7 +129,8 @@ SUBPIPELINE events AS (
   FROM _clean_deliver_events
   |> WHERE dur > 0
 )
-INTERVAL INTERSECTION OF (frames AS f, events AS e) PER utid
+FROM frames AS f
+|> INTERVAL JOIN events AS e OVERLAPPING BOUNDS PER utid
 |> SELECT
      f.id AS do_frame_id_key,
      e.id AS event_id_key,
@@ -147,11 +148,7 @@ FROM _clean_deliver_events
 -- (e.g. unbatched events)
 CREATE PERFETTO PIPELINE _input_event_frame_speculative_matches MATERIALIZED AS
 FROM _input_events_pending_frame_match AS e
-|> JOIN _clean_android_frames AS f
-   ON e.utid = f.utid
-   AND f.do_frame_ts >= e.ts
-|> EXTEND row_number() OVER (PARTITION BY e.id ORDER BY f.do_frame_ts) AS rn
-|> WHERE rn = 1
+|> INTERVAL FIND _clean_android_frames AS f STARTING AFTER BEGIN PER utid
 |> SELECT f.do_frame_id AS do_frame_id_key, e.id AS event_id_key, 1 AS is_speculative_match;
 
 CREATE PERFETTO PIPELINE _input_event_frame_association MATERIALIZED AS

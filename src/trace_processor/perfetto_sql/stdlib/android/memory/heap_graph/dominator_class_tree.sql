@@ -13,13 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO PIPELINE _heap_graph_dominator_path_hashes MATERIALIZED AS
-FROM _heap_graph_type_path_hash!((
-    SELECT id, idom_id AS parent_id FROM _raw_heap_graph_dominator_tree
-  ));
-
-CREATE PERFETTO PIPELINE _heap_graph_dominator_path_hashes_aggregated MATERIALIZED AS
-FROM _heap_graph_path_hash_aggregate!(_heap_graph_dominator_path_hashes);
-
 CREATE PERFETTO PIPELINE _heap_graph_dominator_class_tree MATERIALIZED AS
-FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_dominator_path_hashes_aggregated);
+_heap_graph_fold_to_class_tree!((
+  SELECT id, idom_id AS parent_id FROM _raw_heap_graph_dominator_tree
+));

@@ -13,10 +13,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- NOTE (psqlnext): this module defines no relational tables/views — only scalar
--- CREATE PERFETTO FUNCTIONs and string-serialization MACROs (GROUP_CONCAT-based
--- SVG emission). Per §10 this is host-language serialization, out of scope for
--- the analysis pipeline operators, so it is preserved verbatim.
+-- NOTE (psqlnext): this module is part pipe-translatable, part host-language
+-- serialization. The genuinely relational positioning macros
+-- (_intervals_to_positions and the per-element-type _*_intervals_to_positions
+-- wrappers) have been migrated to pipe form (SUBPIPELINEs + a final pipe body,
+-- RETURNS Pipeline). The pure scalar string functions (no table source) and the
+-- GROUP_CONCAT-based SVG-assembly macros (_svg_from_positions*,
+-- _generate_tracks_by_group*, _combine_track_svgs, _svg_timeline*) are
+-- host-language serialization: their CTEs exist only to host nested
+-- GROUP_CONCAT string-building subqueries, so per §10 they are preserved as-is
+-- rather than contorted into pipe SELECTs.
 
 -- Converts Perfetto trace data into interactive SVG timeline.
 -- Renders thread slices and thread states with time-proportional geometry
@@ -188,127 +194,115 @@ CREATE PERFETTO MACRO _intervals_to_positions(
   min_width Expr,
   use_shared_counter_scale Expr
 )
-RETURNS Expr
+RETURNS Pipeline
 AS (
-  WITH
-    -- Calculate bounds per SVG group
-    bounds AS (
-      SELECT
-        $svg_group_key_col AS svg_group_key,
-        min(ts) AS ts_min,
-        max(ts + dur) AS ts_max,
-        max(coalesce(depth, 0)) AS max_depth
-      FROM $intervals_table
-      WHERE
-        dur > 0
-      GROUP BY
-        $svg_group_key_col
-    ),
-    -- Calculate counter bounds per individual counter
-    counter_bounds_individual AS (
-      SELECT
-        $svg_group_key_col AS svg_group_key,
-        $track_group_key_col AS track_group_key,
-        name AS counter_name,
-        min(counter_value) AS min_counter_value,
-        max(counter_value) AS max_counter_value
-      FROM $intervals_table
-      WHERE
-        dur > 0 AND element_type = 'counter'
-      GROUP BY
-        $svg_group_key_col,
-        $track_group_key_col,
-        name
-    ),
-    -- Calculate shared counter bounds across all counters in SVG
-    counter_bounds_shared AS (
-      SELECT
-        $svg_group_key_col AS svg_group_key,
-        min(counter_value) AS min_counter_value,
-        max(counter_value) AS max_counter_value
-      FROM $intervals_table
-      WHERE
-        dur > 0 AND element_type = 'counter'
-      GROUP BY
-        $svg_group_key_col
-    ),
-    -- Select the appropriate bounds based on shared counter scale setting
-    counter_bounds AS (
-      SELECT
-        cbi.svg_group_key,
-        cbi.track_group_key,
-        cbi.counter_name,
-        CASE
-          WHEN $use_shared_counter_scale = 1
-          THEN cbs.min_counter_value
-          ELSE cbi.min_counter_value
-        END AS min_counter_value,
-        CASE
-          WHEN $use_shared_counter_scale = 1
-          THEN cbs.max_counter_value
-          ELSE cbi.max_counter_value
-        END AS max_counter_value
-      FROM counter_bounds_individual AS cbi
-      JOIN counter_bounds_shared AS cbs
-        ON cbi.svg_group_key = cbs.svg_group_key
-    ),
-    scale_params AS (
-      SELECT
-        b.svg_group_key,
-        CAST($max_width AS INTEGER) AS total_width,
-        _pixels_per_ns(CAST($max_width AS INTEGER), b.ts_min, b.ts_max) AS pixels_per_ns,
-        _row_height(CAST($max_width AS INTEGER)) AS row_height,
-        _counter_height(CAST($max_width AS INTEGER)) AS counter_height,
-        coalesce(CAST($min_width AS INTEGER), 2) AS min_cutoff,
-        b.ts_min,
-        b.ts_max
-      FROM bounds AS b
-    )
-  SELECT
-    $svg_group_key_col AS svg_group_key,
-    $svg_group_key_col,
-    $track_group_key_col AS track_group_key,
-    $track_group_key_col,
-    $track_group_order_col AS track_group_order,
-    $track_group_order_col,
-    i.*,
-    (
-      i.ts - sp.ts_min
-    ) * sp.pixels_per_ns AS x_pixel,
-    i.dur * sp.pixels_per_ns AS width_pixel,
-    CASE
-      WHEN i.element_type = 'slice'
-      THEN 5 + coalesce(i.depth, 0) * sp.row_height
-      WHEN i.element_type = 'thread_state'
-      THEN 2
-      WHEN i.element_type = 'counter'
-      THEN 5
-      ELSE 0
-    END AS y_pixel,
-    CASE
-      WHEN i.element_type = 'thread_state'
-      THEN CAST(sp.row_height / 2 AS INTEGER)
-      WHEN i.element_type = 'counter'
-      THEN sp.counter_height
-      ELSE sp.row_height
-    END AS height_pixel,
-    sp.ts_min,
-    sp.ts_max,
-    sp.pixels_per_ns,
-    sp.total_width,
-    sp.min_cutoff,
-    sp.counter_height,
-    coalesce(cb.min_counter_value, 0) AS min_counter_value,
-    coalesce(cb.max_counter_value, 1) AS max_counter_value
+  -- Calculate bounds per SVG group
+  SUBPIPELINE bounds AS (
+    FROM $intervals_table
+    |> WHERE dur > 0
+    |> AGGREGATE
+         min(ts) AS ts_min,
+         max(ts + dur) AS ts_max,
+         max(coalesce(depth, 0)) AS max_depth
+       GROUP BY $svg_group_key_col AS svg_group_key
+  )
+  -- Calculate counter bounds per individual counter
+  SUBPIPELINE counter_bounds_individual AS (
+    FROM $intervals_table
+    |> WHERE dur > 0 AND element_type = 'counter'
+    |> AGGREGATE
+         min(counter_value) AS min_counter_value,
+         max(counter_value) AS max_counter_value
+       GROUP BY
+         $svg_group_key_col AS svg_group_key,
+         $track_group_key_col AS track_group_key,
+         name AS counter_name
+  )
+  -- Calculate shared counter bounds across all counters in SVG
+  SUBPIPELINE counter_bounds_shared AS (
+    FROM $intervals_table
+    |> WHERE dur > 0 AND element_type = 'counter'
+    |> AGGREGATE
+         min(counter_value) AS min_counter_value,
+         max(counter_value) AS max_counter_value
+       GROUP BY $svg_group_key_col AS svg_group_key
+  )
+  -- Select the appropriate bounds based on shared counter scale setting
+  SUBPIPELINE counter_bounds AS (
+    FROM counter_bounds_individual AS cbi
+    |> JOIN counter_bounds_shared AS cbs
+         ON cbi.svg_group_key = cbs.svg_group_key
+    |> SELECT
+         cbi.svg_group_key,
+         cbi.track_group_key,
+         cbi.counter_name,
+         CASE
+           WHEN $use_shared_counter_scale = 1
+           THEN cbs.min_counter_value
+           ELSE cbi.min_counter_value
+         END AS min_counter_value,
+         CASE
+           WHEN $use_shared_counter_scale = 1
+           THEN cbs.max_counter_value
+           ELSE cbi.max_counter_value
+         END AS max_counter_value
+  )
+  SUBPIPELINE scale_params AS (
+    FROM bounds AS b
+    |> SELECT
+         b.svg_group_key,
+         CAST($max_width AS INTEGER) AS total_width,
+         _pixels_per_ns(CAST($max_width AS INTEGER), b.ts_min, b.ts_max) AS pixels_per_ns,
+         _row_height(CAST($max_width AS INTEGER)) AS row_height,
+         _counter_height(CAST($max_width AS INTEGER)) AS counter_height,
+         coalesce(CAST($min_width AS INTEGER), 2) AS min_cutoff,
+         b.ts_min,
+         b.ts_max
+  )
   FROM $intervals_table AS i
-  JOIN scale_params AS sp
-    ON i.$svg_group_key_col = sp.svg_group_key
-  LEFT JOIN counter_bounds AS cb
-    ON i.$svg_group_key_col = cb.svg_group_key
-    AND i.$track_group_key_col = cb.track_group_key
-    AND i.name = cb.counter_name
-  WHERE
-    i.dur > 0 AND i.dur * sp.pixels_per_ns >= sp.min_cutoff
+  |> JOIN scale_params AS sp
+       ON i.$svg_group_key_col = sp.svg_group_key
+  |> LEFT JOIN counter_bounds AS cb
+       ON i.$svg_group_key_col = cb.svg_group_key
+       AND i.$track_group_key_col = cb.track_group_key
+       AND i.name = cb.counter_name
+  |> WHERE i.dur > 0 AND i.dur * sp.pixels_per_ns >= sp.min_cutoff
+  |> SELECT
+       $svg_group_key_col AS svg_group_key,
+       $svg_group_key_col,
+       $track_group_key_col AS track_group_key,
+       $track_group_key_col,
+       $track_group_order_col AS track_group_order,
+       $track_group_order_col,
+       i.*,
+       (
+         i.ts - sp.ts_min
+       ) * sp.pixels_per_ns AS x_pixel,
+       i.dur * sp.pixels_per_ns AS width_pixel,
+       CASE
+         WHEN i.element_type = 'slice'
+         THEN 5 + coalesce(i.depth, 0) * sp.row_height
+         WHEN i.element_type = 'thread_state'
+         THEN 2
+         WHEN i.element_type = 'counter'
+         THEN 5
+         ELSE 0
+       END AS y_pixel,
+       CASE
+         WHEN i.element_type = 'thread_state'
+         THEN CAST(sp.row_height / 2 AS INTEGER)
+         WHEN i.element_type = 'counter'
+         THEN sp.counter_height
+         ELSE sp.row_height
+       END AS height_pixel,
+       sp.ts_min,
+       sp.ts_max,
+       sp.pixels_per_ns,
+       sp.total_width,
+       sp.min_cutoff,
+       sp.counter_height,
+       coalesce(cb.min_counter_value, 0) AS min_counter_value,
+       coalesce(cb.max_counter_value, 1) AS max_counter_value
 );
 
 -- Render slice interval as simple SVG rect with text overlay when space permits.
@@ -900,32 +894,29 @@ CREATE PERFETTO MACRO _slice_intervals_to_positions(
   max_width Expr,
   min_width Expr
 )
-RETURNS Expr
+RETURNS Pipeline
 AS (
-  WITH
-    intervals_with_type AS (
-      SELECT
-        $svg_group_key_col AS svg_group_key,
-        $svg_group_key_col,
-        $track_group_key_col AS track_group_key,
-        $track_group_key_col,
-        $track_group_order_col AS track_group_order,
-        $track_group_order_col,
-        utid,
-        ts,
-        dur,
-        'slice' AS element_type,
-        name,
-        href,
-        depth,
-        NULL AS state,
-        NULL AS io_wait,
-        NULL AS blocked_function,
-        NULL AS counter_value
-      FROM $slice_table
-    )
-  SELECT
-    *
+  SUBPIPELINE intervals_with_type AS (
+    FROM $slice_table
+    |> SELECT
+         $svg_group_key_col AS svg_group_key,
+         $svg_group_key_col,
+         $track_group_key_col AS track_group_key,
+         $track_group_key_col,
+         $track_group_order_col AS track_group_order,
+         $track_group_order_col,
+         utid,
+         ts,
+         dur,
+         'slice' AS element_type,
+         name,
+         href,
+         depth,
+         NULL AS state,
+         NULL AS io_wait,
+         NULL AS blocked_function,
+         NULL AS counter_value
+  )
   FROM _intervals_to_positions!(
     intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, 0
   )
@@ -943,32 +934,29 @@ CREATE PERFETTO MACRO _thread_state_intervals_to_positions(
   max_width Expr,
   min_width Expr
 )
-RETURNS Expr
+RETURNS Pipeline
 AS (
-  WITH
-    intervals_with_type AS (
-      SELECT
-        $svg_group_key_col AS svg_group_key,
-        $svg_group_key_col,
-        $track_group_key_col AS track_group_key,
-        $track_group_key_col,
-        $track_group_order_col AS track_group_order,
-        $track_group_order_col,
-        utid,
-        ts,
-        dur,
-        'thread_state' AS element_type,
-        NULL AS name,
-        href,
-        NULL AS depth,
-        state,
-        io_wait,
-        blocked_function,
-        NULL AS counter_value
-      FROM $thread_state_table
-    )
-  SELECT
-    *
+  SUBPIPELINE intervals_with_type AS (
+    FROM $thread_state_table
+    |> SELECT
+         $svg_group_key_col AS svg_group_key,
+         $svg_group_key_col,
+         $track_group_key_col AS track_group_key,
+         $track_group_key_col,
+         $track_group_order_col AS track_group_order,
+         $track_group_order_col,
+         utid,
+         ts,
+         dur,
+         'thread_state' AS element_type,
+         NULL AS name,
+         href,
+         NULL AS depth,
+         state,
+         io_wait,
+         blocked_function,
+         NULL AS counter_value
+  )
   FROM _intervals_to_positions!(
     intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, 0
   )
@@ -987,32 +975,29 @@ CREATE PERFETTO MACRO _counter_intervals_to_positions(
   min_width Expr,
   use_shared_counter_scale Expr
 )
-RETURNS Expr
+RETURNS Pipeline
 AS (
-  WITH
-    intervals_with_type AS (
-      SELECT
-        $svg_group_key_col AS svg_group_key,
-        $svg_group_key_col,
-        $track_group_key_col AS track_group_key,
-        $track_group_key_col,
-        $track_group_order_col AS track_group_order,
-        $track_group_order_col,
-        NULL AS utid,
-        ts,
-        dur,
-        'counter' AS element_type,
-        name,
-        href,
-        NULL AS depth,
-        NULL AS state,
-        NULL AS io_wait,
-        NULL AS blocked_function,
-        value AS counter_value
-      FROM $counter_table
-    )
-  SELECT
-    *
+  SUBPIPELINE intervals_with_type AS (
+    FROM $counter_table
+    |> SELECT
+         $svg_group_key_col AS svg_group_key,
+         $svg_group_key_col,
+         $track_group_key_col AS track_group_key,
+         $track_group_key_col,
+         $track_group_order_col AS track_group_order,
+         $track_group_order_col,
+         NULL AS utid,
+         ts,
+         dur,
+         'counter' AS element_type,
+         name,
+         href,
+         NULL AS depth,
+         NULL AS state,
+         NULL AS io_wait,
+         NULL AS blocked_function,
+         value AS counter_value
+  )
   FROM _intervals_to_positions!(
     intervals_with_type, $svg_group_key_col, $track_group_key_col, $track_group_order_col, $max_width, $min_width, $use_shared_counter_scale
   )

@@ -229,7 +229,10 @@ SUBPIPELINE anr AS (
        str_split(substr(str_split(pct.name, '#', 0), 9), ' ', 0) AS process_name,
        cast_int!(STR_SPLIT(SUBSTR(STR_SPLIT(pct.name, '#', 0), 9), ' ', 1)) AS pid,
        str_split(pct.name, '#', 1) AS error_id,
-       counter.ts
+       counter.ts,
+       -- ANRs are point events; a zero duration lets us treat `ts` as an
+       -- interval anchor for the INTERVAL FIND below.
+       0 AS dur
 )
 -- ANR subject line.
 SUBPIPELINE subject AS (
@@ -251,6 +254,10 @@ SUBPIPELINE anr_timer AS (
        trim(substr(name, length('expired(') + 1), ')') AS params
   |> SELECT
        timer_ts,
+       -- `ts`/`dur` expose the timer as a zero-duration interval so the
+       -- INTERVAL FIND below can anchor on its start.
+       timer_ts AS ts,
+       0 AS dur,
        cast_int!(STR_SPLIT(params, ',', 0)) AS timer_id,
        cast_int!(STR_SPLIT(params, ',', 1)) AS pid,
        cast_int!(STR_SPLIT(params, ',', 2)) AS uid,
@@ -258,17 +265,12 @@ SUBPIPELINE anr_timer AS (
        cast_int!(STR_SPLIT(params, ',', 4)) AS anr_dur_ms
 )
 -- Matching error_id with anr timers; for each error_id we choose the closest
--- matching timer.
+-- matching timer that fired at or before the ANR (same pid). This is the single
+-- nearest-previous timer, which is exactly INTERVAL FIND STARTING BEFORE BEGIN.
+-- LEFT keeps ANRs with no matching timer.
 SUBPIPELINE anr_best_timer AS (
   FROM anr AS a
-  |> LEFT JOIN anr_timer AS at USING (pid)
-  |> WHERE at.pid IS NULL OR a.ts >= at.timer_ts
-  |> EXTEND (a.ts - at.timer_ts) AS time_diff
-  |> EXTEND row_number() OVER (
-       PARTITION BY a.error_id
-       ORDER BY CASE WHEN at.timer_ts IS NULL THEN 1 ELSE 0 END, a.ts - at.timer_ts
-     ) AS rn
-  |> WHERE rn = 1
+  |> LEFT INTERVAL FIND anr_timer AS at STARTING BEFORE BEGIN PER pid
 )
 FROM anr
 |> LEFT JOIN subject AS s USING (error_id)

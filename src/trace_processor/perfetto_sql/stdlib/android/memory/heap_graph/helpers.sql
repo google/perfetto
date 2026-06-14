@@ -13,153 +13,56 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE graphs.scan;
-
--- Given a table containing a "tree-ified" heap graph object table (i.e.
--- by using a dominator tree or shortest path algorithm), computes a hash of
--- the path from the root to each node in the graph based on class names.
---
--- This allows an SQL aggregation of all nodes which have the same hash to
--- build a "class-tree" instead of the object tree.
-CREATE PERFETTO MACRO _heap_graph_type_path_hash(tab TableOrSubquery)
-RETURNS TableOrSubquery
+-- Folds a "tree-ified" heap object table (id, parent_id — built by a dominator
+-- tree or shortest-path tree) into a class tree. The hand-rolled path-hash
+-- `_graph_scan!` machinery this replaces was three tree operations:
+--   1. a node with the SAME type as its parent reused the parent's path hash
+--      (`IIF(o.type_id = t.parent_type_id, t.path_hash, …)`) == TREE MERGE INTO
+--      PARENT BY type_id — collapsing self-referential same-class chains
+--      (linked lists, Node->Node->Node) into their parent;
+--   2. `GROUP BY path_hash` == TREE MERGE SIBLINGS BY type_id — unifying nodes
+--      sharing a root-to-node class path into one class-tree node;
+--   3. the "[native] …" side-node carved out of each node's native size ==
+--      TREE EXPAND DOWN … CHARGE native_size TO LEAF.
+CREATE PERFETTO MACRO _heap_graph_fold_to_class_tree(object_tree TableOrSubquery)
+RETURNS Pipeline
 AS (
-  SELECT
-    id,
-    path_hash,
-    parent_path_hash
-  FROM _graph_scan!(
-    (
-      SELECT parent_id AS source_node_id, id AS dest_node_id
-      FROM $tab
-      WHERE parent_id IS NOT NULL
-    ),
-    (
-      SELECT
-        t.id,
-        o.type_id as parent_type_id,
-        HASH(
-          o.upid,
-          o.graph_sample_ts,
-          o.type_id,
-          IFNULL(o.root_type, ''),
-          IFNULL(o.heap_type, '')
-        ) AS path_hash,
-        0 AS parent_path_hash
-      FROM $tab t
-      JOIN heap_graph_object o USING (id)
-      WHERE t.parent_id IS NULL
-    ),
-    (parent_type_id, path_hash, parent_path_hash),
-    (
-      SELECT
-        t.id,
-        o.type_id as parent_type_id,
-        IIF(
-          o.type_id = t.parent_type_id,
-          t.path_hash,
-          HASH(t.path_hash, o.type_id, IFNULL(o.heap_type, ""))
-        ) AS path_hash,
-        IIF(
-          o.type_id = t.parent_type_id,
-          t.parent_path_hash,
-          t.path_hash
-        ) AS parent_path_hash
-      FROM $table t
-      JOIN heap_graph_object o USING (id)
-    )
-  )
-  ORDER BY
-    id
-);
-
--- Given a table containing heap graph tree-table with path hashes computed
--- (see _heap_graph_type_path_hash macro), aggregates together all nodes
--- with the same hash and also splits out "native size" as a separate node under
--- the nodes which contain the native size.
-CREATE PERFETTO MACRO _heap_graph_path_hash_aggregate(tab TableOrSubquery)
-RETURNS TableOrSubquery
-AS (
-  WITH
-    x AS (
-      SELECT
-        o.graph_sample_ts,
-        o.upid,
-        path_hash,
-        parent_path_hash,
-        coalesce(c.deobfuscated_name, c.name) AS name,
-        o.root_type,
-        o.heap_type,
-        count() AS self_count,
-        sum(o.self_size) AS self_size,
-        sum(o.native_size > 0) AS self_native_count,
-        sum(o.native_size) AS self_native_size
-      FROM $tab
-      JOIN heap_graph_object AS o
-        USING (id)
-      JOIN heap_graph_class AS c
-        ON o.type_id = c.id
-      GROUP BY
-        path_hash
-    )
-  SELECT
-    graph_sample_ts,
-    upid,
-    hash(path_hash, 'native', '') AS path_hash,
-    path_hash AS parent_path_hash,
-    '[native] ' || x.name AS name,
-    root_type,
-    'HEAP_TYPE_NATIVE' AS heap_type,
-    sum(x.self_native_count) AS self_count,
-    sum(x.self_native_size) AS self_size
-  FROM x
-  WHERE
-    x.self_native_size > 0
-  GROUP BY
-    path_hash
-  UNION ALL
-  SELECT
-    graph_sample_ts,
-    upid,
-    path_hash,
-    parent_path_hash,
-    name,
-    root_type,
-    heap_type,
-    self_count,
-    self_size
-  FROM x
-  ORDER BY
-    path_hash
-);
-
--- Given a table containing heap graph tree-table aggregated by path hashes
--- (see _heap_graph_path_hash_aggregate) computes the "class tree" by converting
--- the path hashes to ids.
---
--- Note that |tab| *must* be a Perfetto (e.g. not a subquery) for this macro
--- to work.
-CREATE PERFETTO MACRO _heap_graph_path_hashes_to_class_tree(tab TableOrSubquery)
-RETURNS TableOrSubquery
-AS (
-  SELECT
-    graph_sample_ts,
-    upid,
-    _auto_id AS id,
-    (
-      SELECT
-        p._auto_id
-      FROM $tab AS p
-      WHERE
-        c.parent_path_hash = p.path_hash
-    ) AS parent_id,
-    name,
-    root_type,
-    heap_type,
-    self_count,
-    self_size,
-    path_hash AS path_hash_stable
-  FROM $tab AS c
-  ORDER BY
-    id
+  FROM $object_tree AS t
+  |> JOIN heap_graph_object AS o ON t.id = o.id
+  |> JOIN heap_graph_class AS c ON o.type_id = c.id
+  |> SELECT
+       t.id,
+       t.parent_id,
+       o.graph_sample_ts,
+       o.upid,
+       o.type_id,
+       coalesce(c.deobfuscated_name, c.name) AS name,
+       o.root_type,
+       o.heap_type,
+       1 AS self_count,
+       o.self_size AS self_size,
+       o.native_size AS native_size
+  -- (1) Collapse same-type-as-parent chains into their parent.
+  |> TREE MERGE INTO PARENT BY type_id
+       AGGREGATE
+         SUM(self_count) AS self_count,
+         SUM(self_size) AS self_size,
+         SUM(native_size) AS native_size
+  -- (2) Unify nodes sharing a root-to-node class path: the object tree becomes a
+  -- class tree.
+  |> TREE MERGE SIBLINGS BY type_id
+       AGGREGATE
+         SUM(self_count) AS self_count,
+         SUM(self_size) AS self_size,
+         SUM(native_size) AS native_size
+  -- (3) Carve each node's native size into a synthetic "[native] <class>" child.
+  |> FORK AS folded
+  |> TREE EXPAND DOWN (
+       FROM folded
+       |> WHERE native_size > 0
+       |> SELECT
+            id AS node_id,
+            '[native] ' || name AS name,
+            'HEAP_TYPE_NATIVE' AS heap_type
+     ) BY node_id CHARGE native_size TO LEAF
 );

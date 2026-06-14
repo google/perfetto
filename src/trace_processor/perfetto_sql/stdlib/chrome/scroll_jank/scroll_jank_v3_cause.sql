@@ -31,21 +31,20 @@ RETURNS TABLE (
   -- Alias for `slice.thread_dur`.
   thread_dur LONG
 ) AS
-SELECT
-  slice.id,
-  slice.ts,
-  slice.dur,
-  slice.category,
-  slice.name,
-  slice.track_id,
-  slice.depth,
-  slice.parent_id,
-  slice.arg_set_id,
-  slice.thread_ts,
-  slice.thread_dur
 FROM slice
-WHERE
-  parent_id = $parent_id;
+|> WHERE parent_id = $parent_id
+|> SELECT
+     slice.id,
+     slice.ts,
+     slice.dur,
+     slice.category,
+     slice.name,
+     slice.track_id,
+     slice.depth,
+     slice.parent_id,
+     slice.arg_set_id,
+     slice.thread_ts,
+     slice.thread_dur;
 
 -- Given two slice Ids A and B, find the maximum difference
 -- between the durations of it's direct children with matching names
@@ -62,33 +61,21 @@ CREATE PERFETTO FUNCTION chrome_get_v3_jank_cause_id(
 )
 -- The slice id of the breakdown that has the maximum duration delta.
 RETURNS LONG AS
-WITH
-  current_breakdowns AS (
-    SELECT
-      *
-    FROM _direct_children_slice($janky_slice_id)
-  ),
-  prev_breakdowns AS (
-    SELECT
-      *
-    FROM _direct_children_slice($prev_slice_id)
-  ),
-  joint_breakdowns AS (
-    SELECT
-      cur.id AS breakdown_id,
-      (
-        cur.dur - coalesce(prev.dur, 0)
-      ) AS breakdown_delta
-    FROM current_breakdowns AS cur
-    LEFT JOIN prev_breakdowns AS prev
-      ON cur.name = prev.name
-  ),
-  max_breakdown AS (
-    SELECT
-      max(breakdown_delta) AS breakdown_delta,
-      breakdown_id
-    FROM joint_breakdowns
-  )
-SELECT
-  breakdown_id
-FROM max_breakdown;
+SUBPIPELINE current_breakdowns AS (
+  FROM _direct_children_slice($janky_slice_id)
+)
+SUBPIPELINE prev_breakdowns AS (
+  FROM _direct_children_slice($prev_slice_id)
+)
+FROM current_breakdowns AS cur
+|> LEFT JOIN prev_breakdowns AS prev
+     ON cur.name = prev.name
+|> SELECT
+     cur.id AS breakdown_id,
+     (
+       cur.dur - coalesce(prev.dur, 0)
+     ) AS breakdown_delta
+|> SELECT
+     max(breakdown_delta) AS breakdown_delta,
+     breakdown_id
+|> SELECT breakdown_id;

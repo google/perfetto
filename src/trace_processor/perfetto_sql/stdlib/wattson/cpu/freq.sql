@@ -26,7 +26,6 @@ FROM cpu_frequency_counters AS cf
 -- Pass the real intervals through and fill the leading gap (trace start up to
 -- the first freq event) per CPU with a null-freq filler. The filler's policy is
 -- re-attached from the policy map below.
-FROM cpu_freq
 |> INTERVAL FILL WITHIN trace_bounds PER cpu
 |> LEFT JOIN _dev_cpu_policy_map AS d_map USING (cpu)
 |> SELECT ts, dur, freq, cpu, d_map.policy AS policy

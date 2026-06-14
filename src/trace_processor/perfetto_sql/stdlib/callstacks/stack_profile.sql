@@ -15,52 +15,34 @@
 
 -- NOTE (psqlnext): the `graphs.hierarchy` and `graphs.scan` modules are DELETED.
 -- `_tree_reachable_ancestors_or_self!` (a `graph_reachable_dfs` up-walk) is
--- `TREE KEEP IF ANCESTOR OF <set> OVER <tree>`; `_graph_aggregating_scan!`
+-- `TREE WHERE ANCESTOR OF <set> OVER <tree>`; `_graph_aggregating_scan!`
 -- SUM-up is `TREE ACCUMULATE UP SUM(self) AS cumulative`.
 
 INCLUDE PERFETTO MODULE v8.jit;
 
-CREATE PERFETTO PIPELINE _callstack_spf_summary MATERIALIZED AS
-FROM stack_profile_frame AS f
-|> SELECT
-     id,
-     symbol_set_id,
-     (
-       SELECT id
-       FROM stack_profile_symbol AS s
-       WHERE
-         s.symbol_set_id = f.symbol_set_id
-       ORDER BY
-         id
-       LIMIT 1
-     ) AS min_symbol_id,
-     (
-       SELECT id
-       FROM stack_profile_symbol AS s
-       WHERE
-         s.symbol_set_id = f.symbol_set_id
-       ORDER BY
-         id DESC
-       LIMIT 1
-     ) AS max_symbol_id
-|> ORDER BY id;
-
+-- The physical callsite tree (one node per callsite) is expanded so that each
+-- callsite becomes a chain of its frame's inline frames: one node per symbol in
+-- the frame's symbol set, outermost symbol nearest the callsite and innermost at
+-- the leaf. The hand-rolled min/max_symbol_id chain arithmetic this replaces is
+-- exactly TREE EXPAND DOWN ... ORDERED BY inline_depth (§6.9).
 CREATE PERFETTO PIPELINE _callstack_spc_raw_forest MATERIALIZED AS
 FROM stack_profile_callsite AS c
-|> JOIN _callstack_spf_summary AS f ON c.frame_id = f.id
-|> LEFT JOIN __intrinsic_jit_frame AS jf ON jf.frame_id = f.id
-|> LEFT JOIN stack_profile_symbol AS s USING (symbol_set_id)
-|> LEFT JOIN stack_profile_callsite AS p ON c.parent_id = p.id
-|> LEFT JOIN _callstack_spf_summary AS pf ON p.frame_id = pf.id
-|> SELECT
-     c.id AS callsite_id,
-     s.id AS symbol_id,
-     iif(s.id IS f.max_symbol_id, c.parent_id, c.id) AS parent_callsite_id,
-     iif(s.id IS f.max_symbol_id, pf.min_symbol_id, s.id + 1) AS parent_symbol_id,
-     f.id AS frame_id,
-     jf.jit_code_id AS jit_code_id,
-     s.id IS f.min_symbol_id AS is_leaf
-|> ORDER BY callsite_id;
+|> SELECT id AS callsite_id, parent_id AS parent_callsite_id, frame_id
+|> FORK AS callsites
+|> TREE EXPAND DOWN (
+     FROM callsites
+     |> JOIN stack_profile_frame AS f ON callsites.frame_id = f.id
+     |> JOIN stack_profile_symbol AS s USING (symbol_set_id)
+     |> LEFT JOIN __intrinsic_jit_frame AS jf ON jf.frame_id = f.id
+     |> SELECT
+          callsites.callsite_id,
+          s.id AS symbol_id,
+          jf.jit_code_id,
+          -- Innermost inline (smallest symbol id) is deepest; it is the leaf.
+          row_number() OVER (PARTITION BY callsites.callsite_id ORDER BY s.id DESC)
+            AS inline_depth,
+          s.id = min(s.id) OVER (PARTITION BY callsites.callsite_id) AS is_leaf
+   ) BY callsite_id ORDERED BY inline_depth;
 
 CREATE PERFETTO PIPELINE _callstack_spc_forest MATERIALIZED AS
 FROM _callstack_spc_raw_forest AS c
@@ -72,12 +54,11 @@ FROM _callstack_spc_raw_forest AS c
 |> LEFT JOIN _v8_regexp_code AS rc USING (jit_code_id)
 |> LEFT JOIN __intrinsic_jit_code AS jc ON c.jit_code_id = jc.id
 |> LEFT JOIN stack_profile_symbol AS s ON c.symbol_id = s.id
-|> LEFT JOIN _callstack_spc_raw_forest AS p
-     ON p.callsite_id = c.parent_callsite_id
-     AND p.symbol_id IS c.parent_symbol_id
+-- The inline-frame tree (id, parent_id) is built by TREE EXPAND DOWN above, so
+-- the parent no longer needs reconstructing from a self-join on symbol ids.
 |> SELECT
-     c._auto_id AS id,
-     p._auto_id AS parent_id,
+     c.id AS id,
+     c.parent_id AS parent_id,
      -- TODO(lalitm): consider demangling in a separate table as
      -- demangling is suprisingly inefficient and is taking a
      -- significant fraction of the runtime on big traces.
@@ -124,7 +105,7 @@ AS (
   -- Keep only the ancestors-or-self of the leaf nodes hit by the samples, over
   -- the full forest, then attach forest + mapping payload.
   FROM _callstack_spc_forest
-  |> TREE KEEP IF ANCESTOR OF (
+  |> TREE WHERE ANCESTOR OF (
        SELECT f.id
        FROM $spc_samples s
        JOIN _callstack_spc_forest f USING (callsite_id)

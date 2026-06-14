@@ -50,6 +50,10 @@ SUBPIPELINE do_frames AS (
        id,
        ts,
        lead(ts, 1, trace_end()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
+       -- Treat each doFrame as the interval spanning until the next doFrame
+       -- (per process), so a DrawFrame "belongs" to the doFrame whose span
+       -- contains its start. This is the bound used by the INTERVAL JOIN below.
+       lead(ts, 1, trace_end()) OVER (PARTITION BY upid ORDER BY ts) - ts AS dur,
        utid,
        upid
 )
@@ -58,9 +62,12 @@ SUBPIPELINE draw_frames AS (
   |> WHERE name = 'DrawFrame'
   |> SELECT id, ts, dur, ts + dur AS ts_end, utid, upid
 )
-FROM do_frames AS do
-|> JOIN draw_frames AS draw
-   ON (do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < do.next_do_frame)
+-- Attach to each DrawFrame the doFrame whose [ts, next_do_frame) span contains
+-- the DrawFrame's start (same process). The original open-coded this as a join
+-- with `draw.ts >= do.ts AND draw.ts < do.next_do_frame`; INTERVAL JOIN
+-- COVERING BEGIN expresses exactly that containment of the start point.
+FROM draw_frames AS draw
+|> INTERVAL JOIN do_frames AS do COVERING BEGIN PER upid
 |> JOIN process USING (upid)
 |> SELECT
      row_number() OVER () AS frame_id,

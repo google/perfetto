@@ -91,7 +91,7 @@ SUBPIPELINE reply_roots AS (
 SUBPIPELINE segments AS (
   FROM thread_slice
   -- Subtree (root included) of each 'binder reply'.
-  |> TREE KEEP IF DESCENDANT OF reply_roots OVER slice
+  |> TREE WHERE DESCENDANT OF reply_roots OVER slice
   -- Carry the reply slice id (= binder_reply_id) down to every descendant.
   |> TREE ACCUMULATE DOWN
        FIRST(iif(name = 'binder reply', id, NULL)) AS binder_reply_id
@@ -135,7 +135,7 @@ SUBPIPELINE txn_roots AS (
 )
 SUBPIPELINE segments AS (
   FROM thread_slice
-  |> TREE KEEP IF DESCENDANT OF txn_roots OVER slice
+  |> TREE WHERE DESCENDANT OF txn_roots OVER slice
   -- The transaction slice id is the binder_txn_id.
   |> TREE ACCUMULATE DOWN
        FIRST(iif(name = 'binder transaction', id, NULL)) AS binder_txn_id

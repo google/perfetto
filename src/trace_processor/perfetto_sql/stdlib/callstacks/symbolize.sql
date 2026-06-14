@@ -24,30 +24,26 @@ CREATE PERFETTO MACRO _callstack_frame_symbolize(
 )
 RETURNS TableOrSubquery
 AS (
-  SELECT
-    c0 AS function_name,
-    c1 AS file_name,
-    c2 AS line_number,
-    c3 AS mapping_id,
-    c4 AS address
   FROM __intrinsic_table_ptr(
     -- Result table of symbolization
     __intrinsic_symbolize(
       (
-        SELECT
-          __intrinsic_symbolize_agg(input.file_name, input.rel_pc, input.mapping_id, input.address)
-        FROM (
-          SELECT
-            *
-          FROM $frames
-        ) AS input
+        FROM $frames AS input
+        |> SELECT
+             __intrinsic_symbolize_agg(input.file_name, input.rel_pc, input.mapping_id, input.address)
       )
     )
   )
-  WHERE
-    __intrinsic_table_ptr_bind(c0, 'function_name')
-    AND __intrinsic_table_ptr_bind(c1, 'file_name')
-    AND __intrinsic_table_ptr_bind(c2, 'line_number')
-    AND __intrinsic_table_ptr_bind(c3, 'mapping_id')
-    AND __intrinsic_table_ptr_bind(c4, 'address')
+  |> WHERE
+       __intrinsic_table_ptr_bind(c0, 'function_name')
+       AND __intrinsic_table_ptr_bind(c1, 'file_name')
+       AND __intrinsic_table_ptr_bind(c2, 'line_number')
+       AND __intrinsic_table_ptr_bind(c3, 'mapping_id')
+       AND __intrinsic_table_ptr_bind(c4, 'address')
+  |> SELECT
+       c0 AS function_name,
+       c1 AS file_name,
+       c2 AS line_number,
+       c3 AS mapping_id,
+       c4 AS address
 );

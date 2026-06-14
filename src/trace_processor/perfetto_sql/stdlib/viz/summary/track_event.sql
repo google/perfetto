@@ -16,16 +16,17 @@
 INCLUDE PERFETTO MODULE viz.track_event_callstacks;
 
 CREATE PERFETTO PIPELINE _track_event_tracks_unordered MATERIALIZED AS
-FROM track AS t
-|> WHERE t.type GLOB '*_track_event'
-|> SELECT
-     t.id,
-     t.name,
-     t.parent_id,
-     extract_arg(t.source_arg_set_id, 'child_ordering') AS ordering,
-     extract_arg(t.source_arg_set_id, 'sibling_order_rank') AS rank,
-     extract_arg(t.source_arg_set_id, 'description') AS description
-|> FORK AS extracted
+SUBPIPELINE extracted AS (
+  FROM track AS t
+  |> WHERE t.type GLOB '*_track_event'
+  |> SELECT
+       t.id,
+       t.name,
+       t.parent_id,
+       extract_arg(t.source_arg_set_id, 'child_ordering') AS ordering,
+       extract_arg(t.source_arg_set_id, 'sibling_order_rank') AS rank,
+       extract_arg(t.source_arg_set_id, 'description') AS description
+)
 FROM extracted AS t
 |> LEFT JOIN extracted AS p ON t.parent_id = p.id
 |> SELECT
@@ -77,7 +78,6 @@ FROM _track_event_tracks_unordered AS t
 |> UNION ALL (FROM explicit |> SELECT id, order_id)
 |> UNION ALL (FROM chronological |> SELECT id, order_id)
 |> FORK AS unioned
-FROM unioned
 |> JOIN track USING (id)
 |> LEFT JOIN counter_track USING (id)
 |> LEFT JOIN _track_event_has_children AS c USING (id)

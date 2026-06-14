@@ -14,4 +14,4 @@
 -- limitations under the License.
 
 -- DELETED: absorbed by TREE CONTRACT (remove filtered nodes, reparent children
--- up) / TREE KEEP IF / DROP IF (the structural semijoin / antijoin).
+-- up) / TREE WHERE (+ NOT for the antijoin).

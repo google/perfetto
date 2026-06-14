@@ -22,16 +22,15 @@ CREATE PERFETTO FUNCTION _proto_path_to_frame(
 -- Stack with one frame
 RETURNS BYTES
 AS
-SELECT
-  cat_stacks(
-    'event.name:' || extract_arg(arg_set_id, 'event.name'),
-    'event.category:' || extract_arg(arg_set_id, 'event.category'),
-    field_name,
-    field_type
-  )
 FROM experimental_proto_path
-WHERE
-  id = $path_id;
+|> WHERE id = $path_id
+|> SELECT
+     cat_stacks(
+       'event.name:' || extract_arg(arg_set_id, 'event.name'),
+       'event.category:' || extract_arg(arg_set_id, 'event.category'),
+       field_name,
+       field_type
+     );
 
 -- Creates a Stack following the parent relations in EXPERIMENTAL_PROTO_PATH
 -- table starting at the given path_id.
@@ -42,6 +41,15 @@ CREATE PERFETTO FUNCTION _proto_path_to_stack(
 -- Stack
 RETURNS BYTES
 AS
+-- ESCALATE(psqlnext): scalar leaf-to-root path accumulation. This walks UP from a
+-- single given leaf ($path_id) to the root, concatenating frames with cat_stacks
+-- in root-to-leaf order, and returns one BYTES value. The TREE ACCUMULATE
+-- UP/DOWN operators accumulate over the WHOLE tree (every node gets its
+-- subtree/ancestor-path aggregate) with SUM-style commutative aggregates, not an
+-- ordered cat_stacks over a single node's ancestor chain. Routing the entire
+-- experimental_proto_path tree through a tree operator just to extract one leaf's
+-- ordered path would change both semantics (ordering/cardinality) and cost, so
+-- the recursive CTE is kept as-is.
 WITH
   r AS (
     -- Starting at the given path_id generate a stack

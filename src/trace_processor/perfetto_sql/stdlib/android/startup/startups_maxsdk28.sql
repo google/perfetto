@@ -32,7 +32,7 @@ SUBPIPELINE maybe_hot AS (
   FROM thread_slice AS sl
   |> JOIN android_first_frame_after(sl.ts) AS rs
   |> WHERE sl.name = 'activityResume' AND sl.is_main_thread
-  |> INTERVAL DROP IF COVERING BEGIN (FROM warm_and_cold |> SELECT ts_begin AS ts, dur)
+  |> INTERVAL WHERE NOT COVERING BEGIN (FROM warm_and_cold |> SELECT ts_begin AS ts, dur)
   |> SELECT
        sl.ts,
        rs.ts + rs.dur AS ts_end,

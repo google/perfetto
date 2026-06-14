@@ -122,7 +122,9 @@ AS (
       _estimates_w_tasks_attribution AS tasks
     ) PER cpu
     |> SELECT
-      tasks.dur AS dur,
+      -- The clipped intersection duration (the task's time within this window),
+      -- not tasks.dur — a task spanning multiple windows must not double-count.
+      dur,
       w.period_id AS period_id,
       tasks.estimated_mw,
       tasks.thread_name,

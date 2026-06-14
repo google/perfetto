@@ -42,12 +42,12 @@ CREATE PERFETTO MACRO _tree_from_table(
 -- tree operations.
 RETURNS Expr
 AS (
-  SELECT __intrinsic_tree_from_table(
-    'id', t.id,
-    'parent_id', t.parent_id,
-    __intrinsic_token_apply!(_tree_from_table_col, $columns)
-  )
   FROM $source_table AS t
+  |> SELECT __intrinsic_tree_from_table(
+       'id', t.id,
+       'parent_id', t.parent_id,
+       __intrinsic_token_apply!(_tree_from_table_col, $columns)
+     )
 );
 
 -- Helper macro to generate column selection for tree_to_table.
@@ -88,25 +88,25 @@ CREATE PERFETTO MACRO _tree_to_table(
 )
 RETURNS TableOrSubquery
 AS (
-  SELECT
-    c0 AS _tree_id,
-    c1 AS _tree_parent_id,
-    c2 AS id,
-    c3 AS parent_id,
-    __intrinsic_token_apply!(
-      _tree_to_table_col_select,
-      (c4, c5, c6, c7, c8, c9),
-      $columns
-    )
   FROM __intrinsic_table_ptr(__intrinsic_tree_to_table($tree_ptr))
-  WHERE
-    __intrinsic_table_ptr_bind(c0, '_tree_id')
-    AND __intrinsic_table_ptr_bind(c1, '_tree_parent_id')
-    AND __intrinsic_table_ptr_bind(c2, 'id')
-    AND __intrinsic_table_ptr_bind(c3, 'parent_id')
-    AND __intrinsic_token_apply_and!(
-      _tree_to_table_col_bind,
-      (c4, c5, c6, c7, c8, c9),
-      $columns
-    )
+  |> WHERE
+       __intrinsic_table_ptr_bind(c0, '_tree_id')
+       AND __intrinsic_table_ptr_bind(c1, '_tree_parent_id')
+       AND __intrinsic_table_ptr_bind(c2, 'id')
+       AND __intrinsic_table_ptr_bind(c3, 'parent_id')
+       AND __intrinsic_token_apply_and!(
+         _tree_to_table_col_bind,
+         (c4, c5, c6, c7, c8, c9),
+         $columns
+       )
+  |> SELECT
+       c0 AS _tree_id,
+       c1 AS _tree_parent_id,
+       c2 AS id,
+       c3 AS parent_id,
+       __intrinsic_token_apply!(
+         _tree_to_table_col_select,
+         (c4, c5, c6, c7, c8, c9),
+         $columns
+       )
 );

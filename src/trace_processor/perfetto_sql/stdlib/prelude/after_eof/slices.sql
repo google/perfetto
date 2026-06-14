@@ -25,13 +25,13 @@ CREATE PERFETTO FUNCTION slice_is_ancestor(
 -- Whether `ancestor_id` slice is an ancestor of `descendant_id`.
 RETURNS BOOL
 AS
-SELECT
-  ancestor.track_id = descendant.track_id
-  AND ancestor.depth < descendant.depth
-  AND ancestor.ts <= descendant.ts
-  AND (ancestor.dur = -1
-  OR ancestor.ts + ancestor.dur >= descendant.ts + descendant.dur)
 FROM slice AS ancestor, slice AS descendant
-WHERE
-  ancestor.id = $ancestor_id
-  AND descendant.id = $descendant_id;
+|> WHERE
+     ancestor.id = $ancestor_id
+     AND descendant.id = $descendant_id
+|> SELECT
+     ancestor.track_id = descendant.track_id
+     AND ancestor.depth < descendant.depth
+     AND ancestor.ts <= descendant.ts
+     AND (ancestor.dur = -1
+     OR ancestor.ts + ancestor.dur >= descendant.ts + descendant.dur);

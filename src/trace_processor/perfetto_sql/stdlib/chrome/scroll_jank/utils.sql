@@ -102,15 +102,14 @@ RETURNS TABLE (
   -- The slice id.
   id LONG
 ) AS
-SELECT
-  extract_arg(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
-  extract_arg(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
-  CASE
-    WHEN extract_arg(arg_set_id, "chrome_mojo_event_info.is_reply")
-    THEN "reply"
-    ELSE "message"
-  END AS message_type,
-  s.id
 FROM slice AS s
-WHERE
-  category GLOB "*scheduler.long_tasks*" AND name = $name;
+|> WHERE category GLOB "*scheduler.long_tasks*" AND name = $name
+|> SELECT
+     extract_arg(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
+     extract_arg(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
+     CASE
+       WHEN extract_arg(arg_set_id, "chrome_mojo_event_info.is_reply")
+       THEN "reply"
+       ELSE "message"
+     END AS message_type,
+     s.id;

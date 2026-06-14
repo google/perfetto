@@ -13,35 +13,30 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE graphs.search;
-
--- Computes the "reachable" set of slices from the |flows| table, starting from slice ids
--- specified in |source_table|. This provides a more efficient result than with the in-built
--- following_flow operator.
+-- Computes the "reachable" set of slices from the |flow| table, starting from
+-- slice ids specified in |source_table|.
 --
--- Uses the weight-bounded dfs intrinsic, which is out of scope for the analysis
--- operators; kept as host SQL inside the pipeline.
+-- The depth-first spanning tree over the flow graph from the seeds; the per-node
+-- origin seed (|root_node_id|) — which the old weight-bounded-dfs intrinsic carried
+-- explicitly — is recovered with TREE ACCUMULATE DOWN FIRST(node_id), i.e. the root
+-- of each node's root-to-node path.
 CREATE PERFETTO MACRO _slice_following_flow(
   -- A table/view/subquery corresponding to the nodes to start the reachability search.
   -- This table must have a uint32 "id" column.
   source_table TableOrSubquery
 )
 -- The returned table has the schema (root_node_id, node_id LONG, parent_node_id LONG).
--- |root_node_id| is the id of the starting node under which this edge was encountered.
--- |node_id| is the id of the node from the input graph and |parent_node_id|
--- is the id of the node which was the first encountered predecessor in a DFS
--- search of the graph.
-RETURNS TableOrSubquery
+-- |root_node_id| is the seed under which this node was encountered, |node_id| the
+-- node from the input graph, and |parent_node_id| its DFS predecessor.
+RETURNS Pipeline
 AS (
-  SELECT
-    *
-  FROM graph_reachable_weight_bounded_dfs
-    !((SELECT slice_out AS source_node_id, slice_in AS dest_node_id, 0 AS edge_weight FROM flow),
-      (
-        SELECT slice_out AS root_node_id, 1 AS root_target_weight
-        FROM flow
-        JOIN (SELECT id FROM $source_table) source
-          ON slice_out = source.id
-      ),
-      1)
+  GRAPH DFS TREE
+    NODES (FROM flow |> SELECT slice_in AS node_id)
+    EDGES (FROM flow |> SELECT slice_out AS source_node_id, slice_in AS dest_node_id)
+    FROM (
+      FROM flow
+      |> JOIN $source_table AS source ON flow.slice_out = source.id
+      |> SELECT slice_out AS node_id
+    )
+  |> TREE ACCUMULATE DOWN FIRST(node_id) AS root_node_id
 );

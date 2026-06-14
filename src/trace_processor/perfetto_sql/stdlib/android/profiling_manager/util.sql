@@ -32,25 +32,23 @@ RETURNS TABLE(
   dur LONG
 )
 AS
-SELECT
-  s.name,
-  s.ts,
-  -- Calculate duration by looking ahead for the nearest end slice
-  (
-    SELECT e.ts + iif($inclusive, e.dur, 0)
-    FROM slice AS e
-    WHERE
-      e.name GLOB $end_pattern
-      -- Ensure the end slice occurs after the start slice
-      -- Ensure the end slice occurs after the start slice
-      AND e.ts > s.ts
-    ORDER BY
-      e.ts
-    LIMIT 1
-  )
-  - s.ts AS dur
 FROM slice AS s
-WHERE
-  s.name GLOB $start_pattern
-  -- Filter out start slices that did not find a matching end slice (where dur becomes NULL)
-  AND dur IS NOT NULL;
+|> WHERE s.name GLOB $start_pattern
+|> SELECT
+     s.name,
+     s.ts,
+     -- Calculate duration by looking ahead for the nearest end slice
+     (
+       SELECT e.ts + iif($inclusive, e.dur, 0)
+       FROM slice AS e
+       WHERE
+         e.name GLOB $end_pattern
+         -- Ensure the end slice occurs after the start slice
+         AND e.ts > s.ts
+       ORDER BY
+         e.ts
+       LIMIT 1
+     )
+     - s.ts AS dur
+-- Filter out start slices that did not find a matching end slice (where dur becomes NULL)
+|> WHERE dur IS NOT NULL;

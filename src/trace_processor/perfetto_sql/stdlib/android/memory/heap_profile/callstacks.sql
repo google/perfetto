@@ -20,30 +20,26 @@ CREATE PERFETTO MACRO _android_heap_profile_callstacks_for_allocations(
 )
 RETURNS TableOrSubquery
 AS (
-  WITH
-    metrics AS MATERIALIZED (
-      SELECT
-        callsite_id,
-        sum(size) AS self_size,
-        sum(count) AS self_count,
-        sum(alloc_size) AS self_alloc_size,
-        sum(alloc_count) AS self_alloc_count
-      FROM $allocations
-      GROUP BY
-        callsite_id
-    )
-  SELECT
-    c.id,
-    c.parent_id,
-    c.name,
-    c.mapping_name,
-    c.source_file,
-    c.line_number,
-    coalesce(m.self_size, 0) AS self_size,
-    coalesce(m.self_count, 0) AS self_count,
-    coalesce(m.self_alloc_size, 0) AS self_alloc_size,
-    coalesce(m.self_alloc_count, 0) AS self_alloc_count
+  SUBPIPELINE metrics AS (
+    FROM $allocations
+    |> AGGREGATE
+         sum(size) AS self_size,
+         sum(count) AS self_count,
+         sum(alloc_size) AS self_alloc_size,
+         sum(alloc_count) AS self_alloc_count
+       GROUP BY callsite_id
+  )
   FROM _callstacks_for_stack_profile_samples!(metrics) AS c
-  LEFT JOIN metrics AS m
-    USING (callsite_id)
+  |> LEFT JOIN metrics AS m USING (callsite_id)
+  |> SELECT
+       c.id,
+       c.parent_id,
+       c.name,
+       c.mapping_name,
+       c.source_file,
+       c.line_number,
+       coalesce(m.self_size, 0) AS self_size,
+       coalesce(m.self_count, 0) AS self_count,
+       coalesce(m.self_alloc_size, 0) AS self_alloc_size,
+       coalesce(m.self_alloc_count, 0) AS self_alloc_count
 );
