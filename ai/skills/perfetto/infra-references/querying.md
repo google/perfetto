@@ -313,8 +313,8 @@ To ensure accuracy and efficiency, follow these steps:
    `curl -sIf -m 1 http://127.0.0.1:$PORT/status`. Then proceed to Step 2.
 2. **Precedence Rule:** If the user's request contains a SQL query,
    use it **without modification** and skip to step 4 for validation.
-3. **Research and Dissection:** Identify the core question and
-   required data points.
+3. **Research & Dissection:** Identify the core question and required data
+   points.
 4. **Mandatory Schema Validation:** Locate relevant tables via
    `__intrinsic_stdlib_tables`. Verify column names and types. Do not
    guess schemas or rely on your internal knowledge. You must use the
@@ -325,21 +325,21 @@ To ensure accuracy and efficiency, follow these steps:
      comprehensive, pre-computed views built for these analyses.
    - **Intent Check:** You must verify if a stdlib module already provides
    the needed abstraction before drafting manual arithmetic or custom joins.
-   - **IMPORTANT:** If your query requires calculating overlaps,
+  - **IMPORTANT:** If your query requires calculating overlaps,
    intersections, or boundaries between intervals, you MUST search the
    `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
     writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
 5. **Draft & Validate Loop (Max 3 Iterations):**
-   - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
+  - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
     MODULE` is present for non-prelude modules.
-   - [ ] **Verify Idempotency:** Use `CREATE OR REPLACE` or `DROP TABLE IF
+  - [ ] **Verify Idempotency:** Use `CREATE OR REPLACE` or `DROP TABLE IF
     EXISTS` for virtual tables.
-   - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
+  - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
     `s.name`)? Are you joining on `utid`/`upid`?
-   - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
-   - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
+  - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
+  - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
     and materialized?
-   - [ ] **Execute:** Run the query using the execution mode selected
+  - [ ] **Execute:** Run the query using the execution mode selected
     in Step 1.
 
    **Execution Rules:**
