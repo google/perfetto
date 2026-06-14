@@ -27,6 +27,10 @@ chmod +x trace_processor
 ./trace_processor --version    # smoke test
 ```
 
+> **Windows:** `chmod +x` is not needed. Run the wrapper directly as
+> `python trace_processor` instead of `./trace_processor`.
+> All other commands translate naturally to platform equivalents.
+
 `get.perfetto.dev/trace_processor` is a small wrapper script that picks
 the right prebuilt binary for the host platform (Linux x86_64 / arm64,
 macOS, Windows) and caches it. Re-running the `curl -LO` (or just
@@ -93,7 +97,13 @@ A one-shot end-to-end check that the binary and the client agree:
 PORT=$((9100 + RANDOM % 900))
 trace_processor server http --port $PORT /path/to/some_trace.pftrace &
 SERVER_PID=$!
-sleep 1
+
+# Liveness check
+# Poll until server ready (timeout 120s)
+for i in {1..120}; do
+  kill -0 $SERVER_PID 2>/dev/null || { echo "Server crashed"; exit 1; }
+  curl -sIf -m 1 http://127.0.0.1:$PORT/status >/dev/null && break || sleep 1
+done
 
 # Query via the Python client.
 ~/.venv/perfetto/bin/python - "$PORT" <<'PY'
