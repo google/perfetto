@@ -74,6 +74,15 @@ df = tp.query('SELECT ts, dur, name FROM slice LIMIT 100').as_pandas_dataframe()
 tp.close()
 ```
 
+> **Tip for Multi-statement SQL:** When writing SQL queries to a
+> separate `.sql` file, you can read and execute the file directly:
+> ```python
+> with open(QUERY_FILE_PATH, 'r') as f:
+>   tp.query(f.read())
+> ```
+> For shorter or simpler queries, passing a string directly to
+> `tp.query("SELECT...")` within your script works perfectly fine.
+
 The server keeps the trace parsed in memory; each `tp.query()` call is
 just a query against the existing session. This is the same RPC channel
 `ui.perfetto.dev` uses when you load a trace there.
@@ -84,9 +93,8 @@ Notes:
   IPv4/IPv6 explicitly and `localhost` resolution can pick an interface
   that isn't bound on macOS.
 - A quick liveness check from the shell:
-  `curl http://127.0.0.1:PORT/status` returns plain JSON-ish status
-  (loaded path, version) and is the fastest way to confirm the server
-  is up.
+  `curl -sIf -m 1 http://127.0.0.1:PORT/status` is the fastest way
+  to confirm the server is up.
 - The on-the-wire `/query`, `/parse`, `/rpc` endpoints take protobuf-
   encoded `QueryArgs`/`TraceProcessorRpc` payloads. **Do not hand-craft
   HTTP calls with `curl`** — use the Python client (or the WASM
@@ -286,27 +294,53 @@ reference linked above.
 
 To ensure accuracy and efficiency, follow these steps:
 
-1. **Research & Dissection:** Identify the core question and required data
-   points.
-2. **Mandatory Schema Validation:** Locate relevant tables via
-   `__intrinsic_stdlib_tables`. Verify column names and types.
+1. **Execution Mode Selection (Pre-flight)**: Before running any
+   query, determine the size of the trace file using relevant
+   commands like `stat`, `ls -lh` depending on the target platform.
+
+   | File size  | Mode           | Action                                                                                                                                                                                   |
+      |------------|----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   | **< 1 GB** | **Standalone** | Use `trace_processor query TRACE_FILE "..."` for every query in the steps below. No further setup needed.                                                                                |
+   | **≥ 1 GB** | **RPC**        | Start the HTTP server now (see Long-running mode section) before proceeding. Drive all queries in the steps below through the Python client. Do not call `trace_processor query` at all. |
+
+   > **Why:** Reparsing a multi-GB trace on every query costs tens of
+   > seconds of latency per call. The RPC server parses once and holds
+   > the trace in memory across all subsequent queries. For traces under
+   > 1 GB, the standalone one-shot form is fast enough and simpler —
+   > prefer it.
+
+   If **RPC mode** is selected, start the server now and confirm it is live with:
+   `curl -sIf -m 1 http://127.0.0.1:$PORT/status`. Then proceed to Step 2.
+2. **Precedence Rule:** If the user's request contains a SQL query,
+   use it **without modification** and skip to step 4 for validation.
+3. **Research and Dissection:** Identify the core question and
+   required data points.
+4. **Mandatory Schema Validation:** Locate relevant tables via
+   `__intrinsic_stdlib_tables`. Verify column names and types. Do not
+   guess schemas or rely on your internal knowledge. You must use the
+   guidelines detailed in this skill to discover relevant views,
+   tables or modules based on the problem domain and high-level
+   intents (for example, 'CPU time', 'running time', 'overlap', 'jank').
+   - **Why:** Searching solely for exact table names misses
+     comprehensive, pre-computed views built for these analyses.
    - **Intent Check:** You must verify if a stdlib module already provides
    the needed abstraction before drafting manual arithmetic or custom joins.
-  - **IMPORTANT:** If your query requires calculating overlaps,
+   - **IMPORTANT:** If your query requires calculating overlaps,
    intersections, or boundaries between intervals, you MUST search the
    `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
     writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
-3. **Draft & Validate Loop (Max 3 Iterations):**
-  - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
+5. **Draft & Validate Loop (Max 3 Iterations):**
+   - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
     MODULE` is present for non-prelude modules.
-  - [ ] **Verify Idempotency:** Use `CREATE OR REPLACE` or `DROP TABLE IF
+   - [ ] **Verify Idempotency:** Use `CREATE OR REPLACE` or `DROP TABLE IF
     EXISTS` for virtual tables.
-  - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
+   - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
     `s.name`)? Are you joining on `utid`/`upid`?
-  - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
-  - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
+   - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
+   - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
     and materialized?
-  - [ ] **Execute:** Run using `trace_processor query TRACE_FILE "QUERY"`.
+   - [ ] **Execute:** Run the query using the execution mode selected
+    in Step 1.
 
    **Execution Rules:**
   - **File Usage:** If you must create a SQL file to execute queries (for
@@ -317,10 +351,11 @@ To ensure accuracy and efficiency, follow these steps:
     For example, if requested to calculate an overlap or intersection, you
     must fix the intersection math. Don't substitute with disjoint queries
     (for example, returning independent total durations) as a workaround.
-4. **Cleanup & Finalize:**
+6. **Cleanup & Finalize:**
   - Explicitly return and state the final validated SQL and explain the
     results to the user.
   - Before finishing, delete any temporary SQL files created in `/tmp/`.
+  - Ensure you have killed the $SERVER_PID before exiting.
 
 ## Where to look for more
 
