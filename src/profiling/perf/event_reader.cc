@@ -84,6 +84,14 @@ bool MaybeApplyTracepointFilter(int fd, const PerfCounter& event) {
   return true;
 }
 
+std::optional<uint64_t> GetPerfEventId(int fd) {
+  uint64_t id = 0;
+  if (ioctl(fd, PERF_EVENT_IOC_ID, &id) != 0) {
+    return std::nullopt;
+  }
+  return id;
+}
+
 }  // namespace
 
 PerfRingBuffer::PerfRingBuffer(PerfRingBuffer&& other) noexcept
@@ -212,11 +220,15 @@ EventReader::EventReader(uint32_t cpu,
                          perf_event_attr event_attr,
                          base::ScopedFile perf_fd,
                          std::vector<base::ScopedFile> followers_fds,
+                         uint64_t timebase_stream_id,
+                         std::vector<uint64_t> follower_stream_ids,
                          std::optional<PerfRingBuffer> ring_buffer)
     : cpu_(cpu),
       event_attr_(event_attr),
       perf_fd_(std::move(perf_fd)),
       follower_fds_(std::move(followers_fds)),
+      timebase_stream_id_(timebase_stream_id),
+      follower_stream_ids_(std::move(follower_stream_ids)),
       ring_buffer_(std::move(ring_buffer)) {}
 
 EventReader& EventReader::operator=(EventReader&& other) noexcept {
@@ -237,15 +249,30 @@ std::optional<EventReader> EventReader::ConfigureEvents(
     return std::nullopt;
   }
 
+  auto timebase_stream_id = GetPerfEventId(timebase_fd.get());
+  if (!timebase_stream_id) {
+    PERFETTO_PLOG("Failed to get perf event id for timebase");
+    return std::nullopt;
+  }
+
   // Open followers.
   std::vector<base::ScopedFile> follower_fds;
+  std::vector<uint64_t> follower_stream_ids;
   for (auto follower_attr : event_cfg.perf_attr_followers()) {
     auto follower_fd = PerfEventOpen(cpu, &follower_attr, timebase_fd.get());
     if (!follower_fd) {
       PERFETTO_PLOG("Failed perf_event_open (follower)");
       return std::nullopt;
     }
+
+    auto follower_stream_id = GetPerfEventId(follower_fd.get());
+    if (!follower_stream_id) {
+      PERFETTO_PLOG("Failed to get perf event id for follower");
+      return std::nullopt;
+    }
+
     follower_fds.push_back(std::move(follower_fd));
+    follower_stream_ids.push_back(*follower_stream_id);
   }
 
   // Optional: apply the tracepoint filter to the timebase.
@@ -272,8 +299,15 @@ std::optional<EventReader> EventReader::ConfigureEvents(
       return std::nullopt;
     }
   }
+
+  // redirect the follower events to the leader's buffer.
+  for (size_t i = 0; i < follower_fds.size(); ++i) {
+    ioctl(follower_fds[i].get(), PERF_EVENT_IOC_SET_OUTPUT, timebase_fd.get());
+  }
+
   return EventReader(cpu, *event_cfg.perf_attr(), std::move(timebase_fd),
-                     std::move(follower_fds), std::move(ring_buffer));
+                     std::move(follower_fds), *timebase_stream_id,
+                     std::move(follower_stream_ids), std::move(ring_buffer));
 }
 
 std::optional<CommonSampleData> EventReader::ReadCounters() {
@@ -387,7 +421,7 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
   if (event_attr_.sample_type &
       (~uint64_t(PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_STACK_USER |
                  PERF_SAMPLE_REGS_USER | PERF_SAMPLE_CALLCHAIN |
-                 PERF_SAMPLE_READ))) {
+                 PERF_SAMPLE_READ | PERF_SAMPLE_STREAM_ID))) {
     PERFETTO_FATAL("Unsupported sampling option");
   }
 
@@ -401,6 +435,7 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
   // Parse the payload, which consists of concatenated data for each
   // |attr.sample_type| flag.
   const char* parse_pos = record_start + sizeof(perf_event_header);
+  std::optional<uint64_t> stream_id;
 
   if (event_attr_.sample_type & PERF_SAMPLE_TID) {
     uint32_t pid = 0;
@@ -413,6 +448,12 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
 
   if (event_attr_.sample_type & PERF_SAMPLE_TIME) {
     parse_pos = ReadValue(&sample.common.timestamp, parse_pos);
+  }
+
+  if (event_attr_.sample_type & PERF_SAMPLE_STREAM_ID) {
+    uint64_t raw_stream_id = 0;
+    parse_pos = ReadValue(&raw_stream_id, parse_pos);
+    stream_id = raw_stream_id;
   }
 
   if (event_attr_.sample_type & PERF_SAMPLE_READ) {
@@ -431,7 +472,25 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
         parse_pos = ReadValue(&sample.common.follower_counts[i], parse_pos);
       }
     } else {
-      parse_pos = ReadValue(&sample.common.timebase_count, parse_pos);
+      if (stream_id.has_value()) {
+        uint64_t count = 0;
+        parse_pos = ReadValue(&count, parse_pos);
+        if (*stream_id == timebase_stream_id_) {
+          sample.common.timebase_count = count;
+        } else {
+          bool found = false;
+          for (size_t i = 0; i < follower_stream_ids_.size(); ++i) {
+            if (follower_stream_ids_[i] == *stream_id) {
+              sample.common.follower_counts[i] = count;
+              found = true;
+              break;
+            }
+          }
+          PERFETTO_CHECK(found);
+        }
+      } else {
+        parse_pos = ReadValue(&sample.common.timebase_count, parse_pos);
+      }
     }
   }
 
