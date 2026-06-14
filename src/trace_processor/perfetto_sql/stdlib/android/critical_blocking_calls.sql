@@ -64,51 +64,49 @@ SELECT
   OR $name GLOB '*.*$*: #*'));
 
 --Extract critical blocking calls from all processes.
-CREATE PERFETTO TABLE _android_critical_blocking_calls AS
-SELECT
-  android_standardize_slice_name(s.name) AS name,
-  s.ts,
-  s.dur,
-  s.id,
-  s.process_name,
-  thread.utid,
-  s.upid,
-  s.ts + s.dur AS ts_end
+CREATE PERFETTO PIPELINE _android_critical_blocking_calls MATERIALIZED AS
 FROM thread_slice AS s
-JOIN thread USING (utid)
-WHERE
-  _is_relevant_blocking_call(s.name, s.depth)
-UNION ALL
--- Add a summation of all drawLayer slices without the individual layer name
-SELECT
-  'drawLayer' AS name,
-  s.ts,
-  s.dur,
-  s.id,
-  s.process_name,
-  thread.utid,
-  s.upid,
-  s.ts + s.dur AS ts_end
-FROM thread_slice AS s
-JOIN thread USING (utid)
-WHERE
-  s.name GLOB 'drawLayer *'
-UNION ALL
--- As binder names are not included in slice table, extract these directly from the
--- android_binder_txns table.
-SELECT
-  tx.aidl_name AS name,
-  tx.client_ts AS ts,
-  tx.client_dur AS dur,
-  tx.binder_txn_id AS id,
-  tx.client_process AS process_name,
-  tx.client_utid AS utid,
-  tx.client_upid AS upid,
-  tx.client_ts + tx.client_dur AS ts_end
-FROM android_binder_txns AS tx
-WHERE
-  NOT (aidl_name IS NULL)
-  AND is_sync = 1;
+|> JOIN thread USING (utid)
+|> WHERE _is_relevant_blocking_call(s.name, s.depth)
+|> SELECT
+     android_standardize_slice_name(s.name) AS name,
+     s.ts,
+     s.dur,
+     s.id,
+     s.process_name,
+     thread.utid,
+     s.upid,
+     s.ts + s.dur AS ts_end
+|> UNION ALL (
+     -- Add a summation of all drawLayer slices without the individual layer name
+     FROM thread_slice AS s
+     |> JOIN thread USING (utid)
+     |> WHERE s.name GLOB 'drawLayer *'
+     |> SELECT
+          'drawLayer' AS name,
+          s.ts,
+          s.dur,
+          s.id,
+          s.process_name,
+          thread.utid,
+          s.upid,
+          s.ts + s.dur AS ts_end
+   )
+|> UNION ALL (
+     -- As binder names are not included in slice table, extract these directly
+     -- from the android_binder_txns table.
+     FROM android_binder_txns AS tx
+     |> WHERE NOT (tx.aidl_name IS NULL) AND tx.is_sync = 1
+     |> SELECT
+          tx.aidl_name AS name,
+          tx.client_ts AS ts,
+          tx.client_dur AS dur,
+          tx.binder_txn_id AS id,
+          tx.client_process AS process_name,
+          tx.client_utid AS utid,
+          tx.client_upid AS upid,
+          tx.client_ts + tx.client_dur AS ts_end
+   );
 
 CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
   name STRING,

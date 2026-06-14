@@ -77,73 +77,53 @@ SELECT
 
 -- Materialize this intermediate table and sort by `callsite_id` to speedup the
 -- generation of the stack_table further down.
-CREATE PERFETTO TABLE _export_to_firefox_table AS
-WITH
-  symbol AS (
-    SELECT
-      symbol_set_id,
-      rank() OVER (
-        PARTITION BY
-          symbol_set_id
-        ORDER BY id DESC
-        RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-      )
-      - 1 AS inline_depth,
-      count() OVER (PARTITION BY symbol_set_id) - 1 AS max_inline_depth,
-      name
-    FROM stack_profile_symbol
-  ),
-  callsite_base AS (
-    SELECT
-      id,
-      parent_id,
-      name,
-      symbol_set_id,
-      iif(inline_count = 0, 0, inline_count - 1) AS max_inline_depth
-    FROM (
+--
+-- The body keeps the recursive callsite walk and inline-symbol expansion as
+-- host SQL (a recursive CTE is a native escape hatch, out of scope for the
+-- analysis operators); only the final windowed projection is in pipe form.
+CREATE PERFETTO PIPELINE _export_to_firefox_table MATERIALIZED AS
+FROM (
+  WITH
+    symbol AS (
       SELECT
-        spc.id,
-        spc.parent_id,
-        coalesce(s.name, spf.name, '') AS name,
-        sfp.symbol_set_id,
-        (
-          SELECT count(*)
-          FROM stack_profile_symbol AS s
-          WHERE
-            s.symbol_set_id = sfp.symbol_set_id
-        ) AS inline_count
-      FROM stack_profile_callsite AS spc
-      JOIN stack_profile_frame AS spf
-        ON (spc.frame_id = spf.id)
-    )
-  ),
-  callsite_recursive AS (
-    SELECT s.utid, spc.id, spc.parent_id, spc.frame_id
-    FROM (SELECT DISTINCT callsite_id, utid FROM perf_sample) AS s
-    JOIN stack_profile_callsite AS spc
-      ON spc.id = s.callsite_id
-    UNION ALL
-    SELECT child.utid, parent.id, parent.parent_id, parent.frame_id
-    FROM callsite_recursive AS child
-    JOIN stack_profile_callsite AS parent
-      ON child.parent_id = parent.id
-  ),
-  unique_callsite AS (SELECT DISTINCT * FROM callsite_recursive),
-  expanded_callsite AS (
-    SELECT
-      c.utid,
-      c.id,
-      c.parent_id,
-      c.frame_id,
-      coalesce(s.name, spf.name, '') AS name,
-      coalesce(s.inline_depth, 0) AS inline_depth,
-      coalesce(s.max_inline_depth, 0) AS max_inline_depth
-    FROM unique_callsite AS c
-    JOIN stack_profile_frame AS spf
-      ON (c.frame_id = spf.id)
-    LEFT JOIN symbol AS s USING (symbol_set_id)
-  )
-SELECT
+        symbol_set_id,
+        rank() OVER (
+          PARTITION BY
+            symbol_set_id
+          ORDER BY id DESC
+          RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+        )
+        - 1 AS inline_depth,
+        count() OVER (PARTITION BY symbol_set_id) - 1 AS max_inline_depth,
+        name
+      FROM stack_profile_symbol
+    ),
+    callsite_recursive AS (
+      SELECT s.utid, spc.id, spc.parent_id, spc.frame_id
+      FROM (SELECT DISTINCT callsite_id, utid FROM perf_sample) AS s
+      JOIN stack_profile_callsite AS spc
+        ON spc.id = s.callsite_id
+      UNION ALL
+      SELECT child.utid, parent.id, parent.parent_id, parent.frame_id
+      FROM callsite_recursive AS child
+      JOIN stack_profile_callsite AS parent
+        ON child.parent_id = parent.id
+    ),
+    unique_callsite AS (SELECT DISTINCT * FROM callsite_recursive)
+  SELECT
+    c.utid,
+    c.id,
+    c.parent_id,
+    c.frame_id,
+    coalesce(s.name, spf.name, '') AS name,
+    coalesce(s.inline_depth, 0) AS inline_depth,
+    coalesce(s.max_inline_depth, 0) AS max_inline_depth
+  FROM unique_callsite AS c
+  JOIN stack_profile_frame AS spf
+    ON (c.frame_id = spf.id)
+  LEFT JOIN symbol AS s USING (symbol_set_id)
+)
+|> SELECT
   utid,
   id AS callsite_id,
   parent_id AS parent_callsite_id,
@@ -154,10 +134,7 @@ SELECT
   dense_rank() OVER (PARTITION BY utid ORDER BY frame_id, inline_depth) - 1 AS frame_table_index,
   dense_rank() OVER (PARTITION BY utid ORDER BY name) - 1 AS func_table_index,
   dense_rank() OVER (PARTITION BY utid ORDER BY name) - 1 AS string_table_index
-FROM expanded_callsite
-ORDER BY
-  utid,
-  id;
+|> ORDER BY utid, callsite_id;
 
 -- Returns an instance of `SamplesTable` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js

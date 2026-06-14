@@ -13,15 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Time each thread slice spent running on CPU.
 -- Requires scheduling data to be available in the trace.
-CREATE PERFETTO TABLE thread_slice_cpu_time(
+CREATE PERFETTO PIPELINE thread_slice_cpu_time(
   -- Slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -37,28 +35,34 @@ CREATE PERFETTO TABLE thread_slice_cpu_time(
   -- Duration of the time the slice was running.
   cpu_time LONG
 )
-AS
-SELECT
-  id_0 AS id,
+MATERIALIZED AS
+SUBPIPELINE thread_slices AS (
+  FROM thread_slice
+  |> WHERE utid > 0 AND dur > 0
+)
+SUBPIPELINE running AS (
+  FROM sched
+  |> WHERE dur > 0
+)
+INTERVAL INTERSECTION OF (thread_slices AS ts, running AS r) PER utid
+|> AGGREGATE
+  MIN(ts.name) AS name,
+  MIN(ts.thread_name) AS thread_name,
+  MIN(ts.upid) AS upid,
+  MIN(ts.process_name) AS process_name,
+  SUM(dur) AS cpu_time
+  GROUP BY ts.id, ts.utid
+|> SELECT
+  ts.id AS id,
   name,
-  ts.utid,
+  ts.utid AS utid,
   thread_name,
   upid,
   process_name,
-  sum(ii.dur) AS cpu_time
-FROM _interval_intersect!((
-  (SELECT * FROM thread_slice WHERE utid > 0 AND dur > 0),
-  (SELECT * FROM sched WHERE dur > 0)
-  ), (utid)) AS ii
-JOIN thread_slice AS ts
-  ON ts.id = ii.id_0
-GROUP BY
-  id
-ORDER BY
-  id;
+  cpu_time;
 
 -- CPU cycles per each slice.
-CREATE PERFETTO VIEW thread_slice_cpu_cycles(
+CREATE PERFETTO PIPELINE thread_slice_cpu_cycles(
   -- Id of a slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -79,5 +83,5 @@ CREATE PERFETTO VIEW thread_slice_cpu_cycles(
   megacycles LONG
 )
 AS
-SELECT id, name, utid, thread_name, upid, process_name, millicycles, megacycles
-FROM cpu_cycles_per_thread_slice;
+FROM cpu_cycles_per_thread_slice
+|> SELECT id, name, utid, thread_name, upid, process_name, millicycles, megacycles;

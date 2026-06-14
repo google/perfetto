@@ -15,14 +15,12 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
-CREATE PERFETTO TABLE _linux_perf_raw_callstacks AS
-SELECT *
+CREATE PERFETTO PIPELINE _linux_perf_raw_callstacks MATERIALIZED AS
 FROM _callstacks_for_callsites!((
   SELECT p.callsite_id
   FROM perf_sample p
 )) AS c
-ORDER BY
-  c.id;
+|> ORDER BY c.id;
 
 CREATE PERFETTO INDEX _linux_perf_raw_callstacks_parent_id_idx ON _linux_perf_raw_callstacks(
   parent_id
@@ -36,7 +34,7 @@ CREATE PERFETTO INDEX _linux_perf_raw_callstacks_parent_id_idx ON _linux_perf_ra
 -- equal to the number of samples with that frame as the
 -- leaf and `cumulative_count` equal to the number of
 -- samples with the frame anywhere in the tree.
-CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
+CREATE PERFETTO PIPELINE linux_perf_samples_summary_tree(
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
   id LONG,
@@ -58,12 +56,19 @@ CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
   -- anywhere on the callstack.
   cumulative_count LONG
 )
-AS
-SELECT r.*, a.cumulative_count
+MATERIALIZED AS
 FROM _callstacks_self_to_cumulative!((
   SELECT id, parent_id, self_count
   FROM _linux_perf_raw_callstacks
 )) AS a
-JOIN _linux_perf_raw_callstacks AS r USING (id)
-ORDER BY
-  r.id;
+|> JOIN _linux_perf_raw_callstacks AS r USING (id)
+|> SELECT
+     r.id,
+     r.parent_id,
+     r.name,
+     r.mapping_name,
+     r.source_file,
+     r.line_number,
+     r.self_count,
+     a.cumulative_count
+|> ORDER BY r.id;

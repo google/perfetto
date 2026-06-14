@@ -14,12 +14,10 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
 -- Android power rails counters data.
 -- For details see: https://perfetto.dev/docs/data-sources/battery-counters#odpm
 -- NOTE: Requires dedicated hardware - table is only populated on Pixels.
-CREATE PERFETTO TABLE android_power_rails_counters(
+CREATE PERFETTO PIPELINE android_power_rails_counters(
   -- `counter.id`
   id ID(counter.id),
   -- Timestamp of the energy measurement.
@@ -47,35 +45,33 @@ CREATE PERFETTO TABLE android_power_rails_counters(
   track_id JOINID(track.id),
   -- DEPRECATED. Use `energy_since_boot` instead.
   value DOUBLE
+) MATERIALIZED AS
+SUBPIPELINE power_rail_counters AS (
+  FROM counter AS c
+  |> JOIN counter_track AS t ON c.track_id = t.id
+  |> WHERE t.type = 'power_rails'
+  |> SELECT c.id, c.ts, c.track_id, c.value, c.source_arg_set_id
 )
-AS
-WITH
-  counter_table AS (
-    SELECT c.*
-    FROM counter AS c
-    JOIN counter_track AS t
-      ON c.track_id = t.id
-    WHERE
-      type = 'power_rails'
-  )
-SELECT
-  c.id,
-  c.ts,
-  c.dur,
-  t.name AS power_rail_name,
-  extract_arg(source_arg_set_id, 'raw_name') AS raw_power_rail_name,
-  c.value AS energy_since_boot,
-  c.next_value AS energy_since_boot_at_end,
-  1e6 * ((c.next_value - c.value) / c.dur) AS average_power,
-  c.delta_value AS energy_delta,
-  c.track_id,
-  c.value
-FROM counter_leading_intervals!(counter_table) AS c
-JOIN counter_track AS t
-  ON c.track_id = t.id;
+INTERVALS FROM EVENTS power_rail_counters PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
+|> EXTEND next_value = LEAD(value) OVER (PARTITION BY track_id ORDER BY ts)
+|> EXTEND delta_value = value - LAG(value) OVER (PARTITION BY track_id ORDER BY ts)
+|> JOIN counter_track AS t ON track_id = t.id
+|> SELECT
+     id,
+     ts,
+     dur,
+     t.name AS power_rail_name,
+     extract_arg(source_arg_set_id, 'raw_name') AS raw_power_rail_name,
+     value AS energy_since_boot,
+     next_value AS energy_since_boot_at_end,
+     1e6 * ((next_value - value) / dur) AS average_power,
+     delta_value AS energy_delta,
+     track_id,
+     value;
 
 -- High level metadata about each of the power rails.
-CREATE PERFETTO TABLE android_power_rails_metadata(
+CREATE PERFETTO PIPELINE android_power_rails_metadata(
   -- Power rail name. Alias of `counter_track.name`.
   power_rail_name STRING,
   -- Raw power rail name from the hardware.
@@ -88,15 +84,13 @@ CREATE PERFETTO TABLE android_power_rails_metadata(
   subsystem_name STRING,
   -- The device the power rail is associated with.
   machine_id JOINID(machine.id)
-)
-AS
-SELECT
-  t.name AS power_rail_name,
-  extract_arg(t.source_arg_set_id, 'raw_name') AS raw_power_rail_name,
-  CASE WHEN t.name GLOB 'power.rails.*' THEN substr(t.name, 13) ELSE NULL END AS friendly_name,
-  t.id AS track_id,
-  extract_arg(t.source_arg_set_id, 'subsystem_name') AS subsystem_name,
-  t.machine_id AS machine_id
+) MATERIALIZED AS
 FROM counter_track AS t
-WHERE
-  t.type = 'power_rails';
+|> WHERE t.type = 'power_rails'
+|> SELECT
+     t.name AS power_rail_name,
+     extract_arg(t.source_arg_set_id, 'raw_name') AS raw_power_rail_name,
+     CASE WHEN t.name GLOB 'power.rails.*' THEN substr(t.name, 13) ELSE NULL END AS friendly_name,
+     t.id AS track_id,
+     extract_arg(t.source_arg_set_id, 'subsystem_name') AS subsystem_name,
+     t.machine_id AS machine_id;

@@ -20,11 +20,17 @@ INCLUDE PERFETTO MODULE viz.summary.trace;
 -- Create a new table containing the utids of all the kernel threads.
 -- Right now this table only supports linux traces. On all other traces the
 -- resultant table will be empty.
-CREATE PERFETTO TABLE _kernel_threads AS
-SELECT utid FROM linux_kernel_threads WHERE _is_linux_machine(machine_id) = 1;
+CREATE PERFETTO PIPELINE _kernel_threads MATERIALIZED AS
+FROM linux_kernel_threads
+|> WHERE _is_linux_machine(machine_id) = 1
+|> SELECT utid;
 
-CREATE PERFETTO TABLE _threads_with_kernel_flag AS
-SELECT
+CREATE PERFETTO PIPELINE _threads_with_kernel_flag MATERIALIZED AS
+SUBPIPELINE kernel AS (
+  FROM _kernel_threads
+)
+FROM thread
+|> SELECT
   id,
   utid,
   upid,
@@ -33,5 +39,4 @@ SELECT
   is_main_thread,
   is_idle,
   machine_id,
-  utid IN (SELECT utid FROM _kernel_threads) AS is_kernel_thread
-FROM thread;
+  utid IN (SELECT utid FROM kernel) AS is_kernel_thread;

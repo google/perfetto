@@ -13,8 +13,14 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- NOTE (psqlnext): the original used a DISTINCT-ts spine LEFT JOINed against
+-- one subquery per `batt.*` series. This is a wide pivot (long-form series ->
+-- one column per value), which §10 leaves to §4 conditional aggregation: the
+-- pivot below groups the `batt.*` counters by ts and folds each series into its
+-- own column with MAX(CASE ...), equivalent to the per-name LEFT JOINs.
+
 -- Battery charge at timestamp.
-CREATE PERFETTO VIEW android_battery_charge(
+CREATE PERFETTO PIPELINE android_battery_charge(
   -- Timestamp.
   ts TIMESTAMP,
   -- Current average micro ampers.
@@ -33,78 +39,16 @@ CREATE PERFETTO VIEW android_battery_charge(
   power_mw DOUBLE
 )
 AS
-SELECT
-  all_ts.ts,
-  current_avg_ua,
-  capacity_percent,
-  charge_uah,
-  current_ua,
-  voltage_uv,
-  energy_counter_uwh,
-  power_mw
-FROM (
-  SELECT DISTINCT (ts) AS ts
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name GLOB 'batt.*'
-) AS all_ts
-LEFT JOIN (
-  SELECT ts, value AS current_avg_ua
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name = 'batt.current.avg_ua'
-) USING (ts)
-LEFT JOIN (
-  SELECT ts, value AS capacity_percent
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name = 'batt.capacity_pct'
-) USING (ts)
-LEFT JOIN (
-  SELECT ts, value AS charge_uah
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name = 'batt.charge_uah'
-) USING (ts)
-LEFT JOIN (
-  SELECT ts, value AS current_ua
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name = 'batt.current_ua'
-) USING (ts)
-LEFT JOIN (
-  SELECT ts, value AS voltage_uv
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name = 'batt.voltage_uv'
-) USING (ts)
-LEFT JOIN (
-  SELECT ts, value AS energy_counter_uwh
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name = 'batt.energy_counter_uwh'
-) USING (ts)
-LEFT JOIN (
-  SELECT ts, value AS power_mw
-  FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
-  WHERE
-    name = 'batt.power_mw'
-) USING (ts)
-ORDER BY
-  ts;
+FROM counter AS c
+|> JOIN counter_track AS t ON c.track_id = t.id
+|> WHERE t.name GLOB 'batt.*'
+|> AGGREGATE
+     max(CASE WHEN t.name = 'batt.current.avg_ua' THEN c.value END) AS current_avg_ua,
+     max(CASE WHEN t.name = 'batt.capacity_pct' THEN c.value END) AS capacity_percent,
+     max(CASE WHEN t.name = 'batt.charge_uah' THEN c.value END) AS charge_uah,
+     max(CASE WHEN t.name = 'batt.current_ua' THEN c.value END) AS current_ua,
+     max(CASE WHEN t.name = 'batt.voltage_uv' THEN c.value END) AS voltage_uv,
+     max(CASE WHEN t.name = 'batt.energy_counter_uwh' THEN c.value END) AS energy_counter_uwh,
+     max(CASE WHEN t.name = 'batt.power_mw' THEN c.value END) AS power_mw
+   GROUP BY c.ts
+|> ORDER BY ts;

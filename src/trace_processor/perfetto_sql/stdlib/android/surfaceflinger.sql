@@ -15,16 +15,17 @@
 
 INCLUDE PERFETTO MODULE android.cujs.base;
 
-CREATE PERFETTO TABLE _android_sf_process AS
-SELECT * FROM process WHERE process.name = '/system/bin/surfaceflinger' LIMIT 1;
+CREATE PERFETTO PIPELINE _android_sf_process MATERIALIZED AS
+FROM process
+|> WHERE process.name = '/system/bin/surfaceflinger'
+|> LIMIT 1;
 
-CREATE PERFETTO TABLE _android_sf_main_thread AS
-SELECT upid, utid, thread.name, thread_track.id AS track_id
+CREATE PERFETTO PIPELINE _android_sf_main_thread MATERIALIZED AS
 FROM thread
-JOIN _android_sf_process AS sf_process USING (upid)
-JOIN thread_track USING (utid)
-WHERE
-  thread.is_main_thread;
+|> JOIN _android_sf_process AS sf_process USING (upid)
+|> JOIN thread_track USING (utid)
+|> WHERE thread.is_main_thread
+|> SELECT upid, utid, thread.name, thread_track.id AS track_id;
 
 -- Extract thread and track information for a given thread in the surfaceflinger process.
 CREATE PERFETTO FUNCTION _android_sf_thread(
@@ -52,7 +53,7 @@ WHERE
 -- Match the frame timeline on the app side with the frame timeline on the SF side.
 -- In cases where there are multiple layers drawn, there would be separate frame timeline
 -- slice for each of the layers. GROUP BY is used to deduplicate these rows.
-CREATE PERFETTO TABLE android_app_to_sf_frame_timeline_match(
+CREATE PERFETTO PIPELINE android_app_to_sf_frame_timeline_match(
   -- upid of the app.
   app_upid JOINID(process.upid),
   -- vsync id of the app.
@@ -61,38 +62,30 @@ CREATE PERFETTO TABLE android_app_to_sf_frame_timeline_match(
   sf_upid JOINID(process.upid),
   -- vsync id for surfaceflinger.
   sf_vsync LONG
-)
-AS
-SELECT
-  app_timeline.upid AS app_upid,
-  CAST(app_timeline.name AS INTEGER) AS app_vsync,
-  sf_process.upid AS sf_upid,
-  CAST(sf_timeline.name AS INTEGER) AS sf_vsync
+) MATERIALIZED AS
 FROM actual_frame_timeline_slice AS app_timeline
-JOIN flow
-  ON flow.slice_out = app_timeline.id
-JOIN actual_frame_timeline_slice AS sf_timeline
-  ON flow.slice_in = sf_timeline.id
-JOIN _android_sf_process AS sf_process
-  ON sf_timeline.upid = sf_process.upid
-GROUP BY
-  app_upid,
-  app_vsync,
-  sf_upid,
-  sf_vsync;
+|> JOIN flow ON flow.slice_out = app_timeline.id
+|> JOIN actual_frame_timeline_slice AS sf_timeline ON flow.slice_in = sf_timeline.id
+|> JOIN _android_sf_process AS sf_process ON sf_timeline.upid = sf_process.upid
+|> SELECT
+     app_timeline.upid AS app_upid,
+     CAST(app_timeline.name AS INTEGER) AS app_vsync,
+     sf_process.upid AS sf_upid,
+     CAST(sf_timeline.name AS INTEGER) AS sf_vsync
+|> AGGREGATE GROUP BY app_upid, app_vsync, sf_upid, sf_vsync;
 
 -- Extract app and SF frame vsync scoped to CUJs.
-CREATE PERFETTO TABLE _android_jank_cuj_app_sf_frame_timeline_match AS
-SELECT
-  cuj_id,
-  do_frame.upid AS app_upid,
-  app_vsync,
-  app_sf_match.sf_upid,
-  app_sf_match.sf_vsync
+CREATE PERFETTO PIPELINE _android_jank_cuj_app_sf_frame_timeline_match MATERIALIZED AS
 FROM _android_jank_cuj_do_frames AS do_frame
-JOIN android_app_to_sf_frame_timeline_match AS app_sf_match
-  ON do_frame.vsync = app_sf_match.app_vsync
-  AND do_frame.upid = app_sf_match.app_upid;
+|> JOIN android_app_to_sf_frame_timeline_match AS app_sf_match
+   ON do_frame.vsync = app_sf_match.app_vsync
+   AND do_frame.upid = app_sf_match.app_upid
+|> SELECT
+     cuj_id,
+     do_frame.upid AS app_upid,
+     app_vsync,
+     app_sf_match.sf_upid,
+     app_sf_match.sf_vsync;
 
 -- Extract ts and dur for a given slice name from the SF process main thread track.
 CREATE PERFETTO FUNCTION _find_android_jank_cuj_sf_main_thread_slice(
@@ -134,63 +127,56 @@ ORDER BY
   cuj_id,
   vsync;
 
-CREATE PERFETTO TABLE _android_jank_cuj_sf_commit_slice AS
-SELECT * FROM _find_android_jank_cuj_sf_main_thread_slice('commit *');
+CREATE PERFETTO PIPELINE _android_jank_cuj_sf_commit_slice MATERIALIZED AS
+FROM _find_android_jank_cuj_sf_main_thread_slice('commit *');
 
-CREATE PERFETTO TABLE _android_jank_cuj_sf_composite_slice AS
-SELECT * FROM _find_android_jank_cuj_sf_main_thread_slice('composite *');
+CREATE PERFETTO PIPELINE _android_jank_cuj_sf_composite_slice MATERIALIZED AS
+FROM _find_android_jank_cuj_sf_main_thread_slice('composite *');
 
-CREATE PERFETTO TABLE _android_jank_cuj_sf_on_message_invalidate_slice AS
-SELECT *
+CREATE PERFETTO PIPELINE _android_jank_cuj_sf_on_message_invalidate_slice MATERIALIZED AS
 FROM _find_android_jank_cuj_sf_main_thread_slice('onMessageInvalidate *');
 
 -- Calculates the frame boundaries based on when we *expected* the work to
 -- start and we use the end of the `composite` slice as the end of the work
 -- on the frame.
-CREATE PERFETTO TABLE _android_jank_cuj_sf_main_thread_frame_boundary AS
--- Join `commit` and `composite` slices using vsync IDs.
--- We treat the two slices as a single "fake slice" that starts when `commit` starts, and ends
--- when `composite` ends.
-WITH
-  combined_commit_composite_slice AS (
-    SELECT
-      cuj_id,
-      commit_slice.utid,
-      vsync,
-      commit_slice.ts,
-      composite_slice.ts_end,
-      composite_slice.ts_end - commit_slice.ts AS dur
-    FROM _android_jank_cuj_sf_commit_slice AS commit_slice
-    JOIN _android_jank_cuj_sf_composite_slice AS composite_slice USING (
-      cuj_id,
-      vsync
-    )
-  ),
-  -- As older builds will not have separate commit/composite slices for each frame, but instead
-  -- a single `onMessageInvalidate`, we UNION ALL the two tables. Exactly one of them should
-  -- have data.
-  main_thread_slice AS (
-    SELECT utid, cuj_id, vsync, ts, dur, ts_end
-    FROM combined_commit_composite_slice
-    UNION ALL
-    SELECT utid, cuj_id, vsync, ts, dur, ts_end
-    FROM _android_jank_cuj_sf_on_message_invalidate_slice
-  )
-SELECT
-  cuj_id,
-  utid,
-  vsync,
-  expected_timeline.ts,
-  main_thread_slice.ts AS ts_main_thread_start,
-  main_thread_slice.ts_end,
-  main_thread_slice.ts_end - expected_timeline.ts AS dur
+CREATE PERFETTO PIPELINE _android_jank_cuj_sf_main_thread_frame_boundary MATERIALIZED AS
+-- As older builds will not have separate commit/composite slices for each frame, but instead
+-- a single `onMessageInvalidate`, we UNION ALL the two tables. Exactly one of them should
+-- have data.
+SUBPIPELINE main_thread_slice AS (
+  -- Join `commit` and `composite` slices using vsync IDs.
+  -- We treat the two slices as a single "fake slice" that starts when `commit` starts, and ends
+  -- when `composite` ends.
+  FROM _android_jank_cuj_sf_commit_slice AS commit_slice
+  |> JOIN _android_jank_cuj_sf_composite_slice AS composite_slice USING (cuj_id, vsync)
+  |> SELECT
+       cuj_id,
+       commit_slice.utid,
+       vsync,
+       commit_slice.ts,
+       composite_slice.ts_end,
+       composite_slice.ts_end - commit_slice.ts AS dur
+  |> SELECT utid, cuj_id, vsync, ts, dur, ts_end
+  |> UNION ALL (
+       FROM _android_jank_cuj_sf_on_message_invalidate_slice
+       |> SELECT utid, cuj_id, vsync, ts, dur, ts_end
+     )
+)
 FROM expected_frame_timeline_slice AS expected_timeline
-JOIN _android_sf_process USING (upid)
-JOIN main_thread_slice
-  ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER);
+|> JOIN _android_sf_process USING (upid)
+|> JOIN main_thread_slice
+   ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER)
+|> SELECT
+     cuj_id,
+     utid,
+     vsync,
+     expected_timeline.ts,
+     main_thread_slice.ts AS ts_main_thread_start,
+     main_thread_slice.ts_end,
+     main_thread_slice.ts_end - expected_timeline.ts AS dur;
 
 -- Workloads that are submitted to SurfaceFlinger to do compositing work
-CREATE PERFETTO TABLE android_surfaceflinger_workloads(
+CREATE PERFETTO PIPELINE android_surfaceflinger_workloads(
   -- Timestamp of the workload
   ts TIMESTAMP,
   -- Source of the workload
@@ -223,62 +209,59 @@ CREATE PERFETTO TABLE android_surfaceflinger_workloads(
   gpu_composited_layers LONG,
   -- Number of DPU composited layers for the workload
   dpu_composited_layers LONG
-)
-AS
-SELECT
-  ts,
-  extract_arg(arg_set_id, 'surfaceflinger_workload.source') AS source,
-  extract_arg(arg_set_id, 'surfaceflinger_workload.output_name') AS output_name,
-  extract_arg(arg_set_id, 'surfaceflinger_workload.vsync_id') AS sf_vsync,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.sf_cpu.frame_signal_nanos'
-  ) AS sf_cpu_frame_signal_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.sf_cpu.commit_nanos'
-  ) AS sf_cpu_commit_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.sf_cpu.composite_nanos'
-  ) AS sf_cpu_composite_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.hwc.present_nanos'
-  ) AS hwc_present_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.hwc.validate_nanos'
-  ) AS hwc_validate_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.hwc.present_or_validate_nanos'
-  ) AS hwc_present_or_validate_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.re.draw_layers_nanos'
-  ) AS re_draw_layers_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.re.gpu_completion_nanos'
-  ) AS re_gpu_completion_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.skia.flush_nanos'
-  ) AS skia_flush_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.timings.skia.submit_nanos'
-  ) AS skia_submit_nanos,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.stats.gpu_composited_layers'
-  ) AS gpu_composited_layers,
-  extract_arg(
-    arg_set_id,
-    'surfaceflinger_workload.summary.stats.dpu_composited_layers'
-  ) AS dpu_composited_layers
+) MATERIALIZED AS
 FROM slice
-WHERE
-  category = 'rendering'
-  AND name = 'WorkloadSummary';
+|> WHERE category = 'rendering' AND name = 'WorkloadSummary'
+|> SELECT
+     ts,
+     extract_arg(arg_set_id, 'surfaceflinger_workload.source') AS source,
+     extract_arg(arg_set_id, 'surfaceflinger_workload.output_name') AS output_name,
+     extract_arg(arg_set_id, 'surfaceflinger_workload.vsync_id') AS sf_vsync,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.sf_cpu.frame_signal_nanos'
+     ) AS sf_cpu_frame_signal_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.sf_cpu.commit_nanos'
+     ) AS sf_cpu_commit_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.sf_cpu.composite_nanos'
+     ) AS sf_cpu_composite_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.hwc.present_nanos'
+     ) AS hwc_present_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.hwc.validate_nanos'
+     ) AS hwc_validate_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.hwc.present_or_validate_nanos'
+     ) AS hwc_present_or_validate_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.re.draw_layers_nanos'
+     ) AS re_draw_layers_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.re.gpu_completion_nanos'
+     ) AS re_gpu_completion_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.skia.flush_nanos'
+     ) AS skia_flush_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.timings.skia.submit_nanos'
+     ) AS skia_submit_nanos,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.stats.gpu_composited_layers'
+     ) AS gpu_composited_layers,
+     extract_arg(
+       arg_set_id,
+       'surfaceflinger_workload.summary.stats.dpu_composited_layers'
+     ) AS dpu_composited_layers;

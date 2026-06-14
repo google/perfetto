@@ -13,5 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO TABLE _counter_track_summary AS
-SELECT DISTINCT track_id AS id FROM counter;
+CREATE PERFETTO PIPELINE _counter_track_summary MATERIALIZED AS
+FROM counter
+|> SELECT DISTINCT track_id AS id;

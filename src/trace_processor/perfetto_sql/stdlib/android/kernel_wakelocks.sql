@@ -13,46 +13,44 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.intervals;
+-- NOTE (psqlnext): `counters.intervals` is DELETED — `counter_leading_intervals!`
+-- is `INTERVALS FROM EVENTS` (+`MERGE CONSECUTIVE BY value`); the partitioned
+-- `span_join` with `android_suspend_state` is `INTERVAL SPLIT ... PER name_int`.
 
 INCLUDE PERFETTO MODULE android.suspend;
 
-CREATE PERFETTO TABLE _kernel_wakelock_track AS
-SELECT id, name, extract_arg(dimension_arg_set_id, 'wakelock_type') AS type
+CREATE PERFETTO PIPELINE _kernel_wakelock_track MATERIALIZED AS
 FROM track AS t
-WHERE
-  type = 'android_kernel_wakelock';
+|> WHERE type = 'android_kernel_wakelock'
+|> SELECT id, name, extract_arg(dimension_arg_set_id, 'wakelock_type') AS type;
 
-CREATE PERFETTO TABLE _android_kernel_wakelocks_base AS
-WITH
-  kernel_wakelock_counter AS (
-    SELECT *
-    FROM counter_leading_intervals!((
-        SELECT id, ts, track_id, value
-        FROM counter
-        WHERE
-          track_id IN (SELECT id FROM _kernel_wakelock_track)
-      ))
-  )
-SELECT
-  ts,
-  ts AS original_ts,
-  dur,
-  name,
-  hash(name) AS name_int,
-  type,
-  next_value - value AS held_dur
-FROM kernel_wakelock_counter AS c
-JOIN _kernel_wakelock_track AS t
-  ON t.id = c.track_id;
-
-CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join(_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
+CREATE PERFETTO PIPELINE _android_kernel_wakelocks_base MATERIALIZED AS
+SUBPIPELINE kernel_wakelock_events AS (
+  FROM counter
+  |> WHERE track_id IN (SELECT id FROM _kernel_wakelock_track)
+  |> SELECT id, ts, track_id, value
+)
+-- Counter samples become leading intervals; `next_value` is the following
+-- sample's value (the held total at the next change) reached via lane order.
+INTERVALS FROM EVENTS kernel_wakelock_events PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value
+|> EXTEND LEAD(value) OVER (PARTITION BY track_id ORDER BY ts) AS next_value
+|> JOIN _kernel_wakelock_track AS t
+   ON t.id = track_id
+|> SELECT
+     ts,
+     ts AS original_ts,
+     dur,
+     t.name AS name,
+     hash(t.name) AS name_int,
+     t.type AS type,
+     next_value - value AS held_dur;
 
 -- Table of kernel (or native) wakelocks with held duration.
 --
 -- Subtracts suspended time from each period to calculate the
 -- fraction of awake time for which the wakelock was held.
-CREATE PERFETTO TABLE android_kernel_wakelocks(
+CREATE PERFETTO PIPELINE android_kernel_wakelocks(
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration.
@@ -68,29 +66,20 @@ CREATE PERFETTO TABLE android_kernel_wakelocks(
   -- Fraction of awake (not suspended) time the wakelock was held.
   held_ratio DOUBLE
 )
-AS
-WITH
-  base AS (
-    SELECT
-      original_ts AS ts,
-      name,
-      type,
-      held_dur,
-      sum(dur) AS dur,
-      sum(iif(power_state = 'awake', dur, 0)) AS awake_dur
-    FROM _android_kernel_wakelocks_joined
-    GROUP BY
-      original_ts,
-      name,
-      type,
-      held_dur
-  )
-SELECT
-  ts,
-  dur,
-  awake_dur,
-  name,
-  type,
-  cast_int!(held_dur) AS held_dur,
-  max(min(held_dur / awake_dur, 1.0), 0.0) AS held_ratio
-FROM base;
+MATERIALIZED AS
+-- Split each wakelock period by suspend state, so each fragment knows whether
+-- the device was awake; re-aggregate back to one row per original period.
+FROM _android_kernel_wakelocks_base
+|> INTERVAL SPLIT android_suspend_state AS s PER name_int
+|> AGGREGATE
+     sum(dur) AS dur,
+     sum(iif(s.power_state = 'awake', dur, 0)) AS awake_dur
+   GROUP BY original_ts AS ts, name, type, held_dur
+|> SELECT
+     ts,
+     dur,
+     awake_dur,
+     name,
+     type,
+     cast_int!(held_dur) AS held_dur,
+     max(min(held_dur / awake_dur, 1.0), 0.0) AS held_ratio;

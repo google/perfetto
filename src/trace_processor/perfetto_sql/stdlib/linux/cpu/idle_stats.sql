@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE linux.cpu.idle;
 
 -- Aggregates cpu idle statistics per core.
-CREATE PERFETTO TABLE cpu_idle_stats(
+CREATE PERFETTO PIPELINE cpu_idle_stats(
   -- CPU core number.
   cpu LONG,
   -- CPU idle state (C-states).
@@ -30,23 +30,23 @@ CREATE PERFETTO TABLE cpu_idle_stats(
   -- Idle state percentage of non suspend time (C-states + P-states).
   idle_percent DOUBLE
 )
-AS
-WITH
-  grouped AS (
-    SELECT
-      cpu,
-      (idle + 1) AS state,
-      count(idle) AS count,
-      sum(dur) AS dur,
-      sum(dur) / count(idle) AS avg_dur
-    FROM cpu_idle_counters AS c
-    WHERE
-      c.idle >= 0
-    GROUP BY
-      c.cpu,
-      c.idle
-  ),
-  total AS (SELECT cpu, sum(dur) AS dur FROM cpu_idle_counters GROUP BY cpu)
-SELECT g.*, g.dur * 100.0 / t.dur AS idle_percent
-FROM grouped AS g
-JOIN total AS t USING (cpu);
+MATERIALIZED AS
+SUBPIPELINE total AS (
+  FROM cpu_idle_counters
+  |> AGGREGATE sum(dur) AS dur GROUP BY cpu
+)
+FROM cpu_idle_counters AS c
+|> WHERE c.idle >= 0
+|> AGGREGATE
+     count(idle) AS count,
+     sum(dur) AS dur,
+     sum(dur) / count(idle) AS avg_dur
+   GROUP BY c.cpu AS cpu, c.idle + 1 AS state
+|> JOIN total AS t USING (cpu)
+|> SELECT
+     cpu,
+     state,
+     count,
+     dur,
+     avg_dur,
+     dur * 100.0 / t.dur AS idle_percent;

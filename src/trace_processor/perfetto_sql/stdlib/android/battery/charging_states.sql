@@ -13,12 +13,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
-INCLUDE PERFETTO MODULE intervals.fill_gaps;
+-- NOTE (psqlnext): the `counters.intervals` and `intervals.fill_gaps` modules are
+-- DELETED — `counter_leading_intervals!` is `INTERVALS FROM EVENTS` (+`MERGE
+-- CONSECUTIVE BY value`), and `_intervals_fill_gaps!` is `INTERVAL FILL … WITHIN`.
 
 -- Device charging states.
-CREATE PERFETTO TABLE android_charging_states(
+CREATE PERFETTO PIPELINE android_charging_states(
   -- A unique id for each row.
   id LONG,
   -- Timestamp at which the device charging state began.
@@ -32,49 +32,40 @@ CREATE PERFETTO TABLE android_charging_states(
   -- Full, Unknown
   charging_state STRING
 )
-AS
--- Either the first statement is populated or the select statement after the
--- union is populated but not both.
-WITH
-  _counter AS (
-    SELECT counter.id, ts, 0 AS track_id, value
-    FROM counter
-    JOIN counter_track
-      ON counter_track.id = counter.track_id
-    WHERE
-      counter_track.name = 'BatteryStatus'
-  ),
-  _intervals AS (
-    SELECT
-      id,
-      ts,
-      dur,
-      CASE value
-        WHEN 2 THEN 'charging'
-        WHEN 3 THEN 'discharging'
-        WHEN 4 THEN 'not_charging'
-        WHEN 5 THEN 'full'
-      END AS short_charging_state,
-      CASE value
-        -- 0 and 1 are both 'Unknown'
-        WHEN 2 THEN 'Charging'
-        WHEN 3 THEN 'Discharging'
-        -- special case when charger is present but battery isn't charging
-        WHEN 4 THEN 'Not charging'
-        WHEN 5 THEN 'Full'
-      END AS charging_state
-    FROM counter_leading_intervals!(_counter)
-    WHERE
-      dur > 0
-  )
--- When the trace does not have a slice in the charging state track or when
--- the charging state value is not a valid enum value, assume the charging
--- state for the entire trace is unknown. The use of _intervals_fill_gaps
--- ensures we still have data for the entirety of the trace.
-SELECT
-  ROW_NUMBER() OVER () AS id,
-  ts,
-  dur,
-  COALESCE(short_charging_state, 'unknown') AS short_charging_state,
-  COALESCE(charging_state, 'Unknown') AS charging_state
-FROM _intervals_fill_gaps!((NULL), (short_charging_state, charging_state), _intervals);
+MATERIALIZED AS
+SUBPIPELINE battery_status_events AS (
+  FROM counter
+  |> JOIN counter_track ON counter_track.id = counter.track_id
+  |> WHERE counter_track.name = 'BatteryStatus'
+  |> SELECT counter.id, counter.ts, 0 AS track_id, counter.value
+)
+-- Counter samples become intervals of constant state; equal-valued runs coalesce.
+INTERVALS FROM EVENTS battery_status_events PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value
+|> WHERE dur > 0
+|> SELECT
+     ts,
+     dur,
+     CASE value
+       WHEN 2 THEN 'charging'
+       WHEN 3 THEN 'discharging'
+       WHEN 4 THEN 'not_charging'
+       WHEN 5 THEN 'full'
+     END AS short_charging_state,
+     CASE value
+       -- 0 and 1 are both 'Unknown'
+       WHEN 2 THEN 'Charging'
+       WHEN 3 THEN 'Discharging'
+       -- special case when charger is present but battery isn't charging
+       WHEN 4 THEN 'Not charging'
+       WHEN 5 THEN 'Full'
+     END AS charging_state
+-- Cover the whole trace: spans with no slice (or an invalid enum value) become
+-- filler rows with null payload, defaulted to 'unknown' below.
+|> INTERVAL FILL WITHIN trace_bounds
+|> SELECT
+     ROW_NUMBER() OVER () AS id,
+     ts,
+     dur,
+     COALESCE(short_charging_state, 'unknown') AS short_charging_state,
+     COALESCE(charging_state, 'Unknown') AS charging_state;

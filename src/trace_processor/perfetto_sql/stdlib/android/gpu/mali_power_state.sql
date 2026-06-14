@@ -14,24 +14,24 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.intervals;
+-- NOTE (psqlnext): `counter_leading_intervals!` is `INTERVALS FROM EVENTS … PER
+-- track_id CLOSING LAST AT(trace_end())` plus `INTERVAL MERGE CONSECUTIVE BY
+-- value` to collapse equal-valued runs.
 
 -- GPU power state which is analogous to CPU idle state
-CREATE PERFETTO TABLE android_mali_gpu_power_state(
+CREATE PERFETTO PIPELINE android_mali_gpu_power_state(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
   dur DURATION,
   -- GPU power state
   power_state LONG
+) MATERIALIZED AS
+SUBPIPELINE power_state_events AS (
+  FROM counter AS c
+  |> JOIN counter_track AS t ON t.id = c.track_id AND t.name = 'mali_gpu_power_state'
+  |> SELECT c.id, c.ts, c.track_id, c.value
 )
-AS
-SELECT ts, dur, cast_int!(value) AS power_state
-FROM counter_leading_intervals!((
-    SELECT c.*
-    FROM counter c
-    JOIN counter_track t ON t.id = c.track_id
-      AND t.name = 'mali_gpu_power_state'
-)) AS cli
-JOIN counter_track AS t
-  ON t.id = cli.track_id;
+INTERVALS FROM EVENTS power_state_events PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value
+|> SELECT ts, dur, cast_int!(value) AS power_state;

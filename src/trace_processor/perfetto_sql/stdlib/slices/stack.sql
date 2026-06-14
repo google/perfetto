@@ -20,7 +20,7 @@ INCLUDE PERFETTO MODULE slices.hierarchy;
 --
 -- Note: This view computes stack hashes on-demand, which may be slower than
 -- the previous C++ implementation.
-CREATE PERFETTO VIEW slice_with_stack_id(
+CREATE PERFETTO PIPELINE slice_with_stack_id(
   -- Slice id.
   id ID(slice.id),
   -- Alias of `slice.ts`.
@@ -54,43 +54,36 @@ CREATE PERFETTO VIEW slice_with_stack_id(
   parent_stack_id LONG
 )
 AS
-WITH
-  slice_stack_hashes AS (
-    SELECT
-      s.id,
-      coalesce(
-        (
-          SELECT
-            hash(GROUP_CONCAT(hash(coalesce(category, '') || '|' || name), '|'))
-          FROM _slice_ancestor_and_self(s.id)
-          ORDER BY
-            depth
-        ),
-        0
-      ) AS stack_hash
-    FROM slice AS s
-  )
-SELECT
-  s.id,
-  s.ts,
-  s.dur,
-  s.track_id,
-  s.category,
-  s.name,
-  s.depth,
-  s.parent_id,
-  s.arg_set_id,
-  s.thread_ts,
-  s.thread_dur,
-  s.thread_instruction_count,
-  s.thread_instruction_delta,
-  sh.stack_hash AS stack_id,
-  coalesce(parent_sh.stack_hash, 0) AS parent_stack_id
+-- Each slice's stack hash is `hash` of the ordered (root->node) concatenation
+-- of its ancestors-and-self per-node hashes: the root-path fold over the slice
+-- tree, hence TREE ACCUMULATE DOWN GROUP_CONCAT.
+SUBPIPELINE slice_stack_hashes AS (
+  FROM slice
+  |> EXTEND hash(coalesce(category, '') || '|' || name) AS node_hash
+  |> TREE ACCUMULATE DOWN GROUP_CONCAT(node_hash) AS path
+  |> SELECT id, hash(path) AS stack_hash
+)
 FROM slice AS s
-JOIN slice_stack_hashes AS sh
-  ON s.id = sh.id
-LEFT JOIN slice_stack_hashes AS parent_sh
-  ON s.parent_id = parent_sh.id;
+|> JOIN slice_stack_hashes AS sh
+   ON s.id = sh.id
+|> LEFT JOIN slice_stack_hashes AS parent_sh
+   ON s.parent_id = parent_sh.id
+|> SELECT
+     s.id,
+     s.ts,
+     s.dur,
+     s.track_id,
+     s.category,
+     s.name,
+     s.depth,
+     s.parent_id,
+     s.arg_set_id,
+     s.thread_ts,
+     s.thread_dur,
+     s.thread_instruction_count,
+     s.thread_instruction_delta,
+     sh.stack_hash AS stack_id,
+     coalesce(parent_sh.stack_hash, 0) AS parent_stack_id;
 
 -- Returns all slices that have the given stack_id, along with their ancestors.
 --
@@ -124,12 +117,12 @@ RETURNS TABLE(
   thread_dur LONG
 )
 AS
--- Find all slices with the matching stack hash
+-- Table-valued: keeps the host-SQL form (structural lookup via a per-row
+-- `_slice_ancestor_and_self` table function).
 WITH
   matching_slices AS (
     SELECT id FROM slice_with_stack_id WHERE stack_id = $stack_hash
   )
--- For each matching slice, get all ancestors and self
 SELECT DISTINCT
   anc.id,
   anc.ts,
@@ -180,12 +173,12 @@ RETURNS TABLE(
   thread_dur LONG
 )
 AS
--- Find all slices with the matching stack hash
+-- Table-valued: keeps the host-SQL form (structural lookup via a per-row
+-- `_slice_descendant_and_self` table function).
 WITH
   matching_slices AS (
     SELECT id FROM slice_with_stack_id WHERE stack_id = $stack_hash
   )
--- For each matching slice, get all descendants and self
 SELECT DISTINCT
   desc.id,
   desc.ts,

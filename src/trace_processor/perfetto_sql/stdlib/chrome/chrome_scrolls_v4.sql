@@ -36,7 +36,7 @@ $stage - lag($stage) OVER (PARTITION BY info.scroll_id ORDER BY results.ts);
 -- A list of all presented Chrome frames which contain scroll updates together
 -- with additional metadata, pipeline stages breakdown and jank classification
 -- according to the scroll model of Chrome's scroll jank v4 metric.
-CREATE PERFETTO TABLE chrome_scroll_frame_info_v4 (
+CREATE PERFETTO PIPELINE chrome_scroll_frame_info_v4 (
   -- Slice ID of the 'ScrollJankV4' slice, which represents a frame presented by
   -- Chrome that contains at least one scroll update. Can be joined with
   -- `chrome_scroll_jank_v4_results.id`.
@@ -318,8 +318,11 @@ CREATE PERFETTO TABLE chrome_scroll_frame_info_v4 (
   viz_latch_to_presentation_delta_dur DURATION,
   -- Presentation timestamp for the frame. NULL if this frame is non-damaging.
   presentation_ts TIMESTAMP
-) AS
-SELECT
+) MATERIALIZED AS
+FROM chrome_scroll_jank_v4_results AS results
+|> LEFT JOIN chrome_scroll_update_info AS info
+   ON info.id = results.first_event_latency_id
+|> SELECT
   results.id,
   results.first_event_latency_id AS scroll_update_latency_id,
   info.scroll_id,
@@ -409,8 +412,4 @@ SELECT
   _if_damaging_frame!(info.viz_latch_to_presentation_dur) AS viz_latch_to_presentation_dur,
   _if_damaging_frame!(_stage_dur_delta_v4!(info.viz_latch_to_presentation_dur)) AS viz_latch_to_presentation_delta_dur,
   _if_damaging_frame!(info.presentation_timestamp) AS presentation_ts
-FROM chrome_scroll_jank_v4_results AS results
-LEFT JOIN chrome_scroll_update_info AS info
-  ON info.id = results.first_event_latency_id
-ORDER BY
-  results.ts;
+|> ORDER BY results.ts;

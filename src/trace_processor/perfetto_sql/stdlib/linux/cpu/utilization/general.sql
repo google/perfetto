@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE linux.cpu.frequency;
-
 -- Returns the timestamp of the start of the partition that contains the |ts|.
 CREATE PERFETTO FUNCTION _partition_start(ts TIMESTAMP, size LONG)
 RETURNS LONG
@@ -97,26 +95,25 @@ AS (
     1
 );
 
-CREATE PERFETTO VIEW _cpu_freq_for_metrics AS
-SELECT id, ts, dur, cpu, ucpu, freq
+CREATE PERFETTO PIPELINE _cpu_freq_for_metrics AS
 FROM cpu_frequency_counters
-WHERE
-  freq IS NOT NULL;
+|> WHERE freq IS NOT NULL
+|> SELECT id, ts, dur, cpu, ucpu, freq;
 
-CREATE PERFETTO VIEW _sched_without_id AS
-SELECT ts, dur, utid, ucpu
+CREATE PERFETTO PIPELINE _sched_without_id AS
 FROM sched
-WHERE
-  NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
-  AND dur != -1;
+|> WHERE NOT (utid IN (SELECT utid FROM thread WHERE is_idle)) AND dur != -1
+|> SELECT ts, dur, utid, ucpu;
 
-CREATE VIRTUAL TABLE _cpu_freq_per_thread_span_join USING SPAN_LEFT_JOIN(
-    _sched_without_id PARTITIONED ucpu,
-    _cpu_freq_for_metrics PARTITIONED ucpu);
-
-CREATE PERFETTO TABLE _cpu_freq_per_thread_no_id AS
-SELECT * FROM _cpu_freq_per_thread_span_join;
-
-CREATE PERFETTO VIEW _cpu_freq_per_thread AS
-SELECT _auto_id AS id, ts, dur, ucpu, cpu, utid, freq, id AS counter_id
-FROM _cpu_freq_per_thread_no_id;
+CREATE PERFETTO PIPELINE _cpu_freq_per_thread MATERIALIZED AS
+FROM _sched_without_id AS s
+|> INTERVAL SPLIT _cpu_freq_for_metrics AS f PER ucpu
+|> SELECT
+     _auto_id AS id,
+     s.ts,
+     s.dur,
+     s.ucpu,
+     f.cpu,
+     s.utid,
+     f.freq,
+     f.id AS counter_id;

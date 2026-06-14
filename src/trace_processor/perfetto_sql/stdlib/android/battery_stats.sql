@@ -106,7 +106,7 @@ SELECT
 -- View of human readable battery stats counter-based states. These are recorded
 -- by BatteryStats as a bitmap where each 'category' has a unique value at any
 -- given time.
-CREATE PERFETTO VIEW android_battery_stats_state(
+CREATE PERFETTO PIPELINE android_battery_stats_state(
   -- Start of the new barrary state.
   ts TIMESTAMP,
   -- The duration the state was active, -1 for incomplete slices.
@@ -121,18 +121,16 @@ CREATE PERFETTO VIEW android_battery_stats_state(
   value_name STRING
 )
 AS
-SELECT
-  ts,
-  coalesce(lead(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
-  lead(ts, 1, trace_end()) OVER (PARTITION BY name ORDER BY ts) - ts AS safe_dur,
-  name AS track_name,
-  cast_int!(value) AS value,
-  android_battery_stats_counter_to_string(name, value) AS value_name
 FROM counter
-JOIN counter_track
-  ON counter.track_id = counter_track.id
-WHERE
-  counter_track.name GLOB 'battery_stats.*';
+|> JOIN counter_track ON counter.track_id = counter_track.id
+|> WHERE counter_track.name GLOB 'battery_stats.*'
+|> SELECT
+     ts,
+     coalesce(lead(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
+     lead(ts, 1, trace_end()) OVER (PARTITION BY name ORDER BY ts) - ts AS safe_dur,
+     name AS track_name,
+     cast_int!(value) AS value,
+     android_battery_stats_counter_to_string(name, value) AS value_name;
 
 -- View of slices derived from battery_stats events. Battery stats records all
 -- events as instants, however some may indicate whether something started or
@@ -151,7 +149,7 @@ WHERE
 --     track_name='battery_stats.top'
 --     str_value='com.google.android.apps.nexuslauncher'
 --     int_value=10215
-CREATE PERFETTO VIEW android_battery_stats_event_slices(
+CREATE PERFETTO PIPELINE android_battery_stats_event_slices(
   -- Start of a new battery state.
   ts TIMESTAMP,
   -- The duration the state was active, -1 for incomplete slices.
@@ -166,49 +164,36 @@ CREATE PERFETTO VIEW android_battery_stats_event_slices(
   int_value LONG
 )
 AS
-WITH
-  event_markers AS (
-    SELECT
-      ts,
-      track.name AS track_name,
-      str_split(slice.name, '=', 1) AS key,
-      substr(slice.name, 1, 1) = '+' AS start
-    FROM slice
-    JOIN track
-      ON slice.track_id = track.id
-    WHERE
-      track_name GLOB 'battery_stats.*'
-      AND substr(slice.name, 1, 1) IN ('+', '-')
-  ),
-  with_neighbors AS (
-    SELECT
-      *,
-      lag(ts) OVER (PARTITION BY track_name, key ORDER BY ts) AS last_ts,
-      lead(ts) OVER (PARTITION BY track_name, key ORDER BY ts) AS next_ts
-    FROM event_markers
-  ),
-  -- Note: query performance depends on the ability to push down filters on
-  -- the track_name. It would be more clear below to have two queries and union
-  -- them, but doing so prevents push down through the above window functions.
-  event_spans AS (
-    SELECT
-      track_name,
-      key,
-      iif(start, ts, trace_start()) AS ts,
-      iif(start, next_ts, ts) AS end_ts
-    FROM with_neighbors
-    -- For the majority of events, we take the `start` event and compute the dur
-    -- based on next_ts. In the off chance we get an end event with no prior
-    -- start (matched by the second half of this where), we can create an event
-    -- starting from the beginning of the trace ending at the current event.
-    WHERE
-      (start OR last_ts IS NULL)
-  )
-SELECT
-  ts,
-  coalesce(end_ts - ts, -1) AS dur,
-  coalesce(end_ts, trace_end()) - ts AS safe_dur,
-  track_name,
-  str_split(key, '"', 1) AS str_value,
-  cast_int!(str_split(key, ':', 0)) AS int_value
-FROM event_spans;
+FROM slice
+|> JOIN track ON slice.track_id = track.id
+|> WHERE
+     track.name GLOB 'battery_stats.*'
+     AND substr(slice.name, 1, 1) IN ('+', '-')
+|> SELECT
+     ts,
+     track.name AS track_name,
+     str_split(slice.name, '=', 1) AS key,
+     substr(slice.name, 1, 1) = '+' AS start
+|> EXTEND
+     lag(ts) OVER (PARTITION BY track_name, key ORDER BY ts) AS last_ts,
+     lead(ts) OVER (PARTITION BY track_name, key ORDER BY ts) AS next_ts
+-- Note: query performance depends on the ability to push down filters on the
+-- track_name. It would be more clear below to have two queries and union them,
+-- but doing so prevents push down through the above window functions.
+-- For the majority of events, we take the `start` event and compute the dur
+-- based on next_ts. In the off chance we get an end event with no prior start
+-- (matched by the second half of this where), we can create an event starting
+-- from the beginning of the trace ending at the current event.
+|> WHERE start OR last_ts IS NULL
+|> SELECT
+     track_name,
+     key,
+     iif(start, ts, trace_start()) AS ts,
+     iif(start, next_ts, ts) AS end_ts
+|> SELECT
+     ts,
+     coalesce(end_ts - ts, -1) AS dur,
+     coalesce(end_ts, trace_end()) - ts AS safe_dur,
+     track_name,
+     str_split(key, '"', 1) AS str_value,
+     cast_int!(str_split(key, ':', 0)) AS int_value;

@@ -13,15 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- For each thread slice, returns the sum of the time it spent in various
 -- scheduling states.
 --
 -- Requires scheduling data to be available in the trace.
-CREATE PERFETTO TABLE thread_slice_time_in_state(
+CREATE PERFETTO PIPELINE thread_slice_time_in_state(
   -- Thread slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -53,34 +51,27 @@ CREATE PERFETTO TABLE thread_slice_time_in_state(
   -- The duration of time the threads slice spent for each
   -- (state, io_wait, blocked_function) tuple.
   dur DURATION
+) MATERIALIZED AS
+SUBPIPELINE ts AS (
+  FROM thread_slice
+  |> WHERE utid > 0 AND dur > 0
 )
-AS
-SELECT
-  ii.id_0 AS id,
-  ts.name,
-  ts.utid,
-  ts.thread_name,
-  ts.upid,
-  ts.process_name,
-  tstate.state,
-  tstate.io_wait,
-  tstate.blocked_function,
-  sum(ii.dur) AS dur
-FROM _interval_intersect!(
-  (
-    (SELECT * FROM thread_slice WHERE utid > 0 AND dur > 0),
-    (SELECT * FROM thread_state WHERE dur > 0)
-  ),
-  (utid)
-) AS ii
-JOIN thread_slice AS ts
-  ON ts.id = ii.id_0
-JOIN thread_state AS tstate
-  ON tstate.id = ii.id_1
-GROUP BY
-  ii.id_0,
-  tstate.state,
-  tstate.io_wait,
-  tstate.blocked_function
-ORDER BY
-  ii.id_0;
+SUBPIPELINE tstate AS (
+  FROM thread_state
+  |> WHERE dur > 0
+)
+INTERVAL INTERSECTION OF (ts AS ts, tstate AS tstate) PER utid
+|> AGGREGATE SUM(dur) AS dur
+   GROUP BY ts.id, tstate.state, tstate.io_wait, tstate.blocked_function
+|> SELECT
+     ts.id AS id,
+     ts.name,
+     ts.utid,
+     ts.thread_name,
+     ts.upid,
+     ts.process_name,
+     tstate.state,
+     tstate.io_wait,
+     tstate.blocked_function,
+     dur
+|> ORDER BY ts.id;

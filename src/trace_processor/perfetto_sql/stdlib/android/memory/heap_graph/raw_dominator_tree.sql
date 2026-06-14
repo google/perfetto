@@ -15,43 +15,32 @@
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
 
-INCLUDE PERFETTO MODULE graphs.dominator_tree;
-
--- The assigned id of the "super root".
--- Since a Java heap graph is a "forest" structure, we need to add a imaginary
--- "super root" node which connects all the roots of the forest into a single
--- connected component, so that the dominator tree algorithm can be performed.
-CREATE PERFETTO FUNCTION _heap_graph_super_root_fn()
--- The assigned id of the "super root".
-RETURNS LONG
-AS
-SELECT id + 1 FROM heap_graph_object ORDER BY id DESC LIMIT 1;
-
-CREATE PERFETTO TABLE _raw_heap_graph_dominator_tree AS
-SELECT
-  node_id AS id,
-  iif(dominator_node_id = _heap_graph_super_root_fn(), NULL, dominator_node_id) AS idom_id
-FROM graph_dominator_tree!((
-    SELECT ref.owner_id AS source_node_id, ref.owned_id AS dest_node_id
-    FROM heap_graph_reference AS ref
-    JOIN heap_graph_object AS source_node ON ref.owner_id = source_node.id
-    WHERE
-      source_node.reachable
-      AND ref.id NOT IN _excluded_refs
-      AND ref.owned_id IS NOT NULL
-    UNION ALL
-    SELECT
-      (SELECT _heap_graph_super_root_fn()) AS source_node_id,
-      id AS dest_node_id
-    FROM heap_graph_object
-    WHERE
-      root_type IS NOT NULL
-  ), (SELECT _heap_graph_super_root_fn()))
--- Excluding the imaginary root.
-WHERE
-  dominator_node_id IS NOT NULL
-ORDER BY
-  id;
+CREATE PERFETTO PIPELINE _raw_heap_graph_dominator_tree MATERIALIZED AS
+SUBPIPELINE nodes AS (
+  FROM heap_graph_object
+  |> SELECT id
+)
+SUBPIPELINE edges AS (
+  FROM heap_graph_reference AS ref
+  |> JOIN heap_graph_object AS source_node ON ref.owner_id = source_node.id
+  |> WHERE
+       source_node.reachable
+       AND ref.id NOT IN _excluded_refs
+       AND ref.owned_id IS NOT NULL
+  |> SELECT ref.owner_id AS source_node_id, ref.owned_id AS dest_node_id
+)
+-- A Java heap graph is a "forest" structure: the multi-root FROM provides the GC
+-- roots, and GRAPH DOMINATOR TREE inserts (and strips) a virtual super-root over
+-- them so no id is user-synthesized.
+SUBPIPELINE roots AS (
+  FROM heap_graph_object
+  |> WHERE root_type IS NOT NULL
+  |> SELECT id
+)
+GRAPH DOMINATOR TREE NODES nodes EDGES edges FROM roots
+|> SELECT id, parent_id AS idom_id
+|> WHERE idom_id IS NOT NULL
+|> ORDER BY id;
 
 CREATE PERFETTO INDEX _raw_heap_graph_dominator_tree_idom_id_idx ON _raw_heap_graph_dominator_tree(
   idom_id

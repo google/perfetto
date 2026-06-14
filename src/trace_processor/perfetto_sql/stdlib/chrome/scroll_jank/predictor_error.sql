@@ -72,34 +72,9 @@ SELECT
     ELSE 0.0
   END;
 
-CREATE PERFETTO TABLE _deltas_and_neighbors AS
-SELECT
-  scroll_id,
-  scroll_update_id,
-  ts,
-  delta_y,
-  relative_offset_y,
-  lag(coalesce(delta_y, 0.0)) OVER (PARTITION BY scroll_id ORDER BY ts ASC) AS prev_delta,
-  lead(coalesce(delta_y, 0.0)) OVER (PARTITION BY scroll_id ORDER BY ts ASC) AS next_delta
-FROM chrome_presented_scroll_offsets;
-
-CREATE PERFETTO TABLE _deltas_and_neighbors_with_threshold AS
-SELECT
-  scroll_id,
-  scroll_update_id,
-  ts,
-  delta_y,
-  relative_offset_y,
-  prev_delta,
-  next_delta,
-  _get_scroll_jank_threshold(abs(prev_delta), abs(delta_y), abs(next_delta)) AS delta_threshold
-FROM _deltas_and_neighbors
-WHERE
-  NOT delta_y IS NULL AND NOT prev_delta IS NULL AND next_delta IS NOT NULL;
-
 -- The scrolling offsets and predictor jank values for the actual (applied)
 -- scroll events.
-CREATE PERFETTO TABLE chrome_predictor_error (
+CREATE PERFETTO PIPELINE chrome_predictor_error (
   -- An ID that ties all EventLatencies in a particular scroll. (implementation
   -- note: This is the EventLatency TraceId of the GestureScrollbegin).
   scroll_id LONG,
@@ -123,15 +98,26 @@ CREATE PERFETTO TABLE chrome_predictor_error (
   predictor_jank DOUBLE,
   -- The threshold used to determine if jank occurred.
   delta_threshold DOUBLE
-) AS
-SELECT
-  scroll_id,
-  scroll_update_id,
-  ts AS present_ts,
-  delta_y,
-  relative_offset_y,
-  prev_delta,
-  next_delta,
-  _get_predictor_jank(abs(prev_delta), abs(delta_y), abs(next_delta), delta_threshold) AS predictor_jank,
-  delta_threshold
-FROM _deltas_and_neighbors_with_threshold;
+) MATERIALIZED AS
+FROM chrome_presented_scroll_offsets
+|> SELECT
+     scroll_id,
+     scroll_update_id,
+     ts,
+     delta_y,
+     relative_offset_y,
+     lag(coalesce(delta_y, 0.0)) OVER (PARTITION BY scroll_id ORDER BY ts ASC) AS prev_delta,
+     lead(coalesce(delta_y, 0.0)) OVER (PARTITION BY scroll_id ORDER BY ts ASC) AS next_delta
+|> WHERE
+     NOT delta_y IS NULL AND NOT prev_delta IS NULL AND next_delta IS NOT NULL
+|> EXTEND _get_scroll_jank_threshold(abs(prev_delta), abs(delta_y), abs(next_delta)) AS delta_threshold
+|> SELECT
+     scroll_id,
+     scroll_update_id,
+     ts AS present_ts,
+     delta_y,
+     relative_offset_y,
+     prev_delta,
+     next_delta,
+     _get_predictor_jank(abs(prev_delta), abs(delta_y), abs(next_delta), delta_threshold) AS predictor_jank,
+     delta_threshold;

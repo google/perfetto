@@ -34,7 +34,7 @@
 
 -- A V8 Isolate instance. A V8 Isolate represents an isolated instance of the V8
 -- engine.
-CREATE PERFETTO VIEW v8_isolate(
+CREATE PERFETTO PIPELINE v8_isolate(
   -- Unique V8 isolate id.
   v8_isolate_id LONG,
   -- Process the isolate was created in.
@@ -55,24 +55,23 @@ CREATE PERFETTO VIEW v8_isolate(
   -- Used when short builtin calls are enabled, where embedded builtins are
   -- copied into the CodeRange so calls can be nearer.
   embedded_blob_code_copy_start_address LONG
-)
-AS
-SELECT
-  id AS v8_isolate_id,
-  upid,
-  internal_isolate_id,
-  embedded_blob_code_start_address,
-  embedded_blob_code_size,
-  code_range_base_address,
-  code_range_size,
-  shared_code_range,
-  embedded_blob_code_copy_start_address
-FROM __intrinsic_v8_isolate;
+) AS
+FROM __intrinsic_v8_isolate
+|> SELECT
+     id AS v8_isolate_id,
+     upid,
+     internal_isolate_id,
+     embedded_blob_code_start_address,
+     embedded_blob_code_size,
+     code_range_base_address,
+     code_range_size,
+     shared_code_range,
+     embedded_blob_code_copy_start_address;
 
 -- Represents a script that was compiled to generate code. Some V8 code is
 -- generated out of scripts and will reference a V8Script other types of code
 -- will not (e.g. builtins).
-CREATE PERFETTO VIEW v8_js_script(
+CREATE PERFETTO PIPELINE v8_js_script(
   -- Unique V8 JS script id.
   v8_js_script_id LONG,
   -- V8 isolate this script belongs to (joinable with
@@ -86,19 +85,18 @@ CREATE PERFETTO VIEW v8_js_script(
   name STRING,
   -- Actual contents of the script.
   source STRING
-)
-AS
-SELECT
-  id AS v8_js_script_id,
-  v8_isolate_id,
-  internal_script_id,
-  script_type,
-  name,
-  source
-FROM __intrinsic_v8_js_script;
+) AS
+FROM __intrinsic_v8_js_script
+|> SELECT
+     id AS v8_js_script_id,
+     v8_isolate_id,
+     internal_script_id,
+     script_type,
+     name,
+     source;
 
 -- Represents one WASM script.
-CREATE PERFETTO VIEW v8_wasm_script(
+CREATE PERFETTO PIPELINE v8_wasm_script(
   -- Unique V8 WASM script id.
   v8_wasm_script_id LONG,
   -- V8 Isolate this script belongs to (joinable with
@@ -112,19 +110,18 @@ CREATE PERFETTO VIEW v8_wasm_script(
   wire_bytes BYTES,
   -- Actual source code of the script.
   source STRING
-)
-AS
-SELECT
-  id AS v8_wasm_script_id,
-  v8_isolate_id,
-  internal_script_id,
-  url,
-  base64_decode(wire_bytes_base64) AS wire_bytes,
-  source
-FROM __intrinsic_v8_wasm_script;
+) AS
+FROM __intrinsic_v8_wasm_script
+|> SELECT
+     id AS v8_wasm_script_id,
+     v8_isolate_id,
+     internal_script_id,
+     url,
+     base64_decode(wire_bytes_base64) AS wire_bytes,
+     source;
 
 -- Represents a v8 Javascript function.
-CREATE PERFETTO VIEW v8_js_function(
+CREATE PERFETTO PIPELINE v8_js_function(
   -- Unique V8 JS function id.
   v8_js_function_id LONG,
   -- Function name.
@@ -140,23 +137,22 @@ CREATE PERFETTO VIEW v8_js_function(
   line LONG,
   -- Column in script where function is defined. Starts at 1.
   col LONG
-)
-AS
-SELECT
-  id AS v8_js_function_id,
-  name,
-  v8_js_script_id,
-  is_toplevel,
-  kind,
-  line,
-  col
-FROM __intrinsic_v8_js_function;
+) AS
+FROM __intrinsic_v8_js_function
+|> SELECT
+     id AS v8_js_function_id,
+     name,
+     v8_js_script_id,
+     is_toplevel,
+     kind,
+     line,
+     col;
 
 -- Represents a v8 code snippet for a Javascript function. A given function can
 -- have multiple code snippets (e.g. for different compilation tiers, or as the
 -- function moves around the heap).
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_js_code(
+CREATE PERFETTO PIPELINE _v8_js_code(
   -- Unique id
   id LONG,
   -- Associated jit code. Set for all tiers except IGNITION. Joinable with
@@ -169,19 +165,18 @@ CREATE PERFETTO VIEW _v8_js_code(
   tier STRING,
   -- V8 VM bytecode. Set only for the IGNITION tier.
   bytecode BYTES
-)
-AS
-SELECT
-  id,
-  jit_code_id,
-  v8_js_function_id,
-  tier,
-  base64_decode(bytecode_base64) AS bytecode
-FROM __intrinsic_v8_js_code;
+) AS
+FROM __intrinsic_v8_js_code
+|> SELECT
+     id,
+     jit_code_id,
+     v8_js_function_id,
+     tier,
+     base64_decode(bytecode_base64) AS bytecode;
 
 -- Represents a v8 code snippet for a v8 internal function.
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_internal_code(
+CREATE PERFETTO PIPELINE _v8_internal_code(
   -- Unique id
   id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
@@ -193,14 +188,12 @@ CREATE PERFETTO VIEW _v8_internal_code(
   function_name STRING,
   -- Type of internal code.
   code_type STRING
-)
-AS
-SELECT id, jit_code_id, v8_isolate_id, function_name, code_type
+) AS
 FROM __intrinsic_v8_internal_code;
 
 -- Represents the code associated to a WASM function.
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_wasm_code(
+CREATE PERFETTO PIPELINE _v8_wasm_code(
   -- Unique id
   id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
@@ -217,21 +210,20 @@ CREATE PERFETTO VIEW _v8_wasm_code(
   tier STRING,
   -- Offset into the WASM module where the function starts.
   code_offset_in_module LONG
-)
-AS
-SELECT
-  id,
-  jit_code_id,
-  v8_isolate_id,
-  v8_wasm_script_id,
-  function_name,
-  tier,
-  code_offset_in_module
-FROM __intrinsic_v8_wasm_code;
+) AS
+FROM __intrinsic_v8_wasm_code
+|> SELECT
+     id,
+     jit_code_id,
+     v8_isolate_id,
+     v8_wasm_script_id,
+     function_name,
+     tier,
+     code_offset_in_module;
 
 -- Represents the code associated to a regular expression
 -- TODO(carlscab): Make public once `_jit_code` is public too
-CREATE PERFETTO VIEW _v8_regexp_code(
+CREATE PERFETTO PIPELINE _v8_regexp_code(
   -- Unique id
   id LONG,
   -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
@@ -241,6 +233,5 @@ CREATE PERFETTO VIEW _v8_regexp_code(
   v8_isolate_id LONG,
   -- The pattern the this regular expression was compiled from.
   pattern STRING
-)
-AS
-SELECT id, jit_code_id, v8_isolate_id, pattern FROM __intrinsic_v8_regexp_code;
+) AS
+FROM __intrinsic_v8_regexp_code;

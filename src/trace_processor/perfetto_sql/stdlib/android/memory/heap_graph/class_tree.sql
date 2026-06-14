@@ -17,6 +17,9 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.helpers;
 
+-- NOTE (psqlnext): the first min-depth tree uses the `GRAPH BFS TREE` operator,
+-- but the retained/retaining-count macros below still reach for the
+-- `graph_reachable_bfs!` host primitive (they take relation arguments).
 INCLUDE PERFETTO MODULE graphs.search;
 
 -- Converts the heap graph into a tree by performing a BFS on the graph from
@@ -24,28 +27,30 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- from the root to the node (with lower ids being picked in the case of ties).
 -- Root nodes are sorted by class name before traversal to make the output
 -- more deterministic.
-CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
-SELECT node_id AS id, parent_node_id AS parent_id
-FROM graph_reachable_bfs!((
-    SELECT owner_id AS source_node_id, owned_id AS dest_node_id
-    FROM heap_graph_reference AS ref
-    WHERE
-      ref.id NOT IN _excluded_refs
-      AND ref.owned_id IS NOT NULL
-    ORDER BY
-      ref.owned_id
-  ), (
-    SELECT o.id AS node_id
-    FROM heap_graph_object AS o
-    JOIN heap_graph_class AS c ON o.type_id = c.id
-    WHERE
-      o.root_type IS NOT NULL
-    ORDER BY
-      c.name,
-      o.id
-  ))
-ORDER BY
-  id;
+CREATE PERFETTO PIPELINE _heap_graph_object_min_depth_tree MATERIALIZED AS
+-- BFS (shortest-hop) spanning tree from the root objects; ties broken by node
+-- id for determinism.
+SUBPIPELINE edges AS (
+  FROM heap_graph_reference AS ref
+  |> WHERE ref.id NOT IN _excluded_refs
+     AND ref.owned_id IS NOT NULL
+  |> SELECT owner_id AS source_node_id, owned_id AS dest_node_id
+)
+SUBPIPELINE nodes AS (
+  FROM heap_graph_object AS o
+  |> JOIN heap_graph_class AS c ON o.type_id = c.id
+  |> SELECT o.id AS node_id, c.name
+)
+SUBPIPELINE roots AS (
+  FROM heap_graph_object AS o
+  |> JOIN heap_graph_class AS c ON o.type_id = c.id
+  |> WHERE o.root_type IS NOT NULL
+  |> ORDER BY c.name, o.id
+  |> SELECT o.id AS node_id
+)
+GRAPH BFS TREE NODES nodes EDGES edges FROM roots
+|> SELECT node_id AS id, parent_node_id AS parent_id
+|> ORDER BY id;
 
 CREATE PERFETTO TABLE _heap_graph_path_hashes AS
 SELECT * FROM _heap_graph_type_path_hash!(_heap_graph_object_min_depth_tree);

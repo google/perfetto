@@ -32,7 +32,7 @@ DELEGATES TO __intrinsic_perf_counter_for_sample;
 -- Fully denormalized view joining perf samples with their counter values.
 -- Note: This view has multiple rows per sample (one for each counter).
 -- Use with caution for large traces as it may impact query performance.
-CREATE PERFETTO VIEW linux_perf_sample_with_counters(
+CREATE PERFETTO PIPELINE linux_perf_sample_with_counters(
   -- The sample ID.
   sample_id JOINID(perf_sample.id),
   -- Timestamp of the sample.
@@ -55,9 +55,13 @@ CREATE PERFETTO VIEW linux_perf_sample_with_counters(
   track_id JOINID(track.id),
   -- Counter value at this sample point.
   counter_value DOUBLE
-)
-AS
-SELECT
+) AS
+FROM __intrinsic_perf_sample AS ps
+|> JOIN __intrinsic_perf_counter_set AS pcs
+   ON ps.counter_set_id = pcs.perf_counter_set_id
+|> JOIN counter AS c
+   ON c.id = pcs.counter_id
+|> SELECT
   ps.id AS sample_id,
   ps.ts,
   ps.utid,
@@ -68,9 +72,4 @@ SELECT
   ps.perf_session_id,
   pcs.counter_id,
   c.track_id,
-  c.value AS counter_value
-FROM __intrinsic_perf_sample AS ps
-JOIN __intrinsic_perf_counter_set AS pcs
-  ON ps.counter_set_id = pcs.perf_counter_set_id
-JOIN counter AS c
-  ON c.id = pcs.counter_id;
+  c.value AS counter_value;

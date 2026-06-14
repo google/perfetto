@@ -18,27 +18,21 @@ LIMIT 1;
 
 -- Map a generic process type to a specific name or substring of a name that
 -- can be found in the trace process table.
-CREATE PERFETTO TABLE _process_type_to_name (
+CREATE PERFETTO PIPELINE _process_type_to_name (
   -- The process type: one of 'Browser' or 'GPU'.
   process_type STRING,
   -- The process name for Chrome traces.
   process_name STRING,
   -- Substring identifying the process for system traces.
   process_glob STRING
-) AS
-WITH
-  process_names(process_type, process_name, process_glob) AS (
-    SELECT
-      *
-    FROM (VALUES
-      ('Browser', 'Browser', '*.chrome'),
-      ('GPU', 'Gpu', '*.chrome*:privileged_process*')) AS _values
-  )
-SELECT
-  process_type,
-  process_name,
-  process_glob
-FROM process_names;
+) MATERIALIZED AS
+FROM (VALUES
+  ('Browser', 'Browser', '*.chrome'),
+  ('GPU', 'Gpu', '*.chrome*:privileged_process*')) AS _values
+|> SELECT
+  column1 AS process_type,
+  column2 AS process_name,
+  column3 AS process_glob;
 
 CREATE PERFETTO FUNCTION _get_process_name(
     -- The process type: one of 'Browser' or 'GPU'.

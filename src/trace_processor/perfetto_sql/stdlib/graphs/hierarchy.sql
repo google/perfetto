@@ -13,21 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE graphs.search;
-
--- Given a table containing the edges in a tree and a table of start_nodes,
--- returns the ids of all the nodes reachable by walking up the tree from each
--- of the start nodes.
-CREATE PERFETTO MACRO _tree_reachable_ancestors_or_self(
-  tree TableOrSubquery,
-  start_nodes TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS (
-  SELECT
-    node_id AS id
-  FROM graph_reachable_dfs!(
-    (SELECT id AS source_node_id, parent_id AS dest_node_id FROM $tree),
-    (SELECT id AS node_id FROM $start_nodes)
-  )
-);
+-- DELETED: absorbed by TREE KEEP IF ANCESTOR OF … OVER. The
+-- `_tree_reachable_ancestors_or_self!` macro (a `graph_reachable_dfs` walk up a
+-- tree) inlines into its consumers as `TREE KEEP IF ANCESTOR OF <set> OVER <tree>`.

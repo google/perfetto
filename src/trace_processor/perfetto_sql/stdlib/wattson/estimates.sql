@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.cpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
@@ -25,16 +23,29 @@ INCLUDE PERFETTO MODULE wattson.gpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tpu.estimates;
 
--- Need to use SPAN_OUTER_JOIN because depending on the trace points enabled,
--- it's possible one of the tables is empty
-CREATE VIRTUAL TABLE _cpu_gpu_system_state_mw USING SPAN_OUTER_JOIN(_cpu_estimates_mw, _gpu_estimates_mw);
-
-CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN(_cpu_gpu_system_state_mw, _tpu_estimates_mw);
-
 -- The most basic components of Wattson, all normalized to be in mW on a per
--- system state basis
-CREATE PERFETTO TABLE _system_state_mw AS
-SELECT * FROM _cpu_gpu_tpu_system_state_mw;
+-- system state basis.
+--
+-- The original used SPAN_OUTER_JOIN (not partitioned) because, depending on the
+-- trace points enabled, one of the operands may be empty; `INTERVAL UNION OF`
+-- co-fragments all three coverages side by side (null where an operand is
+-- absent), preserving that behaviour.
+CREATE PERFETTO PIPELINE _system_state_mw MATERIALIZED AS
+INTERVAL UNION OF (_cpu_estimates_mw AS c, _gpu_estimates_mw AS g, _tpu_estimates_mw AS t)
+|> SELECT
+     ts,
+     dur,
+     c.cpu0_mw,
+     c.cpu1_mw,
+     c.cpu2_mw,
+     c.cpu3_mw,
+     c.cpu4_mw,
+     c.cpu5_mw,
+     c.cpu6_mw,
+     c.cpu7_mw,
+     c.dsu_scu_mw,
+     g.gpu_mw,
+     t.tpu_mw;
 
 -- ========================================================
 -- MACRO: _wattson_base_components_avg_mw
@@ -50,9 +61,29 @@ SELECT * FROM _cpu_gpu_tpu_system_state_mw;
 CREATE PERFETTO MACRO _wattson_base_components_avg_mw(
   window_table TableOrSubquery
 )
-RETURNS TableOrSubquery
+RETURNS Pipeline
 AS (
-  SELECT
+  SUBPIPELINE windows AS (
+    FROM $window_table
+    |> SELECT period_id AS id, *
+  )
+  INTERVAL INTERSECTION OF (windows AS win, _system_state_mw AS ss)
+  |> AGGREGATE
+    cast_double!(sum(dur * ss.cpu0_mw) / nullif(sum(dur), 0)) AS cpu0_mw,
+    cast_double!(sum(dur * ss.cpu1_mw) / nullif(sum(dur), 0)) AS cpu1_mw,
+    cast_double!(sum(dur * ss.cpu2_mw) / nullif(sum(dur), 0)) AS cpu2_mw,
+    cast_double!(sum(dur * ss.cpu3_mw) / nullif(sum(dur), 0)) AS cpu3_mw,
+    cast_double!(sum(dur * ss.cpu4_mw) / nullif(sum(dur), 0)) AS cpu4_mw,
+    cast_double!(sum(dur * ss.cpu5_mw) / nullif(sum(dur), 0)) AS cpu5_mw,
+    cast_double!(sum(dur * ss.cpu6_mw) / nullif(sum(dur), 0)) AS cpu6_mw,
+    cast_double!(sum(dur * ss.cpu7_mw) / nullif(sum(dur), 0)) AS cpu7_mw,
+    cast_double!(sum(dur * ss.dsu_scu_mw) / nullif(sum(dur), 0)) AS dsu_scu_mw,
+    cast_double!(sum(dur * ss.gpu_mw) / nullif(sum(dur), 0)) AS gpu_mw,
+    cast_double!(sum(dur * ss.tpu_mw) / nullif(sum(dur), 0)) AS tpu_mw,
+    sum(dur) AS period_dur
+    GROUP BY win.id
+  |> EXTEND
+    win.id AS period_id,
     (
       SELECT
         m.policy
@@ -108,29 +139,5 @@ AS (
       FROM _dev_cpu_policy_map AS m
       WHERE
         m.cpu = 7
-    ) AS cpu7_poli,
-    cast_double!(sum(ii.dur * ss.cpu0_mw) / nullif(sum(ii.dur), 0)) AS cpu0_mw,
-    cast_double!(sum(ii.dur * ss.cpu1_mw) / nullif(sum(ii.dur), 0)) AS cpu1_mw,
-    cast_double!(sum(ii.dur * ss.cpu2_mw) / nullif(sum(ii.dur), 0)) AS cpu2_mw,
-    cast_double!(sum(ii.dur * ss.cpu3_mw) / nullif(sum(ii.dur), 0)) AS cpu3_mw,
-    cast_double!(sum(ii.dur * ss.cpu4_mw) / nullif(sum(ii.dur), 0)) AS cpu4_mw,
-    cast_double!(sum(ii.dur * ss.cpu5_mw) / nullif(sum(ii.dur), 0)) AS cpu5_mw,
-    cast_double!(sum(ii.dur * ss.cpu6_mw) / nullif(sum(ii.dur), 0)) AS cpu6_mw,
-    cast_double!(sum(ii.dur * ss.cpu7_mw) / nullif(sum(ii.dur), 0)) AS cpu7_mw,
-    cast_double!(sum(ii.dur * ss.dsu_scu_mw) / nullif(sum(ii.dur), 0)) AS dsu_scu_mw,
-    cast_double!(sum(ii.dur * ss.gpu_mw) / nullif(sum(ii.dur), 0)) AS gpu_mw,
-    cast_double!(sum(ii.dur * ss.tpu_mw) / nullif(sum(ii.dur), 0)) AS tpu_mw,
-    sum(ii.dur) AS period_dur,
-    ii.id_0 AS period_id
-  FROM _interval_intersect!(
-    (
-      (SELECT period_id AS id, * FROM $window_table),
-      _ii_subquery!(_system_state_mw)
-    ),
-    ()
-  ) AS ii
-  JOIN _system_state_mw AS ss
-    ON ss._auto_id = id_1
-  GROUP BY
-    period_id
+    ) AS cpu7_poli
 );

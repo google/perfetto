@@ -23,8 +23,59 @@ INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Get estimates per unique configuration, establishing the 1-to-1 map from CPU
 -- configuration to the config_hash
-CREATE PERFETTO TABLE _unique_estimates_mw AS
-SELECT
+CREATE PERFETTO PIPELINE _unique_estimates_mw MATERIALIZED AS
+FROM _w_dependent_cpus_unique AS base
+-- LUT for 2D dependencies
+|> LEFT JOIN _filtered_curves_2d AS lut0
+  ON lut0.freq_khz = base.freq_0
+  AND lut0.dep_policy = base.dep_policy_0
+  AND lut0.dep_freq = base.dep_freq_0
+  AND lut0.idle = base.idle_0
+|> LEFT JOIN _filtered_curves_2d AS lut1
+  ON lut1.freq_khz = base.freq_1
+  AND lut1.dep_policy = base.dep_policy_1
+  AND lut1.dep_freq = base.dep_freq_1
+  AND lut1.idle = base.idle_1
+|> LEFT JOIN _filtered_curves_2d AS lut2
+  ON lut2.freq_khz = base.freq_2
+  AND lut2.dep_policy = base.dep_policy_2
+  AND lut2.dep_freq = base.dep_freq_2
+  AND lut2.idle = base.idle_2
+|> LEFT JOIN _filtered_curves_2d AS lut3
+  ON lut3.freq_khz = base.freq_3
+  AND lut3.dep_policy = base.dep_policy_3
+  AND lut3.dep_freq = base.dep_freq_3
+  AND lut3.idle = base.idle_3
+|> LEFT JOIN _filtered_curves_2d AS lut4
+  ON lut4.freq_khz = base.freq_4
+  AND lut4.dep_policy = base.dep_policy_4
+  AND lut4.dep_freq = base.dep_freq_4
+  AND lut4.idle = base.idle_4
+|> LEFT JOIN _filtered_curves_2d AS lut5
+  ON lut5.freq_khz = base.freq_5
+  AND lut5.dep_policy = base.dep_policy_5
+  AND lut5.dep_freq = base.dep_freq_5
+  AND lut5.idle = base.idle_5
+|> LEFT JOIN _filtered_curves_2d AS lut6
+  ON lut6.freq_khz = base.freq_6
+  AND lut6.dep_policy = base.dep_policy_6
+  AND lut6.dep_freq = base.dep_freq_6
+  AND lut6.idle = base.idle_6
+|> LEFT JOIN _filtered_curves_2d AS lut7
+  ON lut7.freq_khz = base.freq_7
+  AND lut7.dep_policy = base.dep_policy_7
+  AND lut7.dep_freq = base.dep_freq_7
+  AND lut7.idle = base.idle_7
+|> LEFT JOIN _filtered_curves_l3 AS l3_lut
+  ON l3_lut.freq_khz = base.freq_0
+  AND l3_lut.dep_policy = base.dep_policy_0
+  AND l3_lut.dep_freq = base.dep_freq_0
+|> LEFT JOIN _filtered_curves_interconnect AS interconnect_lut
+  ON interconnect_lut.freq_khz = base.freq_0
+  AND interconnect_lut.dep_policy = base.dep_policy_0
+  AND interconnect_lut.dep_freq = base.dep_freq_0
+  AND interconnect_lut.policy = 0
+|> SELECT
   base.config_hash,
   coalesce(base.cpu0_curve, lut0.curve_value) AS cpu0_mw,
   coalesce(base.cpu1_curve, lut1.curve_value) AS cpu1_mw,
@@ -85,63 +136,15 @@ SELECT
   + static_1d AS static_mw,
   l3_lut.l3_hit,
   l3_lut.l3_miss,
-  iif(base.suspended, 0, interconnect_lut.curve_value) AS interconnect_mw
-FROM _w_dependent_cpus_unique AS base
--- LUT for 2D dependencies
-LEFT JOIN _filtered_curves_2d AS lut0
-  ON lut0.freq_khz = base.freq_0
-  AND lut0.dep_policy = base.dep_policy_0
-  AND lut0.dep_freq = base.dep_freq_0
-  AND lut0.idle = base.idle_0
-LEFT JOIN _filtered_curves_2d AS lut1
-  ON lut1.freq_khz = base.freq_1
-  AND lut1.dep_policy = base.dep_policy_1
-  AND lut1.dep_freq = base.dep_freq_1
-  AND lut1.idle = base.idle_1
-LEFT JOIN _filtered_curves_2d AS lut2
-  ON lut2.freq_khz = base.freq_2
-  AND lut2.dep_policy = base.dep_policy_2
-  AND lut2.dep_freq = base.dep_freq_2
-  AND lut2.idle = base.idle_2
-LEFT JOIN _filtered_curves_2d AS lut3
-  ON lut3.freq_khz = base.freq_3
-  AND lut3.dep_policy = base.dep_policy_3
-  AND lut3.dep_freq = base.dep_freq_3
-  AND lut3.idle = base.idle_3
-LEFT JOIN _filtered_curves_2d AS lut4
-  ON lut4.freq_khz = base.freq_4
-  AND lut4.dep_policy = base.dep_policy_4
-  AND lut4.dep_freq = base.dep_freq_4
-  AND lut4.idle = base.idle_4
-LEFT JOIN _filtered_curves_2d AS lut5
-  ON lut5.freq_khz = base.freq_5
-  AND lut5.dep_policy = base.dep_policy_5
-  AND lut5.dep_freq = base.dep_freq_5
-  AND lut5.idle = base.idle_5
-LEFT JOIN _filtered_curves_2d AS lut6
-  ON lut6.freq_khz = base.freq_6
-  AND lut6.dep_policy = base.dep_policy_6
-  AND lut6.dep_freq = base.dep_freq_6
-  AND lut6.idle = base.idle_6
-LEFT JOIN _filtered_curves_2d AS lut7
-  ON lut7.freq_khz = base.freq_7
-  AND lut7.dep_policy = base.dep_policy_7
-  AND lut7.dep_freq = base.dep_freq_7
-  AND lut7.idle = base.idle_7
-LEFT JOIN _filtered_curves_l3 AS l3_lut
-  ON l3_lut.freq_khz = base.freq_0
-  AND l3_lut.dep_policy = base.dep_policy_0
-  AND l3_lut.dep_freq = base.dep_freq_0
-LEFT JOIN _filtered_curves_interconnect AS interconnect_lut
-  ON interconnect_lut.freq_khz = base.freq_0
-  AND interconnect_lut.dep_policy = base.dep_policy_0
-  AND interconnect_lut.dep_freq = base.dep_freq_0
-  AND interconnect_lut.policy = 0;
+  iif(base.suspended, 0, interconnect_lut.curve_value) AS interconnect_mw;
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
-CREATE PERFETTO TABLE _cpu_estimates_mw AS
-SELECT
+CREATE PERFETTO PIPELINE _cpu_estimates_mw MATERIALIZED AS
+FROM _w_independent_cpus_calc AS slices
+|> JOIN _unique_estimates_mw AS base USING (config_hash)
+|> WHERE slices.dur > 0
+|> SELECT
   slices.ts,
   slices.dur,
   iif(slices.suspended = 1, 0, base.cpu0_mw) AS cpu0_mw,
@@ -161,8 +164,4 @@ SELECT
     * 1000
     / slices.dur
     + coalesce(base.interconnect_mw, 0)
-  ) AS dsu_scu_mw
-FROM _w_independent_cpus_calc AS slices
-JOIN _unique_estimates_mw AS base USING (config_hash)
-WHERE
-  slices.dur > 0;
+  ) AS dsu_scu_mw;

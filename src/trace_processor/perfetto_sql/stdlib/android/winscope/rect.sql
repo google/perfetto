@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android Winscope rects.
-CREATE PERFETTO VIEW android_winscope_rect(
+CREATE PERFETTO PIPELINE android_winscope_rect(
   -- Rect id
   id LONG,
   -- x
@@ -27,10 +27,10 @@ CREATE PERFETTO VIEW android_winscope_rect(
   h DOUBLE
 )
 AS
-SELECT * FROM __intrinsic_winscope_rect;
+FROM __intrinsic_winscope_rect;
 
 -- Android Winscope transforms.
-CREATE PERFETTO VIEW android_winscope_transform(
+CREATE PERFETTO PIPELINE android_winscope_transform(
   -- Transform id
   id LONG,
   -- dsdx
@@ -47,10 +47,11 @@ CREATE PERFETTO VIEW android_winscope_transform(
   ty DOUBLE
 )
 AS
-SELECT id, dsdx, dtdx, tx, dtdy, dsdy, ty FROM __intrinsic_winscope_transform;
+FROM __intrinsic_winscope_transform
+|> SELECT id, dsdx, dtdx, tx, dtdy, dsdy, ty;
 
 -- Android Winscope trace rects.
-CREATE PERFETTO VIEW android_winscope_trace_rect(
+CREATE PERFETTO PIPELINE android_winscope_trace_rect(
   -- Trace rect id
   id LONG,
   -- Rect id
@@ -73,4 +74,4 @@ CREATE PERFETTO VIEW android_winscope_trace_rect(
   border_color DOUBLE
 )
 AS
-SELECT * FROM __intrinsic_winscope_trace_rect;
+FROM __intrinsic_winscope_trace_rect;

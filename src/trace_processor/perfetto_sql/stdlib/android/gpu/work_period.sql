@@ -17,7 +17,7 @@
 -- `power/gpu_work_period` Linux ftrace tracepoint.
 --
 -- This tracepoint is usually only available on selected Android devices.
-CREATE PERFETTO TABLE android_gpu_work_period_track(
+CREATE PERFETTO PIPELINE android_gpu_work_period_track(
   -- Unique identifier for this track. Joinable with track.id.
   id LONG,
   -- Machine identifier
@@ -29,13 +29,12 @@ CREATE PERFETTO TABLE android_gpu_work_period_track(
   -- The raw GPU number.
   gpu_id LONG
 )
-AS
-SELECT
-  t.id,
-  t.machine_id,
-  extract_arg(t.dimension_arg_set_id, 'uid') AS uid,
-  extract_arg(t.dimension_arg_set_id, 'ugpu') AS ugpu,
-  extract_arg(t.dimension_arg_set_id, 'gpu') AS gpu_id
+MATERIALIZED AS
 FROM track AS t
-WHERE
-  t.type = 'android_gpu_work_period';
+|> WHERE t.type = 'android_gpu_work_period'
+|> SELECT
+     t.id,
+     t.machine_id,
+     extract_arg(t.dimension_arg_set_id, 'uid') AS uid,
+     extract_arg(t.dimension_arg_set_id, 'ugpu') AS ugpu,
+     extract_arg(t.dimension_arg_set_id, 'gpu') AS gpu_id;

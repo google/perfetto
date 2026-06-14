@@ -92,7 +92,7 @@ SELECT
   END;
 
 -- All frozen processes and their frozen duration.
-CREATE PERFETTO TABLE android_freezer_events(
+CREATE PERFETTO PIPELINE android_freezer_events(
   -- Upid of frozen process
   upid JOINID(process.id),
   -- Pid of frozen process
@@ -106,53 +106,39 @@ CREATE PERFETTO TABLE android_freezer_events(
   -- Unfreeze reason String.
   unfreeze_reason_str STRING
 )
-AS
-WITH
-  freeze AS (
-    SELECT
-      ts,
-      _extract_freezer_pid(name) AS pid,
-      _pid_to_upid(_extract_freezer_pid(name), ts) AS upid,
-      'freeze' AS type,
-      NULL AS unfreeze_reason
-    FROM slice
-    WHERE
-      name GLOB 'Freeze *:*'
-  ),
-  unfreeze AS (
-    SELECT
-      ts,
-      _extract_freezer_pid(name) AS pid,
-      _pid_to_upid(_extract_freezer_pid(name), ts) AS upid,
-      'unfreeze' AS type,
-      str_split(name, ' ', 2) AS unfreeze_reason
-    FROM slice
-    WHERE
-      name GLOB 'Unfreeze *:*'
-  ),
-  merged AS (
-    SELECT * FROM freeze
-    UNION ALL
-    SELECT * FROM unfreeze
-  ),
-  starts AS (
-    SELECT
-      type,
-      upid,
-      pid,
-      ts,
-      coalesce(lead(ts) OVER (PARTITION BY upid ORDER BY ts), trace_end()) - ts AS dur,
-      cast_int!(lead(unfreeze_reason) OVER (PARTITION BY upid ORDER BY ts)) AS unfreeze_reason
-    FROM merged
-  )
-SELECT
-  upid,
-  pid,
-  ts,
-  dur,
-  unfreeze_reason AS unfreeze_reason_int,
-  _translate_unfreeze_reason(unfreeze_reason) AS unfreeze_reason_str
-FROM starts
-WHERE
-  starts.type = 'freeze'
-  AND upid IS NOT NULL;
+MATERIALIZED AS
+-- The freeze/unfreeze slices form an alternating event stream per upid; each
+-- freeze opens an interval closed by the next (unfreeze) event in the lane.
+SUBPIPELINE freezer_transitions AS (
+  FROM slice
+  |> WHERE name GLOB 'Freeze *:*'
+  |> SELECT
+       ts,
+       _extract_freezer_pid(name) AS pid,
+       _pid_to_upid(_extract_freezer_pid(name), ts) AS upid,
+       'freeze' AS type,
+       NULL AS unfreeze_reason
+  |> UNION ALL (
+       FROM slice
+       |> WHERE name GLOB 'Unfreeze *:*'
+       |> SELECT
+            ts,
+            _extract_freezer_pid(name) AS pid,
+            _pid_to_upid(_extract_freezer_pid(name), ts) AS upid,
+            'unfreeze' AS type,
+            str_split(name, ' ', 2) AS unfreeze_reason
+     )
+)
+INTERVALS FROM EVENTS freezer_transitions PER upid CLOSING LAST AT (trace_end())
+-- The closing (unfreeze) event's reason is the next event's value in lane order.
+|> EXTEND
+     cast_int!(lead(unfreeze_reason) OVER (PARTITION BY upid ORDER BY ts))
+       AS unfreeze_reason_int
+|> WHERE type = 'freeze' AND upid IS NOT NULL
+|> SELECT
+     upid,
+     pid,
+     ts,
+     dur,
+     unfreeze_reason_int,
+     _translate_unfreeze_reason(unfreeze_reason_int) AS unfreeze_reason_str;

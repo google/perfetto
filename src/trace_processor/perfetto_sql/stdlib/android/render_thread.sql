@@ -14,12 +14,10 @@
 -- limitations under the License.
 --
 
-CREATE PERFETTO TABLE _render_thread_per_process(
+CREATE PERFETTO PIPELINE _render_thread_per_process(
   upid JOINID(process.id),
   render_thread_utid JOINID(thread.id)
-)
-AS
-SELECT upid, utid AS render_thread_utid
+) MATERIALIZED AS
 FROM thread
-WHERE
-  thread.name = 'RenderThread';
+|> WHERE thread.name = 'RenderThread'
+|> SELECT upid, utid AS render_thread_utid;

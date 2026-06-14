@@ -8,7 +8,7 @@
 --     https://www.apache.org/licenses/LICENSE-2.0
 --
 -- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed ON an "AS IS" BASIS,
+-- distributed ON an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
@@ -81,7 +81,7 @@ SELECT
 -- (`heap_graph_object_data` populated); on proto-format heap graphs
 -- (e.g. `android.java_hprof` data source) they are NULL and the row still
 -- appears so callers can fall back to size-only analysis.
-CREATE PERFETTO TABLE heap_graph_bitmaps(
+CREATE PERFETTO PIPELINE heap_graph_bitmaps(
   -- heap_graph_object.id of the Bitmap instance.
   object_id JOINID(heap_graph_object.id),
   -- Process upid that owns the Bitmap.
@@ -134,137 +134,104 @@ CREATE PERFETTO TABLE heap_graph_bitmaps(
   native_size LONG,
   -- Whether the Bitmap is reachable from a GC root.
   reachable BOOL
+) MATERIALIZED AS
+SUBPIPELINE bitmap_objects AS (
+  FROM heap_graph_object AS o
+  |> JOIN heap_graph_class AS c ON o.type_id = c.id
+  |> LEFT JOIN heap_graph_object_data AS od ON o.object_data_id = od.id
+  |> WHERE
+       c.name = 'android.graphics.Bitmap'
+       OR c.deobfuscated_name = 'android.graphics.Bitmap'
+  |> SELECT
+       o.id AS object_id,
+       o.upid,
+       o.graph_sample_ts,
+       o.self_size,
+       o.native_size,
+       o.reachable,
+       od.field_set_id,
+       coalesce(c.deobfuscated_name, c.name) AS type_name
 )
-AS
-WITH
-  bitmap_objects AS (
-    SELECT
-      o.id AS object_id,
-      o.upid,
-      o.graph_sample_ts,
-      o.self_size,
-      o.native_size,
-      o.reachable,
-      od.field_set_id,
-      coalesce(c.deobfuscated_name, c.name) AS type_name
-    FROM heap_graph_object AS o
-    JOIN heap_graph_class AS c
-      ON o.type_id = c.id
-    LEFT JOIN heap_graph_object_data AS od
-      ON o.object_data_id = od.id
-    WHERE
-      c.name = 'android.graphics.Bitmap'
-      OR c.deobfuscated_name = 'android.graphics.Bitmap'
-  ),
-  bitmap_fields AS (
-    -- One row per Bitmap object, with each scalar field pivoted out of
-    -- heap_graph_primitive. Field names are FQN-qualified
-    -- ('android.graphics.Bitmap.mWidth' etc.).
-    SELECT
-      b.object_id,
-      b.upid,
-      b.graph_sample_ts,
-      b.type_name,
-      b.self_size,
-      b.native_size,
-      b.reachable,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mWidth' THEN p.int_value
-        END
-      ) AS width,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mHeight' THEN p.int_value
-        END
-      ) AS height,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mDensity' THEN p.int_value
-        END
-      ) AS density,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mId' THEN p.long_value
-        END
-      ) AS bitmap_id,
-      MAX(
-        CASE
-          WHEN p.field_name = 'android.graphics.Bitmap.mSourceId' THEN p.long_value
-        END
-      ) AS source_id_raw
-    FROM bitmap_objects AS b
-    LEFT JOIN heap_graph_primitive AS p
-      ON p.field_set_id = b.field_set_id
-    GROUP BY
-      b.object_id
-  ),
-  bitmap_fields_decoded AS (
-    -- Decode pid + storage type out of the encoded ids, canonicalise the -1
-    -- sentinel for source_id so downstream JOINs behave naturally, and resolve
-    -- the sender's upid once (it's used both as the output column and as the
-    -- JOIN key into `process` for the sender name).
-    SELECT
-      object_id,
-      upid,
-      graph_sample_ts,
-      type_name,
-      width,
-      height,
-      density,
-      bitmap_id,
-      cast_int!(bitmap_id / 10000000) AS bitmap_pid,
-      _android_bitmap_storage_type_name(
-        cast_int!((bitmap_id % 10000000) / 1000000)
-      ) AS bitmap_storage_type,
-      CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
-        ELSE source_id_raw
-      END AS source_id,
-      CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
-        ELSE cast_int!(source_id_raw / 10000000)
-      END AS source_pid,
-      CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
-        ELSE _android_bitmap_storage_type_name(
-          cast_int!((source_id_raw % 10000000) / 1000000)
-        )
-      END AS source_storage_type,
-      CASE
-        WHEN source_id_raw = -1
-        OR source_id_raw IS NULL THEN NULL
-        ELSE _android_bitmap_resolve_sender_upid(
-          cast_int!(source_id_raw / 10000000),
-          graph_sample_ts
-        )
-      END AS source_upid,
-      self_size,
-      native_size,
-      reachable
-    FROM bitmap_fields
-  )
-SELECT
-  b.object_id,
-  b.upid,
-  b.graph_sample_ts,
-  b.width,
-  b.height,
-  b.density,
-  b.bitmap_id,
-  b.bitmap_pid,
-  b.bitmap_storage_type,
-  b.source_id,
-  b.source_pid,
-  b.source_storage_type,
-  b.source_upid,
-  src_proc.name AS source_process_name,
-  b.self_size,
-  b.native_size,
-  b.reachable
+-- Decode pid + storage type out of the encoded ids, canonicalise the -1
+-- sentinel for source_id so downstream JOINs behave naturally, and resolve
+-- the sender's upid once (it's used both as the output column and as the
+-- JOIN key into `process` for the sender name).
+--
+-- The pivot below produces one row per Bitmap object, with each scalar field
+-- pivoted out of heap_graph_primitive. Field names are FQN-qualified
+-- ('android.graphics.Bitmap.mWidth' etc.).
+SUBPIPELINE bitmap_fields_decoded AS (
+  FROM bitmap_objects AS b
+  |> LEFT JOIN heap_graph_primitive AS p ON p.field_set_id = b.field_set_id
+  |> AGGREGATE
+       MAX(CASE WHEN p.field_name = 'android.graphics.Bitmap.mWidth' THEN p.int_value END) AS width,
+       MAX(CASE WHEN p.field_name = 'android.graphics.Bitmap.mHeight' THEN p.int_value END) AS height,
+       MAX(CASE WHEN p.field_name = 'android.graphics.Bitmap.mDensity' THEN p.int_value END) AS density,
+       MAX(CASE WHEN p.field_name = 'android.graphics.Bitmap.mId' THEN p.long_value END) AS bitmap_id,
+       MAX(CASE WHEN p.field_name = 'android.graphics.Bitmap.mSourceId' THEN p.long_value END) AS source_id_raw
+     GROUP BY
+       b.object_id,
+       b.upid,
+       b.graph_sample_ts,
+       b.type_name,
+       b.self_size,
+       b.native_size,
+       b.reachable
+  |> SELECT
+       object_id,
+       upid,
+       graph_sample_ts,
+       type_name,
+       width,
+       height,
+       density,
+       bitmap_id,
+       cast_int!(bitmap_id / 10000000) AS bitmap_pid,
+       _android_bitmap_storage_type_name(
+         cast_int!((bitmap_id % 10000000) / 1000000)
+       ) AS bitmap_storage_type,
+       CASE
+         WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
+         ELSE source_id_raw
+       END AS source_id,
+       CASE
+         WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
+         ELSE cast_int!(source_id_raw / 10000000)
+       END AS source_pid,
+       CASE
+         WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
+         ELSE _android_bitmap_storage_type_name(
+           cast_int!((source_id_raw % 10000000) / 1000000)
+         )
+       END AS source_storage_type,
+       CASE
+         WHEN source_id_raw = -1 OR source_id_raw IS NULL THEN NULL
+         ELSE _android_bitmap_resolve_sender_upid(
+           cast_int!(source_id_raw / 10000000),
+           graph_sample_ts
+         )
+       END AS source_upid,
+       self_size,
+       native_size,
+       reachable
+)
 FROM bitmap_fields_decoded AS b
-LEFT JOIN process AS src_proc
-  ON src_proc.upid = b.source_upid;
+|> LEFT JOIN process AS src_proc ON src_proc.upid = b.source_upid
+|> SELECT
+     b.object_id,
+     b.upid,
+     b.graph_sample_ts,
+     b.width,
+     b.height,
+     b.density,
+     b.bitmap_id,
+     b.bitmap_pid,
+     b.bitmap_storage_type,
+     b.source_id,
+     b.source_pid,
+     b.source_storage_type,
+     b.source_upid,
+     src_proc.name AS source_process_name,
+     b.self_size,
+     b.native_size,
+     b.reachable;

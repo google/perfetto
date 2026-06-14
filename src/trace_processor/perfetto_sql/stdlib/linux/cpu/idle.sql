@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Counter information for each idle state change for each CPU. Finds each time
 -- region where a CPU idle state is constant.
-CREATE PERFETTO TABLE cpu_idle_counters(
+CREATE PERFETTO PIPELINE cpu_idle_counters(
   -- Counter id.
   id LONG,
   -- Joinable with 'counter_track.id'.
@@ -32,19 +32,21 @@ CREATE PERFETTO TABLE cpu_idle_counters(
   idle LONG,
   -- CPU that corresponds to this counter.
   cpu LONG
+) AS
+SUBPIPELINE idle_events AS (
+  FROM counter AS c
+  |> JOIN cpu_counter_track AS cct
+     ON cct.id = c.track_id AND cct.name = 'cpuidle'
+  |> SELECT c.id, c.ts, c.track_id, c.value
 )
-AS
-SELECT
-  count_w_dur.id,
-  count_w_dur.track_id,
-  count_w_dur.ts,
-  count_w_dur.dur,
-  cast_int!(IIF(count_w_dur.value = 4294967295, -1, count_w_dur.value)) AS idle,
-  cct.cpu
-FROM counter_leading_intervals!((
-  SELECT c.*
-  FROM counter c
-  JOIN cpu_counter_track cct ON cct.id = c.track_id AND cct.name = 'cpuidle'
-)) AS count_w_dur
-JOIN cpu_counter_track AS cct
-  ON track_id = cct.id;
+INTERVALS FROM EVENTS idle_events PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
+|> JOIN cpu_counter_track AS cct
+   ON track_id = cct.id
+|> SELECT
+  id,
+  track_id,
+  ts,
+  dur,
+  cast_int!(IIF(value = 4294967295, -1, value)) AS idle,
+  cct.cpu;

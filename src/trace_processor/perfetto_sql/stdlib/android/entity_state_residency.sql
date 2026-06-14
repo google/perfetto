@@ -16,7 +16,7 @@
 
 -- Android entity state residency samples.
 -- For details see: https://perfetto.dev/docs/reference/trace-config-proto#AndroidPowerConfig
-CREATE PERFETTO TABLE android_entity_state_residency(
+CREATE PERFETTO PIPELINE android_entity_state_residency(
   -- `counter.id`
   id ID(counter.id),
   -- Timestamp of the residency sample.
@@ -41,52 +41,37 @@ CREATE PERFETTO TABLE android_entity_state_residency(
   -- entity + state track id. Alias of `counter_track.id`.
   track_id JOINID(track.id)
 )
-AS
-WITH
-  filtered_track_info AS (
-    SELECT
-      id,
-      name AS raw_name,
-      iif(
-        name GLOB 'Entity residency: *'
-        AND name GLOB '* is *',
-        replace(substr(name, 0, instr(name, ' is ')), 'Entity residency: ', ''),
-        NULL
-      ) AS entity_name,
-      iif(
-        name GLOB 'Entity residency: *'
-        AND name GLOB '* is *',
-        substr(name, instr(name, ' is ') + length(' is ')),
-        NULL
-      ) AS state_name
-    FROM counter_track
-    WHERE
-      type = 'entity_state'
-  ),
-  partial_results AS (
-    SELECT
-      c.id,
-      c.ts,
-      lead(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts) - c.ts AS dur,
-      t.entity_name,
-      t.state_name,
-      t.raw_name,
-      CAST(c.value * 1e6 AS INTEGER) AS state_time_since_boot,
-      CAST(lead(c.value) OVER (PARTITION BY track_id ORDER BY c.ts) * 1e6 AS INTEGER) AS state_time_since_boot_at_end,
-      c.track_id
-    FROM counter AS c
-    JOIN filtered_track_info AS t
-      ON c.track_id = t.id
-  )
-SELECT
-  id,
-  ts,
-  dur,
-  entity_name,
-  state_name,
-  raw_name,
-  state_time_since_boot,
-  state_time_since_boot_at_end,
-  (state_time_since_boot_at_end - state_time_since_boot) * 1.0 / dur AS state_time_ratio,
-  track_id
-FROM partial_results;
+MATERIALIZED AS
+SUBPIPELINE filtered_track_info AS (
+  FROM counter_track
+  |> WHERE type = 'entity_state'
+  |> SELECT
+       id,
+       name AS raw_name,
+       iif(
+         name GLOB 'Entity residency: *'
+         AND name GLOB '* is *',
+         replace(substr(name, 0, instr(name, ' is ')), 'Entity residency: ', ''),
+         NULL
+       ) AS entity_name,
+       iif(
+         name GLOB 'Entity residency: *'
+         AND name GLOB '* is *',
+         substr(name, instr(name, ' is ') + length(' is ')),
+         NULL
+       ) AS state_name
+)
+FROM counter AS c
+|> JOIN filtered_track_info AS t ON c.track_id = t.id
+|> SELECT
+     c.id,
+     c.ts,
+     lead(c.ts) OVER (PARTITION BY c.track_id ORDER BY c.ts) - c.ts AS dur,
+     t.entity_name,
+     t.state_name,
+     t.raw_name,
+     CAST(c.value * 1e6 AS INTEGER) AS state_time_since_boot,
+     CAST(lead(c.value) OVER (PARTITION BY c.track_id ORDER BY c.ts) * 1e6 AS INTEGER) AS state_time_since_boot_at_end,
+     c.track_id
+|> EXTEND
+     (state_time_since_boot_at_end - state_time_since_boot) * 1.0 / dur AS state_time_ratio;

@@ -13,13 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE slices.with_context;
-
 -- All slices related to one frame for max SDK 28. Aggregates
 -- "Choreographer#doFrame" and "DrawFrame". Tries to guess the `ts` and `dur`
 -- of the frame by first guessing which "DrawFrame" slices are related to which
 -- "Choreographer#doSlice".
-CREATE PERFETTO TABLE _frames_maxsdk_28(
+CREATE PERFETTO PIPELINE _frames_maxsdk_28(
   -- Frame id. Created manually starting from 0.
   frame_id LONG,
   -- Timestamp of the frame. Start of "Choreographer#doFrame" slice.
@@ -44,43 +42,35 @@ CREATE PERFETTO TABLE _frames_maxsdk_28(
   upid JOINID(process.id),
   -- process name.
   process_name STRING
+) MATERIALIZED AS
+SUBPIPELINE do_frames AS (
+  FROM thread_slice
+  |> WHERE is_main_thread = 1 AND name = 'Choreographer#doFrame'
+  |> SELECT
+       id,
+       ts,
+       lead(ts, 1, trace_end()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
+       utid,
+       upid
 )
-AS
-WITH
-  do_frames AS (
-    SELECT
-      id,
-      ts,
-      lead(ts, 1, trace_end()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
-      utid,
-      upid
-    FROM thread_slice
-    WHERE
-      is_main_thread = 1
-      AND name = 'Choreographer#doFrame'
-    ORDER BY
-      ts
-  ),
-  draw_frames AS (
-    SELECT id, ts, dur, ts + dur AS ts_end, utid, upid
-    FROM thread_slice
-    WHERE
-      name = 'DrawFrame'
-  )
-SELECT
-  row_number() OVER () AS frame_id,
-  do.ts,
-  max(draw.ts_end) OVER (PARTITION BY do.id) - do.ts AS dur,
-  do.id AS do_frame_id,
-  draw.id AS draw_frame_id,
-  draw.utid AS render_thread_utid,
-  do.utid AS ui_thread_utid,
-  do.upid AS upid,
-  process.name AS process_name,
-  "maxsdk28" AS sdk
+SUBPIPELINE draw_frames AS (
+  FROM thread_slice
+  |> WHERE name = 'DrawFrame'
+  |> SELECT id, ts, dur, ts + dur AS ts_end, utid, upid
+)
 FROM do_frames AS do
-JOIN draw_frames AS draw
-  ON (do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < next_do_frame)
-JOIN process USING (upid)
-ORDER BY
-  do.ts;
+|> JOIN draw_frames AS draw
+   ON (do.upid = draw.upid AND draw.ts >= do.ts AND draw.ts < do.next_do_frame)
+|> JOIN process USING (upid)
+|> SELECT
+     row_number() OVER () AS frame_id,
+     do.ts,
+     max(draw.ts_end) OVER (PARTITION BY do.id) - do.ts AS dur,
+     do.id AS do_frame_id,
+     draw.id AS draw_frame_id,
+     draw.utid AS render_thread_utid,
+     do.utid AS ui_thread_utid,
+     do.upid AS upid,
+     process.name AS process_name,
+     "maxsdk28" AS sdk
+|> ORDER BY do.ts;

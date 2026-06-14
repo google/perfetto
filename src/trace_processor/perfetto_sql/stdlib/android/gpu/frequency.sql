@@ -14,10 +14,13 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.intervals;
+-- NOTE (psqlnext): `counter_leading_intervals!` is `INTERVALS FROM EVENTS … PER
+-- track_id CLOSING LAST AT(trace_end())` plus `INTERVAL MERGE CONSECUTIVE BY
+-- value` to collapse equal-valued runs. The leading/lagging samples (next_value)
+-- are recovered with §4 lane-ordered windowing.
 
 -- GPU frequency counter per GPU.
-CREATE PERFETTO TABLE android_gpu_frequency(
+CREATE PERFETTO PIPELINE android_gpu_frequency(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
@@ -30,21 +33,19 @@ CREATE PERFETTO TABLE android_gpu_frequency(
   prev_gpu_freq LONG,
   -- GPU frequency from next slice
   next_gpu_freq LONG
+) MATERIALIZED AS
+SUBPIPELINE gpufreq_events AS (
+  FROM counter AS c
+  |> JOIN gpu_counter_track AS t ON t.id = c.track_id AND t.name = 'gpufreq'
+  |> WHERE gpu_id IS NOT NULL
+  |> SELECT c.id, c.ts, c.track_id, c.value, t.gpu_id
 )
-AS
-SELECT
+INTERVALS FROM EVENTS gpufreq_events PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value
+|> SELECT
   ts,
   dur,
   gpu_id,
   cast_int!(value) AS gpu_freq,
-  cast_int!(value - delta_value) AS prev_gpu_freq,
-  cast_int!(next_value) AS next_gpu_freq
-FROM counter_leading_intervals!((
-    SELECT c.*
-    FROM counter AS c
-    JOIN gpu_counter_track AS t ON t.id = c.track_id AND t.name = 'gpufreq'
-    WHERE
-      gpu_id IS NOT NULL
-  ))
-JOIN gpu_counter_track AS t
-  ON t.id = track_id;
+  cast_int!(LAG(value) OVER (PARTITION BY track_id ORDER BY ts)) AS prev_gpu_freq,
+  cast_int!(LEAD(value) OVER (PARTITION BY track_id ORDER BY ts)) AS next_gpu_freq;

@@ -21,6 +21,10 @@ INCLUDE PERFETTO MODULE time.conversion;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
+-- NOTE (psqlnext): the `*_in_interval` constructs are parameterized by a scalar
+-- window, so they are pipeline-valued macros (`RETURNS Pipeline`) clipping the
+-- relevant relation with `_interval_intersect_single!($ts, $dur, …)`.
+
 -- Returns a table of process utilization per given period.
 -- Utilization is calculated as sum of average utilization of each CPU in each
 -- period, which is defined as a multiply of |interval|. For this reason
@@ -80,7 +84,7 @@ AS
 SELECT * FROM cpu_process_utilization_per_period(time_from_s(1), $upid);
 
 -- Aggregated CPU statistics for each process.
-CREATE PERFETTO TABLE cpu_cycles_per_process(
+CREATE PERFETTO PIPELINE cpu_cycles_per_process(
   -- Unique process id
   upid JOINID(process.id),
   -- Sum of CPU millicycles
@@ -95,72 +99,49 @@ CREATE PERFETTO TABLE cpu_cycles_per_process(
   max_freq LONG,
   -- Average CPU frequency in kHz
   avg_freq LONG
-)
-AS
-SELECT
-  upid,
-  sum(millicycles) AS millicycles,
-  cast_int!(SUM(millicycles) / 1e9) AS megacycles,
-  sum(runtime) AS runtime,
-  min(min_freq) AS min_freq,
-  max(max_freq) AS max_freq,
-  cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
+) MATERIALIZED AS
 FROM cpu_cycles_per_thread_per_cpu
-JOIN thread USING (utid)
-WHERE
-  upid IS NOT NULL
-GROUP BY
-  upid;
+|> JOIN thread USING (utid)
+|> WHERE upid IS NOT NULL
+|> AGGREGATE
+     sum(millicycles) AS millicycles,
+     cast_int!(SUM(millicycles) / 1e9) AS megacycles,
+     sum(runtime) AS runtime,
+     min(min_freq) AS min_freq,
+     max(max_freq) AS max_freq,
+     cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
+   GROUP BY upid;
 
 -- Aggregated CPU statistics for each process in a provided interval.
 --
 -- This function is only designed to run over a small number of intervals
 -- (10-100 at most). It will be *very slow* for large sets of intervals.
-CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
+CREATE PERFETTO MACRO cpu_cycles_per_process_in_interval(
   -- Start of the interval.
-  ts TIMESTAMP,
+  ts Expr,
   -- Duration of the interval.
-  dur LONG
+  dur Expr
 )
-RETURNS TABLE(
-  -- Unique process id.
-  upid JOINID(process.id),
-  -- Sum of CPU millicycles
-  millicycles LONG,
-  -- Sum of CPU megacycles
-  megacycles LONG,
-  -- Total runtime duration
-  runtime DURATION,
-  -- Total runtime duration, while 'awake' (CPUs not suspended).
-  awake_runtime DURATION,
-  -- Minimum CPU frequency in kHz
-  min_freq LONG,
-  -- Maximum CPU frequency in kHz
-  max_freq LONG,
-  -- Average CPU frequency in kHz
-  avg_freq LONG
-)
-AS
-WITH
-  threads_counters AS (
+-- Returns: (upid JOINID(process.id), millicycles LONG, megacycles LONG,
+-- runtime DURATION, awake_runtime DURATION, min_freq LONG, max_freq LONG,
+-- avg_freq LONG).
+RETURNS Pipeline AS (
+  _interval_intersect_single!($ts, $dur, (
     SELECT c.id, c.ts, c.dur, c.freq, upid
     FROM _cpu_freq_per_thread AS c
     JOIN thread USING (utid)
-  )
-SELECT
-  upid,
-  cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
-  sum(ii.dur) AS runtime,
-  sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
-  min(freq) AS min_freq,
-  max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000))
-    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
-FROM _interval_intersect_single!($ts, $dur, threads_counters) AS ii
-JOIN threads_counters USING (id)
-GROUP BY
-  upid;
+  ))
+  |> AGGREGATE
+       cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+       cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
+       sum(dur) AS runtime,
+       sum(to_monotonic(ts + dur) - to_monotonic(ts)) AS awake_runtime,
+       min(freq) AS min_freq,
+       max(freq) AS max_freq,
+       cast_int!(SUM((dur * freq / 1000))
+         / (SUM(CASE WHEN freq IS NOT NULL THEN dur END) / 1000)) AS avg_freq
+     GROUP BY upid
+);
 
 -- Returns a table with process utilization over a given interval.
 --
@@ -169,41 +150,28 @@ GROUP BY
 --
 -- This function is only designed to run over a small number of intervals
 -- (10-100 at most). It will be *very slow* for large sets of intervals.
-CREATE PERFETTO FUNCTION cpu_process_utilization_in_interval(
+CREATE PERFETTO MACRO cpu_process_utilization_in_interval(
   -- Start of the interval.
-  ts TIMESTAMP,
+  ts Expr,
   -- Duration of the interval.
-  dur LONG
+  dur Expr
 )
-RETURNS TABLE(
-  -- Unique process id.
-  upid JOINID(process.id),
-  -- The name of the process.
-  process_name STRING,
-  -- Total runtime of all processes with this UPID, while 'awake' (CPUs not suspended).
-  awake_dur LONG,
-  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
-  -- Values in [0.0, 100.0]
-  awake_utilization DOUBLE,
-  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, unnormalized.
-  -- Values in [0.0, 100.0 * <number_of_cpus>]
-  awake_unnormalized_utilization DOUBLE
-)
-AS
-SELECT
-  upid,
-  process.name AS process_name,
-  sum(awake_runtime) AS awake_dur,
-  round(
-    sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts))
-    / (SELECT max(cpu) + 1 FROM cpu),
-    6
-  ) AS awake_utilization,
-  round(
-    sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts)),
-    6
-  ) AS awake_unnormalized_utilization
-FROM cpu_cycles_per_process_in_interval($ts, $dur)
-JOIN process USING (upid)
-GROUP BY
-  upid;
+-- Returns: (upid JOINID(process.id), process_name STRING, awake_dur LONG,
+-- awake_utilization DOUBLE, awake_unnormalized_utilization DOUBLE).
+RETURNS Pipeline AS (
+  cpu_cycles_per_process_in_interval!($ts, $dur)
+  |> JOIN process USING (upid)
+  |> AGGREGATE
+       ANY_VALUE(process.name) AS process_name,
+       sum(awake_runtime) AS awake_dur,
+       round(
+         sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts))
+         / (SELECT max(cpu) + 1 FROM cpu),
+         6
+       ) AS awake_utilization,
+       round(
+         sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts)),
+         6
+       ) AS awake_unnormalized_utilization
+     GROUP BY upid
+);

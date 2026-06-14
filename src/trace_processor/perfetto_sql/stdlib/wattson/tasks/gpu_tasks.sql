@@ -13,30 +13,18 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.gpu.work_period;
-
 -- Extract GPU task slices from the work period track.
-CREATE PERFETTO TABLE _gpu_tasks AS
-SELECT s.ts, s.dur, t.uid, t.gpu_id
+CREATE PERFETTO PIPELINE _gpu_tasks MATERIALIZED AS
 FROM slice AS s
-JOIN android_gpu_work_period_track AS t
-  ON s.track_id = t.id
-WHERE
-  s.dur > 0;
+|> JOIN android_gpu_work_period_track AS t ON s.track_id = t.id
+|> WHERE s.dur > 0
+|> SELECT s.ts, s.dur, t.uid, t.gpu_id;
 
 -- Calculate the number of active GPU tasks at any point in time.
-CREATE PERFETTO TABLE _gpu_active_task_count AS
-WITH
-  events AS (
-    SELECT ts, 1 AS delta FROM _gpu_tasks
-    UNION ALL
-    SELECT ts + dur AS ts, -1 AS delta FROM _gpu_tasks
-  ),
-  running_tasks AS (
-    SELECT ts, sum(delta) OVER (ORDER BY ts) AS active_tasks FROM events
-  ),
-  running_tasks_with_dur AS (
-    SELECT ts, lead(ts) OVER (ORDER BY ts) - ts AS dur, active_tasks
-    FROM running_tasks
-  )
-SELECT ts, dur, active_tasks FROM running_tasks_with_dur WHERE dur > 0;
+CREATE PERFETTO PIPELINE _gpu_active_task_count MATERIALIZED AS
+FROM _gpu_tasks
+|> INTERVAL FLATTEN AGGREGATE COUNT(*) AS active_tasks
+|> INTERVAL FILL WITHIN trace_bounds
+|> EXTEND active_tasks = coalesce(active_tasks, 0)
+|> WHERE dur > 0
+|> SELECT ts, dur, active_tasks;

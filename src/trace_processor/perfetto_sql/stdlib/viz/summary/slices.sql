@@ -13,13 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO TABLE _slice_track_summary AS
-SELECT
-  track_id AS id,
-  count() AS cnt,
-  min(dur) AS min_dur,
-  max(dur) AS max_dur,
-  max(depth) AS max_depth
+CREATE PERFETTO PIPELINE _slice_track_summary MATERIALIZED AS
 FROM slice
-GROUP BY
-  track_id;
+|> AGGREGATE
+     count() AS cnt,
+     min(dur) AS min_dur,
+     max(dur) AS max_dur,
+     max(depth) AS max_depth
+   GROUP BY track_id AS id;

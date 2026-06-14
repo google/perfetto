@@ -8,21 +8,19 @@ INCLUDE PERFETTO MODULE chrome.speedometer_3;
 
 CREATE PERFETTO FUNCTION _chrome_speedometer_version()
 RETURNS STRING AS
-WITH
-  num_measures AS (
-    SELECT
-      '2.1' AS version,
-      count(*) AS num_measures
-    FROM chrome_speedometer_2_1_measure
-    UNION ALL
-    SELECT
-      '3' AS version,
-      count(*) AS num_measures
-    FROM chrome_speedometer_3_measure
-  )
 SELECT
   version
-FROM num_measures
+FROM (
+  SELECT
+    '2.1' AS version,
+    count(*) AS num_measures
+  FROM chrome_speedometer_2_1_measure
+  UNION ALL
+  SELECT
+    '3' AS version,
+    count(*) AS num_measures
+  FROM chrome_speedometer_3_measure
+)
 ORDER BY
   num_measures DESC
 LIMIT 1;
@@ -30,7 +28,7 @@ LIMIT 1;
 -- Augmented slices for Speedometer measurements.
 -- These are the intervals of time Speedometer uses to compute the final score.
 -- There are two intervals that are measured for every test: sync and async
-CREATE PERFETTO TABLE chrome_speedometer_measure (
+CREATE PERFETTO PIPELINE chrome_speedometer_measure (
   -- Start timestamp of the measure slice
   ts TIMESTAMP,
   -- Duration of the measure slice
@@ -45,30 +43,15 @@ CREATE PERFETTO TABLE chrome_speedometer_measure (
   test_name STRING,
   -- Type of the measure (sync or async)
   measure_type STRING
-) AS
-WITH
-  all_versions AS (
-    SELECT
-      '2.1' AS version,
-      *
-    FROM chrome_speedometer_2_1_measure
-    UNION ALL
-    SELECT
-      '3' AS version,
-      *
-    FROM chrome_speedometer_3_measure
-  )
-SELECT
-  ts,
-  dur,
-  name,
-  iteration,
-  suite_name,
-  test_name,
-  measure_type
-FROM all_versions
-WHERE
-  version = _chrome_speedometer_version();
+) MATERIALIZED AS
+FROM chrome_speedometer_2_1_measure
+|> EXTEND '2.1' AS version
+|> UNION ALL (
+  FROM chrome_speedometer_3_measure
+  |> EXTEND '3' AS version
+)
+|> WHERE version = _chrome_speedometer_version()
+|> SELECT ts, dur, name, iteration, suite_name, test_name, measure_type;
 
 -- Slice that covers one Speedometer iteration.
 -- Depending on the Speedometer version these slices might need to be estimated
@@ -76,7 +59,7 @@ WHERE
 -- metrics associated are the same ones Speedometer would output, but note we
 -- use ns precision (Speedometer uses ~100us) so the actual values might differ
 -- a bit.
-CREATE PERFETTO TABLE chrome_speedometer_iteration (
+CREATE PERFETTO PIPELINE chrome_speedometer_iteration (
   -- Start timestamp of the iteration
   ts TIMESTAMP,
   -- Duration of the iteration
@@ -90,29 +73,15 @@ CREATE PERFETTO TABLE chrome_speedometer_iteration (
   -- Speedometer score for this iteration (The total score for a run in the
   -- average of all iteration scores).
   score DOUBLE
-) AS
-WITH
-  all_versions AS (
-    SELECT
-      '2.1' AS version,
-      *
-    FROM chrome_speedometer_2_1_iteration
-    UNION ALL
-    SELECT
-      '3' AS version,
-      *
-    FROM chrome_speedometer_3_iteration
-  )
-SELECT
-  ts,
-  dur,
-  name,
-  iteration,
-  geomean,
-  score
-FROM all_versions
-WHERE
-  version = _chrome_speedometer_version();
+) MATERIALIZED AS
+FROM chrome_speedometer_2_1_iteration
+|> EXTEND '2.1' AS version
+|> UNION ALL (
+  FROM chrome_speedometer_3_iteration
+  |> EXTEND '3' AS version
+)
+|> WHERE version = _chrome_speedometer_version()
+|> SELECT ts, dur, name, iteration, geomean, score;
 
 -- Returns the Speedometer score for all iterations in the trace
 CREATE PERFETTO FUNCTION chrome_speedometer_score()

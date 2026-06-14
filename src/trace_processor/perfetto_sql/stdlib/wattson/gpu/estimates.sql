@@ -18,11 +18,9 @@ INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 -- GPU power estimates in mW
-CREATE PERFETTO TABLE _gpu_estimates_mw AS
-SELECT gfi.ts, gfi.dur, c.curve_value AS gpu_mw
+CREATE PERFETTO PIPELINE _gpu_estimates_mw MATERIALIZED AS
 FROM _gpu_freq_idle AS gfi
-JOIN _gpu_filtered_curves AS c
-  ON c.freq_khz = gfi.freq
-  AND c.idle = gfi.power_state
-ORDER BY
-  ts;
+|> JOIN _gpu_filtered_curves AS c
+   ON c.freq_khz = gfi.freq AND c.idle = gfi.power_state
+|> SELECT gfi.ts, gfi.dur, c.curve_value AS gpu_mw
+|> ORDER BY ts;

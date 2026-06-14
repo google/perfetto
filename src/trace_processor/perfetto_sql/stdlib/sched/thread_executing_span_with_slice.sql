@@ -18,136 +18,148 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 -- Critical path rooted at every entry of `_wakeup_graph`, with the
 -- on-CPU blocker thread (`utid`) and the root's thread (`root_utid`)
 -- joined in. Materialised so the slice-aware tables below can join in
 -- id-space.
-CREATE PERFETTO TABLE _critical_path_all AS
-WITH
-  _per_root AS (
-    SELECT *
-    FROM _critical_path_by_roots!((SELECT id AS root_node_id FROM _wakeup_graph), _wakeup_graph)
-  )
-SELECT
-  row_number() OVER (ORDER BY cr.ts) AS id,
-  cr.ts,
-  cr.dur,
-  cr.ts + cr.dur AS ts_end,
-  id_graph.utid,
-  root_id_graph.utid AS root_utid
-FROM _per_root AS cr
-JOIN _wakeup_graph AS id_graph
-  ON cr.id = id_graph.id
-JOIN _wakeup_graph AS root_id_graph
-  ON cr.root_id = root_id_graph.id
-ORDER BY
-  cr.ts;
+CREATE PERFETTO PIPELINE _critical_path_all MATERIALIZED AS
+-- _critical_path_by_roots! is the weighted/critical-path stdlib primitive
+-- (out of scope for the analysis operators); kept as a host source.
+FROM _critical_path_by_roots!(
+  (SELECT id AS root_node_id FROM _wakeup_graph), _wakeup_graph
+) AS cr
+|> JOIN _wakeup_graph AS id_graph ON cr.id = id_graph.id
+|> JOIN _wakeup_graph AS root_id_graph ON cr.root_id = root_id_graph.id
+|> SELECT
+     row_number() OVER (ORDER BY cr.ts) AS id,
+     cr.ts,
+     cr.dur,
+     cr.ts + cr.dur AS ts_end,
+     id_graph.utid,
+     root_id_graph.utid AS root_utid
+|> ORDER BY cr.ts;
 
--- Limited thread_state view that will later be span joined with the |_thread_executing_span_graph|.
-CREATE PERFETTO VIEW _span_thread_state_view AS
-SELECT
-  id AS thread_state_id,
-  ts,
-  dur,
-  utid,
-  state,
-  blocked_function AS function,
-  io_wait,
-  cpu
-FROM thread_state;
+-- Limited thread_state view that will later be intersected with the
+-- slice-flattened stream.
+CREATE PERFETTO PIPELINE _span_thread_state_view AS
+FROM thread_state
+|> SELECT
+     id AS thread_state_id,
+     ts,
+     dur,
+     utid,
+     state,
+     blocked_function AS function,
+     io_wait,
+     cpu;
 
--- Slice projection for SPAN_JOIN with thread_state. Carries `slice_id`
+-- Slice projection for splitting against thread_state. Carries `slice_id`
 -- only; the slice's name is joined on demand at the leaves of
 -- `_critical_path_stack` so the materialised cross-product below does
 -- not duplicate every slice's name across every blocker region.
-CREATE PERFETTO VIEW _span_slice_view AS
-SELECT
-  slice_id,
-  depth AS slice_depth,
-  cast_int!(ts) AS ts,
-  cast_int!(dur) AS dur,
-  utid
-FROM _slice_flattened;
+CREATE PERFETTO PIPELINE _span_slice_view AS
+FROM _slice_flattened
+|> SELECT
+     slice_id,
+     depth AS slice_depth,
+     cast_int!(ts) AS ts,
+     cast_int!(dur) AS dur,
+     utid;
 
--- thread state span joined with slice.
-CREATE VIRTUAL TABLE _span_thread_state_slice_sp USING SPAN_LEFT_JOIN(
-    _span_thread_state_view PARTITIONED utid,
-    _span_slice_view PARTITIONED utid);
+-- thread state span joined with slice (left split: thread_state rows cut at
+-- slice boundaries, slice columns attached, null where no slice is present).
+CREATE PERFETTO PIPELINE _span_thread_state_slice MATERIALIZED AS
+FROM _span_thread_state_view AS ts
+|> INTERVAL SPLIT _span_slice_view AS sl PER utid
+|> WHERE dur > 0
+|> SELECT
+     row_number() OVER (ORDER BY ts) AS id,
+     ts,
+     dur,
+     ts + dur AS ts_end,
+     ts.utid,
+     ts.thread_state_id,
+     ts.state,
+     ts.function,
+     ts.cpu,
+     ts.io_wait,
+     sl.slice_id,
+     sl.slice_depth
+|> ORDER BY ts;
 
-CREATE PERFETTO TABLE _span_thread_state_slice AS
-SELECT
-  row_number() OVER (ORDER BY ts) AS id,
-  ts,
-  dur,
-  ts + dur AS ts_end,
-  utid,
-  thread_state_id,
-  state,
-  function,
-  cpu,
-  io_wait,
-  slice_id,
-  slice_depth
-FROM _span_thread_state_slice_sp
-WHERE
-  dur > 0
-ORDER BY
-  ts;
-
-CREATE PERFETTO TABLE _critical_path_thread_state_slice_raw AS
-SELECT id_0 AS cr_id, id_1 AS th_id, ts, dur
-FROM _interval_intersect!((_critical_path_all, _span_thread_state_slice), (utid));
-
+CREATE PERFETTO PIPELINE _critical_path_thread_state_slice MATERIALIZED AS
 -- Critical-path × slice cross product, restricted to id-space columns.
 -- Slice names are not stored here; `_critical_path_stack` joins `slice`
 -- on `slice_id` for the rows it actually returns.
-CREATE PERFETTO TABLE _critical_path_thread_state_slice AS
-SELECT
-  raw.ts,
-  raw.dur,
-  cr.utid,
-  thread_state_id,
-  state,
-  function,
-  cpu,
-  io_wait,
-  slice_id,
-  slice_depth,
-  root_utid
-FROM _critical_path_thread_state_slice_raw AS raw
-JOIN _critical_path_all AS cr
-  ON cr.id = raw.cr_id
-JOIN _span_thread_state_slice AS th
-  ON th.id = raw.th_id;
+SUBPIPELINE raw AS (
+  INTERVAL INTERSECTION OF (
+    _critical_path_all AS cr,
+    _span_thread_state_slice AS th
+  ) PER utid
+  |> SELECT cr.id AS cr_id, th.id AS th_id, ts, dur
+)
+FROM raw
+|> JOIN _critical_path_all AS cr ON cr.id = raw.cr_id
+|> JOIN _span_thread_state_slice AS th ON th.id = raw.th_id
+|> SELECT
+     raw.ts,
+     raw.dur,
+     cr.utid,
+     th.thread_state_id,
+     th.state,
+     th.function,
+     th.cpu,
+     th.io_wait,
+     th.slice_id,
+     th.slice_depth,
+     cr.root_utid;
 
--- Flattened slices span joined with their thread_states. This contains the 'self' information
--- without 'critical_path' (blocking) information.
-CREATE VIRTUAL TABLE _self_sp USING SPAN_LEFT_JOIN(thread_state PARTITIONED utid, _slice_flattened PARTITIONED utid);
+-- Flattened slices left-split into their thread_states. This contains the
+-- 'self' information without 'critical_path' (blocking) information.
+-- Projection in id-space; slice names are joined on `self_slice_id` at the
+-- leaves of `_critical_path_stack`.
+CREATE PERFETTO PIPELINE _self_view AS
+FROM thread_state AS t
+|> INTERVAL SPLIT _slice_flattened AS sl PER utid
+|> SELECT
+     t.id AS self_thread_state_id,
+     sl.slice_id AS self_slice_id,
+     ts,
+     dur,
+     t.utid AS root_utid,
+     t.state AS self_state,
+     t.blocked_function AS self_function,
+     t.cpu AS self_cpu,
+     t.io_wait AS self_io_wait,
+     sl.depth AS self_slice_depth;
 
--- Projection of |_self_sp| in id-space. Slice names are joined on
--- `self_slice_id` at the leaves of `_critical_path_stack`.
-CREATE PERFETTO VIEW _self_view AS
-SELECT
-  id AS self_thread_state_id,
-  slice_id AS self_slice_id,
-  ts,
-  dur,
-  utid AS root_utid,
-  state AS self_state,
-  blocked_function AS self_function,
-  cpu AS self_cpu,
-  io_wait AS self_io_wait,
-  depth AS self_slice_depth
-FROM _self_sp;
-
--- Self and critical path span join. This contains the union of the time intervals from the following:
+-- Self and critical path span join (inner intersection). This contains the
+-- intersection of the time intervals from the following:
 --  a. Self slice stack + thread_state.
 --  b. Critical path stack + thread_state.
-CREATE VIRTUAL TABLE _self_and_critical_path_sp USING SPAN_JOIN(
-    _self_view PARTITIONED root_utid,
-    _critical_path_thread_state_slice PARTITIONED root_utid);
+CREATE PERFETTO PIPELINE _self_and_critical_path_sp MATERIALIZED AS
+INTERVAL INTERSECTION OF (
+  _self_view AS s,
+  _critical_path_thread_state_slice AS c
+) PER root_utid
+|> SELECT
+     s.self_thread_state_id,
+     s.self_slice_id,
+     s.self_slice_depth,
+     s.self_function,
+     s.self_io_wait,
+     s.self_state,
+     c.thread_state_id,
+     c.state,
+     c.function,
+     c.io_wait,
+     c.slice_id,
+     c.slice_depth,
+     c.cpu,
+     c.utid,
+     ts,
+     dur,
+     s.root_utid;
 
 -- Returns a view of |_self_and_critical_path_sp| unpivoted over the following columns:
 -- self thread_state.
@@ -161,6 +173,10 @@ CREATE VIRTUAL TABLE _self_and_critical_path_sp USING SPAN_JOIN(
 -- critical_path slice_stack (enabled with |enable_critical_path_slice|).
 -- running cpu (if one exists).
 -- A 'stack' is the group of resulting unpivoted rows sharing the same timestamp.
+--
+-- This unpivot-into-stacks (and the pprof serialization below) is profile
+-- serialization, out of scope for the analysis operators; kept as host SQL
+-- over the pipelines above.
 CREATE PERFETTO FUNCTION _critical_path_stack(
   root_utid JOINID(thread.id),
   ts TIMESTAMP,

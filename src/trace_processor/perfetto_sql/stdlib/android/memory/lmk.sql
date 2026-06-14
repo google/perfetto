@@ -40,84 +40,79 @@ SELECT
 
 -- Kills recorded via the instant lowmemorykiller track
 -- Introduced with ag/32702401 (Mar 2025)
-CREATE PERFETTO TABLE _lmk_instant_events AS
-SELECT
-  ts,
-  CAST(str_split(slice.name, ',', 1) AS LONG) AS pid,
-  CAST(str_split(slice.name, ',', 2) AS LONG) AS kill_reason_raw,
-  CAST(str_split(slice.name, ',', 3) AS LONG) AS oom_score_adj
+CREATE PERFETTO PIPELINE _lmk_instant_events MATERIALIZED AS
 FROM slice
-JOIN process_track AS pt
-  ON slice.track_id = pt.id
-WHERE
-  pt.name = 'lowmemorykiller'
-  AND slice.name GLOB 'lmk,*'
-  AND dur = 0;
+|> JOIN process_track AS pt ON slice.track_id = pt.id
+|> WHERE pt.name = 'lowmemorykiller' AND slice.name GLOB 'lmk,*' AND dur = 0
+|> SELECT
+     ts,
+     CAST(str_split(slice.name, ',', 1) AS LONG) AS pid,
+     CAST(str_split(slice.name, ',', 2) AS LONG) AS kill_reason_raw,
+     CAST(str_split(slice.name, ',', 3) AS LONG) AS oom_score_adj;
 
 -- LMK events based on the slice atrace event (legacy)
 -- Introduced with aosp/1782391 (Aug 2021)
-CREATE PERFETTO TABLE _legacy_lmk_events AS
-SELECT
-  ts,
-  CAST(str_split(slice.name, ',', 1) AS LONG) AS pid,
-  CAST(str_split(slice.name, ',', 2) AS LONG) AS kill_reason_raw,
-  CAST(str_split(slice.name, ',', 3) AS LONG) AS oom_score_adj
+CREATE PERFETTO PIPELINE _legacy_lmk_events MATERIALIZED AS
 FROM slice
-WHERE
-  slice.name GLOB 'lmk,*'
-  AND dur > 0;
+|> WHERE slice.name GLOB 'lmk,*' AND dur > 0
+|> SELECT
+     ts,
+     CAST(str_split(slice.name, ',', 1) AS LONG) AS pid,
+     CAST(str_split(slice.name, ',', 2) AS LONG) AS kill_reason_raw,
+     CAST(str_split(slice.name, ',', 3) AS LONG) AS oom_score_adj;
 
 -- The original lmkd trace events, deprecated in 2022
-CREATE PERFETTO TABLE _kill_one_process_events AS
-WITH
-  kills AS (
-    SELECT c.ts, cast_int!(c.value) AS pid
-    FROM counter AS c
-    JOIN counter_track AS ct
-      ON c.track_id = ct.id
-    WHERE
-      ct.name = 'kill_one_process'
-      AND c.value > 0
-  ),
-  si AS (
-    SELECT si.ts, si.dur, si.score, process.pid
-    FROM android_oom_adj_intervals AS si
-    JOIN process USING (upid)
-  )
-SELECT kills.ts, kills.pid, NULL AS kill_reason_raw, si.score AS oom_score_adj
+CREATE PERFETTO PIPELINE _kill_one_process_events MATERIALIZED AS
+SUBPIPELINE kills AS (
+  FROM counter AS c
+  |> JOIN counter_track AS ct ON c.track_id = ct.id
+  |> WHERE ct.name = 'kill_one_process' AND c.value > 0
+  |> SELECT c.ts, cast_int!(c.value) AS pid
+)
+SUBPIPELINE si AS (
+  FROM android_oom_adj_intervals AS si
+  |> JOIN process USING (upid)
+  |> SELECT si.ts, si.dur, si.score, process.pid
+)
 FROM kills
-LEFT JOIN si
-  ON kills.pid = si.pid
-  AND kills.ts >= si.ts
-  AND kills.ts < si.ts + si.dur;
+|> LEFT JOIN si
+     ON kills.pid = si.pid
+     AND kills.ts >= si.ts
+     AND kills.ts < si.ts + si.dur
+|> SELECT kills.ts, kills.pid, NULL AS kill_reason_raw, si.score AS oom_score_adj;
 
-CREATE PERFETTO VIEW _android_lmk_events AS
-WITH
-  selector AS (
-    SELECT
-      CASE
-        WHEN (SELECT count(1) FROM _lmk_instant_events) > 0 THEN '_lmk_instant_events'
-        WHEN (SELECT count(1) FROM _legacy_lmk_events) > 0 THEN '_legacy_lmk_events'
-        ELSE '_kill_one_process_events'
-      END AS s
-  )
-SELECT *
-FROM _lmk_instant_events
-WHERE
-  (SELECT s FROM selector) = '_lmk_instant_events'
-UNION ALL
-SELECT *
-FROM _legacy_lmk_events
-WHERE
-  (SELECT s FROM selector) = '_legacy_lmk_events'
-UNION ALL
-SELECT *
-FROM _kill_one_process_events
-WHERE
-  (SELECT s FROM selector) = '_kill_one_process_events';
+-- Selects whichever of the three event sources is populated. The selection
+-- depends on runtime row counts of named tables, so this stays as host SQL
+-- (runtime table dispatch is out of scope for the analysis operators).
+CREATE PERFETTO PIPELINE _android_lmk_events AS
+FROM (
+  WITH
+    selector AS (
+      SELECT
+        CASE
+          WHEN (SELECT count(1) FROM _lmk_instant_events) > 0 THEN '_lmk_instant_events'
+          WHEN (SELECT count(1) FROM _legacy_lmk_events) > 0 THEN '_legacy_lmk_events'
+          ELSE '_kill_one_process_events'
+        END AS s
+    )
+  SELECT *
+  FROM _lmk_instant_events
+  WHERE
+    (SELECT s FROM selector) = '_lmk_instant_events'
+  UNION ALL
+  SELECT *
+  FROM _legacy_lmk_events
+  WHERE
+    (SELECT s FROM selector) = '_legacy_lmk_events'
+  UNION ALL
+  SELECT *
+  FROM _kill_one_process_events
+  WHERE
+    (SELECT s FROM selector) = '_kill_one_process_events'
+);
 
 -- Android Low-Memory Kill (LMK) events
-CREATE PERFETTO TABLE android_lmk_events(
+CREATE PERFETTO PIPELINE android_lmk_events(
   -- timestamp of the kill being requested by lmkd
   ts TIMESTAMP,
   -- upid of the process being killed
@@ -132,18 +127,17 @@ CREATE PERFETTO TABLE android_lmk_events(
   kill_reason STRING,
   -- lmkd kill_reason enum value
   kill_reason_raw LONG
-)
-AS
-SELECT
-  ts,
-  process.upid,
-  evt.pid,
-  process.name AS process_name,
-  oom_score_adj,
-  _android_lmk_kill_reason_string(kill_reason_raw) AS kill_reason,
-  kill_reason_raw
+) MATERIALIZED AS
 FROM _android_lmk_events AS evt
-LEFT JOIN process
-  ON (evt.pid = process.pid
-  AND evt.ts >= coalesce(process.start_ts, trace_start())
-  AND evt.ts <= coalesce(process.end_ts, trace_end()));
+|> LEFT JOIN process
+     ON (evt.pid = process.pid
+     AND evt.ts >= coalesce(process.start_ts, trace_start())
+     AND evt.ts <= coalesce(process.end_ts, trace_end()))
+|> SELECT
+     ts,
+     process.upid,
+     evt.pid,
+     process.name AS process_name,
+     oom_score_adj,
+     _android_lmk_kill_reason_string(kill_reason_raw) AS kill_reason,
+     kill_reason_raw;

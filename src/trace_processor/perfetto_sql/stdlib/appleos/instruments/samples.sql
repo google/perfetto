@@ -15,21 +15,13 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
-CREATE PERFETTO TABLE _appleos_instruments_raw_callstacks AS
-SELECT *
-FROM _callstacks_for_callsites!((
-  SELECT p.callsite_id
-  FROM instruments_sample p
-)) AS c
-ORDER BY
-  c.id;
-
--- This index is added to optimize the creation of the
--- appleos_instruments_samples_summary_tree table by speeding up the
--- leaf-finding query in _callstacks_self_to_cumulative.
-CREATE PERFETTO INDEX _appleos_instruments_raw_callstacks_parent_id_idx ON _appleos_instruments_raw_callstacks(
-  parent_id
-);
+CREATE PERFETTO PIPELINE _appleos_instruments_raw_callstacks MATERIALIZED AS
+SUBPIPELINE callsites AS (
+  FROM instruments_sample AS p
+  |> SELECT p.callsite_id
+)
+FROM _callstacks_for_callsites!((FROM callsites)) AS c
+|> ORDER BY c.id;
 
 -- Table summarising the callstacks captured during all
 -- instruments samples in the trace.
@@ -39,7 +31,7 @@ CREATE PERFETTO INDEX _appleos_instruments_raw_callstacks_parent_id_idx ON _appl
 -- equal to the number of samples with that frame as the
 -- leaf and `cumulative_count` equal to the number of
 -- samples with the frame anywhere in the tree.
-CREATE PERFETTO TABLE appleos_instruments_samples_summary_tree(
+CREATE PERFETTO PIPELINE appleos_instruments_samples_summary_tree(
   -- The id of the callstack. A callstack in this context
   -- is a unique set of frames up to the root.
   id LONG,
@@ -60,13 +52,7 @@ CREATE PERFETTO TABLE appleos_instruments_samples_summary_tree(
   -- The number of samples with this function appearing
   -- anywhere on the callstack.
   cumulative_count LONG
-)
-AS
-SELECT r.*, a.cumulative_count
-FROM _callstacks_self_to_cumulative!((
-  SELECT id, parent_id, self_count
-  FROM _appleos_instruments_raw_callstacks
-)) AS a
-JOIN _appleos_instruments_raw_callstacks AS r USING (id)
-ORDER BY
-  r.id;
+) MATERIALIZED AS
+FROM _appleos_instruments_raw_callstacks AS r
+|> TREE ACCUMULATE UP SUM(self_count) AS cumulative_count
+|> ORDER BY r.id;

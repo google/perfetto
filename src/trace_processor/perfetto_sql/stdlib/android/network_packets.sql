@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE std.metasql.unparenthesize;
 
 -- Android network packet events (from android.network_packets data source).
-CREATE PERFETTO VIEW android_network_packets(
+CREATE PERFETTO PIPELINE android_network_packets(
   -- Id of the slice.
   id ID,
   -- Timestamp.
@@ -55,32 +55,31 @@ CREATE PERFETTO VIEW android_network_packets(
   packet_tcp_flags_int LONG,
   -- Packet's socket tag as an integer.
   socket_tag_int LONG
-)
-AS
-SELECT
-  id,
-  ts,
-  dur,
-  category AS track_name,
-  name AS package_name,
-  iface,
-  direction,
-  packet_count,
-  packet_length,
-  packet_transport,
-  -- For backwards compatibility, the _str suffixed flags (which the ui shows)
-  -- are exposed without suffix, and the integer fields get suffix instead.
-  packet_tcp_flags_str AS packet_tcp_flags,
-  packet_tcp_flags AS packet_tcp_flags_int,
-  socket_tag_str AS socket_tag,
-  socket_tag AS socket_tag_int,
-  socket_uid,
-  local_port,
-  remote_port,
-  packet_icmp_type,
-  packet_icmp_code
+) AS
 FROM __intrinsic_android_network_packets
-JOIN slice USING (id);
+|> JOIN slice USING (id)
+|> SELECT
+     id,
+     ts,
+     dur,
+     category AS track_name,
+     name AS package_name,
+     iface,
+     direction,
+     packet_count,
+     packet_length,
+     packet_transport,
+     -- For backwards compatibility, the _str suffixed flags (which the ui shows)
+     -- are exposed without suffix, and the integer fields get suffix instead.
+     packet_tcp_flags_str AS packet_tcp_flags,
+     packet_tcp_flags AS packet_tcp_flags_int,
+     socket_tag_str AS socket_tag,
+     socket_tag AS socket_tag_int,
+     socket_uid,
+     local_port,
+     remote_port,
+     packet_icmp_type,
+     packet_icmp_code;
 
 -- Finds groups of overlapping slices and assigns them group ids.
 --
@@ -97,6 +96,10 @@ JOIN slice USING (id);
 -- * group_id: the group the row belongs to (per partition_columns)
 -- * max_end_so_far: the maximum end timestamp observed so far, useful for
 --   determining the time since the last group or event (per partition_columns)
+--
+-- This is a row-preserving group numbering (keeping max_end_so_far per row),
+-- not the coverage-collapsing INTERVAL MERGE OVERLAPPING, so it stays a
+-- parameterized relational macro.
 CREATE PERFETTO MACRO _add_overlap_group_id(
   src TableOrSubquery,
   partition_columns ColumnNameList

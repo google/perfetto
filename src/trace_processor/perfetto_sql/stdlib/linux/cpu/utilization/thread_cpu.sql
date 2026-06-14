@@ -17,10 +17,14 @@ INCLUDE PERFETTO MODULE linux.cpu.utilization.general;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
+-- NOTE (psqlnext): the `*_in_interval` construct is parameterized by a scalar
+-- window, so it is a pipeline-valued macro (`RETURNS Pipeline`) clipping
+-- `_cpu_freq_per_thread` with `_interval_intersect_single!($ts, $dur, …)`.
+
 -- Aggregated CPU statistics for each thread per CPU combination.
 -- To operate properly this requires sched/sched_switch and power/cpu_frequency
 -- ftrace events to be present in the trace.
-CREATE PERFETTO TABLE cpu_cycles_per_thread_per_cpu(
+CREATE PERFETTO PIPELINE cpu_cycles_per_thread_per_cpu(
   -- Thread
   utid JOINID(thread.id),
   -- Unique CPU id. Joinable with `cpu.id`.
@@ -39,70 +43,62 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread_per_cpu(
   max_freq LONG,
   -- Average CPU frequency in kHz
   avg_freq LONG
-)
-AS
-SELECT
-  utid,
-  ucpu,
-  cpu.cpu,
+) MATERIALIZED AS
+FROM _cpu_freq_per_thread
+|> JOIN cpu USING (ucpu)
+|> AGGREGATE
   cast_int!(SUM(dur * freq / 1000)) AS millicycles,
   cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
   sum(dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
   cast_int!(SUM((dur * freq / 1000)) / (SUM(dur) / 1000)) AS avg_freq
-FROM _cpu_freq_per_thread
-JOIN cpu USING (ucpu)
-GROUP BY
+  GROUP BY utid, ucpu, cpu.cpu
+|> SELECT
   utid,
-  ucpu;
+  ucpu,
+  cpu.cpu AS cpu,
+  millicycles,
+  megacycles,
+  runtime,
+  min_freq,
+  max_freq,
+  avg_freq;
 
 -- Aggregated CPU statistics for each thread per CPU combination in a provided interval.
 -- To operate properly this requires sched/sched_switch and power/cpu_frequency
 -- ftrace events to be present in the trace.
 -- Warning: this query is expensive and might take a long time to execute when joined
 -- with a large number of intervals.
-CREATE PERFETTO FUNCTION cpu_cycles_per_thread_per_cpu_in_interval(
+CREATE PERFETTO MACRO cpu_cycles_per_thread_per_cpu_in_interval(
   -- Start of the interval.
-  ts TIMESTAMP,
+  ts Expr,
   -- Duration of the interval.
-  dur LONG
+  dur Expr
 )
-RETURNS TABLE(
-  -- Thread with CPU cycles and frequency statistics.
-  utid JOINID(thread.id),
-  -- Unique CPU id. Joinable with `cpu.id`.
-  ucpu JOINID(cpu.id),
-  -- The number of the CPU. Might not be the same as ucpu in multi machine cases.
-  cpu LONG,
-  -- Sum of CPU millicycles
-  millicycles LONG,
-  -- Sum of CPU megacycles
-  megacycles LONG,
-  -- Total runtime duration
-  runtime DURATION,
-  -- Minimum CPU frequency in kHz
-  min_freq LONG,
-  -- Maximum CPU frequency in kHz
-  max_freq LONG,
-  -- Average CPU frequency in kHz
-  avg_freq LONG
-)
-AS
-SELECT
-  utid,
-  ucpu,
-  cpu.cpu,
-  cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
-  sum(ii.dur) AS runtime,
-  min(freq) AS min_freq,
-  max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000))
-    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
-FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
-JOIN _cpu_freq_per_thread AS c USING (id)
-JOIN cpu USING (ucpu)
-GROUP BY
-  utid,
-  ucpu;
+-- Returns: (utid JOINID(thread.id), ucpu JOINID(cpu.id), cpu LONG,
+-- millicycles LONG, megacycles LONG, runtime DURATION, min_freq LONG,
+-- max_freq LONG, avg_freq LONG).
+RETURNS Pipeline AS (
+  _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread)
+  |> JOIN cpu USING (ucpu)
+  |> AGGREGATE
+       cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+       cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
+       sum(dur) AS runtime,
+       min(freq) AS min_freq,
+       max(freq) AS max_freq,
+       cast_int!(SUM((dur * freq / 1000))
+         / (SUM(CASE WHEN freq IS NOT NULL THEN dur END) / 1000)) AS avg_freq
+     GROUP BY utid, ucpu, cpu.cpu
+  |> SELECT
+       utid,
+       ucpu,
+       cpu.cpu AS cpu,
+       millicycles,
+       megacycles,
+       runtime,
+       min_freq,
+       max_freq,
+       avg_freq
+);

@@ -22,7 +22,7 @@
 -- Note: `users` here corresponds to Android users *not* Linux users. So
 -- this is not about Linux uids (which in Android correspons to different
 -- apps).
-CREATE PERFETTO VIEW android_user_list(
+CREATE PERFETTO PIPELINE android_user_list(
   -- The Android user id.
   --
   -- Often useful to join with `android_process_metadata.user_id`
@@ -33,4 +33,5 @@ CREATE PERFETTO VIEW android_user_list(
   type STRING
 )
 AS
-SELECT android_user_id, type FROM __intrinsic_android_user_list;
+FROM __intrinsic_android_user_list
+|> SELECT android_user_id, type;

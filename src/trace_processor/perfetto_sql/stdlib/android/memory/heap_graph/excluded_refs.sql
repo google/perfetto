@@ -13,24 +13,20 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO TABLE _ref_type_ids AS
-SELECT id AS type_id
+CREATE PERFETTO PIPELINE _ref_type_ids MATERIALIZED AS
 FROM heap_graph_class
-WHERE
-  kind IN (
-    'KIND_FINALIZER_REFERENCE',
-    'KIND_PHANTOM_REFERENCE',
-    'KIND_WEAK_REFERENCE'
-  )
-ORDER BY
-  type_id;
+|> WHERE kind IN (
+     'KIND_FINALIZER_REFERENCE',
+     'KIND_PHANTOM_REFERENCE',
+     'KIND_WEAK_REFERENCE'
+   )
+|> SELECT id AS type_id
+|> ORDER BY type_id;
 
-CREATE PERFETTO TABLE _excluded_refs AS
-SELECT ref.id
+CREATE PERFETTO PIPELINE _excluded_refs MATERIALIZED AS
 FROM heap_graph_object AS robj
-CROSS JOIN heap_graph_reference AS ref USING (reference_set_id)
-CROSS JOIN _ref_type_ids USING (type_id)
-WHERE
-  ref.field_name = 'java.lang.ref.Reference.referent'
-ORDER BY
-  ref.id;
+|> JOIN heap_graph_reference AS ref USING (reference_set_id)
+|> JOIN _ref_type_ids USING (type_id)
+|> WHERE ref.field_name = 'java.lang.ref.Reference.referent'
+|> SELECT ref.id
+|> ORDER BY ref.id;

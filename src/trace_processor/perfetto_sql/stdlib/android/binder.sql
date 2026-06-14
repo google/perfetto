@@ -21,7 +21,7 @@ INCLUDE PERFETTO MODULE android.suspend;
 INCLUDE PERFETTO MODULE slices.flow;
 
 -- Count Binder transactions per process.
-CREATE PERFETTO VIEW android_binder_metrics_by_process(
+CREATE PERFETTO PIPELINE android_binder_metrics_by_process(
   -- Name of the process that started the binder transaction.
   process_name STRING,
   -- PID of the process that started the binder transaction.
@@ -30,199 +30,167 @@ CREATE PERFETTO VIEW android_binder_metrics_by_process(
   slice_name STRING,
   -- Number of binder transactions in process in slice.
   event_count LONG
-)
-AS
-SELECT
-  process.name AS process_name,
-  process.pid AS pid,
-  slice.name AS slice_name,
-  count(*) AS event_count
+) AS
 FROM slice
-JOIN thread_track
-  ON slice.track_id = thread_track.id
-JOIN thread
-  ON thread.utid = thread_track.utid
-JOIN process
-  ON thread.upid = process.upid
-WHERE
-  slice.name GLOB 'binder*'
-GROUP BY
-  process_name,
-  slice_name;
+|> JOIN thread_track ON slice.track_id = thread_track.id
+|> JOIN thread ON thread.utid = thread_track.utid
+|> JOIN process ON thread.upid = process.upid
+|> WHERE slice.name GLOB 'binder*'
+|> AGGREGATE
+     count(*) AS event_count
+   GROUP BY
+     process.name AS process_name,
+     process.pid AS pid,
+     slice.name AS slice_name;
 
-CREATE PERFETTO TABLE _binder_txn_merged AS
-WITH
-  maybe_broken_binder_txn AS (
-    -- Fetch the broken binder txns first, i.e, the txns that have children slices
-    -- They may be broken because synchronous txns are typically blocked sleeping while
-    -- waiting for a response.
-    -- These broken txns will be excluded below in the binder_txn CTE
-    SELECT ancestor.id
-    FROM slice
-    JOIN slice AS ancestor
-      ON ancestor.id = slice.parent_id
-    WHERE
-      ancestor.name = 'binder transaction'
-    GROUP BY
-      ancestor.id
-  ),
-  nested_binder_txn AS (
-    -- Detect the non-broken cases which are just nested binder txns
-    SELECT DISTINCT root_node_id AS id
-    FROM _slice_following_flow!(maybe_broken_binder_txn)
-  ),
-  broken_binder_txn AS (
-    -- Exclude the nested txns from the 'maybe broken' set
-    SELECT * FROM maybe_broken_binder_txn
-    EXCEPT
-    SELECT * FROM nested_binder_txn
-  ),
-  -- Adding MATERIALIZED here matters in cases where there are few/no binder
-  -- transactions in the trace. Our cost estimation is not good enough to allow
-  -- the query planner to see through to this fact. Instead, our cost estimation
-  -- causes repeated queries on this table which is slow because it's an O(n)
-  -- query.
-  --
-  -- We should fix this by doing some (ideally all) of the following:
-  --  1) Add support for columnar tables in SQL which will allow for
-  --     "subsetting" the slice table to only contain binder transactions.
-  --  2) Make this query faster by adding improving string filtering.
-  --  3) Add caching so that even if these queries happen many times, they are
-  --     fast.
-  --  4) Improve cost estimation algorithm to allow the joins to happen the
-  --     right way around.
-  binder_txn AS MATERIALIZED (
-    SELECT
-      slice.id AS binder_txn_id,
-      process.name AS process_name,
-      thread.name AS thread_name,
-      thread.utid AS utid,
-      thread.tid AS tid,
-      process.pid AS pid,
-      process.upid AS upid,
-      slice.ts,
-      slice.dur,
-      thread.is_main_thread
-    FROM slice
-    JOIN thread_track
-      ON slice.track_id = thread_track.id
-    JOIN thread USING (utid)
-    JOIN process USING (upid)
-    LEFT JOIN broken_binder_txn
-      ON broken_binder_txn.id = slice.id
-    WHERE
-      slice.name = 'binder transaction'
-      AND broken_binder_txn.id IS NULL
-  ),
-  binder_reply AS (
-    SELECT
-      binder_txn.*,
-      binder_reply.ts AS server_ts,
-      binder_reply.dur AS server_dur,
-      binder_reply.id AS binder_reply_id,
-      reply_thread.name AS server_thread,
-      reply_process.name AS server_process,
-      reply_thread.utid AS server_utid,
-      reply_thread.tid AS server_tid,
-      reply_process.pid AS server_pid,
-      reply_process.upid AS server_upid,
-      aidl.name AS aidl_name,
-      aidl.ts AS aidl_ts,
-      aidl.dur AS aidl_dur
-    FROM binder_txn
-    JOIN flow AS binder_flow
-      ON binder_txn.binder_txn_id = binder_flow.slice_out
-    JOIN slice AS binder_reply
-      ON binder_flow.slice_in = binder_reply.id
-    JOIN thread_track AS reply_thread_track
-      ON binder_reply.track_id = reply_thread_track.id
-    JOIN thread AS reply_thread
-      ON reply_thread.utid = reply_thread_track.utid
-    JOIN process AS reply_process
-      ON reply_process.upid = reply_thread.upid
-    LEFT JOIN slice AS aidl
-      ON aidl.parent_id = binder_reply.id
-      AND (
-      -- Filter for only server side AIDL slices as there are some client side ones for cpp
-      aidl.name GLOB 'AIDL::*Server'
-      OR aidl.name GLOB 'AIDL::*server'
-      OR aidl.name GLOB 'HIDL::*server')
-  )
-SELECT
-  min(aidl_name) AS aidl_name,
-  aidl_ts,
-  aidl_dur,
-  binder_txn_id,
-  process_name AS client_process,
-  thread_name AS client_thread,
-  upid AS client_upid,
-  utid AS client_utid,
-  tid AS client_tid,
-  pid AS client_pid,
-  is_main_thread,
-  ts AS client_ts,
-  dur AS client_dur,
-  binder_reply_id,
-  server_process,
-  server_thread,
-  server_upid,
-  server_utid,
-  server_tid,
-  server_pid,
-  server_ts,
-  server_dur
-FROM binder_reply
-WHERE
-  client_dur != -1
-  AND server_dur != -1
-  AND client_dur >= server_dur
-GROUP BY
-  process_name,
-  thread_name,
-  binder_txn_id,
-  binder_reply_id;
+CREATE PERFETTO PIPELINE _binder_txn_merged MATERIALIZED AS
+-- Fetch the broken binder txns first, i.e, the txns that have children slices
+-- They may be broken because synchronous txns are typically blocked sleeping while
+-- waiting for a response.
+-- These broken txns will be excluded below in the binder_txn subpipeline.
+SUBPIPELINE maybe_broken_binder_txn AS (
+  FROM slice
+  |> JOIN slice AS ancestor ON ancestor.id = slice.parent_id
+  |> WHERE ancestor.name = 'binder transaction'
+  |> AGGREGATE GROUP BY ancestor.id
+  |> SELECT ancestor.id AS id
+)
+-- Detect the non-broken cases which are just nested binder txns
+SUBPIPELINE nested_binder_txn AS (
+  FROM _slice_following_flow!(maybe_broken_binder_txn)
+  |> SELECT DISTINCT root_node_id AS id
+)
+-- Exclude the nested txns from the 'maybe broken' set
+SUBPIPELINE broken_binder_txn AS (
+  FROM maybe_broken_binder_txn
+  |> EXCEPT (FROM nested_binder_txn)
+)
+-- Adding MATERIALIZED here matters in cases where there are few/no binder
+-- transactions in the trace. Our cost estimation is not good enough to allow
+-- the query planner to see through to this fact. Instead, our cost estimation
+-- causes repeated queries on this table which is slow because it's an O(n)
+-- query.
+SUBPIPELINE binder_txn AS (
+  FROM slice
+  |> JOIN thread_track ON slice.track_id = thread_track.id
+  |> JOIN thread USING (utid)
+  |> JOIN process USING (upid)
+  |> LEFT JOIN broken_binder_txn ON broken_binder_txn.id = slice.id
+  |> WHERE
+       slice.name = 'binder transaction'
+       AND broken_binder_txn.id IS NULL
+  |> SELECT
+       slice.id AS binder_txn_id,
+       process.name AS process_name,
+       thread.name AS thread_name,
+       thread.utid AS utid,
+       thread.tid AS tid,
+       process.pid AS pid,
+       process.upid AS upid,
+       slice.ts,
+       slice.dur,
+       thread.is_main_thread
+)
+FROM binder_txn
+|> JOIN flow AS binder_flow ON binder_txn.binder_txn_id = binder_flow.slice_out
+|> JOIN slice AS binder_reply ON binder_flow.slice_in = binder_reply.id
+|> JOIN thread_track AS reply_thread_track ON binder_reply.track_id = reply_thread_track.id
+|> JOIN thread AS reply_thread ON reply_thread.utid = reply_thread_track.utid
+|> JOIN process AS reply_process ON reply_process.upid = reply_thread.upid
+|> LEFT JOIN slice AS aidl
+     ON aidl.parent_id = binder_reply.id
+     AND (
+     -- Filter for only server side AIDL slices as there are some client side ones for cpp
+     aidl.name GLOB 'AIDL::*Server'
+     OR aidl.name GLOB 'AIDL::*server'
+     OR aidl.name GLOB 'HIDL::*server')
+|> SELECT
+     binder_txn.*,
+     binder_reply.ts AS server_ts,
+     binder_reply.dur AS server_dur,
+     binder_reply.id AS binder_reply_id,
+     reply_thread.name AS server_thread,
+     reply_process.name AS server_process,
+     reply_thread.utid AS server_utid,
+     reply_thread.tid AS server_tid,
+     reply_process.pid AS server_pid,
+     reply_process.upid AS server_upid,
+     aidl.name AS aidl_name,
+     aidl.ts AS aidl_ts,
+     aidl.dur AS aidl_dur
+|> WHERE
+     client_dur != -1
+     AND server_dur != -1
+     AND client_dur >= server_dur
+|> AGGREGATE
+     min(aidl_name) AS aidl_name
+   GROUP BY
+     process_name,
+     thread_name,
+     binder_txn_id,
+     binder_reply_id
+|> SELECT
+     aidl_name,
+     aidl_ts,
+     aidl_dur,
+     binder_txn_id,
+     process_name AS client_process,
+     thread_name AS client_thread,
+     upid AS client_upid,
+     utid AS client_utid,
+     tid AS client_tid,
+     pid AS client_pid,
+     is_main_thread,
+     ts AS client_ts,
+     dur AS client_dur,
+     binder_reply_id,
+     server_process,
+     server_thread,
+     server_upid,
+     server_utid,
+     server_tid,
+     server_pid,
+     server_ts,
+     server_dur;
 
-CREATE PERFETTO TABLE _oom_score AS
-SELECT
-  process.upid,
-  cast_int!(c.value) AS value,
-  c.ts,
-  coalesce(lead(ts) OVER (PARTITION BY upid ORDER BY ts), trace_end()) AS end_ts
+-- Per-process oom_score timeline: each oom_score_adj sample opens an interval
+-- closed by the next sample (or trace_end()). end_ts is kept (rather than dur)
+-- because consumers join with `ts BETWEEN oom.ts AND oom.end_ts`.
+CREATE PERFETTO PIPELINE _oom_score MATERIALIZED AS
 FROM counter AS c
-JOIN process_counter_track AS t
-  ON c.track_id = t.id
-JOIN process USING (upid)
-WHERE
-  t.name = 'oom_score_adj';
+|> JOIN process_counter_track AS t ON c.track_id = t.id
+|> JOIN process USING (upid)
+|> WHERE t.name = 'oom_score_adj'
+|> SELECT
+     process.upid,
+     cast_int!(c.value) AS value,
+     c.ts,
+     coalesce(lead(ts) OVER (PARTITION BY upid ORDER BY ts), trace_end()) AS end_ts;
 
 CREATE PERFETTO INDEX _oom_score_idx ON _oom_score(upid, ts);
 
 -- Breakdown synchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction.
-CREATE PERFETTO VIEW _sync_binder_metrics_by_txn AS
-SELECT
-  binder.*,
-  client_oom.value AS client_oom_score,
-  server_oom.value AS server_oom_score
+CREATE PERFETTO PIPELINE _sync_binder_metrics_by_txn AS
 FROM _binder_txn_merged AS binder
-LEFT JOIN _oom_score AS client_oom
-  ON binder.client_upid = client_oom.upid
-  AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
-LEFT JOIN _oom_score AS server_oom
-  ON binder.server_upid = server_oom.upid
-  AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
+|> LEFT JOIN _oom_score AS client_oom
+     ON binder.client_upid = client_oom.upid
+     AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
+|> LEFT JOIN _oom_score AS server_oom
+     ON binder.server_upid = server_oom.upid
+     AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts
+|> SELECT
+     binder.*,
+     client_oom.value AS client_oom_score,
+     server_oom.value AS server_oom_score;
 
-CREATE PERFETTO VIEW _binder_txn AS
-SELECT client_ts AS ts, client_dur AS dur, client_utid AS utid, *
-FROM _sync_binder_metrics_by_txn;
+CREATE PERFETTO PIPELINE _binder_txn AS
+FROM _sync_binder_metrics_by_txn
+|> SELECT client_ts AS ts, client_dur AS dur, client_utid AS utid, *;
 
-CREATE PERFETTO VIEW _binder_reply AS
-SELECT server_ts AS ts, server_dur AS dur, server_utid AS utid, *
-FROM _sync_binder_metrics_by_txn;
-
-CREATE VIRTUAL TABLE _sp_binder_txn_thread_state USING SPAN_JOIN(_binder_txn PARTITIONED utid, thread_state PARTITIONED utid);
-
-CREATE VIRTUAL TABLE _sp_binder_reply_thread_state USING SPAN_JOIN(_binder_reply PARTITIONED utid, thread_state PARTITIONED utid);
+CREATE PERFETTO PIPELINE _binder_reply AS
+FROM _sync_binder_metrics_by_txn
+|> SELECT server_ts AS ts, server_dur AS dur, server_utid AS utid, *;
 
 -- Aggregated thread_states on the client and server side per binder txn
 -- This builds on the data from |_sync_binder_metrics_by_txn| and
@@ -231,7 +199,7 @@ CREATE VIRTUAL TABLE _sp_binder_reply_thread_state USING SPAN_JOIN(_binder_reply
 -- The |thread_state_type| column represents whether a given 'aggregated thread_state'
 -- row is on the client or server side. 'binder_txn' is client side and 'binder_reply'
 -- is server side.
-CREATE PERFETTO VIEW android_sync_binder_thread_state_by_txn(
+CREATE PERFETTO PIPELINE android_sync_binder_thread_state_by_txn(
   -- slice id of the binder txn
   binder_txn_id LONG,
   -- Client timestamp
@@ -252,43 +220,62 @@ CREATE PERFETTO VIEW android_sync_binder_thread_state_by_txn(
   thread_state_dur DURATION,
   -- aggregated count of the |thread_state| in the txn
   thread_state_count LONG
+) AS
+-- The SPAN_JOIN of each binder end against thread_state (both PARTITIONED utid)
+-- is an interval intersection per utid.
+SUBPIPELINE txn_states AS (
+  INTERVAL INTERSECTION OF (_binder_txn AS b, thread_state AS ts) PER utid
+  |> SELECT
+       b.binder_txn_id,
+       b.client_ts,
+       b.client_tid,
+       b.binder_reply_id,
+       b.server_ts,
+       b.server_tid,
+       'binder_txn' AS thread_state_type,
+       ts.state,
+       ts.blocked_function,
+       dur
 )
-AS
-SELECT
-  binder_txn_id,
-  client_ts,
-  client_tid,
-  binder_reply_id,
-  server_ts,
-  server_tid,
-  'binder_txn' AS thread_state_type,
-  state AS thread_state,
-  sum(dur) AS thread_state_dur,
-  count(dur) AS thread_state_count
-FROM _sp_binder_txn_thread_state
-GROUP BY
-  binder_txn_id,
-  binder_reply_id,
-  thread_state_type,
-  thread_state
-UNION ALL
-SELECT
-  binder_txn_id,
-  client_ts,
-  client_tid,
-  binder_reply_id,
-  server_ts,
-  server_tid,
-  'binder_reply' AS thread_state_type,
-  state AS thread_state,
-  sum(dur) AS thread_state_dur,
-  count(dur) AS thread_state_count
-FROM _sp_binder_reply_thread_state
-GROUP BY
-  binder_txn_id,
-  binder_reply_id,
-  thread_state_type,
-  thread_state;
+SUBPIPELINE reply_states AS (
+  INTERVAL INTERSECTION OF (_binder_reply AS b, thread_state AS ts) PER utid
+  |> SELECT
+       b.binder_txn_id,
+       b.client_ts,
+       b.client_tid,
+       b.binder_reply_id,
+       b.server_ts,
+       b.server_tid,
+       'binder_reply' AS thread_state_type,
+       ts.state,
+       ts.blocked_function,
+       dur
+)
+FROM txn_states
+|> UNION ALL (FROM reply_states)
+|> AGGREGATE
+     sum(dur) AS thread_state_dur,
+     count(dur) AS thread_state_count
+   GROUP BY
+     binder_txn_id,
+     client_ts,
+     client_tid,
+     binder_reply_id,
+     server_ts,
+     server_tid,
+     thread_state_type,
+     state
+|> SELECT
+     binder_txn_id,
+     client_ts,
+     client_tid,
+     binder_reply_id,
+     server_ts,
+     server_tid,
+     thread_state_type,
+     state AS thread_state,
+     thread_state_dur,
+     thread_state_count;
 
 -- Aggregated blocked_functions on the client and server side per binder txn
 -- This builds on the data from |_sync_binder_metrics_by_txn| and
@@ -297,7 +284,7 @@ GROUP BY
 -- The |thread_state_type| column represents whether a given 'aggregated blocked_function'
 -- row is on the client or server side. 'binder_txn' is client side and 'binder_reply'
 -- is server side.
-CREATE PERFETTO VIEW android_sync_binder_blocked_functions_by_txn(
+CREATE PERFETTO PIPELINE android_sync_binder_blocked_functions_by_txn(
   -- slice id of the binder txn
   binder_txn_id LONG,
   -- Client ts
@@ -318,134 +305,126 @@ CREATE PERFETTO VIEW android_sync_binder_blocked_functions_by_txn(
   blocked_function_dur DURATION,
   -- aggregated count of the |blocked_function| in the txn
   blocked_function_count LONG
+) AS
+SUBPIPELINE txn_states AS (
+  INTERVAL INTERSECTION OF (_binder_txn AS b, thread_state AS ts) PER utid
+  |> WHERE ts.blocked_function IS NOT NULL
+  |> SELECT
+       b.binder_txn_id,
+       b.client_ts,
+       b.client_tid,
+       b.binder_reply_id,
+       b.server_ts,
+       b.server_tid,
+       'binder_txn' AS thread_state_type,
+       ts.blocked_function,
+       dur
 )
-AS
-SELECT
-  binder_txn_id,
-  client_ts,
-  client_tid,
-  binder_reply_id,
-  server_ts,
-  server_tid,
-  'binder_txn' AS thread_state_type,
-  blocked_function,
-  sum(dur) AS blocked_function_dur,
-  count(dur) AS blocked_function_count
-FROM _sp_binder_txn_thread_state
-WHERE
-  blocked_function IS NOT NULL
-GROUP BY
-  binder_txn_id,
-  binder_reply_id,
-  blocked_function
-UNION ALL
-SELECT
-  binder_txn_id,
-  client_ts,
-  client_tid,
-  binder_reply_id,
-  server_ts,
-  server_tid,
-  'binder_reply' AS thread_state_type,
-  blocked_function,
-  sum(dur) AS blocked_function_dur,
-  count(dur) AS blocked_function_count
-FROM _sp_binder_reply_thread_state
-WHERE
-  blocked_function IS NOT NULL
-GROUP BY
-  binder_txn_id,
-  binder_reply_id,
-  blocked_function;
+SUBPIPELINE reply_states AS (
+  INTERVAL INTERSECTION OF (_binder_reply AS b, thread_state AS ts) PER utid
+  |> WHERE ts.blocked_function IS NOT NULL
+  |> SELECT
+       b.binder_txn_id,
+       b.client_ts,
+       b.client_tid,
+       b.binder_reply_id,
+       b.server_ts,
+       b.server_tid,
+       'binder_reply' AS thread_state_type,
+       ts.blocked_function,
+       dur
+)
+FROM txn_states
+|> UNION ALL (FROM reply_states)
+|> AGGREGATE
+     sum(dur) AS blocked_function_dur,
+     count(dur) AS blocked_function_count
+   GROUP BY
+     binder_txn_id,
+     client_ts,
+     client_tid,
+     binder_reply_id,
+     server_ts,
+     server_tid,
+     thread_state_type,
+     blocked_function;
 
-CREATE PERFETTO TABLE _async_binder_reply AS
-WITH
-  async_reply AS MATERIALIZED (
-    SELECT id, ts, dur, track_id, name
-    FROM slice
-    WHERE
-      -- Filter for only server side AIDL slices as there are some client side ones for cpp
-      name GLOB 'AIDL::*Server'
-      OR name GLOB 'AIDL::*server'
-      OR name GLOB 'HIDL::*server'
-      OR name = 'binder async rcv'
-  )
-SELECT
-  *,
-  lead(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name,
-  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) AS next_ts,
-  lead(dur) OVER (PARTITION BY track_id ORDER BY ts) AS next_dur
-FROM async_reply
-ORDER BY
-  id;
-
-CREATE PERFETTO TABLE _binder_async_txn_raw AS
-SELECT
-  slice.id AS binder_txn_id,
-  process.name AS client_process,
-  thread.name AS client_thread,
-  process.upid AS client_upid,
-  thread.utid AS client_utid,
-  thread.tid AS client_tid,
-  process.pid AS client_pid,
-  thread.is_main_thread,
-  slice.ts AS client_ts,
-  slice.dur AS client_dur
+CREATE PERFETTO PIPELINE _async_binder_reply MATERIALIZED AS
 FROM slice
-JOIN thread_track ON slice.track_id = thread_track.id
-JOIN thread USING (utid)
-JOIN process USING (upid)
-WHERE
-  slice.name = 'binder transaction async'
-ORDER BY
-  binder_txn_id;
+|> WHERE
+     -- Filter for only server side AIDL slices as there are some client side ones for cpp
+     name GLOB 'AIDL::*Server'
+     OR name GLOB 'AIDL::*server'
+     OR name GLOB 'HIDL::*server'
+     OR name = 'binder async rcv'
+|> SELECT id, ts, dur, track_id, name
+|> EXTEND
+     lead(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name,
+     lead(ts) OVER (PARTITION BY track_id ORDER BY ts) AS next_ts,
+     lead(dur) OVER (PARTITION BY track_id ORDER BY ts) AS next_dur
+|> ORDER BY id;
 
-CREATE PERFETTO TABLE _binder_async_txn AS
-SELECT
-  iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_name) AS aidl_name,
-  iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_ts) AS aidl_ts,
-  iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_dur) AS aidl_dur,
-  binder_txn.*,
-  binder_reply.id AS binder_reply_id,
-  reply_process.name AS server_process,
-  reply_thread.name AS server_thread,
-  reply_process.upid AS server_upid,
-  reply_thread.utid AS server_utid,
-  reply_thread.tid AS server_tid,
-  reply_process.pid AS server_pid,
-  binder_reply.ts AS server_ts,
-  binder_reply.dur AS server_dur
+CREATE PERFETTO PIPELINE _binder_async_txn_raw MATERIALIZED AS
+FROM slice
+|> JOIN thread_track ON slice.track_id = thread_track.id
+|> JOIN thread USING (utid)
+|> JOIN process USING (upid)
+|> WHERE slice.name = 'binder transaction async'
+|> SELECT
+     slice.id AS binder_txn_id,
+     process.name AS client_process,
+     thread.name AS client_thread,
+     process.upid AS client_upid,
+     thread.utid AS client_utid,
+     thread.tid AS client_tid,
+     process.pid AS client_pid,
+     thread.is_main_thread,
+     slice.ts AS client_ts,
+     slice.dur AS client_dur
+|> ORDER BY binder_txn_id;
+
+CREATE PERFETTO PIPELINE _binder_async_txn MATERIALIZED AS
 FROM _binder_async_txn_raw AS binder_txn
-JOIN flow AS binder_flow ON binder_txn.binder_txn_id = binder_flow.slice_out
-JOIN _async_binder_reply AS binder_reply
-  ON binder_flow.slice_in = binder_reply.id
-JOIN thread_track AS reply_thread_track
-  ON binder_reply.track_id = reply_thread_track.id
-JOIN thread AS reply_thread ON reply_thread.utid = reply_thread_track.utid
-JOIN process AS reply_process ON reply_process.upid = reply_thread.upid
-WHERE
-  binder_reply.name = 'binder async rcv'
-ORDER BY
-  binder_txn_id;
+|> JOIN flow AS binder_flow ON binder_txn.binder_txn_id = binder_flow.slice_out
+|> JOIN _async_binder_reply AS binder_reply ON binder_flow.slice_in = binder_reply.id
+|> JOIN thread_track AS reply_thread_track ON binder_reply.track_id = reply_thread_track.id
+|> JOIN thread AS reply_thread ON reply_thread.utid = reply_thread_track.utid
+|> JOIN process AS reply_process ON reply_process.upid = reply_thread.upid
+|> WHERE binder_reply.name = 'binder async rcv'
+|> SELECT
+     iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_name) AS aidl_name,
+     iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_ts) AS aidl_ts,
+     iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_dur) AS aidl_dur,
+     binder_txn.*,
+     binder_reply.id AS binder_reply_id,
+     reply_process.name AS server_process,
+     reply_thread.name AS server_thread,
+     reply_process.upid AS server_upid,
+     reply_thread.utid AS server_utid,
+     reply_thread.tid AS server_tid,
+     reply_process.pid AS server_pid,
+     binder_reply.ts AS server_ts,
+     binder_reply.dur AS server_dur
+|> ORDER BY binder_txn_id;
 
 -- Breakdown asynchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
-CREATE PERFETTO VIEW _async_binder_metrics_by_txn AS
-SELECT
-  binder.*,
-  client_oom.value AS client_oom_score,
-  server_oom.value AS server_oom_score
+CREATE PERFETTO PIPELINE _async_binder_metrics_by_txn AS
 FROM _binder_async_txn AS binder
-LEFT JOIN _oom_score AS client_oom
-  ON binder.client_upid = client_oom.upid
-  AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
-LEFT JOIN _oom_score AS server_oom
-  ON binder.server_upid = server_oom.upid
-  AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
+|> LEFT JOIN _oom_score AS client_oom
+     ON binder.client_upid = client_oom.upid
+     AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
+|> LEFT JOIN _oom_score AS server_oom
+     ON binder.server_upid = server_oom.upid
+     AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts
+|> SELECT
+     binder.*,
+     client_oom.value AS client_oom_score,
+     server_oom.value AS server_oom_score;
 
 -- Breakdown binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
-CREATE PERFETTO TABLE android_binder_txns(
+CREATE PERFETTO PIPELINE android_binder_txns(
   -- Fully qualified name of the binder endpoint if existing.
   aidl_name STRING,
   -- Interface of the binder endpoint if existing.
@@ -512,31 +491,31 @@ CREATE PERFETTO TABLE android_binder_txns(
   is_client_package_debuggable BOOL,
   -- Whether server package is debuggable.
   is_server_package_debuggable BOOL
+) MATERIALIZED AS
+SUBPIPELINE all_binder AS (
+  FROM _sync_binder_metrics_by_txn
+  |> EXTEND 1 AS is_sync
+  |> UNION ALL (
+       FROM _async_binder_metrics_by_txn
+       |> EXTEND 0 AS is_sync
+     )
 )
-AS
-WITH
-  all_binder AS (
-    SELECT *, 1 AS is_sync FROM _sync_binder_metrics_by_txn
-    UNION ALL
-    SELECT *, 0 AS is_sync FROM _async_binder_metrics_by_txn
-  )
-SELECT
-  str_split(aidl_name, '::', 2) AS interface,
-  str_split(aidl_name, '::', 3) AS method_name,
-  all_binder.*,
-  _extract_duration_without_suspend(client_ts, client_dur) AS client_monotonic_dur,
-  _extract_duration_without_suspend(server_ts, server_dur) AS server_monotonic_dur,
-  client_process_metadata.version_code AS client_package_version_code,
-  server_process_metadata.version_code AS server_package_version_code,
-  client_process_metadata.debuggable AS is_client_package_debuggable,
-  server_process_metadata.debuggable AS is_server_package_debuggable
 FROM all_binder
-LEFT JOIN android_process_metadata AS client_process_metadata
-  ON all_binder.client_upid = client_process_metadata.upid
-LEFT JOIN android_process_metadata AS server_process_metadata
-  ON all_binder.server_upid = server_process_metadata.upid
-ORDER BY
-  binder_txn_id;
+|> LEFT JOIN android_process_metadata AS client_process_metadata
+     ON all_binder.client_upid = client_process_metadata.upid
+|> LEFT JOIN android_process_metadata AS server_process_metadata
+     ON all_binder.server_upid = server_process_metadata.upid
+|> SELECT
+     str_split(aidl_name, '::', 2) AS interface,
+     str_split(aidl_name, '::', 3) AS method_name,
+     all_binder.*,
+     _extract_duration_without_suspend(client_ts, client_dur) AS client_monotonic_dur,
+     _extract_duration_without_suspend(server_ts, server_dur) AS server_monotonic_dur,
+     client_process_metadata.version_code AS client_package_version_code,
+     server_process_metadata.version_code AS server_package_version_code,
+     client_process_metadata.debuggable AS is_client_package_debuggable,
+     server_process_metadata.debuggable AS is_server_package_debuggable
+|> ORDER BY binder_txn_id;
 
 -- Returns a DAG of all outgoing binder txns from a process.
 -- The roots of the graph are the threads making the txns and the graph flows from:

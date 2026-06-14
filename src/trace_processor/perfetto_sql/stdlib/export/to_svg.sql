@@ -13,6 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- NOTE (psqlnext): this module defines no relational tables/views — only scalar
+-- CREATE PERFETTO FUNCTIONs and string-serialization MACROs (GROUP_CONCAT-based
+-- SVG emission). Per §10 this is host-language serialization, out of scope for
+-- the analysis pipeline operators, so it is preserved verbatim.
+
 -- Converts Perfetto trace data into interactive SVG timeline.
 -- Renders thread slices and thread states with time-proportional geometry
 -- and clickable links back to Perfetto UI embedded in the SVG.

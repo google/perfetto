@@ -17,8 +17,9 @@
 INCLUDE PERFETTO MODULE android.user_list;
 
 -- Count packages by package UID.
-CREATE PERFETTO TABLE _uid_package_count AS
-SELECT uid, count(1) AS cnt FROM package_list GROUP BY 1;
+CREATE PERFETTO PIPELINE _uid_package_count MATERIALIZED AS
+FROM package_list
+|> AGGREGATE count(1) AS cnt GROUP BY uid;
 
 -- Account for android-specific functionality (sdk sandbox, pcc) that is not encoded in
 -- the canonical app_id concept but is still required to understand the package
@@ -69,21 +70,18 @@ WITH
 SELECT package_name, version_code, debuggable FROM min_distance;
 
 -- Table containing the upids of all kernel tasks.
-CREATE PERFETTO TABLE _android_kernel_tasks(
+CREATE PERFETTO PIPELINE _android_kernel_tasks(
   -- upid of the kernel task
   upid LONG
-)
-AS
-SELECT a.upid
+) MATERIALIZED AS
 FROM process AS a
-LEFT JOIN process AS b
-  ON a.parent_upid = b.upid
-WHERE
-  b.name = 'kthreadd'
-  OR a.pid = 0
-  OR b.pid = 0
-ORDER BY
-  1;
+|> LEFT JOIN process AS b ON a.parent_upid = b.upid
+|> WHERE
+     b.name = 'kthreadd'
+     OR a.pid = 0
+     OR b.pid = 0
+|> SELECT a.upid
+|> ORDER BY upid;
 
 -- Returns true if the process is a kernel task.
 CREATE PERFETTO FUNCTION android_is_kernel_task(
@@ -96,7 +94,7 @@ AS
 SELECT EXISTS (SELECT TRUE FROM _android_kernel_tasks WHERE upid = $upid);
 
 -- Data about packages running on the process.
-CREATE PERFETTO TABLE android_process_metadata(
+CREATE PERFETTO PIPELINE android_process_metadata(
   -- Process upid.
   upid JOINID(process.id),
   -- Process pid.
@@ -119,38 +117,36 @@ CREATE PERFETTO TABLE android_process_metadata(
   debuggable LONG,
   -- Whether the task is kernel or not
   is_kernel_task BOOL
-)
-AS
-SELECT
-  process.upid,
-  process.pid,
-  -- workaround for b/169226092: the bug has been fixed it Android T, but
-  -- we support ingesting traces from older Android versions.
-  CASE
-    -- cmdline gets rewritten after fork, if these are still there we must
-    -- have seen a racy capture.
-    WHEN length(process.name) = 15
-    AND (process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
-    OR process.cmdline GLOB '*' || process.name) THEN process.cmdline
-    ELSE process.name
-  END AS process_name,
-  process.android_appid AS uid,
-  process.android_user_id AS user_id,
-  user.type AS user_type,
-  CASE WHEN _uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
-  plist.package_name,
-  plist.version_code,
-  plist.debuggable,
-  android_is_kernel_task(process.upid) AS is_kernel_task
+) MATERIALIZED AS
 FROM process
-LEFT JOIN _uid_package_count
-  ON _app_id_to_base_package(process.android_appid) = _uid_package_count.uid
-LEFT JOIN _android_package_for_process(
-  _app_id_to_base_package(process.android_appid),
-  _uid_package_count.cnt,
-  process.name
-) AS plist
-LEFT JOIN android_user_list AS user
-  ON process.android_user_id = user.android_user_id
-ORDER BY
-  upid;
+|> LEFT JOIN _uid_package_count
+     ON _app_id_to_base_package(process.android_appid) = _uid_package_count.uid
+|> LEFT JOIN _android_package_for_process(
+       _app_id_to_base_package(process.android_appid),
+       _uid_package_count.cnt,
+       process.name
+     ) AS plist
+|> LEFT JOIN android_user_list AS user
+     ON process.android_user_id = user.android_user_id
+|> SELECT
+     process.upid,
+     process.pid,
+     -- workaround for b/169226092: the bug has been fixed it Android T, but
+     -- we support ingesting traces from older Android versions.
+     CASE
+       -- cmdline gets rewritten after fork, if these are still there we must
+       -- have seen a racy capture.
+       WHEN length(process.name) = 15
+       AND (process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
+       OR process.cmdline GLOB '*' || process.name) THEN process.cmdline
+       ELSE process.name
+     END AS process_name,
+     process.android_appid AS uid,
+     CASE WHEN _uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
+     process.android_user_id AS user_id,
+     user.type AS user_type,
+     plist.package_name,
+     plist.version_code,
+     plist.debuggable,
+     android_is_kernel_task(process.upid) AS is_kernel_task
+|> ORDER BY upid;

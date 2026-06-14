@@ -15,7 +15,7 @@
 
 -- Diagnostic stats and parser errors collected at trace time and during
 -- import. One row per (key, idx, machine_id, trace_id) combination.
-CREATE PERFETTO VIEW stats(
+CREATE PERFETTO PIPELINE stats(
   -- Unique identifier for this stats row.
   id ID,
   -- Stat name (e.g. ftrace_cpu_overrun_begin).
@@ -36,9 +36,9 @@ CREATE PERFETTO VIEW stats(
   machine_id JOINID(machine.id),
   -- Trace identifier (NULL for kGlobal stats).
   trace_id LONG
-)
-AS
-SELECT
+) AS
+FROM __intrinsic_stats
+|> SELECT
   id,
   name,
   key,
@@ -48,5 +48,4 @@ SELECT
   value,
   description,
   machine_id,
-  trace_id
-FROM __intrinsic_stats;
+  trace_id;

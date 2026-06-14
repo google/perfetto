@@ -17,5 +17,5 @@
 -- are dependent on two CPU policies). See go/wattson for more info. The rows
 -- come from the wattson plugin (see
 -- src/trace_processor/plugins/wattson/).
-CREATE PERFETTO TABLE _device_curves_2d AS
-SELECT * FROM __intrinsic_wattson_curves_cpu_2d();
+CREATE PERFETTO PIPELINE _device_curves_2d MATERIALIZED AS
+FROM __intrinsic_wattson_curves_cpu_2d();

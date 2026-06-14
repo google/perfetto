@@ -145,34 +145,16 @@ CREATE PERFETTO MACRO _slice_remove_nulls_and_reparent(
   -- Column name for which a NULL value indicates the row will be deleted.
   column_name ColumnName
 )
--- The returned table has the schema (id LONG, parent_id LONG, depth LONG, <column_name>).
-RETURNS TableOrSubQuery
+-- The returned pipeline has the schema (id LONG, parent_id LONG, depth LONG, <column_name>).
+RETURNS Pipeline
 AS (
-  WITH
-    _slice AS (
-      SELECT
-        *
-      FROM $slice_table
-      WHERE
-        $column_name IS NOT NULL
-    )
-  SELECT
-    id,
-    parent_id,
-    depth,
-    $column_name
-  FROM _slice
-  WHERE
-    depth = 0
-  UNION ALL
-  SELECT
-    child.id,
-    anc.id AS parent_id,
-    max(iif(parent.$column_name IS NULL, 0, anc.depth)) AS depth,
-    child.$column_name
-  FROM _slice AS child, ancestor_slice(child.id) AS anc
-  LEFT JOIN _slice AS parent
-    ON parent.id = anc.id
-  GROUP BY
-    child.id
+  -- Removing the NULL-valued nodes and reparenting their children to the nearest
+  -- surviving ancestor is exactly a structural contract at those nodes. Depth is
+  -- then the count of surviving strict ancestors (root-path length minus self).
+  FROM $slice_table
+  |> TREE CONTRACT AT (
+       FROM $slice_table |> WHERE $column_name IS NULL |> SELECT id
+     ) OVER $slice_table
+  |> TREE ACCUMULATE DOWN COUNT(*) AS _path_len
+  |> SELECT id, parent_id, _path_len - 1 AS depth, $column_name
 );

@@ -8,25 +8,18 @@
 --     https://www.apache.org/licenses/LICENSE-2.0
 --
 -- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed ON an "AS IS" BASIS,
+-- distributed ON an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.memory.heap_graph.helpers;
-
-INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;
-
-CREATE PERFETTO TABLE _heap_graph_dominator_path_hashes AS
-SELECT *
+CREATE PERFETTO PIPELINE _heap_graph_dominator_path_hashes MATERIALIZED AS
 FROM _heap_graph_type_path_hash!((
     SELECT id, idom_id AS parent_id FROM _raw_heap_graph_dominator_tree
   ));
 
-CREATE PERFETTO TABLE _heap_graph_dominator_path_hashes_aggregated AS
-SELECT *
+CREATE PERFETTO PIPELINE _heap_graph_dominator_path_hashes_aggregated MATERIALIZED AS
 FROM _heap_graph_path_hash_aggregate!(_heap_graph_dominator_path_hashes);
 
-CREATE PERFETTO TABLE _heap_graph_dominator_class_tree AS
-SELECT *
+CREATE PERFETTO PIPELINE _heap_graph_dominator_class_tree MATERIALIZED AS
 FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_dominator_path_hashes_aggregated);

@@ -25,7 +25,7 @@
 -- which periodically polls the `aflags` tool on Android devices.
 -- Each row in this view represents the state of a single flag at a specific
 -- point in time (the `ts` column).
-CREATE PERFETTO VIEW android_aflags(
+CREATE PERFETTO PIPELINE android_aflags(
   -- Timestamp of the flag snapshot.
   ts TIMESTAMP,
   -- Package name of the flag (e.g. "com.android.window.flags").
@@ -51,16 +51,16 @@ CREATE PERFETTO VIEW android_aflags(
   type STRING
 )
 AS
-SELECT
-  ts,
-  package,
-  name,
-  flag_namespace,
-  container,
-  value,
-  staged_value,
-  permission,
-  value_picked_from,
-  storage_backend,
-  type
-FROM __intrinsic_android_aflags;
+FROM __intrinsic_android_aflags AS a
+|> SELECT
+     a.ts AS ts,
+     a.package AS package,
+     a.name AS name,
+     a.flag_namespace AS flag_namespace,
+     a.container AS container,
+     a.value AS value,
+     a.staged_value AS staged_value,
+     a.permission AS permission,
+     a.value_picked_from AS value_picked_from,
+     a.storage_backend AS storage_backend,
+     a.type AS type;

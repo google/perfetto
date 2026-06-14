@@ -16,9 +16,9 @@
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- All activity startup events.
-CREATE PERFETTO TABLE _startup_events AS
-SELECT ts, dur, ts + dur AS ts_end, str_split(s.name, ": ", 1) AS package_name
+CREATE PERFETTO PIPELINE _startup_events MATERIALIZED AS
 FROM process_slice AS s
-WHERE
-  s.name GLOB 'launching: *'
-  AND (process_name IS NULL OR process_name = 'system_server');
+|> WHERE
+     s.name GLOB 'launching: *'
+     AND (process_name IS NULL OR process_name = 'system_server')
+|> SELECT ts, dur, ts + dur AS ts_end, str_split(s.name, ": ", 1) AS package_name;

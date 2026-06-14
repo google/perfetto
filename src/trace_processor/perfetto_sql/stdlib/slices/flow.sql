@@ -18,6 +18,9 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- Computes the "reachable" set of slices from the |flows| table, starting from slice ids
 -- specified in |source_table|. This provides a more efficient result than with the in-built
 -- following_flow operator.
+--
+-- Uses the weight-bounded dfs intrinsic, which is out of scope for the analysis
+-- operators; kept as host SQL inside the pipeline.
 CREATE PERFETTO MACRO _slice_following_flow(
   -- A table/view/subquery corresponding to the nodes to start the reachability search.
   -- This table must have a uint32 "id" column.

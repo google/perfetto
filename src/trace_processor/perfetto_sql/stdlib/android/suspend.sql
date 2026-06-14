@@ -14,14 +14,12 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE intervals.fill_gaps;
-
 -- Table of suspended and awake slices.
 --
 -- Selects either the minimal or full ftrace source depending on what's
 -- available, marks suspended periods, and complements them to give awake
 -- periods.
-CREATE PERFETTO TABLE android_suspend_state(
+CREATE PERFETTO PIPELINE android_suspend_state(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
@@ -31,82 +29,69 @@ CREATE PERFETTO TABLE android_suspend_state(
   -- Machine identifier for multi-device traces
   machine_id JOINID(machine.id)
 )
-AS
-WITH
-  suspend_slice_from_minimal AS (
-    SELECT
-      ts,
-      dur,
-      coalesce(
-        lead(ts) OVER (PARTITION BY t.machine_id ORDER BY ts),
-        trace_end()
-      )
-      - ts
-      - dur AS duration_gap,
-      t.machine_id
-    FROM track AS t
-    JOIN slice AS s
-      ON s.track_id = t.id
-    WHERE
-      t.name = 'Suspend/Resume Minimal'
-  ),
-  suspend_slice_latency AS (
-    SELECT
-      ts,
-      dur,
-      coalesce(
-        lead(ts) OVER (PARTITION BY track.machine_id ORDER BY ts),
-        trace_end()
-      )
-      - ts
-      - dur AS duration_gap,
-      track.machine_id
-    FROM slice
-    JOIN track
-      ON slice.track_id = track.id
-    WHERE
-      track.name = 'Suspend/Resume Latency'
-      AND (slice.name = 'syscore_resume(0)'
-      OR slice.name = 'timekeeping_freeze(0)')
-      AND dur != -1
-      AND NOT EXISTS (
-        SELECT *
-        FROM suspend_slice_from_minimal
-        WHERE
-          suspend_slice_from_minimal.machine_id = track.machine_id
-      )
-  ),
-  suspend_slice_pre_filter AS (
-    SELECT ts, dur, duration_gap, machine_id FROM suspend_slice_from_minimal
-    UNION ALL
-    SELECT ts, dur, duration_gap, machine_id FROM suspend_slice_latency
-  ),
-  suspend_slice AS (
-    -- Filter out all the slices that overlapped with the following slices.
-    -- This happens with data loss where we lose start and end slices for suspends.
-    SELECT ts, dur, machine_id, 'suspended' AS power_state
-    FROM suspend_slice_pre_filter
-    WHERE
-      duration_gap >= 0
-    UNION ALL
-    -- This guarantees that if machine 0 has no suspend slices in the trace,
-    -- that _intervals_fill_gaps will add an awake slice for the trace bounds.
-    -- This only works for the primary machine because we know from the trace
-    -- starting and ending at all that the device was awake. However, for other
-    -- machines, we don't actually know the suspend state as it's very possible
-    -- they were just asleep throughout the trace.
-    SELECT NULL, NULL, 0, NULL
-  )
-SELECT
+MATERIALIZED AS
+SUBPIPELINE suspend_slice_from_minimal AS (
+  FROM track AS t
+  |> JOIN slice AS s ON s.track_id = t.id
+  |> WHERE t.name = 'Suspend/Resume Minimal'
+  |> SELECT
+    s.ts,
+    s.dur,
+    coalesce(
+      lead(s.ts) OVER (PARTITION BY t.machine_id ORDER BY s.ts),
+      trace_end()
+    )
+    - s.ts
+    - s.dur AS duration_gap,
+    t.machine_id
+)
+SUBPIPELINE suspend_slice_latency AS (
+  FROM slice
+  |> JOIN track ON slice.track_id = track.id
+  |> WHERE
+    track.name = 'Suspend/Resume Latency'
+    AND (slice.name = 'syscore_resume(0)'
+    OR slice.name = 'timekeeping_freeze(0)')
+    AND slice.dur != -1
+    AND NOT EXISTS (
+      SELECT *
+      FROM suspend_slice_from_minimal
+      WHERE
+        suspend_slice_from_minimal.machine_id = track.machine_id
+    )
+  |> SELECT
+    slice.ts,
+    slice.dur,
+    coalesce(
+      lead(slice.ts) OVER (PARTITION BY track.machine_id ORDER BY slice.ts),
+      trace_end()
+    )
+    - slice.ts
+    - slice.dur AS duration_gap,
+    track.machine_id
+)
+-- Filter out all the slices that overlapped with the following slices.
+-- This happens with data loss where we lose start and end slices for
+-- suspends.
+FROM suspend_slice_from_minimal
+|> UNION ALL (FROM suspend_slice_latency)
+|> WHERE duration_gap >= 0
+|> SELECT
   ts,
   dur,
   COALESCE(machine_id, 0) AS machine_id,
+  'suspended' AS power_state
+-- INTERVAL FILL WITHIN trace_bounds tiles each machine's coverage: every
+-- suspended slice passes through and the uncovered spans become null-payload
+-- fillers, which we label 'awake'. The primary machine (0) is always covered
+-- by trace_bounds, so it gets an awake slice even without suspend data.
+|> INTERVAL FILL WITHIN trace_bounds PER machine_id
+|> SELECT
+  ts,
+  dur,
+  machine_id,
   COALESCE(power_state, 'awake') AS power_state
-FROM _intervals_fill_gaps!((machine_id), (power_state), suspend_slice)
-ORDER BY
-  ts;
-
--- Order by will cause Perfetto table to index by ts.;
+|> ORDER BY ts;
 
 -- Extracts the duration without counting CPU suspended time from an event.
 -- This is the same as converting an event duration from wall clock to monotonic clock.

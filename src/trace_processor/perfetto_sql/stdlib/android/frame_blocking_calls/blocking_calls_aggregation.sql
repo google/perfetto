@@ -27,78 +27,67 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 -- doFrame blocks are running without any visible changes on the screen - leading to
 -- no actual frames being drawn. When this happens there might be gaps in actual frame timeline,
 -- so then the next doFrame would be resolved as an earlier boundary for an extended frame.
-CREATE PERFETTO TABLE _extended_frame_boundary AS
+CREATE PERFETTO PIPELINE _extended_frame_boundary MATERIALIZED AS
 -- Get the start time of the NEXT frame in the sequence
-WITH
-  _frames_with_next AS (
-    SELECT
-      *,
-      lead(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id) AS next_frame_start
-    FROM _android_distinct_frames_in_cuj
-  ),
-  _frames_with_extension_options AS (
-    SELECT
-      fr.frame_id,
-      fr.frame_ts AS ts,
-      fr.ui_thread_utid,
-      fr.render_thread_utid,
-      fr.cuj_id,
-      fr.cuj_name,
-      fr.layer_id,
-      -- Calculate the first doFrame start that occurs AFTER the current frame ends
-      (
-        SELECT min(ts)
-        FROM _android_jank_cuj_do_frames
-        WHERE
-          utid = fr.ui_thread_utid
-          AND ts >= fr.ts_end
-          AND ts <= fr.next_frame_start
-      ) AS next_do_slice_after_frame,
-      fr.next_frame_start,
-      fr.ts_end AS original_ts_end
-    FROM _frames_with_next AS fr
-  )
-SELECT
-  ts,
-  ui_thread_utid,
-  render_thread_utid,
-  frame_id,
-  layer_id,
-  cuj_id,
-  cuj_name,
-  -- Earliest of (Next Frame Start, Next doFrame Start).
-  -- Fallback to original ts_end only if both are NULL.
-  coalesce(
-    min(next_do_slice_after_frame, next_frame_start),
-    next_do_slice_after_frame,
-    next_frame_start,
-    original_ts_end
-  ) AS ts_end
-FROM _frames_with_extension_options
-ORDER BY
-  frame_id;
+FROM _android_distinct_frames_in_cuj
+|> EXTEND lead(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id) AS next_frame_start
+|> SELECT
+     frame_ts AS ts,
+     ui_thread_utid,
+     render_thread_utid,
+     frame_id,
+     layer_id,
+     cuj_id,
+     cuj_name,
+     -- Calculate the first doFrame start that occurs AFTER the current frame ends
+     -- Earliest of (Next Frame Start, Next doFrame Start).
+     -- Fallback to original ts_end only if both are NULL.
+     coalesce(
+       min(
+         (
+           SELECT min(ts)
+           FROM _android_jank_cuj_do_frames
+           WHERE
+             utid = ui_thread_utid
+             AND ts >= ts_end
+             AND ts <= next_frame_start
+         ),
+         next_frame_start
+       ),
+       (
+         SELECT min(ts)
+         FROM _android_jank_cuj_do_frames
+         WHERE
+           utid = ui_thread_utid
+           AND ts >= ts_end
+           AND ts <= next_frame_start
+       ),
+       next_frame_start,
+       ts_end
+     ) AS ts_end
+|> ORDER BY frame_id;
 
 -- Capture blocking call duration within frames within a CUJ.
-CREATE PERFETTO TABLE _blocking_calls_frame_cuj AS
-SELECT
-  min(bc.dur, frame.ts_end - bc.ts, bc.ts_end - frame.ts) AS dur,
-  max(frame.ts, bc.ts) AS ts,
-  bc.upid,
-  bc.name,
-  bc.process_name,
-  bc.utid,
-  frame.frame_id,
-  frame.layer_id,
-  cuj_id,
-  cuj_name
+CREATE PERFETTO PIPELINE _blocking_calls_frame_cuj MATERIALIZED AS
 FROM _android_critical_blocking_calls AS bc
-JOIN _extended_frame_boundary AS frame
-  ON (bc.utid = frame.ui_thread_utid OR bc.utid = frame.render_thread_utid)
+|> JOIN _extended_frame_boundary AS frame
+   ON (bc.utid = frame.ui_thread_utid OR bc.utid = frame.render_thread_utid)
 -- The following condition to accommodate blocking call crossing frame boundary. The blocking
 -- call starts in a frame or ends in a frame. It can either be the same frame or a different
 -- frame.
-WHERE
-  (
-  -- Blocking call starts within the frame.
-  (bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
-  OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end));
+|> WHERE
+     (
+     -- Blocking call starts within the frame.
+     (bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
+     OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end))
+|> SELECT
+     min(bc.dur, frame.ts_end - bc.ts, bc.ts_end - frame.ts) AS dur,
+     max(frame.ts, bc.ts) AS ts,
+     bc.upid,
+     bc.name,
+     bc.process_name,
+     bc.utid,
+     frame.frame_id,
+     frame.layer_id,
+     cuj_id,
+     cuj_name;

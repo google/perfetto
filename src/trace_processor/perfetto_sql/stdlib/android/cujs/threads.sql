@@ -42,7 +42,7 @@ WHERE
   thread.name = $thread_name;
 
 -- Table captures thread information for 'RenderThread' for all CUJs.
-CREATE PERFETTO TABLE android_jank_cuj_render_thread(
+CREATE PERFETTO PIPELINE android_jank_cuj_render_thread(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- process id.
@@ -54,5 +54,5 @@ CREATE PERFETTO TABLE android_jank_cuj_render_thread(
   -- track_id for the thread.
   track_id JOINID(track.id)
 )
-AS
-SELECT * FROM android_jank_cuj_app_thread('RenderThread');
+MATERIALIZED AS
+FROM android_jank_cuj_app_thread('RenderThread');

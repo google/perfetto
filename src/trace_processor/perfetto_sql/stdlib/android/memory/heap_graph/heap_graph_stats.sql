@@ -54,7 +54,7 @@ AS (
 -- Table summarizing java heap graphs collected with the ART perfetto module.
 -- Contains one row per heap graph, with summary statistics (e.g. total / reachable objects)
 -- and memory stats for the corresponding process at the time of the heap dump.
-CREATE PERFETTO TABLE android_heap_graph_stats(
+CREATE PERFETTO PIPELINE android_heap_graph_stats(
   -- The upid of the process.
   upid JOINID(process.id),
   -- The timestamp the heap graph was dumped at.
@@ -80,25 +80,21 @@ CREATE PERFETTO TABLE android_heap_graph_stats(
   anon_rss_and_swap_size LONG,
   -- The dmabuf size of the process (in bytes) at the time of the heap graph dump.
   dmabuf_rss_size LONG
+) MATERIALIZED AS
+SUBPIPELINE base_stats AS (
+  FROM heap_graph_object
+  |> AGGREGATE
+    sum(self_size) AS total_heap_size,
+    sum(native_size) AS total_native_alloc_registry_size,
+    count(1) AS total_obj_count,
+    sum(iif(reachable, self_size, 0)) AS reachable_heap_size,
+    sum(iif(reachable, native_size, 0)) AS reachable_native_alloc_registry_size,
+    sum(iif(reachable, 1, 0)) AS reachable_obj_count
+    GROUP BY upid, graph_sample_ts
 )
-AS
-WITH
-  base_stats AS (
-    SELECT
-      upid,
-      graph_sample_ts,
-      sum(self_size) AS total_heap_size,
-      sum(native_size) AS total_native_alloc_registry_size,
-      count(1) AS total_obj_count,
-      sum(iif(reachable, self_size, 0)) AS reachable_heap_size,
-      sum(iif(reachable, native_size, 0)) AS reachable_native_alloc_registry_size,
-      sum(iif(reachable, 1, 0)) AS reachable_obj_count
-    FROM heap_graph_object
-    GROUP BY
-      1,
-      2
-  )
-SELECT
+FROM base_stats
+|> JOIN process USING (upid)
+|> SELECT
   upid,
   graph_sample_ts,
   graph_sample_ts - process.start_ts AS process_uptime,
@@ -110,6 +106,4 @@ SELECT
   reachable_obj_count,
   _closest_value!(base_stats.upid, graph_sample_ts, android_oom_adj_intervals, score) AS oom_score_adj,
   _closest_value!(base_stats.upid, graph_sample_ts, memory_rss_and_swap_per_process, anon_rss_and_swap) AS anon_rss_and_swap_size,
-  _closest_value!(base_stats.upid, graph_sample_ts, _dmabuf_spans, dmabuf_rss) AS dmabuf_rss_size
-FROM base_stats
-JOIN process USING (upid);
+  _closest_value!(base_stats.upid, graph_sample_ts, _dmabuf_spans, dmabuf_rss) AS dmabuf_rss_size;

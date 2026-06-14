@@ -17,41 +17,29 @@ INCLUDE PERFETTO MODULE linux.cpu.frequency;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
-CREATE PERFETTO TABLE _adjusted_cpu_freq AS
-WITH
-  _cpu_freq AS (
-    SELECT ts, dur, freq, cf.ucpu AS cpu, d_map.policy
-    FROM cpu_frequency_counters AS cf
-    JOIN _dev_cpu_policy_map AS d_map
-      ON cf.ucpu = d_map.cpu
-  ),
-  -- Get first freq transition per CPU
-  first_cpu_freq_slices AS (
-    SELECT min(ts) AS ts, cpu FROM _cpu_freq GROUP BY cpu
-  )
--- Prepend NULL slices up to first freq events on a per CPU basis
-SELECT
-  -- Construct slices from first cpu ts up to first freq event for each cpu
-  trace_start() AS ts,
-  first_slices.ts - trace_start() AS dur,
-  NULL AS freq,
-  first_slices.cpu,
-  d_map.policy
-FROM first_cpu_freq_slices AS first_slices
-JOIN _dev_cpu_policy_map AS d_map
-  ON first_slices.cpu = d_map.cpu
-UNION ALL
-SELECT ts, dur, freq, cpu, policy FROM _cpu_freq
-UNION ALL
--- Add empty cpu freq counters for CPUs that are physically present, but did not
--- have a single freq event register. The time region needs to be defined so
--- that interval_intersect doesn't remove the undefined time region.
-SELECT
-  trace_start() AS ts,
-  trace_dur() AS dur,
-  NULL AS freq,
-  cpu,
-  NULL AS policy
-FROM _dev_cpu_policy_map
-WHERE
-  NOT (cpu IN (SELECT cpu FROM first_cpu_freq_slices));
+CREATE PERFETTO PIPELINE _adjusted_cpu_freq MATERIALIZED AS
+-- The real per-CPU freq intervals, keyed by cpu.
+FROM cpu_frequency_counters AS cf
+|> JOIN _dev_cpu_policy_map AS d_map ON cf.ucpu = d_map.cpu
+|> SELECT ts, dur, freq, cf.ucpu AS cpu, d_map.policy
+|> FORK AS cpu_freq
+-- Pass the real intervals through and fill the leading gap (trace start up to
+-- the first freq event) per CPU with a null-freq filler. The filler's policy is
+-- re-attached from the policy map below.
+FROM cpu_freq
+|> INTERVAL FILL WITHIN trace_bounds PER cpu
+|> LEFT JOIN _dev_cpu_policy_map AS d_map USING (cpu)
+|> SELECT ts, dur, freq, cpu, d_map.policy AS policy
+|> UNION ALL (
+     -- Add empty cpu freq counters for CPUs that are physically present, but
+     -- did not have a single freq event register. The time region needs to be
+     -- defined so that interval_intersect doesn't remove the undefined region.
+     FROM _dev_cpu_policy_map
+     |> WHERE NOT (cpu IN (SELECT cpu FROM cpu_freq))
+     |> SELECT
+          trace_start() AS ts,
+          trace_dur() AS dur,
+          NULL AS freq,
+          cpu,
+          NULL AS policy
+   );

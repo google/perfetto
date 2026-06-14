@@ -17,15 +17,9 @@ INCLUDE PERFETTO MODULE android.oom_adjuster;
 
 INCLUDE PERFETTO MODULE linux.memory.process;
 
--- OOM score tables
-
-CREATE VIRTUAL TABLE _mem_ooms_sj USING SPAN_OUTER_JOIN(
-  android_oom_adj_intervals PARTITIONED upid,
-  _memory_rss_and_swap_per_process_table PARTITIONED upid);
-
 -- Process memory and it's OOM adjuster scores. Detects transitions, each new
 -- interval means that either the memory or OOM adjuster score of the process changed.
-CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
+CREATE PERFETTO PIPELINE memory_oom_score_with_rss_and_swap_per_process(
   -- Timestamp the oom_adj score or memory of the process changed
   ts TIMESTAMP,
   -- Duration until the next oom_adj score or memory change of the process.
@@ -72,28 +66,33 @@ CREATE PERFETTO TABLE memory_oom_score_with_rss_and_swap_per_process(
   -- Sum or `rss` and `swap`. Returns value even if one of the values is NULL.
   rss_and_swap LONG
 )
-AS
-SELECT
-  ts,
-  dur,
-  score,
-  bucket,
-  upid,
-  process_name,
-  pid,
-  oom_adj_id,
-  oom_adj_ts,
-  oom_adj_dur,
-  oom_adj_track_id,
-  oom_adj_thread_name,
-  oom_adj_reason,
-  oom_adj_trigger,
-  anon_rss,
-  file_rss,
-  shmem_rss,
-  file_rss + anon_rss + coalesce(shmem_rss, 0) AS rss,
-  swap,
-  anon_rss + coalesce(swap, 0) AS anon_rss_and_swap,
-  anon_rss + file_rss + coalesce(shmem_rss, 0) + coalesce(swap, 0) AS rss_and_swap
-FROM _mem_ooms_sj
-JOIN process USING (upid);
+MATERIALIZED AS
+-- The original SPAN_OUTER_JOIN keeps every oom_adj interval, co-fragmenting it
+-- with the per-process RSS/swap intervals (null where RSS is absent).
+INTERVAL UNION OF (
+  android_oom_adj_intervals AS o,
+  _memory_rss_and_swap_per_process_table AS m
+) PER upid
+|> JOIN process AS p USING (upid)
+|> SELECT
+     ts,
+     dur,
+     o.score AS score,
+     o.bucket AS bucket,
+     upid,
+     o.process_name AS process_name,
+     o.pid AS pid,
+     o.oom_adj_id AS oom_adj_id,
+     o.oom_adj_ts AS oom_adj_ts,
+     o.oom_adj_dur AS oom_adj_dur,
+     o.oom_adj_track_id AS oom_adj_track_id,
+     o.oom_adj_thread_name AS oom_adj_thread_name,
+     o.oom_adj_reason AS oom_adj_reason,
+     o.oom_adj_trigger AS oom_adj_trigger,
+     m.anon_rss AS anon_rss,
+     m.file_rss AS file_rss,
+     m.shmem_rss AS shmem_rss,
+     m.file_rss + m.anon_rss + coalesce(m.shmem_rss, 0) AS rss,
+     m.swap AS swap,
+     m.anon_rss + coalesce(m.swap, 0) AS anon_rss_and_swap,
+     m.anon_rss + m.file_rss + coalesce(m.shmem_rss, 0) + coalesce(m.swap, 0) AS rss_and_swap;

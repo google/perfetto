@@ -13,42 +13,32 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
 -- Gets devfreq frequency counter based on device queried. These counters will
 -- only be available if the "devfreq/devfreq_frequency" ftrace event is enabled.
-CREATE PERFETTO FUNCTION _get_devfreq_counters(
+-- The counter leading-intervals (events -> intervals, closing the last open
+-- interval at the trace end, then coalescing consecutive equal values) are
+-- expressed inline as a pipeline-valued macro.
+CREATE PERFETTO MACRO _get_devfreq_counters(
   -- Devfreq name to query for.
-  device_name STRING
+  device_name Expr
 )
-RETURNS TABLE(
-  -- Unique identifier for this counter.
-  id LONG,
-  -- Starting timestamp of the counter.
-  ts TIMESTAMP,
-  -- Duration in which counter is constant and frequency doesn't chamge.
-  dur DURATION,
-  -- Frequency in kHz of the device that corresponds to the counter.
-  freq LONG
-)
-AS
-SELECT
-  count_w_dur.id,
-  count_w_dur.ts,
-  count_w_dur.dur,
-  cast_int!(count_w_dur.value) AS freq
-FROM counter_leading_intervals!((
-  SELECT c.*
-  FROM counter c
-  JOIN track t ON t.id = c.track_id
-  WHERE t.type = 'linux_device_frequency'
-    AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
-)) AS count_w_dur;
+-- Returns a pipeline of (id LONG, ts TIMESTAMP, dur DURATION, freq LONG).
+RETURNS Pipeline
+AS (
+  INTERVALS FROM EVENTS (
+    FROM counter AS c
+    |> JOIN track AS t ON t.id = c.track_id
+    |> WHERE t.type = 'linux_device_frequency'
+       AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
+  ) CLOSING LAST AT (trace_end())
+  |> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
+  |> SELECT id, ts, dur, cast_int!(value) AS freq
+);
 
 -- ARM DSU device frequency counters. This table will only be populated on
 -- traces collected with "devfreq/devfreq_frequency" ftrace event enabled,
 -- and from ARM devices with the DSU (DynamIQ Shared Unit) hardware.
-CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
+CREATE PERFETTO PIPELINE linux_devfreq_dsu_counter(
   -- Unique identifier for this counter.
   id LONG,
   -- Starting timestamp of the counter.
@@ -57,8 +47,10 @@ CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
   dur DURATION,
   -- Frequency in kHz of the device that corresponds to the counter.
   dsu_freq LONG
-)
-AS
-SELECT id, ts, dur, freq AS dsu_freq FROM _get_devfreq_counters('*devfreq_dsu')
-UNION ALL
-SELECT id, ts, dur, freq AS dsu_freq FROM _get_devfreq_counters('*dsufreq');
+) MATERIALIZED AS
+_get_devfreq_counters!('*devfreq_dsu')
+|> SELECT id, ts, dur, freq AS dsu_freq
+|> UNION ALL (
+  _get_devfreq_counters!('*dsufreq')
+  |> SELECT id, ts, dur, freq AS dsu_freq
+);

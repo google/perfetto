@@ -12,6 +12,10 @@ INCLUDE PERFETTO MODULE time.conversion;
 
 -- A helper macro to avoid manually filtering `scroll_frames` multiple times.
 -- Returns janky rows of `scroll_frames` with a few additional statistics.
+--
+-- NOTE (psqlnext): this and the other tag-assignment macros take a relation
+-- argument, so they remain host-SQL relational macros (out of scope for the
+-- analysis-operator pipe form).
 CREATE PERFETTO MACRO _prepare_janky_scroll_frames(
     -- Table containing information about frames presented by Chrome containing
     -- one or more scroll updates.
@@ -36,15 +40,11 @@ RETURNS TableOrSubquery AS
 );
 
 -- List of janky scroll frames according to Chrome's v1 scroll jank metric.
-CREATE PERFETTO TABLE _chrome_janky_scroll_frames AS
-SELECT
-  *
+CREATE PERFETTO PIPELINE _chrome_janky_scroll_frames MATERIALIZED AS
 FROM _prepare_janky_scroll_frames!(chrome_scroll_frame_info);
 
 -- List of janky scroll frames according to Chrome's v4 scroll jank metric.
-CREATE PERFETTO TABLE _chrome_janky_scroll_frames_v4 AS
-SELECT
-  *
+CREATE PERFETTO PIPELINE _chrome_janky_scroll_frames_v4 MATERIALIZED AS
 FROM _prepare_janky_scroll_frames!(chrome_scroll_frame_info_v4);
 
 -- A helper macro to generate tags for long stages in the scroll pipeline.
@@ -308,44 +308,42 @@ RETURNS TableOrSubquery AS
 -- List of scroll jank causes that apply to scroll frames which are janky
 -- according to Chrome's v1 scroll jank metric. Contains zero or more tags for
 -- each janky frame.
-CREATE PERFETTO TABLE chrome_scroll_jank_tags (
+CREATE PERFETTO PIPELINE chrome_scroll_jank_tags (
   -- Frame ID.
   frame_id LONG,
   -- Tag of the scroll jank cause.
   tag STRING
-) AS
-SELECT
-  *
+) MATERIALIZED AS
+SUBPIPELINE dropped_previous_frame AS (
+  -- TODO(b:460737855): Figure out whether/how we should port the logic below
+  -- over for the v4 metric.
+  FROM _chrome_janky_scroll_frames AS frame
+  |> JOIN chrome_scroll_update_refs AS previous_input
+     ON previous_input.scroll_update_latency_id = last_input_before_this_frame_id
+  |> JOIN chrome_graphics_pipeline_surface_frame_steps AS drop_frame_step
+     ON drop_frame_step.surface_frame_trace_id = previous_input.surface_frame_id
+     AND drop_frame_step.step = 'STEP_DID_NOT_PRODUCE_COMPOSITOR_FRAME'
+  |> JOIN slice AS drop_frame_slice
+     ON drop_frame_step.id = drop_frame_slice.id
+  |> SELECT
+       frame.id AS frame_id,
+       printf(
+         'dropped_previous_frame/%s',
+         extract_arg(drop_frame_slice.arg_set_id, 'chrome_graphics_pipeline.frame_skipped_reason')
+       ) AS tag
+)
 FROM _assign_scroll_jank_tags_to_frames!(_chrome_janky_scroll_frames, abs(total_input_delta_y))
-UNION ALL
--- TODO(b:460737855): Figure out whether/how we should port the logic below over
--- for the v4 metric.
-SELECT
-  frame.id AS frame_id,
-  printf(
-    'dropped_previous_frame/%s',
-    extract_arg(drop_frame_slice.arg_set_id, 'chrome_graphics_pipeline.frame_skipped_reason')
-  ) AS tag
-FROM _chrome_janky_scroll_frames AS frame
-JOIN chrome_scroll_update_refs AS previous_input
-  ON previous_input.scroll_update_latency_id = last_input_before_this_frame_id
-JOIN chrome_graphics_pipeline_surface_frame_steps AS drop_frame_step
-  ON drop_frame_step.surface_frame_trace_id = previous_input.surface_frame_id
-  AND drop_frame_step.step = 'STEP_DID_NOT_PRODUCE_COMPOSITOR_FRAME'
-JOIN slice AS drop_frame_slice
-  ON drop_frame_step.id = drop_frame_slice.id;
+|> UNION ALL (FROM dropped_previous_frame);
 
 -- List of scroll jank causes that apply to scroll frames which are janky
 -- according to Chrome's v4 scroll jank metric. Contains zero or more tags for
 -- each janky frame.
-CREATE PERFETTO TABLE chrome_scroll_jank_tags_v4 (
+CREATE PERFETTO PIPELINE chrome_scroll_jank_tags_v4 (
   -- Frame ID. Can be joined with `chrome_scroll_frame_info_v4.id`.
   frame_id JOINID(slice.id),
   -- Tag of the scroll jank cause.
   tag STRING
-) AS
-SELECT
-  *
+) MATERIALIZED AS
 FROM _assign_scroll_jank_tags_to_frames!(_chrome_janky_scroll_frames_v4, real_abs_total_raw_delta_pixels);
 
 -- A helper macro which flattens the tags for each janky scroll frame. The
@@ -379,16 +377,14 @@ RETURNS TableOrSubquery AS
 -- Scroll frames which are janky according to Chrome's v1 scroll jank metric
 -- together with the assigned causes. Contains exactly one row for each janky
 -- frame in `chrome_scroll_frame_info`.
-CREATE PERFETTO TABLE chrome_tagged_janky_scroll_frames (
+CREATE PERFETTO PIPELINE chrome_tagged_janky_scroll_frames (
   -- Frame id.
   frame_id LONG,
   -- Whether this frame has any tags or not.
   tagged BOOL,
   -- Comma-separated list of tags for this frame.
   tags STRING
-) AS
-SELECT
-  *
+) MATERIALIZED AS
 FROM _consolidate_tagged_janky_scroll_frames!(
   _chrome_janky_scroll_frames,
   chrome_scroll_jank_tags
@@ -397,16 +393,14 @@ FROM _consolidate_tagged_janky_scroll_frames!(
 -- Scroll frames which are janky according to Chrome's v4 scroll jank metric
 -- together with the assigned causes. Contains exactly one row for each janky
 -- frame in `chrome_scroll_frame_info_v4`.
-CREATE PERFETTO TABLE chrome_tagged_janky_scroll_frames_v4 (
+CREATE PERFETTO PIPELINE chrome_tagged_janky_scroll_frames_v4 (
   -- Frame id. Can be joined with `chrome_scroll_frame_info_v4.id`.
   frame_id JOINID(slice.id),
   -- Whether this frame has any tags or not.
   tagged BOOL,
   -- Comma-separated list of tags for this frame.
   tags STRING
-) AS
-SELECT
-  *
+) MATERIALIZED AS
 FROM _consolidate_tagged_janky_scroll_frames!(
   _chrome_janky_scroll_frames_v4,
   chrome_scroll_jank_tags_v4

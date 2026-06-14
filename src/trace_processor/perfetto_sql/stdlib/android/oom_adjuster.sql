@@ -16,8 +16,6 @@
 
 INCLUDE PERFETTO MODULE slices.with_context;
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
 -- Converts an oom_adj score Integer to String sample name.
 -- One of: cached, background, job, foreground_service, bfgs, foreground and
 -- system.
@@ -76,28 +74,57 @@ SELECT
     ELSE 'unknown_app'
   END;
 
-CREATE PERFETTO TABLE _oom_adjuster_intervals AS
-WITH
-  reason AS (
-    SELECT
-      thread_slice.id AS oom_adj_id,
-      thread_slice.ts AS oom_adj_ts,
-      thread_slice.dur AS oom_adj_dur,
-      thread_slice.track_id AS oom_adj_track_id,
-      utid AS oom_adj_utid,
-      thread_name AS oom_adj_thread_name,
-      str_split(thread_slice.name, '_', 1) AS oom_adj_reason,
-      slice.name AS oom_adj_trigger,
-      lead(thread_slice.ts) OVER (ORDER BY thread_slice.ts) AS oom_adj_next_ts
-    FROM thread_slice
-    LEFT JOIN slice
-      ON slice.id = thread_slice.parent_id
-      AND slice.dur != -1
-    WHERE
-      thread_slice.name GLOB 'updateOomAdj_*'
-      AND process_name = 'system_server'
-  )
-SELECT
+CREATE PERFETTO PIPELINE _oom_adjuster_intervals(
+  ts TIMESTAMP,
+  dur DURATION,
+  score LONG,
+  upid JOINID(process.id),
+  process_name STRING,
+  oom_adj_id LONG,
+  oom_adj_ts TIMESTAMP,
+  oom_adj_dur DURATION,
+  oom_adj_track_id JOINID(track.id),
+  oom_adj_thread_name STRING,
+  oom_adj_utid JOINID(thread.id),
+  oom_adj_reason STRING,
+  oom_adj_trigger STRING,
+  android_appid LONG
+)
+MATERIALIZED AS
+SUBPIPELINE reason AS (
+  FROM thread_slice
+  |> LEFT JOIN slice
+    ON slice.id = thread_slice.parent_id
+    AND slice.dur != -1
+  |> WHERE
+    thread_slice.name GLOB 'updateOomAdj_*'
+    AND process_name = 'system_server'
+  |> SELECT
+    thread_slice.id AS oom_adj_id,
+    thread_slice.ts AS oom_adj_ts,
+    thread_slice.dur AS oom_adj_dur,
+    thread_slice.track_id AS oom_adj_track_id,
+    utid AS oom_adj_utid,
+    thread_name AS oom_adj_thread_name,
+    str_split(thread_slice.name, '_', 1) AS oom_adj_reason,
+    slice.name AS oom_adj_trigger,
+    lead(thread_slice.ts) OVER (ORDER BY thread_slice.ts) AS oom_adj_next_ts
+)
+SUBPIPELINE evts AS (
+  FROM counter
+  |> JOIN counter_track AS track
+    ON track.id = counter.track_id AND track.name = 'oom_score_adj'
+  |> SELECT counter.id, counter.ts, counter.value, counter.track_id
+)
+INTERVALS FROM EVENTS evts PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
+|> JOIN process_counter_track AS track ON track_id = track.id
+|> JOIN process USING (upid)
+|> LEFT JOIN reason
+  ON ts > reason.oom_adj_ts
+  AND ts <= coalesce(reason.oom_adj_next_ts, trace_end())
+|> WHERE track.name = 'oom_score_adj'
+|> SELECT
   ts,
   dur,
   cast_int!(value) AS score,
@@ -111,26 +138,10 @@ SELECT
   reason.oom_adj_utid,
   reason.oom_adj_reason,
   reason.oom_adj_trigger,
-  android_appid
-FROM counter_leading_intervals
-    !(
-      (
-        SELECT counter.*
-        FROM counter
-        JOIN counter_track track
-          ON track.id = counter.track_id AND track.name = 'oom_score_adj'
-      )) AS counter
-JOIN process_counter_track AS track
-  ON counter.track_id = track.id
-JOIN process USING (upid)
-LEFT JOIN reason
-  ON counter.ts > reason.oom_adj_ts
-  AND counter.ts <= coalesce(reason.oom_adj_next_ts, trace_end())
-WHERE
-  track.name = 'oom_score_adj';
+  android_appid;
 
 -- All oom adj state intervals across all processes along with the reason for the state update.
-CREATE PERFETTO VIEW android_oom_adj_intervals(
+CREATE PERFETTO PIPELINE android_oom_adj_intervals(
   -- Timestamp the oom_adj score of the process changed
   ts TIMESTAMP,
   -- Duration until the next oom_adj score change of the process.
@@ -159,7 +170,8 @@ CREATE PERFETTO VIEW android_oom_adj_intervals(
   oom_adj_trigger STRING
 )
 AS
-SELECT
+FROM _oom_adjuster_intervals
+|> SELECT
   ts,
   dur,
   score,
@@ -172,5 +184,4 @@ SELECT
   oom_adj_track_id,
   oom_adj_thread_name,
   oom_adj_reason,
-  oom_adj_trigger
-FROM _oom_adjuster_intervals;
+  oom_adj_trigger;

@@ -16,7 +16,7 @@
 -- @module prelude.after_eof.gpu
 
 -- Contains information about the GPUs on the device this trace was taken on.
-CREATE PERFETTO VIEW gpu(
+CREATE PERFETTO PIPELINE gpu(
   -- Unique identifier for this GPU. Identical to |ugpu|, prefer using |ugpu|
   -- instead.
   id ID,
@@ -41,9 +41,10 @@ CREATE PERFETTO VIEW gpu(
   machine_id JOINID(machine.id),
   -- Extra key/value pairs associated with this GPU.
   arg_set_id ARGSETID
-)
-AS
-SELECT
+) AS
+FROM __intrinsic_gpu
+|> WHERE gpu IS NOT NULL
+|> SELECT
   id,
   id AS ugpu,
   gpu,
@@ -54,7 +55,4 @@ SELECT
   uuid,
   pci_bdf,
   machine_id,
-  arg_set_id
-FROM __intrinsic_gpu
-WHERE
-  gpu IS NOT NULL;
+  arg_set_id;

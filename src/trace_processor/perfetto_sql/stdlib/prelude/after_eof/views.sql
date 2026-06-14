@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE prelude.after_eof.casts;
 
 -- Counters are values put into tracks during parsing of the trace.
-CREATE PERFETTO VIEW counter(
+CREATE PERFETTO PIPELINE counter(
   -- Unique id of a counter value
   id ID,
   -- Time of fetching the counter value.
@@ -27,13 +27,13 @@ CREATE PERFETTO VIEW counter(
   value DOUBLE,
   -- Additional information about the counter value.
   arg_set_id ARGSETID
-)
-AS
-SELECT id, ts, track_id, value, arg_set_id FROM __intrinsic_counter;
+) AS
+FROM __intrinsic_counter
+|> SELECT id, ts, track_id, value, arg_set_id;
 
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.
-CREATE PERFETTO VIEW slice(
+CREATE PERFETTO PIPELINE slice(
   -- The id of the slice.
   id ID,
   -- The timestamp at the start of the slice in nanoseconds. The actual value
@@ -58,7 +58,7 @@ CREATE PERFETTO VIEW slice(
   parent_id JOINID(slice.id),
   -- The id of the argument set associated with this slice.
   arg_set_id ARGSETID,
-  -- The thread timestamp at the start of the slice. This column will only be
+  -- The thread timestamp at the start of the slice. This column will only be
   -- populated if thread timestamp collection is enabled with track_event.
   thread_ts TIMESTAMP,
   -- The thread time used by this slice. This column will only be populated if
@@ -76,13 +76,13 @@ CREATE PERFETTO VIEW slice(
   cat STRING,
   -- Alias of `id`.
   slice_id JOINID(slice.id)
-)
-AS
-SELECT *, category AS cat, id AS slice_id FROM __intrinsic_slice;
+) AS
+FROM __intrinsic_slice
+|> EXTEND category AS cat, id AS slice_id;
 
 -- Contains instant events from userspace which indicates what happened at a
 -- single moment in time.
-CREATE PERFETTO VIEW instant(
+CREATE PERFETTO PIPELINE instant(
   -- The timestamp of the instant.
   ts TIMESTAMP,
   -- The id of the track this instant is located on.
@@ -92,12 +92,13 @@ CREATE PERFETTO VIEW instant(
   name STRING,
   -- The id of the argument set associated with this instant.
   arg_set_id ARGSETID
-)
-AS
-SELECT ts, track_id, name, arg_set_id FROM slice WHERE dur = 0;
+) AS
+FROM slice
+|> WHERE dur = 0
+|> SELECT ts, track_id, name, arg_set_id;
 
 -- Alternative alias of table `slice`.
-CREATE PERFETTO VIEW slices(
+CREATE PERFETTO PIPELINE slices(
   -- Alias of `slice.id`.
   id JOINID(slice.id),
   -- Alias of `slice.ts`.
@@ -128,12 +129,11 @@ CREATE PERFETTO VIEW slices(
   cat STRING,
   -- Alias of `slice.slice_id`.
   slice_id JOINID(slice.id)
-)
-AS
-SELECT * FROM slice;
+) AS
+FROM slice;
 
 -- Contains information of threads seen during the trace.
-CREATE PERFETTO VIEW thread(
+CREATE PERFETTO PIPELINE thread(
   -- The id of the thread. Prefer using `utid` instead.
   id ID,
   -- Unique thread id. This is != the OS tid. This is a monotonic number
@@ -164,12 +164,12 @@ CREATE PERFETTO VIEW thread(
   machine_id JOINID(machine.id),
   -- Extra args for this thread.
   arg_set_id ARGSETID
-)
-AS
-SELECT id AS utid, * FROM __intrinsic_thread;
+) AS
+FROM __intrinsic_thread
+|> EXTEND id AS utid;
 
 -- Contains information of processes seen during the trace.
-CREATE PERFETTO VIEW process(
+CREATE PERFETTO PIPELINE process(
   -- The id of the process. Prefer using `upid` instead.
   id ID,
   -- Unique process id. This is != the OS pid. This is a monotonic number
@@ -204,15 +204,15 @@ CREATE PERFETTO VIEW process(
   arg_set_id ARGSETID,
   -- Machine identifier
   machine_id JOINID(machine.id)
-)
-AS
-SELECT id AS upid, * FROM __intrinsic_process;
+) AS
+FROM __intrinsic_process
+|> EXTEND id AS upid;
 
 -- Arbitrary key-value pairs which allow adding metadata to other, strongly
 -- typed tables.
 -- Note: for a given row, only one of |int_value|, |string_value|, |real_value|
 -- will be non-null.
-CREATE PERFETTO VIEW args(
+CREATE PERFETTO PIPELINE args(
   -- The id of the arg.
   id ID,
   -- The id for a single set of arguments.
@@ -232,12 +232,10 @@ CREATE PERFETTO VIEW args(
   value_type STRING,
   -- The human-readable formatted value of the arg.
   display_value STRING
-)
-AS
-SELECT
-  *,
-  -- This should be kept in sync with GlobalArgsTracker::AddArgSet.
-  CASE value_type
+) AS
+FROM __intrinsic_args
+-- This should be kept in sync with GlobalArgsTracker::AddArgSet.
+|> EXTEND CASE value_type
     WHEN 'int' THEN cast_string!(int_value)
     WHEN 'uint' THEN printf('%u', int_value)
     WHEN 'string' THEN string_value
@@ -246,25 +244,24 @@ SELECT
     WHEN 'bool' THEN (CASE WHEN int_value != 0 THEN 'true' ELSE 'false' END)
     WHEN 'json' THEN string_value
     ELSE NULL
-  END AS display_value
-FROM __intrinsic_args;
+  END AS display_value;
 
 -- Contains the Linux perf sessions in the trace.
-CREATE PERFETTO VIEW perf_session(
+CREATE PERFETTO PIPELINE perf_session(
   -- The id of the perf session. Prefer using `perf_session_id` instead.
   id LONG,
   -- The id of the perf session.
   perf_session_id LONG,
   -- Command line used to collect the data.
   cmdline STRING
-)
-AS
-SELECT *, id AS perf_session_id FROM __intrinsic_perf_session;
+) AS
+FROM __intrinsic_perf_session
+|> EXTEND id AS perf_session_id;
 
 -- Log entries from all sources (Android logcat, systemd_journald, etc.).
 --
 -- NOTE: this table is not sorted by timestamp.
-CREATE PERFETTO VIEW logs(
+CREATE PERFETTO PIPELINE logs(
   -- Which row in the table the log corresponds to.
   id ID,
   -- Timestamp of the log entry.
@@ -281,15 +278,14 @@ CREATE PERFETTO VIEW logs(
   msg STRING,
   -- Args for source-specific metadata.
   arg_set_id ARGSETID
-)
-AS
-SELECT id, ts, utid, prio, log_source, tag, msg, arg_set_id
-FROM __intrinsic_logs;
+) AS
+FROM __intrinsic_logs
+|> SELECT id, ts, utid, prio, log_source, tag, msg, arg_set_id;
 
 -- Android log entries from logcat or bugreport.
 --
 -- NOTE: this table is not sorted by timestamp.
-CREATE PERFETTO VIEW android_logs(
+CREATE PERFETTO PIPELINE android_logs(
   -- Which row in the table the log corresponds to.
   id ID,
   -- Timestamp in nanoseconds.
@@ -302,15 +298,13 @@ CREATE PERFETTO VIEW android_logs(
   tag STRING,
   -- Log message text.
   msg STRING
-)
-AS
-SELECT id, ts, utid, prio, tag, msg
+) AS
 FROM __intrinsic_logs
-WHERE
-  log_source = 'android_logcat';
+|> WHERE log_source = 'android_logcat'
+|> SELECT id, ts, utid, prio, tag, msg;
 
 -- Contains flow events linking slices.
-CREATE PERFETTO VIEW flow(
+CREATE PERFETTO PIPELINE flow(
   -- The id of the flow.
   id ID,
   -- Id of the slice that this flow flows out of.
@@ -321,13 +315,13 @@ CREATE PERFETTO VIEW flow(
   trace_id LONG,
   -- Args for this flow.
   arg_set_id ARGSETID
-)
-AS
-SELECT id, slice_out, slice_in, trace_id, arg_set_id FROM __intrinsic_flow;
+) AS
+FROM __intrinsic_flow
+|> SELECT id, slice_out, slice_in, trace_id, arg_set_id;
 
 -- A table presenting all game modes and interventions of games installed on
 -- the system.
-CREATE PERFETTO VIEW android_game_intervention_list(
+CREATE PERFETTO PIPELINE android_game_intervention_list(
   -- The id of the row.
   id ID,
   -- Name of the package.
@@ -360,12 +354,11 @@ CREATE PERFETTO VIEW android_game_intervention_list(
   battery_mode_use_angle LONG,
   -- Frame rate that the game is throttled at in battery mode.
   battery_mode_fps DOUBLE
-)
-AS
-SELECT * FROM __intrinsic_android_game_intervention_list;
+) AS
+FROM __intrinsic_android_game_intervention_list;
 
 -- Dumpsys entries from Android dumpstate.
-CREATE PERFETTO VIEW android_dumpstate(
+CREATE PERFETTO PIPELINE android_dumpstate(
   -- The id of the row.
   id ID,
   -- Name of the dumpstate section.
@@ -374,12 +367,11 @@ CREATE PERFETTO VIEW android_dumpstate(
   service STRING,
   -- Line-by-line contents of the section/service.
   line STRING
-)
-AS
-SELECT * FROM __intrinsic_android_dumpstate;
+) AS
+FROM __intrinsic_android_dumpstate;
 
 -- Per-VMA memory mapping stats. For linux traces, prefer the process_memory_mappings view.
-CREATE PERFETTO VIEW profiler_smaps(
+CREATE PERFETTO PIPELINE profiler_smaps(
   -- The id of the row.
   id ID,
   -- The unique PID of the process.
@@ -430,12 +422,11 @@ CREATE PERFETTO VIEW profiler_smaps(
   pss_dirty_kb LONG,
   -- Proportional share of swap KB.
   swap_pss_kb LONG
-)
-AS
-SELECT * FROM __intrinsic_profiler_smaps;
+) AS
+FROM __intrinsic_profiler_smaps;
 
 -- Per-VMA memory mapping stats.
-CREATE PERFETTO VIEW process_memory_mappings(
+CREATE PERFETTO PIPELINE process_memory_mappings(
   -- The id of the row.
   id ID,
   -- Unique pid of the process.
@@ -472,9 +463,9 @@ CREATE PERFETTO VIEW process_memory_mappings(
   pss_dirty_kb LONG,
   -- Proportional share of swap.
   swap_pss_kb LONG
-)
-AS
-SELECT
+) AS
+FROM __intrinsic_profiler_smaps
+|> SELECT
   id,
   upid,
   ts,
@@ -492,11 +483,10 @@ SELECT
   locked_kb,
   proportional_resident_kb AS pss_kb,
   pss_dirty_kb,
-  swap_pss_kb
-FROM __intrinsic_profiler_smaps;
+  swap_pss_kb;
 
 -- Metadata about packages installed on the system.
-CREATE PERFETTO VIEW package_list(
+CREATE PERFETTO PIPELINE package_list(
   -- The id of the row.
   id ID,
   -- Name of the package.
@@ -509,12 +499,11 @@ CREATE PERFETTO VIEW package_list(
   profileable_from_shell LONG,
   -- versionCode from the APK.
   version_code LONG
-)
-AS
-SELECT * FROM __intrinsic_package_list;
+) AS
+FROM __intrinsic_package_list;
 
 -- A mapping (binary / library) in a process.
-CREATE PERFETTO VIEW stack_profile_mapping(
+CREATE PERFETTO PIPELINE stack_profile_mapping(
   -- The id of the row.
   id ID,
   -- Hex-encoded Build ID of the binary / library.
@@ -531,12 +520,11 @@ CREATE PERFETTO VIEW stack_profile_mapping(
   load_bias LONG,
   -- Filename of the binary / library.
   name STRING
-)
-AS
-SELECT * FROM __intrinsic_stack_profile_mapping;
+) AS
+FROM __intrinsic_stack_profile_mapping;
 
 -- A frame on the callstack. This is a location in a program.
-CREATE PERFETTO VIEW stack_profile_frame(
+CREATE PERFETTO PIPELINE stack_profile_frame(
   -- The id of the row.
   id ID,
   -- Name of the function this location is in.
@@ -549,12 +537,11 @@ CREATE PERFETTO VIEW stack_profile_frame(
   symbol_set_id LONG,
   -- Deobfuscated name of the function this location is in.
   deobfuscated_name STRING
-)
-AS
-SELECT * FROM __intrinsic_stack_profile_frame;
+) AS
+FROM __intrinsic_stack_profile_frame;
 
 -- A callsite. This is a list of frames that were on the stack.
-CREATE PERFETTO VIEW stack_profile_callsite(
+CREATE PERFETTO PIPELINE stack_profile_callsite(
   -- The id of the row.
   id ID,
   -- Distance from the bottom-most frame of the callstack.
@@ -563,12 +550,11 @@ CREATE PERFETTO VIEW stack_profile_callsite(
   parent_id JOINID(stack_profile_callsite.id),
   -- Frame at this position in the callstack.
   frame_id JOINID(stack_profile_frame.id)
-)
-AS
-SELECT * FROM __intrinsic_stack_profile_callsite;
+) AS
+FROM __intrinsic_stack_profile_callsite;
 
 -- Table containing stack samples from CPU profiling.
-CREATE PERFETTO VIEW cpu_profile_stack_sample(
+CREATE PERFETTO PIPELINE cpu_profile_stack_sample(
   -- The id of the row.
   id ID,
   -- Timestamp of the sample.
@@ -579,12 +565,11 @@ CREATE PERFETTO VIEW cpu_profile_stack_sample(
   utid LONG,
   -- Process priority.
   process_priority LONG
-)
-AS
-SELECT * FROM __intrinsic_cpu_profile_stack_sample;
+) AS
+FROM __intrinsic_cpu_profile_stack_sample;
 
 -- Samples from MacOS Instruments.
-CREATE PERFETTO VIEW instruments_sample(
+CREATE PERFETTO PIPELINE instruments_sample(
   -- The id of the row.
   id ID,
   -- Timestamp of the sample.
@@ -595,12 +580,11 @@ CREATE PERFETTO VIEW instruments_sample(
   callsite_id JOINID(stack_profile_callsite.id),
   -- Core the sampled thread was running on.
   cpu LONG
-)
-AS
-SELECT * FROM __intrinsic_instruments_sample;
+) AS
+FROM __intrinsic_instruments_sample;
 
 -- Symbolization data for a frame.
-CREATE PERFETTO VIEW stack_profile_symbol(
+CREATE PERFETTO PIPELINE stack_profile_symbol(
   -- The id of the row.
   id ID,
   -- Symbol set id.
@@ -613,12 +597,11 @@ CREATE PERFETTO VIEW stack_profile_symbol(
   line_number LONG,
   -- Whether this function was inlined.
   inlined LONG
-)
-AS
-SELECT * FROM __intrinsic_stack_profile_symbol;
+) AS
+FROM __intrinsic_stack_profile_symbol;
 
 -- Allocations that happened at a callsite.
-CREATE PERFETTO VIEW heap_profile_allocation(
+CREATE PERFETTO PIPELINE heap_profile_allocation(
   -- The id of the row.
   id ID,
   -- The timestamp the allocations happened at.
@@ -633,12 +616,11 @@ CREATE PERFETTO VIEW heap_profile_allocation(
   count LONG,
   -- Size of allocations (positive) or frees (negative).
   size LONG
-)
-AS
-SELECT * FROM __intrinsic_heap_profile_allocation;
+) AS
+FROM __intrinsic_heap_profile_allocation;
 
 -- Vulkan memory allocations.
-CREATE PERFETTO VIEW vulkan_memory_allocations(
+CREATE PERFETTO PIPELINE vulkan_memory_allocations(
   -- The id of the row.
   id ID,
   -- Args.
@@ -669,12 +651,11 @@ CREATE PERFETTO VIEW vulkan_memory_allocations(
   memory_size LONG,
   -- Scope.
   scope STRING
-)
-AS
-SELECT * FROM __intrinsic_vulkan_memory_allocations;
+) AS
+FROM __intrinsic_vulkan_memory_allocations;
 
 -- GPU counter group.
-CREATE PERFETTO VIEW gpu_counter_group(
+CREATE PERFETTO PIPELINE gpu_counter_group(
   -- The id of the row.
   id ID,
   -- Group id.
@@ -685,12 +666,11 @@ CREATE PERFETTO VIEW gpu_counter_group(
   name STRING,
   -- Group description. NULL for legacy enum-based groups.
   description STRING
-)
-AS
-SELECT * FROM __intrinsic_gpu_counter_group;
+) AS
+FROM __intrinsic_gpu_counter_group;
 
 -- Spurious scheduling wakeups.
-CREATE PERFETTO VIEW spurious_sched_wakeup(
+CREATE PERFETTO PIPELINE spurious_sched_wakeup(
   -- The id of the row.
   id ID,
   -- The timestamp of the wakeup.
@@ -703,12 +683,11 @@ CREATE PERFETTO VIEW spurious_sched_wakeup(
   utid LONG,
   -- The unique thread id of the waker thread.
   waker_utid LONG
-)
-AS
-SELECT * FROM __intrinsic_spurious_sched_wakeup;
+) AS
+FROM __intrinsic_spurious_sched_wakeup;
 
 -- Contains raw machine_id of trace packets emitted from remote machines.
-CREATE PERFETTO VIEW machine(
+CREATE PERFETTO PIPELINE machine(
   -- The id of the machine.
   id ID,
   -- Raw machine identifier in the trace packet.
@@ -733,12 +712,11 @@ CREATE PERFETTO VIEW machine(
   system_ram_bytes LONG,
   -- Total system RAM in gigabytes (rounded).
   system_ram_gb LONG
-)
-AS
-SELECT * FROM __intrinsic_machine;
+) AS
+FROM __intrinsic_machine;
 
 -- Contains information of filedescriptors collected during the trace.
-CREATE PERFETTO VIEW filedescriptor(
+CREATE PERFETTO PIPELINE filedescriptor(
   -- The id of the row.
   id ID,
   -- Unique fd.
@@ -751,24 +729,22 @@ CREATE PERFETTO VIEW filedescriptor(
   upid LONG,
   -- The path to the file or device backing the fd.
   path STRING
-)
-AS
-SELECT * FROM __intrinsic_filedescriptor;
+) AS
+FROM __intrinsic_filedescriptor;
 
 -- Experimental table for missing Chrome processes.
-CREATE PERFETTO VIEW experimental_missing_chrome_processes(
+CREATE PERFETTO PIPELINE experimental_missing_chrome_processes(
   -- The id of the row.
   id ID,
   -- Unique process id.
   upid LONG,
   -- Reliable from timestamp.
   reliable_from LONG
-)
-AS
-SELECT * FROM __intrinsic_experimental_missing_chrome_processes;
+) AS
+FROM __intrinsic_experimental_missing_chrome_processes;
 
 -- Contains all the mapping between clock snapshots and trace time.
-CREATE PERFETTO VIEW clock_snapshot(
+CREATE PERFETTO PIPELINE clock_snapshot(
   -- The id of the row.
   id ID,
   -- Timestamp of the snapshot in trace time.
@@ -783,12 +759,11 @@ CREATE PERFETTO VIEW clock_snapshot(
   snapshot_id LONG,
   -- Machine identifier.
   machine_id JOINID(machine.id)
-)
-AS
-SELECT * FROM __intrinsic_clock_snapshot;
+) AS
+FROM __intrinsic_clock_snapshot;
 
 -- SurfaceFlinger layers snapshot.
-CREATE PERFETTO VIEW surfaceflinger_layers_snapshot(
+CREATE PERFETTO PIPELINE surfaceflinger_layers_snapshot(
   -- The id of the row.
   id ID,
   -- Timestamp of the snapshot.
@@ -801,12 +776,11 @@ CREATE PERFETTO VIEW surfaceflinger_layers_snapshot(
   sequence_id LONG,
   -- Whether snapshot was recorded without elapsed timestamp.
   has_invalid_elapsed_ts LONG
-)
-AS
-SELECT * FROM __intrinsic_surfaceflinger_layers_snapshot;
+) AS
+FROM __intrinsic_surfaceflinger_layers_snapshot;
 
 -- SurfaceFlinger layer.
-CREATE PERFETTO VIEW surfaceflinger_layer(
+CREATE PERFETTO PIPELINE surfaceflinger_layer(
   -- The id of the row.
   id ID,
   -- The snapshot that generated this layer.
@@ -843,12 +817,11 @@ CREATE PERFETTO VIEW surfaceflinger_layer(
   layer_rect_id LONG,
   -- Input rect id.
   input_rect_id LONG
-)
-AS
-SELECT * FROM __intrinsic_surfaceflinger_layer;
+) AS
+FROM __intrinsic_surfaceflinger_layer;
 
 -- SurfaceFlinger transactions.
-CREATE PERFETTO VIEW surfaceflinger_transactions(
+CREATE PERFETTO PIPELINE surfaceflinger_transactions(
   -- The id of the row.
   id ID,
   -- Timestamp of the transactions commit.
@@ -859,12 +832,11 @@ CREATE PERFETTO VIEW surfaceflinger_transactions(
   base64_proto_id LONG,
   -- Vsync id.
   vsync_id LONG
-)
-AS
-SELECT * FROM __intrinsic_surfaceflinger_transactions;
+) AS
+FROM __intrinsic_surfaceflinger_transactions;
 
 -- Window Manager Shell Transitions.
-CREATE PERFETTO VIEW window_manager_shell_transitions(
+CREATE PERFETTO PIPELINE window_manager_shell_transitions(
   -- The id of the row.
   id ID,
   -- The timestamp the transition started playing.
@@ -901,12 +873,11 @@ CREATE PERFETTO VIEW window_manager_shell_transitions(
   start_transaction_id LONG,
   -- Finish transaction id.
   finish_transaction_id LONG
-)
-AS
-SELECT * FROM __intrinsic_window_manager_shell_transitions;
+) AS
+FROM __intrinsic_window_manager_shell_transitions;
 
 -- Window Manager Shell Transition Handlers.
-CREATE PERFETTO VIEW window_manager_shell_transition_handlers(
+CREATE PERFETTO PIPELINE window_manager_shell_transition_handlers(
   -- The id of the row.
   id ID,
   -- The id of the handler.
@@ -915,12 +886,11 @@ CREATE PERFETTO VIEW window_manager_shell_transition_handlers(
   handler_name STRING,
   -- String id for raw proto message.
   base64_proto_id LONG
-)
-AS
-SELECT * FROM __intrinsic_window_manager_shell_transition_handlers;
+) AS
+FROM __intrinsic_window_manager_shell_transition_handlers;
 
 -- Protolog entries.
-CREATE PERFETTO VIEW protolog(
+CREATE PERFETTO PIPELINE protolog(
   -- The id of the row.
   id ID,
   -- The timestamp the log message was sent.
@@ -935,16 +905,18 @@ CREATE PERFETTO VIEW protolog(
   stacktrace STRING,
   -- The location of the logpoint.
   location STRING
-)
-AS
-SELECT * FROM __intrinsic_protolog;
+) AS
+FROM __intrinsic_protolog;
 
 -- Materialized mapping from stat key to severity and name.
-CREATE PERFETTO TABLE _stat_key_to_severity_and_name AS
-SELECT DISTINCT key, severity, name FROM stats ORDER BY key;
+CREATE PERFETTO PIPELINE _stat_key_to_severity_and_name MATERIALIZED AS
+FROM stats
+|> SELECT key, severity, name
+|> DISTINCT
+|> ORDER BY key;
 
 -- Contains logs of errors and warnings that occurred during trace import.
-CREATE PERFETTO VIEW _trace_import_logs(
+CREATE PERFETTO PIPELINE _trace_import_logs(
   -- The id of the log entry.
   id ID,
   -- The id of the trace file this log belongs to.
@@ -959,9 +931,7 @@ CREATE PERFETTO VIEW _trace_import_logs(
   name STRING,
   -- The id of the argument set associated with this log entry.
   arg_set_id ARGSETID
-)
-AS
-SELECT l.id, l.trace_id, l.ts, l.byte_offset, s.severity, s.name, l.arg_set_id
+) AS
 FROM __intrinsic_trace_import_logs AS l
-JOIN _stat_key_to_severity_and_name AS s
-  ON l.stat_key = s.key;
+|> JOIN _stat_key_to_severity_and_name AS s ON l.stat_key = s.key
+|> SELECT l.id, l.trace_id, l.ts, l.byte_offset, s.severity, s.name, l.arg_set_id;

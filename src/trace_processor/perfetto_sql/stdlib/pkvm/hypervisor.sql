@@ -15,7 +15,7 @@
 --
 
 -- Events when CPU entered hypervisor.
-CREATE PERFETTO VIEW pkvm_hypervisor_events(
+CREATE PERFETTO PIPELINE pkvm_hypervisor_events(
   -- Id of the corresponding slice in slice table.
   slice_id JOINID(slice.id),
   -- CPU that entered hypervisor.
@@ -26,16 +26,13 @@ CREATE PERFETTO VIEW pkvm_hypervisor_events(
   dur DURATION,
   -- Reason for entering hypervisor (e.g. host_hcall, host_mem_abort), or NULL if unknown.
   reason STRING
-)
-AS
-SELECT
-  slice.id AS slice_id,
-  cpu_track.cpu AS cpu,
-  slice.ts AS ts,
-  slice.dur AS dur,
-  extract_arg(slice.arg_set_id, 'hyp_enter_reason') AS reason
+) AS
 FROM slice
-JOIN cpu_track
-  ON cpu_track.id = slice.track_id
-WHERE
-  slice.category = 'pkvm_hyp';
+|> JOIN cpu_track ON cpu_track.id = slice.track_id
+|> WHERE slice.category = 'pkvm_hyp'
+|> SELECT
+     slice.id AS slice_id,
+     cpu_track.cpu AS cpu,
+     slice.ts AS ts,
+     slice.dur AS dur,
+     extract_arg(slice.arg_set_id, 'hyp_enter_reason') AS reason;

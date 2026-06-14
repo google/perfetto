@@ -15,8 +15,26 @@
 
 INCLUDE PERFETTO MODULE slices.flat_slices;
 
--- Create a table which joins the thread state across the flattened slices.
-CREATE VIRTUAL TABLE __span_joined_thread USING SPAN_JOIN(_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
+-- A table which joins the thread state across the flattened slices. The former
+-- SPAN_JOIN partitioned on utid becomes an interval intersection per utid: each
+-- output fragment carries both the flattened-slice payload and the overlapping
+-- thread_state payload.
+CREATE PERFETTO PIPELINE __span_joined_thread MATERIALIZED AS
+INTERVAL INTERSECTION OF (_slice_flattened AS sf, thread_state AS ts) PER utid
+|> SELECT
+     ts,
+     dur,
+     utid,
+     sf.depth,
+     sf.name,
+     sf.slice_id,
+     sf.track_id,
+     ts.cpu,
+     ts.state,
+     ts.io_wait,
+     ts.blocked_function,
+     ts.waker_utid,
+     ts.irq_context;
 
 -- Get the thread state breakdown of a flattened slice from its slice id.
 -- This table pivoted and summed for better visualization and aggregation.

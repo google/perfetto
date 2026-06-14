@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Samples from the traced_perf profiler.
-CREATE PERFETTO VIEW perf_sample(
+CREATE PERFETTO PIPELINE perf_sample(
   -- Unique identifier for this perf sample.
   id ID,
   -- Timestamp of the sample.
@@ -34,7 +34,6 @@ CREATE PERFETTO VIEW perf_sample(
   -- Distinguishes samples from different profiling streams
   -- (i.e. multiple data sources).
   perf_session_id JOINID(perf_session.id)
-)
-AS
-SELECT id, ts, utid, cpu, cpu_mode, callsite_id, unwind_error, perf_session_id
-FROM __intrinsic_perf_sample;
+) AS
+FROM __intrinsic_perf_sample
+|> SELECT id, ts, utid, cpu, cpu_mode, callsite_id, unwind_error, perf_session_id;

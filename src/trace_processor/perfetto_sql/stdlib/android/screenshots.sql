@@ -13,7 +13,7 @@
 -- limitations under the License.
 
 -- Screenshot slices, used in perfetto UI.
-CREATE PERFETTO TABLE android_screenshots(
+CREATE PERFETTO PIPELINE android_screenshots(
   -- Id of the screenshot slice.
   id ID(slice.id),
   -- Slice timestamp.
@@ -24,11 +24,11 @@ CREATE PERFETTO TABLE android_screenshots(
   -- Slice name.
   name STRING
 )
-AS
-SELECT slice.id AS id, slice.ts AS ts, slice.dur AS dur, slice.name AS name
+MATERIALIZED AS
 FROM slice
-JOIN args USING (arg_set_id)
-WHERE
-  slice.name = "Screenshot"
-  AND slice.category = "android_screenshot"
-  AND args.key = "screenshot.jpg_image";
+|> JOIN args USING (arg_set_id)
+|> WHERE
+     slice.name = "Screenshot"
+     AND slice.category = "android_screenshot"
+     AND args.key = "screenshot.jpg_image"
+|> SELECT slice.id AS id, slice.ts AS ts, slice.dur AS dur, slice.name AS name;

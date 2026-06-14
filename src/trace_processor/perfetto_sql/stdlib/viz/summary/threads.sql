@@ -13,78 +13,73 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- NOTE (psqlnext): the single-consumer `_sched_summary`,
+-- `_thread_track_summary`, `_perf_sample_summary` and
+-- `_instruments_sample_summary` tables are folded into
+-- `_thread_available_info_summary` below as inline SUBPIPELINEs.
+
 INCLUDE PERFETTO MODULE viz.summary.slices;
 
-CREATE PERFETTO TABLE _sched_summary AS
-SELECT
-  utid,
-  max(dur) AS max_running_dur,
-  sum(dur) AS sum_running_dur,
-  count() AS running_count
-FROM sched
-WHERE
-  NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
-  AND dur != -1
-GROUP BY
-  utid;
-
-CREATE PERFETTO TABLE _thread_track_summary AS
-SELECT utid, sum(cnt) AS slice_count
-FROM thread_track
-JOIN _slice_track_summary USING (id)
-GROUP BY
-  utid;
-
-CREATE PERFETTO TABLE _perf_sample_summary AS
-SELECT utid, count() AS perf_sample_cnt
-FROM perf_sample
-WHERE
-  callsite_id IS NOT NULL
-GROUP BY
-  utid;
-
-CREATE PERFETTO TABLE _instruments_sample_summary AS
-SELECT utid, count() AS instruments_sample_cnt
-FROM instruments_sample
-WHERE
-  callsite_id IS NOT NULL
-GROUP BY
-  utid;
-
-CREATE PERFETTO TABLE _thread_available_info_summary AS
-WITH
-  raw AS (
-    SELECT
-      utid,
-      ss.max_running_dur,
-      ss.sum_running_dur,
-      ss.running_count,
-      (SELECT slice_count FROM _thread_track_summary WHERE utid = t.utid) AS slice_count,
-      (SELECT perf_sample_cnt FROM _perf_sample_summary WHERE utid = t.utid) AS perf_sample_count,
-      (
-        SELECT instruments_sample_cnt
-        FROM _instruments_sample_summary
-        WHERE
-          utid = t.utid
-      ) AS instruments_sample_count
-    FROM thread AS t
-    LEFT JOIN _sched_summary AS ss USING (utid)
-  )
-SELECT
-  utid,
-  coalesce(max_running_dur, 0) AS max_running_dur,
-  coalesce(sum_running_dur, 0) AS sum_running_dur,
-  coalesce(running_count, 0) AS running_count,
-  coalesce(slice_count, 0) AS slice_count,
-  coalesce(perf_sample_count, 0) AS perf_sample_count,
-  coalesce(instruments_sample_count, 0) AS instruments_sample_count
-FROM raw AS r
-WHERE
-  NOT (r.max_running_dur IS NULL
-  AND r.sum_running_dur IS NULL
-  AND r.running_count IS NULL
-  AND r.slice_count IS NULL
-  AND r.perf_sample_count IS NULL
-  AND r.instruments_sample_count IS NULL)
-  OR utid IN (SELECT utid FROM cpu_profile_stack_sample)
-  OR utid IN (SELECT utid FROM thread_counter_track);
+CREATE PERFETTO PIPELINE _thread_available_info_summary MATERIALIZED AS
+SUBPIPELINE sched_summary AS (
+  FROM sched
+  |> WHERE
+       NOT (utid IN (FROM thread |> WHERE is_idle |> SELECT utid))
+       AND dur != -1
+  |> AGGREGATE
+       max(dur) AS max_running_dur,
+       sum(dur) AS sum_running_dur,
+       count() AS running_count
+     GROUP BY utid
+)
+SUBPIPELINE thread_track_summary AS (
+  FROM thread_track
+  |> JOIN _slice_track_summary USING (id)
+  |> AGGREGATE sum(cnt) AS slice_count GROUP BY utid
+)
+SUBPIPELINE perf_sample_summary AS (
+  FROM perf_sample
+  |> WHERE callsite_id IS NOT NULL
+  |> AGGREGATE count() AS perf_sample_cnt GROUP BY utid
+)
+SUBPIPELINE instruments_sample_summary AS (
+  FROM instruments_sample
+  |> WHERE callsite_id IS NOT NULL
+  |> AGGREGATE count() AS instruments_sample_cnt GROUP BY utid
+)
+FROM thread AS t
+|> LEFT JOIN sched_summary AS ss USING (utid)
+|> LEFT JOIN thread_track_summary AS tts USING (utid)
+|> LEFT JOIN perf_sample_summary AS pss USING (utid)
+|> LEFT JOIN instruments_sample_summary AS iss USING (utid)
+|> SELECT
+     t.utid,
+     coalesce(ss.max_running_dur, 0) AS max_running_dur,
+     coalesce(ss.sum_running_dur, 0) AS sum_running_dur,
+     coalesce(ss.running_count, 0) AS running_count,
+     coalesce(tts.slice_count, 0) AS slice_count,
+     coalesce(pss.perf_sample_cnt, 0) AS perf_sample_count,
+     coalesce(iss.instruments_sample_cnt, 0) AS instruments_sample_count,
+     ss.max_running_dur AS _raw_max_running_dur,
+     ss.sum_running_dur AS _raw_sum_running_dur,
+     ss.running_count AS _raw_running_count,
+     tts.slice_count AS _raw_slice_count,
+     pss.perf_sample_cnt AS _raw_perf_sample_count,
+     iss.instruments_sample_cnt AS _raw_instruments_sample_count
+|> WHERE
+     NOT (_raw_max_running_dur IS NULL
+       AND _raw_sum_running_dur IS NULL
+       AND _raw_running_count IS NULL
+       AND _raw_slice_count IS NULL
+       AND _raw_perf_sample_count IS NULL
+       AND _raw_instruments_sample_count IS NULL)
+     OR utid IN (FROM cpu_profile_stack_sample |> SELECT utid)
+     OR utid IN (FROM thread_counter_track |> SELECT utid)
+|> SELECT
+     utid,
+     max_running_dur,
+     sum_running_dur,
+     running_count,
+     slice_count,
+     perf_sample_count,
+     instruments_sample_count;

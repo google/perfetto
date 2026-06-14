@@ -16,7 +16,7 @@
 -- Journald log entries from the linux.systemd_journald data source.
 --
 -- NOTE: this table is not sorted by timestamp.
-CREATE PERFETTO VIEW linux_systemd_journald_logs(
+CREATE PERFETTO PIPELINE linux_systemd_journald_logs(
   -- Which row in the table the log corresponds to.
   id ID,
   -- Timestamp in nanoseconds.
@@ -39,20 +39,18 @@ CREATE PERFETTO VIEW linux_systemd_journald_logs(
   hostname STRING,
   -- Transport method (nullable).
   transport STRING
-)
-AS
-SELECT
-  l.id,
-  l.ts,
-  l.utid,
-  l.prio,
-  l.tag,
-  l.msg,
-  CAST(extract_arg(l.arg_set_id, 'uid') AS INTEGER) AS uid,
-  extract_arg(l.arg_set_id, 'comm') AS comm,
-  extract_arg(l.arg_set_id, 'systemd_unit') AS systemd_unit,
-  extract_arg(l.arg_set_id, 'hostname') AS hostname,
-  extract_arg(l.arg_set_id, 'transport') AS transport
+) AS
 FROM logs AS l
-WHERE
-  l.log_source = 'systemd_journald';
+|> WHERE l.log_source = 'systemd_journald'
+|> SELECT
+     l.id,
+     l.ts,
+     l.utid,
+     l.prio,
+     l.tag,
+     l.msg,
+     CAST(extract_arg(l.arg_set_id, 'uid') AS INTEGER) AS uid,
+     extract_arg(l.arg_set_id, 'comm') AS comm,
+     extract_arg(l.arg_set_id, 'systemd_unit') AS systemd_unit,
+     extract_arg(l.arg_set_id, 'hostname') AS hostname,
+     extract_arg(l.arg_set_id, 'transport') AS transport;

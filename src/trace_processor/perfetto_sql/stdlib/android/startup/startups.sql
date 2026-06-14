@@ -23,9 +23,9 @@ INCLUDE PERFETTO MODULE android.startup.startups_minsdk33;
 
 INCLUDE PERFETTO MODULE android.version;
 
-CREATE PERFETTO TABLE _android_startups_raw AS
-WITH
-  version AS (
+CREATE PERFETTO PIPELINE _android_startups_raw MATERIALIZED AS
+SUBPIPELINE version AS (
+  FROM (
     SELECT
       CASE
         WHEN _android_sdk_version() >= 33 THEN 33
@@ -37,28 +37,29 @@ WITH
         ELSE 28
       END AS v
   )
-SELECT _auto_id AS startup_id, ts, ts_end, dur, package, startup_type
+)
+SUBPIPELINE minsdk29 AS (
+  FROM _startups_minsdk29
+  |> WHERE (SELECT v FROM version) = 29
+  |> SELECT _auto_id AS startup_id, ts, ts_end, dur, package, startup_type
+)
+SUBPIPELINE minsdk33 AS (
+  FROM _startups_minsdk33
+  |> WHERE (SELECT v FROM version) = 33
+  |> SELECT startup_id, ts, ts_end, dur, package, startup_type
+)
 FROM _startups_maxsdk28
-WHERE
-  (SELECT v FROM version) = 28
-UNION ALL
-SELECT _auto_id AS startup_id, ts, ts_end, dur, package, startup_type
-FROM _startups_minsdk29
-WHERE
-  (SELECT v FROM version) = 29
-UNION ALL
-SELECT startup_id, ts, ts_end, dur, package, startup_type
-FROM _startups_minsdk33
-WHERE
-  (SELECT v FROM version) = 33;
+|> WHERE (SELECT v FROM version) = 28
+|> SELECT _auto_id AS startup_id, ts, ts_end, dur, package, startup_type
+|> UNION ALL (FROM minsdk29)
+|> UNION ALL (FROM minsdk33);
 
 -- Create a table containing only the slices which are necessary for determining
 -- whether a startup happened.
-CREATE PERFETTO TABLE _startup_indicator_slices AS
-SELECT ts, name, track_id
+CREATE PERFETTO PIPELINE _startup_indicator_slices MATERIALIZED AS
 FROM slice
-WHERE
-  name IN ('bindApplication', 'activityStart', 'activityResume');
+|> WHERE name IN ('bindApplication', 'activityStart', 'activityResume')
+|> SELECT ts, name, track_id;
 
 CREATE PERFETTO FUNCTION _startup_indicator_slice_count(
   start_ts TIMESTAMP,
@@ -81,7 +82,7 @@ WHERE
 --
 -- The vast majority of cases should be a single process. However it is
 -- possible that the process dies during the activity startup and is respawned.
-CREATE PERFETTO TABLE android_startup_processes(
+CREATE PERFETTO PIPELINE android_startup_processes(
   -- Startup id.
   startup_id JOINID(android_startups.startup_id),
   -- Upid of process on which activity started.
@@ -90,61 +91,39 @@ CREATE PERFETTO TABLE android_startup_processes(
   pid LONG,
   -- Type of the startup.
   startup_type STRING
-)
-AS
--- This is intentionally a materialized query. For some reason, if we don't
--- materialize, we end up with a query which is an order of magnitude slower :(
-WITH
-  startup_with_type AS MATERIALIZED (
-    SELECT
-      startup_id,
-      upid,
-      pid,
-      CASE
-        -- type parsed from platform event takes precedence if available
-        WHEN startup_type IS NOT NULL THEN startup_type
-        WHEN bind_app > 0
-        AND a_start > 0
-        AND a_resume > 0 THEN 'cold'
-        WHEN a_start > 0
-        AND a_resume > 0 THEN 'warm'
-        WHEN a_resume > 0 THEN 'hot'
-        ELSE NULL
-      END AS startup_type
-    FROM (
-      SELECT
-        l.startup_id,
-        l.startup_type,
-        p.upid,
-        p.pid,
-        _startup_indicator_slice_count(
-          l.ts,
-          l.ts_end,
-          t.utid,
-          'bindApplication'
-        ) AS bind_app,
-        _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
-        _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
-      FROM _android_startups_raw AS l
-      JOIN android_process_metadata AS p
-        ON (l.package = p.package_name
-        -- If the package list data source was not enabled in the trace, nothing
-        -- will match the above constraint so also match any process whose name
-        -- is a prefix of the package name.
-        OR ((SELECT count(1) = 0 FROM package_list)
-        AND p.process_name GLOB l.package || '*'))
-      JOIN thread AS t
-        ON (p.upid = t.upid AND t.is_main_thread)
-      -- Filter out the non-startup processes with the same package name as that of a startup.
-      WHERE
-        a_resume > 0
-    )
-  )
-SELECT * FROM startup_with_type WHERE startup_type IS NOT NULL;
+) MATERIALIZED AS
+FROM _android_startups_raw AS l
+|> JOIN android_process_metadata AS p
+     ON (l.package = p.package_name
+     -- If the package list data source was not enabled in the trace, nothing
+     -- will match the above constraint so also match any process whose name
+     -- is a prefix of the package name.
+     OR ((SELECT count(1) = 0 FROM package_list)
+     AND p.process_name GLOB l.package || '*'))
+|> JOIN thread AS t ON (p.upid = t.upid AND t.is_main_thread)
+|> EXTEND _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app
+|> EXTEND _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start
+|> EXTEND _startup_indicator_slice_count(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
+-- Filter out the non-startup processes with the same package name as that of a startup.
+|> WHERE a_resume > 0
+|> SELECT l.startup_id, l.startup_type, p.upid, p.pid, bind_app, a_start, a_resume
+|> SELECT
+     startup_id,
+     upid,
+     pid,
+     CASE
+       -- type parsed from platform event takes precedence if available
+       WHEN startup_type IS NOT NULL THEN startup_type
+       WHEN bind_app > 0 AND a_start > 0 AND a_resume > 0 THEN 'cold'
+       WHEN a_start > 0 AND a_resume > 0 THEN 'warm'
+       WHEN a_resume > 0 THEN 'hot'
+       ELSE NULL
+     END AS startup_type
+|> WHERE startup_type IS NOT NULL;
 
 -- All activity startups in the trace by startup id.
 -- Populated by different scripts depending on the platform version/contents.
-CREATE PERFETTO VIEW android_startups(
+CREATE PERFETTO PIPELINE android_startups(
   -- Startup id.
   startup_id ID,
   -- Timestamp of startup start.
@@ -157,23 +136,23 @@ CREATE PERFETTO VIEW android_startups(
   package STRING,
   -- Startup type.
   startup_type STRING
-)
-AS
-SELECT
-  r.startup_id,
-  r.ts,
-  r.ts_end,
-  r.dur,
-  r.package,
-  coalesce(r.startup_type, max(p.startup_type)) AS startup_type
+) AS
 FROM _android_startups_raw AS r
-LEFT JOIN android_startup_processes AS p USING (startup_id)
-GROUP BY
-  r.startup_id;
+|> LEFT JOIN android_startup_processes AS p USING (startup_id)
+|> AGGREGATE
+     coalesce(r.startup_type, max(p.startup_type)) AS startup_type
+   GROUP BY r.startup_id, r.ts, r.ts_end, r.dur, r.package, r.startup_type
+|> SELECT
+     r.startup_id AS startup_id,
+     r.ts,
+     r.ts_end,
+     r.dur,
+     r.package,
+     startup_type;
 
 -- Maps a startup to the set of threads on processes that handled the
 -- activity start.
-CREATE PERFETTO VIEW android_startup_threads(
+CREATE PERFETTO PIPELINE android_startup_threads(
   -- Startup id.
   startup_id JOINID(android_startups.startup_id),
   -- Timestamp of start.
@@ -192,21 +171,20 @@ CREATE PERFETTO VIEW android_startup_threads(
   thread_name STRING,
   -- Thread is a main thread.
   is_main_thread BOOL
-)
-AS
-SELECT
-  startups.startup_id,
-  startups.ts,
-  startups.dur,
-  android_startup_processes.upid,
-  android_startup_processes.pid,
-  thread.utid,
-  thread.tid,
-  thread.name AS thread_name,
-  thread.is_main_thread AS is_main_thread
+) AS
 FROM android_startups AS startups
-JOIN android_startup_processes USING (startup_id)
-JOIN thread USING (upid);
+|> JOIN android_startup_processes USING (startup_id)
+|> JOIN thread USING (upid)
+|> SELECT
+     startups.startup_id,
+     startups.ts,
+     startups.dur,
+     android_startup_processes.upid,
+     android_startup_processes.pid,
+     thread.utid,
+     thread.tid,
+     thread.name AS thread_name,
+     thread.is_main_thread AS is_main_thread;
 
 ---
 --- Functions
@@ -216,7 +194,7 @@ JOIN thread USING (upid);
 --
 -- Generally, this view should not be used. Instead, use one of the view functions related
 -- to the startup slices which are created from this table.
-CREATE PERFETTO VIEW android_thread_slices_for_all_startups(
+CREATE PERFETTO PIPELINE android_thread_slices_for_all_startups(
   -- Timestamp of startup.
   startup_ts TIMESTAMP,
   -- Timestamp of startup end.
@@ -241,27 +219,24 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups(
   slice_ts TIMESTAMP,
   -- Slice duration.
   slice_dur DURATION
-)
-AS
-SELECT
-  st.ts AS startup_ts,
-  st.ts + st.dur AS startup_ts_end,
-  st.startup_id,
-  st.utid,
-  st.tid,
-  st.thread_name,
-  st.is_main_thread,
-  slice.arg_set_id,
-  slice.id AS slice_id,
-  slice.name AS slice_name,
-  slice.ts AS slice_ts,
-  slice.dur AS slice_dur
+) AS
 FROM android_startup_threads AS st
-JOIN thread_track USING (utid)
-JOIN slice
-  ON (slice.track_id = thread_track.id)
-WHERE
-  slice.ts BETWEEN st.ts AND st.ts + st.dur;
+|> JOIN thread_track USING (utid)
+|> JOIN slice ON (slice.track_id = thread_track.id)
+|> WHERE slice.ts BETWEEN st.ts AND st.ts + st.dur
+|> SELECT
+     st.ts AS startup_ts,
+     st.ts + st.dur AS startup_ts_end,
+     st.startup_id,
+     st.utid,
+     st.tid,
+     st.thread_name,
+     st.is_main_thread,
+     slice.arg_set_id,
+     slice.id AS slice_id,
+     slice.name AS slice_name,
+     slice.ts AS slice_ts,
+     slice.dur AS slice_dur;
 
 -- Given a startup id and GLOB for a slice name, returns matching slices with data.
 CREATE PERFETTO FUNCTION android_slices_for_startup_and_slice_name(
@@ -294,7 +269,7 @@ WHERE
   AND slice_name GLOB $slice_name;
 
 -- A Perfetto view that lists matching slices for class loading during app startup.
-CREATE PERFETTO VIEW android_class_loading_for_startup(
+CREATE PERFETTO PIPELINE android_class_loading_for_startup(
   -- Id of the slice.
   slice_id JOINID(slice.id),
   -- Startup id.
@@ -311,20 +286,18 @@ CREATE PERFETTO VIEW android_class_loading_for_startup(
   tid LONG,
   -- Arg set id.
   arg_set_id ARGSETID
-)
-AS
-SELECT
-  slice_id,
-  startup_id,
-  slice_name,
-  slice_ts,
-  slice_dur,
-  thread_name,
-  tid,
-  arg_set_id
+) AS
 FROM android_thread_slices_for_all_startups
-WHERE
-  slice_name GLOB "L*;";
+|> WHERE slice_name GLOB "L*;"
+|> SELECT
+     slice_id,
+     startup_id,
+     slice_name,
+     slice_ts,
+     slice_dur,
+     thread_name,
+     tid,
+     arg_set_id;
 
 -- Returns binder transaction slices for a given startup id with duration over threshold.
 CREATE PERFETTO FUNCTION android_binder_transaction_slices_for_startup(

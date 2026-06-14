@@ -30,7 +30,7 @@ WHERE
 -- the latter on their own custom track inside the Renderer process.
 -- This query looks for the event track info in both thread_track and
 -- process_track to support both cases.
-CREATE PERFETTO VIEW _chrome_loadline2_marks_with_pid (
+CREATE PERFETTO PIPELINE _chrome_loadline2_marks_with_pid (
   -- Mark timestamp
   ts TIMESTAMP,
   -- Name of the page
@@ -40,205 +40,20 @@ CREATE PERFETTO VIEW _chrome_loadline2_marks_with_pid (
   -- PID of the Renderer process
   pid LONG
 ) AS
-SELECT
-  ts,
-  STR_SPLIT(s.name, '/', 1) AS page,
-  STR_SPLIT(s.name, '/', 2) AS mark,
-  pid
 FROM slice s
-LEFT JOIN thread_track tt ON s.track_id = tt.id
-LEFT JOIN process_track pt ON s.track_id = pt.id
-LEFT JOIN thread t ON tt.utid = t.utid
-JOIN process p ON p.upid = COALESCE(t.upid, pt.upid)
-WHERE s.category = 'blink.user_timing' AND s.name GLOB 'LoadLine2/*/*';
-
--- Story start for each page
-CREATE PERFETTO TABLE _chrome_loadline2_story_start (
-  -- Name of the page
-  page STRING,
-  -- Story start timestamp
-  story_start TIMESTAMP
-) AS
-SELECT
-  page,
-  ts AS story_start
-FROM _chrome_loadline2_marks_with_pid
-WHERE mark = 'start';
-
--- Renderer process pid for each page
-CREATE PERFETTO TABLE _chrome_loadline2_story_pid (
-  -- Name of the page
-  page STRING,
-  -- PID of the Renderer process
-  pid LONG
-) AS
-SELECT
-  page,
-  pid
-FROM _chrome_loadline2_marks_with_pid
-WHERE mark = 'finish';
-
--- Story start and Renderer pid for each page
-CREATE PERFETTO TABLE _chrome_loadline2_story_start_with_pid (
-  -- Name of the page
-  page STRING,
-  -- Story start timestamp
-  story_start TIMESTAMP,
-  -- PID of the Renderer process
-  pid LONG
-) AS
-SELECT
-  page,
-  story_start,
-  pid
-FROM _chrome_loadline2_story_start JOIN _chrome_loadline2_story_pid USING (page);
-
--- Start timestamp for the first network request for each page
-CREATE PERFETTO TABLE _chrome_loadline2_start_request (
-  -- Name of the page
-  page STRING,
-  -- Start request timestamp
-  start_request TIMESTAMP
-) AS
-SELECT
-  page,
-  MIN(ts) AS start_request
-FROM slice, _chrome_loadline2_story_start_with_pid
-WHERE
-  name = 'WillStartRequest'
-  AND ts >= story_start
-GROUP BY page;
-
--- Finish timestamp for the first network request for each page
-CREATE PERFETTO TABLE _chrome_loadline2_end_request (
-  -- Name of the page
-  page STRING,
-  -- End request timestamp
-  end_request TIMESTAMP
-) AS
-SELECT
-  page,
-  MIN(ts) AS end_request
-FROM slice, _chrome_loadline2_story_start_with_pid
-WHERE
-  name = 'CommitSentToFirstSubresourceLoadStart'
-  AND ts >= story_start
-GROUP BY page;
-
--- Renderer ready for each page
-CREATE PERFETTO TABLE _chrome_loadline2_renderer_ready (
-  -- Name of the page
-  page STRING,
-  -- Renderer ready timestamp
-  renderer_ready TIMESTAMP
-) AS
-SELECT
-  page,
-  MIN(ts) AS renderer_ready
-FROM thread_slice
-JOIN _chrome_loadline2_story_start_with_pid USING (pid)
-WHERE
-  name = 'DocumentLoader::CommitNavigation'
-  AND ts >= story_start
-GROUP BY page;
-
--- Visual mark for each page
-CREATE PERFETTO TABLE _chrome_loadline2_visual_mark (
-  -- Name of the page
-  page STRING,
-  -- Visual mark timestamp
-  visual_mark TIMESTAMP,
-  -- PID of the Renderer process
-  pid LONG
-) AS
-SELECT
-  page,
-  ts AS visual_mark,
-  pid
-FROM _chrome_loadline2_marks_with_pid
-WHERE mark = 'visual';
-
--- Timestamp of the second rAF after visual mark for each page
-CREATE PERFETTO TABLE _chrome_loadline2_visual_raf (
-  -- Name of the page
-  page STRING,
-  -- Visual raf timestamp
-  visual_raf TIMESTAMP
-) AS
-SELECT
-  page,
-  ts AS visual_raf
-FROM _chrome_loadline2_marks_with_pid
-WHERE mark = 'visual_raf';
-
--- Visual presentation for each page
-CREATE PERFETTO TABLE _chrome_loadline2_visual_presentation (
-  -- Name of the page
-  page STRING,
-  -- Visual presentation timestamp
-  visual_presentation TIMESTAMP
-) AS
-SELECT
-  page,
-  _chrome_get_next_presentation_time_by_pid(visual_mark, pid) AS visual_presentation
-FROM _chrome_loadline2_visual_mark;
-
--- Interactive mark for each page
-CREATE PERFETTO TABLE _chrome_loadline2_interactive_mark (
-  -- Name of the page
-  page STRING,
-  -- Interactive mark timestamp
-  interactive_mark TIMESTAMP,
-  -- PID of the Renderer process
-  pid LONG
-) AS
-SELECT
-  page,
-  ts AS interactive_mark,
-  pid
-FROM _chrome_loadline2_marks_with_pid
-WHERE mark = 'interactive';
-
--- Timestamp of the second rAF after interactive mark for each page
-CREATE PERFETTO TABLE _chrome_loadline2_interactive_raf (
-  -- Name of the page
-  page STRING,
-  -- Interactive raf timestamp
-  interactive_raf TIMESTAMP
-) AS
-SELECT
-  page,
-  ts AS interactive_raf
-FROM _chrome_loadline2_marks_with_pid
-WHERE mark = 'interactive_raf';
-
--- Interactive presentation for each page
-CREATE PERFETTO TABLE _chrome_loadline2_interactive_presentation (
-  -- Name of the page
-  page STRING,
-  -- Interactive presentation timestamp
-  interactive_presentation TIMESTAMP
-) AS
-SELECT
-  page,
-  _chrome_get_next_presentation_time_by_pid(interactive_mark, pid) AS interactive_presentation
-FROM _chrome_loadline2_interactive_mark;
-
--- Story finish for each page
-CREATE PERFETTO TABLE _chrome_loadline2_story_finish (
-  -- Name of the page
-  page STRING,
-  -- Story finish timestamp
-  story_finish TIMESTAMP
-) AS
-SELECT
-  page,
-  ts AS story_finish
-FROM _chrome_loadline2_marks_with_pid
-WHERE mark = 'finish';
+|> LEFT JOIN thread_track tt ON s.track_id = tt.id
+|> LEFT JOIN process_track pt ON s.track_id = pt.id
+|> LEFT JOIN thread t ON tt.utid = t.utid
+|> JOIN process p ON p.upid = COALESCE(t.upid, pt.upid)
+|> WHERE s.category = 'blink.user_timing' AND s.name GLOB 'LoadLine2/*/*'
+|> SELECT
+     ts,
+     STR_SPLIT(s.name, '/', 1) AS page,
+     STR_SPLIT(s.name, '/', 2) AS mark,
+     pid;
 
 -- All LoadLine2 stages per page
-CREATE PERFETTO TABLE chrome_loadline2_stages (
+CREATE PERFETTO PIPELINE chrome_loadline2_stages (
   -- Name of the page
   page STRING,
   -- Story start timestamp
@@ -264,27 +79,107 @@ CREATE PERFETTO TABLE chrome_loadline2_stages (
   -- Story finish timestamp
   story_finish TIMESTAMP
 ) AS
-SELECT
-  page,
-  story_start,
-  start_request,
-  end_request,
-  renderer_ready,
-  visual_mark,
-  visual_raf,
-  visual_presentation,
-  interactive_mark,
-  interactive_raf,
-  interactive_presentation,
-  story_finish
-FROM _chrome_loadline2_story_start_with_pid
-LEFT JOIN _chrome_loadline2_start_request USING (page)
-LEFT JOIN _chrome_loadline2_end_request USING (page)
-LEFT JOIN _chrome_loadline2_renderer_ready USING (page)
-LEFT JOIN _chrome_loadline2_visual_mark USING (page)
-LEFT JOIN _chrome_loadline2_visual_raf USING (page)
-LEFT JOIN _chrome_loadline2_visual_presentation USING (page)
-LEFT JOIN _chrome_loadline2_interactive_mark USING (page)
-LEFT JOIN _chrome_loadline2_interactive_raf USING (page)
-LEFT JOIN _chrome_loadline2_interactive_presentation USING (page)
-LEFT JOIN _chrome_loadline2_story_finish USING (page);
+-- Story start and Renderer pid for each page.
+SUBPIPELINE story_start_with_pid AS (
+  SUBPIPELINE story_pid AS (
+    FROM _chrome_loadline2_marks_with_pid
+    |> WHERE mark = 'finish'
+    |> SELECT page, pid
+  )
+  FROM _chrome_loadline2_marks_with_pid
+  |> WHERE mark = 'start'
+  |> SELECT page, ts AS story_start
+  |> JOIN story_pid USING (page)
+)
+-- Start timestamp for the first network request for each page.
+SUBPIPELINE start_request AS (
+  FROM slice
+  |> JOIN story_start_with_pid AS ss ON slice.ts >= ss.story_start
+  |> WHERE slice.name = 'WillStartRequest'
+  |> AGGREGATE MIN(slice.ts) AS start_request GROUP BY ss.page
+)
+-- Finish timestamp for the first network request for each page.
+SUBPIPELINE end_request AS (
+  FROM slice
+  |> JOIN story_start_with_pid AS ss ON slice.ts >= ss.story_start
+  |> WHERE slice.name = 'CommitSentToFirstSubresourceLoadStart'
+  |> AGGREGATE MIN(slice.ts) AS end_request GROUP BY ss.page
+)
+-- Renderer ready for each page.
+SUBPIPELINE renderer_ready AS (
+  FROM thread_slice
+  |> JOIN story_start_with_pid AS ss USING (pid)
+  |> WHERE thread_slice.name = 'DocumentLoader::CommitNavigation'
+       AND thread_slice.ts >= ss.story_start
+  |> AGGREGATE MIN(thread_slice.ts) AS renderer_ready GROUP BY ss.page
+)
+-- Visual mark for each page.
+SUBPIPELINE visual_mark AS (
+  FROM _chrome_loadline2_marks_with_pid
+  |> WHERE mark = 'visual'
+  |> SELECT page, ts AS visual_mark, pid
+)
+-- Timestamp of the second rAF after visual mark for each page.
+SUBPIPELINE visual_raf AS (
+  FROM _chrome_loadline2_marks_with_pid
+  |> WHERE mark = 'visual_raf'
+  |> SELECT page, ts AS visual_raf
+)
+-- Visual presentation for each page.
+SUBPIPELINE visual_presentation AS (
+  FROM visual_mark
+  |> SELECT
+       page,
+       _chrome_get_next_presentation_time_by_pid(visual_mark, pid)
+         AS visual_presentation
+)
+-- Interactive mark for each page.
+SUBPIPELINE interactive_mark AS (
+  FROM _chrome_loadline2_marks_with_pid
+  |> WHERE mark = 'interactive'
+  |> SELECT page, ts AS interactive_mark, pid
+)
+-- Timestamp of the second rAF after interactive mark for each page.
+SUBPIPELINE interactive_raf AS (
+  FROM _chrome_loadline2_marks_with_pid
+  |> WHERE mark = 'interactive_raf'
+  |> SELECT page, ts AS interactive_raf
+)
+-- Interactive presentation for each page.
+SUBPIPELINE interactive_presentation AS (
+  FROM interactive_mark
+  |> SELECT
+       page,
+       _chrome_get_next_presentation_time_by_pid(interactive_mark, pid)
+         AS interactive_presentation
+)
+-- Story finish for each page.
+SUBPIPELINE story_finish AS (
+  FROM _chrome_loadline2_marks_with_pid
+  |> WHERE mark = 'finish'
+  |> SELECT page, ts AS story_finish
+)
+FROM story_start_with_pid
+|> LEFT JOIN start_request USING (page)
+|> LEFT JOIN end_request USING (page)
+|> LEFT JOIN renderer_ready USING (page)
+|> LEFT JOIN visual_mark USING (page)
+|> LEFT JOIN visual_raf USING (page)
+|> LEFT JOIN visual_presentation USING (page)
+|> LEFT JOIN interactive_mark USING (page)
+|> LEFT JOIN interactive_raf USING (page)
+|> LEFT JOIN interactive_presentation USING (page)
+|> LEFT JOIN story_finish USING (page)
+|> SELECT
+     page,
+     story_start,
+     start_request,
+     end_request,
+     renderer_ready,
+     visual_mark,
+     visual_raf,
+     visual_presentation,
+     interactive_mark,
+     interactive_raf,
+     interactive_presentation,
+     story_finish;

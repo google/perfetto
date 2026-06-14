@@ -188,7 +188,7 @@ SELECT
   END AS component;
 
 -- List of all ANRs that occurred in the trace (one row per ANR).
-CREATE PERFETTO TABLE android_anrs(
+CREATE PERFETTO PIPELINE android_anrs(
   -- Name of the process that triggered the ANR.
   process_name STRING,
   -- PID of the process that triggered the ANR.
@@ -215,123 +215,79 @@ CREATE PERFETTO TABLE android_anrs(
   -- Note: Other OEMs may have customized these timeout values, so the defaults
   -- provided here might not be accurate for all devices.
   default_anr_dur_ms LONG
-)
-AS
+) MATERIALIZED AS
 -- Process and PID that ANRed.
-WITH
-  anr AS (
-    SELECT
-      -- Counter formats:
-      -- v1: "ErrorId:<process_name>#<UUID>"
-      -- v2: "ErrorId:<process_name> <pid>#<UUID>"
-      str_split(
-        substr(str_split(process_counter_track.name, '#', 0), 9),
-        ' ',
-        0
-      ) AS process_name,
-      cast_int!(STR_SPLIT(
-          SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9),
-          ' ',
-          1
-        )) AS pid,
-      str_split(process_counter_track.name, '#', 1) AS error_id,
-      counter.ts
-    FROM process_counter_track
-    JOIN process USING (upid)
-    JOIN counter
-      ON (counter.track_id = process_counter_track.id)
-    WHERE
-      process_counter_track.name GLOB 'ErrorId:*'
-      AND process.name = 'system_server'
-  ),
-  -- ANR subject line.
-  subject AS (
-    --- Counter format:
-    --- "Subject(for ErrorId <UUID>):<subject>"
-    SELECT
-      substr(str_split(process_counter_track.name, ')', 0), 21) AS error_id,
-      substr(
-        process_counter_track.name,
-        length(str_split(process_counter_track.name, ')', 0)) + 3
-      ) AS subject
-    FROM process_counter_track
-    JOIN process USING (upid)
-    WHERE
-      process_counter_track.name GLOB 'Subject(for ErrorId *'
-      AND process.name = 'system_server'
-  ),
-  -- ANR Timer Track
-  anr_timer AS (
-    WITH
-      x AS (
-        SELECT
-          ts AS timer_ts,
-          trim(substr(name, length('expired(') + 1), ')') AS params
-        FROM slices
-        WHERE
-          name GLOB 'expired(*,*,*,*,*)'
-      )
-    SELECT
-      timer_ts,
-      cast_int!(STR_SPLIT(params, ',', 0)) AS timer_id,
-      cast_int!(STR_SPLIT(params, ',', 1)) AS pid,
-      cast_int!(STR_SPLIT(params, ',', 2)) AS uid,
-      str_split(params, ',', 3) AS anr_type,
-      cast_int!(STR_SPLIT(params, ',', 4)) AS anr_dur_ms
-    FROM x
-  ),
-  -- Matching error_id with anr timers
-  anr_potential_timers AS (
-    SELECT *, (a.ts - at.timer_ts) AS time_diff
-    FROM anr AS a
-    LEFT JOIN anr_timer AS at USING (pid)
-    WHERE
-      at.pid IS NULL
-      OR a.ts >= at.timer_ts
-  ),
-  -- for each error_id, we choose the closest matching timer
-  anr_ranked_timers AS (
-    SELECT
-      *,
-      row_number() OVER (
-        PARTITION BY
-          error_id
-        ORDER BY CASE WHEN timer_ts IS NULL THEN 1 ELSE 0 END, time_diff
-      ) AS rn
-    FROM anr_potential_timers
-  ),
-  anr_best_timer AS (SELECT * FROM anr_ranked_timers WHERE rn = 1),
-  anrs AS (
-    SELECT
-      anr.process_name,
-      anr.pid,
-      process.upid,
-      anr.error_id,
-      anr.ts,
-      s.subject,
-      (anr.ts - abt.timer_ts) AS timer_delay,
-      coalesce(
-        _platform_to_standard_anr_type(abt.anr_type),
-        _extract_anr_type(s.subject, anr.process_name)
-      ) AS anr_type,
-      coalesce(abt.anr_dur_ms, _extract_anr_duration_from_subject(s.subject)) AS anr_dur_ms
-    FROM anr
-    LEFT JOIN subject AS s USING (error_id)
-    LEFT JOIN anr_best_timer AS abt USING (error_id)
-    LEFT JOIN process
-      ON (process.pid = anr.pid)
-  )
-SELECT
-  process_name,
-  pid,
-  upid,
-  error_id,
-  ts,
-  anr_type,
-  subject,
-  _get_intent(anr_type, subject) AS intent,
-  _get_component(anr_type, subject) AS component,
-  timer_delay,
-  anr_dur_ms,
-  _default_anr_dur(anr_type, subject) AS default_anr_dur_ms
-FROM anrs;
+SUBPIPELINE anr AS (
+  -- Counter formats:
+  -- v1: "ErrorId:<process_name>#<UUID>"
+  -- v2: "ErrorId:<process_name> <pid>#<UUID>"
+  FROM process_counter_track AS pct
+  |> JOIN process USING (upid)
+  |> JOIN counter ON counter.track_id = pct.id
+  |> WHERE pct.name GLOB 'ErrorId:*' AND process.name = 'system_server'
+  |> SELECT
+       str_split(substr(str_split(pct.name, '#', 0), 9), ' ', 0) AS process_name,
+       cast_int!(STR_SPLIT(SUBSTR(STR_SPLIT(pct.name, '#', 0), 9), ' ', 1)) AS pid,
+       str_split(pct.name, '#', 1) AS error_id,
+       counter.ts
+)
+-- ANR subject line.
+SUBPIPELINE subject AS (
+  --- Counter format:
+  --- "Subject(for ErrorId <UUID>):<subject>"
+  FROM process_counter_track AS pct
+  |> JOIN process USING (upid)
+  |> WHERE pct.name GLOB 'Subject(for ErrorId *' AND process.name = 'system_server'
+  |> SELECT
+       substr(str_split(pct.name, ')', 0), 21) AS error_id,
+       substr(pct.name, length(str_split(pct.name, ')', 0)) + 3) AS subject
+)
+-- ANR Timer Track
+SUBPIPELINE anr_timer AS (
+  FROM slices
+  |> WHERE name GLOB 'expired(*,*,*,*,*)'
+  |> SELECT
+       ts AS timer_ts,
+       trim(substr(name, length('expired(') + 1), ')') AS params
+  |> SELECT
+       timer_ts,
+       cast_int!(STR_SPLIT(params, ',', 0)) AS timer_id,
+       cast_int!(STR_SPLIT(params, ',', 1)) AS pid,
+       cast_int!(STR_SPLIT(params, ',', 2)) AS uid,
+       str_split(params, ',', 3) AS anr_type,
+       cast_int!(STR_SPLIT(params, ',', 4)) AS anr_dur_ms
+)
+-- Matching error_id with anr timers; for each error_id we choose the closest
+-- matching timer.
+SUBPIPELINE anr_best_timer AS (
+  FROM anr AS a
+  |> LEFT JOIN anr_timer AS at USING (pid)
+  |> WHERE at.pid IS NULL OR a.ts >= at.timer_ts
+  |> EXTEND (a.ts - at.timer_ts) AS time_diff
+  |> EXTEND row_number() OVER (
+       PARTITION BY a.error_id
+       ORDER BY CASE WHEN at.timer_ts IS NULL THEN 1 ELSE 0 END, a.ts - at.timer_ts
+     ) AS rn
+  |> WHERE rn = 1
+)
+FROM anr
+|> LEFT JOIN subject AS s USING (error_id)
+|> LEFT JOIN anr_best_timer AS abt USING (error_id)
+|> LEFT JOIN process ON process.pid = anr.pid
+|> SELECT
+     anr.process_name,
+     anr.pid,
+     process.upid,
+     anr.error_id,
+     anr.ts,
+     s.subject,
+     (anr.ts - abt.timer_ts) AS timer_delay,
+     coalesce(
+       _platform_to_standard_anr_type(abt.anr_type),
+       _extract_anr_type(s.subject, anr.process_name)
+     ) AS anr_type,
+     coalesce(abt.anr_dur_ms, _extract_anr_duration_from_subject(s.subject)) AS anr_dur_ms
+|> EXTEND
+     _get_intent(anr_type, subject) AS intent,
+     _get_component(anr_type, subject) AS component,
+     _default_anr_dur(anr_type, subject) AS default_anr_dur_ms;

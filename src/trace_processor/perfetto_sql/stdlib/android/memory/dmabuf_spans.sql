@@ -14,18 +14,15 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
-CREATE PERFETTO TABLE _dmabuf_spans AS
-WITH
-  dmabuf_track AS (
-    SELECT counter.*
-    FROM counter
-    JOIN counter_track AS track
-      ON track.id = counter.track_id
-      AND track.name = 'mem.dmabuf_rss'
-  )
-SELECT upid, ts, dur, CAST(value AS INTEGER) AS dmabuf_rss
-FROM counter_leading_intervals!(dmabuf_track) AS dmabuf_counter
-JOIN process_counter_track
-  ON dmabuf_counter.track_id = process_counter_track.id;
+CREATE PERFETTO PIPELINE _dmabuf_spans MATERIALIZED AS
+SUBPIPELINE dmabuf_events AS (
+  FROM counter
+  |> JOIN counter_track AS track
+    ON track.id = counter.track_id
+    AND track.name = 'mem.dmabuf_rss'
+  |> SELECT counter.id, counter.ts, counter.track_id, counter.value
+)
+INTERVALS FROM EVENTS dmabuf_events PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value
+|> JOIN process_counter_track ON track_id = process_counter_track.id
+|> SELECT upid, ts, dur, CAST(value AS INTEGER) AS dmabuf_rss;

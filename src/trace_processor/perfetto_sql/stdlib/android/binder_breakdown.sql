@@ -14,154 +14,16 @@
 -- limitations under the License.
 --
 
+-- NOTE (psqlnext): the `_binder_client_view`/`_binder_server_view`/
+-- `_thread_state_view` projections, the `_binder_flatten_descendants` macro, the
+-- `_binder_*_flat_descendants[_with_thread_state]` tables, and the
+-- `_binder_*_breakdown_view` projections are all GONE — folded into the three
+-- pipelines below as inline SUBPIPELINEs. Only `_binder_reason` (a scalar
+-- function) remains.
+
 INCLUDE PERFETTO MODULE android.binder;
 
-INCLUDE PERFETTO MODULE intervals.overlap;
-
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE slices.with_context;
-
--- Client side of all binder txns, sorted by client_ts.
--- Suitable for interval_intersect.
-CREATE PERFETTO VIEW _binder_client_view AS
-SELECT
-  binder_txn_id AS id,
-  client_upid AS upid,
-  client_ts AS ts,
-  client_dur AS dur
-FROM android_binder_txns
-WHERE
-  client_dur > 0
-ORDER BY
-  ts;
-
--- Server side of all binder txns, sorted by server_ts.
--- Suitable for interval_intersect.
-CREATE PERFETTO VIEW _binder_server_view AS
-SELECT
-  binder_txn_id AS id,
-  server_upid AS upid,
-  server_ts AS ts,
-  server_dur AS dur
-FROM android_binder_txns
-WHERE
-  server_dur > 0
-ORDER BY
-  ts;
-
--- Thread state view suitable for interval intersect.
-CREATE PERFETTO VIEW _thread_state_view AS
-SELECT id, ts, dur, utid, cpu, state, io_wait
-FROM thread_state
-WHERE
-  dur > 0
-ORDER BY
-  ts;
-
--- Partitions and flattens slices underneath the server or client side of binder
--- txns. The |name| column in the output is the lowest depth slice name in a
--- given partition.
-CREATE PERFETTO MACRO _binder_flatten_descendants(
-  id ColumnName,
-  ts ColumnName,
-  dur ColumnName,
-  slice_name ColumnName
-)
-RETURNS TableOrSubQuery
-AS (
-  WITH
-    root_slices AS (
-      SELECT
-        $id AS id,
-        $ts AS ts,
-        $dur AS dur
-      FROM android_binder_txns
-    ),
-    child_slices AS (
-      SELECT
-        slice.id AS root_id,
-        dec.*
-      FROM slice, descendant_slice(slice.id) AS dec
-      WHERE
-        slice.name = $slice_name
-    ),
-    flat_slices AS (
-      SELECT
-        root_id,
-        id,
-        ts,
-        dur
-      FROM _intervals_flatten !(_intervals_merge_root_and_children !(root_slices,
-                                                                child_slices))
-    )
-  SELECT
-    row_number() OVER () AS id,
-    root_slice.binder_txn_id,
-    root_slice.binder_reply_id,
-    flat_slices.id AS flat_id,
-    flat_slices.ts,
-    flat_slices.dur,
-    thread_slice.name,
-    thread_slice.utid
-  FROM flat_slices
-  JOIN thread_slice
-    USING (id)
-  JOIN android_binder_txns AS root_slice
-    ON root_slice.$id = root_id
-  WHERE
-    flat_slices.dur > 0
-);
-
--- Server side flattened descendant slices.
-CREATE PERFETTO TABLE _binder_server_flat_descendants AS
-SELECT *
-FROM _binder_flatten_descendants!(binder_reply_id, server_ts, server_dur, 'binder reply')
-ORDER BY
-  id;
-
--- Client side flattened descendant slices.
-CREATE PERFETTO TABLE _binder_client_flat_descendants AS
-SELECT *
-FROM _binder_flatten_descendants!(binder_txn_id, client_ts, client_dur, 'binder transaction')
-ORDER BY
-  id;
-
--- Server side flattened descendants intersected with their thread_states.
-CREATE PERFETTO TABLE _binder_server_flat_descendants_with_thread_state AS
-SELECT
-  ii.ts,
-  ii.dur,
-  _server_flat.binder_txn_id,
-  _server_flat.binder_reply_id,
-  _server_flat.name,
-  _server_flat.flat_id,
-  thread_state.state,
-  thread_state.io_wait
-FROM _interval_intersect !((_binder_server_flat_descendants,
-                            _thread_state_view), (utid)) AS ii
-JOIN _binder_server_flat_descendants AS _server_flat
-  ON id_0 = _server_flat.id
-JOIN thread_state
-  ON id_1 = thread_state.id;
-
--- Client side flattened descendants intersected with their thread_states.
-CREATE PERFETTO TABLE _binder_client_flat_descendants_with_thread_state AS
-SELECT
-  ii.ts,
-  ii.dur,
-  _client_flat.binder_txn_id,
-  _client_flat.binder_reply_id,
-  _client_flat.name,
-  _client_flat.flat_id,
-  _thread_state_view.state,
-  _thread_state_view.io_wait
-FROM _interval_intersect !((_binder_client_flat_descendants,
-                            _thread_state_view), (utid)) AS ii
-JOIN _binder_client_flat_descendants AS _client_flat
-  ON id_0 = _client_flat.id
-JOIN _thread_state_view
-  ON id_1 = _thread_state_view.id;
 
 -- Returns the 'reason' for a binder txn delay based on the descendant slice
 -- name and thread_state information. It follows the following priority:
@@ -204,7 +66,7 @@ SELECT
   END AS name;
 
 -- Server side binder breakdowns per transactions per txn.
-CREATE PERFETTO TABLE android_binder_server_breakdown(
+CREATE PERFETTO PIPELINE android_binder_server_breakdown(
   -- Client side id of the binder txn.
   binder_txn_id JOINID(slice.id),
   -- Server side id of the binder txn.
@@ -218,17 +80,41 @@ CREATE PERFETTO TABLE android_binder_server_breakdown(
   -- Cause of delay during an exclusive interval of the binder reply.
   reason STRING
 )
-AS
-SELECT
-  binder_txn_id,
-  binder_reply_id,
-  ts,
-  dur,
-  _binder_reason(name, state, io_wait, binder_txn_id, binder_reply_id, flat_id) AS reason
-FROM _binder_server_flat_descendants_with_thread_state;
+MATERIALIZED AS
+-- The 'binder reply' slice and everything nested under it, projected onto the
+-- timeline so each disjoint segment is labelled by its deepest (innermost) live
+-- slice, tagged with the reply/txn ids it belongs to. (Was the
+-- `_binder_flatten_descendants!` macro + `_binder_server_flat_descendants`.)
+SUBPIPELINE reply_roots AS (
+  FROM slice |> WHERE name = 'binder reply' |> SELECT id
+)
+SUBPIPELINE segments AS (
+  FROM thread_slice
+  -- Subtree (root included) of each 'binder reply'.
+  |> TREE KEEP IF DESCENDANT OF reply_roots OVER slice
+  -- Carry the reply slice id (= binder_reply_id) down to every descendant.
+  |> TREE ACCUMULATE DOWN
+       FIRST(iif(name = 'binder reply', id, NULL)) AS binder_reply_id
+  |> JOIN android_binder_txns AS txn USING (binder_reply_id)
+  -- Deepest live slice per disjoint segment, per reply.
+  |> INTERVAL FLATTEN PER binder_reply_id, binder_txn_id, utid
+       AGGREGATE ARG_MAX(depth, name) AS name, ARG_MAX(depth, id) AS flat_id
+  |> WHERE dur > 0
+)
+-- Intersect each segment with the server thread's scheduling state.
+INTERVAL INTERSECTION OF (segments AS seg, thread_state AS st) PER utid
+|> SELECT
+     seg.binder_txn_id AS binder_txn_id,
+     seg.binder_reply_id AS binder_reply_id,
+     ts,
+     dur,
+     _binder_reason(
+       seg.name, st.state, st.io_wait,
+       seg.binder_txn_id, seg.binder_reply_id, seg.flat_id
+     ) AS reason;
 
 -- Client side binder breakdowns per transactions per txn.
-CREATE PERFETTO TABLE android_binder_client_breakdown(
+CREATE PERFETTO PIPELINE android_binder_client_breakdown(
   -- Client side id of the binder txn.
   binder_txn_id JOINID(slice.id),
   -- Server side id of the binder txn.
@@ -242,29 +128,35 @@ CREATE PERFETTO TABLE android_binder_client_breakdown(
   -- Cause of delay during an exclusive interval of the binder txn.
   reason STRING
 )
-AS
-SELECT
-  binder_txn_id,
-  binder_reply_id,
-  ts,
-  dur,
-  _binder_reason(name, state, io_wait, binder_txn_id, binder_reply_id, flat_id) AS reason
-FROM _binder_client_flat_descendants_with_thread_state;
-
-CREATE PERFETTO VIEW _binder_client_breakdown_view AS
-SELECT binder_txn_id, binder_reply_id, ts, dur, reason AS client_reason
-FROM android_binder_client_breakdown;
-
-CREATE PERFETTO VIEW _binder_server_breakdown_view AS
-SELECT binder_txn_id, ts, dur, reason AS server_reason
-FROM android_binder_server_breakdown;
-
-CREATE VIRTUAL TABLE _binder_client_server_breakdown_sp USING SPAN_LEFT_JOIN(
-    _binder_client_breakdown_view PARTITIONED binder_txn_id,
-    _binder_server_breakdown_view PARTITIONED binder_txn_id);
+MATERIALIZED AS
+-- Same shape as the server side, rooted at the 'binder transaction' slice.
+SUBPIPELINE txn_roots AS (
+  FROM slice |> WHERE name = 'binder transaction' |> SELECT id
+)
+SUBPIPELINE segments AS (
+  FROM thread_slice
+  |> TREE KEEP IF DESCENDANT OF txn_roots OVER slice
+  -- The transaction slice id is the binder_txn_id.
+  |> TREE ACCUMULATE DOWN
+       FIRST(iif(name = 'binder transaction', id, NULL)) AS binder_txn_id
+  |> JOIN android_binder_txns AS txn USING (binder_txn_id)
+  |> INTERVAL FLATTEN PER binder_txn_id, binder_reply_id, utid
+       AGGREGATE ARG_MAX(depth, name) AS name, ARG_MAX(depth, id) AS flat_id
+  |> WHERE dur > 0
+)
+INTERVAL INTERSECTION OF (segments AS seg, thread_state AS st) PER utid
+|> SELECT
+     seg.binder_txn_id AS binder_txn_id,
+     seg.binder_reply_id AS binder_reply_id,
+     ts,
+     dur,
+     _binder_reason(
+       seg.name, st.state, st.io_wait,
+       seg.binder_txn_id, seg.binder_reply_id, seg.flat_id
+     ) AS reason;
 
 -- Combined client and server side binder breakdowns per transaction.
-CREATE PERFETTO TABLE android_binder_client_server_breakdown(
+CREATE PERFETTO PIPELINE android_binder_client_server_breakdown(
   -- Client side id of the binder txn.
   binder_txn_id JOINID(slice.id),
   -- Server side id of the binder txn.
@@ -284,9 +176,18 @@ CREATE PERFETTO TABLE android_binder_client_server_breakdown(
   -- Whether the latency is due to the client or server.
   reason_type STRING
 )
-AS
-SELECT
-  *,
-  iif(server_reason IS NOT NULL, server_reason, client_reason) AS reason,
-  iif(server_reason IS NOT NULL, 'server', 'client') AS reason_type
-FROM _binder_client_server_breakdown_sp;
+MATERIALIZED AS
+-- Was SPAN_LEFT_JOIN PARTITIONED binder_txn_id: the client breakdown is the left
+-- spine, split at the server breakdown's boundaries so the server reason attaches
+-- where the two overlap and is null elsewhere.
+FROM android_binder_client_breakdown
+|> INTERVAL SPLIT android_binder_server_breakdown AS server PER binder_txn_id
+|> SELECT
+     binder_txn_id,
+     binder_reply_id,
+     ts,
+     dur,
+     server.reason AS server_reason,
+     reason AS client_reason,
+     iif(server.reason IS NOT NULL, server.reason, reason) AS reason,
+     iif(server.reason IS NOT NULL, 'server', 'client') AS reason_type;

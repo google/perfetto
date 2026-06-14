@@ -17,7 +17,7 @@
 -- Trace-level metadata functions and tables.
 
 -- A table containing pivoted metadata for each trace in the session.
-CREATE PERFETTO TABLE _metadata_by_trace(
+CREATE PERFETTO PIPELINE _metadata_by_trace(
   -- Trace identifier.
   trace_id LONG,
   -- Unique session name.
@@ -32,37 +32,30 @@ CREATE PERFETTO TABLE _metadata_by_trace(
   trace_trigger STRING,
   -- Comma-separated list of machine names associated with this trace.
   machines STRING
+) MATERIALIZED AS
+SUBPIPELINE trace_machines AS (
+  FROM metadata
+  |> WHERE NOT (trace_id IS NULL) AND machine_id IS NOT NULL
+  |> SELECT DISTINCT trace_id, machine_id
+  |> AGGREGATE
+       GROUP_CONCAT(
+         coalesce(
+           extract_metadata_for_machine(machine_id, 'system_name'),
+           'Machine ' || machine_id
+         ),
+         ', '
+       ) AS machines
+     GROUP BY trace_id
 )
-AS
-WITH
-  trace_machines AS (
-    SELECT
-      trace_id,
-      GROUP_CONCAT(
-        coalesce(
-          extract_metadata_for_machine(machine_id, 'system_name'),
-          'Machine ' || machine_id
-        ),
-        ', '
-      ) AS machines
-    FROM (
-      SELECT DISTINCT trace_id, machine_id
-      FROM metadata
-      WHERE
-        NOT (trace_id IS NULL)
-        AND machine_id IS NOT NULL
-    )
-    GROUP BY
-      1
-  ),
-  traces AS (SELECT DISTINCT trace_id FROM metadata WHERE trace_id IS NOT NULL)
-SELECT
-  trace_id,
-  extract_metadata_for_trace(trace_id, 'unique_session_name') AS unique_session_name,
-  extract_metadata_for_trace(trace_id, 'trace_uuid') AS trace_uuid,
-  extract_metadata_for_trace(trace_id, 'trace_type') AS trace_type,
-  extract_metadata_for_trace(trace_id, 'trace_size_bytes') AS trace_size_bytes,
-  extract_metadata_for_trace(trace_id, 'trace_trigger') AS trace_trigger,
-  coalesce(m.machines, '') AS machines
-FROM traces
-LEFT JOIN trace_machines AS m USING (trace_id);
+FROM metadata
+|> WHERE trace_id IS NOT NULL
+|> SELECT DISTINCT trace_id
+|> LEFT JOIN trace_machines AS m USING (trace_id)
+|> SELECT
+     trace_id,
+     extract_metadata_for_trace(trace_id, 'unique_session_name') AS unique_session_name,
+     extract_metadata_for_trace(trace_id, 'trace_uuid') AS trace_uuid,
+     extract_metadata_for_trace(trace_id, 'trace_type') AS trace_type,
+     extract_metadata_for_trace(trace_id, 'trace_size_bytes') AS trace_size_bytes,
+     extract_metadata_for_trace(trace_id, 'trace_trigger') AS trace_trigger,
+     coalesce(m.machines, '') AS machines;

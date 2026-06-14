@@ -15,7 +15,7 @@
 --
 
 -- Details of Java OutOfMemoryError exceptions that triggered heap dumps.
-CREATE PERFETTO VIEW android_heap_graph_java_oome_details(
+CREATE PERFETTO PIPELINE android_heap_graph_java_oome_details(
   -- Unique identifier for this details row.
   id ID,
   -- The heap graph instance this OOM trigger details belongs to.
@@ -28,13 +28,12 @@ CREATE PERFETTO VIEW android_heap_graph_java_oome_details(
   free_bytes_until_oom LONG,
   -- Error message associated with the OOME.
   error_msg STRING
-)
-AS
-SELECT
+) AS
+FROM __intrinsic_heap_graph_java_oome_details
+|> SELECT
   id,
   heap_graph_id,
   allocation_size_bytes,
   total_bytes_free,
   free_bytes_until_oom,
-  error_msg
-FROM __intrinsic_heap_graph_java_oome_details;
+  error_msg;

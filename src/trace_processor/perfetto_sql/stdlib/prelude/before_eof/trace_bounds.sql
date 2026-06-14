@@ -14,7 +14,8 @@
 -- limitations under the License.
 
 -- The values are being filled by Trace Processor when parsing the trace.
--- Exposed with `trace_bounds`.
+-- Exposed with `trace_bounds`. Kept as a plain table: it is populated by the
+-- engine at parse time, not derived from a pipeline.
 CREATE TABLE _trace_bounds AS
 SELECT 0 AS start_ts, 0 AS end_ts;
 

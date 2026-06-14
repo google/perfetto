@@ -13,6 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- NOTE (psqlnext): the `*_in_interval` constructs are parameterized by a scalar
+-- window, so they are pipeline-valued macros (`RETURNS Pipeline`) clipping the
+-- relevant relation with `_interval_intersect_single!($ts, $dur, …)`.
+
 INCLUDE PERFETTO MODULE linux.cpu.utilization.general;
 
 INCLUDE PERFETTO MODULE linux.cpu.utilization.thread_cpu;
@@ -71,7 +75,7 @@ AS
 SELECT * FROM cpu_thread_utilization_per_period(time_from_s(1), $utid);
 
 -- Aggregated CPU statistics for each thread.
-CREATE PERFETTO TABLE cpu_cycles_per_thread(
+CREATE PERFETTO PIPELINE cpu_cycles_per_thread(
   -- Thread
   utid JOINID(thread.id),
   -- Sum of CPU millicycles
@@ -87,62 +91,44 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread(
   -- Average CPU frequency in kHz
   avg_freq LONG
 )
-AS
-SELECT
-  utid,
-  sum(millicycles) AS millicycles,
-  cast_int!(SUM(millicycles) / 1e9) AS megacycles,
-  sum(runtime) AS runtime,
-  min(min_freq) AS min_freq,
-  max(max_freq) AS max_freq,
-  cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
+MATERIALIZED AS
 FROM cpu_cycles_per_thread_per_cpu
-GROUP BY
-  utid;
+|> AGGREGATE
+     sum(millicycles) AS millicycles,
+     cast_int!(SUM(millicycles) / 1e9) AS megacycles,
+     sum(runtime) AS runtime,
+     min(min_freq) AS min_freq,
+     max(max_freq) AS max_freq,
+     cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
+   GROUP BY utid
+|> SELECT utid, millicycles, megacycles, runtime, min_freq, max_freq, avg_freq;
 
 -- Aggregated CPU statistics for each thread in a provided interval.
 --
 -- This function is only designed to run over a small number of intervals
 -- (10-100 at most). It will be *very slow* for large sets of intervals.
-CREATE PERFETTO FUNCTION cpu_cycles_per_thread_in_interval(
+CREATE PERFETTO MACRO cpu_cycles_per_thread_in_interval(
   -- Start of the interval.
-  ts TIMESTAMP,
+  ts Expr,
   -- Duration of the interval.
-  dur LONG
+  dur Expr
 )
-RETURNS TABLE(
-  -- Thread with CPU cycles and frequency statistics.
-  utid JOINID(thread.id),
-  -- Sum of CPU millicycles
-  millicycles LONG,
-  -- Sum of CPU megacycles
-  megacycles LONG,
-  -- Total runtime duration
-  runtime DURATION,
-  -- Total runtime duration, while 'awake' (CPUs not suspended).
-  awake_runtime DURATION,
-  -- Minimum CPU frequency in kHz
-  min_freq LONG,
-  -- Maximum CPU frequency in kHz
-  max_freq LONG,
-  -- Average CPU frequency in kHz
-  avg_freq LONG
-)
-AS
-SELECT
-  utid,
-  cast_int!(SUM(ii.dur * freq / 1000)) AS millicycles,
-  cast_int!(SUM(ii.dur * freq / 1000) / 1e9) AS megacycles,
-  sum(ii.dur) AS runtime,
-  sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
-  min(freq) AS min_freq,
-  max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000))
-    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
-FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
-JOIN _cpu_freq_per_thread AS c USING (id)
-GROUP BY
-  utid;
+-- Returns: (utid JOINID(thread.id), millicycles LONG, megacycles LONG,
+-- runtime DURATION, awake_runtime DURATION, min_freq LONG, max_freq LONG,
+-- avg_freq LONG).
+RETURNS Pipeline AS (
+  _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread)
+  |> AGGREGATE
+       cast_int!(SUM(dur * freq / 1000)) AS millicycles,
+       cast_int!(SUM(dur * freq / 1000) / 1e9) AS megacycles,
+       sum(dur) AS runtime,
+       sum(to_monotonic(ts + dur) - to_monotonic(ts)) AS awake_runtime,
+       min(freq) AS min_freq,
+       max(freq) AS max_freq,
+       cast_int!(SUM((dur * freq / 1000))
+         / (SUM(CASE WHEN freq IS NOT NULL THEN dur END) / 1000)) AS avg_freq
+     GROUP BY utid
+);
 
 -- Returns a table of thread utilization over a given interval.
 --
@@ -151,44 +137,30 @@ GROUP BY
 --
 -- This function is only designed to run over a small number of intervals
 -- (10-100 at most). It will be *very slow* for large sets of intervals.
-CREATE PERFETTO FUNCTION cpu_thread_utilization_in_interval(
+CREATE PERFETTO MACRO cpu_thread_utilization_in_interval(
   -- Start of the interval.
-  ts TIMESTAMP,
+  ts Expr,
   -- Duration of the interval.
-  dur LONG
+  dur Expr
 )
-RETURNS TABLE(
-  -- Unique process id.
-  upid JOINID(process.id),
-  -- Unique thread id.
-  utid JOINID(thread.id),
-  -- The name of the thread
-  thread_name STRING,
-  -- Total runtime of all threads with this UTID, while 'awake' (CPUs not suspended).
-  awake_dur LONG,
-  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, normalized by the number of CPUs.
-  -- Values in [0.0, 100.0]
-  awake_utilization DOUBLE,
-  -- Percentage of 'awake_dur' over the 'awake' duration of the interval, unnormalized.
-  -- Values in [0.0, 100.0 * <number_of_cpus>]
-  awake_unnormalized_utilization DOUBLE
-)
-AS
-SELECT
-  upid,
-  utid,
-  thread.name AS thread_name,
-  sum(awake_runtime) AS awake_dur,
-  round(
-    sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts))
-    / (SELECT max(cpu) + 1 FROM cpu),
-    6
-  ) AS awake_utilization,
-  round(
-    sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts)),
-    6
-  ) AS awake_unnormalized_utilization
-FROM cpu_cycles_per_thread_in_interval($ts, $dur)
-JOIN thread USING (utid)
-GROUP BY
-  utid;
+-- Returns: (upid JOINID(process.id), utid JOINID(thread.id),
+-- thread_name STRING, awake_dur LONG, awake_utilization DOUBLE,
+-- awake_unnormalized_utilization DOUBLE).
+RETURNS Pipeline AS (
+  cpu_cycles_per_thread_in_interval!($ts, $dur)
+  |> JOIN thread USING (utid)
+  |> AGGREGATE
+       ANY_VALUE(upid) AS upid,
+       ANY_VALUE(thread.name) AS thread_name,
+       sum(awake_runtime) AS awake_dur,
+       round(
+         sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts))
+         / (SELECT max(cpu) + 1 FROM cpu),
+         6
+       ) AS awake_utilization,
+       round(
+         sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts)),
+         6
+       ) AS awake_unnormalized_utilization
+     GROUP BY utid
+);

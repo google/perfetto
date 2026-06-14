@@ -25,7 +25,7 @@ INCLUDE PERFETTO MODULE prelude.after_eof.views;
 -- Stores class information within ART heap graphs. It represents Java/Kotlin
 -- classes that exist in the heap, including their names, inheritance
 -- relationships, and loading context.
-CREATE PERFETTO VIEW heap_graph_class(
+CREATE PERFETTO PIPELINE heap_graph_class(
   -- Unique identifier for this heap graph class.
   id ID,
   -- (potentially obfuscated) name of the class.
@@ -43,20 +43,12 @@ CREATE PERFETTO VIEW heap_graph_class(
   kind STRING
 )
 AS
-SELECT
-  id,
-  name,
-  deobfuscated_name,
-  location,
-  superclass_id,
-  classloader_id,
-  kind
 FROM __intrinsic_heap_graph_class;
 
 -- The objects on the Dalvik heap.
 --
 -- All rows with the same (upid, graph_sample_ts) are one dump.
-CREATE PERFETTO VIEW heap_graph_object(
+CREATE PERFETTO PIPELINE heap_graph_object(
   -- Unique identifier for this heap graph object.
   id ID,
   -- Unique PID of the target.
@@ -86,7 +78,8 @@ CREATE PERFETTO VIEW heap_graph_object(
   object_data_id LONG
 )
 AS
-SELECT
+FROM __intrinsic_heap_graph_object
+|> SELECT
   id,
   upid,
   graph_sample_ts,
@@ -98,15 +91,14 @@ SELECT
   type_id,
   root_type,
   root_distance,
-  object_data_id
-FROM __intrinsic_heap_graph_object;
+  object_data_id;
 
 -- HPROF-specific data for heap graph objects.
 --
 -- Contains decoded string content and primitive array blob references.
 -- Only populated for HPROF (ART) heap dumps, not for proto heap graphs.
 -- Linked from heap_graph_object.object_data_id.
-CREATE PERFETTO VIEW heap_graph_object_data(
+CREATE PERFETTO PIPELINE heap_graph_object_data(
   -- Unique identifier for this data entry.
   id ID,
   -- Join key with heap_graph_primitive containing primitive field values.
@@ -126,21 +118,13 @@ CREATE PERFETTO VIEW heap_graph_object_data(
   array_data_hash LONG
 )
 AS
-SELECT
-  id,
-  field_set_id,
-  value_string,
-  array_element_type,
-  array_element_count,
-  array_data_id,
-  array_data_hash
 FROM __intrinsic_heap_graph_object_data;
 
 -- Many-to-many mapping between heap_graph_object.
 --
 -- This associates the object with given reference_set_id with the objects
 -- that are referred to by its fields.
-CREATE PERFETTO VIEW heap_graph_reference(
+CREATE PERFETTO PIPELINE heap_graph_reference(
   -- Unique identifier for this heap graph reference.
   id ID,
   -- Join key to heap_graph_object reference_set_id.
@@ -158,21 +142,13 @@ CREATE PERFETTO VIEW heap_graph_reference(
   deobfuscated_field_name STRING
 )
 AS
-SELECT
-  id,
-  reference_set_id,
-  owner_id,
-  owned_id,
-  field_name,
-  field_type_name,
-  deobfuscated_field_name
 FROM __intrinsic_heap_graph_reference;
 
 -- Primitive field values for heap graph objects.
 --
 -- This associates the object with given field_set_id with its primitive
 -- field values (for instances).
-CREATE PERFETTO VIEW heap_graph_primitive(
+CREATE PERFETTO PIPELINE heap_graph_primitive(
   -- Unique identifier for this field entry.
   id ID,
   -- Join key to heap_graph_object_data.field_set_id.
@@ -199,23 +175,10 @@ CREATE PERFETTO VIEW heap_graph_primitive(
   double_value DOUBLE
 )
 AS
-SELECT
-  id,
-  field_set_id,
-  field_name,
-  field_type,
-  bool_value,
-  byte_value,
-  char_value,
-  short_value,
-  int_value,
-  long_value,
-  float_value,
-  double_value
 FROM __intrinsic_heap_graph_primitive;
 
 -- Table with memory snapshots.
-CREATE PERFETTO VIEW memory_snapshot(
+CREATE PERFETTO PIPELINE memory_snapshot(
   -- Unique identifier for this snapshot.
   id ID,
   -- Time of the snapshot.
@@ -226,10 +189,10 @@ CREATE PERFETTO VIEW memory_snapshot(
   detail_level STRING
 )
 AS
-SELECT id, timestamp, track_id, detail_level FROM __intrinsic_memory_snapshot;
+FROM __intrinsic_memory_snapshot;
 
 -- Table with process memory snapshots.
-CREATE PERFETTO VIEW process_memory_snapshot(
+CREATE PERFETTO PIPELINE process_memory_snapshot(
   -- Unique identifier for this snapshot.
   id ID,
   -- Snapshot ID for this snapshot.
@@ -238,10 +201,10 @@ CREATE PERFETTO VIEW process_memory_snapshot(
   upid JOINID(process.id)
 )
 AS
-SELECT id, snapshot_id, upid FROM __intrinsic_process_memory_snapshot;
+FROM __intrinsic_process_memory_snapshot;
 
 -- Table with memory snapshot nodes.
-CREATE PERFETTO VIEW memory_snapshot_node(
+CREATE PERFETTO PIPELINE memory_snapshot_node(
   -- Unique identifier for this node.
   id ID,
   -- Process snapshot ID for to this node.
@@ -258,18 +221,10 @@ CREATE PERFETTO VIEW memory_snapshot_node(
   arg_set_id ARGSETID
 )
 AS
-SELECT
-  id,
-  process_snapshot_id,
-  parent_node_id,
-  path,
-  size,
-  effective_size,
-  arg_set_id
 FROM __intrinsic_memory_snapshot_node;
 
 -- Table with memory snapshot edge
-CREATE PERFETTO VIEW memory_snapshot_edge(
+CREATE PERFETTO PIPELINE memory_snapshot_edge(
   -- Unique identifier for this edge.
   id ID,
   -- Source node for this edge.
@@ -280,11 +235,10 @@ CREATE PERFETTO VIEW memory_snapshot_edge(
   importance LONG
 )
 AS
-SELECT id, source_node_id, target_node_id, importance
 FROM __intrinsic_memory_snapshot_edge;
 
 -- A list of heap graphs (heap dumps) captured during the trace.
-CREATE PERFETTO VIEW heap_graph(
+CREATE PERFETTO PIPELINE heap_graph(
   -- Unique identifier for this heap graph instance.
   id ID,
   -- Timestamp of the heap dump in nanoseconds.
@@ -297,10 +251,10 @@ CREATE PERFETTO VIEW heap_graph(
   heap_size LONG
 )
 AS
-SELECT id, ts, upid, dump_reason, heap_size FROM __intrinsic_heap_graph;
+FROM __intrinsic_heap_graph;
 
 -- Callstack profiles of threads at the time the heap graph was collected.
-CREATE PERFETTO VIEW heap_graph_thread_callsite(
+CREATE PERFETTO PIPELINE heap_graph_thread_callsite(
   -- Unique identifier for this mapping row.
   id ID,
   -- The heap graph instance.
@@ -311,5 +265,4 @@ CREATE PERFETTO VIEW heap_graph_thread_callsite(
   callsite_id JOINID(stack_profile_callsite.id)
 )
 AS
-SELECT id, heap_graph_id, utid, callsite_id
 FROM __intrinsic_heap_graph_thread_callsite;

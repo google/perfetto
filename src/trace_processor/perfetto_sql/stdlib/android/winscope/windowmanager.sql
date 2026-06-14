@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android WindowManager (from android.windowmanager data source).
-CREATE PERFETTO VIEW android_windowmanager(
+CREATE PERFETTO PIPELINE android_windowmanager(
   -- Snapshot id
   id LONG,
   -- Timestamp when the snapshot was triggered
@@ -29,17 +29,10 @@ CREATE PERFETTO VIEW android_windowmanager(
   has_invalid_elapsed_ts BOOL
 )
 AS
-SELECT
-  id,
-  ts,
-  arg_set_id,
-  base64_proto_id,
-  focused_display_id,
-  has_invalid_elapsed_ts
-FROM __intrinsic_windowmanager;
+FROM __intrinsic_windowmanager AS w;
 
 -- Android WindowManager WindowContainer (from android.windowmanager data source).
-CREATE PERFETTO VIEW android_windowmanager_windowcontainer(
+CREATE PERFETTO PIPELINE android_windowmanager_windowcontainer(
   -- Row id
   id LONG,
   -- Snapshot id
@@ -66,17 +59,4 @@ CREATE PERFETTO VIEW android_windowmanager_windowcontainer(
   name_override STRING
 )
 AS
-SELECT
-  id,
-  snapshot_id,
-  arg_set_id,
-  base64_proto_id,
-  title,
-  token,
-  parent_token,
-  child_index,
-  is_visible,
-  window_rect_id,
-  container_type,
-  name_override
-FROM __intrinsic_windowmanager_windowcontainer;
+FROM __intrinsic_windowmanager_windowcontainer AS c;

@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- All thread slices with data about thread, thread track and process.
-CREATE PERFETTO VIEW thread_slice(
+CREATE PERFETTO PIPELINE thread_slice(
   -- Slice
   id ID(slice.id),
   -- Alias for `slice.ts`.
@@ -55,7 +55,11 @@ CREATE PERFETTO VIEW thread_slice(
   thread_dur LONG
 )
 AS
-SELECT
+FROM slice
+|> JOIN thread_track ON slice.track_id = thread_track.id
+|> JOIN thread USING (utid)
+|> LEFT JOIN process USING (upid)
+|> SELECT
   slice.id,
   slice.ts,
   slice.dur,
@@ -74,15 +78,10 @@ SELECT
   slice.parent_id,
   slice.arg_set_id,
   slice.thread_ts,
-  slice.thread_dur
-FROM slice
-JOIN thread_track
-  ON slice.track_id = thread_track.id
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid);
+  slice.thread_dur;
 
 -- All process slices with data about process track and process.
-CREATE PERFETTO VIEW process_slice(
+CREATE PERFETTO PIPELINE process_slice(
   -- Slice
   id ID(slice.id),
   -- Alias for `slice.ts`.
@@ -115,7 +114,10 @@ CREATE PERFETTO VIEW process_slice(
   thread_dur LONG
 )
 AS
-SELECT
+FROM slice
+|> JOIN process_track ON slice.track_id = process_track.id
+|> JOIN process USING (upid)
+|> SELECT
   slice.id,
   slice.ts,
   slice.dur,
@@ -130,15 +132,11 @@ SELECT
   slice.parent_id,
   slice.arg_set_id,
   slice.thread_ts,
-  slice.thread_dur
-FROM slice
-JOIN process_track
-  ON slice.track_id = process_track.id
-JOIN process USING (upid);
+  slice.thread_dur;
 
 -- All the slices in the trace associated to a thread or a process along
 -- with contextual information about them (e.g. thread name, process name, tid etc).
-CREATE PERFETTO VIEW thread_or_process_slice(
+CREATE PERFETTO PIPELINE thread_or_process_slice(
   -- Slice
   id JOINID(slice.id),
   -- Alias for `slice.ts`.
@@ -173,7 +171,33 @@ CREATE PERFETTO VIEW thread_or_process_slice(
   arg_set_id ARGSETID
 )
 AS
-SELECT
+SUBPIPELINE process_part AS (
+  FROM slice
+  |> JOIN process_track ON slice.track_id = process_track.id
+  |> JOIN process USING (upid)
+  |> SELECT
+    slice.id,
+    slice.ts,
+    slice.dur,
+    slice.category,
+    slice.name,
+    slice.track_id,
+    process_track.name AS track_name,
+    NULL AS thread_name,
+    NULL AS utid,
+    NULL AS tid,
+    process.name AS process_name,
+    process.upid AS upid,
+    process.pid AS pid,
+    slice.depth,
+    slice.parent_id,
+    slice.arg_set_id
+)
+FROM slice
+|> JOIN thread_track ON slice.track_id = thread_track.id
+|> JOIN thread USING (utid)
+|> LEFT JOIN process USING (upid)
+|> SELECT
   slice.id,
   slice.ts,
   slice.dur,
@@ -190,30 +214,4 @@ SELECT
   slice.depth,
   slice.parent_id,
   slice.arg_set_id
-FROM slice
-JOIN thread_track
-  ON slice.track_id = thread_track.id
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid)
-UNION ALL
-SELECT
-  slice.id,
-  slice.ts,
-  slice.dur,
-  slice.category,
-  slice.name,
-  slice.track_id,
-  process_track.name AS track_name,
-  NULL AS thread_name,
-  NULL AS utid,
-  NULL AS tid,
-  process.name AS process_name,
-  process.upid AS upid,
-  process.pid AS pid,
-  slice.depth,
-  slice.parent_id,
-  slice.arg_set_id
-FROM slice
-JOIN process_track
-  ON slice.track_id = process_track.id
-JOIN process USING (upid);
+|> UNION ALL (FROM process_part);

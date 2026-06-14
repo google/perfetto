@@ -26,7 +26,7 @@ SELECT substr(pid_and_name.value, start.value) FROM pid_and_name, start;
 
 -- Provides a list of broadcast names and processes they were sent to by the
 -- system_server process on U+ devices.
-CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
+CREATE PERFETTO PIPELINE _android_broadcasts_minsdk_u(
   -- Broadcast record id.
   record_id STRING,
   -- Intent action of the broadcast.
@@ -49,64 +49,57 @@ CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
   dur DURATION,
   -- Track id the broadcast was dispatched from.
   track_id JOINID(track.id)
+) MATERIALIZED AS
+SUBPIPELINE broadcast_queues AS (
+  FROM process_track
+  |> JOIN process USING (upid)
+  |> WHERE
+       process_track.name GLOB 'BroadcastQueue.mRunning*'
+       AND process.name = 'system_server'
+  |> SELECT
+       process_track.id,
+       cast_int!(replace(str_split(process_track.name, '[', 1), ']', '')) AS queue_id
 )
-AS
-WITH
-  broadcast_queues AS (
-    SELECT
-      process_track.id,
-      cast_int!(replace(str_split(process_track.name, '[', 1), ']', '')) AS queue_id
-    FROM process_track
-    JOIN process USING (upid)
-    WHERE
-      process_track.name GLOB 'BroadcastQueue.mRunning*'
-      AND process.name = 'system_server'
-  ),
-  broadcast_process_running AS (
-    SELECT
-      slice.id AS id,
-      slice.ts,
-      slice.dur,
-      str_split(slice.name, ' ', 0) AS process_queue_id,
-      broadcast_queues.queue_id,
-      _extract_broadcast_process_name(slice.name) AS process_name,
-      cast_int!(str_split(
-          str_split(str_split(slice.name, '/', 0), ' ', 1),
-          ':',
-          0
-        )) AS pid,
-      queue_id
-    FROM slice
-    JOIN broadcast_queues
-      ON broadcast_queues.id = slice.track_id
-    WHERE
-      slice.name GLOB '* running'
-  ),
-  broadcast_intent_action AS (
-    SELECT
-      str_split(str_split(slice.name, '/', 0), ' ', 1) AS intent_action,
-      str_split(slice.name, ' ', 0) AS record_id,
-      slice.parent_id,
-      slice.id AS intent_id,
-      slice.ts AS intent_ts,
-      slice.track_id AS track_id,
-      slice.dur AS intent_dur
-    FROM slice
-    WHERE
-      slice.name GLOB '* scheduled'
-  )
-SELECT
-  broadcast_intent_action.record_id,
-  broadcast_intent_action.intent_action,
-  broadcast_process_running.process_name,
-  broadcast_process_running.pid,
-  _pid_to_upid(broadcast_process_running.pid, broadcast_intent_action.intent_ts) AS upid,
-  broadcast_process_running.process_queue_id,
-  broadcast_process_running.queue_id,
-  broadcast_intent_action.intent_id AS id,
-  broadcast_intent_action.intent_ts AS ts,
-  broadcast_intent_action.intent_dur AS dur,
-  broadcast_intent_action.track_id
+SUBPIPELINE broadcast_process_running AS (
+  FROM slice
+  |> JOIN broadcast_queues ON broadcast_queues.id = slice.track_id
+  |> WHERE slice.name GLOB '* running'
+  |> SELECT
+       slice.id AS id,
+       slice.ts,
+       slice.dur,
+       str_split(slice.name, ' ', 0) AS process_queue_id,
+       broadcast_queues.queue_id,
+       _extract_broadcast_process_name(slice.name) AS process_name,
+       cast_int!(str_split(
+         str_split(str_split(slice.name, '/', 0), ' ', 1),
+         ':',
+         0
+       )) AS pid
+)
+SUBPIPELINE broadcast_intent_action AS (
+  FROM slice
+  |> WHERE slice.name GLOB '* scheduled'
+  |> SELECT
+       str_split(str_split(slice.name, '/', 0), ' ', 1) AS intent_action,
+       str_split(slice.name, ' ', 0) AS record_id,
+       slice.parent_id,
+       slice.id AS intent_id,
+       slice.ts AS intent_ts,
+       slice.track_id AS track_id,
+       slice.dur AS intent_dur
+)
 FROM broadcast_intent_action
-JOIN broadcast_process_running
-  ON parent_id = id;
+|> JOIN broadcast_process_running ON parent_id = id
+|> SELECT
+     broadcast_intent_action.record_id,
+     broadcast_intent_action.intent_action,
+     broadcast_process_running.process_name,
+     broadcast_process_running.pid,
+     _pid_to_upid(broadcast_process_running.pid, broadcast_intent_action.intent_ts) AS upid,
+     broadcast_process_running.process_queue_id,
+     broadcast_process_running.queue_id,
+     broadcast_intent_action.intent_id AS id,
+     broadcast_intent_action.intent_ts AS ts,
+     broadcast_intent_action.intent_dur AS dur,
+     broadcast_intent_action.track_id;

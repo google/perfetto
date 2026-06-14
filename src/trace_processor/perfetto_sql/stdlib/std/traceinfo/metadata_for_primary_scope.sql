@@ -18,7 +18,7 @@
 
 -- A table containing a summary of metadata entries, picking the primary entry
 -- for each name (favoring the root trace and machine).
-CREATE PERFETTO TABLE _metadata_for_primary_scope(
+CREATE PERFETTO PIPELINE _metadata_for_primary_scope(
   -- Name of the metadata entry.
   name STRING,
   -- String value of the entry.
@@ -28,20 +28,11 @@ CREATE PERFETTO TABLE _metadata_for_primary_scope(
   -- Type of the metadata entry (e.g. 'single', 'multi').
   key_type STRING
 )
-AS
-SELECT name, str_value, int_value, key_type
-FROM (
-  SELECT
-    name,
-    str_value,
-    int_value,
-    key_type,
-    row_number() OVER (
-      PARTITION BY
-        name
-      ORDER BY trace_id IS NULL, trace_id, machine_id IS NULL, machine_id
-    ) AS rn
-  FROM metadata
-)
-WHERE
-  rn = 1;
+MATERIALIZED AS
+FROM metadata
+|> EXTEND row_number() OVER (
+     PARTITION BY name
+     ORDER BY trace_id IS NULL, trace_id, machine_id IS NULL, machine_id
+   ) AS rn
+|> WHERE rn = 1
+|> SELECT name, str_value, int_value, key_type;

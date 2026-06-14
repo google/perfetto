@@ -14,6 +14,10 @@
 -- limitations under the License.
 --
 
+-- NOTE (psqlnext): the `_first_blocked_contention`/`_blocking_thread_state`
+-- SPAN_JOIN PARTITIONED BY blocking_utid is `INTERVAL INTERSECTION OF
+-- (… AS a, … AS b) PER blocking_utid`.
+
 INCLUDE PERFETTO MODULE android.suspend;
 
 -- Extracts the blocking thread from a slice name
@@ -132,21 +136,19 @@ RETURNS STRING
 AS
 SELECT str_split(str_split($slice_name, ")(", 2), ")", 0);
 
-CREATE PERFETTO TABLE _valid_android_monitor_contention AS
-SELECT slice.id AS id
+CREATE PERFETTO PIPELINE _valid_android_monitor_contention MATERIALIZED AS
 FROM slice
-LEFT JOIN slice AS child ON child.parent_id = slice.id
-LEFT JOIN slice AS grand_child ON grand_child.parent_id = child.id
-WHERE
-  slice.name GLOB 'monitor contention*'
-  AND (child.name GLOB 'Lock contention*' OR child.name IS NULL)
-  AND (grand_child.name IS NULL)
-GROUP BY
-  slice.id;
+|> LEFT JOIN slice AS child ON child.parent_id = slice.id
+|> LEFT JOIN slice AS grand_child ON grand_child.parent_id = child.id
+|> WHERE
+     slice.name GLOB 'monitor contention*'
+     AND (child.name GLOB 'Lock contention*' OR child.name IS NULL)
+     AND (grand_child.name IS NULL)
+|> AGGREGATE GROUP BY slice.id AS id;
 
 -- Contains parsed Java monitor contention slices, detailing the blocking and blocked
 -- threads, methods involved, and the duration of the contention.
-CREATE PERFETTO TABLE android_monitor_contention(
+CREATE PERFETTO PIPELINE android_monitor_contention(
   -- Name of the method holding the lock.
   blocking_method STRING,
   -- Blocked_method without arguments and return types.
@@ -204,111 +206,104 @@ CREATE PERFETTO TABLE android_monitor_contention(
   -- Extracted lock name from surrounding slices.
   lock_name STRING
 )
-AS
-WITH
-  all_slices_on_contention_tracks AS (
-    SELECT
-      s.id,
-      s.track_id,
-      s.ts,
-      s.name,
-      lag(s.name) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS prev_name,
-      lead(s.name, 1) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS next_name_1,
-      lead(s.name, 2) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS next_name_2
-    FROM slice AS s
-    WHERE
-      s.track_id IN (
-        SELECT DISTINCT track_id
-        FROM slice
-        WHERE
-          id IN (SELECT * FROM _valid_android_monitor_contention)
-      )
-  ),
-  contention_lock_names AS (
-    SELECT
-      id,
-      CASE
-        -- Scenario A: Immediate adjacency
-        WHEN substr(next_name_1, -10) = '_lock_held'
-        AND substr(prev_name, -13) = '_lock_acquire'
-        AND replace(prev_name, '_lock_acquire', '')
-        = replace(next_name_1, '_lock_held', '') THEN replace(
-          prev_name,
-          '_lock_acquire',
-          ''
-        )
-        -- Scenario B: Child 'Lock contention' slice exists (check next_name_2)
-        WHEN substr(next_name_1, 1, 15) = 'Lock contention'
-        AND substr(next_name_2, -10) = '_lock_held'
-        AND substr(prev_name, -13) = '_lock_acquire'
-        AND replace(prev_name, '_lock_acquire', '')
-        = replace(next_name_2, '_lock_held', '') THEN replace(
-          prev_name,
-          '_lock_acquire',
-          ''
-        )
-        ELSE NULL
-      END AS lock_name
-    FROM all_slices_on_contention_tracks
-    WHERE
-      id IN (SELECT * FROM _valid_android_monitor_contention)
-  )
-SELECT
-  android_extract_android_monitor_contention_blocking_method(slice.name) AS blocking_method,
-  android_extract_android_monitor_contention_blocked_method(slice.name) AS blocked_method,
-  android_extract_android_monitor_contention_short_blocking_method(slice.name) AS short_blocking_method,
-  android_extract_android_monitor_contention_short_blocked_method(slice.name) AS short_blocked_method,
-  android_extract_android_monitor_contention_blocking_src(slice.name) AS blocking_src,
-  android_extract_android_monitor_contention_blocked_src(slice.name) AS blocked_src,
-  android_extract_android_monitor_contention_waiter_count(slice.name) AS waiter_count,
-  thread.utid AS blocked_utid,
-  thread.name AS blocked_thread_name,
-  blocking_thread.utid AS blocking_utid,
-  android_extract_android_monitor_contention_blocking_thread(slice.name) AS blocking_thread_name,
-  android_extract_android_monitor_contention_blocking_tid(slice.name) AS blocking_tid,
-  thread.upid AS upid,
-  process.name AS process_name,
-  slice.id,
-  slice.ts,
-  slice.dur,
-  _extract_duration_without_suspend(slice.ts, slice.dur) AS monotonic_dur,
-  slice.track_id,
-  thread.is_main_thread AS is_blocked_thread_main,
-  thread.tid AS blocked_thread_tid,
-  blocking_thread.is_main_thread AS is_blocking_thread_main,
-  blocking_thread.tid AS blocking_thread_tid,
-  binder_reply.id AS binder_reply_id,
-  binder_reply.ts AS binder_reply_ts,
-  binder_reply_thread.tid AS binder_reply_tid,
-  process.pid,
-  cln.lock_name
+MATERIALIZED AS
+SUBPIPELINE contention_lock_names AS (
+  -- All slices on tracks that carry at least one valid monitor contention, with
+  -- the neighbouring slice names in lane order (used to recover the lock name).
+  FROM slice AS s
+  |> WHERE
+       s.track_id IN (
+         SELECT DISTINCT track_id
+         FROM slice
+         WHERE
+           id IN (SELECT id FROM _valid_android_monitor_contention)
+       )
+  |> SELECT
+       s.id,
+       s.track_id,
+       s.ts,
+       s.name,
+       lag(s.name) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS prev_name,
+       lead(s.name, 1) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS next_name_1,
+       lead(s.name, 2) OVER (PARTITION BY s.track_id ORDER BY s.ts) AS next_name_2
+  |> WHERE id IN (SELECT id FROM _valid_android_monitor_contention)
+  |> SELECT
+       id,
+       CASE
+         -- Scenario A: Immediate adjacency
+         WHEN substr(next_name_1, -10) = '_lock_held'
+         AND substr(prev_name, -13) = '_lock_acquire'
+         AND replace(prev_name, '_lock_acquire', '')
+         = replace(next_name_1, '_lock_held', '') THEN replace(
+           prev_name,
+           '_lock_acquire',
+           ''
+         )
+         -- Scenario B: Child 'Lock contention' slice exists (check next_name_2)
+         WHEN substr(next_name_1, 1, 15) = 'Lock contention'
+         AND substr(next_name_2, -10) = '_lock_held'
+         AND substr(prev_name, -13) = '_lock_acquire'
+         AND replace(prev_name, '_lock_acquire', '')
+         = replace(next_name_2, '_lock_held', '') THEN replace(
+           prev_name,
+           '_lock_acquire',
+           ''
+         )
+         ELSE NULL
+       END AS lock_name
+)
 FROM slice
-JOIN thread_track
-  ON thread_track.id = slice.track_id
-LEFT JOIN thread USING (utid)
-LEFT JOIN process USING (upid)
-LEFT JOIN ancestor_slice(slice.id) AS binder_reply
-  ON binder_reply.name = 'binder reply'
-LEFT JOIN thread_track AS binder_reply_thread_track
-  ON binder_reply.track_id = binder_reply_thread_track.id
-LEFT JOIN thread AS binder_reply_thread
-  ON binder_reply_thread_track.utid = binder_reply_thread.utid
+|> JOIN thread_track ON thread_track.id = slice.track_id
+|> LEFT JOIN thread USING (utid)
+|> LEFT JOIN process USING (upid)
+|> LEFT JOIN ancestor_slice(slice.id) AS binder_reply
+     ON binder_reply.name = 'binder reply'
+|> LEFT JOIN thread_track AS binder_reply_thread_track
+     ON binder_reply.track_id = binder_reply_thread_track.id
+|> LEFT JOIN thread AS binder_reply_thread
+     ON binder_reply_thread_track.utid = binder_reply_thread.utid
 -- Before Android U, we didn't have blocking_thread tid (aosp/3000578). We do a LEFT JOIN instead
 -- of JOIN so that on older devices we can at least capture the list of contentions without edges.
-LEFT JOIN thread AS blocking_thread
-  ON blocking_thread.tid = blocking_tid
-  AND blocking_thread.upid = thread.upid
-JOIN _valid_android_monitor_contention
-  ON _valid_android_monitor_contention.id = slice.id
-LEFT JOIN contention_lock_names AS cln
-  ON slice.id = cln.id
-WHERE
-  slice.name GLOB 'monitor contention*'
-  AND slice.dur != -1
-  AND NOT (short_blocking_method IS NULL)
-  AND short_blocked_method IS NOT NULL
-GROUP BY
-  slice.id;
+|> LEFT JOIN thread AS blocking_thread
+     ON blocking_thread.tid = android_extract_android_monitor_contention_blocking_tid(slice.name)
+     AND blocking_thread.upid = thread.upid
+|> JOIN _valid_android_monitor_contention
+     ON _valid_android_monitor_contention.id = slice.id
+|> LEFT JOIN contention_lock_names AS cln ON slice.id = cln.id
+|> WHERE
+     slice.name GLOB 'monitor contention*'
+     AND slice.dur != -1
+     AND NOT (android_extract_android_monitor_contention_short_blocking_method(slice.name) IS NULL)
+     AND android_extract_android_monitor_contention_short_blocked_method(slice.name) IS NOT NULL
+|> AGGREGATE
+     ANY_VALUE(android_extract_android_monitor_contention_blocking_method(slice.name)) AS blocking_method,
+     ANY_VALUE(android_extract_android_monitor_contention_blocked_method(slice.name)) AS blocked_method,
+     ANY_VALUE(android_extract_android_monitor_contention_short_blocking_method(slice.name)) AS short_blocking_method,
+     ANY_VALUE(android_extract_android_monitor_contention_short_blocked_method(slice.name)) AS short_blocked_method,
+     ANY_VALUE(android_extract_android_monitor_contention_blocking_src(slice.name)) AS blocking_src,
+     ANY_VALUE(android_extract_android_monitor_contention_blocked_src(slice.name)) AS blocked_src,
+     ANY_VALUE(android_extract_android_monitor_contention_waiter_count(slice.name)) AS waiter_count,
+     ANY_VALUE(thread.utid) AS blocked_utid,
+     ANY_VALUE(thread.name) AS blocked_thread_name,
+     ANY_VALUE(blocking_thread.utid) AS blocking_utid,
+     ANY_VALUE(android_extract_android_monitor_contention_blocking_thread(slice.name)) AS blocking_thread_name,
+     ANY_VALUE(android_extract_android_monitor_contention_blocking_tid(slice.name)) AS blocking_tid,
+     ANY_VALUE(thread.upid) AS upid,
+     ANY_VALUE(process.name) AS process_name,
+     ANY_VALUE(slice.ts) AS ts,
+     ANY_VALUE(slice.dur) AS dur,
+     ANY_VALUE(_extract_duration_without_suspend(slice.ts, slice.dur)) AS monotonic_dur,
+     ANY_VALUE(slice.track_id) AS track_id,
+     ANY_VALUE(thread.is_main_thread) AS is_blocked_thread_main,
+     ANY_VALUE(thread.tid) AS blocked_thread_tid,
+     ANY_VALUE(blocking_thread.is_main_thread) AS is_blocking_thread_main,
+     ANY_VALUE(blocking_thread.tid) AS blocking_thread_tid,
+     ANY_VALUE(binder_reply.id) AS binder_reply_id,
+     ANY_VALUE(binder_reply.ts) AS binder_reply_ts,
+     ANY_VALUE(binder_reply_thread.tid) AS binder_reply_tid,
+     ANY_VALUE(process.pid) AS pid,
+     ANY_VALUE(cln.lock_name) AS lock_name
+   GROUP BY slice.id;
 
 CREATE PERFETTO INDEX _android_monitor_contention_blocking_utid_idx ON android_monitor_contention(
   blocking_utid,
@@ -321,42 +316,39 @@ CREATE PERFETTO INDEX _android_monitor_contention_id_idx ON android_monitor_cont
 
 -- Monitor contention slices that are blocked by another monitor contention slice.
 -- They will have a |parent_id| field which is the id of the slice they are blocked by.
-CREATE PERFETTO TABLE _children AS
-SELECT parent.id AS parent_id, child.*
+CREATE PERFETTO PIPELINE _children MATERIALIZED AS
 FROM android_monitor_contention AS child
-JOIN android_monitor_contention AS parent
-  ON parent.blocked_utid = child.blocking_utid
-  AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
+|> JOIN android_monitor_contention AS parent
+     ON parent.blocked_utid = child.blocking_utid
+     AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur
+|> SELECT parent.id AS parent_id, child.*;
 
 -- Monitor contention slices that are blocking another monitor contention slice.
 -- They will have a |child_id| field which is the id of the slice they are blocking.
-CREATE PERFETTO TABLE _parents AS
-SELECT parent.*, child.id AS child_id
+CREATE PERFETTO PIPELINE _parents MATERIALIZED AS
 FROM android_monitor_contention AS parent
-JOIN android_monitor_contention AS child
-  ON parent.blocked_utid = child.blocking_utid
-  AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
+|> JOIN android_monitor_contention AS child
+     ON parent.blocked_utid = child.blocking_utid
+     AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur
+|> SELECT parent.*, child.id AS child_id;
 
 -- Monitor contention slices that are neither blocking nor blocked by another monitor contention
 -- slice. They neither have |parent_id| nor |child_id| fields.
-CREATE PERFETTO TABLE _isolated AS
-WITH
-  parents_and_children AS (
-    SELECT id FROM _children
-    UNION ALL
-    SELECT id FROM _parents
-  ),
-  isolated AS (
-    SELECT id FROM android_monitor_contention
-    EXCEPT
-    SELECT id FROM parents_and_children
-  )
-SELECT *
+CREATE PERFETTO PIPELINE _isolated MATERIALIZED AS
+SUBPIPELINE isolated AS (
+  FROM android_monitor_contention
+  |> SELECT id
+  |> EXCEPT (
+       FROM _children
+       |> SELECT id
+       |> UNION ALL (FROM _parents |> SELECT id)
+     )
+)
 FROM android_monitor_contention
-JOIN isolated USING (id);
+|> JOIN isolated USING (id);
 
 -- Contains parsed monitor contention slices with the parent-child relationships.
-CREATE PERFETTO TABLE android_monitor_contention_chain(
+CREATE PERFETTO PIPELINE android_monitor_contention_chain(
   -- Id of monitor contention slice blocking this contention.
   parent_id LONG,
   -- Name of the method holding the lock.
@@ -418,16 +410,19 @@ CREATE PERFETTO TABLE android_monitor_contention_chain(
   -- Extracted lock name from surrounding slices.
   lock_name STRING
 )
-AS
-SELECT NULL AS parent_id, *, NULL AS child_id FROM _isolated
-UNION ALL
-SELECT c.*, p.child_id
-FROM _children AS c
-LEFT JOIN _parents AS p USING (id)
-UNION
-SELECT c.parent_id, p.*
-FROM _parents AS p
-LEFT JOIN _children AS c USING (id);
+MATERIALIZED AS
+FROM _isolated
+|> SELECT NULL AS parent_id, *, NULL AS child_id
+|> UNION ALL (
+     FROM _children AS c
+     |> LEFT JOIN _parents AS p USING (id)
+     |> SELECT c.*, p.child_id
+   )
+|> UNION (
+     FROM _parents AS p
+     |> LEFT JOIN _children AS c USING (id)
+     |> SELECT c.parent_id, p.*
+   );
 
 CREATE PERFETTO INDEX _android_monitor_contention_chain_idx ON android_monitor_contention_chain(
   blocking_method,
@@ -440,27 +435,23 @@ CREATE PERFETTO INDEX _android_monitor_contention_chain_idx ON android_monitor_c
 -- the lock. That way, the thread state span joins below only compute the thread states where
 -- the blocking thread is actually holding the lock. This avoids counting the time when another
 -- waiter acquired the lock before the first waiter.
-CREATE PERFETTO VIEW _first_blocked_contention AS
-SELECT
-  start.id,
-  start.blocking_utid,
-  start.ts,
-  min(end.ts + end.dur) - start.ts AS dur
+CREATE PERFETTO PIPELINE _first_blocked_contention AS
 FROM android_monitor_contention_chain AS start
-JOIN android_monitor_contention_chain AS end
-  ON start.blocking_utid = end.blocking_utid
-  AND start.blocking_method = end.blocking_method
-  AND end.ts BETWEEN start.ts AND start.ts + start.dur
-WHERE
-  start.waiter_count = 0
-GROUP BY
-  start.id;
+|> JOIN android_monitor_contention_chain AS end
+     ON start.blocking_utid = end.blocking_utid
+     AND start.blocking_method = end.blocking_method
+     AND end.ts BETWEEN start.ts AND start.ts + start.dur
+|> WHERE start.waiter_count = 0
+|> AGGREGATE
+     ANY_VALUE(start.blocking_utid) AS blocking_utid,
+     ANY_VALUE(start.ts) AS ts,
+     min(end.ts + end.dur) - ANY_VALUE(start.ts) AS dur
+   GROUP BY start.id
+|> SELECT start.id AS id, blocking_utid, ts, dur;
 
-CREATE PERFETTO VIEW _blocking_thread_state AS
-SELECT utid AS blocking_utid, ts, dur, state, blocked_function FROM thread_state;
-
-CREATE VIRTUAL TABLE _android_monitor_contention_chain_thread_state USING SPAN_JOIN(_first_blocked_contention PARTITIONED blocking_utid,
-            _blocking_thread_state PARTITIONED blocking_utid);
+CREATE PERFETTO PIPELINE _blocking_thread_state AS
+FROM thread_state
+|> SELECT utid AS blocking_utid, ts, dur, state, blocked_function;
 
 -- Contains the span join of the first waiters in the |android_monitor_contention_chain| with their
 -- blocking_thread thread state.
@@ -468,7 +459,7 @@ CREATE VIRTUAL TABLE _android_monitor_contention_chain_thread_state USING SPAN_J
 -- Note that we only span join the duration where the lock was actually held and contended.
 -- This can be less than the duration the lock was 'waited on' when a different waiter acquired the
 -- lock earlier than the first waiter.
-CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
+CREATE PERFETTO PIPELINE android_monitor_contention_chain_thread_state(
   -- Slice id of lock contention.
   id LONG,
   -- Timestamp of lock contention start.
@@ -482,9 +473,20 @@ CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
   -- Thread state of the blocking thread.
   state STRING
 )
-AS
-SELECT id, ts, dur, blocking_utid, blocked_function, state
-FROM _android_monitor_contention_chain_thread_state;
+MATERIALIZED AS
+-- Co-fragmenting intersection per blocking_utid replaces the partitioned span join
+-- of the first-blocked contentions with their blocking thread's states.
+INTERVAL INTERSECTION OF (
+  _first_blocked_contention AS c,
+  _blocking_thread_state AS ts
+) PER blocking_utid
+|> SELECT
+     ts AS ts,
+     dur AS dur,
+     c.id AS id,
+     c.blocking_utid AS blocking_utid,
+     ts.blocked_function AS blocked_function,
+     ts.state AS state;
 
 -- Aggregated thread_states on the 'blocking thread', the thread holding the lock.
 -- This builds on the data from |android_monitor_contention_chain| and
@@ -493,7 +495,7 @@ FROM _android_monitor_contention_chain_thread_state;
 --
 -- Note that this data is only available for the first waiter on a lock.
 --
-CREATE PERFETTO VIEW android_monitor_contention_chain_thread_state_by_txn(
+CREATE PERFETTO PIPELINE android_monitor_contention_chain_thread_state_by_txn(
   -- Slice id of the monitor contention.
   id LONG,
   -- A |thread_state| that occurred in the blocking thread during the contention.
@@ -504,15 +506,12 @@ CREATE PERFETTO VIEW android_monitor_contention_chain_thread_state_by_txn(
   thread_state_count LONG
 )
 AS
-SELECT
-  id,
-  state AS thread_state,
-  sum(dur) AS thread_state_dur,
-  count(dur) AS thread_state_count
 FROM android_monitor_contention_chain_thread_state
-GROUP BY
-  id,
-  thread_state;
+|> AGGREGATE
+     sum(dur) AS thread_state_dur,
+     count(dur) AS thread_state_count
+   GROUP BY id, state AS thread_state
+|> SELECT id, thread_state, thread_state_dur, thread_state_count;
 
 -- Aggregated blocked_functions on the 'blocking thread', the thread holding the lock.
 -- This builds on the data from |android_monitor_contention_chain| and
@@ -520,7 +519,7 @@ GROUP BY
 -- blocked function durations on the blocking thread.
 --
 -- Note that this data is only available for the first waiter on a lock.
-CREATE PERFETTO VIEW android_monitor_contention_chain_blocked_functions_by_txn(
+CREATE PERFETTO PIPELINE android_monitor_contention_chain_blocked_functions_by_txn(
   -- Slice id of the monitor contention.
   id LONG,
   -- Blocked kernel function in a thread state in the blocking thread during the contention.
@@ -531,17 +530,13 @@ CREATE PERFETTO VIEW android_monitor_contention_chain_blocked_functions_by_txn(
   blocked_function_count LONG
 )
 AS
-SELECT
-  id,
-  blocked_function,
-  sum(dur) AS blocked_function_dur,
-  count(dur) AS blocked_function_count
 FROM android_monitor_contention_chain_thread_state
-WHERE
-  blocked_function IS NOT NULL
-GROUP BY
-  id,
-  blocked_function;
+|> WHERE blocked_function IS NOT NULL
+|> AGGREGATE
+     sum(dur) AS blocked_function_dur,
+     count(dur) AS blocked_function_count
+   GROUP BY id, blocked_function
+|> SELECT id, blocked_function, blocked_function_dur, blocked_function_count;
 
 -- Returns a DAG of all Java lock contentions in a process.
 -- Each node in the graph is a <thread:Java method> pair.

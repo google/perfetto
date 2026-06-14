@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android inputmethod clients state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_clients(
+CREATE PERFETTO PIPELINE android_inputmethod_clients(
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
@@ -23,10 +23,11 @@ CREATE PERFETTO VIEW android_inputmethod_clients(
   arg_set_id ARGSETID
 )
 AS
-SELECT id, ts, arg_set_id FROM __intrinsic_inputmethod_clients;
+FROM __intrinsic_inputmethod_clients
+|> SELECT id, ts, arg_set_id;
 
 -- Android inputmethod manager service state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_manager_service(
+CREATE PERFETTO PIPELINE android_inputmethod_manager_service(
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
@@ -35,10 +36,11 @@ CREATE PERFETTO VIEW android_inputmethod_manager_service(
   arg_set_id ARGSETID
 )
 AS
-SELECT id, ts, arg_set_id FROM __intrinsic_inputmethod_manager_service;
+FROM __intrinsic_inputmethod_manager_service
+|> SELECT id, ts, arg_set_id;
 
 -- Android inputmethod service state dumps (from android.inputmethod data source).
-CREATE PERFETTO VIEW android_inputmethod_service(
+CREATE PERFETTO PIPELINE android_inputmethod_service(
   -- Dump id
   id LONG,
   -- Timestamp when the dump was triggered
@@ -47,4 +49,5 @@ CREATE PERFETTO VIEW android_inputmethod_service(
   arg_set_id ARGSETID
 )
 AS
-SELECT id, ts, arg_set_id FROM __intrinsic_inputmethod_service;
+FROM __intrinsic_inputmethod_service
+|> SELECT id, ts, arg_set_id;

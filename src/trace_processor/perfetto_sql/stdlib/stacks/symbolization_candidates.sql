@@ -56,7 +56,7 @@ SELECT
   END;
 
 -- Enumerates modules and rel_pcs that have no associated symbol information, broken down by caller process.
-CREATE PERFETTO TABLE _stacks_symbolization_candidates(
+CREATE PERFETTO PIPELINE _stacks_symbolization_candidates(
   -- The process which is using this module
   upid JOINID(process.id),
   -- The module mapping (usually path)
@@ -69,57 +69,44 @@ CREATE PERFETTO TABLE _stacks_symbolization_candidates(
   -- This is only populated for chrome-like modules.
   breakpad_module_id STRING
 )
-AS
-WITH
-  perf_callsites AS (
-    SELECT DISTINCT upid, callsite_id
-    FROM cpu_profiling_samples
-    JOIN thread USING (utid)
-  ),
-  hprof_callsites AS (
-    SELECT DISTINCT upid, callsite_id FROM heap_profile_allocation
-  ),
-  all_callsites AS (
-    SELECT * FROM perf_callsites
-    UNION ALL
-    SELECT * FROM hprof_callsites
-  ),
-  ancestor_frames AS (
-    SELECT all_callsites.upid, frame_id
-    FROM all_callsites, experimental_ancestor_stack_profile_callsite(
-      all_callsites.callsite_id
-    )
-  ),
-  self_frames AS (
-    SELECT all_callsites.upid, frame_id
-    FROM all_callsites
-    JOIN stack_profile_callsite
-      ON stack_profile_callsite.id = all_callsites.callsite_id
-  ),
-  all_frames AS (
-    SELECT DISTINCT upid, spf.mapping AS mapping_id, spf.rel_pc
-    FROM (
-      SELECT * FROM ancestor_frames
-      UNION ALL
-      SELECT * FROM self_frames
-    ) AS joined_frames
-    JOIN stack_profile_frame AS spf
-      ON joined_frames.frame_id = spf.id
-    WHERE
-      spf.symbol_set_id IS NULL
-  ),
-  symbolization_candidates AS (
-    SELECT all_frames.upid, spm.name AS module, spm.build_id, all_frames.rel_pc
-    FROM all_frames
-    JOIN stack_profile_mapping AS spm
-      ON all_frames.mapping_id = spm.id
-    WHERE
-      spm.build_id != ''
+MATERIALIZED AS
+SUBPIPELINE all_callsites AS (
+  SUBPIPELINE hprof_callsites AS (
+    FROM heap_profile_allocation
+    |> SELECT DISTINCT upid, callsite_id
   )
-SELECT
-  upid,
-  module,
-  build_id,
-  rel_pc,
-  _to_breakpad_module(module, build_id) AS breakpad_module_id
-FROM symbolization_candidates;
+  FROM cpu_profiling_samples
+  |> JOIN thread USING (utid)
+  |> SELECT DISTINCT upid, callsite_id
+  |> UNION ALL (FROM hprof_callsites)
+)
+SUBPIPELINE all_frames AS (
+  SUBPIPELINE self_frames AS (
+    FROM all_callsites
+    |> JOIN stack_profile_callsite
+       ON stack_profile_callsite.id = all_callsites.callsite_id
+    |> SELECT all_callsites.upid, frame_id
+  )
+  SUBPIPELINE joined_frames AS (
+    -- experimental_ancestor_stack_profile_callsite is a lateral table-valued
+    -- function (native intrinsic), kept as a host-SQL correlated join.
+    FROM all_callsites, experimental_ancestor_stack_profile_callsite(all_callsites.callsite_id)
+    |> SELECT all_callsites.upid, frame_id
+    |> UNION ALL (FROM self_frames)
+  )
+  FROM joined_frames
+  |> JOIN stack_profile_frame AS spf
+     ON joined_frames.frame_id = spf.id
+  |> WHERE spf.symbol_set_id IS NULL
+  |> SELECT DISTINCT upid, spf.mapping AS mapping_id, spf.rel_pc
+)
+FROM all_frames
+|> JOIN stack_profile_mapping AS spm
+   ON all_frames.mapping_id = spm.id
+|> WHERE spm.build_id != ''
+|> SELECT
+     all_frames.upid AS upid,
+     spm.name AS module,
+     spm.build_id AS build_id,
+     all_frames.rel_pc AS rel_pc,
+     _to_breakpad_module(spm.name, spm.build_id) AS breakpad_module_id;

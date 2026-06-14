@@ -9,16 +9,15 @@
 
 INCLUDE PERFETTO MODULE slices.with_context;
 
-CREATE PERFETTO VIEW _fcp_metrics AS
-SELECT
+CREATE PERFETTO PIPELINE _fcp_metrics MATERIALIZED AS
+FROM process_slice
+|> WHERE name = 'PageLoadMetrics.NavigationToFirstContentfulPaint'
+|> SELECT
   ts,
   dur,
   extract_arg(arg_set_id, 'page_load.navigation_id') AS navigation_id,
   extract_arg(arg_set_id, 'page_load.url') AS url,
-  upid AS browser_upid
-FROM process_slice
-WHERE
-  name = 'PageLoadMetrics.NavigationToFirstContentfulPaint';
+  upid AS browser_upid;
 
 CREATE PERFETTO FUNCTION _page_load_metrics(
     event_name STRING
@@ -39,7 +38,7 @@ WHERE
   name = $event_name;
 
 -- Chrome page loads, including associated high-level metrics and properties.
-CREATE PERFETTO TABLE chrome_page_loads (
+CREATE PERFETTO PIPELINE chrome_page_loads (
   -- ID of the navigation and Chrome browser process; this combination is
   -- unique to every individual navigation.
   id LONG,
@@ -80,7 +79,20 @@ CREATE PERFETTO TABLE chrome_page_loads (
   -- The unique process id (upid) of the browser process where the page load occurred.
   browser_upid LONG
 ) AS
-SELECT
+FROM _fcp_metrics AS fcp
+|> LEFT JOIN _page_load_metrics('PageLoadMetrics.NavigationToLargestContentfulPaint') AS lcp
+   USING (navigation_id, browser_upid)
+|> LEFT JOIN _page_load_metrics('PageLoadMetrics.NavigationToDOMContentLoadedEventFired') AS load_fired
+   USING (navigation_id, browser_upid)
+|> LEFT JOIN _page_load_metrics('PageLoadMetrics.NavigationToMainFrameOnLoad') AS start_load
+   USING (navigation_id, browser_upid)
+|> LEFT JOIN _page_load_metrics('PageLoadMetrics.UserTimingMarkFullyLoaded') AS timing_loaded
+   USING (navigation_id, browser_upid)
+|> LEFT JOIN _page_load_metrics('PageLoadMetrics.UserTimingMarkFullyVisible') AS timing_visible
+   USING (navigation_id, browser_upid)
+|> LEFT JOIN _page_load_metrics('PageLoadMetrics.UserTimingMarkInteractive') AS timing_interactive
+   USING (navigation_id, browser_upid)
+|> SELECT
   row_number() OVER (ORDER BY fcp.ts) AS id,
   fcp.navigation_id,
   fcp.ts AS navigation_start_ts,
@@ -94,17 +106,4 @@ SELECT
   timing_visible.ts AS mark_fully_visible_ts,
   timing_interactive.ts AS mark_interactive_ts,
   fcp.url,
-  fcp.browser_upid
-FROM _fcp_metrics AS fcp
-LEFT JOIN _page_load_metrics('PageLoadMetrics.NavigationToLargestContentfulPaint') AS lcp
-  USING (navigation_id, browser_upid)
-LEFT JOIN _page_load_metrics('PageLoadMetrics.NavigationToDOMContentLoadedEventFired') AS load_fired
-  USING (navigation_id, browser_upid)
-LEFT JOIN _page_load_metrics('PageLoadMetrics.NavigationToMainFrameOnLoad') AS start_load
-  USING (navigation_id, browser_upid)
-LEFT JOIN _page_load_metrics('PageLoadMetrics.UserTimingMarkFullyLoaded') AS timing_loaded
-  USING (navigation_id, browser_upid)
-LEFT JOIN _page_load_metrics('PageLoadMetrics.UserTimingMarkFullyVisible') AS timing_visible
-  USING (navigation_id, browser_upid)
-LEFT JOIN _page_load_metrics('PageLoadMetrics.UserTimingMarkInteractive') AS timing_interactive
-  USING (navigation_id, browser_upid);
+  fcp.browser_upid;

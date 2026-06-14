@@ -14,8 +14,6 @@
 -- limitations under the License.
 INCLUDE PERFETTO MODULE slices.with_context;
 
-INCLUDE PERFETTO MODULE intervals.overlap;
-
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting; we do this by projecting every slice in a stack to
 -- their ancestor slice, i.e at any point in time, taking the  most specific active
@@ -53,35 +51,28 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 -- @column upid               Alias for `process.upid`.
 -- @column pid                Alias for `process.pid`.
 -- @column process_name       Alias for `process.name`.
-CREATE PERFETTO TABLE _slice_flattened AS
-WITH
-  root_slices AS (SELECT * FROM slice WHERE parent_id IS NULL),
-  child_slices AS (
-    SELECT anc.id AS root_id, slice.*
-    FROM slice, ancestor_slice(slice.id) AS anc
-    WHERE
-      slice.parent_id IS NOT NULL
-  ),
-  flat_slices AS (
-    SELECT root_id, id, ts, dur
-    FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices))
-  )
-SELECT
-  id AS slice_id,
-  flat_slices.ts,
-  flat_slices.dur,
-  depth,
-  name,
-  root_id,
-  track_id,
-  utid,
-  tid,
-  thread_name,
-  upid,
-  pid,
-  process_name
-FROM flat_slices
-JOIN thread_slice USING (id);
+CREATE PERFETTO PIPELINE _slice_flattened MATERIALIZED AS
+-- Resolve the slice stack overlap on each track into disjoint segments,
+-- each carrying the deepest (most active) slice live in that segment.
+FROM slice AS s
+|> WHERE s.dur > 0
+|> INTERVAL FLATTEN PER track_id
+   AGGREGATE ARG_MAX(s.depth, s.id) AS slice_id, MAX(s.depth) AS depth
+|> JOIN thread_slice AS ts ON ts.id = slice_id
+|> SELECT
+     slice_id,
+     ts,
+     dur,
+     ts.depth,
+     ts.name,
+     ts.id AS root_id,
+     ts.track_id,
+     ts.utid,
+     ts.tid,
+     ts.thread_name,
+     ts.upid,
+     ts.pid,
+     ts.process_name;
 
 CREATE PERFETTO INDEX _slice_flattened_id_idx ON _slice_flattened(slice_id);
 

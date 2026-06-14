@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android viewcapture (from android.viewcapture data source).
-CREATE PERFETTO VIEW android_viewcapture(
+CREATE PERFETTO PIPELINE android_viewcapture(
   -- Snapshot id
   id LONG,
   -- Timestamp when snapshot was triggered
@@ -27,11 +27,11 @@ CREATE PERFETTO VIEW android_viewcapture(
   window_name STRING
 )
 AS
-SELECT id, ts, arg_set_id, package_name, window_name
-FROM __intrinsic_viewcapture;
+FROM __intrinsic_viewcapture
+|> SELECT id, ts, arg_set_id, package_name, window_name;
 
 -- Android viewcapture view (from android.viewcapture data source).
-CREATE PERFETTO VIEW android_viewcapture_view(
+CREATE PERFETTO PIPELINE android_viewcapture_view(
   -- Row id
   id LONG,
   -- Snapshot id
@@ -54,7 +54,8 @@ CREATE PERFETTO VIEW android_viewcapture_view(
   trace_rect_id LONG
 )
 AS
-SELECT
+FROM __intrinsic_viewcapture_view
+|> SELECT
   id,
   snapshot_id,
   arg_set_id,
@@ -64,5 +65,4 @@ SELECT
   parent_id,
   view_id,
   class_name,
-  trace_rect_id
-FROM __intrinsic_viewcapture_view;
+  trace_rect_id;

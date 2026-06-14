@@ -13,37 +13,31 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE counters.intervals;
+-- NOTE (psqlnext): the `counters.intervals` module is DELETED —
+-- `counter_leading_intervals!` is `INTERVALS FROM EVENTS` (+`MERGE
+-- CONSECUTIVE BY value`).
 
 INCLUDE PERFETTO MODULE linux.memory.process;
 
-CREATE PERFETTO TABLE _memory_rss_high_watermark_per_process_table AS
-WITH
-  with_rss AS (
-    SELECT
-      ts,
-      dur,
-      upid,
-      coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS rss
-    FROM _memory_rss_and_swap_per_process_table
-  ),
-  high_watermark_as_counter AS (
-    SELECT
-      ts,
-      max(rss) OVER (PARTITION BY upid ORDER BY ts) AS value,
-      -- `id` and `track_id` are hacks to use this table in
-      -- `counter_leading_intervals` macro. As `track_id` is using for looking
-      -- for duplicates, we are aliasing `upid` with it. `Id` is ignored by the macro.
-      upid AS track_id,
-      0 AS id
-    FROM with_rss
-  )
-SELECT ts, dur, track_id AS upid, cast_int!(value) AS rss_high_watermark
-FROM counter_leading_intervals!(high_watermark_as_counter);
+CREATE PERFETTO PIPELINE _memory_rss_high_watermark_per_process_table MATERIALIZED AS
+-- The running max of rss per process becomes the counter value; equal-valued
+-- runs (the watermark holding flat) coalesce into single intervals.
+SUBPIPELINE high_watermark_as_counter AS (
+  FROM _memory_rss_and_swap_per_process_table
+  |> SELECT
+       ts,
+       max(coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0))
+         OVER (PARTITION BY upid ORDER BY ts) AS value,
+       -- `track_id` aliases `upid` so leading-interval lanes are per-process.
+       upid AS track_id
+)
+INTERVALS FROM EVENTS high_watermark_as_counter PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value
+|> SELECT ts, dur, track_id AS upid, cast_int!(value) AS rss_high_watermark;
 
 -- For each process fetches the memory high watermark until or during
 -- timestamp.
-CREATE PERFETTO VIEW memory_rss_high_watermark_per_process(
+CREATE PERFETTO PIPELINE memory_rss_high_watermark_per_process(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
@@ -58,6 +52,6 @@ CREATE PERFETTO VIEW memory_rss_high_watermark_per_process(
   rss_high_watermark LONG
 )
 AS
-SELECT ts, dur, upid, pid, name AS process_name, rss_high_watermark
 FROM _memory_rss_high_watermark_per_process_table
-JOIN process USING (upid);
+|> JOIN process USING (upid)
+|> SELECT ts, dur, upid, pid, name AS process_name, rss_high_watermark;

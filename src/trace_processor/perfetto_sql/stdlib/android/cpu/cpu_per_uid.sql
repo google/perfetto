@@ -14,11 +14,9 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
 -- Table of tracks for CPU-per-UID data. Each row represents one UID / cluster
 -- combination.
-CREATE PERFETTO TABLE android_cpu_per_uid_track(
+CREATE PERFETTO PIPELINE android_cpu_per_uid_track(
   -- ID of the track; can be joined with cpu_per_uid_counter.
   id LONG,
   -- UID doing the work.
@@ -32,25 +30,25 @@ CREATE PERFETTO TABLE android_cpu_per_uid_track(
   -- arbitrarily. UIDs below 10000 always have null package name.
   package_name STRING
 )
-AS
-SELECT
-  track_id AS id,
-  uid,
-  cluster,
-  total_cpu_millis,
-  (
-    SELECT package_name
-    FROM package_list
-    WHERE
-      uid = track.uid % 100000
-      AND uid >= 10000
-    LIMIT 1
-  ) AS package_name
-FROM __intrinsic_android_cpu_per_uid_track AS track;
+MATERIALIZED AS
+FROM __intrinsic_android_cpu_per_uid_track AS track
+|> SELECT
+     track_id AS id,
+     uid,
+     cluster,
+     total_cpu_millis,
+     (
+       SELECT package_name
+       FROM package_list
+       WHERE
+         uid = track.uid % 100000
+         AND uid >= 10000
+       LIMIT 1
+     ) AS package_name;
 
 -- View of counters for CPU-per-UID data. Each row represents one instant in
 -- time for one UID / cluster.
-CREATE PERFETTO VIEW android_cpu_per_uid_counter(
+CREATE PERFETTO PIPELINE android_cpu_per_uid_counter(
   -- ID for the row.
   id LONG,
   -- Timestamp for the row.
@@ -66,22 +64,19 @@ CREATE PERFETTO VIEW android_cpu_per_uid_counter(
   cpu_ratio DOUBLE
 )
 AS
-WITH
-  deltas AS (
-    SELECT *
-    FROM counter_leading_intervals!((
-        SELECT c.id, c.ts, c.track_id, c.value
-        FROM counter AS c
-        JOIN android_cpu_per_uid_track AS t ON t.id = c.track_id
-      ))
-  )
-SELECT
-  id,
-  ts,
-  dur,
-  track_id,
-  next_value - value AS diff_ms,
-  (next_value - value) * 1e6 / dur AS cpu_ratio
-FROM deltas
-WHERE
-  next_value IS NOT NULL;
+SUBPIPELINE events AS (
+  FROM counter AS c
+  |> JOIN android_cpu_per_uid_track AS t ON t.id = c.track_id
+  |> SELECT c.id, c.ts, c.track_id, c.value
+)
+INTERVALS FROM EVENTS events PER track_id CLOSING LAST AT (trace_end())
+|> INTERVAL MERGE CONSECUTIVE BY value AGGREGATE MIN(id) AS id
+|> EXTEND lead(value) OVER (PARTITION BY track_id ORDER BY ts) AS next_value
+|> WHERE next_value IS NOT NULL
+|> SELECT
+     id,
+     ts,
+     dur,
+     track_id,
+     next_value - value AS diff_ms,
+     (next_value - value) * 1e6 / dur AS cpu_ratio;

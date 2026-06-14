@@ -70,112 +70,121 @@ SELECT
 
 -- List of startups with unique ids for each possible upid. The existing
 -- startup_ids are not necessarily unique (because of multiuser).
-CREATE PERFETTO TABLE _startup_root_slices AS
-WITH
-  possibly_overlapping AS (
-    -- There's a bug (b/456092940) where we can have concurrent startups with
-    -- the same upid. So we pre-filter to pick one in any concurrent group.
-    SELECT
-      (SELECT max(id) FROM slice) + row_number() OVER () AS id,
-      android_startups.dur AS dur,
-      android_startups.ts AS ts,
-      android_startups.startup_id,
-      android_startups.startup_type,
-      process.name AS process_name,
-      thread.utid AS utid
-    FROM android_startup_processes AS startup
-    JOIN android_startups USING (startup_id)
-    JOIN thread
-      ON thread.upid = process.upid
-      AND thread.is_main_thread
-    JOIN process
-      ON process.upid = startup.upid
-    WHERE
-      android_startups.dur > 0
-    ORDER BY
-      ts
-  ),
-  unique_startups AS (
-    -- The following self interval intersect will only yield |count| > 1 when
-    -- we have concurrent startups on the same utid. Filtering out the |count| > 1
-    -- leaves us with non concurrent startups per utid.
-    SELECT id_0 AS id, count() AS count
-    FROM _interval_intersect!((possibly_overlapping, possibly_overlapping), (utid))
-    GROUP BY
-      utid,
-      ts
-    HAVING
-      count = 1
-  )
-SELECT possibly_overlapping.*
+CREATE PERFETTO PIPELINE _startup_root_slices MATERIALIZED AS
+-- There's a bug (b/456092940) where we can have concurrent startups with
+-- the same upid. So we pre-filter to pick one in any concurrent group.
+SUBPIPELINE possibly_overlapping AS (
+  FROM android_startup_processes AS startup
+  |> JOIN android_startups USING (startup_id)
+  |> JOIN process ON process.upid = startup.upid
+  |> JOIN thread ON thread.upid = process.upid AND thread.is_main_thread
+  |> WHERE android_startups.dur > 0
+  |> SELECT
+    (SELECT max(id) FROM slice) + row_number() OVER () AS id,
+    android_startups.dur AS dur,
+    android_startups.ts AS ts,
+    android_startups.startup_id,
+    android_startups.startup_type,
+    process.name AS process_name,
+    thread.utid AS utid
+  |> ORDER BY ts
+)
+-- The following self interval intersect will only yield |count| > 1 when
+-- we have concurrent startups on the same utid. Filtering out the |count| > 1
+-- leaves us with non concurrent startups per utid.
+SUBPIPELINE unique_startups AS (
+  INTERVAL INTERSECTION OF (
+    possibly_overlapping AS a,
+    possibly_overlapping AS b
+  ) PER utid
+  |> AGGREGATE ANY_VALUE(a.id) AS id, count() AS count GROUP BY utid, ts
+  |> WHERE count = 1
+)
 FROM possibly_overlapping
-JOIN unique_startups USING (id);
+|> JOIN unique_startups USING (id)
+|> SELECT possibly_overlapping.*;
 
 -- All relevant startup slices normalized with _normalize_android_string.
-CREATE PERFETTO TABLE _startup_normalized_slices AS
-WITH
-  relevant_startup_slices AS (
-    SELECT slice.*
-    FROM thread_slice AS slice
-    JOIN _startup_root_slices AS startup
-      ON slice.utid = startup.utid
-      AND max(slice.ts, startup.ts)
-      < min(slice.ts + slice.dur, startup.ts + startup.dur)
-  )
-SELECT
-  p.id,
-  p.parent_id,
-  p.depth,
-  p.name,
+-- The null-named slices are removed and their children reparented to the nearest
+-- surviving ancestor via TREE CONTRACT.
+CREATE PERFETTO PIPELINE _startup_normalized_slices MATERIALIZED AS
+SUBPIPELINE relevant_startup_slices AS (
+  FROM thread_slice AS slice
+  |> JOIN _startup_root_slices AS startup
+    ON slice.utid = startup.utid
+    AND max(slice.ts, startup.ts)
+    < min(slice.ts + slice.dur, startup.ts + startup.dur)
+  |> WHERE slice.dur > 0
+  |> SELECT
+    slice.id,
+    slice.parent_id,
+    slice.depth,
+    _normalize_android_string(slice.name) AS name
+)
+FROM relevant_startup_slices
+|> TREE CONTRACT AT (
+  FROM relevant_startup_slices |> WHERE name IS NULL |> SELECT id
+) OVER relevant_startup_slices
+|> JOIN thread_slice USING (id)
+|> SELECT
+  id,
+  parent_id,
+  depth,
+  name,
   thread_slice.ts,
   thread_slice.dur,
   thread_slice.utid
-FROM _slice_remove_nulls_and_reparent
-    !(
-      (
-        SELECT id, parent_id, depth, _normalize_android_string(name) AS name
-        FROM relevant_startup_slices
-        WHERE dur > 0
-      ),
-      name) AS p
-JOIN thread_slice USING (id)
-ORDER BY
-  p.id;
+|> ORDER BY id;
 
 -- Subset of _startup_normalized_slices that occurred during any app startups on the main thread.
 -- Their timestamps and durations are chopped to fit within the respective app startup duration.
-CREATE PERFETTO TABLE _startup_slices_breakdown AS
-SELECT *
-FROM _intervals_merge_root_and_children_by_intersection!(_startup_root_slices, _startup_normalized_slices, utid);
+CREATE PERFETTO PIPELINE _startup_slices_breakdown MATERIALIZED AS
+-- Derive the root/child relationship between the startup roots and the
+-- normalized slices via an interval intersection on utid, then re-anchor
+-- parent_id and root_id from the intersected operands.
+INTERVAL INTERSECTION OF (
+  _startup_normalized_slices AS c,
+  _startup_root_slices AS r
+) PER utid
+|> WHERE c.dur > 0 AND r.dur > 0
+|> SELECT
+  ts,
+  dur,
+  c.id,
+  coalesce(c.parent_id, r.id) AS parent_id,
+  r.id AS root_id,
+  r.ts AS root_ts,
+  r.dur AS root_dur,
+  utid;
 
 -- Flattened slice version of _startup_slices_breakdown. This selects the leaf slice at every region
 -- of the slice stack.
-CREATE PERFETTO TABLE _startup_flat_slices_breakdown AS
-SELECT i.ts, i.dur, i.root_id, s.id AS slice_id, s.name
-FROM _intervals_flatten !(_startup_slices_breakdown) AS i
-JOIN _startup_normalized_slices AS s USING (id);
+CREATE PERFETTO PIPELINE _startup_flat_slices_breakdown MATERIALIZED AS
+FROM _startup_slices_breakdown
+|> INTERVAL FLATTEN PER root_id AGGREGATE ARG_MAX(dur, id) AS id
+|> JOIN _startup_normalized_slices AS s USING (id)
+|> SELECT ts, dur, root_id, s.id AS slice_id, s.name;
 
 -- Subset of thread_states that occurred during any app startups on the main thread.
-CREATE PERFETTO TABLE _startup_thread_states_breakdown AS
-SELECT
-  i.ts,
-  i.dur,
-  i.root_id,
+CREATE PERFETTO PIPELINE _startup_thread_states_breakdown MATERIALIZED AS
+SUBPIPELINE states AS (
+  FROM thread_state
+  |> SELECT *, NULL AS parent_id
+)
+INTERVAL INTERSECTION OF (
+  states AS c,
+  _startup_root_slices AS r
+) PER utid
+|> WHERE c.dur > 0 AND r.dur > 0
+|> JOIN thread_state AS t ON t.id = c.id
+|> SELECT
+  ts,
+  dur,
+  r.id AS root_id,
   t.id AS thread_state_id,
   t.state,
   t.io_wait,
-  t.irq_context
-FROM _intervals_merge_root_and_children_by_intersection!(_startup_root_slices,
-                                                           (SELECT *, NULL AS parent_id FROM thread_state),
-                                                           utid) AS i
-JOIN thread_state AS t USING (id);
-
--- Intersection of _startup_flat_slices_breakdown and _startup_thread_states_breakdown.
--- A left intersection is used since some parts of the slice stack may not have any slices
--- but will have thread states.
-CREATE VIRTUAL TABLE _startup_thread_states_and_slices_breakdown_sp USING SPAN_LEFT_JOIN(
-    _startup_thread_states_breakdown PARTITIONED root_id,
-    _startup_flat_slices_breakdown PARTITIONED root_id);
+  t.irq_context;
 
 -- Blended thread state and slice breakdown blocking app startups.
 --
@@ -183,7 +192,7 @@ CREATE VIRTUAL TABLE _startup_thread_states_and_slices_breakdown_sp USING SPAN_L
 -- derived from the slices and thread states on the main thread.
 --
 -- Some helpful events to enables are binder transactions, ART, am and view.
-CREATE PERFETTO TABLE android_startup_opinionated_breakdown(
+CREATE PERFETTO PIPELINE android_startup_opinionated_breakdown(
   -- Startup id.
   startup_id JOINID(android_startups.startup_id),
   -- Id of relevant slice blocking startup.
@@ -197,31 +206,39 @@ CREATE PERFETTO TABLE android_startup_opinionated_breakdown(
   -- Cause of delay during an exclusive interval of the app startup.
   reason STRING
 )
-AS
-SELECT
+MATERIALIZED AS
+-- Intersection of _startup_flat_slices_breakdown and
+-- _startup_thread_states_breakdown. A left intersection is used since some
+-- parts of the slice stack may not have any slices but will have thread
+-- states: the thread states are split at the flat slice boundaries with
+-- INTERVAL SPLIT (null slice columns where no slice is present).
+FROM _startup_thread_states_breakdown AS b
+|> INTERVAL SPLIT _startup_flat_slices_breakdown AS s PER root_id
+|> JOIN _startup_root_slices AS startup ON startup.id = b.root_id
+|> SELECT
   b.ts,
   b.dur,
   startup.startup_id,
-  b.slice_id,
+  s.slice_id,
   b.thread_state_id,
-  _startup_breakdown_reason(name, state, io_wait, irq_context) AS reason
-FROM _startup_thread_states_and_slices_breakdown_sp AS b
-JOIN _startup_root_slices AS startup
-  ON startup.id = b.root_id
-UNION ALL
--- Augment the existing startup breakdown with an artificial slice accounting for
--- any launch delays before the app starts handling startup on its main thread
-SELECT
-  _startup_root_slices.ts,
-  min(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts AS dur,
-  startup_id,
-  NULL AS slice_id,
-  NULL AS thread_state_id,
-  'launch_delay' AS reason
-FROM _startup_thread_states_breakdown
-JOIN _startup_root_slices
-  ON _startup_root_slices.id = root_id
-GROUP BY
-  root_id
-HAVING
-  min(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts > 0;
+  _startup_breakdown_reason(s.name, b.state, b.io_wait, b.irq_context) AS reason
+|> UNION ALL (
+  -- Augment the existing startup breakdown with an artificial slice accounting
+  -- for any launch delays before the app starts handling startup on its main
+  -- thread.
+  FROM _startup_thread_states_breakdown
+  |> JOIN _startup_root_slices ON _startup_root_slices.id = root_id
+  |> AGGREGATE
+    ANY_VALUE(_startup_root_slices.ts) AS ts,
+    min(_startup_thread_states_breakdown.ts) - ANY_VALUE(_startup_root_slices.ts) AS dur,
+    ANY_VALUE(startup_id) AS startup_id
+    GROUP BY root_id
+  |> WHERE dur > 0
+  |> SELECT
+    startup_id,
+    NULL AS slice_id,
+    NULL AS thread_state_id,
+    ts,
+    dur,
+    'launch_delay' AS reason
+);

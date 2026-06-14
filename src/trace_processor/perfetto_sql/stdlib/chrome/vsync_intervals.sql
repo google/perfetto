@@ -7,7 +7,7 @@
 --
 -- Note: In traces without the "Java" category there will be no VSync
 --       TraceEvents and this table will be empty.
-CREATE PERFETTO TABLE chrome_vsync_intervals (
+CREATE PERFETTO PIPELINE chrome_vsync_intervals(
   -- Slice id of the vsync slice.
   slice_id LONG,
   -- Timestamp of the vsync slice.
@@ -18,19 +18,16 @@ CREATE PERFETTO TABLE chrome_vsync_intervals (
   track_id LONG,
   -- Duration until next vsync arrives.
   time_to_next_vsync LONG
-) AS
-SELECT
-  slice_id,
-  ts,
-  dur,
-  track_id,
-  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS time_to_next_vsync
+) MATERIALIZED AS
 FROM slice
-WHERE
-  name = "VSync"
-ORDER BY
-  track_id,
-  ts;
+|> WHERE name = "VSync"
+|> SELECT
+     slice_id,
+     ts,
+     dur,
+     track_id,
+     lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS time_to_next_vsync
+|> ORDER BY track_id, ts;
 
 -- Function: compute the average Vysnc interval of the
 -- gesture (hopefully this would be either 60 FPS for the whole gesture or 90

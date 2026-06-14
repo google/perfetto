@@ -14,16 +14,10 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE counters.global_tracks;
-
-INCLUDE PERFETTO MODULE linux.memory.process;
-
-INCLUDE PERFETTO MODULE slices.with_context;
-
 -- Break down camera Camera graph execution slices per node, port group, and frame.
 -- This table extracts key identifiers from Camera graph execution slice names and
 -- provides timing information for each processing stage.
-CREATE PERFETTO TABLE pixel_camera_frames(
+CREATE PERFETTO PIPELINE pixel_camera_frames(
   -- Unique identifier for this slice.
   id ID(slice.id),
   -- Start timestamp of the slice.
@@ -44,108 +38,26 @@ CREATE PERFETTO TABLE pixel_camera_frames(
   frame_number LONG,
   -- Camera ID associated with this slice.
   cam_id LONG
-)
-AS
-SELECT
-  id,
-  ts,
-  dur,
-  track_id,
-  utid,
-  thread_name,
-  -- Slices follow the pattern "camX_Y:Z (frame N)" where X is the camera ID,
-  -- Y is the node name, Z is the port group, and N is the frame number
-  substr(str_split(name, ':', 0), 6) AS node,
-  str_split(str_split(name, ':', 1), ' (', 0) AS port_group,
-  cast_int!(STR_SPLIT(STR_SPLIT(name, '(frame', 1), ')', 0)) AS frame_number,
-  cast_int!(STR_SPLIT(STR_SPLIT(name, 'cam', 1), '_', 0)) AS cam_id
+) MATERIALIZED AS
 FROM thread_slice
--- Only include slices matching the Camera graph pattern and with valid durations
-WHERE
-  name GLOB 'cam*_*:* (frame *)'
-  AND dur != -1;
-
--- RSS of GoogleCamera application.
-CREATE PERFETTO VIEW _rss_gca AS
-SELECT
-  ts,
-  dur,
-  coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS gca_rss_val
-FROM memory_rss_and_swap_per_process
-JOIN (
-  SELECT max(rss), upid
-  FROM process
-  JOIN (
-    SELECT
-      max(
-        coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0)
-      ) AS rss,
-      upid
-    FROM memory_rss_and_swap_per_process
-    GROUP BY
-      upid
-  ) USING (upid)
-  WHERE
-    name GLOB '*GoogleCamera'
-    OR name GLOB '*googlecamera.fishfood'
-    OR name GLOB '*GoogleCameraEng'
-  LIMIT 1
-) USING (upid);
-
--- RSS of camera HAL.
-CREATE PERFETTO VIEW _rss_camera_hal AS
-SELECT
-  ts,
-  dur,
-  coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS hal_rss_val
-FROM memory_rss_and_swap_per_process
-JOIN (
-  SELECT max(start_ts), upid
-  FROM process
-  WHERE
-    name GLOB '*camera.provider*'
-  LIMIT 1
-) USING (upid);
-
--- RSS of cameraserver.
-CREATE PERFETTO VIEW _rss_cameraserver AS
-SELECT
-  ts,
-  dur,
-  coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS cameraserver_rss_val
-FROM memory_rss_and_swap_per_process
-JOIN (
-  SELECT max(start_ts), upid
-  FROM process
-  WHERE
-    name GLOB '*cameraserver'
-  LIMIT 1
-) USING (upid);
-
--- Spans of DMA heap usage.
-CREATE PERFETTO VIEW _dma_span AS
-SELECT
-  ts,
-  LEAD(ts, 1, trace_end()) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
-  value AS dma_val
-FROM counter AS c
-JOIN counter_track AS t
-  ON t.id = c.track_id
-WHERE
-  _counter_track_is_only_name_dimension(t.id)
-  AND name = 'mem.dma_heap';
-
--- Spans for GoogleCamera + Camera HAL.
-CREATE VIRTUAL TABLE _rss_gca_hal USING SPAN_OUTER_JOIN(_rss_gca, _rss_camera_hal);
-
--- Spans for GoogleCamera + Camera HAL + CameraServer.
-CREATE VIRTUAL TABLE _rss_all_camera USING SPAN_OUTER_JOIN(_rss_gca_hal, _rss_cameraserver);
-
--- Spans joining all camera processes RSS and global DMA heap values.
-CREATE VIRTUAL TABLE _rss_and_dma_all_camera_join USING SPAN_OUTER_JOIN(_dma_span, _rss_all_camera);
+-- Only include slices matching the Camera graph pattern and with valid durations.
+|> WHERE name GLOB 'cam*_*:* (frame *)' AND dur != -1
+|> SELECT
+     id,
+     ts,
+     dur,
+     track_id,
+     utid,
+     thread_name,
+     -- Slices follow the pattern "camX_Y:Z (frame N)" where X is the camera ID,
+     -- Y is the node name, Z is the port group, and N is the frame number.
+     substr(str_split(name, ':', 0), 6) AS node,
+     str_split(str_split(name, ':', 1), ' (', 0) AS port_group,
+     cast_int!(STR_SPLIT(STR_SPLIT(name, '(frame', 1), ')', 0)) AS frame_number,
+     cast_int!(STR_SPLIT(STR_SPLIT(name, 'cam', 1), '_', 0)) AS cam_id;
 
 -- Process memory and DMA heap usage timeline for Pixel Camera processes (GCA, HAL, CameraServer).
-CREATE PERFETTO TABLE pixel_camera_memory_span(
+CREATE PERFETTO PIPELINE pixel_camera_memory_span(
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration of the span.
@@ -160,16 +72,66 @@ CREATE PERFETTO TABLE pixel_camera_memory_span(
   dma LONG,
   -- Sum of all camera RSS and DMA heap memory values.
   rss_and_dma LONG
+) MATERIALIZED AS
+-- RSS of GoogleCamera application.
+SUBPIPELINE rss_gca AS (
+  FROM memory_rss_and_swap_per_process
+  |> JOIN (
+       FROM process
+       |> JOIN (
+            FROM memory_rss_and_swap_per_process
+            |> AGGREGATE
+                 max(coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0)) AS rss
+               GROUP BY upid
+          ) USING (upid)
+       |> WHERE name GLOB '*GoogleCamera'
+            OR name GLOB '*googlecamera.fishfood'
+            OR name GLOB '*GoogleCameraEng'
+       |> AGGREGATE max(rss) AS rss GROUP BY upid
+       |> LIMIT 1
+     ) USING (upid)
+  |> SELECT ts, dur, coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS gca_rss_val
 )
-AS
-SELECT
-  ts,
-  dur,
-  cast_int!(IFNULL(gca_rss_val, 0)) AS gca_rss,
-  cast_int!(IFNULL(hal_rss_val, 0)) AS hal_rss,
-  cast_int!(IFNULL(cameraserver_rss_val, 0)) AS cameraserver_rss,
-  cast_int!(IFNULL(dma_val, 0)) AS dma,
-  cast_int!(IFNULL(gca_rss_val, 0) + IFNULL(hal_rss_val, 0)
-    + IFNULL(cameraserver_rss_val, 0)
-    + IFNULL(dma_val, 0)) AS rss_and_dma
-FROM _rss_and_dma_all_camera_join;
+-- RSS of camera HAL.
+SUBPIPELINE rss_camera_hal AS (
+  FROM memory_rss_and_swap_per_process
+  |> JOIN (
+       FROM process
+       |> WHERE name GLOB '*camera.provider*'
+       |> AGGREGATE max(start_ts) AS start_ts GROUP BY upid
+       |> LIMIT 1
+     ) USING (upid)
+  |> SELECT ts, dur, coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS hal_rss_val
+)
+-- RSS of cameraserver.
+SUBPIPELINE rss_cameraserver AS (
+  FROM memory_rss_and_swap_per_process
+  |> JOIN (
+       FROM process
+       |> WHERE name GLOB '*cameraserver'
+       |> AGGREGATE max(start_ts) AS start_ts GROUP BY upid
+       |> LIMIT 1
+     ) USING (upid)
+  |> SELECT ts, dur, coalesce(file_rss, 0) + coalesce(anon_rss, 0) + coalesce(shmem_rss, 0) AS cameraserver_rss_val
+)
+-- Spans of DMA heap usage.
+SUBPIPELINE dma_span AS (
+  FROM counter AS c
+  |> JOIN counter_track AS t ON t.id = c.track_id
+  |> WHERE _counter_track_is_only_name_dimension(t.id) AND t.name = 'mem.dma_heap'
+  |> SELECT
+       c.ts,
+       LEAD(c.ts, 1, trace_end()) OVER (PARTITION BY c.track_id ORDER BY c.ts) - c.ts AS dur,
+       c.value AS dma_val
+)
+INTERVAL UNION OF (dma_span AS d, rss_gca AS g, rss_camera_hal AS h, rss_cameraserver AS s)
+|> SELECT
+     ts,
+     dur,
+     cast_int!(IFNULL(g.gca_rss_val, 0)) AS gca_rss,
+     cast_int!(IFNULL(h.hal_rss_val, 0)) AS hal_rss,
+     cast_int!(IFNULL(s.cameraserver_rss_val, 0)) AS cameraserver_rss,
+     cast_int!(IFNULL(d.dma_val, 0)) AS dma,
+     cast_int!(IFNULL(g.gca_rss_val, 0) + IFNULL(h.hal_rss_val, 0)
+       + IFNULL(s.cameraserver_rss_val, 0)
+       + IFNULL(d.dma_val, 0)) AS rss_and_dma;

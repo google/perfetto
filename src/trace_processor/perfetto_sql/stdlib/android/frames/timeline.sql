@@ -55,7 +55,7 @@ WHERE
   AND frame_id != -1;
 
 -- All of the `Choreographer#doFrame` slices with their frame id.
-CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
+CREATE PERFETTO PIPELINE android_frames_choreographer_do_frame(
   -- Choreographer#doFrame slice. Slice with the name "Choreographer#doFrame
   -- {frame id}".
   id ID(slice.id),
@@ -69,17 +69,17 @@ CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
   -- Timestamp of the slice.
   ts TIMESTAMP
 )
-AS
-SELECT id, frame_id, utid AS ui_thread_utid, upid, ts
+MATERIALIZED AS
 -- Some OEMs have customized `doFrame` to add more information, but we've only
 -- observed it added after the frame ID (b/303823815).
-FROM _get_frame_table_with_id('Choreographer#doFrame*');
+FROM _get_frame_table_with_id('Choreographer#doFrame*')
+|> SELECT id, frame_id, utid AS ui_thread_utid, upid, ts;
 
 -- All of the `DrawFrame` slices with their frame id and render thread.
 -- There might be multiple DrawFrames slices for a single vsync (frame id).
 -- This happens when we are drawing multiple layers (e.g. status bar and
 -- notifications).
-CREATE PERFETTO TABLE android_frames_draw_frame(
+CREATE PERFETTO PIPELINE android_frames_draw_frame(
   -- DrawFrame slice. Slice with the name "DrawFrame {frame id}".
   id ID(slice.id),
   -- Frame id. Taken as the value behind "DrawFrame" in slice
@@ -90,44 +90,46 @@ CREATE PERFETTO TABLE android_frames_draw_frame(
   -- Upid of application process
   upid JOINID(process.id)
 )
-AS
-SELECT id, frame_id, utid AS render_thread_utid, upid
-FROM _get_frame_table_with_id('DrawFrame*');
+MATERIALIZED AS
+FROM _get_frame_table_with_id('DrawFrame*')
+|> SELECT id, frame_id, utid AS render_thread_utid, upid;
 
 -- Fetch distinct actual frames per layer per process.
-CREATE PERFETTO TABLE _distinct_layer_actual_timeline_slice_per_process AS
-SELECT
-  cast_int!(name) AS frame_id,
-  CAST(str_split(layer_name, '#', 1) AS INTEGER) AS layer_id,
-  layer_name,
-  id AS slice_id,
-  ts,
-  dur,
-  upid
-FROM actual_frame_timeline_slice;
+CREATE PERFETTO PIPELINE _distinct_layer_actual_timeline_slice_per_process MATERIALIZED AS
+FROM actual_frame_timeline_slice
+|> SELECT
+     cast_int!(name) AS frame_id,
+     CAST(str_split(layer_name, '#', 1) AS INTEGER) AS layer_id,
+     layer_name,
+     id AS slice_id,
+     ts,
+     dur,
+     upid;
 
 -- Fetch distinct expected frames per process.
-CREATE PERFETTO TABLE _distinct_from_expected_timeline_slice_per_process AS
-SELECT cast_int!(name) AS frame_id, upid, id FROM expected_frame_timeline_slice;
+CREATE PERFETTO PIPELINE _distinct_from_expected_timeline_slice_per_process MATERIALIZED AS
+FROM expected_frame_timeline_slice
+|> SELECT cast_int!(name) AS frame_id, upid, id;
 
 -- Contains frames with missed SF or HWUI callbacks.
-CREATE PERFETTO TABLE _vsync_missed_callback AS
-SELECT
-  CAST(str_split(name, 'Callback#', 1) AS INTEGER) AS vsync,
-  max(name GLOB '*SF*') AS sf_callback_missed,
-  max(name GLOB '*HWUI*') AS hwui_callback_missed
+CREATE PERFETTO PIPELINE _vsync_missed_callback MATERIALIZED AS
 FROM slice
-WHERE
-  name GLOB '*FT#Missed*Callback*'
-GROUP BY
-  vsync;
+|> WHERE name GLOB '*FT#Missed*Callback*'
+|> AGGREGATE
+     max(name GLOB '*SF*') AS sf_callback_missed,
+     max(name GLOB '*HWUI*') AS hwui_callback_missed
+   GROUP BY CAST(str_split(name, 'Callback#', 1) AS INTEGER)
+|> SELECT
+     CAST(str_split(name, 'Callback#', 1) AS INTEGER) AS vsync,
+     sf_callback_missed,
+     hwui_callback_missed;
 
 -- TODO(b/384322064) Match actual timeline slice with correct draw frame using layer name.
 -- All slices related to one frame. Aggregates `Choreographer#doFrame`,
 -- `actual_frame_timeline_slice` and `expected_frame_timeline_slice` slices.
 -- This table differs slightly from the android_frames table, as it
 -- captures the layer_id for each actual timeline slice too.
-CREATE PERFETTO TABLE android_frames_layers(
+CREATE PERFETTO PIPELINE android_frames_layers(
   -- Frame id.
   frame_id LONG,
   -- Timestamp of the frame. Start of the frame as defined by the start of
@@ -163,89 +165,74 @@ CREATE PERFETTO TABLE android_frames_layers(
   -- process name.
   process_name STRING
 )
-AS
-WITH
-  fallback AS MATERIALIZED (
-    SELECT
-      frame_id,
-      do_frame_slice.ts AS ts,
-      (draw_frame_slice.ts + draw_frame_slice.dur) - do_frame_slice.ts AS dur
-    FROM android_frames_choreographer_do_frame AS do_frame
-    JOIN android_frames_draw_frame AS draw_frame USING (frame_id, upid)
-    JOIN slice AS do_frame_slice
-      ON (do_frame.id = do_frame_slice.id)
-    JOIN slice AS draw_frame_slice
-      ON (draw_frame.id = draw_frame_slice.id)
-  ),
-  frames_sdk_after_28 AS (
-    SELECT
-      frame_id,
-      coalesce(act.ts, fallback.ts) AS ts,
-      coalesce(act.dur, fallback.dur) AS dur,
-      do_frame.id AS do_frame_id,
-      draw_frame.id AS draw_frame_id,
-      draw_frame.render_thread_utid,
-      do_frame.ui_thread_utid AS ui_thread_utid,
-      exp.upid AS upid,
-      process.name AS process_name,
-      "after_28" AS sdk,
-      act.slice_id AS actual_frame_timeline_id,
-      exp.id AS expected_frame_timeline_id,
-      act.layer_id AS layer_id,
-      act.layer_name AS layer_name
-    FROM android_frames_choreographer_do_frame AS do_frame
-    JOIN android_frames_draw_frame AS draw_frame USING (frame_id, upid)
-    JOIN fallback USING (frame_id)
-    JOIN process USING (upid)
-    LEFT JOIN _distinct_layer_actual_timeline_slice_per_process AS act USING (
-      frame_id,
-      upid
-    )
-    LEFT JOIN _distinct_from_expected_timeline_slice_per_process AS exp USING (
-      frame_id,
-      upid
-    )
-    ORDER BY
-      frame_id
-  ),
-  all_frames AS (
-    SELECT * FROM frames_sdk_after_28
-    UNION
-    SELECT
-      *,
-      NULL AS actual_frame_timeline_id,
-      NULL AS expected_frame_timeline_id,
-      NULL AS layer_id,
-      NULL AS layer_name
-    FROM _frames_maxsdk_28
-  )
-SELECT
-  frame_id,
-  ts,
-  dur,
-  (ts + dur) AS ts_end,
-  do_frame_id,
-  draw_frame_id,
-  actual_frame_timeline_id,
-  expected_frame_timeline_id,
-  render_thread_utid,
-  ui_thread_utid,
-  layer_id,
-  layer_name,
-  upid,
-  process_name
-FROM all_frames
-WHERE
-  sdk
-  = iif(
-    (SELECT count(1) FROM actual_frame_timeline_slice) > 0,
-    "after_28",
-    "maxsdk28"
-  );
+MATERIALIZED AS
+SUBPIPELINE fallback AS (
+  FROM android_frames_choreographer_do_frame AS do_frame
+  |> JOIN android_frames_draw_frame AS draw_frame USING (frame_id, upid)
+  |> JOIN slice AS do_frame_slice ON (do_frame.id = do_frame_slice.id)
+  |> JOIN slice AS draw_frame_slice ON (draw_frame.id = draw_frame_slice.id)
+  |> SELECT
+       frame_id,
+       do_frame_slice.ts AS ts,
+       (draw_frame_slice.ts + draw_frame_slice.dur) - do_frame_slice.ts AS dur
+)
+FROM android_frames_choreographer_do_frame AS do_frame
+|> JOIN android_frames_draw_frame AS draw_frame USING (frame_id, upid)
+|> JOIN fallback USING (frame_id)
+|> JOIN process USING (upid)
+|> LEFT JOIN _distinct_layer_actual_timeline_slice_per_process AS act
+     USING (frame_id, upid)
+|> LEFT JOIN _distinct_from_expected_timeline_slice_per_process AS exp
+     USING (frame_id, upid)
+|> SELECT
+     frame_id,
+     coalesce(act.ts, fallback.ts) AS ts,
+     coalesce(act.dur, fallback.dur) AS dur,
+     do_frame.id AS do_frame_id,
+     draw_frame.id AS draw_frame_id,
+     draw_frame.render_thread_utid,
+     do_frame.ui_thread_utid AS ui_thread_utid,
+     exp.upid AS upid,
+     process.name AS process_name,
+     "after_28" AS sdk,
+     act.slice_id AS actual_frame_timeline_id,
+     exp.id AS expected_frame_timeline_id,
+     act.layer_id AS layer_id,
+     act.layer_name AS layer_name
+|> UNION (
+     FROM _frames_maxsdk_28
+     |> SELECT
+          *,
+          NULL AS actual_frame_timeline_id,
+          NULL AS expected_frame_timeline_id,
+          NULL AS layer_id,
+          NULL AS layer_name
+   )
+|> WHERE
+     sdk = iif(
+       (SELECT count(1) FROM actual_frame_timeline_slice) > 0,
+       "after_28",
+       "maxsdk28"
+     )
+|> SELECT
+     frame_id,
+     ts,
+     dur,
+     (ts + dur) AS ts_end,
+     do_frame_id,
+     draw_frame_id,
+     actual_frame_timeline_id,
+     expected_frame_timeline_id,
+     render_thread_utid,
+     ui_thread_utid,
+     layer_id,
+     layer_name,
+     upid,
+     process_name;
 
 -- Table based on the android_frames_layers table. It aggregates time, duration and counts
 -- information across different layers for a given frame_id in a given process.
-CREATE PERFETTO TABLE android_frames(
+CREATE PERFETTO PIPELINE android_frames(
   -- Frame id.
   frame_id LONG,
   -- Timestamp of the frame. Start of the frame as defined by the start of
@@ -280,27 +267,33 @@ CREATE PERFETTO TABLE android_frames(
   -- process name.
   process_name STRING
 )
-AS
-SELECT
-  frame_id,
-  min(frames_layers.ts) AS ts,
-  max(frames_layers.dur) AS dur,
-  min(do_frame_id) AS do_frame_id,
-  min(draw_frame_id) AS draw_frame_id,
-  min(actual_frame_timeline_id) AS actual_frame_timeline_id,
-  expected_frame_timeline_id,
-  render_thread_utid,
-  ui_thread_utid,
-  count(DISTINCT actual_frame_timeline_id) AS actual_frame_timeline_count,
-  -- Expected frame count will always be 1 for a given frame_id.
-  1 AS expected_frame_timeline_count,
-  count(DISTINCT draw_frame_id) AS draw_frame_count,
-  upid,
-  process_name
+MATERIALIZED AS
 FROM android_frames_layers AS frames_layers
-GROUP BY
-  frame_id,
-  upid;
+|> AGGREGATE
+     min(frames_layers.ts) AS ts,
+     max(frames_layers.dur) AS dur,
+     min(do_frame_id) AS do_frame_id,
+     min(draw_frame_id) AS draw_frame_id,
+     min(actual_frame_timeline_id) AS actual_frame_timeline_id,
+     count(DISTINCT actual_frame_timeline_id) AS actual_frame_timeline_count,
+     count(DISTINCT draw_frame_id) AS draw_frame_count
+   GROUP BY frame_id, upid
+|> SELECT
+     frame_id,
+     ts,
+     dur,
+     do_frame_id,
+     draw_frame_id,
+     actual_frame_timeline_id,
+     expected_frame_timeline_id,
+     render_thread_utid,
+     ui_thread_utid,
+     actual_frame_timeline_count,
+     -- Expected frame count will always be 1 for a given frame_id.
+     1 AS expected_frame_timeline_count,
+     draw_frame_count,
+     upid,
+     process_name;
 
 -- Returns first frame after the provided timestamp. The returning table has at
 -- most one row.

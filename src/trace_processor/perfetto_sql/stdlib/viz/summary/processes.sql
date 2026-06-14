@@ -17,82 +17,78 @@ INCLUDE PERFETTO MODULE viz.summary.slices;
 
 INCLUDE PERFETTO MODULE viz.summary.threads;
 
-CREATE PERFETTO TABLE _process_track_summary AS
-SELECT upid, sum(cnt) AS slice_count
+CREATE PERFETTO PIPELINE _process_track_summary MATERIALIZED AS
 FROM process_track
-JOIN _slice_track_summary USING (id)
-GROUP BY
-  upid;
+|> JOIN _slice_track_summary USING (id)
+|> AGGREGATE sum(cnt) AS slice_count GROUP BY upid;
 
-CREATE PERFETTO TABLE _heap_profile_allocation_summary AS
-SELECT upid, count() AS allocation_count
+CREATE PERFETTO PIPELINE _heap_profile_allocation_summary MATERIALIZED AS
 FROM heap_profile_allocation
-GROUP BY
-  upid;
+|> AGGREGATE count() AS allocation_count GROUP BY upid;
 
-CREATE PERFETTO TABLE _heap_profile_graph_summary AS
-SELECT upid, count() AS graph_object_count FROM heap_graph_object GROUP BY upid;
+CREATE PERFETTO PIPELINE _heap_profile_graph_summary MATERIALIZED AS
+FROM heap_graph_object
+|> AGGREGATE count() AS graph_object_count GROUP BY upid;
 
-CREATE PERFETTO TABLE _thread_process_grouped_summary AS
-SELECT
-  upid,
-  max(max_running_dur) AS max_running_dur,
-  sum(sum_running_dur) AS sum_running_dur,
-  sum(running_count) AS running_count,
-  sum(slice_count) AS slice_count,
-  sum(perf_sample_count) AS perf_sample_count,
-  sum(instruments_sample_count) AS instruments_sample_count
+CREATE PERFETTO PIPELINE _thread_process_grouped_summary MATERIALIZED AS
 FROM _thread_available_info_summary
-JOIN thread USING (utid)
-WHERE
-  upid IS NOT NULL
-GROUP BY
-  upid;
+|> JOIN thread USING (utid)
+|> WHERE upid IS NOT NULL
+|> AGGREGATE
+     max(max_running_dur) AS max_running_dur,
+     sum(sum_running_dur) AS sum_running_dur,
+     sum(running_count) AS running_count,
+     sum(slice_count) AS slice_count,
+     sum(perf_sample_count) AS perf_sample_count,
+     sum(instruments_sample_count) AS instruments_sample_count
+   GROUP BY upid;
 
-CREATE PERFETTO TABLE _process_available_info_summary AS
-WITH
-  r AS (
-    SELECT
-      upid,
-      t_summary.upid AS summary_upid,
-      t_summary.max_running_dur AS max_running_dur,
-      t_summary.sum_running_dur,
-      t_summary.running_count,
-      t_summary.slice_count AS thread_slice_count,
-      t_summary.perf_sample_count AS perf_sample_count,
-      t_summary.instruments_sample_count AS instruments_sample_count,
-      (SELECT slice_count FROM _process_track_summary WHERE upid = p.upid) AS process_slice_count,
-      (
-        SELECT allocation_count
-        FROM _heap_profile_allocation_summary
-        WHERE
-          upid = p.upid
-      ) AS allocation_count,
-      (
-        SELECT graph_object_count
-        FROM _heap_profile_graph_summary
-        WHERE
-          upid = p.upid
-      ) AS graph_object_count
-    FROM process AS p
-    LEFT JOIN _thread_process_grouped_summary AS t_summary USING (upid)
-  )
-SELECT
-  upid,
-  coalesce(max_running_dur, 0) AS max_running_dur,
-  coalesce(sum_running_dur, 0) AS sum_running_dur,
-  coalesce(running_count, 0) AS running_count,
-  coalesce(thread_slice_count, 0) AS thread_slice_count,
-  coalesce(perf_sample_count, 0) AS perf_sample_count,
-  coalesce(instruments_sample_count, 0) AS instruments_sample_count,
-  coalesce(process_slice_count, 0) AS process_slice_count,
-  coalesce(allocation_count, 0) AS allocation_count,
-  coalesce(graph_object_count, 0) AS graph_object_count
-FROM r
-WHERE
-  NOT (r.summary_upid IS NULL
-  AND process_slice_count IS NULL
-  AND allocation_count IS NULL
-  AND graph_object_count IS NULL)
-  OR upid IN (SELECT upid FROM process_counter_track)
-  OR upid IN (SELECT DISTINCT upid FROM profiler_smaps);
+CREATE PERFETTO PIPELINE _process_available_info_summary MATERIALIZED AS
+SUBPIPELINE counter_track_upids AS (
+  FROM process_counter_track
+  |> SELECT upid
+  |> DISTINCT
+)
+SUBPIPELINE smaps_upids AS (
+  FROM profiler_smaps
+  |> SELECT upid
+  |> DISTINCT
+)
+FROM process AS p
+|> LEFT JOIN _thread_process_grouped_summary AS t_summary USING (upid)
+|> LEFT JOIN _process_track_summary AS pt USING (upid)
+|> LEFT JOIN _heap_profile_allocation_summary AS hpa USING (upid)
+|> LEFT JOIN _heap_profile_graph_summary AS hpg USING (upid)
+|> SELECT
+     p.upid,
+     t_summary.upid AS summary_upid,
+     coalesce(t_summary.max_running_dur, 0) AS max_running_dur,
+     coalesce(t_summary.sum_running_dur, 0) AS sum_running_dur,
+     coalesce(t_summary.running_count, 0) AS running_count,
+     coalesce(t_summary.slice_count, 0) AS thread_slice_count,
+     coalesce(t_summary.perf_sample_count, 0) AS perf_sample_count,
+     coalesce(t_summary.instruments_sample_count, 0) AS instruments_sample_count,
+     pt.slice_count AS process_slice_count_raw,
+     coalesce(pt.slice_count, 0) AS process_slice_count,
+     hpa.allocation_count AS allocation_count_raw,
+     coalesce(hpa.allocation_count, 0) AS allocation_count,
+     hpg.graph_object_count AS graph_object_count_raw,
+     coalesce(hpg.graph_object_count, 0) AS graph_object_count
+|> WHERE
+     NOT (summary_upid IS NULL
+       AND process_slice_count_raw IS NULL
+       AND allocation_count_raw IS NULL
+       AND graph_object_count_raw IS NULL)
+     OR upid IN (FROM counter_track_upids |> SELECT upid)
+     OR upid IN (FROM smaps_upids |> SELECT upid)
+|> SELECT
+     upid,
+     max_running_dur,
+     sum_running_dur,
+     running_count,
+     thread_slice_count,
+     perf_sample_count,
+     instruments_sample_count,
+     process_slice_count,
+     allocation_count,
+     graph_object_count;

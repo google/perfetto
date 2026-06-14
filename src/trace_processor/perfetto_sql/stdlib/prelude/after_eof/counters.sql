@@ -23,7 +23,7 @@
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Tracks containing counter-like events.
-CREATE PERFETTO VIEW counter_track(
+CREATE PERFETTO PIPELINE counter_track(
   -- Unique identifier for this cpu counter track.
   id ID(track.id),
   -- Name of the track.
@@ -53,22 +53,21 @@ CREATE PERFETTO VIEW counter_track(
   description STRING
 )
 AS
-SELECT
-  id,
-  name,
-  parent_id,
-  type,
-  dimension_arg_set_id,
-  source_arg_set_id,
-  machine_id,
-  counter_unit AS unit,
-  extract_arg(source_arg_set_id, 'description') AS description
 FROM __intrinsic_track
-WHERE
-  event_type = 'counter';
+|> WHERE event_type = 'counter'
+|> SELECT
+     id,
+     name,
+     parent_id,
+     type,
+     dimension_arg_set_id,
+     source_arg_set_id,
+     machine_id,
+     counter_unit AS unit,
+     extract_arg(source_arg_set_id, 'description') AS description;
 
 -- Tracks containing counter-like events associated to a CPU.
-CREATE PERFETTO TABLE cpu_counter_track(
+CREATE PERFETTO PIPELINE cpu_counter_track(
   -- Unique identifier for this cpu counter track.
   id ID(track.id),
   -- Name of the track.
@@ -96,25 +95,24 @@ CREATE PERFETTO TABLE cpu_counter_track(
   -- The CPU that the track is associated with.
   cpu LONG
 )
-AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  args.int_value AS cpu
+MATERIALIZED AS
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE
-  args.key = 'cpu';
+|> JOIN args
+   ON ct.dimension_arg_set_id = args.arg_set_id
+|> WHERE args.key = 'cpu'
+|> SELECT
+     ct.id,
+     ct.name,
+     ct.type,
+     ct.parent_id,
+     ct.source_arg_set_id,
+     ct.machine_id,
+     ct.unit,
+     ct.description,
+     args.int_value AS cpu;
 
 -- Tracks containing counter-like events associated to a GPU.
-CREATE PERFETTO TABLE gpu_counter_track(
+CREATE PERFETTO PIPELINE gpu_counter_track(
   -- Unique identifier for this gpu counter track.
   id ID(track.id),
   -- Name of the track.
@@ -144,26 +142,25 @@ CREATE PERFETTO TABLE gpu_counter_track(
   -- The raw GPU number.
   gpu_id LONG
 )
-AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  extract_arg(ct.dimension_arg_set_id, 'ugpu') AS ugpu,
-  extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id
+MATERIALIZED AS
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE
-  args.key = 'ugpu';
+|> JOIN args
+   ON ct.dimension_arg_set_id = args.arg_set_id
+|> WHERE args.key = 'ugpu'
+|> SELECT
+     ct.id,
+     ct.name,
+     ct.type,
+     ct.parent_id,
+     ct.source_arg_set_id,
+     ct.machine_id,
+     ct.unit,
+     ct.description,
+     extract_arg(ct.dimension_arg_set_id, 'ugpu') AS ugpu,
+     extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id;
 
 -- Tracks containing counter-like events associated to a process.
-CREATE PERFETTO TABLE process_counter_track(
+CREATE PERFETTO PIPELINE process_counter_track(
   -- Unique identifier for this process counter track.
   id ID(track.id),
   -- Name of the track.
@@ -191,25 +188,24 @@ CREATE PERFETTO TABLE process_counter_track(
   -- The upid of the process that the track is associated with.
   upid LONG
 )
-AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  args.int_value AS upid
+MATERIALIZED AS
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE
-  args.key = 'upid';
+|> JOIN args
+   ON ct.dimension_arg_set_id = args.arg_set_id
+|> WHERE args.key = 'upid'
+|> SELECT
+     ct.id,
+     ct.name,
+     ct.type,
+     ct.parent_id,
+     ct.source_arg_set_id,
+     ct.machine_id,
+     ct.unit,
+     ct.description,
+     args.int_value AS upid;
 
 -- Tracks containing counter-like events associated to a thread.
-CREATE PERFETTO TABLE thread_counter_track(
+CREATE PERFETTO PIPELINE thread_counter_track(
   -- Unique identifier for this thread counter track.
   id ID(track.id),
   -- Name of the track.
@@ -237,25 +233,24 @@ CREATE PERFETTO TABLE thread_counter_track(
   -- The utid of the thread that the track is associated with.
   utid LONG
 )
-AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  args.int_value AS utid
+MATERIALIZED AS
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
-WHERE
-  args.key = 'utid';
+|> JOIN args
+   ON ct.dimension_arg_set_id = args.arg_set_id
+|> WHERE args.key = 'utid'
+|> SELECT
+     ct.id,
+     ct.name,
+     ct.type,
+     ct.parent_id,
+     ct.source_arg_set_id,
+     ct.machine_id,
+     ct.unit,
+     ct.description,
+     args.int_value AS utid;
 
 -- Tracks containing counter-like events collected from Linux perf.
-CREATE PERFETTO TABLE perf_counter_track(
+CREATE PERFETTO PIPELINE perf_counter_track(
   -- Unique identifier for this thread counter track.
   id ID(track.id),
   -- Name of the track.
@@ -288,25 +283,24 @@ CREATE PERFETTO TABLE perf_counter_track(
   -- Whether this counter is the sampling timebase for the session.
   is_timebase BOOL
 )
-AS
-SELECT
-  ct.id,
-  ct.name,
-  ct.type,
-  ct.parent_id,
-  ct.source_arg_set_id,
-  ct.machine_id,
-  ct.unit,
-  ct.description,
-  extract_arg(ct.dimension_arg_set_id, 'perf_session_id') AS perf_session_id,
-  extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
-  extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
+MATERIALIZED AS
 FROM counter_track AS ct
-WHERE
-  ct.type IN ('perf_cpu_counter', 'perf_global_counter');
+|> WHERE ct.type IN ('perf_cpu_counter', 'perf_global_counter')
+|> SELECT
+     ct.id,
+     ct.name,
+     ct.type,
+     ct.parent_id,
+     ct.source_arg_set_id,
+     ct.machine_id,
+     ct.unit,
+     ct.description,
+     extract_arg(ct.dimension_arg_set_id, 'perf_session_id') AS perf_session_id,
+     extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
+     extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase;
 
 -- Alias of the `counter` table.
-CREATE PERFETTO VIEW counters(
+CREATE PERFETTO PIPELINE counters(
   -- Alias of `counter.id`.
   id ID,
   -- Alias of `counter.ts`.
@@ -323,9 +317,8 @@ CREATE PERFETTO VIEW counters(
   unit STRING
 )
 AS
-SELECT v.*, t.name, t.unit
 FROM counter AS v
-JOIN counter_track AS t
-  ON v.track_id = t.id
-ORDER BY
-  ts;
+|> JOIN counter_track AS t
+   ON v.track_id = t.id
+|> SELECT v.*, t.name, t.unit
+|> ORDER BY ts;
