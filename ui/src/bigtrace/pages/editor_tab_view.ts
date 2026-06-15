@@ -18,6 +18,14 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
+import {
+  perfettoSqlCompletions,
+  perfettoSqlDiagnostics,
+} from '../query/sql_completion';
+import {
+  onSqlEngineReady,
+  onSqlSchemaApplied,
+} from '../../components/sql_intelligence';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Stack, StackAuto} from '../../widgets/stack';
@@ -223,6 +231,12 @@ function renderEditorPanel(
       text: tab.editorText,
       language: 'perfetto-sql',
       autofocus: true,
+      completions: perfettoSqlCompletions,
+      diagnostics: perfettoSqlDiagnostics,
+      onDiagnosticsRefresh: (refresh: () => void) => {
+        onSqlEngineReady(refresh);
+        onSqlSchemaApplied(refresh);
+      },
       onSave: () => {},
       onUpdate: (text: string) => {
         tab.editorText = text;

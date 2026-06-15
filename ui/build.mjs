@@ -217,8 +217,9 @@ Env-var overrides:
   parser.add_argument('--bigtrace', {action: 'store_true'});
   parser.add_argument('--enable-engine-bench', {
     action: 'store_true',
-    help: 'Build the engine startup benchmark page (engine_bench.html) and ' +
-          'its dedicated worker bundle. Off by default.',
+    help:
+      'Build the engine startup benchmark page (engine_bench.html) and ' +
+      'its dedicated worker bundle. Off by default.',
   });
   parser.add_argument('--open-perfetto-trace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
@@ -696,13 +697,20 @@ function buildWasm(skipWasmBuild) {
 
 function copySyntaqliteRuntime() {
   const srcDir = pjoin(ROOT_DIR, 'ui/node_modules/syntaqlite/wasm');
-  const dstDir = pjoin(cfg.outDistDir, 'assets');
+  // The bigtrace bundle is served from a /bigtrace/ sub-directory and resolves
+  // assets relative to it, so mirror the runtime there too (matches copyAssets).
+  const dstDirs = [pjoin(cfg.outDistDir, 'assets')];
+  if (cfg.bigtrace) {
+    dstDirs.push(pjoin(cfg.outBigtraceDistDir, 'assets'));
+  }
   for (const fname of [
     'syntaqlite-runtime.js',
     'syntaqlite-runtime.wasm',
     'syntaqlite-sqlite.wasm',
   ]) {
-    addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
+    for (const dstDir of dstDirs) {
+      addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
+    }
   }
   addTask(buildSyntaqlitePerfettoDialect, []);
 }
@@ -730,10 +738,27 @@ function buildSyntaqlitePerfettoDialect() {
     'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
   );
   const dst = pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm');
+  // The bigtrace bundle resolves assets from its own /bigtrace/assets/ dir, so
+  // mirror the compiled dialect there too. Done outside the staleness check
+  // below so a missing bigtrace copy is repaired even when the main one is
+  // up to date.
+  const mirrorToBigtrace = () => {
+    if (!cfg.bigtrace) return;
+    const btDst = pjoin(
+      cfg.outBigtraceDistDir,
+      'assets',
+      'syntaqlite-perfetto.wasm',
+    );
+    ensureDir(path.dirname(btDst));
+    fs.copyFileSync(dst, btDst);
+  };
   try {
     const srcMtime = fs.statSync(src).mtimeMs;
     const dstMtime = fs.statSync(dst).mtimeMs;
-    if (dstMtime >= srcMtime) return;
+    if (dstMtime >= srcMtime) {
+      mirrorToBigtrace();
+      return;
+    }
   } catch (e) {
     /* dst missing → rebuild */
   }
@@ -754,6 +779,7 @@ function buildSyntaqlitePerfettoDialect() {
     if (prevEmConfig === undefined) delete process.env.EM_CONFIG;
     else process.env.EM_CONFIG = prevEmConfig;
   }
+  mirrorToBigtrace();
 }
 
 // This transpiles all the sources (frontend, controller, engine, extension) in

@@ -27,4 +27,44 @@
   &--fill-height {
     height: 100%;
   }
+
+  // Inline SQL diagnostics (parser-grade, from the syntaqlite engine). Rendered
+  // as a wavy underline; severity sets the colour.
+  .pf-cm-diag {
+    text-decoration: underline wavy;
+    text-decoration-skip-ink: none;
+    text-underline-offset: 2px;
+  }
+
+  .pf-cm-diag--error {
+    text-decoration-color: var(--pf-color-danger);
+  }
+
+  .pf-cm-diag--warning {
+    text-decoration-color: var(--pf-color-warning);
+  }
+
+  .pf-cm-diag--info,
+  .pf-cm-diag--hint {
+    text-decoration-color: var(--pf-color-accent);
+  }
+}
+
+// The diagnostic hover tooltip (rendered in a portal by CodeMirror, so it's a
+// sibling of .pf-editor, not a descendant).
+.cm-tooltip .pf-cm-diag-tooltip {
+  padding: 6px 8px;
+  max-width: 460px;
+  font-family: var(--pf-font-monospace);
+  font-size: 12px;
+  line-height: 1.45;
+
+  &__msg {
+    font-weight: 600;
+  }
+
+  &__help {
+    margin-top: 3px;
+    opacity: 0.85;
+  }
 }
