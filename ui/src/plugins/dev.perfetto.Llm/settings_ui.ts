@@ -21,11 +21,14 @@
 
 import './settings.scss';
 import m from 'mithril';
+import {download} from '../../base/download_utils';
 import {uuidv4} from '../../base/uuid';
 import type {Setting} from '../../public/settings';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Combobox} from '../../widgets/combobox';
+import {showModal} from '../../widgets/modal';
 import {Select} from '../../widgets/select';
+import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import type {LlmGateway} from './gateway';
 import {
@@ -33,6 +36,7 @@ import {
   type Model,
   type ModelRole,
   type Provider,
+  PROVIDERS_SETTING_SCHEMA,
   type ProvidersSetting,
   type SelectedModelRef,
 } from './provider';
@@ -119,9 +123,86 @@ function patchProvider(
   );
 }
 
+// --- Export / import ---------------------------------------------------------
+
+// Download the current provider list as a JSON file. The full config is
+// exported verbatim, credentials included, so the file round-trips into a
+// working setup on import. Treat the exported file as a secret.
+function exportProviders(setting: Setting<ProvidersSetting>): void {
+  download({
+    content: JSON.stringify(setting.get(), null, 2),
+    fileName: 'llm-providers.json',
+    mimeType: 'application/json',
+    filePicker: {
+      types: [
+        {description: 'JSON', accept: {'application/json': ['.json']}},
+      ],
+    },
+  });
+}
+
+// Prompt for a JSON file, validate it against the providers schema, and replace
+// the current setting with its contents. Surfaces a modal on any parse or
+// validation failure rather than silently doing nothing.
+function importProviders(setting: Setting<ProvidersSetting>): void {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (file === undefined) return;
+    file
+      .text()
+      .then((text) => {
+        const parsed = PROVIDERS_SETTING_SCHEMA.safeParse(JSON.parse(text));
+        if (!parsed.success) {
+          throw new Error(parsed.error.message);
+        }
+        setting.set(parsed.data);
+        m.redraw();
+      })
+      .catch((e) => {
+        showModal({
+          title: 'Import failed',
+          content: m(
+            '.pf-llm-settings__import-error',
+            `Couldn't import LLM providers: ${String(e)}`,
+          ),
+        });
+      });
+  };
+  input.click();
+}
+
 // --- The providers editor ----------------------------------------------------
 
+// The setting is presented under two tabs: a form-based 'UI' editor and a
+// read-only 'JSON' view. The JSON tab is for inspecting/exporting/importing the
+// raw config; it's intentionally not editable, so we never have to validate
+// free-typed JSON on every keystroke - import goes through a file + schema
+// check instead.
 export function renderProvidersSetting(
+  gateway: LlmGateway,
+  setting: Setting<ProvidersSetting>,
+): m.Children {
+  return m(Tabs, {
+    className: 'pf-llm-settings__tabs',
+    tabs: [
+      {
+        key: 'ui',
+        title: 'UI',
+        content: renderProvidersEditor(gateway, setting),
+      },
+      {
+        key: 'json',
+        title: 'JSON',
+        content: renderProvidersJson(setting),
+      },
+    ],
+  });
+}
+
+function renderProvidersEditor(
   gateway: LlmGateway,
   setting: Setting<ProvidersSetting>,
 ): m.Children {
@@ -158,6 +239,31 @@ export function renderProvidersSetting(
             ]);
           },
         }),
+  );
+}
+
+function renderProvidersJson(setting: Setting<ProvidersSetting>): m.Children {
+  const providers = setting.get();
+  return m(
+    '.pf-llm-settings',
+    m(
+      '.pf-llm-settings__actions',
+      m(Button, {
+        label: 'Export',
+        icon: 'download',
+        title: 'Export providers to a JSON file (includes credentials)',
+        disabled: providers.length === 0,
+        onclick: () => exportProviders(setting),
+      }),
+      m(Button, {
+        label: 'Import',
+        icon: 'upload',
+        variant: ButtonVariant.Filled,
+        title: 'Replace providers from a JSON file',
+        onclick: () => importProviders(setting),
+      }),
+    ),
+    m('pre.pf-llm-settings__json', JSON.stringify(providers, null, 2)),
   );
 }
 

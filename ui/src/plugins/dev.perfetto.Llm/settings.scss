@@ -22,6 +22,36 @@
     color: var(--pf-color-text-muted);
     font-style: italic;
   }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__json {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 8px;
+    background-color: var(--pf-color-background-secondary);
+    font-family: var(--pf-font-monospace, monospace);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 480px;
+    overflow: auto;
+    user-select: text;
+  }
+
+  &__import-error {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+.pf-llm-settings__tabs {
+  max-width: 720px;
 }
 
 .pf-llm-provider {
