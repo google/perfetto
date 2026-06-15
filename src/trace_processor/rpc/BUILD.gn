@@ -67,11 +67,44 @@ source_set("stdiod") {
   ]
 }
 
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "query_result_serializer_unittest.cc" ]
+# Conventions (session names, socket paths, address classification) shared by
+# the unix server and the --remote client. Base-only so both sides can depend
+# on it without pulling in trace processor.
+source_set("session_util") {
+  sources = [
+    "session_paths.cc",
+    "session_paths.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
+source_set("unixd") {
+  sources = [
+    "unixd.cc",
+    "unixd.h",
+  ]
   deps = [
     ":rpc",
+    ":session_util",
+    "../../../gn:default_deps",
+    "../../base",
+    "../../protozero",
+    "../../protozero:proto_ring_buffer",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "query_result_serializer_unittest.cc",
+    "session_paths_unittest.cc",
+  ]
+  deps = [
+    ":rpc",
+    ":session_util",
     "..:lib",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
