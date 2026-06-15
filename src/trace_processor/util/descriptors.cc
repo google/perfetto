@@ -461,6 +461,11 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         ResolveShortType(check.extendee_full_name, check.existing_raw_type);
     std::optional<uint32_t> opt_new_idx =
         ResolveShortType(check.extendee_full_name, check.new_raw_type);
+    // Both types must resolve before we can compare; either can be absent.
+    //  - existing: TP's pool may reference a type whose definition wasn't
+    //  loaded.
+    //  - new: trace's descriptor may name a type without including its
+    //  definition.
     if (!opt_existing_idx.has_value() || !opt_new_idx.has_value()) {
       // A type isn't in the pool: normal for a trace recorded before an
       // out-of-tree migration renamed it. Can't compare structurally, but the
