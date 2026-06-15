@@ -26,6 +26,7 @@ import {
   type DecorationSet,
   hoverTooltip,
   keymap,
+  tooltips,
   ViewPlugin,
   type ViewUpdate,
 } from '@codemirror/view';
@@ -366,6 +367,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       ? buildDiagnosticsExtension(attrs.diagnostics)
       : undefined;
 
+    // Render the autocomplete dropdown and the diagnostic hover tooltip in a
+    // body-level portal with fixed positioning. By default CodeMirror places
+    // them inside the editor's DOM, where an `overflow: hidden` ancestor (e.g.
+    // the query page's split pane) clips them at the pane edge instead of
+    // letting them flip/shift to stay on-screen. Only installed when we
+    // actually surface popups, so it's inert for every other editor consumer.
+    const tooltipPortal =
+      completion || diagnostics
+        ? tooltips({parent: document.body, position: 'fixed'})
+        : undefined;
+
     this.editorView = new EditorView({
       doc: attrs.text,
       extensions: removeFalsyValues([
@@ -374,6 +386,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         oneDark,
         basicSetup,
         lang,
+        tooltipPortal,
         completion,
         diagnostics,
       ]),
