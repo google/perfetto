@@ -238,7 +238,8 @@ class SimpleSqlModules implements SqlModules {
             description: f.desc,
             args: mapArgs(f.args),
             returnCols: f.cols.map(
-              (col) => new SimpleSqlColumn(col.name, col.type, col.desc, f.name),
+              (col) =>
+                new SimpleSqlColumn(col.name, col.type, col.desc, f.name),
             ),
           }));
         const macros: SqlMacro[] = (mod.macros ?? [])
