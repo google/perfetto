@@ -78,6 +78,7 @@ export const defaultPlugins = [
   'dev.perfetto.KernelTrackEvent',
   'dev.perfetto.LinuxPerf',
   'dev.perfetto.Llm',
+  'dev.perfetto.LlmProtocolChromePrompt',
   'dev.perfetto.LlmProtocolGemini',
   'dev.perfetto.LlmProtocolOpenAi',
   'dev.perfetto.MetricsPage',
