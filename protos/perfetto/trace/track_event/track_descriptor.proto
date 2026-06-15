@@ -189,7 +189,7 @@ message TrackDescriptor {
   //
   // Note: for tracks where `thread` or `process` are set (i.e. process tracks
   // and thread tracks), this option is *ignored*. Instead, use
-  // `process_ordering` and `thread_ordering` on the root track descriptor (uuid
+  // `thread_ordering` and `process_ordering` on the root track descriptor (uuid
   // = 0) to configure process and thread track ordering. See `parent_uuid` for
   // details.
   enum ChildTracksOrdering {
