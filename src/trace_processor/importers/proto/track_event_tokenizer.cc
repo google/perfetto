@@ -176,6 +176,28 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
   }
 
+  if (track.has_process_ordering()) {
+    switch (track.process_ordering()) {
+      case TrackDescriptorProto::PROCESS_ORDERING_UNSPECIFIED:
+        reservation.process_ordering = Reservation::ProcessOrdering::kUnknown;
+        break;
+      case TrackDescriptorProto::PROCESS_ORDERING_EXPLICIT:
+        reservation.process_ordering = Reservation::ProcessOrdering::kExplicit;
+        break;
+    }
+  }
+
+  if (track.has_thread_ordering()) {
+    switch (track.thread_ordering()) {
+      case TrackDescriptorProto::THREAD_ORDERING_UNSPECIFIED:
+        reservation.thread_ordering = Reservation::ThreadOrdering::kUnknown;
+        break;
+      case TrackDescriptorProto::THREAD_ORDERING_EXPLICIT:
+        reservation.thread_ordering = Reservation::ThreadOrdering::kExplicit;
+        break;
+    }
+  }
+
   if (track.has_sibling_order_rank()) {
     reservation.sibling_order_rank = track.sibling_order_rank();
   }

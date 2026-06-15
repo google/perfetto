@@ -431,6 +431,24 @@ void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
   rr.set_android_user_id(uid / 100000);
 }
 
+void ProcessTracker::SetProcessSortIndex(UniquePid upid,
+                                         int32_t sort_index,
+                                         SortIndexPriority priority) {
+  auto* current = process_sort_indexes_.Find(upid);
+  if (!current || priority >= current->priority) {
+    process_sort_indexes_.Insert(upid, {sort_index, priority});
+  }
+}
+
+void ProcessTracker::SetThreadSortIndex(UniqueTid utid,
+                                        int32_t sort_index,
+                                        SortIndexPriority priority) {
+  auto* current = thread_sort_indexes_.Find(utid);
+  if (!current || priority >= current->priority) {
+    thread_sort_indexes_.Insert(utid, {sort_index, priority});
+  }
+}
+
 void ProcessTracker::UpdateProcessName(UniquePid upid,
                                        StringId process_name_id,
                                        ProcessNamePriority priority) {
@@ -675,6 +693,17 @@ ArgsTracker::BoundInserter ProcessTracker::AddArgsToThread(UniqueTid utid) {
 }
 
 void ProcessTracker::OnEventsFullyExtracted() {
+  for (auto it = process_sort_indexes_.GetIterator(); it; ++it) {
+    auto inserter = AddArgsToProcess(it.key());
+    inserter.AddArg(context_->storage->InternString("process_sort_index_hint"),
+                    Variadic::Integer(it.value().value));
+  }
+  for (auto it = thread_sort_indexes_.GetIterator(); it; ++it) {
+    auto inserter = AddArgsToThread(it.key());
+    inserter.AddArg(context_->storage->InternString("thread_sort_index_hint"),
+                    Variadic::Integer(it.value().value));
+  }
+
   args_tracker_.Flush();
   tids_.Clear();
   pids_.Clear();
@@ -682,6 +711,8 @@ void ProcessTracker::OnEventsFullyExtracted() {
   pending_parent_assocs_.clear();
   thread_name_priorities_.clear();
   process_name_priorities_.clear();
+  process_sort_indexes_.Clear();
+  thread_sort_indexes_.Clear();
   trusted_pids_.clear();
   namespaced_threads_.clear();
   namespaced_processes_.clear();
