@@ -31,7 +31,8 @@ class SqliteIteratorImpl;
 // std::unique_ptr<IteratorImpl> and forwards each call to it.
 //
 // There are two implementations:
-//   - SqliteIteratorImpl: the local, sqlite-backed iterator (sqlite_iterator_impl.h).
+//   - SqliteIteratorImpl: the local, sqlite-backed iterator
+//   (sqlite_iterator_impl.h).
 //   - RemoteIteratorImpl: iterates results received from a remote trace
 //     processor over the RPC protocol.
 //

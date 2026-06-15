@@ -108,8 +108,8 @@ class PERFETTO_EXPORT_COMPONENT Iterator {
   // other internal classes.
   std::unique_ptr<IteratorImpl> iterator_;
 
-  // Non-owning alias of |iterator_| set if (and only if) the backing impl is the
-  // local, sqlite-backed SqliteIteratorImpl (which is `final`). The methods
+  // Non-owning alias of |iterator_| set if (and only if) the backing impl is
+  // the local, sqlite-backed SqliteIteratorImpl (which is `final`). The methods
   // above call through this when set, so the local path stays a direct,
   // devirtualized call: making IteratorImpl abstract (to allow a remote
   // TraceProcessor to return a real Iterator) must not regress existing callers

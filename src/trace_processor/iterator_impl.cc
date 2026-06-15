@@ -56,8 +56,9 @@ SqlValue Iterator::Get(uint32_t col) {
 }
 
 std::string Iterator::GetColumnName(uint32_t col) {
-  return PERFETTO_LIKELY(sqlite_fast_path_) ? sqlite_fast_path_->GetColumnName(col)
-                                            : iterator_->GetColumnName(col);
+  return PERFETTO_LIKELY(sqlite_fast_path_)
+             ? sqlite_fast_path_->GetColumnName(col)
+             : iterator_->GetColumnName(col);
 }
 
 uint32_t Iterator::ColumnCount() {
@@ -71,8 +72,9 @@ base::Status Iterator::Status() {
 }
 
 uint32_t Iterator::StatementCount() {
-  return PERFETTO_LIKELY(sqlite_fast_path_) ? sqlite_fast_path_->StatementCount()
-                                            : iterator_->StatementCount();
+  return PERFETTO_LIKELY(sqlite_fast_path_)
+             ? sqlite_fast_path_->StatementCount()
+             : iterator_->StatementCount();
 }
 
 uint32_t Iterator::StatementWithOutputCount() {
