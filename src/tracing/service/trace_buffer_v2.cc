@@ -33,11 +33,11 @@
 // TRACE_BUFFER_V2_DLOG is too verbose, even for debug builds.
 #define TRACE_BUFFER_V2_VERBOSE_LOGGING() 0
 
-#if TRACE_BUFFER_V2_VERBOSE_LOGGING()
-#define TRACE_BUFFER_V2_DLOG PERFETTO_DLOG
-#else
-#define TRACE_BUFFER_V2_DLOG(...) base::ignore_result(__VA_ARGS__)
-#endif
+#define TRACE_BUFFER_V2_DLOG(...)                    \
+  do {                                               \
+    if constexpr (TRACE_BUFFER_V2_VERBOSE_LOGGING()) \
+      PERFETTO_DLOG(__VA_ARGS__);                    \
+  } while (0)
 
 using protozero::proto_utils::ParseVarInt;
 namespace proto_utils = ::protozero::proto_utils;
