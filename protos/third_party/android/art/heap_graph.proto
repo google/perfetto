@@ -19,12 +19,10 @@ syntax = "proto2";
 // TODO(fmayer): Remove this import once clients are migrated to the new
 // location.
 import public "protos/perfetto/trace/profiling/deobfuscation.proto";
-import "protos/perfetto/trace/profiling/profile_common.proto";
+import public "protos/perfetto/trace/profiling/profile_common.proto";
+import public "protos/perfetto/trace/trace_packet.proto";
 
-// These messages encode a graph of objects that retain one another. Currently
-// this is used for Android Runtime (i.e. Java and Kotlin) heap graphs.
-
-package perfetto.protos;
+package com.android.art.tracing;
 
 message HeapGraphRoot {
   enum Type {
@@ -174,11 +172,17 @@ message HeapGraph {
   reserved 3;
 
   // Field names for references in managed heap graph.
-  repeated InternedString field_names = 4;
+  repeated perfetto.protos.InternedString field_names = 4;
 
   // Paths of files used in managed heap graph.
-  repeated InternedString location_names = 8;
+  repeated perfetto.protos.InternedString location_names = 8;
 
   optional bool continued = 5;
   optional uint64 index = 6;
+}
+
+message ArtHeapGraphTracePacket {
+  extend perfetto.protos.TracePacket {
+    optional HeapGraph heap_graph = 56;
+  }
 }

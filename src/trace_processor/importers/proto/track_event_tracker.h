@@ -50,6 +50,14 @@ class TrackEventTracker {
       kChronological = 2,
       kExplicit = 3,
     };
+    enum class ProcessOrdering {
+      kUnknown = 0,
+      kExplicit = 1,
+    };
+    enum class ThreadOrdering {
+      kUnknown = 0,
+      kExplicit = 1,
+    };
     struct CounterDetails {
       StringId category = kNullStringId;
       int64_t unit_multiplier = 1;
@@ -87,6 +95,8 @@ class TrackEventTracker {
 
     // For UI visualisation
     ChildTracksOrdering ordering = ChildTracksOrdering::kUnknown;
+    ProcessOrdering process_ordering = ProcessOrdering::kUnknown;
+    ThreadOrdering thread_ordering = ThreadOrdering::kUnknown;
     std::optional<int32_t> sibling_order_rank;
 
     // For merging tracks.

@@ -593,3 +593,226 @@ class Profiling(TestSuite):
         0,0,1,4672142.000000
         0,0,2,1144537.000000
         """))
+
+  def test_art_oome_stack_sample(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1234567890123456
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 12345
+            uid: 10155
+            process_name: "com.example.oometest"
+            oom_allocation_size: 1048576
+            oom_total_bytes_free: 512000
+            oom_free_bytes_until_oom: 204800
+            oom_error_msg: "Failed to allocate 1048576 bytes"
+            oom_thread_java_stack {
+              frames {
+                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                source_file: "MainActivity.java"
+                line_number: 45
+              }
+              frames {
+                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                source_file: "MainActivity.java"
+                line_number: 42
+              }
+              frames {
+                method_name: "com.example.oometest.MainActivity.triggerOOM"
+                source_file: "MainActivity.java"
+                line_number: 31
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
+
+        SELECT
+          g.ts,
+          p.name AS process_name,
+          g.dump_reason,
+          o.allocation_size_bytes,
+          o.total_bytes_free,
+          o.free_bytes_until_oom,
+          o.error_msg
+        FROM heap_graph g
+        JOIN android_heap_graph_java_oome_details o ON o.heap_graph_id = g.id
+        JOIN process p ON g.upid = p.upid;
+        """,
+        out=Csv("""
+        "ts","process_name","dump_reason","allocation_size_bytes","total_bytes_free","free_bytes_until_oom","error_msg"
+        1234567890123456,"com.example.oometest","OOME",1048576,512000,204800,"Failed to allocate 1048576 bytes"
+        """))
+
+  def test_art_oome_stack_sample_callstack(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1234567890123456
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 12345
+            uid: 10155
+            process_name: "com.example.oometest"
+            oom_allocation_size: 1048576
+            oom_total_bytes_free: 512000
+            oom_free_bytes_until_oom: 204800
+            oom_error_msg: "Failed to allocate 1048576 bytes"
+            oom_thread_java_stack {
+              frames {
+                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                source_file: "MainActivity.java"
+                line_number: 45
+              }
+              frames {
+                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                source_file: "MainActivity.java"
+                line_number: 42
+              }
+              frames {
+                method_name: "com.example.oometest.MainActivity.triggerOOM"
+                source_file: "MainActivity.java"
+                line_number: 31
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        WITH RECURSIVE callstack AS (
+          SELECT c.id, c.parent_id, c.depth, c.frame_id
+          FROM stack_profile_callsite c
+          WHERE c.id = (SELECT callsite_id FROM heap_graph_thread_callsite LIMIT 1)
+          
+          UNION ALL
+          
+          SELECT c.id, c.parent_id, c.depth, c.frame_id
+          FROM stack_profile_callsite c
+          JOIN callstack ON c.id = callstack.parent_id
+        )
+        SELECT
+          cs.depth,
+          f.name AS frame_name,
+          s.source_file,
+          s.line_number
+        FROM callstack cs
+        JOIN stack_profile_frame f ON cs.frame_id = f.id
+        LEFT JOIN stack_profile_symbol s ON f.symbol_set_id = s.symbol_set_id
+        ORDER BY cs.depth ASC;
+        """,
+        out=Csv("""
+        "depth","frame_name","source_file","line_number"
+        0,"com.example.oometest.MainActivity.triggerOOM","MainActivity.java",31
+        1,"com.example.oometest.MainActivity.oomeInducer","MainActivity.java",42
+        2,"com.example.oometest.MainActivity.oomeInducer","MainActivity.java",45
+        """))
+
+  def test_art_oome_heap_graph(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.example.oometest"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 2
+            uid: 1000
+            process_name: "com.example.oometest"
+            oom_allocation_size: 100
+            oom_total_bytes_free: 200
+            oom_free_bytes_until_oom: 300
+            oom_error_msg: "OOM"
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 2
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            heap_bytes_allocated: 100000
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dump_reason, heap_size
+        FROM heap_graph;
+        """,
+        out=Csv("""
+        "ts","dump_reason","heap_size"
+        10,"OOME",100000
+        """))
+
+  def test_art_process_metadata_non_oome(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.example.normaldump"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 2
+            uid: 1000
+            process_name: "com.example.normaldump"
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 2
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            heap_bytes_allocated: 100000
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dump_reason, heap_size
+        FROM heap_graph;
+        """,
+        out=Csv("""
+        "ts","dump_reason","heap_size"
+        10,"[NULL]",100000
+        """))

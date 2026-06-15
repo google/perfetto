@@ -523,6 +523,31 @@ class TraceStorage {
     return mutable_table<tables::AndroidUserListTable>();
   }
 
+  const tables::HeapGraphTable& heap_graph_table() const {
+    return table<tables::HeapGraphTable>();
+  }
+  tables::HeapGraphTable* mutable_heap_graph_table() {
+    return mutable_table<tables::HeapGraphTable>();
+  }
+
+  const tables::HeapGraphThreadCallsiteTable& heap_graph_thread_callsite_table()
+      const {
+    return table<tables::HeapGraphThreadCallsiteTable>();
+  }
+  tables::HeapGraphThreadCallsiteTable*
+  mutable_heap_graph_thread_callsite_table() {
+    return mutable_table<tables::HeapGraphThreadCallsiteTable>();
+  }
+
+  const tables::HeapGraphJavaOomeDetailsTable&
+  heap_graph_java_oome_details_table() const {
+    return table<tables::HeapGraphJavaOomeDetailsTable>();
+  }
+  tables::HeapGraphJavaOomeDetailsTable*
+  mutable_heap_graph_java_oome_details_table() {
+    return mutable_table<tables::HeapGraphJavaOomeDetailsTable>();
+  }
+
   const tables::AndroidGameInterventionListTable&
   android_game_intervention_list_table() const {
     return table<tables::AndroidGameInterventionListTable>();

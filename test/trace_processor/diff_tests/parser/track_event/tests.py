@@ -1086,6 +1086,97 @@ class TrackEvent(TestSuite):
         "First Name"
         """))
 
+  def test_track_descriptor_process_thread_sort_index(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 0
+            process_ordering: PROCESS_ORDERING_EXPLICIT
+            thread_ordering: THREAD_ORDERING_EXPLICIT
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 100
+              process_name: "ProcessA"
+            }
+            sibling_order_rank: 5
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 100
+              tid: 101
+              thread_name: "ThreadA"
+            }
+            sibling_order_rank: 42
+          }
+        }
+        """),
+        query="""
+        SELECT pid, name, extract_arg(arg_set_id, 'process_sort_index_hint') AS sort_index FROM process WHERE pid = 100
+        UNION ALL
+        SELECT tid, name, extract_arg(arg_set_id, 'thread_sort_index_hint') AS sort_index FROM thread WHERE tid = 101;
+        """,
+        out=Csv("""
+        "pid","name","sort_index"
+        100,"ProcessA",5
+        101,"ThreadA",42
+        """))
+
+  def test_track_descriptor_process_thread_sort_index_default_ignored(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 100
+              process_name: "ProcessA"
+            }
+            sibling_order_rank: 5
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 100
+              tid: 101
+              thread_name: "ThreadA"
+            }
+            sibling_order_rank: 42
+          }
+        }
+        """),
+        query="""
+        SELECT pid, name, extract_arg(arg_set_id, 'process_sort_index_hint') AS sort_index FROM process WHERE pid = 100
+        UNION ALL
+        SELECT tid, name, extract_arg(arg_set_id, 'thread_sort_index_hint') AS sort_index FROM thread WHERE tid = 101;
+        """,
+        out=Csv("""
+        "pid","name","sort_index"
+        100,"ProcessA","[NULL]"
+        101,"ThreadA","[NULL]"
+        """))
+
   def test_track_event_simple_state(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
