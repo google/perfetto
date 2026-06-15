@@ -22,6 +22,7 @@
 #include <memory>
 
 #include "perfetto/base/export.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
