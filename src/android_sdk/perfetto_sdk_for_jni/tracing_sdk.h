@@ -193,12 +193,22 @@ enum class RootType : int {
  * The chain is, outermost first: an optional root (process or thread; global
  * roots have none) followed by one named level per name. The native HL path
  * derives the per-level uuids and emits a descriptor for each level.
+ *
+ * The vectors are parallel, one entry per named level: per-level sibling
+ * order rank, child ordering, sibling merge behavior (values mirror the
+ * PERFETTO_TE_HL_* ABI constants) and sibling merge key. A level's merge key
+ * is the string one if set, the integer one otherwise.
  */
 class NestedTracks {
  public:
   NestedTracks(RootType root_type,
                const std::vector<std::string>& names,
-               const std::vector<uint64_t>& ids);
+               const std::vector<uint64_t>& ids,
+               const std::vector<int32_t>& sibling_order_ranks,
+               const std::vector<uint32_t>& child_orderings,
+               const std::vector<uint32_t>& sibling_merge_behaviors,
+               const std::vector<std::optional<std::string>>& merge_keys_str,
+               const std::vector<uint64_t>& merge_keys_int);
 
   static void delete_track(NestedTracks* track);
 
@@ -206,9 +216,11 @@ class NestedTracks {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(NestedTracks);
-  // ptrs_ point into named_/root_ and named_[i].name into names_; nothing is
-  // resized after construction, so the pointers stay valid.
+  // ptrs_ point into named_/root_, named_[i].name into names_ and
+  // named_[i].sibling_merge_key_str into merge_keys_str_; nothing is resized
+  // after construction, so the pointers stay valid.
   std::vector<std::string> names_;
+  std::vector<std::optional<std::string>> merge_keys_str_;
   PerfettoTeHlNestedTrack root_;
   std::vector<PerfettoTeHlNestedTrackNamed> named_;
   std::vector<PerfettoTeHlNestedTrack*> ptrs_;

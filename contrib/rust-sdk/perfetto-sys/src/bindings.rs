@@ -834,6 +834,11 @@ pub struct PerfettoTeHlNestedTrackNamed {
     pub name: *const ::std::os::raw::c_char,
     pub id: u64,
     pub is_name_static: bool,
+    pub sibling_order_rank: i32,
+    pub child_ordering: u32,
+    pub sibling_merge_behavior: u32,
+    pub sibling_merge_key_str: *const ::std::os::raw::c_char,
+    pub sibling_merge_key_int: u64,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

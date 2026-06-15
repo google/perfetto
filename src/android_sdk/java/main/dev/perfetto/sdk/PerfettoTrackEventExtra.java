@@ -172,8 +172,22 @@ final class PerfettoTrackEventExtra {
         int rootType,
         String[] names,
         long[] ids,
+        int[] siblingOrderRanks,
+        int[] childOrderings,
+        int[] siblingMergeBehaviors,
+        String[] siblingMergeKeyStrs,
+        long[] siblingMergeKeyInts,
         PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(rootType, names, ids);
+      mPtr =
+          native_init(
+              rootType,
+              names,
+              ids,
+              siblingOrderRanks,
+              childOrderings,
+              siblingMergeBehaviors,
+              siblingMergeKeyStrs,
+              siblingMergeKeyInts);
       mExtraPtr = native_get_extra_ptr(mPtr);
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
@@ -184,7 +198,15 @@ final class PerfettoTrackEventExtra {
     }
 
     @FastNative
-    private static native long native_init(int rootType, String[] names, long[] ids);
+    private static native long native_init(
+        int rootType,
+        String[] names,
+        long[] ids,
+        int[] siblingOrderRanks,
+        int[] childOrderings,
+        int[] siblingMergeBehaviors,
+        String[] siblingMergeKeyStrs,
+        long[] siblingMergeKeyInts);
 
     @CriticalNative
     private static native long native_delete();
