@@ -53,9 +53,11 @@
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/packages/modules/bluetooth/tracing/bluetooth_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 
+using bluetooth::tracing::pbzero::BluetoothTracePacket;
 using perfetto::protos::pbzero::TracePacket;
 
 AndroidProbesModule::AndroidProbesModule(
@@ -76,7 +78,7 @@ AndroidProbesModule::AndroidProbesModule(
   RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber);
   RegisterForField(TracePacket::kInitialDisplayStateFieldNumber);
   RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber);
-  RegisterForField(TracePacket::kBluetoothTraceEventFieldNumber);
+  RegisterForField(BluetoothTracePacket::kBluetoothTraceEventFieldNumber);
 }
 
 ModuleResult AndroidProbesModule::TokenizePacket(
@@ -261,8 +263,12 @@ void AndroidProbesModule::ParseTracePacketData(
     case TracePacket::kAndroidSystemPropertyFieldNumber:
       parser_.ParseAndroidSystemProperty(ts, decoder.android_system_property());
       return;
-    case TracePacket::kBluetoothTraceEventFieldNumber:
-      parser_.ParseBtTraceEvent(ts, decoder.bluetooth_trace_event());
+    case BluetoothTracePacket::kBluetoothTraceEventFieldNumber:
+      parser_.ParseBtTraceEvent(
+          ts, decoder
+                  .GetExtensionSlowly<
+                      BluetoothTracePacket::kBluetoothTraceEventFieldNumber>()
+                  .as_bytes());
       return;
     default:
       PERFETTO_FATAL("Unexpected field in AndroidProbesModule");

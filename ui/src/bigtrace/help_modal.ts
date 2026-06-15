@@ -47,6 +47,11 @@ class BigTraceHelpContent implements m.ClassComponent {
           m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
           m('td', 'Execute selected text (when text is selected)'),
         ),
+        m(
+          'tr',
+          m('td', keycap('Alt'), ' + ', keycap('Shift'), ' + ', keycap('F')),
+          m('td', 'Format query'),
+        ),
       ),
       m('h2', 'Running commands'),
       m(

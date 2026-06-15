@@ -88,16 +88,10 @@ base::Status ClockTracker::SetGlobalClock(ClockId clock_id) {
         state->clock_id.ToString().c_str(), clock_id.ToString().c_str());
   }
   auto* state = context_->trace_time_state.get();
-  uint32_t my_trace_id = context_->trace_id().value;
-  // Another trace file owns the clock. Don't override.
-  if (state->trace_time_clock_owner &&
-      *state->trace_time_clock_owner != my_trace_id) {
-    return base::OkStatus();
+  if (state->TrySetClock(clock_id, context_->trace_id().value)) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::trace_time_clock_id, Variadic::Integer(clock_id.clock_id));
   }
-  state->trace_time_clock_owner = my_trace_id;
-  state->clock_id = clock_id;
-  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
-                                          Variadic::Integer(clock_id.clock_id));
   return base::OkStatus();
 }
 

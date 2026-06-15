@@ -295,6 +295,7 @@ export default class implements PerfettoPlugin {
           upid,
           tid,
           thread.name as threadName,
+          ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
           CASE
             WHEN thread.is_main_thread = 1 THEN 10
             WHEN thread.name = 'CrBrowserMain' THEN 10
@@ -321,10 +322,11 @@ export default class implements PerfettoPlugin {
           threadName
         from threadGroups
         order by
+          threadSortIndexHint asc,
           priority desc,
           tid asc
       )
-  `);
+    `);
 
     const it = result.iter({
       utid: NUM,

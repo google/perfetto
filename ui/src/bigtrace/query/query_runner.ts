@@ -15,18 +15,28 @@
 import m from 'mithril';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {endpointStorage} from '../settings/endpoint_storage';
+import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import type {SettingFilter} from '../settings/settings_types';
+import {effectiveQueryColumns} from '../settings/trace_selection_state';
 import {BigtraceAsyncDataSource} from './bigtrace_async_data_source';
 import {
   BigtraceQueryClient,
+  type ExecuteOptions,
   QueryCancelledError,
   QueryNotFoundError,
 } from './bigtrace_query_client';
 import {forwardAbort} from './abort_utils';
-import {isoToEpochMs, type RawQueryExecution} from './query_history_storage';
+import {
+  isoToEpochMs,
+  snapshotSettingsToFilters,
+  type RawQueryExecution,
+} from './query_history_storage';
 import {queryStore, TERMINAL_STATUSES} from './query_store';
-import {makeQueryResponse} from '../pages/query_tabs_state';
+import {
+  disabledSettingsFromSnapshot,
+  effectiveTabSettings,
+  makeQueryResponse,
+} from '../pages/query_tabs_state';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
 import {PollingController} from './polling_controller';
 
@@ -62,8 +72,7 @@ export class QueryRunner {
     this.redraw();
 
     this.cb.onHistoryChanged();
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
+    const endpoint = getBigtraceEndpoint();
 
     if (endpoint.trim() === '') {
       tab.queryResult = makeQueryResponse(query, {
@@ -77,14 +86,44 @@ export class QueryRunner {
 
     await bigTraceSettingsStorage.loadSettings();
 
-    const settings = bigTraceSettingsStorage.buildSettingFilters();
-    tab.querySettings = settings;
+    // Global defaults overridden by per-tab values, minus per-tab-disabled
+    // settings. Same helper the trace grid uses, so /trace_metadata and
+    // /execute_* stay in sync.
+    const settings = effectiveTabSettings(tab);
+
+    // Per-tab snapshot is the trace-selection source of truth: what the user
+    // staged here (seeded from globals at tab creation, then edited). Globals
+    // aren't re-read at run time.
+    const traceFilters = tab.traceFilters;
+    const traceOrderBy = tab.traceOrderBy;
 
     const queryClient = new BigtraceQueryClient(endpoint);
     tab.queryClient = queryClient;
     const requestController = new AbortController();
     const cancelForward = forwardAbort(tab.lifecycle.signal, requestController);
     tab.activeRequest = requestController;
+
+    // null → use the schema's defaultVisible columns; an explicit list (incl.
+    // []) ships as-is; a schema-fetch failure attaches nothing.
+    let traceMetadataColumns: readonly string[] =
+      tab.traceMetadataColumns ?? [];
+    if (tab.traceMetadataColumns === null) {
+      try {
+        const schema = await queryClient.listTraceMetadataSchema(
+          settings,
+          requestController.signal,
+        );
+        traceMetadataColumns = effectiveQueryColumns(null, schema.columns);
+      } catch {
+        traceMetadataColumns = [];
+      }
+    }
+    const executeOptions: ExecuteOptions = {
+      traceFilters,
+      traceMetadataColumns,
+      traceOrderBy,
+    };
+
     const wallStartMs = performance.now();
 
     try {
@@ -94,6 +133,7 @@ export class QueryRunner {
           query,
           queryClient,
           settings,
+          executeOptions,
           requestController.signal,
           wallStartMs,
         );
@@ -103,6 +143,7 @@ export class QueryRunner {
           query,
           queryClient,
           settings,
+          executeOptions,
           requestController.signal,
           wallStartMs,
         );
@@ -131,7 +172,7 @@ export class QueryRunner {
     this.redraw();
   }
 
-  // Aborts the local request and, for materialized queries, the backend too.
+  // Aborts the local request and, for materialized queries, the remote run too.
   async cancel(tab: BigTraceEditorTab): Promise<void> {
     this.redraw();
 
@@ -164,10 +205,13 @@ export class QueryRunner {
     fallbackQuery: string,
   ): Promise<void> {
     if (!tab.queryUuid) return;
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
-    const queryClient = new BigtraceQueryClient(endpoint);
+    const queryClient = new BigtraceQueryClient(getBigtraceEndpoint());
     tab.queryClient = queryClient;
+
+    // The disabled-set reconstruction below needs the global registry (the
+    // complement of the snapshot against every categoried setting). Cached, so
+    // a no-op once loaded.
+    await bigTraceSettingsStorage.loadSettings();
 
     if (
       !tab.dataSource ||
@@ -206,6 +250,34 @@ export class QueryRunner {
     exec.processedTraces = details.processedTraces ?? 0;
     exec.totalTraces = details.totalTraces ?? 0;
     if (details.limit !== undefined) tab.limit = details.limit;
+    // Restore the submit-time snapshot so the settings bar reflects what this
+    // query ran with (only the full GET echoes it; the list endpoint omits it).
+    // `settings` arrives camelCase (settingId); convert to SettingFilter[].
+    const snapshotSettings = snapshotSettingsToFilters(details.settings);
+    tab.querySettings = snapshotSettings;
+    // Reconstruct the per-tab disabled set: the snapshot lists exactly the
+    // settings active for this run, so any categoried global absent from it was
+    // disabled at submit time. Skip empty snapshots — there "nothing disabled"
+    // and "no snapshot" are indistinguishable, so keep the default (nothing
+    // disabled) rather than blanking every toggle.
+    if (snapshotSettings.length > 0) {
+      tab.disabledSettings = disabledSettingsFromSnapshot(
+        snapshotSettings.map((s) => s.settingId),
+        bigTraceSettingsStorage
+          .buildSettingFilters({includeDisabled: true})
+          .map((s) => s.settingId),
+      );
+    }
+    if (Array.isArray(details.traceFilters)) {
+      tab.traceFilters = details.traceFilters;
+    }
+    if (Array.isArray(details.traceMetadataColumns)) {
+      tab.traceMetadataColumns = details.traceMetadataColumns;
+    }
+    if (typeof details.traceOrderBy === 'string') {
+      tab.traceOrderBy = details.traceOrderBy;
+    }
+    this.cb.markDirty?.();
     tab.editorText = details.perfettoSql || fallbackQuery;
     const startMs = isoToEpochMs(details.startTime);
     if (startMs !== undefined) exec.startTime = startMs;
@@ -253,7 +325,7 @@ export class QueryRunner {
     this.redraw();
   }
 
-  // Expose startPolling for external callers (e.g. resumeFromHistory fallback).
+  // For external callers (e.g. resumeFromHistory fallback).
   startPolling(tab: BigTraceEditorTab): void {
     this.poller.start(tab);
   }
@@ -269,10 +341,17 @@ export class QueryRunner {
     query: string,
     client: BigtraceQueryClient,
     settings: ReadonlyArray<SettingFilter>,
+    options: ExecuteOptions,
     signal: AbortSignal,
     wallStartMs: number,
   ): Promise<void> {
-    const data = await client.executeAsync(query, tab.limit, settings, signal);
+    const data = await client.executeAsync(
+      query,
+      tab.limit,
+      settings,
+      signal,
+      options,
+    );
     if (data.queryUuid === undefined || data.queryUuid === '') {
       throw new Error('Backend did not return a queryUuid for async execute');
     }
@@ -311,10 +390,17 @@ export class QueryRunner {
     query: string,
     client: BigtraceQueryClient,
     settings: ReadonlyArray<SettingFilter>,
+    options: ExecuteOptions,
     signal: AbortSignal,
     wallStartMs: number,
   ): Promise<void> {
-    const result = await client.executeSync(query, tab.limit, settings, signal);
+    const result = await client.executeSync(
+      query,
+      tab.limit,
+      settings,
+      signal,
+      options,
+    );
     if (result.queryUuid === undefined || result.queryUuid === '') {
       throw new Error('Backend did not return a queryUuid for sync execute');
     }

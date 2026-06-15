@@ -99,6 +99,8 @@ function cpuFreq(): RecordProbe {
         'power/cpu_frequency',
         'power/cpu_idle',
         'power/suspend_resume',
+        'power/psci_domain_idle_enter',
+        'power/psci_domain_idle_exit',
       );
     },
   };

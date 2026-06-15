@@ -490,6 +490,21 @@ void DeobfuscationTracker::GuessPackages(
         java_frames_for_name, tables::ProcessTable::Id(*thread.upid()),
         *sample.callsite_id(), frames_needing_package_guess);
   }
+
+  const auto& callsite_table =
+      context_->storage->heap_graph_thread_callsite_table();
+  const auto& heap_graph_table = context_->storage->heap_graph_table();
+  for (auto it = callsite_table.IterateRows(); it; ++it) {
+    auto heap_graph_id = it.heap_graph_id();
+    auto upid_val = heap_graph_table[heap_graph_id].upid();
+    auto upid = tables::ProcessTable::Id(upid_val);
+    auto callsite_id = it.callsite_id();
+    if (!callsite_id.has_value()) {
+      continue;
+    }
+    GuessPackageForCallsite(java_frames_for_name, upid, *callsite_id,
+                            frames_needing_package_guess);
+  }
 }
 
 }  // namespace perfetto::trace_processor
