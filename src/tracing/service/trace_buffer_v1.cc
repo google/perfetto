@@ -539,7 +539,7 @@ void TraceBufferV1::SequenceIterator::MoveNext() {
 bool TraceBufferV1::ReadNextTracePacket(
     TracePacket* packet,
     PacketSequenceProperties* sequence_properties,
-    bool* previous_packet_on_sequence_dropped) {
+    uint32_t* previous_packet_on_sequence_dropped) {
   // Note: MoveNext() moves only within the next chunk within the same
   // {ProducerID, WriterID} sequence. Here we want to:
   // - return the next patched+complete packet in the current sequence, if any.
@@ -549,7 +549,7 @@ bool TraceBufferV1::ReadNextTracePacket(
 
   // Just in case we forget to initialize these below.
   *sequence_properties = {0, ClientIdentity(), 0};
-  *previous_packet_on_sequence_dropped = false;
+  *previous_packet_on_sequence_dropped = 0;
 
   // At the start of each sequence iteration, we consider the last read packet
   // dropped. While iterating over the chunks in the sequence, we update this
@@ -666,7 +666,8 @@ bool TraceBufferV1::ReadNextTracePacket(
         if (PERFETTO_LIKELY(result == ReadPacketResult::kSucceeded)) {
           *sequence_properties = {trusted_producer_id, client_identity,
                                   writer_id};
-          *previous_packet_on_sequence_dropped = previous_packet_dropped;
+          *previous_packet_on_sequence_dropped =
+              previous_packet_dropped ? 1 : 0;
           return true;
         } else if (result == ReadPacketResult::kFailedEmptyPacket) {
           // We can ignore and skip empty packets.
@@ -692,7 +693,7 @@ bool TraceBufferV1::ReadNextTracePacket(
         stats_.set_readaheads_succeeded(stats_.readaheads_succeeded() + 1);
         *sequence_properties = {trusted_producer_id, client_identity,
                                 writer_id};
-        *previous_packet_on_sequence_dropped = previous_packet_dropped;
+        *previous_packet_on_sequence_dropped = previous_packet_dropped ? 1 : 0;
         return true;
       }
 

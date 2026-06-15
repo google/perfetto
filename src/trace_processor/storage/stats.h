@@ -260,6 +260,28 @@ namespace perfetto::trace_processor::stats {
       "In either case, see "                                                   \
       "https://perfetto.dev/docs/concepts/buffers"                             \
       "#incremental-state-in-trace-packets"),                                  \
+  F(traced_buf_data_loss_read_gap,        kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a read-time ChunkID "  \
+      "gap, per buffer."),                                                     \
+  F(traced_buf_data_loss_chunk_corrupted, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a chunk whose "        \
+      "fragments couldn't be tokenized (malformed / out-of-bounds), per "      \
+      "buffer."),                                                              \
+  F(traced_buf_data_loss_orphan_continuation, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,     \
+      "Sequence data losses TraceBufferV2 attributed to a continuation/end "   \
+      "fragment with no preceding begin fragment, per buffer."),               \
+  F(traced_buf_data_loss_reassembly_gap,  kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a ChunkID gap in the " \
+      "middle of a fragmented packet, per buffer."),                           \
+  F(traced_buf_data_loss_reassembly_broken_chain, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace, \
+      "Sequence data losses TraceBufferV2 attributed to a broken fragment "    \
+      "chain despite contiguous ChunkIDs, per buffer."),                       \
+  F(traced_buf_data_loss_overwrite,       kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a ring-buffer wrap "   \
+      "evicting unread chunks, per buffer."),                                  \
+  F(traced_buf_data_loss_writer_abort,    kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a trace writer "       \
+      "aborting an in-progress fragmented packet, per buffer."),               \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
        "Shadow mode: total packets read."),                                    \

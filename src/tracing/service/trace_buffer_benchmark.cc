@@ -210,7 +210,7 @@ static void BM_TraceBuffer_RD(benchmark::State& state) {
 
     // Now benchmark reading
     TraceBuffer::PacketSequenceProperties seq_props;
-    bool packet_dropped;
+    uint32_t packet_dropped;
     size_t bytes_read = 0;
 
     buffer->BeginRead();
