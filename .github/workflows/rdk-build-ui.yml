@@ -1,0 +1,58 @@
+# Copyright 2026 Comcast Cable Communications Management, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Builds the Perfetto UI and stores it in artifacts
+name: Builds the Perfetto UI (for RDK)
+
+on:
+  # Don't Run on pushes targeting the default branch as the
+  # deploy-ui.yml will run this workflow automatically as
+  # part of the deploy
+  #push:
+  #  branches: ["rdk/main"]
+
+  # Runs on pull requests targeting the default branch
+  pull_request:
+    branches: [ "rdk/main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+  # Allows this workflow to be called as a reusable workflow
+  workflow_call:
+
+jobs:
+  # Build the UI and store it as an artifact for deployment
+  build-ui:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Install build dependencies with caching
+      - uses: ./.github/actions/install-build-deps
+        with:
+          install-flags: --ui
+
+      # Build the web UI (TODO: add --minify-js=all)
+      - name: Build web UI
+        run: |
+          ui/build
+
+      # Upload the built web UI as an artifact for deployment
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out/ui/ui/dist/
