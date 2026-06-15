@@ -160,6 +160,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "read_trace.cc",
       "read_trace_internal.cc",
       "read_trace_internal.h",
+      "sqlite_iterator_impl.cc",
+      "sqlite_iterator_impl.h",
       "trace_processor.cc",
       "trace_processor_impl.cc",
       "trace_processor_impl.h",
@@ -285,7 +287,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
 
     public_deps = [
-      "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
+      "../../gn:sqlite",  # sqlite_iterator_impl.h includes sqlite3.h.
       "../../include/perfetto/trace_processor",
     ]
     if (enable_perfetto_trace_processor_mac_instruments) {
