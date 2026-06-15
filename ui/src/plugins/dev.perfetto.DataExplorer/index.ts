@@ -134,12 +134,23 @@ ColumnInfo = {
 You can omit "type"; it is re-derived from the upstream schema on load.
 
 --------------------------------------------------------------------------------
-RECOMMENDED DEFAULT: sql_source
+RECOMMENDED DEFAULT: real nodes (STRONGLY PREFERRED)
 --------------------------------------------------------------------------------
-Unless the user explicitly asks for a specific node type, build the graph out of
-"sql_source" nodes. One SQL query can do filtering, grouping, joins, ordering
-and limiting, and its "state" is just { "sql": "..." } - the least error-prone
-option. type "sql_source", state:
+STRONGLY prefer building the graph out of real, structured nodes (a "table" or
+"slice" source feeding "filter", "sort", "aggregation", "modify_columns",
+"limit_and_offset", joins, etc.) rather than packing everything into one
+"sql_source" node. Each real node shows up in the UI as its own editable step:
+the user can see exactly what every stage does, tweak it, reorder it, and learn
+from it. A single "sql_source" collapses all of that into an opaque blob of SQL
+the user cannot inspect or adjust without reading raw SQL.
+
+So: decompose the request into one node per logical operation. Use a source node
+for the data, then a separate node for each filter / sort / group-by / column
+selection / limit.
+
+Fall back to "sql_source" ONLY when no real node can express the operation (an
+exotic SQL construct, a CTE, a window function, etc.), or when the user
+explicitly asks for raw SQL. type "sql_source", state:
   { "sql": "<a single PerfettoSQL SELECT>" }
 Rules for "sql":
 - Exactly ONE SELECT (a leading "WITH ... SELECT" is allowed). No trailing ";".
@@ -149,25 +160,28 @@ Rules for "sql":
   $input_1, ... (port number).
 - Confirm tables/columns with run_query / get_schema first; do not guess schema.
 
-Minimal one-node graph (the common case):
+Preferred shape (the common case) - real nodes, one operation each:
+{
+  "nodes": [
+    { "nodeId": "0", "type": "table",
+      "state": { "sqlTable": "slice" },
+      "nextNodes": ["1"] },
+    { "nodeId": "1", "type": "sort",
+      "state": { "sortCriteria": [ { "colName": "dur", "direction": "DESC" } ] },
+      "primaryInputId": "0", "nextNodes": ["2"] },
+    { "nodeId": "2", "type": "limit_and_offset",
+      "state": { "limit": 20, "offset": 0 },
+      "primaryInputId": "1", "nextNodes": [] }
+  ],
+  "rootNodeIds": ["0"]
+}
+
+Equivalent with sql_source (use ONLY as a fallback, less visible to the user):
 {
   "nodes": [
     { "nodeId": "0", "type": "sql_source",
       "state": { "sql": "SELECT name, dur FROM slice ORDER BY dur DESC LIMIT 20" },
       "nextNodes": [] }
-  ],
-  "rootNodeIds": ["0"]
-}
-
-Chaining sql_source via $input_0 (node 1 reads node 0):
-{
-  "nodes": [
-    { "nodeId": "0", "type": "sql_source",
-      "state": { "sql": "SELECT utid, dur FROM thread_state WHERE state = 'Running'" },
-      "nextNodes": ["1"] },
-    { "nodeId": "1", "type": "sql_source",
-      "state": { "sql": "SELECT utid, sum(dur) AS total FROM $input_0 GROUP BY utid ORDER BY total DESC" },
-      "nextNodes": [], "secondaryInputIds": { "0": "0" } }
   ],
   "rootNodeIds": ["0"]
 }
@@ -206,7 +220,7 @@ SINGLE-INPUT OPERATIONS (set "primaryInputId" to the upstream node)
     array) | "is null" "is not null" (no value).
 
 - "sort"  -> order rows.
-  state: { "sortCriteria": [ { "columnName": "dur", "direction": "DESC" } ] }  // ASC | DESC
+  state: { "sortCriteria": [ { "colName": "dur", "direction": "DESC" } ] }  // ASC | DESC
 
 - "limit_and_offset"  -> cap row count.
   state: { "limit": 100, "offset": 0 }
