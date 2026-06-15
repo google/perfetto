@@ -681,22 +681,19 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationState());
 
     StringId state_id = kNullStringId;
-    bool is_termination = true;
 
     if (event_.has_name_iid()) {
       auto* decoder = sequence_state_->LookupInternedMessage<
           protos::pbzero::InternedData::kEventNamesFieldNumber,
           protos::pbzero::EventName>(event_.name_iid());
       if (decoder) {
-        is_termination = false;
         state_id = storage_->InternString(decoder->name());
       }
     } else if (event_.has_name()) {
-      is_termination = false;
       state_id = storage_->InternString(event_.name());
     }
 
-    if (is_termination) {
+    if (state_id == kNullStringId) {
       context_->state_tracker->UpdateState(ts_, track_id, kNullStringId);
     } else {
       context_->state_tracker->UpdateState(
