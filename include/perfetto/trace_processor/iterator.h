@@ -29,6 +29,7 @@ namespace perfetto {
 namespace trace_processor {
 
 class IteratorImpl;
+class SqliteIteratorImpl;
 
 // Iterator returning SQL rows satisfied by a query.
 //
@@ -94,15 +95,28 @@ class PERFETTO_EXPORT_COMPONENT Iterator {
   friend class QueryResultSerializer;
 
   // This is to allow QueryResultSerializer, which is very perf sensitive, to
-  // access direct the impl_ and avoid one extra function call for each cell.
+  // access the impl directly and avoid one extra function call for each cell.
+  // It downcasts to the concrete |T| (the serializer is only ever fed local
+  // SqliteIteratorImpl iterators) so the per-cell calls devirtualize.
   template <typename T = IteratorImpl>
   std::unique_ptr<T> take_impl() {
-    return std::move(iterator_);
+    sqlite_fast_path_ = nullptr;
+    return std::unique_ptr<T>(static_cast<T*>(iterator_.release()));
   }
 
   // A PIMPL pattern is used to avoid leaking the dependencies on sqlite3.h and
   // other internal classes.
   std::unique_ptr<IteratorImpl> iterator_;
+
+  // Non-owning alias of |iterator_| set if (and only if) the backing impl is the
+  // local, sqlite-backed SqliteIteratorImpl (which is `final`). The methods
+  // above call through this when set, so the local path stays a direct,
+  // devirtualized call: making IteratorImpl abstract (to allow a remote
+  // TraceProcessor to return a real Iterator) must not regress existing callers
+  // to virtual dispatch. Null for a remote iterator, which then dispatches
+  // through the virtual IteratorImpl* — a remote query is network-bound, so the
+  // indirect call there is irrelevant.
+  SqliteIteratorImpl* sqlite_fast_path_ = nullptr;
 };
 
 }  // namespace trace_processor
