@@ -40,11 +40,6 @@ Iterator::~Iterator() = default;
 Iterator::Iterator(Iterator&&) noexcept = default;
 Iterator& Iterator::operator=(Iterator&&) noexcept = default;
 
-// The forwarders below call through |sqlite_fast_path_| when set: it points at
-// the `final` SqliteIteratorImpl, so the compiler devirtualizes and the local
-// path keeps the direct-call cost it had before IteratorImpl became abstract.
-// Only a remote iterator (sqlite_fast_path_ == nullptr) pays a virtual call.
-
 bool Iterator::Next() {
   return PERFETTO_LIKELY(sqlite_fast_path_) ? sqlite_fast_path_->Next()
                                             : iterator_->Next();

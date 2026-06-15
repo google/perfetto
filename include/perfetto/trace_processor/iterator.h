@@ -23,7 +23,6 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -108,14 +107,11 @@ class PERFETTO_EXPORT_COMPONENT Iterator {
   // other internal classes.
   std::unique_ptr<IteratorImpl> iterator_;
 
-  // Non-owning alias of |iterator_| set if (and only if) the backing impl is
-  // the local, sqlite-backed SqliteIteratorImpl (which is `final`). The methods
-  // above call through this when set, so the local path stays a direct,
-  // devirtualized call: making IteratorImpl abstract (to allow a remote
-  // TraceProcessor to return a real Iterator) must not regress existing callers
-  // to virtual dispatch. Null for a remote iterator, which then dispatches
-  // through the virtual IteratorImpl* — a remote query is network-bound, so the
-  // indirect call there is irrelevant.
+  // Non-owning alias of |iterator_| set if backing impl is
+  // the local SqliteIteratorImpl. All methods should
+  // above call through this when set, so the the fast path is fast.
+  //
+  // Null for other iterator types.
   SqliteIteratorImpl* sqlite_fast_path_ = nullptr;
 };
 

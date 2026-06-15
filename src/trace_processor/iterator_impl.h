@@ -31,16 +31,9 @@ class SqliteIteratorImpl;
 // std::unique_ptr<IteratorImpl> and forwards each call to it.
 //
 // There are two implementations:
-//   - SqliteIteratorImpl: the local, sqlite-backed iterator
-//   (sqlite_iterator_impl.h).
-//   - RemoteIteratorImpl: iterates results received from a remote trace
+//   - SqliteIteratorImpl: the local iterator implementation.
+//   - RemoteIteratorImpl: results received from a remote trace
 //     processor over the RPC protocol.
-//
-// Keeping this an interface (rather than the single concrete sqlite class it
-// used to be) is what lets a remote TraceProcessor return a real Iterator. The
-// only perf-sensitive consumer (QueryResultSerializer) is always fed local
-// iterators, so it downcasts to the final SqliteIteratorImpl and the per-cell
-// calls devirtualize.
 class IteratorImpl {
  public:
   virtual ~IteratorImpl();
@@ -55,10 +48,8 @@ class IteratorImpl {
   virtual uint32_t StatementCountWithOutput() const = 0;
   virtual std::string LastStatementSql() = 0;
 
-  // Returns |this| iff this is the local, sqlite-backed SqliteIteratorImpl,
-  // otherwise nullptr. Lets the public Iterator cache a typed pointer to the
-  // concrete |final| impl and keep the local path a direct, devirtualized call.
-  // See Iterator::sqlite_fast_path_.
+  // Returns |this| if this is the local iterator implementation,
+  // otherwise nullptr. Allows for fast-path optimizations.
   virtual SqliteIteratorImpl* AsSqlite() { return nullptr; }
 };
 
