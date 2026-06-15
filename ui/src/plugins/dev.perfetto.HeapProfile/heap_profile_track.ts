@@ -47,11 +47,12 @@ export function createHeapProfileTrack(
         dur: LONG,
         type: STR,
         id: NUM,
+        reference_ts: LONG,
       },
       filter: {col: 'upid', eq: upid},
     }),
     detailsPanel: (row) => {
-      const ts = Time.fromRaw(row.ts);
+      const ts = Time.fromRaw(row.reference_ts);
       const tsEnd = Time.fromRaw(row.ts + row.dur);
       const descriptor = profileDescriptor(row.type);
       return new HeapProfileFlamegraphDetailsPanel(

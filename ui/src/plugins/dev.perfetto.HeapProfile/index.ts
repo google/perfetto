@@ -15,7 +15,7 @@
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {time} from '../../base/time';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -111,6 +111,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         [ProfileType.GENERIC_HEAP_PROFILE]: {},
         [ProfileType.JAVA_HEAP_SAMPLES]: {},
         [ProfileType.JAVA_HEAP_GRAPH]: {},
+        [ProfileType.OOM_HEAP_PROFILE]: {},
       }
     );
   }
@@ -121,12 +122,16 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     );
     await this.createHeapProfileTable(trace);
     const heapTypes = await this.getHeapTypes(trace);
+    console.log('[OOM Debug] Heap types found:', heapTypes);
     await this.addProcessTracks(trace, heapTypes);
 
     // For applicable heap types, register an area selection
     for (const heapType of heapTypes) {
       const descriptor = profileDescriptor(heapType);
-      if (descriptor.type === ProfileType.JAVA_HEAP_GRAPH) {
+      if (
+        descriptor.type === ProfileType.JAVA_HEAP_GRAPH ||
+        descriptor.type === ProfileType.OOM_HEAP_PROFILE
+      ) {
         // There's no area selection for java heap dumps.
         continue;
       }
@@ -141,6 +146,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async createHeapProfileTable(trace: Trace) {
+    const testOOM = await trace.engine.query(`SELECT count(*) as c FROM heap_graph WHERE dump_reason = 'OOME'`);
+    console.log('[OOM Debug] OOME rows in heap_graph:', testOOM.firstRow({c: NUM}).c);
+
+    await trace.engine.query('INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;');
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
@@ -166,6 +175,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         SELECT
           MIN(id) as id,
           graph_sample_ts AS ts,
+          graph_sample_ts AS reference_ts,
           upid,
           0 AS dur,
           0 AS depth,
@@ -177,7 +187,29 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
         SELECT
           id,
+          MIN(ts, (SELECT end_ts FROM trace_bounds)) AS ts,
+          ts AS reference_ts,
+          IFNULL((
+            SELECT p.upid 
+            FROM process p 
+            JOIN process p2 ON p.pid = p2.pid 
+            WHERE p2.upid = heap_graph.upid 
+              AND p.start_ts IS NOT NULL 
+            ORDER BY p.end_ts DESC 
+            LIMIT 1
+          ), upid) AS upid,
+          0 AS dur,
+          0 AS depth,
+          'oom_heap_profile' AS type
+        FROM heap_graph
+        WHERE dump_reason = 'OOME'
+
+        UNION ALL
+
+        SELECT
+          id,
           ts,
+          ts AS reference_ts,
           upid,
           ts_end - ts AS dur,
           0 AS depth,
@@ -225,14 +257,35 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         FROM ${viewName}
       `);
 
-      const upids = [];
+      const upids: number[] = [];
       for (const it = upidResult.iter({upid: NUM}); it.valid(); it.next()) {
         upids.push(it.upid);
       }
+      console.log(`[OOM Debug] Heap type ${heapType} has upids:`, upids);
+
+      if (heapType === 'oom_heap_profile') {
+        const debugResult = await trace.engine.query(`SELECT id, ts, upid, dur FROM ${viewName}`);
+        for (const it = debugResult.iter({id: NUM, ts: NUM, upid: NUM, dur: NUM}); it.valid(); it.next()) {
+          console.log(`[OOM Debug] oom_heap_profile row: id=${it.id}, ts=${it.ts}, upid=${it.upid}, dur=${it.dur}`);
+        }
+      }
+      console.log(`[OOM Debug] Heap type ${heapType} has upids:`, upids);
 
       for (const upid of upids) {
-        const group = trackGroupsPlugin.getGroupForProcess(upid);
-        if (!group) continue;
+        let group = trackGroupsPlugin.getGroupForProcess(upid);
+        if (!group) {
+          console.warn(`[OOM Debug] Process group NOT FOUND for upid: ${upid}. Creating one.`);
+          const processResult = await trace.engine.query(`SELECT pid, name FROM process WHERE upid = ${upid}`);
+          const row = processResult.firstRow({pid: NUM, name: STR_NULL});
+          const pid = row.pid;
+          const name = row.name ?? `Uid ${upid}`;
+          group = new TrackNode({
+            uri: `process_${upid}`,
+            name: `${name} ${pid}`,
+            isSummary: true,
+          });
+          trace.defaultWorkspace.addChildInOrder(group);
+        }
 
         const store = assertExists(this.store);
         const uri = trackUri(upid, heapType);
@@ -308,7 +361,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     const track = this.trackMap.get(uri);
     if (!track) return;
 
-    if (profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH) {
+    if (
+      profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH ||
+      profileDescriptor(iter.type).type === ProfileType.OOM_HEAP_PROFILE
+    ) {
       ctx.selection.selectTrackEvent(track.uri, iter.id);
     } else {
       ctx.selection.selectArea({

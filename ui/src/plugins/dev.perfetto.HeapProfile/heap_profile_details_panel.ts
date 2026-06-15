@@ -29,7 +29,7 @@ import type {
   TrackEventDetailsPanelSerializeArgs,
 } from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
-import {NUM} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -55,6 +55,8 @@ export class HeapProfileFlamegraphDetailsPanel
 {
   private readonly props: Props;
   private flamegraphModalDismissed = false;
+
+  private oomErrorMsg?: string;
 
   // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
   // We moved serialization from being attached to selections to instead being
@@ -103,6 +105,18 @@ export class HeapProfileFlamegraphDetailsPanel
   }
 
   async load() {
+    if (this.props.type === ProfileType.OOM_HEAP_PROFILE) {
+      const res = await this.trace.engine.query(`
+        SELECT error_msg 
+        FROM heap_graph g
+        JOIN android_heap_graph_java_oome_details o ON o.heap_graph_id = g.id
+        WHERE g.ts = ${this.props.ts} AND g.upid = ${this.upid}
+      `);
+      if (res.numRows() > 0) {
+        this.oomErrorMsg = res.firstRow({error_msg: STR}).error_msg;
+      }
+    }
+
     // If the state in the serialization is not undefined, we should read from
     // it.
     // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
@@ -125,7 +139,17 @@ export class HeapProfileFlamegraphDetailsPanel
         DetailsShell,
         {
           fillHeight: true,
-          title: m('span', this.profileDescriptor.label),
+          title: m(
+            Stack,
+            {orientation: 'vertical'},
+            m('span', this.profileDescriptor.label),
+            this.oomErrorMsg &&
+              m(
+                'span',
+                {style: {fontSize: '12px', color: '#ff4081'}},
+                this.oomErrorMsg,
+              ),
+          ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
@@ -274,6 +298,50 @@ function flamegraphMetrics(
           },
         ],
       );
+    case ProfileType.OOM_HEAP_PROFILE:
+      console.log(`[OOM Debug] flamegraphMetrics called with ts=${ts}, upid=${upid}`);
+      return [
+        {
+          name: 'OOM Callstack',
+          unit: '',
+          statement: `
+            WITH RECURSIVE callstack AS (
+              SELECT c.id, c.parent_id as parentId, c.depth, c.frame_id
+              FROM stack_profile_callsite c
+              WHERE c.id = (
+                SELECT callsite_id
+                FROM heap_graph_thread_callsite hc
+                JOIN heap_graph g ON hc.heap_graph_id = g.id
+                WHERE g.ts = ${ts}
+                LIMIT 1
+              )
+
+              UNION ALL
+
+              SELECT c.id, c.parent_id as parentId, c.depth, c.frame_id
+              FROM stack_profile_callsite c
+              JOIN callstack ON c.id = callstack.parentId
+            )
+            SELECT
+              cs.id,
+              cs.parentId,
+              ifnull(f.name, '[Unknown]') as name,
+              iif(cs.depth = (select max(depth) from callstack), 1, 0) as value,
+              s.source_file || ':' || cast(s.line_number as text) as source_location
+            FROM callstack cs
+            JOIN stack_profile_frame f ON cs.frame_id = f.id
+            LEFT JOIN stack_profile_symbol s ON f.symbol_set_id = s.symbol_set_id
+          `,
+          unaggregatableProperties: [],
+          aggregatableProperties: [
+            {
+              name: 'source_location',
+              displayName: 'Source Location',
+              mergeAggregation: 'ONE_OR_SUMMARY',
+            },
+          ],
+        },
+      ];
     case ProfileType.JAVA_HEAP_GRAPH:
       return [
         {
