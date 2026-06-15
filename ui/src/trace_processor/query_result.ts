@@ -72,6 +72,26 @@ export const BLOB_NULL: Uint8Array<ArrayBuffer> | null = new Uint8Array();
 export const LONG: bigint = 0n;
 export const LONG_NULL: bigint | null = 1n;
 
+// One decoded column produced by QueryResult.decodeColumns(). The runtime type
+// depends on the requested column type:
+//  - NUM       -> Float64Array
+//  - LONG      -> BigInt64Array
+//  - NUM_NULL  -> Array<number | null>
+//  - LONG_NULL -> Array<bigint | null>
+//  - STR/STR_NULL -> Array<string | null>
+//  - BLOB/*    -> Array<SqlValue>
+export type ColumnarColumn =
+  | Float64Array
+  | BigInt64Array
+  | Array<number | null>
+  | Array<bigint | null>
+  | Array<string | null>
+  | Array<SqlValue>;
+
+export interface ColumnarResult {
+  readonly [columnName: string]: ColumnarColumn;
+}
+
 const SHIFT_32BITS = 32n;
 
 // Describes the inheritance tree of the above types.
@@ -471,6 +491,16 @@ export interface QueryResult {
   // iter<T extends Row>(spec: T): RowIterator<T>;
   iter<T extends Row>(spec: T): RowIterator<T>;
 
+  // Bulk-decodes the requested columns across all currently-available rows in a
+  // single pass, returning one dense array per column (see ColumnarColumn for
+  // the per-type representation). This is substantially faster than iter() for
+  // large result sets where the caller wants whole columns: it loops over every
+  // row inside one function (avoiding a per-row valid()/next() round-trip
+  // through the iterator's bound-method wrappers) and writes into typed arrays
+  // instead of a generic per-row object keyed by column name. Prefer this over
+  // iter() on hot track-loading paths that pull millions of cells.
+  decodeColumns(spec: Row): ColumnarResult;
+
   // Like iter() for queries that expect only one row. It embeds the valid()
   // check (i.e. throws if no rows are available) and returns directly the
   // first result.
@@ -610,6 +640,149 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   iter<T extends Row>(spec: T): RowIterator<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
     return impl as {} as RowIterator<T>;
+  }
+
+  decodeColumns(spec: Row): ColumnarResult {
+    const colNames = this.columnNames;
+    const numColumns = colNames.length;
+    const total = this._numRows;
+
+    // Per-column plan, indexed by column position. `kind` selects how the cell
+    // is materialised and into which output array; ignored columns (kind 0)
+    // still advance the per-type cursors but store nothing.
+    const enum Kind {
+      Ignore = 0,
+      Num = 1, // -> Float64Array
+      Long = 2, // -> BigInt64Array
+      Str = 3, // -> Array<string | null>
+      Blob = 4, // -> Array<SqlValue>
+      NumNull = 5, // -> Array<number | null>
+      LongNull = 6, // -> Array<bigint | null>
+    }
+    const kinds = new Uint8Array(numColumns);
+    // dests is indexed by column position; entries are typed/plain arrays whose
+    // element type is governed by kinds[c]. The stores below cast per-kind.
+    const dests = new Array<ColumnarColumn | undefined>(numColumns);
+    const out: {[k: string]: ColumnarColumn} = {};
+
+    for (const name of Object.keys(spec)) {
+      const c = colNames.indexOf(name);
+      if (c < 0) {
+        throw new QueryError(
+          `Column ${name} not found in the SQL result ` +
+            `set {${colNames.join(' ')}}`,
+          this._errorInfo,
+        );
+      }
+      const t = spec[name];
+      let kind: Kind;
+      let dest: ColumnarColumn;
+      if (t === NUM) {
+        kind = Kind.Num;
+        dest = new Float64Array(total);
+      } else if (t === NUM_NULL) {
+        kind = Kind.NumNull;
+        dest = new Array<number | null>(total);
+      } else if (t === LONG) {
+        kind = Kind.Long;
+        dest = new BigInt64Array(total);
+      } else if (t === LONG_NULL) {
+        kind = Kind.LongNull;
+        dest = new Array<bigint | null>(total);
+      } else if (t === STR || t === STR_NULL) {
+        kind = Kind.Str;
+        dest = new Array<string | null>(total);
+      } else {
+        kind = Kind.Blob;
+        dest = new Array<SqlValue>(total);
+      }
+      kinds[c] = kind;
+      dests[c] = dest;
+      out[name] = dest;
+    }
+
+    let row = 0;
+    const batches = this.batches;
+    for (let b = 0; b < batches.length; b++) {
+      const batch = batches[b];
+      if (batch.numCells === 0) continue;
+      const bytes = batch.batchBytes;
+      const f64 = batch.float64Cells;
+      const strs = batch.stringCells;
+      const blobs = batch.blobCells;
+      const ctEnd = batch.cellTypesOff + batch.cellTypesLen;
+      let ctOff = batch.cellTypesOff;
+      let vOff = batch.varintOff;
+      let fIdx = 0;
+      let sIdx = 0;
+      let bIdx = 0;
+
+      while (ctOff < ctEnd) {
+        for (let c = 0; c < numColumns; c++) {
+          const cellType = bytes[ctOff++];
+          const kind = kinds[c];
+          switch (cellType) {
+            case CellType.CELL_VARINT:
+              readVarint(bytes, vOff);
+              vOff = varintPos;
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = varintToNumber();
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = varintToNumber();
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = varintToBigInt();
+              } else if (kind === Kind.LongNull) {
+                (dests[c] as Array<bigint | null>)[row] = varintToBigInt();
+              }
+              break;
+            case CellType.CELL_FLOAT64: {
+              const v = f64[fIdx++];
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = v;
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = v;
+              }
+              break;
+            }
+            case CellType.CELL_STRING: {
+              const v = strs[sIdx++];
+              if (kind === Kind.Str) {
+                (dests[c] as Array<string | null>)[row] = v;
+              }
+              break;
+            }
+            case CellType.CELL_NULL:
+              // Nullable columns (NumNull/LongNull/Str/Blob -> plain arrays)
+              // store null. For non-nullable typed-array columns a null is not
+              // representable, so we store a sentinel (NaN / 0n) rather than
+              // throwing on the hot path; callers that expect nulls must use the
+              // *_NULL spec types.
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = NaN;
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = 0n;
+              } else if (kind !== Kind.Ignore) {
+                (dests[c] as Array<SqlValue>)[row] = null;
+              }
+              break;
+            case CellType.CELL_BLOB: {
+              const v = blobs[bIdx++];
+              if (kind === Kind.Blob) {
+                (dests[c] as Array<SqlValue>)[row] = new Uint8Array(v);
+              }
+              break;
+            }
+            default:
+              throw new QueryError(
+                `Invalid cell type ${cellType}`,
+                this._errorInfo,
+              );
+          }
+        }
+        row++;
+      }
+    }
+    return out;
   }
 
   firstRow<T extends Row>(spec: T): T {
@@ -1162,6 +1335,9 @@ class WaitableQueryResultImpl
   // QueryResult implementation. Proxies all calls to the impl object.
   iter<T extends Row>(spec: T) {
     return this.impl.iter(spec);
+  }
+  decodeColumns(spec: Row) {
+    return this.impl.decodeColumns(spec);
   }
   firstRow<T extends Row>(spec: T) {
     return this.impl.firstRow(spec);

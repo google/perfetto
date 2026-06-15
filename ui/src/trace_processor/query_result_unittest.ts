@@ -280,6 +280,71 @@ test('QueryResult.MultipleBatches', async () => {
   expect(qr.numRows()).toBe(2);
 });
 
+test('QueryResult.decodeColumns', () => {
+  // Two batches, mixed cell types, to also exercise batch switching and the
+  // varint cursor reset between batches.
+  const resProto = protos.QueryResult.create({
+    columnNames: ['n', 'l', 's', 'f'],
+    batch: [
+      {
+        cells: [
+          T.CELL_VARINT,
+          T.CELL_VARINT,
+          T.CELL_STRING,
+          T.CELL_FLOAT64,
+          T.CELL_VARINT,
+          T.CELL_VARINT,
+          T.CELL_STRING,
+          T.CELL_FLOAT64,
+        ],
+        varintCells: [1, 1000000000000, -5, 42],
+        stringCells: ['foo', 'bar'].join('\0'),
+        float64Cells: [1.5, 2.5],
+        isLastBatch: false,
+      },
+      {
+        cells: [T.CELL_VARINT, T.CELL_VARINT, T.CELL_NULL, T.CELL_FLOAT64],
+        varintCells: [7, 99],
+        stringCells: '',
+        float64Cells: [3.5],
+        isLastBatch: true,
+      },
+    ],
+  });
+
+  const qr = createQueryResult({query: 'Some query'});
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
+  expect(qr.numRows()).toBe(3);
+
+  // n: NUM -> Float64Array, l: LONG -> BigInt64Array, s: STR -> string[],
+  // f: NUM -> Float64Array.
+  const cols = qr.decodeColumns({
+    n: NUM,
+    l: LONG,
+    s: STR_NULL,
+    f: NUM,
+  });
+
+  expect(cols.n).toBeInstanceOf(Float64Array);
+  expect(Array.from(cols.n as Float64Array)).toEqual([1, -5, 7]);
+  expect(cols.l).toBeInstanceOf(BigInt64Array);
+  expect(Array.from(cols.l as BigInt64Array)).toEqual([
+    1000000000000n,
+    42n,
+    99n,
+  ]);
+  expect(cols.s).toEqual(['foo', 'bar', null]);
+  expect(Array.from(cols.f as Float64Array)).toEqual([1.5, 2.5, 3.5]);
+
+  // Selecting a subset of columns must still decode correctly (the unselected
+  // columns' cells are skipped but their cursors still advance).
+  const subset = qr.decodeColumns({s: STR_NULL});
+  expect(subset.s).toEqual(['foo', 'bar', null]);
+
+  // Unknown column throws.
+  expect(() => qr.decodeColumns({nope: NUM})).toThrowError(/nope.*not found/);
+});
+
 // Regression test for b/194891824 .
 test('QueryResult.DuplicateColumnNames', () => {
   const batch = protos.QueryResult.CellsBatch.create({

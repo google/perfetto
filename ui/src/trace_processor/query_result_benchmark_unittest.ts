@@ -28,7 +28,13 @@
 // suite.
 
 import protos from '../protos';
-import {createQueryResult, NUM, STR, type QueryResult} from './query_result';
+import {
+  createQueryResult,
+  NUM,
+  STR,
+  type ColumnarColumn,
+  type QueryResult,
+} from './query_result';
 
 const T = protos.QueryResult.CellsBatch.CellType;
 
@@ -137,6 +143,44 @@ function iterateInstantTrack(qr: QueryResult): number {
   return checksum;
 }
 
+// Same end result as iterateInstantTrack(), but sourcing the columns via the
+// bulk decodeColumns() fast path instead of per-row iter()/next().
+function decodeInstantTrack(qr: QueryResult): number {
+  const count = qr.numRows();
+  const cols = qr.decodeColumns({
+    __id: NUM,
+    __ts: NUM,
+    __count: NUM,
+    __depth: NUM,
+    name: STR,
+  });
+  const ids = cols.__id as Float64Array;
+  const tss = cols.__ts as Float64Array;
+  const counts = cols.__count as Float64Array;
+  const depthsCol = cols.__depth as Float64Array;
+  const namesCol = cols.name as ReadonlyArray<string>;
+  const xs = new Float32Array(count);
+  const depths = new Uint16Array(count);
+  const titles = new Array<string>(count);
+  let checksum = 0;
+  for (let i = 0; i < count; i++) {
+    const ts = tss[i];
+    const depth = depthsCol[i];
+    const title = namesCol[i];
+    xs[i] = ts;
+    depths[i] = depth;
+    titles[i] = title;
+    checksum += ids[i] + counts[i] + depth + title.length;
+  }
+  return checksum;
+}
+
+// Cheap touch of a decoded column so the optimiser can't drop decodeColumns().
+function touchColumns(cols: {readonly [k: string]: ColumnarColumn}): number {
+  const ts = cols.__ts as Float64Array;
+  return ts.length > 0 ? ts[0] + ts[ts.length - 1] : 0;
+}
+
 function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
@@ -144,51 +188,105 @@ function fmt(n: number): string {
 const shouldRun = process.env.RUN_BENCH === '1';
 const maybe = shouldRun ? test : test.skip;
 
+const NUM_ROWS = 500_000;
+const ROWS_PER_BATCH = 5_000; // ~ production 128KB batches.
+const WARMUP = 5;
+const ITERS = 25;
+
+interface BenchStats {
+  readonly label: string;
+  readonly min: number;
+  readonly median: number;
+  readonly mean: number;
+  readonly checksum: number;
+}
+
+// Times `fn` over a freshly-rebuilt QueryResult each iteration (rebuild is
+// cheap; it just re-wraps the already-decoded batches). Returns sorted stats.
+function bench(
+  label: string,
+  encoded: Uint8Array[],
+  fn: (qr: QueryResult) => number,
+): BenchStats {
+  let checksum = 0;
+  const samples: number[] = [];
+  for (let i = 0; i < WARMUP + ITERS; i++) {
+    const qr = makeResult(encoded);
+    const t0 = performance.now();
+    checksum = fn(qr);
+    const t1 = performance.now();
+    if (i >= WARMUP) samples.push(t1 - t0);
+  }
+  samples.sort((a, b) => a - b);
+  return {
+    label,
+    min: samples[0],
+    median: samples[Math.floor(samples.length / 2)],
+    mean: samples.reduce((a, b) => a + b, 0) / samples.length,
+    checksum,
+  };
+}
+
+function report(stats: BenchStats): string {
+  const rowsPerSec = NUM_ROWS / (stats.median / 1000);
+  return (
+    `  ${stats.label.padEnd(28)} ` +
+    `min=${stats.min.toFixed(1)}ms median=${stats.median.toFixed(1)}ms ` +
+    `mean=${stats.mean.toFixed(1)}ms  ` +
+    `${fmt(Math.round(rowsPerSec))} rows/s ` +
+    `(${((stats.median / NUM_ROWS) * 1e6).toFixed(1)} ns/row) ` +
+    `checksum=${stats.checksum}\n`
+  );
+}
+
+function emit(text: string) {
+  process.stderr.write(text);
+  const outFile = process.env.BENCH_OUT;
+  if (outFile !== undefined) {
+    const fs = require('node:fs');
+    fs.appendFileSync(outFile, text);
+  }
+}
+
 describe('QueryResultBenchmark', () => {
-  maybe('instant track iteration', () => {
-    const NUM_ROWS = 500_000;
-    const ROWS_PER_BATCH = 5_000; // ~ production 128KB batches.
-    const WARMUP = 5;
-    const ITERS = 25;
+  maybe(
+    'instant track iteration',
+    () => {
+      const encoded = buildInstantTrackResult(NUM_ROWS, ROWS_PER_BATCH);
 
-    // Build once. Reconstruct the QueryResult per iteration (cheap) so we
-    // re-run the iterator over the same already-decoded batches.
-    const encoded = buildInstantTrackResult(NUM_ROWS, ROWS_PER_BATCH);
+      const iterStats = bench('iter() per-row', encoded, iterateInstantTrack);
+      const colStats = bench(
+        'decodeColumns() + build',
+        encoded,
+        decodeInstantTrack,
+      );
+      const rawStats = bench('decodeColumns() raw', encoded, (qr) =>
+        touchColumns(
+          qr.decodeColumns({
+            __id: NUM,
+            __ts: NUM,
+            __count: NUM,
+            __depth: NUM,
+            name: STR,
+          }),
+        ),
+      );
 
-    let checksum = 0;
-    const samples: number[] = [];
-    for (let i = 0; i < WARMUP + ITERS; i++) {
-      const qr = makeResult(encoded);
-      const t0 = performance.now();
-      checksum = iterateInstantTrack(qr);
-      const t1 = performance.now();
-      if (i >= WARMUP) samples.push(t1 - t0);
-    }
+      const speedup = iterStats.median / colStats.median;
+      emit(
+        `\n[QueryResultBenchmark] instant track, ${fmt(NUM_ROWS)} rows ` +
+          `(5 cols), ${ITERS} iters\n` +
+          report(iterStats) +
+          report(colStats) +
+          report(rawStats) +
+          `  => decodeColumns()+build is ${speedup.toFixed(2)}x faster ` +
+          `than iter() (median)\n`,
+      );
 
-    samples.sort((a, b) => a - b);
-    const min = samples[0];
-    const median = samples[Math.floor(samples.length / 2)];
-    const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
-    const rowsPerSec = NUM_ROWS / (median / 1000);
-
-    const report =
-      `\n[QueryResultBenchmark] instant track, ${fmt(NUM_ROWS)} rows ` +
-      `(5 cols), ${ITERS} iters\n` +
-      `  min=${min.toFixed(2)}ms median=${median.toFixed(2)}ms ` +
-      `mean=${mean.toFixed(2)}ms\n` +
-      `  throughput=${fmt(Math.round(rowsPerSec))} rows/s ` +
-      `(${((median / NUM_ROWS) * 1e6).toFixed(1)} ns/row)\n` +
-      `  checksum=${checksum}\n`;
-    // Vitest swallows console.log; write to a file (and stderr) so the result
-    // is visible regardless.
-    process.stderr.write(report);
-    const outFile = process.env.BENCH_OUT;
-    if (outFile !== undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const fs = require('node:fs');
-      fs.appendFileSync(outFile, report);
-    }
-
-    expect(samples.length).toBe(ITERS);
-  });
+      // Both paths must produce identical results.
+      expect(colStats.checksum).toBe(iterStats.checksum);
+      expect(iterStats.median).toBeGreaterThan(0);
+    },
+    120_000,
+  );
 });
