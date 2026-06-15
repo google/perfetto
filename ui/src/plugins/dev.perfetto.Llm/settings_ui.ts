@@ -134,9 +134,7 @@ function exportProviders(setting: Setting<ProvidersSetting>): void {
     fileName: 'llm-providers.json',
     mimeType: 'application/json',
     filePicker: {
-      types: [
-        {description: 'JSON', accept: {'application/json': ['.json']}},
-      ],
+      types: [{description: 'JSON', accept: {'application/json': ['.json']}}],
     },
   });
 }

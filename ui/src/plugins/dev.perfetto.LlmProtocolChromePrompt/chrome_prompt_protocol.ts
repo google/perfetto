@@ -42,7 +42,11 @@ import type {
 // --- The Prompt API surface (the subset we use) ------------------------------
 // These globals aren't in the TS DOM lib yet, so we declare the shapes we touch.
 
-type Availability = 'unavailable' | 'downloadable' | 'downloading' | 'available';
+type Availability =
+  | 'unavailable'
+  | 'downloadable'
+  | 'downloading'
+  | 'available';
 
 interface LanguageModelMessage {
   readonly role: 'system' | 'user' | 'assistant';
@@ -108,9 +112,7 @@ const NOT_AVAILABLE_MSG =
 
 // Build the system-prompt addendum that teaches the model our tool protocol.
 function buildToolInstructions(tools: ReadonlyArray<NeutralToolDef>): string {
-  const lines = [
-    'You can call tools to help answer. The available tools are:',
-  ];
+  const lines = ['You can call tools to help answer. The available tools are:'];
   for (const t of tools) {
     // Inline, self-contained JSON Schema (draft 2020-12) so the model sees the
     // exact argument shape. zod 4's native converter; `target` keeps it free of
@@ -139,9 +141,7 @@ function buildToolInstructions(tools: ReadonlyArray<NeutralToolDef>): string {
 // (which our emulated tool-call/tool-result turns would otherwise trip) and is
 // plenty for a small model. The system prompt is passed separately, via
 // initialPrompts, not here.
-function messagesToTranscript(
-  messages: ReadonlyArray<NeutralMessage>,
-): string {
+function messagesToTranscript(messages: ReadonlyArray<NeutralMessage>): string {
   const parts: string[] = [];
   for (const msg of messages) {
     switch (msg.role) {
@@ -218,7 +218,8 @@ function extractToolCall(
     } catch {
       continue;
     }
-    const tc = (obj as {tool_call?: unknown; toolCall?: unknown})?.tool_call ??
+    const tc =
+      (obj as {tool_call?: unknown; toolCall?: unknown})?.tool_call ??
       (obj as {toolCall?: unknown})?.toolCall;
     if (tc === undefined || tc === null || typeof tc !== 'object') continue;
     const name = (tc as {name?: unknown}).name;
@@ -371,7 +372,9 @@ export class ChromePromptProtocol implements Protocol {
       };
       createOpts.monitor = (m) =>
         m.addEventListener('downloadprogress', (e) =>
-          console.log(`[chrome-prompt] model download ${Math.round(e.loaded * 100)}%`),
+          console.log(
+            `[chrome-prompt] model download ${Math.round(e.loaded * 100)}%`,
+          ),
         );
     }
 

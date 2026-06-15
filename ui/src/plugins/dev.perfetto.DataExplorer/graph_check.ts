@@ -123,7 +123,9 @@ export async function collectGraphErrors(
 }
 
 /** Formats graph errors into a compact string for a tool result. */
-export function formatGraphErrors(errors: ReadonlyArray<GraphNodeError>): string {
+export function formatGraphErrors(
+  errors: ReadonlyArray<GraphNodeError>,
+): string {
   return errors
     .map((e) => `- node ${e.nodeId} (${e.title}): ${e.error}`)
     .join('\n');

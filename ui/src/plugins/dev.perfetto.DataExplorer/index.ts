@@ -888,8 +888,10 @@ export default class implements PerfettoPlugin {
     if (runtimeErrors.length === 0) {
       return 'OK: graph is valid and runs cleanly.';
     }
-    return 'Graph is structurally valid, but some nodes fail to run:\n' +
-      formatGraphErrors(runtimeErrors);
+    return (
+      'Graph is structurally valid, but some nodes fail to run:\n' +
+      formatGraphErrors(runtimeErrors)
+    );
   }
 
   // --- Assistant tools ---
@@ -957,7 +959,7 @@ export default class implements PerfettoPlugin {
         'per-node errors (bad SQL, missing columns/tables, invalid config) ' +
         'without changing it. Returns "OK: graph runs cleanly." when there are ' +
         'none. Use this to verify the graph after editing, or to diagnose what ' +
-        "the user means by \"my graph is broken\".",
+        'the user means by "my graph is broken".',
       shape: {},
       callback: async () => {
         const errors = await this.checkActiveGraph();
@@ -981,7 +983,9 @@ export default class implements PerfettoPlugin {
       shape: {
         graph: z
           .string()
-          .describe('The candidate graph as a JSON string, same format as set_graph.'),
+          .describe(
+            'The candidate graph as a JSON string, same format as set_graph.',
+          ),
       },
       callback: async ({graph}) => this.dryRunGraph(graph),
     });
