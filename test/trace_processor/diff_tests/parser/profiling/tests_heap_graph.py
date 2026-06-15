@@ -63,7 +63,7 @@ class ProfilingHeapGraph(TestSuite):
         packet {
           trusted_packet_sequence_id: 999
           timestamp: 10
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             types {
               id: 1
@@ -181,7 +181,7 @@ class ProfilingHeapGraph(TestSuite):
         packet {
           trusted_packet_sequence_id: 999
           timestamp: 10
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             types {
               id: 1
@@ -625,7 +625,7 @@ class ProfilingHeapGraph(TestSuite):
         packet {
           trusted_packet_sequence_id: 999
           timestamp: 10
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             types {
               id: 3
@@ -688,7 +688,7 @@ class ProfilingHeapGraph(TestSuite):
         packet {
           trusted_packet_sequence_id: 999
           timestamp: 10
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             heap_bytes_allocated: 100000
             types {

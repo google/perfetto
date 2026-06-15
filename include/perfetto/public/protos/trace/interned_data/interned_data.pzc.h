@@ -43,7 +43,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InternedV8String);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedV8WasmScript);
 PERFETTO_PB_MSG_DECL(perfetto_protos_LogMessageBody);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Mapping);
-PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketContext);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SourceLocation);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UnsymbolizedSourceLocation);
 
@@ -148,11 +147,6 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_InternedString,
                   debug_annotation_string_values,
                   29);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_NetworkPacketContext,
-                  packet_context,
-                  30);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedV8String,

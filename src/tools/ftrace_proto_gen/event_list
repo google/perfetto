@@ -607,3 +607,5 @@ dpu/disp_frame_start_missing
 panel/panel_settings_full
 panel/panel_settings_lite
 dpu/disp_dpu_line_underrun
+power/psci_domain_idle_exit
+power/psci_domain_idle_enter

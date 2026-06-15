@@ -24,7 +24,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
-#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "protos/third_party/android/art/heap_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
@@ -114,15 +114,15 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
       /*object_size=*/0,
       /*field_name_ids=*/{}, /*superclass_id=*/0,
       /*classloader_id=*/0, /*no_fields=*/false,
-      protos::pbzero::HeapGraphType::KIND_NORMAL);
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
 
-  tracker.AddInternedType(kSeqId, kTypeCleaner,
-                          context.storage->InternString("sun.misc.Cleaner"),
-                          kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{kReferent, kThunk, kNext},
-                          /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kTypeCleaner, context.storage->InternString("sun.misc.Cleaner"),
+      kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{kReferent, kThunk, kNext},
+      /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
 
   tracker.AddInternedType(
       kSeqId, kTypeCleanerThunk,
@@ -131,7 +131,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
       kLocation, /*object_size=*/0,
       /*field_name_ids=*/{kThis0}, /*superclass_id=*/0,
       /*classloader_id=*/0, /*no_fields=*/false,
-      protos::pbzero::HeapGraphType::KIND_NORMAL);
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
 
   tracker.AddInternedType(
       kSeqId, kTypeNativeAllocationRegistry,
@@ -139,7 +139,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
       kLocation, /*object_size=*/0,
       /*field_name_ids=*/{}, /*superclass_id=*/0,
       /*classloader_id=*/0, /*no_fields=*/false,
-      protos::pbzero::HeapGraphType::KIND_NORMAL);
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
 
   enum Objects : uint8_t {
     kObjBitmap = 1,
@@ -252,22 +252,26 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
 
   tracker.AddInternedLocationName(kSeqId, kLocation,
                                   context.storage->InternString("location"));
-  tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kY, y, kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kX, x, kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kY, y, kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kA, a, kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kB, b, kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
   {
     HeapGraphTracker::SourceObject obj;
     obj.object_id = 1;
@@ -315,7 +319,8 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   }
 
   HeapGraphTracker::SourceRoot root;
-  root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
+  root.root_type =
+      ::com::android::art::tracing::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
   root.object_ids.emplace_back(1);
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
@@ -394,26 +399,30 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   tracker.AddInternedLocationName(kSeqId, kLocation,
                                   context.storage->InternString("location"));
 
-  tracker.AddInternedType(kSeqId, kWeakRef, weak_ref, kLocation,
-                          /*object_size=*/0,
-                          /*field_name_ids=*/{kReferentField},
-                          /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
-  tracker.AddInternedType(kSeqId, kX, x, kLocation,
-                          /*object_size=*/0,
-                          /*field_name_ids=*/{kOtherField},
-                          /*superclass_id=*/kWeakRef,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
-  tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kWeakRef, weak_ref, kLocation,
+      /*object_size=*/0,
+      /*field_name_ids=*/{kReferentField},
+      /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
+  tracker.AddInternedType(
+      kSeqId, kX, x, kLocation,
+      /*object_size=*/0,
+      /*field_name_ids=*/{kOtherField},
+      /*superclass_id=*/kWeakRef,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
+  tracker.AddInternedType(
+      kSeqId, kA, a, kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kB, b, kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
   {
     HeapGraphTracker::SourceObject obj;
     obj.object_id = 1;
@@ -441,7 +450,8 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   }
 
   HeapGraphTracker::SourceRoot root;
-  root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
+  root.root_type =
+      ::com::android::art::tracing::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
   root.object_ids.emplace_back(1);
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
@@ -508,7 +518,7 @@ class HeapGraphStabilityTest : public ::testing::Test {
       tracker_->AddInternedType(
           kSeqId, id, context_.storage->InternString(base::StringView(name)),
           kLocation, 0, {}, 0, 0, false,
-          protos::pbzero::HeapGraphType::KIND_NORMAL);
+          ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
     }
 
     void RegisterObject(uint64_t id, uint64_t type_id) {
@@ -540,7 +550,8 @@ class HeapGraphStabilityTest : public ::testing::Test {
       }
 
       HeapGraphTracker::SourceRoot root;
-      root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
+      root.root_type =
+          ::com::android::art::tracing::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
       for (uint64_t id : roots_) {
         root.object_ids.push_back(id);
       }

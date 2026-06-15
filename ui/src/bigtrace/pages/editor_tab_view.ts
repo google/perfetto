@@ -35,6 +35,7 @@ import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_da
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {setHistoryActiveTab} from '../query/query_history';
+import {formatPerfettoSql} from '../query/sql_formatter';
 import {BigtraceQueryClient} from '../query/bigtrace_query_client';
 import type {QueryRunner} from '../query/query_runner';
 import {
@@ -148,6 +149,20 @@ function buildTabBindings(
   };
 }
 
+// Format a tab's query in place; no-op when formatting fails (the error is
+// logged) or the text is already clean. Bound to Alt+Shift+F in the editor.
+async function formatTabQuery(
+  tab: BigTraceEditorTab,
+  tabsState: QueryTabsState,
+  text: string,
+): Promise<void> {
+  const formatted = await formatPerfettoSql(text);
+  if (formatted === undefined || formatted === tab.editorText) return;
+  tab.editorText = formatted;
+  tabsState.markDirty();
+  m.redraw();
+}
+
 // ---------------------------------------------------------------------------
 // Editor panel: toolbar (Run/Cancel + limit + Persistent) and the editor.
 // ---------------------------------------------------------------------------
@@ -188,7 +203,15 @@ function renderEditorPanel(
           m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
         ),
         m(StackAuto),
+        // Icon-only to keep the toolbar lean; the editor binds the same chord.
+        m(Button, {
+          icon: 'format_align_left',
+          title: 'Format query (Alt+Shift+F)',
+          disabled: deriveTitleFromQuery(tab.editorText) === undefined,
+          onclick: () => void formatTabQuery(tab, tabsState, tab.editorText),
+        }),
         useBigtraceBackend && [
+          m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
           m(Switch, {
             label: 'Persistent',
             title:
@@ -238,6 +261,8 @@ function renderEditorPanel(
         onSqlSchemaApplied(refresh);
       },
       onSave: () => {},
+      // Alt+Shift+F (option+shift+F on Mac); listed in the help modal.
+      onFormat: (text: string) => formatTabQuery(tab, tabsState, text),
       onUpdate: (text: string) => {
         tab.editorText = text;
         tabsState.markDirty();
