@@ -292,8 +292,24 @@ how your tracks are presented and how data is encoded.
 By default, the Perfetto UI applies its own heuristics to sort tracks (e.g.,
 alphabetically by name, or by track UUID). However, for complex custom traces,
 you might want to explicitly define the order in which tracks appear. This
-sorting behavior differs depending on whether you are ordering processes,
-threads within a process, or standard custom child tracks.
+sorting behavior differs depending on whether you are ordering standard custom
+child tracks, processes, or threads within a process.
+
+#### Non-OS Scoped (Child Tracks) Sorting
+
+For standard custom tracks that are parented to another custom track using `parent_uuid`,
+you can configure child ordering on the parent track.
+
+This setting only affects the direct children of that parent track.
+
+Available `child_ordering` modes (defined in `TrackDescriptor.ChildTracksOrdering`):
+- `UNKNOWN`: The default. The UI will use its own heuristics.
+- `LEXICOGRAPHIC`: Child tracks are sorted alphabetically by their `name` or `static_name`.
+- `CHRONOLOGICAL`: Child tracks are sorted based on the timestamp of the earliest `TrackEvent`
+  that occurs on each of them. Tracks with earlier events appear first.
+- `EXPLICIT`: Child tracks are sorted based on the `sibling_order_rank` field set in their
+  respective `TrackDescriptor`s. Lower ranks appear first. If ranks are equal, or if
+  `sibling_order_rank` is not set, the tie-breaking order is undefined.
 
 #### Process Sorting
 
@@ -326,22 +342,6 @@ Available `thread_ordering` modes (defined in `TrackDescriptor.ThreadOrdering`):
 - `THREAD_ORDERING_EXPLICIT`: Sort threads by `sibling_order_rank` of their thread track descriptors.
 
 ![Thread Sorting](/docs/images/synthetic-track-event-thread-order.png)
-
-#### Non-OS Scoped (Child Tracks) Sorting
-
-For standard custom tracks that are parented to another custom track using `parent_uuid`,
-you can configure child ordering on the parent track.
-
-This setting only affects the direct children of that parent track.
-
-Available `child_ordering` modes (defined in `TrackDescriptor.ChildTracksOrdering`):
-- `UNKNOWN`: The default. The UI will use its own heuristics.
-- `LEXICOGRAPHIC`: Child tracks are sorted alphabetically by their `name` or `static_name`.
-- `CHRONOLOGICAL`: Child tracks are sorted based on the timestamp of the earliest `TrackEvent`
-  that occurs on each of them. Tracks with earlier events appear first.
-- `EXPLICIT`: Child tracks are sorted based on the `sibling_order_rank` field set in their
-  respective `TrackDescriptor`s. Lower ranks appear first. If ranks are equal, or if
-  `sibling_order_rank` is not set, the tie-breaking order is undefined.
 
 **Note:** The UI treats these as strong hints. While it generally respects these
 orderings, there are contexts in which the UI reserves the right _not_ to show
