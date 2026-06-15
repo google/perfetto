@@ -435,7 +435,12 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         //   so we rewind (we go back on the sequence's chunk list).
         // - Then we find that, in this sequence, there is a "broken" packet.
         // We should keep going on the same sequence and mark the data loss.
-        seq_->data_loss = true;
+        // kNotEnoughData here can only be kEraseMode (un-reassemblable
+        // fragments being evicted); overwrite attribution is handled by
+        // DeleteNextChunksFor via the has_cleared_unconsumed_fragments check.
+        if (reassembly_res == FragReassemblyResult::kDataLoss) {
+          seq_->data_loss = true;
+        }
         break;  // case kFragBegin
     }  // switch(frag.type)
   }  // for(;;)
@@ -986,7 +991,11 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     // If the last fragment continues in the next chunk, reads that as well
     // (but then stops and doesn't read fully the subsequent chunk).
     ChunkSeqReader csr(this, chunk, ChunkSeqReader::kEraseMode);
-    bool has_cleared_unconsumed_fragments = false;
+    // True whenever the chunk carries unconsumed fragments; those are
+    // overwrite-evicted regardless of whether ReadNextPacketInSeqOrder manages
+    // to surface a complete packet (e.g. kNotEnoughData due to kChunkNeedsPatch
+    // also evicts fragments without returning a packet).
+    bool has_cleared_unconsumed_fragments = chunk->payload_avail > 0;
     for (;;) {
       // If we have ProtoVMs, we need to readout each packet and pass to
       // protovm. If not, we still need to do reads, but without having to
@@ -1003,7 +1012,6 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
         MaybeProcessOverwrittenPacketWithProtoVm(*maybe_packet,
                                                  csr.seq()->producer_id);
       }
-      has_cleared_unconsumed_fragments = true;
     }
 
     // In future this branch should become "&& !protovm_has_consumed_packet"
