@@ -18230,6 +18230,9 @@ message TracePacket {
   //
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto
   //   116: AppWakelockBundle app_wakelock_bundle
+  //
+  // protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto
+  //   121: EvdevEvent evdev_event
   extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
 
   // Reserved for future OOT extensions. New allocations are carved out of this
