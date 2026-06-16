@@ -239,6 +239,9 @@ out/linux_msan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName
 
 ## Creating Pull Requests
 
+**Note:** This is the default PR workflow. If the user has their own way of
+creating and managing pull requests, follow that and skip this section.
+
 When creating a pull request, follow these steps:
 
 1.  **Create a new branch:**
