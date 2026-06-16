@@ -281,10 +281,10 @@ export class BreakdownTracks {
       .join('\n');
   }
 
-  // Projects per-category ts/dur plus the category's column expressions into
-  // stable names (e.g. slice_ts, slice_dur, s0..). Empty when the category is
-  // absent.
-  private projectCategory(
+  // Projects a column group's (slice or pivot) ts/dur plus its column
+  // expressions into stable names (e.g. slice_ts, slice_dur, s0..). Empty when
+  // the column group is absent.
+  private projectColumnGroup(
     info: BreakdownTrackSqlInfo | undefined,
     tsAlias: string,
     colPrefix: string,
@@ -306,7 +306,7 @@ export class BreakdownTracks {
   //     and agg_value inline so per-node counter queries are a plain GROUP BY
   //     with no JOIN back.
   //   _breakdown_projected: one row per source row WITH the slice/pivot joins
-  //     applied (so it may fan out 1:N) plus per-category ts/dur. Drives the
+  //     applied (so it may fan out 1:N) plus the slice/pivot ts/dur. Drives the
   //     hierarchy enumeration and the slice/pivot tracks.
   private async buildTables(): Promise<void> {
     const agg = this.props.aggregation;
@@ -349,8 +349,8 @@ export class BreakdownTracks {
     const projectedCols = [
       `${projectedIdExpr} AS id`,
       ...agg.columns.map((col, i) => `${col} AS k${i}`),
-      ...this.projectCategory(this.props.slice, 'slice', 's'),
-      ...this.projectCategory(this.props.pivots, 'pivot', 'p'),
+      ...this.projectColumnGroup(this.props.slice, 'slice', 's'),
+      ...this.projectColumnGroup(this.props.pivots, 'pivot', 'p'),
     ].join(', ');
 
     await this.props.trace.engine.query(`
