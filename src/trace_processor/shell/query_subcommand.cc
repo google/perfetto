@@ -203,8 +203,12 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   auto config = BuildConfig(*ctx.global, ctx.platform);
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  ASSIGN_OR_RETURN(auto t_load,
-                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  // Bare mode has no trace to ingest (and the built-in tables the load path
+  // relies on don't exist), so skip loading entirely.
+  base::TimeNanos t_load{};
+  if (!ctx.global->bare_sql_engine) {
+    ASSIGN_OR_RETURN(t_load, LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  }
 
   if (!query_file_.empty()) {
     if (!base::ReadFile(query_file_, &sql)) {

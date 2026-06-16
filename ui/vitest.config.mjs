@@ -24,6 +24,8 @@ import {lezer} from '@lezer/generator/rollup';
 import {
   pluginPerfettoPluginBarrels,
   pluginPerfettoVersion,
+  pluginGenRelativeImports,
+  pluginGenWasmGlueEsm,
 } from './vite.config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,7 +41,22 @@ export default defineConfig({
     // Synthesised modules under ui/src/virtual (version, plugin barrels).
     pluginPerfettoVersion(),
     pluginPerfettoPluginBarrels(),
+    // Allow tests to import the UMD wasm glue under src/gen (e.g. the node
+    // trace_processor engine shim used by *_unittest.ts running real wasm).
+    pluginGenRelativeImports(),
+    pluginGenWasmGlueEsm(),
   ],
+  resolve: {
+    alias: [
+      // Mirror the production vite alias: resolve the trace_processor_32_stub
+      // indirection to the real 32-bit gen module, so tests that use the WASM
+      // engine load the 32-bit build (works on Node without memory64 support).
+      {
+        find: /.*\/trace_processor_32_stub$/,
+        replacement: path.join(__dirname, 'src/gen/trace_processor'),
+      },
+    ],
+  },
   define: {
     'process.env.NODE_ENV': JSON.stringify('test'),
   },

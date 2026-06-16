@@ -387,6 +387,12 @@ message ResetTraceProcessorArgs {
 
   // A list of serialized FileDescriptorSet protos.
   repeated bytes extra_parsing_descriptors = 7;
+
+  // When true, starts a bare PerfettoSQL engine: only the core language is
+  // available, with no built-in tables, stdlib, prelude or metrics. Trace
+  // ingestion is unsupported in this mode; intended for running SQL against
+  // tables created by the caller.
+  optional bool bare_sql_engine = 8;
 }
 
 message RegisterSqlPackageArgs {
