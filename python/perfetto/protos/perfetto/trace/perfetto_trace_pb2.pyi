@@ -19333,7 +19333,7 @@ class StateDescriptor(_message.Message):
     def __init__(self) -> None: ...
 
 class TrackDescriptor(_message.Message):
-    __slots__ = ("uuid", "parent_uuid", "name", "static_name", "atrace_name", "description", "process", "chrome_process", "thread", "chrome_thread", "counter", "state", "disallow_merging_with_system_tracks", "child_ordering", "sibling_order_rank", "sibling_merge_behavior", "sibling_merge_key", "sibling_merge_key_int")
+    __slots__ = ("uuid", "parent_uuid", "name", "static_name", "atrace_name", "description", "process", "chrome_process", "thread", "chrome_thread", "counter", "state", "disallow_merging_with_system_tracks", "child_ordering", "sibling_order_rank", "sibling_merge_behavior", "sibling_merge_key", "sibling_merge_key_int", "process_ordering", "thread_ordering")
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         UNKNOWN: _ClassVar[TrackDescriptor.ChildTracksOrdering]
@@ -19354,6 +19354,18 @@ class TrackDescriptor(_message.Message):
     SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME: TrackDescriptor.SiblingMergeBehavior
     SIBLING_MERGE_BEHAVIOR_NONE: TrackDescriptor.SiblingMergeBehavior
     SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY: TrackDescriptor.SiblingMergeBehavior
+    class ProcessOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        PROCESS_ORDERING_UNSPECIFIED: _ClassVar[TrackDescriptor.ProcessOrdering]
+        PROCESS_ORDERING_EXPLICIT: _ClassVar[TrackDescriptor.ProcessOrdering]
+    PROCESS_ORDERING_UNSPECIFIED: TrackDescriptor.ProcessOrdering
+    PROCESS_ORDERING_EXPLICIT: TrackDescriptor.ProcessOrdering
+    class ThreadOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        THREAD_ORDERING_UNSPECIFIED: _ClassVar[TrackDescriptor.ThreadOrdering]
+        THREAD_ORDERING_EXPLICIT: _ClassVar[TrackDescriptor.ThreadOrdering]
+    THREAD_ORDERING_UNSPECIFIED: TrackDescriptor.ThreadOrdering
+    THREAD_ORDERING_EXPLICIT: TrackDescriptor.ThreadOrdering
     UUID_FIELD_NUMBER: _ClassVar[int]
     PARENT_UUID_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
@@ -19372,6 +19384,8 @@ class TrackDescriptor(_message.Message):
     SIBLING_MERGE_BEHAVIOR_FIELD_NUMBER: _ClassVar[int]
     SIBLING_MERGE_KEY_FIELD_NUMBER: _ClassVar[int]
     SIBLING_MERGE_KEY_INT_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_ORDERING_FIELD_NUMBER: _ClassVar[int]
+    THREAD_ORDERING_FIELD_NUMBER: _ClassVar[int]
     uuid: int
     parent_uuid: int
     name: str
@@ -19390,7 +19404,9 @@ class TrackDescriptor(_message.Message):
     sibling_merge_behavior: TrackDescriptor.SiblingMergeBehavior
     sibling_merge_key: str
     sibling_merge_key_int: int
-    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., state: _Optional[_Union[StateDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ..., sibling_merge_key_int: _Optional[int] = ...) -> None: ...
+    process_ordering: TrackDescriptor.ProcessOrdering
+    thread_ordering: TrackDescriptor.ThreadOrdering
+    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., state: _Optional[_Union[StateDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ..., sibling_merge_key_int: _Optional[int] = ..., process_ordering: _Optional[_Union[TrackDescriptor.ProcessOrdering, str]] = ..., thread_ordering: _Optional[_Union[TrackDescriptor.ThreadOrdering, str]] = ...) -> None: ...
 
 class TranslationTable(_message.Message):
     __slots__ = ("chrome_histogram", "chrome_user_event", "chrome_performance_mark", "slice_name", "process_track_name", "chrome_study")
