@@ -21,6 +21,8 @@ import type {AreaSelection, Selection} from '../../public/selection';
 import type {TrackSetting, TrackSettingDescriptor} from '../../public/track';
 import {TrackNode, type Workspace} from '../../public/workspace';
 import {Button, ButtonVariant} from '../../widgets/button';
+import {Callout} from '../../widgets/callout';
+import {Intent} from '../../widgets/common';
 import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
 import {
   type MultiSelectOption,
@@ -29,8 +31,7 @@ import {
 import {Popup} from '../../widgets/popup';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
-import {Intent} from '../../widgets/common';
-import {Callout} from '../../widgets/callout';
+import './timeline_toolbar.scss';
 
 const FILTER_TEXT_BOX_REF = 'filter-text-box';
 const COMPACT_BUTTONS = true;
