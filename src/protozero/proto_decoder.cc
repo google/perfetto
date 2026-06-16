@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/public/compiler.h"
 
 namespace protozero {
 
@@ -34,6 +35,8 @@ using namespace proto_utils;
 #if !PERFETTO_IS_LITTLE_ENDIAN()
 #error Unimplemented for big endian archs.
 #endif
+
+const Field TypedProtoDecoderBase::kInvalidField{};
 
 namespace {
 
@@ -46,8 +49,10 @@ struct ParseFieldResult {
 
 // Parses one field and returns the field itself and a pointer to the next
 // field to parse. If parsing fails, the returned |next| == |buffer|.
-ParseFieldResult ParseOneField(const uint8_t* const buffer,
-                               const uint8_t* const end) {
+// Force-inlined so that, after inlining, the result struct is decomposed by
+// the compiler and does not round-trip through memory.
+PERFETTO_ALWAYS_INLINE ParseFieldResult
+ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
   ParseFieldResult res{ParseFieldResult::kAbort, buffer, Field{}};
 
   const uint8_t* pos = buffer;
@@ -60,8 +65,8 @@ ParseFieldResult ParseOneField(const uint8_t* const buffer,
   if (PERFETTO_LIKELY(*pos < 0x80)) {  // Fastpath for fields with ID < 16.
     preamble = *(pos++);
   } else {
-    const uint8_t* next = ParseVarInt(pos, end, &preamble);
-    if (PERFETTO_UNLIKELY(pos == next))
+    const uint8_t* next = ParseVarIntFast(pos, end, &preamble);
+    if (PERFETTO_UNLIKELY(!next))
       return res;
     pos = next;
   }
@@ -77,56 +82,47 @@ ParseFieldResult ParseOneField(const uint8_t* const buffer,
   uint64_t int_value = 0;
   uint64_t size = 0;
 
-  switch (field_type) {
-    case static_cast<uint8_t>(ProtoWireType::kVarInt): {
-      new_pos = ParseVarInt(pos, end, &int_value);
+  // If-chain ordered by observed frequency: wire types within a message are
+  // near-constant, so these branches predict better than a switch jump.
+  if (PERFETTO_LIKELY(field_type ==
+                      static_cast<uint8_t>(ProtoWireType::kVarInt))) {
+    new_pos = ParseVarIntFast(pos, end, &int_value);
 
-      // new_pos not being greater than pos means ParseVarInt could not fully
-      // parse the number. This is because we are out of space in the buffer.
-      // Set the id to zero and return but don't update the offset so a future
-      // read can read this field.
-      if (PERFETTO_UNLIKELY(new_pos == pos))
-        return res;
-
-      break;
-    }
-
-    case static_cast<uint8_t>(ProtoWireType::kLengthDelimited): {
-      uint64_t payload_length;
-      new_pos = ParseVarInt(pos, end, &payload_length);
-      if (PERFETTO_UNLIKELY(new_pos == pos))
-        return res;
-
-      // ParseVarInt guarantees that |new_pos| <= |end| when it succeeds;
-      if (payload_length > static_cast<uint64_t>(end - new_pos))
-        return res;
-
-      const uintptr_t payload_start = reinterpret_cast<uintptr_t>(new_pos);
-      int_value = payload_start;
-      size = payload_length;
-      new_pos += payload_length;
-      break;
-    }
-
-    case static_cast<uint8_t>(ProtoWireType::kFixed64): {
-      new_pos = pos + sizeof(uint64_t);
-      if (PERFETTO_UNLIKELY(new_pos > end))
-        return res;
-      memcpy(&int_value, pos, sizeof(uint64_t));
-      break;
-    }
-
-    case static_cast<uint8_t>(ProtoWireType::kFixed32): {
-      new_pos = pos + sizeof(uint32_t);
-      if (PERFETTO_UNLIKELY(new_pos > end))
-        return res;
-      memcpy(&int_value, pos, sizeof(uint32_t));
-      break;
-    }
-
-    default:
-      PERFETTO_DLOG("Invalid proto field type: %u", field_type);
+    // new_pos being null means ParseVarIntFast could not fully parse the
+    // number. This is because we are out of space in the buffer. Set the id
+    // to zero and return but don't update the offset so a future read can
+    // read this field.
+    if (PERFETTO_UNLIKELY(!new_pos))
       return res;
+  } else if (PERFETTO_LIKELY(
+                 field_type ==
+                 static_cast<uint8_t>(ProtoWireType::kLengthDelimited))) {
+    uint64_t payload_length;
+    new_pos = ParseVarIntFast(pos, end, &payload_length);
+    if (PERFETTO_UNLIKELY(!new_pos))
+      return res;
+
+    // ParseVarIntFast guarantees that |new_pos| <= |end| when it succeeds;
+    if (payload_length > static_cast<uint64_t>(end - new_pos))
+      return res;
+
+    const uintptr_t payload_start = reinterpret_cast<uintptr_t>(new_pos);
+    int_value = payload_start;
+    size = payload_length;
+    new_pos += payload_length;
+  } else if (field_type == static_cast<uint8_t>(ProtoWireType::kFixed64)) {
+    new_pos = pos + sizeof(uint64_t);
+    if (PERFETTO_UNLIKELY(new_pos > end))
+      return res;
+    memcpy(&int_value, pos, sizeof(uint64_t));
+  } else if (field_type == static_cast<uint8_t>(ProtoWireType::kFixed32)) {
+    new_pos = pos + sizeof(uint32_t);
+    if (PERFETTO_UNLIKELY(new_pos > end))
+      return res;
+    memcpy(&int_value, pos, sizeof(uint32_t));
+  } else {
+    PERFETTO_DLOG("Invalid proto field type: %u", field_type);
+    return res;
   }
 
   res.next = new_pos;
@@ -214,8 +210,9 @@ void TypedProtoDecoderBase::ParseAllFields() {
 
     PERFETTO_DCHECK(field_id < size_);
     Field* fld = &fields_[field_id];
-    if (PERFETTO_LIKELY(!fld->valid())) {
+    if (PERFETTO_LIKELY(!HasField(field_id))) {
       // This is the first time we see this field.
+      SetField(field_id);
       *fld = std::move(res.field);
     } else {
       // Repeated field case.
@@ -256,13 +253,11 @@ void TypedProtoDecoderBase::ExpandHeapStorage() {
   static_assert(std::is_trivially_copyable<Field>::value,
                 "Field must be trivially copyable");
 
-  // Zero-initialize the slots for known field IDs slots, as they can be
-  // randomly accessed. Instead, there is no need to initialize the repeated
-  // slots, because they are written linearly with no gaps and are always
-  // initialized before incrementing |size_|.
+  // There is no need to initialize the slots for known field IDs: reads of
+  // them are gated on the presence bitmap. There is also no need to initialize
+  // the repeated slots, because they are written linearly with no gaps and are
+  // always initialized before incrementing |size_|.
   const uint32_t new_size = std::max(size_, num_fields_);
-  memset(&new_storage[size_], 0, sizeof(Field) * (new_size - size_));
-
   memcpy(&new_storage[0], fields_, sizeof(Field) * size_);
 
   heap_storage_ = std::move(new_storage);
