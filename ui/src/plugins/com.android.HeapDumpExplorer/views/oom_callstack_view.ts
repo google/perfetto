@@ -13,16 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import type { Trace } from '../../../public/trace';
-import type { time } from '../../../base/time';
-import type { QueryFlamegraphMetric } from '../../../components/query_flamegraph';
-import { FlamegraphPanel } from '../../../components/flamegraph_panel';
-import {
-  Flamegraph,
-  type FlamegraphState,
-} from '../../../widgets/flamegraph';
-import { Stack } from '../../../widgets/stack';
-import { STR } from '../../../trace_processor/query_result';
+import type {Trace} from '../../../public/trace';
+import type {time} from '../../../base/time';
+import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../../components/flamegraph_panel';
+import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
+import {Stack} from '../../../widgets/stack';
+import {STR} from '../../../trace_processor/query_result';
 
 interface OomCallstackViewAttrs {
   readonly trace: Trace;
@@ -94,7 +91,10 @@ const OomCallstackView: m.ClosureComponent<OomCallstackViewAttrs> = () => {
         WHERE g.upid = ${upid} AND g.ts = ${ts}
         LIMIT 1
       `);
-      oomErrorMsg = errorMsgRes.numRows() > 0 ? errorMsgRes.firstRow({ error_msg: STR }).error_msg : undefined;
+      oomErrorMsg =
+        errorMsgRes.numRows() > 0
+          ? errorMsgRes.firstRow({error_msg: STR}).error_msg
+          : undefined;
       m.redraw();
     } catch (e) {
       console.error('Failed to load OOM error message:', e);
@@ -102,7 +102,7 @@ const OomCallstackView: m.ClosureComponent<OomCallstackViewAttrs> = () => {
   }
 
   return {
-    view({ attrs }) {
+    view({attrs}) {
       const key = `${attrs.upid}:${attrs.ts}`;
       if (cachedMetrics === undefined || key !== cachedKey) {
         cachedMetrics = buildOomCallstackMetrics(attrs.ts);
@@ -120,16 +120,16 @@ const OomCallstackView: m.ClosureComponent<OomCallstackViewAttrs> = () => {
 
       return m(
         'div',
-        { class: 'pf-hde-view-content pf-hde-flamegraph-view' },
+        {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
         m(
           Stack,
-          { orientation: 'vertical' },
+          {orientation: 'vertical'},
           oomErrorMsg &&
-          m(
-            'div',
-            { style: { padding: '8px', fontSize: '14px', color: '#ff4081' } },
-            oomErrorMsg,
-          ),
+            m(
+              'div',
+              {style: {padding: '8px', fontSize: '14px', color: '#ff4081'}},
+              oomErrorMsg,
+            ),
           m(FlamegraphPanel, {
             trace: attrs.trace,
             metrics,

@@ -514,8 +514,6 @@ export async function getOverview(
     oomTs = row.ts;
   }
 
-
-
   return {
     reachableInstanceCount,
     unreachableInstanceCount,
