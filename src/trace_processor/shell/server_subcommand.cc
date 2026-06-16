@@ -30,7 +30,9 @@
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "src/trace_processor/rpc/session_paths.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/rpc/unixd.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/subcommand.h"
@@ -72,8 +74,13 @@ Modes:
          --port and --ip-address.
   stdio  Communicate via stdin/stdout using length-prefixed RPC protocol.
          Used by tooling that embeds trace processor as a subprocess.
+  unix   Serve over an AF_UNIX socket addressed by name, keeping the trace
+         warm for repeated 'query --remote <name>' calls. Use --name to pick
+         a name (otherwise one is generated) or --path for an explicit socket
+         path. Runs in the foreground; press Ctrl-C to stop.
 
-The trace file is optional; in http mode, traces can be loaded remotely.)";
+The trace file is optional in http mode (traces can be loaded remotely) but
+required in unix mode.)";
 }
 
 std::vector<FlagSpec> ServerSubcommand::GetFlags() {
@@ -83,13 +90,20 @@ std::vector<FlagSpec> ServerSubcommand::GetFlags() {
       StringFlag("additional-cors-origins", '\0', "O1,O2,...",
                  "Additional CORS origins for HTTP mode.",
                  &additional_cors_origins_str_),
+      StringFlag("name", '\0', "NAME",
+                 "Session name for unix mode (default: auto-generated).",
+                 &session_name_),
+      StringFlag("path", '\0', "PATH",
+                 "Explicit socket path for unix mode (overrides --name).",
+                 &socket_path_),
   };
 }
 
 base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
   // First positional arg is the mode.
   if (ctx.positional_args.empty()) {
-    return base::ErrStatus("server: must specify mode (http or stdio)");
+    return base::ErrStatus(
+        "server: must specify mode (expected http, stdio or unix)");
   }
   const std::string& mode = ctx.positional_args[0];
 
@@ -154,8 +168,46 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
 #endif
   }
 
-  return base::ErrStatus("server: unknown mode '%s' (expected http or stdio)",
-                         mode.c_str());
+  if (mode == "unix") {
+    if (!has_trace) {
+      return base::ErrStatus("server unix: a trace file is required");
+    }
+    // --path and --name are mutually exclusive: --path is an explicit socket
+    // path while --name selects one in the managed session dir.
+    if (!socket_path_.empty() && !session_name_.empty()) {
+      return base::ErrStatus(
+          "server unix: --path and --name are mutually exclusive");
+    }
+    // Resolve the socket path: --path wins, else --name, else a generated name.
+    std::string socket_path = socket_path_;
+    std::string session_name = session_name_;
+    if (socket_path.empty()) {
+      if (session_name.empty()) {
+        session_name = session::GenerateSessionName();
+      } else if (!session::IsValidSessionName(session_name)) {
+        return base::ErrStatus(
+            "server unix: invalid --name '%s' (must match "
+            "[A-Za-z0-9][A-Za-z0-9_-]*)",
+            session_name.c_str());
+      }
+      ASSIGN_OR_RETURN(socket_path, session::SessionSocketPath(session_name));
+    } else {
+      RETURN_IF_ERROR(session::ValidateAfUnixPathLength(socket_path));
+      if (session_name.empty())
+        session_name = socket_path;
+    }
+
+    Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
+      ctx.platform->OnTraceProcessorCreated(new_tp);
+    });
+    UnixServerArgs server_args;
+    server_args.socket_path = socket_path;
+    server_args.session_name = session_name;
+    return RunUnixRpcServer(rpc, server_args);
+  }
+
+  return base::ErrStatus(
+      "server: unknown mode '%s' (expected http, stdio or unix)", mode.c_str());
 }
 
 }  // namespace perfetto::trace_processor::shell

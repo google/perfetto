@@ -34,11 +34,11 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -158,7 +158,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
         rr.set_thread_ts(event.tts);
       }
-      MaybeAddFlow(storage->mutable_string_pool(), track_id, event);
+      MaybeAddFlow(timestamp, storage->mutable_string_pool(), track_id, event);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
@@ -179,7 +179,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
     case 'n': {
       if (!event.pid_exists ||
           event.async_cookie_type == JsonEvent::AsyncCookieType::kNone) {
-        context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+        RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
       UniquePid upid = context_->process_tracker->GetOrCreateProcess(event.pid);
@@ -203,7 +203,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       if (event.phase == 'b') {
         slice_tracker->Begin(timestamp, track_id, event.cat, slice_name_id,
                              args_inserter);
-        MaybeAddFlow(storage->mutable_string_pool(), track_id, event);
+        MaybeAddFlow(timestamp, storage->mutable_string_pool(), track_id,
+                     event);
       } else if (event.phase == 'e') {
         slice_tracker->End(timestamp, track_id, event.cat, event.name,
                            args_inserter);
@@ -212,13 +213,14 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       } else {
         context_->slice_tracker->Scoped(timestamp, track_id, event.cat,
                                         event.name, 0, args_inserter);
-        MaybeAddFlow(storage->mutable_string_pool(), track_id, event);
+        MaybeAddFlow(timestamp, storage->mutable_string_pool(), track_id,
+                     event);
       }
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
       if (event.dur == std::numeric_limits<int64_t>::max()) {
-        context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+        RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
@@ -234,17 +236,17 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           rr.set_thread_dur(event.tdur);
         }
       }
-      MaybeAddFlow(storage->mutable_string_pool(), track_id, event);
+      MaybeAddFlow(timestamp, storage->mutable_string_pool(), track_id, event);
       break;
     }
     case 'C': {  // TRACE_EVENT_COUNTER
       if (event.args_size == 0) {
-        context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+        RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
       it_.Reset(event.args.get(), event.args.get() + event.args_size);
       if (!it_.ParseStart()) {
-        context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+        RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
       std::string counter_name_prefix =
@@ -260,7 +262,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           case json::ReturnCode::kEndOfScope:
             break;
           case json::ReturnCode::kError:
-            context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+            RecordEventError(timestamp, event, stats::json_parser_failure);
             continue;
           case json::ReturnCode::kIncompleteInput:
             PERFETTO_FATAL("Unexpected incomplete input in JSON object");
@@ -273,8 +275,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             auto opt = base::StringToDouble(std::string(
                 base::unchecked_get<std::string_view>(it_.value())));
             if (!opt.has_value()) {
-              context_->stats_tracker->IncrementStats(
-                  stats::json_parser_failure);
+              RecordEventError(timestamp, event, stats::json_parser_failure);
               continue;
             }
             counter = opt.value();
@@ -288,7 +289,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                 static_cast<double>(base::unchecked_get<int64_t>(it_.value()));
             break;
           default:
-            context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+            RecordEventError(timestamp, event, stats::json_parser_failure);
             continue;
         }
         std::string counter_name = counter_name_prefix;
@@ -314,7 +315,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             });
       } else if (event.scope == JsonEvent::Scope::kProcess) {
         if (!event.pid_exists) {
-          context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+          RecordEventError(timestamp, event, stats::json_parser_failure);
           break;
         }
         UniquePid upid =
@@ -330,7 +331,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       } else if (event.scope == JsonEvent::Scope::kThread ||
                  event.scope == JsonEvent::Scope::kNone) {
         if (!event.tid_exists) {
-          context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+          RecordEventError(timestamp, event, stats::json_parser_failure);
           return;
         }
         track_id = context_->track_tracker->InternThreadTrack(utid);
@@ -344,7 +345,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         }
         break;
       } else {
-        context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+        RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
       context_->slice_tracker->Scoped(timestamp, track_id, event.cat,
@@ -361,7 +362,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             opt_source_id.value(), event.cat, event.name);
         flow_tracker->Begin(track_id, flow_id);
       } else {
-        context_->stats_tracker->IncrementStats(stats::flow_invalid_id);
+        RecordEventError(timestamp, event, stats::flow_invalid_id);
       }
       break;
     }
@@ -375,7 +376,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             opt_source_id.value(), event.cat, event.name);
         flow_tracker->Step(track_id, flow_id);
       } else {
-        context_->stats_tracker->IncrementStats(stats::flow_invalid_id);
+        RecordEventError(timestamp, event, stats::flow_invalid_id);
       }
       break;
     }
@@ -390,13 +391,13 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         flow_tracker->End(track_id, flow_id, event.bind_enclosing_slice,
                           /* close_flow = */ false);
       } else {
-        context_->stats_tracker->IncrementStats(stats::flow_invalid_id);
+        RecordEventError(timestamp, event, stats::flow_invalid_id);
       }
       break;
     }
     case 'T': {  // Thread state event.
       if (event.dur == std::numeric_limits<int64_t>::max()) {
-        context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+        RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
 
@@ -410,7 +411,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       if (event.args_size > 0) {
         it_.Reset(event.args.get(), event.args.get() + event.args_size);
         if (!it_.ParseStart()) {
-          context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+          RecordEventError(timestamp, event, stats::json_parser_failure);
         } else {
           json::ReturnCode ret;
           for (ret = it_.ParseObjectFieldWithoutRecursing();
@@ -432,7 +433,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             }
           }
           if (ret != json::ReturnCode::kEndOfScope)
-            context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+            RecordEventError(timestamp, event, stats::json_parser_failure);
         }
       }
 
@@ -461,7 +462,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       }
       it_.Reset(event.args.get(), event.args.get() + event.args_size);
       if (!it_.ParseStart()) {
-        context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+        RecordEventError(timestamp, event, stats::json_parser_failure);
         break;
       }
       for (;;) {
@@ -470,7 +471,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           case json::ReturnCode::kOk:
             break;
           case json::ReturnCode::kError:
-            context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+            RecordEventError(timestamp, event, stats::json_parser_failure);
             continue;
           case json::ReturnCode::kIncompleteInput:
             PERFETTO_FATAL("Unexpected incomplete input in JSON object");
@@ -492,8 +493,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                   base::unchecked_get<double>(it_.value()));
               break;
             default:
-              context_->stats_tracker->IncrementStats(
-                  stats::json_parser_failure);
+              RecordEventError(timestamp, event, stats::json_parser_failure);
               continue;
           }
           if (name == "process_sort_index") {
@@ -510,7 +510,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           }
           std::string_view args_name = GetStringValue(it_.value());
           if (args_name.empty()) {
-            context_->stats_tracker->IncrementStats(stats::json_parser_failure);
+            RecordEventError(timestamp, event, stats::json_parser_failure);
             continue;
           }
           if (name == "thread_name") {
@@ -529,7 +529,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   }
 }
 
-void JsonTraceParser::MaybeAddFlow(StringPool* pool,
+void JsonTraceParser::MaybeAddFlow(int64_t timestamp,
+                                   StringPool* pool,
                                    TrackId track_id,
                                    const JsonEvent& event) {
   auto opt_bind_id =
@@ -545,9 +546,26 @@ void JsonTraceParser::MaybeAddFlow(StringPool* pool,
       flow_tracker->End(track_id, opt_bind_id.value(), true,
                         /* close_flow = */ false);
     } else {
-      context_->stats_tracker->IncrementStats(stats::flow_without_direction);
+      RecordEventError(timestamp, event, stats::flow_without_direction);
     }
   }
+}
+
+void JsonTraceParser::RecordEventError(int64_t timestamp,
+                                       const JsonEvent& event,
+                                       size_t stat_key) {
+  StringId name_key = context_->storage->InternString("event_name");
+  StringId phase_key = context_->storage->InternString("event_phase");
+  StringId name_id = event.name;
+  const char phase_str[2] = {event.phase, '\0'};
+  StringId phase_id = context_->storage->InternString(phase_str);
+  context_->import_logs_tracker->RecordParserError(
+      stat_key, timestamp,
+      [name_key, name_id, phase_key,
+       phase_id](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(name_key, Variadic::String(name_id));
+        inserter.AddArg(phase_key, Variadic::String(phase_id));
+      });
 }
 
 }  // namespace perfetto::trace_processor

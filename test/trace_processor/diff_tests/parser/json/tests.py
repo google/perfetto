@@ -1832,3 +1832,36 @@ class JsonParser(TestSuite):
           101,"NullTs"
           102,"InvalidTs"
         """))
+
+  def test_trailing_empty_event(self):
+    # Regression test for https://github.com/google/perfetto/issues/6251.
+    # Producers (e.g. the JAX/XLA profiler) commonly terminate the traceEvents
+    # array with an empty object "{}". This is benign and must not be reported
+    # as a json_tokenizer_failure, while the preceding valid event still
+    # imports.
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+            "traceEvents": [
+              {
+                "ph": "X",
+                "ts": 1,
+                "dur": 2,
+                "pid": 1,
+                "tid": 1,
+                "name": "real_event"
+              },
+              {}
+            ]
+          }
+        '''),
+        query='''
+          SELECT
+            (SELECT value FROM stats WHERE name = 'json_tokenizer_failure')
+              AS tokenizer_failures,
+            (SELECT COUNT(*) FROM slice) AS slice_count
+        ''',
+        out=Csv("""
+          "tokenizer_failures","slice_count"
+          0,1
+        """))

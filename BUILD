@@ -821,7 +821,9 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
+        ":src_trace_processor_rpc_session_util",
         ":src_trace_processor_rpc_stdiod",
+        ":src_trace_processor_rpc_unixd",
         ":src_trace_processor_shell_shell",
         ":src_trace_processor_shell_subcommands",
         ":src_trace_processor_sorter_sorter",
@@ -2621,6 +2623,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/slice_translation_table.h",
         "src/trace_processor/importers/common/stack_profile_tracker.cc",
         "src/trace_processor/importers/common/stack_profile_tracker.h",
+        "src/trace_processor/importers/common/state_tracker.cc",
+        "src/trace_processor/importers/common/state_tracker.h",
         "src/trace_processor/importers/common/symbol_tracker.cc",
         "src/trace_processor/importers/common/symbol_tracker.h",
         "src/trace_processor/importers/common/system_info_tracker.cc",
@@ -5239,12 +5243,30 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/rpc:session_util
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_session_util",
+    srcs = [
+        "src/trace_processor/rpc/session_paths.cc",
+        "src/trace_processor/rpc/session_paths.h",
+    ],
+)
+
 # GN target: //src/trace_processor/rpc:stdiod
 perfetto_filegroup(
     name = "src_trace_processor_rpc_stdiod",
     srcs = [
         "src/trace_processor/rpc/stdiod.cc",
         "src/trace_processor/rpc/stdiod.h",
+    ],
+)
+
+# GN target: //src/trace_processor/rpc:unixd
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_unixd",
+    srcs = [
+        "src/trace_processor/rpc/unixd.cc",
+        "src/trace_processor/rpc/unixd.h",
     ],
 )
 
@@ -5373,6 +5395,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/profiler_tables.py",
         "src/trace_processor/tables/sched_tables.py",
         "src/trace_processor/tables/slice_tables.py",
+        "src/trace_processor/tables/state_tables.py",
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
         "src/trace_processor/tables/v8_tables.py",
@@ -5404,6 +5427,8 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/sched_tables_py.h",
         "src/trace_processor/tables/slice_tables_fwd.h",
         "src/trace_processor/tables/slice_tables_py.h",
+        "src/trace_processor/tables/state_tables_fwd.h",
+        "src/trace_processor/tables/state_tables_py.h",
         "src/trace_processor/tables/trace_proto_tables_fwd.h",
         "src/trace_processor/tables/trace_proto_tables_py.h",
         "src/trace_processor/tables/track_tables_fwd.h",
@@ -5956,6 +5981,8 @@ perfetto_filegroup(
         "src/trace_processor/read_trace.cc",
         "src/trace_processor/read_trace_internal.cc",
         "src/trace_processor/read_trace_internal.h",
+        "src/trace_processor/sqlite_iterator_impl.cc",
+        "src/trace_processor/sqlite_iterator_impl.h",
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",
         "src/trace_processor/trace_processor_impl.h",
