@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertUnreachable} from '../../base/assert';
 import {sqliteString} from '../../base/string_utils';
 import {uuidv4} from '../../base/uuid';
 import {SliceTrack} from './slice_track';
@@ -171,18 +172,30 @@ interface Filter {
 export class BreakdownTracks {
   private readonly props: BreakdownTrackProps;
   private readonly uri: string;
+
+  // Precomputed SQL fragments, assembled once in the constructor: the
+  // `INCLUDE PERFETTO MODULE` preamble, and the LEFT JOIN clauses attaching the
+  // slice / pivot tables to the projection (each empty when not configured).
   private readonly modulesClause: string;
   private readonly sliceJoinClause: string;
   private readonly pivotJoinClause: string;
 
-  // Unique per-instance materialized tables (see buildTables).
+  // The three tables built once per BreakdownTracks instance (see buildTables);
+  // each name gets a UUID suffix so independent grids — e.g. the binder server
+  // and client trees — never collide on a table name:
+  //   intervals  one row per source interval (no joins).
+  //   segments   interval_self_intersect output: the atomic overlap segments.
+  //   projected  source rows + slice/pivot joins (may fan out 1:N) + ts/dur.
   private readonly intervalsTableName: string;
   private readonly segmentsTableName: string;
   private readonly projectedTableName: string;
 
-  // Stable projected column names. The user-supplied column expressions are
-  // evaluated once into these names so every downstream filter is raw column
-  // equality (k0 = 'x') instead of re-evaluating the expression.
+  // The breakdown / slice / pivot columns the caller supplies are arbitrary SQL
+  // *expressions* (e.g. `IFNULL(interface, 'unknown')`). We evaluate each once
+  // when building the tables and alias it to a stable plain column name, so
+  // every later GROUP BY / filter is a cheap raw-column reference (k0 = 'x')
+  // rather than re-evaluating the whole expression each time. k* are the
+  // breakdown (aggregation) columns, s* the slice columns, p* the pivot columns.
   private readonly aggColNames: readonly string[]; // k0..kN
   private readonly sliceColNames: readonly string[]; // s0..sM
   private readonly pivotColNames: readonly string[]; // p0..pP
@@ -225,8 +238,11 @@ export class BreakdownTracks {
 
   // The aggregate evaluated over each atomic segment's active (non-end-marker)
   // intervals. COUNT counts them; MAX/SUM reduce the denormalized agg_value.
-  // End-markers contribute nothing so the counter naturally drops where
-  // intervals end.
+  // End-markers map to NULL / 0 so they contribute nothing and the counter
+  // naturally drops where intervals end. MAX maps end-markers to NULL (rather
+  // than a sentinel like 0) precisely because SQL aggregates skip NULL: a
+  // numeric sentinel could wrongly win the MAX when every active value is lower
+  // (e.g. all negative).
   private aggValueExpr(): string {
     switch (this.props.aggregationType) {
       case BreakdownTrackAggType.MAX:
@@ -234,9 +250,9 @@ export class BreakdownTracks {
       case BreakdownTrackAggType.SUM:
         return 'SUM(IIF(interval_ends_at_ts = FALSE, agg_value, 0))';
       case BreakdownTrackAggType.COUNT:
-      default:
         return 'SUM(IIF(interval_ends_at_ts = FALSE, 1, 0))';
     }
+    assertUnreachable(this.props.aggregationType);
   }
 
   private getAggregationQuery(filtersClause: string): string {
@@ -282,12 +298,13 @@ export class BreakdownTracks {
   }
 
   // Builds the three tables that drive every track:
-  //   _breakdown_intervals: one row per source interval (id, ts, dur, k*,
-  //     [agg_value]) from the aggregation table ONLY — no slice/pivot joins, so
-  //     the overlap count is never inflated by a 1:N join.
+  //   _breakdown_intervals: one row per source interval (id, ts, dur, the
+  //     breakdown columns, [agg_value]) from the aggregation table ONLY — no
+  //     slice/pivot joins, so the overlap count is never inflated by a 1:N join.
   //   _breakdown_segments: per-(atomic segment, active interval) rows from
-  //     interval_self_intersect over the intervals, with k*/agg_value inline so
-  //     per-node counter queries are a plain GROUP BY with no JOIN back.
+  //     interval_self_intersect over the intervals, with the breakdown columns
+  //     and agg_value inline so per-node counter queries are a plain GROUP BY
+  //     with no JOIN back.
   //   _breakdown_projected: one row per source row WITH the slice/pivot joins
   //     applied (so it may fan out 1:N) plus per-category ts/dur. Drives the
   //     hierarchy enumeration and the slice/pivot tracks.
