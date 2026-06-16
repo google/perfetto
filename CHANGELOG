@@ -17,7 +17,8 @@ Unreleased:
   UI:
    *
   SDK:
-   *
+    * Added nested track support with sibling ordering and merging to the C SDK
+      high-level ABI and the Android Java SDK (`PerfettoTrack`).
 
 v56.1 - 2026-06-04:
   SDK:

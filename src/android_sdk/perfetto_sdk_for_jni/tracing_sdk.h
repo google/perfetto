@@ -210,7 +210,7 @@ struct NestedLevel {
  */
 class NestedTracks {
  public:
-  NestedTracks(RootType root_type, const std::vector<NestedLevel>& levels);
+  NestedTracks(RootType root_type, std::vector<NestedLevel> levels);
 
   static void delete_track(NestedTracks* track);
 

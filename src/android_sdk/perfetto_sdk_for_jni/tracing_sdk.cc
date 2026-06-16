@@ -20,6 +20,7 @@
 
 #include <cstdarg>
 #include <mutex>
+#include <utility>
 
 #include "perfetto/public/abi/producer_abi.h"
 #include "perfetto/public/producer.h"
@@ -157,9 +158,8 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
 }
 
-NestedTracks::NestedTracks(RootType root_type,
-                           const std::vector<NestedLevel>& levels)
-    : levels_(levels), root_{}, extra_{} {
+NestedTracks::NestedTracks(RootType root_type, std::vector<NestedLevel> levels)
+    : levels_(std::move(levels)), root_{}, extra_{} {
   const size_t count = levels_.size();
   named_.reserve(count);
   ptrs_.reserve(count + 2);

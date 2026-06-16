@@ -23,6 +23,7 @@
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
 #include <list>
+#include <utility>
 
 namespace perfetto {
 namespace jni {
@@ -450,7 +451,7 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
     level.sibling_merge_key_int = merge_keys_int_vec[static_cast<size_t>(i)];
   }
   return toJLong(new sdk_for_jni::NestedTracks(
-      static_cast<sdk_for_jni::RootType>(root_type), levels));
+      static_cast<sdk_for_jni::RootType>(root_type), std::move(levels)));
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete(
