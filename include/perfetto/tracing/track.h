@@ -198,19 +198,19 @@ namespace internal {
 
 // A helper to share functionality between NamedTrack and StateTrack.
 template <typename Derived, uint64_t Magic>
-class NamedTrackImpl : public Track {
+class NamedTrackBase : public Track {
  public:
   // `name` is hashed to get a uuid identifying the track. Optionally specify
   // `id` to differentiate between multiple tracks with the same `name` and
   // `parent`.
-  NamedTrackImpl(DynamicString name,
+  NamedTrackBase(DynamicString name,
                  uint64_t id = 0,
                  Track parent = MakeProcessTrack())
       : Track(id ^ internal::Fnv1a(name.value, name.length) ^ Magic, parent),
         static_name_(nullptr),
         dynamic_name_(name) {}
 
-  constexpr NamedTrackImpl(StaticString name,
+  constexpr NamedTrackBase(StaticString name,
                            uint64_t id = 0,
                            Track parent = MakeProcessTrack())
       : Track(id ^ internal::Fnv1a(name.value) ^ Magic, parent),
@@ -286,16 +286,16 @@ class NamedTrackImpl : public Track {
 };
 
 static constexpr uint64_t kNamedTrackMagic = 0xCD571EC5EAD37024ul;
-static constexpr uint64_t kStateTrackMagic = 0x57417374617465ul;
+static constexpr uint64_t kStateTrackMagic = 0x2E2398EC92E89138ul;
 
 }  // namespace internal
 
 // A track that's identified by an explicit name, id and its parent.
 class PERFETTO_EXPORT_COMPONENT NamedTrack
-    : public internal::NamedTrackImpl<NamedTrack, internal::kNamedTrackMagic> {
+    : public internal::NamedTrackBase<NamedTrack, internal::kNamedTrackMagic> {
  public:
-  using NamedTrackImpl::NamedTrackImpl;
-  using NamedTrackImpl::Serialize;
+  using NamedTrackBase::NamedTrackBase;
+  using NamedTrackBase::Serialize;
 
   constexpr NamedTrack disable_sibling_merge() const {
     return NamedTrack(
@@ -321,7 +321,7 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
-  friend class internal::NamedTrackImpl<NamedTrack, internal::kNamedTrackMagic>;
+  friend class internal::NamedTrackBase<NamedTrack, internal::kNamedTrackMagic>;
 
   constexpr NamedTrack(
       const NamedTrack& other,
@@ -329,7 +329,7 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack
           sibling_merge_behavior,
       const char* sibling_merge_key,
       std::optional<uint64_t> sibling_merge_key_int)
-      : NamedTrackImpl(other),
+      : NamedTrackBase(other),
         sibling_merge_behavior_(sibling_merge_behavior),
         sibling_merge_key_(sibling_merge_key),
         sibling_merge_key_int_(std::move(sibling_merge_key_int)) {}
@@ -344,15 +344,15 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack
 // A track for recording state values with the TRACE_STATE macro, with similar
 // API as NamedTrack.
 class PERFETTO_EXPORT_COMPONENT StateTrack
-    : public internal::NamedTrackImpl<StateTrack, internal::kStateTrackMagic> {
+    : public internal::NamedTrackBase<StateTrack, internal::kStateTrackMagic> {
  public:
-  using NamedTrackImpl::NamedTrackImpl;
-  using NamedTrackImpl::Serialize;
+  using NamedTrackBase::NamedTrackBase;
+  using NamedTrackBase::Serialize;
 
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
-  friend class internal::NamedTrackImpl<StateTrack, internal::kStateTrackMagic>;
+  friend class internal::NamedTrackBase<StateTrack, internal::kStateTrackMagic>;
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter

@@ -117,7 +117,7 @@ void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
 }
 
 protos::gen::TrackDescriptor NamedTrack::Serialize() const {
-  auto desc = NamedTrackImpl::Serialize();
+  auto desc = NamedTrackBase::Serialize();
   if (sibling_merge_behavior_ != perfetto::protos::gen::TrackDescriptor::
                                      SIBLING_MERGE_BEHAVIOR_UNSPECIFIED) {
     desc.set_sibling_merge_behavior(sibling_merge_behavior_);
@@ -131,7 +131,8 @@ protos::gen::TrackDescriptor NamedTrack::Serialize() const {
 }
 
 protos::gen::TrackDescriptor StateTrack::Serialize() const {
-  auto desc = NamedTrackImpl::Serialize();
+  auto desc = NamedTrackBase::Serialize();
+  // Initialize the state submessage to mark this track as a StateTrack.
   desc.mutable_state();
   return desc;
 }
