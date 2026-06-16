@@ -19,6 +19,7 @@ perfetto_sql_source_set("summary") {
     "counters.sql",
     "processes.sql",
     "slices.sql",
+    "states.sql",
     "threads.sql",
     "trace.sql",
     "track_event.sql",
