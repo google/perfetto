@@ -581,7 +581,7 @@ function findTracksMatchingRegex(
   const visit = (node: TrackNode): void => {
     const target =
       nameOrPath === 'path' ? node.fullPath.join(' > ') : node.name;
-    if (regex.test(target) && !node.headless) {
+    if (!node.headless && regex.test(target)) {
       matches.push(node);
     }
     node.children.forEach(visit);

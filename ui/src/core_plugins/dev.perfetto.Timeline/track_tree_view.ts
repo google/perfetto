@@ -149,6 +149,9 @@ export interface TrackTreeViewAttrs {
   readonly trackFilter?: (track: TrackNode) => boolean;
 
   readonly filtersApplied?: boolean;
+
+  // Unhide headless tracsk.
+  readonly showHeadlessTracks?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -186,6 +189,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       rootNode,
       trackFilter,
       filtersApplied,
+      showHeadlessTracks,
     } = attrs;
     const renderedTracks = new Array<TrackView>();
     let top = 0;
@@ -210,7 +214,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Skip nodes that don't match the filter and have no matching children.
       if (!filterMatches(node)) return {vnodes: false, isVisible: false};
 
-      if (node.headless) {
+      if (node.headless && !showHeadlessTracks) {
         // Headless nodes are invisible, just render children.
         const childNodes: m.Children = [];
         let atLeastOneChildVisible = false;
@@ -224,7 +228,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
       }
 
-      const trackView = new TrackView(trace, node, top);
+      const trackView = new TrackView(trace, node, top, showHeadlessTracks);
       renderedTracks.push(trackView);
 
       // Advance the global top position.

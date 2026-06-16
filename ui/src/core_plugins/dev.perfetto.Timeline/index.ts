@@ -50,12 +50,22 @@ export default class TimelinePlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: TraceImpl): Promise<void> {
+    const showHeadlessTracksSetting = trace.settings.register({
+      id: 'dev.perfetto.showHeadlessTracks',
+      name: 'Show headless tracks',
+      description:
+        'Show tracks marked as headless, which are normally hidden and used purely for organization. Debugging only.',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+
     trace.pages.registerPage({
       route: '/viewer',
       render: () => {
         return m(TimelinePage, {
           trace,
           showMinimap: TimelinePlugin.minimapFlag.get(),
+          showHeadlessTracks: showHeadlessTracksSetting.get(),
         });
       },
     });
