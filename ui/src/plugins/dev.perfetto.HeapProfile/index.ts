@@ -111,7 +111,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         [ProfileType.GENERIC_HEAP_PROFILE]: {},
         [ProfileType.JAVA_HEAP_SAMPLES]: {},
         [ProfileType.JAVA_HEAP_GRAPH]: {},
-        [ProfileType.OOM_HEAP_PROFILE]: {},
       }
     );
   }
@@ -129,8 +128,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     for (const heapType of heapTypes) {
       const descriptor = profileDescriptor(heapType);
       if (
-        descriptor.type === ProfileType.JAVA_HEAP_GRAPH ||
-        descriptor.type === ProfileType.OOM_HEAP_PROFILE
+        descriptor.type === ProfileType.JAVA_HEAP_GRAPH
       ) {
         // There's no area selection for java heap dumps.
         continue;
@@ -182,27 +180,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           'java_heap_graph' AS type
         FROM heap_graph_object
         GROUP BY graph_sample_ts, upid
-
-        UNION ALL
-
-        SELECT
-          id,
-          MIN(ts, (SELECT end_ts FROM trace_bounds)) AS ts,
-          ts AS reference_ts,
-          IFNULL((
-            SELECT p.upid 
-            FROM process p 
-            JOIN process p2 ON p.pid = p2.pid 
-            WHERE p2.upid = heap_graph.upid 
-              AND p.start_ts IS NOT NULL 
-            ORDER BY p.end_ts DESC 
-            LIMIT 1
-          ), upid) AS upid,
-          0 AS dur,
-          0 AS depth,
-          'oom_heap_profile' AS type
-        FROM heap_graph
-        WHERE dump_reason = 'OOME'
 
         UNION ALL
 
@@ -260,14 +237,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       const upids: number[] = [];
       for (const it = upidResult.iter({upid: NUM}); it.valid(); it.next()) {
         upids.push(it.upid);
-      }
-      console.log(`[OOM Debug] Heap type ${heapType} has upids:`, upids);
-
-      if (heapType === 'oom_heap_profile') {
-        const debugResult = await trace.engine.query(`SELECT id, ts, upid, dur FROM ${viewName}`);
-        for (const it = debugResult.iter({id: NUM, ts: NUM, upid: NUM, dur: NUM}); it.valid(); it.next()) {
-          console.log(`[OOM Debug] oom_heap_profile row: id=${it.id}, ts=${it.ts}, upid=${it.upid}, dur=${it.dur}`);
-        }
       }
       console.log(`[OOM Debug] Heap type ${heapType} has upids:`, upids);
 
@@ -362,8 +331,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     if (!track) return;
 
     if (
-      profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH ||
-      profileDescriptor(iter.type).type === ProfileType.OOM_HEAP_PROFILE
+      profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH
     ) {
       ctx.selection.selectTrackEvent(track.uri, iter.id);
     } else {

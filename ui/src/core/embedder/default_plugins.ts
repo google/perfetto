@@ -77,6 +77,7 @@ export const defaultPlugins = [
   'dev.perfetto.LinuxPerf',
   'dev.perfetto.MetricsPage',
   'dev.perfetto.Notes',
+  'dev.perfetto.OomCallstack',
   'dev.perfetto.PowerRails',
   'dev.perfetto.Process',
   'dev.perfetto.ProcessSummary',
