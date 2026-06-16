@@ -95,8 +95,7 @@
           "description": "frameworks/base TracePacket extensions",
           "comment": [
             "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto.",
-            "Wrapper: FrameworksBaseTracePacket.",
-            "1000: VideoFrame video_frame, 1001: VideoFrameError video_frame_error."
+            "Wrapper: FrameworksBaseTracePacket."
           ],
           "ranges": [[116, 116], [1000, 1001]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
@@ -107,8 +106,7 @@
           "description": "frameworks/native TracePacket extensions",
           "comment": [
             "Defined in third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto.",
-            "Wrapper: FrameworksNativeTracePacket.",
-            "121: EvdevEvent evdev_event."
+            "Wrapper: FrameworksNativeTracePacket."
           ],
           "ranges": [[121, 121]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
