@@ -148,6 +148,26 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
   return res;
 }
 
+// Grows the selective-decoding spill area once the inline slots are
+// exhausted, moving the spilled fields to the heap. The append itself is
+// open-coded in the decode loop; see the comment there.
+PERFETTO_NO_INLINE void ExpandSpill(Field** spill,
+                                    uint32_t* spill_capacity,
+                                    uint32_t spill_size,
+                                    std::unique_ptr<Field[]>* heap_spill) {
+  // Double the capacity, with a floor so that an exhausted spill that somehow
+  // starts from zero capacity (e.g. a moved-from state) doesn't keep doubling
+  // zero. The floor matches SelectiveTypedProtoDecoder::kSpillStackCapacity.
+  const uint32_t new_capacity = std::max(*spill_capacity * 2, 16u);
+  PERFETTO_CHECK(new_capacity > spill_size);
+  std::unique_ptr<Field[]> new_storage(new Field[new_capacity]);
+  if (spill_size > 0)
+    memcpy(&new_storage[0], *spill, sizeof(Field) * spill_size);
+  *heap_spill = std::move(new_storage);
+  *spill = &(*heap_spill)[0];
+  *spill_capacity = new_capacity;
+}
+
 }  // namespace
 
 Field ProtoDecoder::FindField(uint32_t field_id) {
@@ -174,6 +194,31 @@ Field ProtoDecoder::ReadField() {
 }
 
 void TypedProtoDecoderBase::ParseAllFields() {
+  ParseAllFieldsImpl<false>(nullptr, nullptr, nullptr, nullptr, nullptr);
+}
+
+void TypedProtoDecoderBase::ParseAllFieldsSelective(
+    const uint64_t* dense_mask,
+    Field** spill,
+    uint32_t* spill_capacity,
+    uint32_t* spill_size,
+    std::unique_ptr<Field[]>* heap_spill) {
+  PERFETTO_DCHECK(dense_mask && spill && spill_capacity && spill_size &&
+                  heap_spill);
+  ParseAllFieldsImpl<true>(dense_mask, spill, spill_capacity, spill_size,
+                           heap_spill);
+}
+
+// Force-inlined into the two thin entry points above: the plain
+// instantiation compiles to a loop with no trace of the mask support and
+// the wrappers' arguments fold away entirely.
+template <bool kSelective>
+PERFETTO_ALWAYS_INLINE void TypedProtoDecoderBase::ParseAllFieldsImpl(
+    const uint64_t* dense_mask,
+    Field** spill,
+    uint32_t* spill_capacity,
+    uint32_t* spill_size,
+    std::unique_ptr<Field[]>* heap_spill) {
   const uint8_t* cur = begin_;
   ParseFieldResult res;
   for (;;) {
@@ -188,17 +233,39 @@ void TypedProtoDecoderBase::ParseAllFields() {
     PERFETTO_DCHECK(res.parse_res == ParseFieldResult::kOk);
     PERFETTO_DCHECK(res.field.valid());
     auto field_id = res.field.id();
-    // Fields with an id beyond the highest field id known in-tree at compile
-    // time are out-of-tree "extension" fields (e.g. carved out of TracePacket's
-    // `extensions 1000 to 1999` range). They are intentionally not stored here
-    // because fields_ is indexed directly by field id, and extension ids are
-    // sparse and potentially very high. Callers that need them must use
-    // TypedProtoDecoderBase::GetExtensionSlowly().
-    // TODO: store extensions in a sparse, object-pooled side table so they stay
-    // accessible without a buffer re-scan. See GetExtensionSlowly() for the
-    // proposed design.
-    if (PERFETTO_UNLIKELY(field_id >= num_fields_))
+    if constexpr (kSelective) {
+      // Selective decoding: only allowlisted in-range ids go to the dense
+      // storage; everything else (including ids beyond the in-tree range) is
+      // appended, in wire order, to the spill area. |num_fields_| is capped
+      // at the mask's extent by SelectiveTypedProtoDecoder, so this also
+      // bounds the mask read.
+      const bool dense =
+          field_id < num_fields_ &&
+          (dense_mask[field_id / 64] & (1ULL << (field_id % 64))) != 0;
+      if (!dense) {
+        // The spill append is open-coded from the field's scalar components:
+        // a function taking the whole Field (by value or reference) makes
+        // the compiler materialize the packed Field representation on every
+        // loop iteration, including for fields that are not spilled.
+        if (PERFETTO_UNLIKELY(*spill_size >= *spill_capacity))
+          ExpandSpill(spill, spill_capacity, *spill_size, heap_spill);
+        (*spill)[(*spill_size)++].initialize(
+            field_id, static_cast<uint8_t>(res.field.type()),
+            res.field.raw_int_value(), res.field.raw_size());
+        continue;
+      }
+    } else if (PERFETTO_UNLIKELY(field_id >= num_fields_)) {
+      // Fields with an id beyond the highest field id known in-tree at compile
+      // time are out-of-tree "extension" fields (e.g. carved out of
+      // TracePacket's `extensions 1000 to 1999` range). They are intentionally
+      // not stored here because fields_ is indexed directly by field id, and
+      // extension ids are sparse and potentially very high. Callers that need
+      // them must use TypedProtoDecoderBase::GetExtensionSlowly().
+      // TODO: store extensions in a sparse, object-pooled side table so they
+      // stay accessible without a buffer re-scan. See GetExtensionSlowly() for
+      // the proposed design.
       continue;
+    }
 
     // There are two reasons why we might want to expand the heap capacity:
     // 1. We are writing a non-repeated field, which has an id >
