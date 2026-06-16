@@ -29,7 +29,6 @@ import {
   stateToSubpage,
   subpageToState,
 } from './nav_state';
-import type {OverviewData} from './types';
 import type {FlamegraphState} from '../../widgets/flamegraph';
 import type {HdeState} from './persisted_state';
 import {
@@ -74,7 +73,6 @@ export class HeapDumpExplorerSession {
   private _navigateCallback?: (subpage: string) => void;
 
   private _dumps: ReadonlyArray<queries.HeapDump> = [];
-  private _overview: OverviewData | null = null;
   private readonly _counts = new Map<string, number>();
 
   // Set when the plugin auto-redirected to HDE on load; gates the
@@ -140,7 +138,6 @@ export class HeapDumpExplorerSession {
   }
 
   private switchToDump(d: queries.HeapDump): void {
-    this._overview = null;
     this._counts.clear();
     this.store.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
@@ -148,7 +145,6 @@ export class HeapDumpExplorerSession {
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
     });
-    void this.loadOverview();
   }
 
   get nav(): NavState {
@@ -182,6 +178,8 @@ export class HeapDumpExplorerSession {
       this.openInstanceTab(
         params?.id as number,
         params?.label as string | undefined,
+        params?.currentId as number | null | undefined,
+        params?.baselineId as number | null | undefined,
       );
     }
     this.navigate(view, params);
@@ -312,8 +310,18 @@ export class HeapDumpExplorerSession {
       .catch(console.error);
   }
 
-  get instanceTabs(): ReadonlyArray<{objId: number; label: string}> {
-    return this.store.state.instanceTabs ?? [];
+  get instanceTabs(): ReadonlyArray<{
+    objId: number;
+    label: string;
+    currentId: number | null;
+    baselineId: number | null;
+  }> {
+    return (this.store.state.instanceTabs ?? []).map((t) => ({
+      objId: t.objId,
+      label: t.label,
+      currentId: t.currentId ?? t.objId,
+      baselineId: t.baselineId ?? null,
+    }));
   }
 
   // The active object's id, derived from the nav (not stored), or null.
@@ -322,13 +330,23 @@ export class HeapDumpExplorerSession {
     return nav.view === 'object' ? nav.params.id : null;
   }
 
-  private openInstanceTab(objId: number, label?: string): void {
+  private openInstanceTab(
+    objId: number,
+    label?: string,
+    currentId?: number | null,
+    baselineId?: number | null,
+  ): void {
     const tabs = this.store.state.instanceTabs ?? [];
     if (tabs.some((t) => t.objId === objId)) return;
     this.store.edit((s) => {
       s.instanceTabs = [
         ...(s.instanceTabs ?? []),
-        {objId, label: truncateInstanceLabel(label ?? 'Instance')},
+        {
+          objId,
+          label: truncateInstanceLabel(label ?? 'Instance'),
+          currentId: currentId === undefined ? objId : currentId,
+          baselineId: baselineId === undefined ? null : baselineId,
+        },
       ];
     });
   }
@@ -339,6 +357,17 @@ export class HeapDumpExplorerSession {
       s.instanceTabs = (s.instanceTabs ?? []).filter((t) => t.objId !== objId);
     });
     if (wasActive) this.navigate('overview');
+  }
+
+  // Drops all open object tabs. Called when the page's tab context flips
+  // (primary ⇄ baseline ⇄ diff): a paired diff object tab is meaningless once
+  // the context changes, so reset rather than show stale ids.
+  clearInstanceTabs(): void {
+    if ((this.store.state.instanceTabs ?? []).length === 0) return;
+    this.store.edit((s) => {
+      s.instanceTabs = undefined;
+    });
+    if (this.nav.view === 'object') this.navigate('overview');
   }
 
   syncInstanceTabFromNav(): void {
@@ -380,24 +409,4 @@ export class HeapDumpExplorerSession {
     });
     this.navigate('flamegraph');
   };
-
-  get cachedOverview(): OverviewData | null {
-    return this._overview;
-  }
-
-  // Pins the dump at fetch start; if the user switches dumps before the result
-  // arrives, the result is dropped instead of briefly showing the wrong dump.
-  async loadOverview(): Promise<void> {
-    if (this._overview !== null) return;
-    const dump = this.activeDump;
-    if (dump === null) return;
-    try {
-      const data = await queries.getOverview(this.engine, dump);
-      if (this.activeDump === dump) this._overview = data;
-    } catch (err) {
-      console.error('Failed to load overview:', err);
-    } finally {
-      m.redraw();
-    }
-  }
 }
