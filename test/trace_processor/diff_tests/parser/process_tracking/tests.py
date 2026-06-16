@@ -153,6 +153,31 @@ class ProcessTracking(TestSuite):
         20,10
         """))
 
+  # A live process reparented onto init (after its real parent exits) must not
+  # be mistaken for pid reuse when the parent's exit is recorded (pid 200). When
+  # it isn't (pid 400), the changed parent still looks like reuse.
+  def test_process_reparent_after_exit(self):
+    return DiffTestBlueprint(
+        trace=Path('process_reparent_after_exit.py'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          parent.pid AS parent_pid,
+          p.start_ts,
+          p.exit_ts
+        FROM process p
+        LEFT JOIN process parent ON p.parent_upid = parent.upid
+        WHERE p.pid IN (200, 400)
+        ORDER BY p.pid, parent_pid;
+        """,
+        out=Csv("""
+        "pid","name","parent_pid","start_ts","exit_ts"
+        200,"child_a",100,10,"[NULL]"
+        400,"child_b",1,"[NULL]","[NULL]"
+        400,"child_b",300,11,"[NULL]"
+        """))
+
   # Tracking thread reuse
   def test_process_tracking_reused_thread_print(self):
     return DiffTestBlueprint(

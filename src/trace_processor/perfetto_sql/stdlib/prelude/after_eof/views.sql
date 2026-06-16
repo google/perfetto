@@ -207,10 +207,16 @@ CREATE PERFETTO VIEW process(
   -- unless a process creation event is enabled (e.g. task_newtask ftrace event
   -- on Linux/Android).
   start_ts TIMESTAMP,
-  -- The end timestamp of this process (if known). Is null in most cases unless
-  -- a process destruction event is enabled (e.g. sched_process_free ftrace
-  -- event on Linux/Android).
+  -- The end timestamp of this process (if known). Marks when the kernel freed
+  -- the process's task_struct (e.g. the sched_process_free ftrace event on
+  -- Linux/Android), which can be well after the process exited. Is null in most
+  -- cases unless such an event is enabled.
   end_ts TIMESTAMP,
+  -- The timestamp at which this process exited, if known. Unlike |end_ts|, this
+  -- marks the earlier point at which the process exited (do_exit) rather than
+  -- when its task_struct was freed. Is null unless a process exit event is
+  -- enabled (e.g. the sched_process_exit ftrace event on Linux/Android).
+  exit_ts TIMESTAMP,
   -- The upid of the process which caused this process to be spawned.
   parent_upid JOINID(process.id),
   -- The Unix user id of the process.

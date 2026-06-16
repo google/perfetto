@@ -175,6 +175,12 @@ PROCESS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
         C(
+            'exit_ts',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
             'parent_upid',
             CppOptional(CppSelfTableId()),
             sql_access=SqlAccess.HIGH_PERF,
@@ -245,9 +251,19 @@ PROCESS_TABLE = Table(
                 ''',
             'end_ts':
                 '''
-                  The end timestamp of this process (if known). Is null in
-                  most cases unless a process destruction event is enabled
-                  (e.g. sched_process_free ftrace event on Linux/Android).
+                  The end timestamp of this process (if known). This marks when
+                  the kernel freed the process's task_struct (e.g. the
+                  sched_process_free ftrace event on Linux/Android), which can
+                  be well after the process exited. Is null in most cases unless
+                  such an event is enabled.
+                ''',
+            'exit_ts':
+                '''
+                  The timestamp at which this process exited, if known. Unlike
+                  |end_ts|, this marks the earlier point at which the process
+                  exited (do_exit) rather than when its task_struct was freed.
+                  Is null unless a process exit event is enabled (e.g. the
+                  sched_process_exit ftrace event on Linux/Android).
                 ''',
             'parent_upid':
                 ColumnDoc(

@@ -934,6 +934,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseSchedProcessFree(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kSchedProcessExitFieldNumber: {
+        ParseSchedProcessExit(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kCpuFrequencyFieldNumber: {
         ParseCpuFreq(ts, fld_bytes);
         break;
@@ -1921,6 +1925,12 @@ void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::SchedProcessFreeFtraceEvent::Decoder ex(blob);
   uint32_t pid = static_cast<uint32_t>(ex.pid());
   context_->process_tracker->EndThread(timestamp, pid);
+}
+
+void FtraceParser::ParseSchedProcessExit(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::SchedProcessExitFtraceEvent::Decoder ex(blob);
+  uint32_t pid = static_cast<uint32_t>(ex.pid());
+  context_->process_tracker->SetProcessExitTimestamp(timestamp, pid);
 }
 
 void FtraceParser::ParseCpuFreq(int64_t timestamp, ConstBytes blob) {

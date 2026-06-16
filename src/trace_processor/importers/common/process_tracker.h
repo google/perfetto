@@ -91,9 +91,16 @@ class ProcessTracker {
   // Returns whether a thread is considered alive by the process tracker.
   bool IsThreadAlive(UniqueTid utid);
 
-  // Called when sched_process_exit is observed. This forces the tracker to
-  // end the thread lifetime for the utid associated with the given tid.
+  // Called when sched_process_free is observed (the task_struct is freed).
+  // This ends the thread lifetime for the utid associated with the given tid,
+  // and the process lifetime if it's the main thread.
   void EndThread(int64_t timestamp, int64_t tid);
+
+  // Called when sched_process_exit is observed (do_exit, which can precede the
+  // sched_process_free handled by EndThread). Records the process exit_ts
+  // without ending its lifetime. Lets us tell a reparented live process apart
+  // from pid reuse.
+  void SetProcessExitTimestamp(int64_t timestamp, int64_t tid);
 
   // Returns the thread utid or std::nullopt if it doesn't exist.
   std::optional<UniqueTid> GetThreadOrNull(int64_t tid);
