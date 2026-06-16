@@ -323,7 +323,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           s.minTrackId as minTrackId,
           s.trackIds as trackIds,
           s.trackCount,
-          CASE s.rootTable WHEN 'state' THEN s.trackCount - 1 ELSE ifnull(__max_layout_depth(s.trackCount, s.trackIds), 0) END as maxDepth,
+          ifnull(__max_layout_depth(s.trackCount, s.trackIds), 0) as maxDepth,
           thread.tid,
           thread.name as threadName,
           ifnull(p.pid, tp.pid) as pid,

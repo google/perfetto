@@ -144,15 +144,25 @@ async function getDataset(
 ) {
   assertTrue(trackIds.length > 0);
 
+  if (rootTableName === 'state') {
+    assertTrue(trackIds.length === 1);
+    return new SourceDataset({
+      schema,
+      select: getSelectColumns(rootTableName, depthTableName),
+      src: "(SELECT * FROM state WHERE value != '')",
+      filter: {
+        col: 'track_id',
+        eq: trackIds[0],
+      },
+    });
+  }
+
   if (trackIds.length === 1) {
     // Single track case - use depth directly from slice table
     return new SourceDataset({
       schema,
       select: getSelectColumns(rootTableName, depthTableName),
-      src:
-        rootTableName === 'state'
-          ? "(SELECT * FROM state WHERE value != '')"
-          : rootTableName,
+      src: rootTableName,
       filter: {
         col: 'track_id',
         eq: trackIds[0],
@@ -164,44 +174,25 @@ async function getDataset(
     const tableName = depthTableName ?? `__async_slice_depth_${trackIds[0]}`;
 
     if (depthTableName === undefined) {
-      if (rootTableName === 'state') {
-        // For state tracks, each distinct track_id maps directly to a vertical
-        // depth row.
-        await createPerfettoTable({
-          name: tableName,
-          engine,
-          as: `
-            select
-              id,
-              (track_id - ${Math.min(...trackIds)}) AS depth
-            from state
-            where track_id in (${trackIds.join(',')})
-          `,
-        });
-      } else {
-        // For slice tracks, fallback to standard experimental_slice_layout
-        await createPerfettoTable({
-          name: tableName,
-          engine,
-          as: `
-            select
-              id,
-              layout_depth as depth,
-              ${Math.min(...trackIds)} AS minTrackId
-            from experimental_slice_layout('${trackIds.join(',')}')
-          `,
-        });
-      }
+      // For slice tracks, fallback to standard experimental_slice_layout
+      await createPerfettoTable({
+        name: tableName,
+        engine,
+        as: `
+          select
+            id,
+            layout_depth as depth,
+            ${Math.min(...trackIds)} AS minTrackId
+          from experimental_slice_layout('${trackIds.join(',')}')
+        `,
+      });
     }
 
     // Join slice with the depth table (caller-provided or self-created).
     return new SourceDataset({
       schema,
       select: getSelectColumns(rootTableName, tableName),
-      src:
-        rootTableName === 'state'
-          ? "(SELECT * FROM state WHERE value != '')"
-          : rootTableName,
+      src: rootTableName,
       joins: {
         depth: {
           from: `${tableName} USING (id)`,
