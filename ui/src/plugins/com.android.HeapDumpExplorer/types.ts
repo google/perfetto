@@ -63,6 +63,11 @@ export interface OverviewData {
   dmabufRssSize: bigint | null;
   /** The process uptime at the time of the heap dump. */
   processUptime: bigint | null;
+  /** True if the heap dump has an associated OOM callstack. */
+  hasOomCallstack: boolean;
+
+  oomUpid: number | null;
+  oomTs: bigint | null;
 }
 
 export type PrimOrRef =

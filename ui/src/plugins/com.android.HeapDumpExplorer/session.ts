@@ -124,6 +124,7 @@ export class HeapDumpExplorerSession {
         s.flamegraphTabs = undefined;
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
+        s.oomCallstackPanelState = undefined;
       });
     }
     return restored;
@@ -147,6 +148,7 @@ export class HeapDumpExplorerSession {
       s.flamegraphTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
+      s.oomCallstackPanelState = undefined;
     });
     void this.loadOverview();
   }
@@ -356,6 +358,16 @@ export class HeapDumpExplorerSession {
   readonly setFlamegraphPanelState = (state: FlamegraphState): void => {
     this.store.edit((s) => {
       s.flamegraphPanelState = state;
+    });
+  };
+
+  get oomCallstackPanelState(): FlamegraphState | undefined {
+    return this.store.state.oomCallstackPanelState;
+  }
+
+  readonly setOomCallstackPanelState = (state: FlamegraphState): void => {
+    this.store.edit((s) => {
+      s.oomCallstackPanelState = state;
     });
   };
 
