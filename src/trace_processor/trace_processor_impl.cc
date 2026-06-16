@@ -529,7 +529,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   bool skip_all_sql = std::find(config_.skip_builtin_metric_paths.begin(),
                                 config_.skip_builtin_metric_paths.end(),
                                 "") != config_.skip_builtin_metric_paths.end();
-  if (!skip_all_sql) {
+  if (!skip_all_sql && !config_.bare_sql_engine) {
     // Wrap the per-metric INSERTs in one transaction; otherwise SQLite
     // implicitly commits after each statement.
     PerfettoSqlConnection::Transaction txn(engine_.get());
@@ -612,14 +612,21 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
     }
   }
 
-  // Stage 4: prepare the connection for queries.
-  IncludeAfterEofPrelude(engine_.get());
+  // Stage 4: prepare the connection for queries. In bare mode there is no
+  // prelude registered, so skip the include (and leave the engine untouched).
+  if (!config_.bare_sql_engine) {
+    IncludeAfterEofPrelude(engine_.get());
+  }
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
   return base::OkStatus();
 }
 
 void TraceProcessorImpl::CacheBoundsAndBuildTable() {
+  // Bare mode has no trace_bounds table (and no engine objects to back it).
+  if (config_.bare_sql_engine) {
+    return;
+  }
   uint64_t mutations = AggregatePluginBoundsMutationCount(plugins_);
   if (mutations == bounds_tables_mutations_) {
     return;
@@ -979,6 +986,13 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
 
   auto connection = PerfettoSqlConnection::CreateConnectionToNewDatabase(
       storage->mutable_string_pool(), config.enable_extra_checks);
+
+  // Bare mode: return a connection with only the core PerfettoSQL language
+  // (registered by the PerfettoSqlConnection constructor). Skip built-in
+  // tables, stdlib packages, prelude, metrics and the trace_bounds table.
+  if (config.bare_sql_engine) {
+    return connection;
+  }
 
   PerfettoSqlConnection::Initializer init;
   init.static_tables.reserve(plugin_dataframes.size());

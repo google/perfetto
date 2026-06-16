@@ -39,13 +39,17 @@ export interface TraceProcessorConfig {
   // When true, the trace processor will only tokenize the trace without
   // performing a full parse. This is a performance optimization that allows for
   // a faster, albeit partial, import of the trace.
-  tokenizeOnly: boolean;
-  cropTrackEvents: boolean;
-  ingestFtraceInRawTable: boolean;
-  analyzeTraceProtoContent: boolean;
-  ftraceDropUntilAllCpusValid: boolean;
-  extraParsingDescriptors?: ReadonlyArray<Uint8Array>;
-  forceFullSort: boolean;
+  readonly tokenizeOnly?: boolean;
+  readonly cropTrackEvents?: boolean;
+  readonly ingestFtraceInRawTable?: boolean;
+  readonly analyzeTraceProtoContent?: boolean;
+  readonly ftraceDropUntilAllCpusValid?: boolean;
+  readonly extraParsingDescriptors?: ReadonlyArray<Uint8Array>;
+  readonly forceFullSort?: boolean;
+  // When true, starts a bare PerfettoSQL engine: only the core language, with no
+  // built-in tables, stdlib, prelude or metrics. Trace ingestion is unsupported
+  // in this mode; intended for running SQL against caller-created tables.
+  readonly bareSqlEngine?: boolean;
 }
 
 const QUERY_LOG_BUFFER_SIZE = 1024;
@@ -427,15 +431,18 @@ export abstract class EngineBase implements Engine, Disposable {
   // Updates the TraceProcessor Config. This method creates a new
   // TraceProcessor instance, so it should be called before passing any trace
   // data.
-  resetTraceProcessor({
-    tokenizeOnly,
-    cropTrackEvents,
-    ingestFtraceInRawTable,
-    analyzeTraceProtoContent,
-    ftraceDropUntilAllCpusValid,
-    extraParsingDescriptors,
-    forceFullSort,
-  }: TraceProcessorConfig): Promise<void> {
+  resetTraceProcessor(config: TraceProcessorConfig): Promise<void> {
+    const {
+      tokenizeOnly = false,
+      cropTrackEvents = false,
+      ingestFtraceInRawTable = false,
+      analyzeTraceProtoContent = false,
+      ftraceDropUntilAllCpusValid = false,
+      extraParsingDescriptors,
+      forceFullSort = false,
+      bareSqlEngine = false,
+    } = config;
+
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
     const rpc = protos.TraceProcessorRpc.create();
@@ -460,6 +467,7 @@ export abstract class EngineBase implements Engine, Disposable {
     args.extraParsingDescriptors = extraParsingDescriptors
       ? [...extraParsingDescriptors]
       : [];
+    args.bareSqlEngine = bareSqlEngine;
     this.rpcSendRequest(rpc);
     return asyncRes;
   }

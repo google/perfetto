@@ -118,6 +118,10 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("extra-checks", '\0',
                            "Enables additional SQL error checks.",
                            &opts->extra_checks));
+  flags.push_back(BoolFlag(
+      "bare-sql-engine", '\0',
+      "Starts with a bare PerfettoSQL engine (no built-in tables/stdlib).",
+      &opts->bare_sql_engine));
   flags.push_back(
       {/*long_name=*/"add-sql-package", /*short_name=*/'\0',
        /*has_arg=*/true, /*arg_name=*/"PATH[@PKG]",
@@ -301,6 +305,10 @@ Config BuildConfig(const GlobalOptions& opts,
 
   if (opts.extra_checks) {
     config.enable_extra_checks = true;
+  }
+
+  if (opts.bare_sql_engine) {
+    config.bare_sql_engine = true;
   }
 
   return config;

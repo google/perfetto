@@ -543,6 +543,9 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
     config.analyze_trace_proto_content =
         reset_trace_processor_args.analyze_trace_proto_content();
   }
+  if (reset_trace_processor_args.has_bare_sql_engine()) {
+    config.bare_sql_engine = reset_trace_processor_args.bare_sql_engine();
+  }
   if (reset_trace_processor_args.has_ftrace_drop_until_all_cpus_valid()) {
     config.soft_drop_ftrace_data_before =
         reset_trace_processor_args.ftrace_drop_until_all_cpus_valid()

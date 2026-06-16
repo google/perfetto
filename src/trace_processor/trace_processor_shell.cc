@@ -129,6 +129,7 @@ struct CommandLineOptions {
   bool dev = false;
   std::vector<std::string> dev_flags;
   bool extra_checks = false;
+  bool bare_sql_engine = false;
   std::string export_file_path;
   std::string perf_file_path;
   bool wide = false;
@@ -320,6 +321,12 @@ Advanced:
  --extra-checks                       Enables additional checks which can catch
                                       more SQL errors, but which incur
                                       additional runtime overhead.
+ --bare-sql-engine                    Starts with a bare PerfettoSQL engine:
+                                      only the core language is available, with
+                                      no built-in tables, stdlib, prelude or
+                                      metrics. Trace ingestion is unsupported;
+                                      intended for running SQL against tables
+                                      you create yourself.
  -e, --export FILE                    Export the contents of trace processor
                                       into an SQLite database after running any
                                       metrics or queries specified.
@@ -422,6 +429,7 @@ enum LongOption {
   OPT_DEV,
   OPT_DEV_FLAG,
   OPT_EXTRA_CHECKS,
+  OPT_BARE_SQL_ENGINE,
   OPT_ANALYZE_TRACE_PROTO_CONTENT,
   OPT_CROP_TRACK_EVENTS,
   OPT_REGISTER_FILES_DIR,
@@ -475,6 +483,7 @@ const option kLongOptions[] = {
     {"dev", no_argument, nullptr, OPT_DEV},
     {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
     {"extra-checks", no_argument, nullptr, OPT_EXTRA_CHECKS},
+    {"bare-sql-engine", no_argument, nullptr, OPT_BARE_SQL_ENGINE},
     {"export", required_argument, nullptr, 'e'},
     {"perf-file", required_argument, nullptr, 'p'},
     {"wide", no_argument, nullptr, 'W'},
@@ -612,6 +621,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_EXTRA_CHECKS) {
       command_line_options.extra_checks = true;
+      continue;
+    }
+
+    if (option == OPT_BARE_SQL_ENGINE) {
+      command_line_options.bare_sql_engine = true;
       continue;
     }
 
@@ -937,6 +951,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     }
     if (options.extra_checks)
       args.emplace_back("--extra-checks");
+    if (options.bare_sql_engine)
+      args.emplace_back("--bare-sql-engine");
     for (const auto& p : options.sql_package_paths) {
       args.emplace_back("--add-sql-package");
       args.emplace_back(p);

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {constraintsToQuerySuffix} from './sql_utils';
+import {constraintsToQuerySuffix, rowsToSelectStatement} from './sql_utils';
 
 // Clean up repeated whitespaces to allow for easier testing.
 function normalize(s: string): string {
@@ -81,4 +81,37 @@ test('constraintsToQuerySuffix: all undefined', () => {
       }),
     ),
   ).toEqual('');
+});
+
+describe('createTableQuery', () => {
+  test('single row', () => {
+    const query = rowsToSelectStatement([
+      {foo: 123, bar: 'bar', baz: 123n, qux: null},
+    ]);
+    expect(query).toBe(
+      "SELECT 123 AS foo, 'bar' AS bar, 123 AS baz, NULL AS qux",
+    );
+  });
+
+  test('multiple rows', () => {
+    const query = rowsToSelectStatement([
+      {foo: 123, bar: 'bar', baz: 123n, qux: null},
+      {foo: 456, bar: 'baz', baz: 456n, qux: null},
+    ]);
+    expect(query).toBe(
+      "SELECT 123 AS foo, 'bar' AS bar, 123 AS baz, NULL AS qux " +
+        "UNION ALL SELECT 456 AS foo, 'baz' AS bar, 456 AS baz, NULL AS qux",
+    );
+  });
+
+  test('out of order columns', () => {
+    const query = rowsToSelectStatement([
+      {foo: 123, bar: 'bar', baz: 123n, qux: null},
+      {bar: 'baz', baz: 456n, qux: null, foo: 456},
+    ]);
+    expect(query).toBe(
+      "SELECT 123 AS foo, 'bar' AS bar, 123 AS baz, NULL AS qux " +
+        "UNION ALL SELECT 456 AS foo, 'baz' AS bar, 456 AS baz, NULL AS qux",
+    );
+  });
 });

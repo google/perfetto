@@ -51,6 +51,7 @@ struct GlobalOptions {
   bool dev = false;
   std::vector<std::string> dev_flags;
   bool extra_checks = false;
+  bool bare_sql_engine = false;
 
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;

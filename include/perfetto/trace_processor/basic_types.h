@@ -215,6 +215,18 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // When provided, these descriptors allow trace processor to parse custom
   // protobuf messages that are not compiled into Perfetto
   std::vector<std::string> extra_parsing_descriptors;
+
+  // When set to true, trace processor starts with a *bare* PerfettoSQL engine:
+  // only the core PerfettoSQL language (CREATE PERFETTO TABLE/FUNCTION/...,
+  // runtime functions) is available. None of the built-in trace tables (slice,
+  // thread, ...), stdlib packages, prelude, metrics or the trace_bounds table
+  // are created. This is intended for tests and tools that want a blank engine
+  // to define their own schema without name collisions or setup cost.
+  //
+  // Trace ingestion (Parse/NotifyEndOfFile) is NOT supported in this mode: the
+  // parsers rely on the built-in tables which are absent. Use it only to run
+  // SQL against tables you create yourself.
+  bool bare_sql_engine = false;
 };
 
 // Represents a dynamically typed value returned by SQL.

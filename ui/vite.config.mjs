@@ -251,7 +251,7 @@ export function pluginPerfettoVersion() {
   });
 }
 
-function pluginGenRelativeImports() {
+export function pluginGenRelativeImports() {
   return {
     name: 'perfetto:gen-relative-imports',
     enforce: 'pre',
@@ -274,7 +274,7 @@ function pluginGenRelativeImports() {
 // `export default`. In build mode @rollup/plugin-commonjs handles this; in
 // dev we transform the source: run the UMD body with a synthesised
 // `module`/`exports`, then re-export `module.exports.default` as ESM default.
-function pluginGenWasmGlueEsm() {
+export function pluginGenWasmGlueEsm() {
   return {
     name: 'perfetto:gen-wasm-glue-esm',
     enforce: 'pre',
