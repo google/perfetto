@@ -317,18 +317,22 @@ struct PerfettoTeHlNestedTrack {
 };
 
 // How a track orders its direct children. Values mirror
-// TrackDescriptor.ChildTracksOrdering; 0 (unknown) leaves it unset.
-#define PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN 0
-#define PERFETTO_TE_HL_CHILD_ORDERING_LEXICOGRAPHIC 1
-#define PERFETTO_TE_HL_CHILD_ORDERING_CHRONOLOGICAL 2
-#define PERFETTO_TE_HL_CHILD_ORDERING_EXPLICIT 3
+// TrackDescriptor.ChildTracksOrdering; UNKNOWN (0) leaves it unset.
+enum PerfettoTeHlChildOrdering {
+  PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN = 0,
+  PERFETTO_TE_HL_CHILD_ORDERING_LEXICOGRAPHIC = 1,
+  PERFETTO_TE_HL_CHILD_ORDERING_CHRONOLOGICAL = 2,
+  PERFETTO_TE_HL_CHILD_ORDERING_EXPLICIT = 3,
+};
 
 // How analysis tools merge a track with its eligible siblings. Values mirror
-// TrackDescriptor.SiblingMergeBehavior; 0 (unspecified) leaves it unset.
-#define PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_UNSPECIFIED 0
-#define PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME 1
-#define PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_NONE 2
-#define PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY 3
+// TrackDescriptor.SiblingMergeBehavior; UNSPECIFIED (0) leaves it unset.
+enum PerfettoTeHlSiblingMergeBehavior {
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_UNSPECIFIED = 0,
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME = 1,
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_NONE = 2,
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY = 3,
+};
 
 // PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED
 struct PerfettoTeHlNestedTrackNamed {
@@ -341,12 +345,11 @@ struct PerfettoTeHlNestedTrackNamed {
   // This track's rank among its siblings (lower sorts first). Honored only
   // when the parent's `child_ordering` is EXPLICIT. 0 leaves it unset.
   int32_t sibling_order_rank;
-  // How this track orders its own children: one of the
-  // PERFETTO_TE_HL_CHILD_ORDERING_* values. 0 (unknown) leaves it unset.
+  // enum PerfettoTeHlChildOrdering. How this track orders its own children;
+  // UNKNOWN (0) leaves it unset.
   uint32_t child_ordering;
-  // How this track is merged with eligible siblings: one of the
-  // PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_* values. 0 (unspecified) leaves it
-  // unset.
+  // enum PerfettoTeHlSiblingMergeBehavior. How this track is merged with
+  // eligible siblings; UNSPECIFIED (0) leaves it unset.
   uint32_t sibling_merge_behavior;
   // Null terminated string key selecting which siblings this track is merged
   // with. Only meaningful when `sibling_merge_behavior` is

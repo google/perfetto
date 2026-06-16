@@ -157,17 +157,10 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
 }
 
-NestedTracks::NestedTracks(
-    RootType root_type,
-    const std::vector<std::string>& names,
-    const std::vector<uint64_t>& ids,
-    const std::vector<int32_t>& sibling_order_ranks,
-    const std::vector<uint32_t>& child_orderings,
-    const std::vector<uint32_t>& sibling_merge_behaviors,
-    const std::vector<std::optional<std::string>>& merge_keys_str,
-    const std::vector<uint64_t>& merge_keys_int)
-    : names_(names), merge_keys_str_(merge_keys_str), root_{}, extra_{} {
-  const size_t count = names_.size();
+NestedTracks::NestedTracks(RootType root_type,
+                           const std::vector<NestedLevel>& levels)
+    : levels_(levels), root_{}, extra_{} {
+  const size_t count = levels_.size();
   named_.reserve(count);
   ptrs_.reserve(count + 2);
 
@@ -188,18 +181,19 @@ NestedTracks::NestedTracks(
 
   // reserve(count) above prevents reallocation, so the &named_.back() pointers
   // stay valid.
-  for (size_t i = 0; i < count; i++) {
+  for (const NestedLevel& level : levels_) {
     PerfettoTeHlNestedTrackNamed entry{};
     entry.header.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED;
-    entry.name = names_[i].c_str();
-    entry.id = ids[i];
+    entry.name = level.name.c_str();
+    entry.id = level.id;
     entry.is_name_static = true;
-    entry.sibling_order_rank = sibling_order_ranks[i];
-    entry.child_ordering = child_orderings[i];
-    entry.sibling_merge_behavior = sibling_merge_behaviors[i];
-    entry.sibling_merge_key_str =
-        merge_keys_str_[i] ? merge_keys_str_[i]->c_str() : nullptr;
-    entry.sibling_merge_key_int = merge_keys_int[i];
+    entry.sibling_order_rank = level.sibling_order_rank;
+    entry.child_ordering = level.child_ordering;
+    entry.sibling_merge_behavior = level.sibling_merge_behavior;
+    entry.sibling_merge_key_str = level.sibling_merge_key_str
+                                      ? level.sibling_merge_key_str->c_str()
+                                      : nullptr;
+    entry.sibling_merge_key_int = level.sibling_merge_key_int;
     named_.push_back(entry);
     ptrs_.push_back(reinterpret_cast<PerfettoTeHlNestedTrack*>(&named_.back()));
   }

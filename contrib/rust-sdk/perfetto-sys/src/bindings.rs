@@ -827,6 +827,23 @@ pub type PerfettoTeHlNestedTrackType = ::std::os::raw::c_uint;
 pub struct PerfettoTeHlNestedTrack {
     pub type_: u32,
 }
+pub const PerfettoTeHlChildOrdering_PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN:
+    PerfettoTeHlChildOrdering = 0;
+pub const PerfettoTeHlChildOrdering_PERFETTO_TE_HL_CHILD_ORDERING_LEXICOGRAPHIC:
+    PerfettoTeHlChildOrdering = 1;
+pub const PerfettoTeHlChildOrdering_PERFETTO_TE_HL_CHILD_ORDERING_CHRONOLOGICAL:
+    PerfettoTeHlChildOrdering = 2;
+pub const PerfettoTeHlChildOrdering_PERFETTO_TE_HL_CHILD_ORDERING_EXPLICIT:
+    PerfettoTeHlChildOrdering = 3;
+pub type PerfettoTeHlChildOrdering = ::std::os::raw::c_uint;
+pub const PerfettoTeHlSiblingMergeBehavior_PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_UNSPECIFIED:
+    PerfettoTeHlSiblingMergeBehavior = 0;
+pub const PerfettoTeHlSiblingMergeBehavior_PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME:
+    PerfettoTeHlSiblingMergeBehavior = 1;
+pub const PerfettoTeHlSiblingMergeBehavior_PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_NONE:
+    PerfettoTeHlSiblingMergeBehavior = 2;
+pub const PerfettoTeHlSiblingMergeBehavior_PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY : PerfettoTeHlSiblingMergeBehavior = 3 ;
+pub type PerfettoTeHlSiblingMergeBehavior = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct PerfettoTeHlNestedTrackNamed {
