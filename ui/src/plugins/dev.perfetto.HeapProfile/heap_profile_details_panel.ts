@@ -125,11 +125,7 @@ export class HeapProfileFlamegraphDetailsPanel
         DetailsShell,
         {
           fillHeight: true,
-          title: m(
-            Stack,
-            {orientation: 'vertical'},
-            m('span', this.profileDescriptor.label),
-          ),
+          title: m('span', this.profileDescriptor.label),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||

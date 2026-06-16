@@ -15,7 +15,7 @@
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {time} from '../../base/time';
-import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -121,7 +121,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     );
     await this.createHeapProfileTable(trace);
     const heapTypes = await this.getHeapTypes(trace);
-    console.log('[OOM Debug] Heap types found:', heapTypes);
     await this.addProcessTracks(trace, heapTypes);
 
     // For applicable heap types, register an area selection
@@ -142,17 +141,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async createHeapProfileTable(trace: Trace) {
-    const testOOM = await trace.engine.query(
-      `SELECT count(*) as c FROM heap_graph WHERE dump_reason = 'OOME'`,
-    );
-    console.log(
-      '[OOM Debug] OOME rows in heap_graph:',
-      testOOM.firstRow({c: NUM}).c,
-    );
-
-    await trace.engine.query(
-      'INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;',
-    );
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
@@ -178,7 +166,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         SELECT
           MIN(id) as id,
           graph_sample_ts AS ts,
-          graph_sample_ts AS reference_ts,
           upid,
           0 AS dur,
           0 AS depth,
@@ -191,7 +178,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         SELECT
           id,
           ts,
-          ts AS reference_ts,
           upid,
           ts_end - ts AS dur,
           0 AS depth,
@@ -239,31 +225,14 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         FROM ${viewName}
       `);
 
-      const upids: number[] = [];
+      const upids = [];
       for (const it = upidResult.iter({upid: NUM}); it.valid(); it.next()) {
         upids.push(it.upid);
       }
-      console.log(`[OOM Debug] Heap type ${heapType} has upids:`, upids);
 
       for (const upid of upids) {
-        let group = trackGroupsPlugin.getGroupForProcess(upid);
-        if (!group) {
-          console.warn(
-            `[OOM Debug] Process group NOT FOUND for upid: ${upid}. Creating one.`,
-          );
-          const processResult = await trace.engine.query(
-            `SELECT pid, name FROM process WHERE upid = ${upid}`,
-          );
-          const row = processResult.firstRow({pid: NUM, name: STR_NULL});
-          const pid = row.pid;
-          const name = row.name ?? `Uid ${upid}`;
-          group = new TrackNode({
-            uri: `process_${upid}`,
-            name: `${name} ${pid}`,
-            isSummary: true,
-          });
-          trace.defaultWorkspace.addChildInOrder(group);
-        }
+        const group = trackGroupsPlugin.getGroupForProcess(upid);
+        if (!group) continue;
 
         const store = assertExists(this.store);
         const uri = trackUri(upid, heapType);
