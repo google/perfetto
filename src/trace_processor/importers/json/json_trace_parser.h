@@ -49,7 +49,16 @@ class JsonTraceParser {
   StringId thread_sort_index_hint_id_;
   StringId running_string_id_;
 
-  void MaybeAddFlow(StringPool* pool, TrackId track_id, const JsonEvent& event);
+  void MaybeAddFlow(int64_t timestamp,
+                    StringPool* pool,
+                    TrackId track_id,
+                    const JsonEvent& event);
+
+  // Records a parser error against |event| at |timestamp|, attaching the event
+  // name and phase as args to make the import log queryable and actionable.
+  void RecordEventError(int64_t timestamp,
+                        const JsonEvent& event,
+                        size_t stat_key);
 };
 
 }  // namespace perfetto::trace_processor
