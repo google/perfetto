@@ -568,10 +568,10 @@ async function getQueryFromArgOrPrompt(
 }
 
 // DFS the workspace, returning all tracks matching the regex against `name` or
-// full `path`. When a headless node matches, its subtree is skipped: a
-// headless node has no header in the rendered tree, so its `fullPath` is
-// identical to its children's, and a deep clone of the headless node already
-// covers them — recursing further would yield duplicate matches.
+// full `path`. Headless nodes are never returned as matches: they have no
+// header in the rendered tree and no `uri`, so operating on one directly (e.g.
+// pinning it) does nothing useful. We still recurse into their children so the
+// real tracks nested inside a matching headless container get picked up.
 function findTracksMatchingRegex(
   workspace: Workspace,
   regex: RegExp,
@@ -581,9 +581,8 @@ function findTracksMatchingRegex(
   const visit = (node: TrackNode): void => {
     const target =
       nameOrPath === 'path' ? node.fullPath.join(' > ') : node.name;
-    if (regex.test(target)) {
+    if (regex.test(target) && !node.headless) {
       matches.push(node);
-      if (node.headless) return;
     }
     node.children.forEach(visit);
   };
