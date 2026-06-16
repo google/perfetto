@@ -45,6 +45,11 @@ export interface ChatPanelAttrs {
 
 export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
   private readonly md = markdownit();
+  // Whether the conversation was scrolled to (near) the bottom as of the last
+  // render. We only auto-scroll on update when this holds, so new content keeps
+  // the view pinned to the bottom but a user who has scrolled up to read is
+  // left alone. Sampled before Mithril patches the DOM (onbeforeupdate).
+  private stickToBottom = true;
 
   private renderHeader(attrs: ChatPanelAttrs): m.Children {
     const {gateway, session} = attrs;
@@ -165,7 +170,24 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       m(
         '.pf-intelletto__conversation',
         {
+          oncreate: (vnode: m.VnodeDOM) => {
+            const el = vnode.dom as HTMLElement;
+            el.scrollTop = el.scrollHeight;
+          },
+          // Sample the scroll position *before* the DOM is patched: if the user
+          // is at the bottom we keep them pinned, otherwise we leave their
+          // scroll position untouched so they can read/select scrollback.
+          onbeforeupdate: (vnode: m.VnodeDOM) => {
+            const el = vnode.dom as HTMLElement | undefined;
+            if (el !== undefined) {
+              const distFromBottom =
+                el.scrollHeight - el.scrollTop - el.clientHeight;
+              this.stickToBottom = distFromBottom < 8;
+            }
+            return true;
+          },
           onupdate: (vnode: m.VnodeDOM) => {
+            if (!this.stickToBottom) return;
             const el = vnode.dom as HTMLElement;
             el.scrollTop = el.scrollHeight;
           },

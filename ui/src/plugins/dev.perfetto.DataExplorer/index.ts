@@ -42,6 +42,7 @@ import {
 } from './graph_check';
 import {recentGraphsStorage} from './recent_graphs';
 import {getAllNodes} from './query_builder/graph_utils';
+import {getPrimarySelectedNode} from './selection_utils';
 import {isDashboardNode} from './query_builder/nodes/dashboard_node';
 import {
   dataExplorerTabsStorage,
@@ -1002,6 +1003,37 @@ export default class implements PerfettoPlugin {
           ),
       },
       callback: async ({graph}) => this.dryRunGraph(graph),
+    });
+
+    // Tell the assistant which node the user currently has selected in the
+    // query builder, so it can answer "this node" / "the selected step"
+    // questions and edit the right node without asking.
+    intelletto.registerContextProvider({
+      id: 'dev.perfetto.DataExplorer#selected_node',
+      description:
+        'The node the user has selected in the Data Explorer query builder. ' +
+        '"nodeId" and "type" match the get_graph / set_graph JSON format, so ' +
+        'the selected node can be located and edited there. "state" is that ' +
+        "node's serialized config; \"columns\" are the column names it outputs.",
+      getContext: () => {
+        const tab = this.getActiveTab();
+        if (tab === undefined) return undefined;
+        const node = getPrimarySelectedNode(
+          tab.state.selectedNodes,
+          tab.state.rootNodes,
+        );
+        if (node === undefined) return undefined;
+        return {
+          summary: `Selected node: ${node.getTitle()}`,
+          data: {
+            nodeId: node.nodeId,
+            type: node.type,
+            title: node.getTitle(),
+            state: node.attrs,
+            columns: node.finalCols.map((c) => c.name),
+          },
+        };
+      },
     });
   }
 
