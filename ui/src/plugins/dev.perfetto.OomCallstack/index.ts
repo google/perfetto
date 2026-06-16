@@ -32,10 +32,8 @@ import { LONG } from '../../trace_processor/query_result';
 import { Time } from '../../base/time';
 import { materialColorScheme } from '../../components/colorizer';
 
-// The name of the Perfetto SQL table we create to store our OOM callstack events.
 const EVENT_TABLE_NAME = 'oom_callstack_events';
 
-// Defines the shape of the plugin's state that is saved across reloads (e.g., when sharing a trace link).
 const PLUGIN_STATE_SCHEMA = z.object({
   trackFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
 });
@@ -47,93 +45,78 @@ function trackUri(upid: number): string {
   return `/process_${upid}/oom_callstack`;
 }
 
-// The main plugin class. It implements PerfettoPlugin which enables the Perfetto UI
-// to discover and initialize it.
 export default class OomCallstackPlugin implements PerfettoPlugin {
-  // A unique identifier for the plugin.
   static readonly id = 'dev.perfetto.OomCallstack';
 
-  // This plugin depends on the ProcessThreadGroupsPlugin to ensure process groups 
-  // (the folders grouping tracks per process) exist before we add our track.
+  // Used to ensure process groups folders exist before we add our track to them.
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
-  // A store for persisting the plugin's state (like UI selection/flamegraph state).
   private store?: Store<PluginState>;
 
-  // This method is called once when a trace is loaded into the UI.
   async onTraceLoad(trace: Trace): Promise<void> {
-    // Mount the state store for this plugin so it's persisted in the UI state.
     this.store = trace.mountStore(OomCallstackPlugin.id, (init) => {
       const result = PLUGIN_STATE_SCHEMA.safeParse(init);
       return result.data ?? {};
     });
 
-    // 1. Create the SQL table containing our OOM callstack events.
+    // Create the SQL table containing our OOM callstack events.
     await this.createEventTable(trace);
 
-    // 2. Add visual tracks to the UI timeline based on the data in our table.
+    // Add visual tracks to the UI timeline based on the data in our table.
     await this.addProcessTracks(trace);
 
 
   }
 
-  // Executes a SQL query to build the 'oom_callstack_events' table.
   private async createEventTable(trace: Trace) {
-    // We need to include the module that defines 'android_heap_graph_java_oome_details' 
-    // and other OOM related views.
     await trace.engine.query('INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;');
 
-    // createPerfettoTable runs the given SQL and creates a Perfetto table from the results.
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
       as: `
         SELECT
-          id,
+          g.id,
           -- Ensure the timestamp is at least the start of the trace.
-          MIN(ts, (SELECT end_ts FROM trace_bounds)) AS ts,
-          ts AS reference_ts,
-          -- Find the upid of the process that OOM'd. Sometimes heap_graph points to a upid 
-          -- that was recycled, so we try to find the most recent process with the same pid.
+          -- Subtract 50ms to make the icon clickable, as the OOM event often sits at the end of the timeline.
+          MIN(g.ts, (SELECT end_ts - 50000000 FROM trace_bounds)) AS ts,
+          g.ts AS reference_ts,
+          -- Sometimes heap_graph points to a upid that was recycled, so we try to find the most recent process with the same pid.
           IFNULL((
             SELECT p.upid 
             FROM process p 
             JOIN process p2 ON p.pid = p2.pid 
-            WHERE p2.upid = heap_graph.upid 
+            WHERE p2.upid = g.upid
               AND p.start_ts IS NOT NULL 
             ORDER BY p.end_ts DESC 
             LIMIT 1
-          ), upid) AS upid,
+          ), g.upid) AS upid,
           0 AS dur,   -- Our event is instantaneous, so duration is 0.
           0 AS depth, -- We only have one track layer, so depth is 0.
-          'oom_callstack' AS type
-        FROM heap_graph
-        -- We only care about heap graphs generated due to an OutOfMemoryError.
-        WHERE dump_reason = 'OOME'
+          'oom_callstack' AS type,
+          (SELECT t.tid FROM heap_graph_thread_callsite hc JOIN thread t ON t.utid = hc.utid WHERE hc.heap_graph_id = g.id LIMIT 1) AS tid,
+          (SELECT t.name FROM heap_graph_thread_callsite hc JOIN thread t ON t.utid = hc.utid WHERE hc.heap_graph_id = g.id LIMIT 1) AS thread_name
+        FROM heap_graph g
+        WHERE g.dump_reason = 'OOME'
       `,
     });
   }
 
-  // Reads the generated table and adds a track for every process that had an OOM.
+  // Adds a track for every process that had an OOM.
   private async addProcessTracks(trace: Trace) {
-    // Get the plugin responsible for grouping tracks by process.
+    // Plugin responsible for grouping tracks by process.
     const trackGroupsPlugin = trace.plugins.getPlugin(ProcessThreadGroupsPlugin);
 
     // Find all unique process IDs (upids) that have an OOM event.
-    const upidResult = await trace.engine.query(`
-      SELECT DISTINCT upid
+    const result = await trace.engine.query(`
+      SELECT upid
       FROM ${EVENT_TABLE_NAME}
+      GROUP BY upid
     `);
 
-    const upids: number[] = [];
-    for (const it = upidResult.iter({ upid: NUM }); it.valid(); it.next()) {
-      upids.push(it.upid);
-    }
+    for (const it = result.iter({ upid: NUM }); it.valid(); it.next()) {
+      const upid = it.upid;
 
-    // Loop through each process that had an OOM.
-    for (const upid of upids) {
-
-      // Attempt to find the existing workspace group for this process.
       let group = trackGroupsPlugin.getGroupForProcess(upid);
       if (!group) {
         // If the process has no other tracks, its group might not exist yet. Create it.
@@ -159,15 +142,14 @@ export default class OomCallstackPlugin implements PerfettoPlugin {
         uri,
         tags: {
           upid: upid,
-          kinds: ['oom_callstack'], // Tag used for internal categorization.
+          kinds: ['oom_callstack'],
         },
         // SliceTrack creates a standard timeline track with slices (or instantaneous events).
         renderer: SliceTrack.create({
           trace,
           uri,
-          // SourceDataset tells the SliceTrack where to fetch its data from.
           dataset: new SourceDataset({
-            src: EVENT_TABLE_NAME, // Our custom table created earlier.
+            src: EVENT_TABLE_NAME,
             schema: {
               ts: LONG,
               dur: LONG,
@@ -175,19 +157,16 @@ export default class OomCallstackPlugin implements PerfettoPlugin {
               id: NUM,
               reference_ts: LONG,
             },
-            // Only fetch events for this specific process.
             filter: { col: 'upid', eq: upid },
           }),
-          // This callback defines what happens when the user clicks on the event in the track.
+          // When the user clicks on the event in the track.
           detailsPanel: (row) => {
             const ts = Time.fromRaw(row.reference_ts);
-            // Return our custom details panel to show the flamegraph.
             return new OomCallstackDetailsPanel(
               trace,
               upid,
               ts,
               store.state.trackFlamegraphState,
-              // Persist the state whenever the user interacts with the flamegraph.
               (state) => {
                 store.edit((draft) => {
                   draft.trackFlamegraphState = state;
@@ -195,20 +174,18 @@ export default class OomCallstackPlugin implements PerfettoPlugin {
               },
             );
           },
-          tooltip: () => 'OOM Callstack',
-          // Colorize the slice based on its timestamp to keep it consistent.
+          tooltip: () => 'OOM callstack',
+          // Colorize the slice based on its timestamp.
           colorizer: (slice) => materialColorScheme(slice.ts.toString()),
         }),
       };
 
-      // Register the track globally in the trace.
       trace.tracks.registerTrack(track);
 
-      // Create a node for the workspace tree to visually display the track under the process group.
       const trackNode = new TrackNode({
         uri,
         name: 'OOM callstack',
-        sortOrder: -30, // Push it towards the top of the process group.
+        sortOrder: -30,
       });
 
       group.addChildInOrder(trackNode);
