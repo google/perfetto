@@ -157,10 +157,16 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
 }
 
-NestedTracks::NestedTracks(RootType root_type,
-                           const std::vector<std::string>& names,
-                           const std::vector<uint64_t>& ids)
-    : names_(names), root_{}, extra_{} {
+NestedTracks::NestedTracks(
+    RootType root_type,
+    const std::vector<std::string>& names,
+    const std::vector<uint64_t>& ids,
+    const std::vector<int32_t>& sibling_order_ranks,
+    const std::vector<uint32_t>& child_orderings,
+    const std::vector<uint32_t>& sibling_merge_behaviors,
+    const std::vector<std::optional<std::string>>& merge_keys_str,
+    const std::vector<uint64_t>& merge_keys_int)
+    : names_(names), merge_keys_str_(merge_keys_str), root_{}, extra_{} {
   const size_t count = names_.size();
   named_.reserve(count);
   ptrs_.reserve(count + 2);
@@ -188,6 +194,12 @@ NestedTracks::NestedTracks(RootType root_type,
     entry.name = names_[i].c_str();
     entry.id = ids[i];
     entry.is_name_static = true;
+    entry.sibling_order_rank = sibling_order_ranks[i];
+    entry.child_ordering = child_orderings[i];
+    entry.sibling_merge_behavior = sibling_merge_behaviors[i];
+    entry.sibling_merge_key_str =
+        merge_keys_str_[i] ? merge_keys_str_[i]->c_str() : nullptr;
+    entry.sibling_merge_key_int = merge_keys_int[i];
     named_.push_back(entry);
     ptrs_.push_back(reinterpret_cast<PerfettoTeHlNestedTrack*>(&named_.back()));
   }
