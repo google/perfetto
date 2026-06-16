@@ -26,6 +26,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -42,6 +43,12 @@
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <unistd.h>
 #include <climits>
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/stat.h>
 #endif
 
 namespace perfetto::trace_processor {
@@ -354,6 +361,73 @@ TEST(TraceProcessorShellIntegrationTest, ClassicStdiod) {
   ASSERT_THAT(stream.msg(), SizeIs(1));
   ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
 }
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Polls until |path| exists (or absence, if |want_exists| is false), up to
+// ~5s. Returns whether the desired state was reached.
+bool WaitForFileState(const std::string& path, bool want_exists) {
+  for (int i = 0; i < 500; ++i) {
+    if (base::FileExists(path) == want_exists)
+      return true;
+    base::SleepMicroseconds(10 * 1000);
+  }
+  return base::FileExists(path) == want_exists;
+}
+
+// Polls until |path| exists and is a socket (i.e. the server has bound it), up
+// to ~5s. Distinguishes a freshly-bound socket from a leftover regular file.
+bool WaitForSocketBound(const std::string& path) {
+  for (int i = 0; i < 500; ++i) {
+    struct stat st{};
+    if (stat(path.c_str(), &st) == 0 && S_ISSOCK(st.st_mode))
+      return true;
+    base::SleepMicroseconds(10 * 1000);
+  }
+  return false;
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixBindAndCleanup) {
+  // `server unix` binds the socket, then unlinks it on SIGTERM.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+
+  EXPECT_TRUE(WaitForSocketBound(sock));
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixStaleSocketCleanup) {
+  // A leftover socket file from a dead server is cleaned up and rebound.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+  // Pre-create a stale file at the socket path (nothing is listening on it).
+  base::WriteAll(base::OpenFile(sock, O_WRONLY | O_CREAT, 0600).get(), "x", 1);
+  ASSERT_TRUE(base::FileExists(sock));
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+
+  // It should start successfully (stale file removed and rebound).
+  EXPECT_TRUE(WaitForSocketBound(sock));
+  EXPECT_EQ(server.status(), base::Subprocess::kRunning);
+
+  server.KillAndWaitForTermination(SIGTERM);
+  // Wait for the socket to be unlinked before the TempDir is torn down.
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+#endif  // !PERFETTO_OS_WIN
 
 TEST(TraceProcessorShellIntegrationTest, ClassicStdiodWithTrace) {
   // --stdiod trace -> server stdio trace
