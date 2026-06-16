@@ -14,26 +14,24 @@
 
 import m from 'mithril';
 
-import type { time } from '../../base/time';
-import {
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import { FlamegraphPanel } from '../../components/flamegraph_panel';
-import { FlamegraphProfile } from '../../components/flamegraph_profile';
-import { Timestamp } from '../../components/widgets/timestamp';
+import type {time} from '../../base/time';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import {FlamegraphProfile} from '../../components/flamegraph_profile';
+import {Timestamp} from '../../components/widgets/timestamp';
 import type {
   TrackEventDetailsPanel,
   TrackEventDetailsPanelSerializeArgs,
 } from '../../public/details_panel';
-import type { Trace } from '../../public/trace';
-import { STR } from '../../trace_processor/query_result';
-import { DetailsShell } from '../../widgets/details_shell';
+import type {Trace} from '../../public/trace';
+import {STR} from '../../trace_processor/query_result';
+import {DetailsShell} from '../../widgets/details_shell';
 import {
   Flamegraph,
   type FlamegraphState,
   FLAMEGRAPH_STATE_SCHEMA,
 } from '../../widgets/flamegraph';
-import { Stack } from '../../widgets/stack';
+import {Stack} from '../../widgets/stack';
 
 export class OomCallstackDetailsPanel implements TrackEventDetailsPanel {
   private oomErrorMsg?: string;
@@ -41,9 +39,9 @@ export class OomCallstackDetailsPanel implements TrackEventDetailsPanel {
   readonly serialization: TrackEventDetailsPanelSerializeArgs<
     FlamegraphState | undefined
   > = {
-      schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
-      state: undefined,
-    };
+    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    state: undefined,
+  };
 
   // Defines the queries used to fetch data for the flamegraph.
   readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
@@ -116,7 +114,7 @@ export class OomCallstackDetailsPanel implements TrackEventDetailsPanel {
     `);
 
     if (res.numRows() > 0) {
-      this.oomErrorMsg = res.firstRow({ error_msg: STR }).error_msg;
+      this.oomErrorMsg = res.firstRow({error_msg: STR}).error_msg;
     }
 
     if (this.serialization.state !== undefined) {
@@ -139,17 +137,21 @@ export class OomCallstackDetailsPanel implements TrackEventDetailsPanel {
           fillHeight: true,
           title: m(
             Stack,
-            { orientation: 'vertical' },
+            {orientation: 'vertical'},
             m('span', 'OOM Callstack'),
             this.oomErrorMsg &&
+              m(
+                'span',
+                {style: {fontSize: '12px', color: '#ff4081'}},
+                this.oomErrorMsg,
+              ),
+          ),
+          buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m(
               'span',
-              { style: { fontSize: '12px', color: '#ff4081' } },
-              this.oomErrorMsg,
+              `Snapshot time: `,
+              m(Timestamp, {trace: this.trace, ts: this.ts}),
             ),
-          ),
-          buttons: m(Stack, { orientation: 'horizontal', spacing: 'large' }, [
-            m('span', `Snapshot time: `, m(Timestamp, { trace: this.trace, ts: this.ts })),
           ]),
         },
         m(FlamegraphPanel, {

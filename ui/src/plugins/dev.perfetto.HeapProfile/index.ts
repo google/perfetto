@@ -127,9 +127,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     // For applicable heap types, register an area selection
     for (const heapType of heapTypes) {
       const descriptor = profileDescriptor(heapType);
-      if (
-        descriptor.type === ProfileType.JAVA_HEAP_GRAPH
-      ) {
+      if (descriptor.type === ProfileType.JAVA_HEAP_GRAPH) {
         // There's no area selection for java heap dumps.
         continue;
       }
@@ -144,10 +142,17 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async createHeapProfileTable(trace: Trace) {
-    const testOOM = await trace.engine.query(`SELECT count(*) as c FROM heap_graph WHERE dump_reason = 'OOME'`);
-    console.log('[OOM Debug] OOME rows in heap_graph:', testOOM.firstRow({c: NUM}).c);
+    const testOOM = await trace.engine.query(
+      `SELECT count(*) as c FROM heap_graph WHERE dump_reason = 'OOME'`,
+    );
+    console.log(
+      '[OOM Debug] OOME rows in heap_graph:',
+      testOOM.firstRow({c: NUM}).c,
+    );
 
-    await trace.engine.query('INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;');
+    await trace.engine.query(
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;',
+    );
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
@@ -243,8 +248,12 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       for (const upid of upids) {
         let group = trackGroupsPlugin.getGroupForProcess(upid);
         if (!group) {
-          console.warn(`[OOM Debug] Process group NOT FOUND for upid: ${upid}. Creating one.`);
-          const processResult = await trace.engine.query(`SELECT pid, name FROM process WHERE upid = ${upid}`);
+          console.warn(
+            `[OOM Debug] Process group NOT FOUND for upid: ${upid}. Creating one.`,
+          );
+          const processResult = await trace.engine.query(
+            `SELECT pid, name FROM process WHERE upid = ${upid}`,
+          );
           const row = processResult.firstRow({pid: NUM, name: STR_NULL});
           const pid = row.pid;
           const name = row.name ?? `Uid ${upid}`;
@@ -330,9 +339,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     const track = this.trackMap.get(uri);
     if (!track) return;
 
-    if (
-      profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH
-    ) {
+    if (profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH) {
       ctx.selection.selectTrackEvent(track.uri, iter.id);
     } else {
       ctx.selection.selectArea({

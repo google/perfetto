@@ -103,7 +103,6 @@ export class HeapProfileFlamegraphDetailsPanel
   }
 
   async load() {
-
     // If the state in the serialization is not undefined, we should read from
     // it.
     // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
