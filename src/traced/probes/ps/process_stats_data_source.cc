@@ -51,6 +51,11 @@
 // /proc/pid/cmdline needs updating.
 // TODO(rsavitski): consider invalidating on task creation or death ftrace
 // events if available.
+//
+// TODO(rsavitski): we're not emitting an explicit description of the main
+// thread (instead, it's implied by the process entry). This might be slightly
+// inaccurate in edge cases like wanting to know the primary thread's name
+// (comm) based on procfs alone.
 
 namespace perfetto {
 namespace {
@@ -405,13 +410,6 @@ bool ProcessStatsDataSource::WriteProcess(int32_t pid,
   }
 
   seen_pids_.insert({pid, pid});
-
-  if (record_thread_names_ || namespaced) {
-    WriteDetailedThread(pid, pid, proc_status);
-  } else {
-    WriteThread(pid, pid);
-  }
-
   return namespaced;
 }
 
