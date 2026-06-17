@@ -42,6 +42,8 @@ namespace perfetto::trace_processor {
 inline bool operator==(const SqlValue& a, const SqlValue& b) {
   if (a.type != b.type)
     return false;
+  if (a.type == SqlValue::kNull)
+    return true;
   if (a.type == SqlValue::kString)
     return strcmp(a.string_value, b.string_value) == 0;
   if (a.type == SqlValue::kBytes) {
