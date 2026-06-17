@@ -30,7 +30,8 @@ mdadm --create /dev/md0 --level=0 --force --run \
       --raid-devices=${#SSDS[@]} "${SSDS[@]}"
 # ext4 with no journal is the fastest config; -E nodiscard avoids TRIM overhead.
 mkfs.ext4 -F -O ^has_journal -E nodiscard /dev/md0
-mount -o noatime,lazytime,nodiscard /dev/md0 /tmp
+umount /tmp || true
+mount -o noatime,lazytime,nodiscard,exec /dev/md0 /tmp
 chmod 1777 /tmp
 
 # Disable Addressa space ranomization. This is needed for Tsan tests to work in
