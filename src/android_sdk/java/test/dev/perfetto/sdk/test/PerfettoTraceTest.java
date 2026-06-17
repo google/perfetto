@@ -17,14 +17,30 @@
 package dev.perfetto.sdk.test;
 
 import static com.google.common.truth.Truth.assertThat;
+import static dev.perfetto.sdk.PerfettoTrace.Category;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_BEGIN_RWH;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL;
-import dev.perfetto.sdk.PerfettoTrace.Category;
 
 import android.os.Process;
 import android.util.ArraySet;
 import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
+import dev.perfetto.sdk.PerfettoTrace;
+import dev.perfetto.sdk.PerfettoTrack;
+import dev.perfetto.sdk.PerfettoTrackEventBuilder;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.Pipe;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 import perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo;
 import perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.ComponentInfo;
 import perfetto.protos.DataSourceConfigOuterClass.DataSourceConfig;
@@ -44,22 +60,6 @@ import perfetto.protos.TrackEventConfigOuterClass.TrackEventConfig;
 import perfetto.protos.TrackEventOuterClass.EventCategory;
 import perfetto.protos.TrackEventOuterClass.EventName;
 import perfetto.protos.TrackEventOuterClass.TrackEvent;
-import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
-import dev.perfetto.sdk.PerfettoTrace;
-import dev.perfetto.sdk.PerfettoTrack;
-import dev.perfetto.sdk.PerfettoTrackEventBuilder;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.Pipe;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 /**
  * This class is used to test the native tracing support. Run this test while tracing on the

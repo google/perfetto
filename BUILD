@@ -6635,7 +6635,7 @@ perfetto_android_library(
     deps = [
         ":src_android_sdk_java_main_perfetto_trace_lib",
         ":trace_java_proto_lite",
-        "@com_google_protobuf//java/core:lite_runtime_only",
+        "@com_google_protobuf//java/lite",
     ] + PERFETTO_CONFIG.deps.android_test_common,
     tags = [
         "notap",
