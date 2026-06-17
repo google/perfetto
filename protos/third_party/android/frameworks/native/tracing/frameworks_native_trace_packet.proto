@@ -16,7 +16,9 @@
 
 syntax = "proto2";
 
-package perfetto.protos;
+import public "protos/perfetto/trace/trace_packet.proto";
+
+package com.android.internal;
 
 // Records an event in the evdev protocol, as used by Linux and some other *nix
 // kernels to report events from human interface devices.
@@ -164,4 +166,10 @@ message EvdevDevice {
   // Current states of ABS_MT_* axes other than ABS_MT_SLOT. The keys are the
   // ABS axis codes.
   map<uint32, SlotValuesMap> abs_mt_states = 12;
+}
+
+message FrameworksNativeTracePacket {
+  extend perfetto.protos.TracePacket {
+    optional EvdevEvent evdev_event = 121;
+  }
 }
