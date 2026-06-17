@@ -28,6 +28,7 @@ import {PopupPosition} from '../../widgets/popup';
 import {Card, CardStack} from '../../widgets/card';
 import {Icon} from '../../widgets/icon';
 import {classNames} from '../../base/classnames';
+import {arrayEquals} from '../../base/array_utils';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {
   Setting as BigTraceSetting,
@@ -67,6 +68,7 @@ import {
 } from '../query/bigtrace_query_client';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
 import {presetStore} from '../query/preset_store';
+import {encodeFilters} from '../query/filter_encoding';
 import {queryState} from '../query/query_state';
 import {setRoute} from '../router';
 import {Routes} from '../routes';
@@ -534,24 +536,33 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   private presetMatches(t: TracePreset): boolean {
     const b = this.bindings;
     if (b === undefined) return false;
-    const eq = (a: unknown, c: unknown) =>
-      JSON.stringify(a) === JSON.stringify(c);
     // SQL (ignore only leading/trailing whitespace differences). materialized
     // and limit are run-time toolbar params (Persistent toggle / row cap), not
     // settings, so they're deliberately not part of the match.
     if ((b.getSql?.() ?? '').trim() !== t.perfettoSql.trim()) return false;
-    // Trace selection (optional preset fields default to empty).
+    // Trace selection (optional preset fields default to empty). Filters are
+    // compared by their canonical key-sorted encoding, so equal filters built
+    // in a different key order still match; columns/values are string arrays.
     if (this.readTraceOrderBy() !== (t.traceOrderBy ?? '')) return false;
-    if (!eq(this.readTraceFilters(), t.traceFilters ?? [])) return false;
+    if (
+      encodeFilters(this.readTraceFilters()) !==
+      encodeFilters(t.traceFilters ?? [])
+    ) {
+      return false;
+    }
     const cols = t.traceMetadataColumns ?? [];
-    if (!eq(this.readTraceMetadataColumns(), cols.length ? cols : null)) {
+    const wantCols = cols.length ? cols : null;
+    const curCols = this.readTraceMetadataColumns();
+    if (curCols === null || wantCols === null) {
+      if (curCols !== wantCols) return false;
+    } else if (!arrayEquals(curCols, wantCols)) {
       return false;
     }
     // Every option setting the preset specifies must equal the effective one.
     const eff = this.effectiveSettings();
     for (const s of t.settings ?? []) {
       const cur = eff.find((e) => e.settingId === s.setting_id);
-      if (cur === undefined || !eq(cur.values, s.values)) return false;
+      if (cur === undefined || !arrayEquals(cur.values, s.values)) return false;
     }
     return true;
   }
