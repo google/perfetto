@@ -290,6 +290,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         break;
       case 2: /* distinct */
       case 3: /* distinct + order by */ {
+        // The contract lets us dedup over the colUsed columns.
         uint64_t cols_used_it = info->colUsed;
         for (uint32_t i = 0; i < 64; ++i) {
           if (cols_used_it & 1u) {
@@ -315,7 +316,16 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
                                  : dataframe::SortDirection::kAscending});
     }
   }
+
+  // SQLite > 3.50.3 trusts orderByConsumed and does only an adjacent-row dedup
+  // for DISTINCT (WHERE_DISTINCT_ORDERED), so claiming it without sorting leaks
+  // duplicates. Older SQLite re-dedups regardless, so always claiming it was
+  // safe; preserve that to avoid a perf change there.
+#if SQLITE_VERSION_NUMBER > 3050300
+  info->orderByConsumed = should_sort_using_order_by;
+#else
   info->orderByConsumed = true;
+#endif
 
   SQLITE_ASSIGN_OR_RETURN(
       tab, auto plan,
