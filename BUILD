@@ -960,6 +960,7 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_http_http",
                ":src_base_regex_regex",
+               ":src_base_unix_socket",
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
@@ -9066,7 +9067,6 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_non_minimal_protos",
     srcs = [
-        "protos/perfetto/trace/evdev.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/remote_clock_sync.proto",
