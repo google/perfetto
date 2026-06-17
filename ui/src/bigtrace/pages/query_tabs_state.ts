@@ -306,23 +306,30 @@ export class QueryTabsState {
     return tab;
   }
 
-  // Seed and activate a new tab from a home-page preset. The preset's
-  // settings override the current globals by id, so the trace source
-  // (trace_directory) and other globals carry through while the recipe's own
-  // options (e.g. treat-errors-as-warning) win.
+  // Seed and activate a new tab from a home-page preset. The preset defines the
+  // complete settings config: its own settings are applied and every other
+  // setting is turned off — togglable settings get disabled, booleans get
+  // value=false (they have no disable concept).
   addTabFromPreset(t: TracePreset): BigTraceEditorTab {
-    const merged: SettingFilter[] = [
-      ...bigTraceSettingsStorage.buildSettingFilters(),
-    ];
-    for (const s of t.settings ?? []) {
-      const entry: SettingFilter = {
-        settingId: s.setting_id,
-        values: [...s.values],
-        category: s.category as SettingCategory,
-      };
-      const i = merged.findIndex((g) => g.settingId === entry.settingId);
-      if (i >= 0) merged[i] = entry;
-      else merged.push(entry);
+    const presetIds = new Set((t.settings ?? []).map((s) => s.setting_id));
+    const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
+      settingId: s.setting_id,
+      values: [...s.values],
+      category: s.category as SettingCategory,
+    }));
+    const disabledSettings: string[] = [];
+    for (const raw of bigTraceSettingsStorage.getAllSettings()) {
+      if (raw.category === undefined) continue;
+      if (presetIds.has(raw.id)) continue;
+      if (raw.type === 'boolean') {
+        querySettings.push({
+          settingId: raw.id,
+          values: ['false'],
+          category: raw.category as SettingCategory,
+        });
+      } else {
+        disabledSettings.push(raw.id);
+      }
     }
     const metadataColumns = t.traceMetadataColumns ?? [];
     return this.addNewTab(
@@ -335,7 +342,8 @@ export class QueryTabsState {
       t.materialized ?? true,
       true, // forceNew
       {
-        querySettings: merged,
+        querySettings,
+        disabledSettings,
         traceFilters: [...(t.traceFilters ?? [])],
         // [] from the wire means "unspecified" → use the default-visible set.
         traceMetadataColumns: metadataColumns.length

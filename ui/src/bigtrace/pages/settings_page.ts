@@ -565,17 +565,27 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     this.writeTraceOrderBy(t.traceOrderBy ?? '');
     // Keep the trace grid's controlled-mode filter in sync with the write.
     this.traceFilterss = this.readTraceFilters();
-    for (const s of t.settings ?? []) {
-      if (this.bindings) {
-        this.bindings.setSettingValue(s.setting_id, [...s.values], s.category);
-        continue;
-      }
-      const setting = bigTraceSettingsStorage.get(s.setting_id);
-      if (setting === undefined) continue;
+    // The preset defines the complete settings config: its settings are enabled
+    // and set; every other setting is turned off — togglable → disabled,
+    // boolean → false (booleans have no disable concept).
+    const byId = new Map(
+      (t.settings ?? []).map((s) => [s.setting_id, s] as const),
+    );
+    for (const raw of bigTraceSettingsStorage.getAllSettings()) {
+      if (raw.category === undefined) continue;
+      const setting = this.boundSetting(raw);
+      const preset = byId.get(raw.id);
       try {
-        setting.set(this.coerceSettingValue(setting, s.values));
+        if (preset !== undefined) {
+          if (raw.type !== 'boolean') setting.setDisabled(false);
+          setting.set(this.coerceSettingValue(setting, preset.values));
+        } else if (raw.type === 'boolean') {
+          setting.set(false);
+        } else {
+          setting.setDisabled(true);
+        }
       } catch (e) {
-        console.error(`preset setting ${s.setting_id} rejected`, e);
+        console.error(`preset setting ${raw.id} rejected`, e);
       }
     }
     m.redraw();
