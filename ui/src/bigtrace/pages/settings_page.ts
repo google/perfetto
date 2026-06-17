@@ -561,7 +561,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     // Every option setting the preset specifies must equal the effective one.
     const eff = this.effectiveSettings();
     for (const s of t.settings ?? []) {
-      const cur = eff.find((e) => e.settingId === s.setting_id);
+      const cur = eff.find((e) => e.settingId === s.settingId);
       if (cur === undefined || !arrayEquals(cur.values, s.values)) return false;
     }
     return true;
@@ -580,7 +580,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     // and set; every other setting is turned off — togglable → disabled,
     // boolean → false (booleans have no disable concept).
     const byId = new Map(
-      (t.settings ?? []).map((s) => [s.setting_id, s] as const),
+      (t.settings ?? []).map((s) => [s.settingId, s] as const),
     );
     for (const raw of bigTraceSettingsStorage.getAllSettings()) {
       if (raw.category === undefined) continue;

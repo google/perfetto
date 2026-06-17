@@ -311,9 +311,9 @@ export class QueryTabsState {
   // setting is turned off — togglable settings get disabled, booleans get
   // value=false (they have no disable concept).
   addTabFromPreset(t: TracePreset): BigTraceEditorTab {
-    const presetIds = new Set((t.settings ?? []).map((s) => s.setting_id));
+    const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
     const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
-      settingId: s.setting_id,
+      settingId: s.settingId,
       values: [...s.values],
       category: s.category as SettingCategory,
     }));

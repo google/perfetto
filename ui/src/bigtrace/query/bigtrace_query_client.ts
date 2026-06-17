@@ -82,10 +82,10 @@ export interface TracePreset {
   // them: icon → a generic glyph, settings/traceFilters/traceMetadataColumns →
   // [], traceOrderBy → "", limit → 1000, materialized → true.
   readonly icon?: string;
-  // Wire shape mirrors the execute body's `settings`: snake-cased `setting_id`,
+  // Wire shape mirrors the execute body's `settings`: snake-cased `settingId`,
   // always-string `values`. Mapped to SettingFilter when applied to a tab.
   readonly settings?: ReadonlyArray<{
-    readonly setting_id: string;
+    readonly settingId: string;
     readonly values: string[];
     readonly category: string;
   }>;
