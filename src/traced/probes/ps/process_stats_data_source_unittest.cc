@@ -207,21 +207,24 @@ TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
   auto trace = writer_raw_->GetAllTracePackets();
   EXPECT_EQ(trace.size(), 3u);
 
-  // first packet - two unique processes, four threads
+  // first packet - two unique processes, each with its main thread, plus four
+  // non-main threads.
   auto ps_tree = trace[0].process_tree();
   EXPECT_THAT(ps_tree.processes(),
               UnorderedElementsAre(Truly(expected_process(10)),
                                    Truly(expected_process(20))));
   EXPECT_THAT(ps_tree.threads(),
               UnorderedElementsAre(
-                  Truly(expected_thread(11)), Truly(expected_thread(12)),
+                  Truly(expected_thread(10)), Truly(expected_thread(11)),
+                  Truly(expected_thread(12)), Truly(expected_thread(20)),
                   Truly(expected_thread(21)), Truly(expected_thread(22))));
 
-  // second packet - one new process
+  // second packet - one new process, plus its main thread
   ps_tree = trace[1].process_tree();
   EXPECT_THAT(ps_tree.processes(),
               UnorderedElementsAre(Truly(expected_process(30))));
-  EXPECT_EQ(ps_tree.threads_size(), 0);
+  EXPECT_THAT(ps_tree.threads(),
+              UnorderedElementsAre(Truly(expected_thread(30))));
 
   // third packet - two threads that haven't been seen before
   ps_tree = trace[2].process_tree();
@@ -309,6 +312,13 @@ TEST_F(ProcessStatsDataSourceTest, RenamePids) {
              process.cmdline()[0] == "new_" + std::to_string(pid);
     };
   };
+  // record_thread_names is off here, so the main thread is described only by
+  // its tid/tgid (tid == tgid for the main thread).
+  auto expected_main_thread = [](int pid) {
+    return [pid](const protos::gen::ProcessTree::Thread& thread) {
+      return thread.tid() == pid && thread.tgid() == pid && !thread.has_name();
+    };
+  };
 
   DataSourceConfig config;
   auto data_source = GetProcessStatsDataSource(config);
@@ -340,24 +350,28 @@ TEST_F(ProcessStatsDataSourceTest, RenamePids) {
   auto trace = writer_raw_->GetAllTracePackets();
   EXPECT_EQ(trace.size(), 3u);
 
-  // first packet - two unique processes
+  // first packet - two unique processes, each with its main thread
   auto ps_tree = trace[0].process_tree();
   EXPECT_THAT(ps_tree.processes(),
               UnorderedElementsAre(Truly(expected_old_process(10)),
                                    Truly(expected_old_process(20))));
-  EXPECT_EQ(ps_tree.threads_size(), 0);
+  EXPECT_THAT(ps_tree.threads(),
+              UnorderedElementsAre(Truly(expected_main_thread(10)),
+                                   Truly(expected_main_thread(20))));
 
-  // second packet - one new process
+  // second packet - one renamed process, plus its main thread
   ps_tree = trace[1].process_tree();
   EXPECT_THAT(ps_tree.processes(),
               UnorderedElementsAre(Truly(expected_new_process(10))));
-  EXPECT_EQ(ps_tree.threads_size(), 0);
+  EXPECT_THAT(ps_tree.threads(),
+              UnorderedElementsAre(Truly(expected_main_thread(10))));
 
-  // third packet - two threads that haven't been seen before
+  // third packet - one renamed process, plus its main thread
   ps_tree = trace[2].process_tree();
   EXPECT_THAT(ps_tree.processes(),
               UnorderedElementsAre(Truly(expected_new_process(20))));
-  EXPECT_EQ(ps_tree.threads_size(), 0);
+  EXPECT_THAT(ps_tree.threads(),
+              UnorderedElementsAre(Truly(expected_main_thread(20))));
 }
 
 TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
@@ -573,9 +587,10 @@ TEST_F(ProcessStatsDataSourceTest, NamespacedProcess) {
       .WillOnce(Return(
           "Name: foo\nTgid:\t42\nPid:   43\nPPid:  17\nNSpid:\t43\t3\n"));
 
-  // It's possible that OnPids() is called with a non-main thread is seen before
-  // the main thread for a process. When this happens, the data source
-  // will WriteProcess(42) first and then WriteThread(43).
+  // It's possible that OnPids() is called with a non-main thread seen before
+  // the main thread for a process. When this happens, the data source will
+  // WriteProcess(42) first, then emit the main thread (42), then
+  // WriteThread(43).
   data_source->OnPids({43});
   data_source->OnPids({42});  // This will be a no-op.
 
@@ -589,12 +604,17 @@ TEST_F(ProcessStatsDataSourceTest, NamespacedProcess) {
   auto nspid = first_process.nspid();
   EXPECT_THAT(nspid, ElementsAre(2));
 
-  ASSERT_EQ(ps_tree.threads_size(), 1);
-  auto first_thread = ps_tree.threads()[0];
-  ASSERT_EQ(first_thread.tid(), 43);
-  ASSERT_EQ(first_thread.tgid(), 42);
-  auto nstid = first_thread.nstid();
-  EXPECT_THAT(nstid, ElementsAre(3));
+  // The main thread (tid == tgid == 42) is now emitted explicitly, carrying its
+  // own namespaced tid, followed by the non-main thread (43).
+  ASSERT_EQ(ps_tree.threads_size(), 2);
+  auto main_thread = ps_tree.threads()[0];
+  EXPECT_EQ(main_thread.tid(), 42);
+  EXPECT_EQ(main_thread.tgid(), 42);
+  EXPECT_THAT(main_thread.nstid(), ElementsAre(2));
+  auto child_thread = ps_tree.threads()[1];
+  EXPECT_EQ(child_thread.tid(), 43);
+  EXPECT_EQ(child_thread.tgid(), 42);
+  EXPECT_THAT(child_thread.nstid(), ElementsAre(3));
 }
 
 TEST_F(ProcessStatsDataSourceTest, ScanSmapsRollupIsOn) {

@@ -51,11 +51,6 @@
 // /proc/pid/cmdline needs updating.
 // TODO(rsavitski): consider invalidating on task creation or death ftrace
 // events if available.
-//
-// TODO(rsavitski): we're not emitting an explicit description of the main
-// thread (instead, it's implied by the process entry). This might be slightly
-// inaccurate in edge cases like wanting to know the primary thread's name
-// (comm) based on procfs alone.
 
 namespace perfetto {
 namespace {
@@ -245,10 +240,10 @@ void ProcessStatsDataSource::WriteAllProcesses() {
       continue;
 
     while (int32_t tid = ReadNextNumericDir(*task_dir)) {
-      if (tid == pid)
-        continue;
       if (record_thread_names_ || namespaced_process) {
-        std::string tid_status = ReadProcPidFile(tid, "status");
+        // For the main thread (tid == pid) we've already read the status file.
+        const std::string& tid_status =
+            (tid == pid) ? pid_status : ReadProcPidFile(tid, "status");
         WriteDetailedThread(tid, pid, tid_status);
       } else {
         WriteThread(tid, pid);
@@ -352,6 +347,9 @@ void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
     const std::string& proc_stat =
         record_process_age_ ? ReadProcPidFile(tgid, "stat") : "";
     WriteProcess(tgid, proc_status_tgid, proc_stat);
+    // Also emit an explicit record for the main thread, so its comm/nstid are
+    // described and not just implied by the process entry written above.
+    WriteDetailedThread(tgid, tgid, proc_status_tgid);
   }
   if (pid != tgid) {
     PERFETTO_DCHECK(!seen_pids_.count(pid));

@@ -12,6 +12,10 @@ Unreleased:
       config should specify no_startup=true if any wildcard patterns are
       included in process_cmdline. Otherwise the matching semantics are the same
       as the perf profiling and java heap dump data sources.
+    * The procfs scraper (process_stats data source) now writes an explicit
+      Thread message for a process' main thread, instead of leaving it implied
+      by the process entry. This makes the main thread's name (comm) and
+      namespaced tids available from procfs alone.
   Trace Processor:
    *
   UI:

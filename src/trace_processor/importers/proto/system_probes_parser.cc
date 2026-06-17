@@ -247,6 +247,24 @@ const char* GetSmapsKey(uint32_t field_id) {
   }
 }
 
+// kworker kernel threads have a transient suffix appended to their name by the
+// kernel, identifying the workqueue they last processed (e.g.
+// "kworker/1:0-sock_diag_events"). That suffix is misleading as a persistent
+// name, so truncate it down to the stable worker id (e.g. "kworker/1:0").
+// Names that aren't kworkers are returned unchanged.
+base::StringView MaybeTruncateKworkerName(base::StringView name) {
+  static constexpr char kPrefix[] = "kworker/";
+  static constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
+  if (!name.StartsWith(kPrefix))
+    return name;
+  // The suffix is delimited by either '+' or '-' after the "kworker/" prefix.
+  size_t delim =
+      std::min(name.find('+', kPrefixLen), name.find('-', kPrefixLen));
+  if (delim != base::StringView::npos)
+    return name.substr(0, delim);
+  return name;
+}
+
 }  // namespace
 
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
@@ -695,10 +713,10 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     //
     // https://github.com/torvalds/linux/blob/6d280f4d760e3bcb4a8df302afebf085b65ec982/kernel/workqueue.c#L5336
     uint32_t kThreaddPid = 2;
-    if (ppid == kThreaddPid && argv0.StartsWith("kworker/")) {
-      size_t delim_loc = std::min(argv0.find('+', 8), argv0.find('-', 8));
-      if (delim_loc != base::StringView::npos) {
-        argv0 = argv0.substr(0, delim_loc);
+    if (ppid == kThreaddPid) {
+      base::StringView truncated = MaybeTruncateKworkerName(argv0);
+      if (truncated.size() != argv0.size()) {
+        argv0 = truncated;
         joined_cmdline = argv0;
       }
     }
@@ -771,6 +789,13 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     }
   }
 
+  // perfetto v57+: the procfs scraper now writes explicit Thread messages for a
+  // process' main thread (tid == tgid). All versions of perfetto before that
+  // make the main thread implicit (described only by the process entry above).
+  // The importer should stay compatible with both new and old traces: emitting
+  // the main thread here is idempotent (the row is already created when the
+  // process is seen), it just additionally records the main thread's
+  // comm/nstid.
   for (auto it = ps.threads(); it; ++it) {
     protos::pbzero::ProcessTree::Thread::Decoder thd(*it);
     auto tid = static_cast<uint32_t>(thd.tid());
@@ -778,7 +803,14 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     context_->process_tracker->UpdateThread(tid, tgid);
 
     if (thd.has_name()) {
-      StringId thread_name_id = context_->storage->InternString(thd.name());
+      base::StringView thread_name = thd.name();
+      // The main thread's comm carries the same transient kworker suffix that
+      // is stripped from the process name above (both are derived from the same
+      // procfs status). Apply the same truncation so they stay consistent;
+      // non-kworker names are left untouched.
+      if (tid == tgid)
+        thread_name = MaybeTruncateKworkerName(thread_name);
+      StringId thread_name_id = context_->storage->InternString(thread_name);
       auto utid = context_->process_tracker->GetOrCreateThread(tid);
       context_->process_tracker->UpdateThreadName(
           utid, thread_name_id, ThreadNamePriority::kProcessTree);
