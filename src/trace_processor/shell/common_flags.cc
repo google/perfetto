@@ -40,6 +40,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/rpc/remote_trace_processor.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/shell_utils.h"
@@ -142,6 +143,11 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
        [opts](const char* v) {
          opts->raw_metric_v1_extensions.emplace_back(v);
        }});
+  flags.push_back(StringFlag(
+      "remote", '\0', "ADDR",
+      "Run against a warm session instead of loading a local trace. ADDR is a "
+      "session name, a *.sock/absolute socket path, or host:port.",
+      &opts->remote_addr));
   flags.push_back(StringFlag("metatrace", 'm', "FILE",
                              "Enables metatracing, writes to FILE.",
                              &opts->metatrace_path));
@@ -469,6 +475,83 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   }
 
   return t_load;
+}
+
+base::Status ResolveTraceFileArg(const SubcommandContext& ctx,
+                                 const char* subcommand,
+                                 std::string* trace_file,
+                                 size_t* first_extra_arg) {
+  if (!ctx.global->remote_addr.empty()) {
+    trace_file->clear();
+    if (first_extra_arg)
+      *first_extra_arg = 0;
+    return base::OkStatus();
+  }
+  if (ctx.positional_args.empty()) {
+    return base::ErrStatus("%s: trace file is required", subcommand);
+  }
+  *trace_file = ctx.positional_args[0];
+  if (first_extra_arg)
+    *first_extra_arg = 1;
+  return base::OkStatus();
+}
+
+// In --remote mode the trace is already loaded and configured by the session,
+// so flags that configure local parsing or register local engine state have no
+// effect. Reject them explicitly rather than silently ignore them. (Forwarding
+// the verb-backed ones, e.g. --add-sql-package, is possible future work.)
+static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
+  const struct {
+    bool is_set;
+    const char* flag;
+  } incompatible[] = {
+      {opts.force_full_sort, "--full-sort"},
+      {opts.no_ftrace_raw, "--no-ftrace-raw"},
+      {opts.analyze_trace_proto_content, "--analyze-trace-proto-content"},
+      {opts.crop_track_events, "--crop-track-events"},
+      {opts.dev, "--dev"},
+      {!opts.dev_flags.empty(), "--dev-flag"},
+      {opts.extra_checks, "--extra-checks"},
+      {!opts.sql_package_paths.empty(), "--add-sql-package"},
+      {!opts.override_sql_package_paths.empty(), "--override-sql-package"},
+      {!opts.override_stdlib_path.empty(), "--override-stdlib"},
+      {!opts.register_files_dir.empty(), "--register-files-dir"},
+      {!opts.raw_metric_v1_extensions.empty(), "--metric-extension"},
+      {!opts.metatrace_path.empty(), "--metatrace"},
+  };
+  for (const auto& f : incompatible) {
+    if (f.is_set) {
+      return base::ErrStatus(
+          "%s cannot be combined with --remote: the trace is already loaded "
+          "and "
+          "configured by the session. Pass this flag to `tp server unix` when "
+          "starting the session instead.",
+          f.flag);
+    }
+  }
+  return base::OkStatus();
+}
+
+base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
+    const GlobalOptions& opts,
+    TraceProcessorShell_PlatformInterface* platform,
+    const std::string& trace_file,
+    base::TimeNanos* t_load_out) {
+  if (!opts.remote_addr.empty()) {
+    RETURN_IF_ERROR(CheckRemoteFlagCompatibility(opts));
+    ASSIGN_OR_RETURN(auto remote,
+                     RemoteTraceProcessor::Connect(opts.remote_addr));
+    if (t_load_out)
+      *t_load_out = base::TimeNanos(0);
+    return std::unique_ptr<TraceProcessor>(std::move(remote));
+  }
+  Config config = BuildConfig(opts, platform);
+  ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
+  ASSIGN_OR_RETURN(base::TimeNanos t_load,
+                   LoadTraceFile(tp.get(), platform, trace_file));
+  if (t_load_out)
+    *t_load_out = t_load;
+  return tp;
 }
 
 }  // namespace perfetto::trace_processor::shell

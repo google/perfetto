@@ -819,6 +819,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
+        ":src_trace_processor_rpc_client",
+        ":src_trace_processor_rpc_deserializer",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_session_util",
@@ -5221,6 +5223,24 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.cc",
         "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h",
+    ],
+)
+
+# GN target: //src/trace_processor/rpc:client
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_client",
+    srcs = [
+        "src/trace_processor/rpc/remote_trace_processor.cc",
+        "src/trace_processor/rpc/remote_trace_processor.h",
+    ],
+)
+
+# GN target: //src/trace_processor/rpc:deserializer
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_deserializer",
+    srcs = [
+        "src/trace_processor/rpc/query_result_deserializer.cc",
+        "src/trace_processor/rpc/query_result_deserializer.h",
     ],
 )
 
