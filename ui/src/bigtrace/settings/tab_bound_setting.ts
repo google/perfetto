@@ -50,6 +50,9 @@ export interface SettingsBindings {
   // Called when the trace-list data source reports a fresh filteredTotalRows
   // (traces the current filter selects). undefined = count not yet known.
   readonly onTraceMatchCount?: (count: number | undefined) => void;
+  // The tab's current SQL, used only to detect whether the tab matches a
+  // preset 1:1 (so the matching preset chip can highlight).
+  readonly getSql?: () => string;
 }
 
 // Wraps a globally-registered Setting<T> so reads/writes route through per-tab

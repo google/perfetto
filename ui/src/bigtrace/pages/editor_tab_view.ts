@@ -138,6 +138,7 @@ function buildTabBindings(
       tab.disabledSettings = [...set];
       tabsState.markDirty();
     },
+    getSql: () => tab.editorText,
   };
 }
 

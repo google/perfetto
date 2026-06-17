@@ -268,7 +268,6 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
     expect(body.trace_filters).toBeUndefined();
     expect(body.trace_metadata_columns).toBeUndefined();
     expect(body.trace_order_by).toBeUndefined();
-    expect(body.trace_limit).toBeUndefined();
   });
 
   test('ships trace_filters as a native, coerced array', async () => {
@@ -288,18 +287,16 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
     ]);
   });
 
-  test('ships trace_metadata_columns / trace_order_by / trace_limit when set', async () => {
+  test('ships trace_metadata_columns / trace_order_by when set', async () => {
     const fetchMock = captureFetch();
     const client = new BigtraceQueryClient('http://example/');
     await client.executeSync('select 1', 100, [], undefined, {
       traceMetadataColumns: ['device_name', 'android_id'],
       traceOrderBy: 'size_bytes desc',
-      traceLimit: 50,
     });
     const body = bodyFrom(fetchMock);
     expect(body.trace_metadata_columns).toEqual(['device_name', 'android_id']);
     expect(body.trace_order_by).toBe('size_bytes desc');
-    expect(body.trace_limit).toBe(50);
   });
 
   test('omits empty / default trace_* fields', async () => {
@@ -309,13 +306,11 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
       traceFilters: [],
       traceMetadataColumns: [],
       traceOrderBy: '',
-      traceLimit: 0,
     });
     const body = bodyFrom(fetchMock);
     expect(body.trace_filters).toBeUndefined();
     expect(body.trace_metadata_columns).toBeUndefined();
     expect(body.trace_order_by).toBeUndefined();
-    expect(body.trace_limit).toBeUndefined();
   });
 });
 

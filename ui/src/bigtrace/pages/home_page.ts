@@ -14,32 +14,15 @@
 
 import '../../frontend/home_page.scss';
 import m from 'mithril';
-import {assetSrc} from '../../base/assets';
+import {Card} from '../../widgets/card';
+import {EmptyState} from '../../widgets/empty_state';
 import {Icon} from '../../widgets/icon';
-import {Switch} from '../../widgets/switch';
 import {queryState} from '../query/query_state';
-import {settingsStorage} from '../settings/settings_storage';
+import type {TracePreset} from '../query/bigtrace_query_client';
+import {presetStore} from '../query/preset_store';
+import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
 import {setRoute} from '../router';
 import {Routes} from '../routes';
-
-const LMK_QUERY = `INCLUDE PERFETTO MODULE android.memory.lmk;
-
-SELECT 
-  *
-FROM android_lmk_events
-WHERE oom_score_adj <= 200
-ORDER BY oom_score_adj
-LIMIT 1;`;
-
-const CPU_TIME_QUERY = `SELECT
-  p.name,
-  sum(s.dur)/1e9 as cpu_sec
-FROM sched s
-JOIN thread t USING (utid)
-JOIN process p USING (upid)
-GROUP BY p.name
-ORDER BY cpu_sec DESC
-LIMIT 10`;
 
 // Landing-page action button.
 function homeButton(
@@ -55,78 +38,149 @@ function homeButton(
   );
 }
 
-// Stash the query for the new tab to pick up, then open the editor.
-function exampleQueryButton(
-  label: string,
-  icon: string,
-  query: string,
-): m.Children {
-  return homeButton(label, icon, () => {
-    queryState.initialQuery = query;
-    setRoute(Routes.QUERY);
-  });
+// Material Symbols names are lowercase letters / digits / underscores. An
+// absent or malformed value (a backend could send either) falls back to a
+// generic glyph rather than rendering as raw ligature text.
+function presetIcon(icon?: string): string {
+  return icon && /^[a-z0-9_]+$/.test(icon) ? icon : 'bookmark';
+}
+
+// A section heading: a small title + one-line description. Shared by the
+// presets and custom sections so they read as parallel choices.
+function sectionHeader(title: string, subtitle: string): m.Children {
+  return m(
+    '.pf-bt-home-section__header',
+    m('.pf-bt-home-section__title', title),
+    m('.pf-bt-home-section__subtitle', subtitle),
+  );
+}
+
+// A full-width, settings-style card: a leading icon + title with the
+// description below. Clicking stashes the preset for QueryPage to seed a
+// fresh tab (query + trace-selection settings), then opens the editor.
+function presetCard(t: TracePreset): m.Children {
+  return m(
+    Card,
+    {
+      className: 'pf-bt-preset-card',
+      interactive: true,
+      title: t.description || t.name,
+      onclick: () => {
+        queryState.initialPreset = t;
+        setRoute(Routes.QUERY);
+      },
+    },
+    m(
+      '.pf-bt-preset-card__head',
+      m(Icon, {icon: presetIcon(t.icon)}),
+      m('.pf-bt-preset-card__title', t.name),
+    ),
+    t.description && m('.pf-bt-preset-card__desc', t.description),
+  );
 }
 
 export class HomePage implements m.ClassComponent {
-  view() {
-    const themeSetting = settingsStorage.get('theme');
-    const isDarkMode = themeSetting ? themeSetting.get() === 'dark' : false;
+  // Active CUJ tab; defaults to the first one the catalog returns.
+  private activeCuj?: string;
 
+  oninit() {
+    // Fetch the catalog on mount; cached after the first load.
+    void presetStore.load();
+  }
+
+  view() {
+    const hasPresets = presetStore.presets.length > 0;
     return m(
       '.pf-home-page',
       m(
         '.pf-home-page__center.pf-bt-home-center',
+        // Three states: presets loaded → the picker; still loading → nothing
+        // (avoids flashing the empty state); loaded but empty (no backend
+        // configured / unreachable / no catalog) → an onboarding empty state.
+        hasPresets
+          ? this.renderPresets()
+          : presetStore.isLoading
+            ? null
+            : this.renderEmptyState(),
+        // The "Custom" section (Advanced settings) sits alongside the picker.
+        // The empty state carries its own backend-setup CTA, so it's omitted
+        // there to avoid two competing settings links.
+        hasPresets && this.renderCustomSection(),
+      ),
+    );
+  }
+
+  // Shown when the catalog is empty — typically a first visit with no backend
+  // configured. Points the user at the settings page where the endpoint lives.
+  private renderEmptyState(): m.Children {
+    return m(
+      EmptyState,
+      {
+        icon: 'cloud_off',
+        title: 'Connect a BigTrace backend to see analysis presets',
+      },
+      homeButton('Configure backend', 'settings', () =>
+        setRoute(Routes.SETTINGS),
+      ),
+    );
+  }
+
+  // Presets grouped by CUJ (Memory, CPU, Latency, …). A flat segmented row
+  // selects the active CUJ; its presets render below as a card grid. Renders
+  // nothing until the catalog loads (or if the backend has none).
+  private renderPresets(): m.Children {
+    const tpls = presetStore.presets;
+    if (tpls.length === 0) return null;
+
+    const {groups, byCuj} = groupPresetsByCuj(tpls);
+    const active =
+      this.activeCuj !== undefined && byCuj.has(this.activeCuj)
+        ? this.activeCuj
+        : groups[0][0];
+
+    return m(
+      '.pf-bt-home-section',
+      // Frame the cards so a first-timer knows what they are and what a click
+      // does — otherwise the noun titles read like categories, not analyses.
+      sectionHeader(
+        'Analysis presets',
+        'Ready-made queries for common issues. Pick one to open it across ' +
+          'your traces, then run or edit.',
+      ),
+      renderCujSelector(
+        groups.map(([cuj]) => cuj),
+        active,
+        (cuj) => {
+          this.activeCuj = cuj;
+        },
+      ),
+      m('.pf-bt-preset-list', (byCuj.get(active) ?? []).map(presetCard)),
+    );
+  }
+
+  // The "do it yourself" counterpart to the presets: a titled section whose
+  // action drops into the settings page to configure trace selection + options
+  // (and write a query) by hand.
+  private renderCustomSection(): m.Children {
+    return m(
+      '.pf-bt-home-section',
+      sectionHeader(
+        'Custom',
+        'Configure trace selection and options yourself, then query.',
+      ),
+      m(
+        '.pf-bt-preset-list',
         m(
-          '.pf-home-page__title',
-          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
-          'BigTrace',
-        ),
-        m(
-          '.pf-home-page__hints',
+          Card,
+          {
+            className: 'pf-bt-preset-card',
+            interactive: true,
+            onclick: () => setRoute(Routes.SETTINGS),
+          },
           m(
-            '.pf-home-page__section',
-            m('.pf-home-page__section-title', 'Quick start'),
-            m(
-              '.pf-home-page__section-content',
-              m(
-                '.pf-home-page__getting-started-buttons',
-                homeButton('Configure backend', 'settings', () =>
-                  setRoute(Routes.SETTINGS),
-                ),
-                homeButton('Open query editor', 'edit', () =>
-                  setRoute(Routes.QUERY),
-                ),
-              ),
-            ),
-          ),
-          m(
-            '.pf-home-page__section',
-            m('.pf-home-page__section-title', 'Example queries'),
-            m(
-              '.pf-home-page__section-content',
-              m(
-                '.pf-home-page__getting-started-buttons',
-                exampleQueryButton('LMK events', 'search', LMK_QUERY),
-                exampleQueryButton(
-                  'Top CPU consumers',
-                  'timer',
-                  CPU_TIME_QUERY,
-                ),
-              ),
-            ),
-          ),
-          // Footer: theme toggle.
-          m(
-            '.pf-home-page__links',
-            m(Switch, {
-              label: 'Dark mode',
-              checked: isDarkMode,
-              onchange: (e) => {
-                themeSetting?.set(
-                  (e.target as HTMLInputElement).checked ? 'dark' : 'light',
-                );
-              },
-            }),
+            '.pf-bt-preset-card__head',
+            m(Icon, {icon: 'settings'}),
+            m('.pf-bt-preset-card__title', 'Advanced settings'),
           ),
         ),
       ),

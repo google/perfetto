@@ -156,12 +156,163 @@
   height: 1em;
 }
 
-// Compound (.pf-home-page__center.pf-bt-home-center) outranks the shared
-// single-class rule, so this overrides its justify-content.
-.pf-bt-home-center {
+// Outrank the shared `.pf-home-page .pf-home-page__center` rule (which centers
+// its children with space-around) so the presets sit near the top.
+// `justify-self: stretch` overrides the grid's `justify-items: center`, which
+// would otherwise shrink this column to its content width and break the
+// percentage width of the presets area below.
+.pf-home-page .pf-home-page__center.pf-bt-home-center {
+  justify-self: stretch;
   justify-content: flex-start;
-  padding-top: 15vh;
-  gap: 24px;
+  padding-top: 48px;
+  gap: 32px;
+}
+
+// A home section: a wide, left-aligned column. Mirrors the settings page's
+// categories — a big titled header bar over roomy stacked cards. Used for both
+// "Analysis presets" (selector + cards) and "Custom" (Advanced settings).
+.pf-bt-home-section {
+  width: min(880px, 90%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  // Matches .pf-bt-settings-page__plugin-title (the settings category heading).
+  &__title {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 600;
+    padding: 8px 12px;
+    background: var(--pf-minimal-background);
+    border-radius: 4px;
+  }
+
+  &__subtitle {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+// Flat segmented control selecting the active CUJ. Deliberately not the
+// document-tab widget (no panel chrome) — mirrors the record page's flat look.
+.pf-bt-cuj-selector {
+  display: flex;
+  gap: 4px;
+
+  &__item {
+    font: inherit;
+    padding: 4px 12px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: var(--pf-color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      background: color_hover(transparent);
+      color: var(--pf-color-text);
+    }
+
+    &--active {
+      background: var(--pf-color-background-secondary);
+      border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
+      font-weight: 600;
+    }
+  }
+}
+
+// ---------- Analysis preset cards (home page) ----------
+// Styled after the record page's preset cards (.pf-preset-card): a centered
+// column of icon + title + subtitle, click-whole.
+
+.pf-bt-preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+// Full-width, settings-style card: a leading icon + bold title with the
+// description below — roomy and left-aligned for easy scanning. Card chrome
+// (border, radius, padding, hover shadow) comes from the shared Card widget.
+.pf-bt-preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .pf-icon {
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  &__title {
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__desc {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+// ---------- Analysis preset chips (settings page / modal) ----------
+// Compact apply-only tags. Clicking applies the preset's trace-selection +
+// option settings (no SQL); the last-applied chip carries `--active`. Small
+// radius, no pill styling.
+
+.pf-bt-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+// In the settings picker the selector follows the description; give it room.
+.pf-bt-preset-picker .pf-bt-cuj-selector {
+  margin-top: 8px;
+}
+
+.pf-bt-preset-chip {
+  font: inherit;
+  padding: 3px 10px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  background: none;
+  color: var(--pf-color-text);
+  cursor: pointer;
+
+  &:hover {
+    background: color_hover(transparent);
+  }
+
+  &:active {
+    background: color_active(transparent);
+  }
+
+  // The preset last applied on the settings surface.
+  &--active {
+    border-color: var(--pf-color-primary);
+    background: rgba(var(--pf-color-primary-rgb), 0.1);
+    color: var(--pf-color-primary);
+
+    &:hover {
+      background: rgba(var(--pf-color-primary-rgb), 0.16);
+    }
+  }
 }
 
 // ---------- Editor tabs & toolbar ----------
@@ -808,6 +959,11 @@ pre.pf-bt-history-item-query--standalone {
 
   .pf-settings-card__title {
     margin: 0;
+  }
+
+  // The "Query" CTA sits at the far right of the Traces header.
+  .pf-bt-trace-card__query {
+    margin-left: auto;
   }
 }
 
