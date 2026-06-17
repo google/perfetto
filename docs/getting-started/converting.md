@@ -88,7 +88,7 @@ from perfetto.trace_builder.proto_builder import TraceProtoBuilder
 from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import TrackEvent, TrackDescriptor, ProcessDescriptor, ThreadDescriptor
 
 # Define a unique ID for this sequence of packets (generate once per trace producer)
-TRUSTED_PACKET_SEQUENCT_ID = 1001 # Choose any unique integer
+TRUSTED_PACKET_SEQUENCE_ID = 1001 # Choose any unique integer
 
 def get_uuid() -> int:
     return uuid.uuid4().int & ((1 << 63) - 1)
