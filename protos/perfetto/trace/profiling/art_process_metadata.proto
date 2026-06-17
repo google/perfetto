@@ -29,6 +29,8 @@ message JavaStack {
 }
 
 message ArtProcessMetadata {
+  // CLOCK_BOOTTIME timestamp
+  optional uint64 timestamp = 10;
   optional int32 pid = 1;
   optional int32 uid = 2;
   // /proc/self/cmdline argv0
