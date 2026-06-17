@@ -689,6 +689,10 @@ pub const PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN: PerfettoTeH
 pub const PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS: PerfettoTeHlExtraType = 17;
 pub const PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK: PerfettoTeHlExtraType = 18;
 pub const PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS: PerfettoTeHlExtraType = 19;
+pub const PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID: PerfettoTeHlExtraType =
+    20;
+pub const PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR:
+    PerfettoTeHlExtraType = 21;
 pub type PerfettoTeHlExtraType = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -797,6 +801,24 @@ pub union PerfettoTeHlExtraDebugArgUnion {
 pub struct PerfettoTeHlExtraFlow {
     pub header: PerfettoTeHlExtra,
     pub id: u64,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PerfettoTeHlExtraCorrelationId {
+    pub header: PerfettoTeHlExtra,
+    pub id: u64,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PerfettoTeHlExtraCorrelationIdStr {
+    pub header: PerfettoTeHlExtra,
+    pub str_: *const ::std::os::raw::c_char,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union PerfettoTeHlExtraCorrelationIdUnion {
+    pub correlation_id: PerfettoTeHlExtraCorrelationId,
+    pub correlation_id_str: PerfettoTeHlExtraCorrelationIdStr,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

@@ -131,6 +131,12 @@ int main(void) {
                 "Worker", 0,
                 PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
                 "worker_pool", 0)));
+    // Correlated events share a correlation id (here the frame number). Unlike
+    // flows, they are not necessarily causally connected.
+    PERFETTO_TE(physics, PERFETTO_TE_INSTANT("frame_begin"),
+                PERFETTO_TE_CORRELATION_ID(flow_counter));
+    PERFETTO_TE(physics, PERFETTO_TE_INSTANT("frame_label"),
+                PERFETTO_TE_CORRELATION_ID_STR("frame"));
     sleep(1);
   }
 }

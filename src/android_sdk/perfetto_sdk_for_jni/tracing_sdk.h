@@ -275,6 +275,23 @@ class Counter {
 };
 
 /**
+ * @brief A correlation id linking an event with others in the same logical
+ * operation (TrackEvent's correlation_id / correlation_id_str).
+ */
+class CorrelationId {
+ public:
+  CorrelationId() : correlation_id_{} {}
+
+  static void delete_correlation_id(CorrelationId* ptr) { delete ptr; }
+
+  PerfettoTeHlExtraCorrelationIdUnion* get() { return &correlation_id_; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CorrelationId);
+  PerfettoTeHlExtraCorrelationIdUnion correlation_id_;
+};
+
+/**
  * @brief Represents a debug argument for a trace event.
  */
 class DebugArg {

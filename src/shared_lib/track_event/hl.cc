@@ -269,6 +269,20 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
 
   for (const auto* it = extra_data; *it != nullptr; it++) {
     const struct PerfettoTeHlExtra& extra = **it;
+    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID) {
+      event->set_correlation_id(
+          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationId&>(extra)
+              .id);
+    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR) {
+      event->set_correlation_id_str(
+          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationIdStr&>(
+              extra)
+              .str);
+    }
+  }
+
+  for (const auto* it = extra_data; *it != nullptr; it++) {
+    const struct PerfettoTeHlExtra& extra = **it;
     if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS) {
       const auto* fields =
           reinterpret_cast<const struct PerfettoTeHlExtraProtoFields&>(extra)
