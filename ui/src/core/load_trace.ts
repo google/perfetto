@@ -105,6 +105,18 @@ const FORCE_FULL_SORT_FLAG = featureFlags.register({
     'Forces the trace processor into performing a full sort ignoring any windowing logic',
   defaultValue: false,
 });
+const PRESERVE_OVERLAPPING_JSON_EVENTS_FLAG = featureFlags.register({
+  id: 'preserveOverlappingJsonEvents',
+  name: 'Preserve overlapping events in JSON traces',
+  description:
+    'Keep overlapping complete (X) events in JSON traces instead of dropping ' +
+    'them, by laying them out on extra depths of the thread track. A ' +
+    'workaround, not a faithful representation. The proper fix (async events) ' +
+    'and discussion are at ' +
+    'https://perfetto.dev/docs/faq#why-are-overlapping-events-in-json-traces-not-displayed-correctly ' +
+    'and https://github.com/google/perfetto/issues/4280.',
+  defaultValue: false,
+});
 
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
 // ensure it's only run once.
@@ -169,6 +181,7 @@ async function createEngine(
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
       extraParsingDescriptors: descriptorBlobs,
       forceFullSort: FORCE_FULL_SORT_FLAG.get(),
+      preserveOverlappingJsonEvents: PRESERVE_OVERLAPPING_JSON_EVENTS_FLAG.get(),
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();

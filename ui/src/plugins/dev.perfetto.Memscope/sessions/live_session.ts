@@ -283,6 +283,7 @@ export class LiveSession {
         analyzeTraceProtoContent: false,
         ftraceDropUntilAllCpusValid: false,
         forceFullSort: false,
+        preserveOverlappingJsonEvents: false,
       });
       await engine.parse(cloneResult.value);
       await engine.notifyEof();

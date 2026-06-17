@@ -102,6 +102,61 @@ TEST(TraceProcessorCustomConfigTest, HandlesMalformedMountPath) {
   ASSERT_EQ(it.Get(0).long_value, 1);
 }
 
+namespace {
+base::Status ParseTraceString(TraceProcessor* processor, const std::string& s) {
+  std::unique_ptr<uint8_t[]> buf(new uint8_t[s.size()]);
+  memcpy(buf.get(), s.data(), s.size());
+  auto status = processor->Parse(std::move(buf), s.size());
+  if (!status.ok()) {
+    return status;
+  }
+  return processor->NotifyEndOfFile();
+}
+
+// 'A' [3, 6.776] and 'B' [5, 7] partially overlap; 'B' cannot nest under 'A'.
+constexpr char kOverlappingCompleteEventsJson[] =
+    R"({"traceEvents":[
+      {"ph":"X","cat":"k","name":"A","pid":0,"tid":7,"ts":3,"dur":3.776},
+      {"ph":"X","cat":"k","name":"B","pid":0,"tid":7,"ts":5,"dur":2}
+    ]})";
+
+int64_t QueryLong(TraceProcessor* processor, const std::string& query) {
+  auto it = processor->ExecuteQuery(query);
+  PERFETTO_CHECK(it.Next());
+  return it.Get(0).AsLong();
+}
+}  // namespace
+
+TEST(TraceProcessorCustomConfigTest, OverlappingJsonEventsDroppedByDefault) {
+  auto processor = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(ParseTraceString(processor.get(), kOverlappingCompleteEventsJson));
+
+  EXPECT_EQ(QueryLong(processor.get(), "select count(*) from slice"), 1);
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select value from stats where name = "
+                      "'slice_drop_overlapping_complete_event'"),
+            1);
+}
+
+TEST(TraceProcessorCustomConfigTest, OverlappingJsonEventsSpilledWhenEnabled) {
+  auto config = Config();
+  config.json_overlapping_event_mode =
+      JsonOverlappingEventMode::kSpillToOverflowTrack;
+  auto processor = TraceProcessor::CreateInstance(config);
+  ASSERT_OK(ParseTraceString(processor.get(), kOverlappingCompleteEventsJson));
+
+  EXPECT_EQ(QueryLong(processor.get(), "select count(*) from slice"), 2);
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select value from stats where name = "
+                      "'slice_drop_overlapping_complete_event'"),
+            0);
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select count(*) from slice join track "
+                      "on slice.track_id = track.id "
+                      "where track.type = 'thread_overlapping_slice'"),
+            1);
+}
+
 class TraceProcessorIntegrationTest : public ::testing::Test {
  public:
   TraceProcessorIntegrationTest()

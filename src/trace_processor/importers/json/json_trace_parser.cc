@@ -82,6 +82,13 @@ inline std::string_view GetStringValue(const json::JsonValue& value) {
   return {};
 }
 
+// Overflow track for complete ('X') events which cannot nest on a thread's main
+// track. See the 'X' case below.
+constexpr auto kThreadOverlappingSliceBlueprint =
+    TrackCompressor::SliceBlueprint(
+        "thread_overlapping_slice",
+        tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
+
 TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
   switch (phase) {
     case 'b':
@@ -103,7 +110,10 @@ JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
           context->storage->InternString("process_sort_index_hint")),
       thread_sort_index_hint_id_(
           context->storage->InternString("thread_sort_index_hint")),
-      running_string_id_(context->storage->InternString("Running")) {}
+      running_string_id_(context->storage->InternString("Running")),
+      spill_overlapping_events_(
+          context->config.json_overlapping_event_mode ==
+          JsonOverlappingEventMode::kSpillToOverflowTrack) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
@@ -224,9 +234,20 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         return;
       }
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      auto slice_id =
-          slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
-                                event.dur, args_inserter);
+      bool overlapped = false;
+      auto slice_id = slice_tracker->Scoped(
+          timestamp, track_id, event.cat, slice_name_id, event.dur,
+          args_inserter, spill_overlapping_events_ ? &overlapped : nullptr);
+      if (overlapped) {
+        // Preserve the overlapping event by spilling it onto a nestable
+        // overflow track. See https://github.com/google/perfetto/issues/4280.
+        track_id = context_->track_compressor->InternLegacyOverlappingScoped(
+            kThreadOverlappingSliceBlueprint, tracks::Dimensions(utid),
+            timestamp, event.dur);
+        slice_id =
+            slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
+                                  event.dur, args_inserter);
+      }
       if (slice_id) {
         auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
         if (event.tts != std::numeric_limits<int64_t>::max()) {

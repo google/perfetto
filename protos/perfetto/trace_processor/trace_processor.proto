@@ -377,6 +377,10 @@ message ResetTraceProcessorArgs {
     DEFAULT_HEURISTICS = 0;
     FORCE_FULL_SORT = 1;
   }
+  enum JsonOverlappingEventMode {
+    JSON_OVERLAPPING_EVENT_DROP = 0;
+    JSON_OVERLAPPING_EVENT_SPILL_TO_OVERFLOW_TRACK = 1;
+  }
   // Mirror of the corresponding perfetto::trace_processor::Config fields.
   optional DropTrackEventDataBefore drop_track_event_data_before = 1;
   optional bool ingest_ftrace_in_raw_table = 2;
@@ -387,6 +391,8 @@ message ResetTraceProcessorArgs {
 
   // A list of serialized FileDescriptorSet protos.
   repeated bytes extra_parsing_descriptors = 7;
+
+  optional JsonOverlappingEventMode json_overlapping_event_mode = 8;
 }
 
 message RegisterSqlPackageArgs {

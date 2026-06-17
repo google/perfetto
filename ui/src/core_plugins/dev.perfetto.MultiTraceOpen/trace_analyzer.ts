@@ -54,6 +54,7 @@ export class WasmTraceAnalyzer implements TraceAnalyzer {
       analyzeTraceProtoContent: false,
       ftraceDropUntilAllCpusValid: false,
       forceFullSort: false,
+      preserveOverlappingJsonEvents: false,
     });
     const stream = new TraceFileStream(file);
     for (;;) {

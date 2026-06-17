@@ -685,11 +685,12 @@ namespace perfetto::trace_processor::stats {
       "incremental timestamps, bad clock synchronization or kernel bugs in "   \
       "drivers emitting timestamps"),                                          \
   F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kTrace, Scope::kMachineAndTrace,   \
-      "A complete slice was dropped because it overlaps with another "         \
-      "slice. This can happen e.g. in JSON traces using X events or in other " \
-      "cases where a duration is part of the trace. To solve this problem "    \
-      "make sure that your X events do not overlap on the same track (e.g. "   \
-      "thread/process)"),                                                      \
+      "A complete slice was dropped because it partially overlaps another "    \
+      "slice on the same track (typically a JSON 'X' event). See "             \
+      "https://perfetto.dev/docs/faq"                                          \
+      "#why-are-overlapping-events-in-json-traces-not-displayed-correctly and "\
+      "https://github.com/google/perfetto/issues/4280 for the fix and a "      \
+      "workaround"),                                                           \
   F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace, Scope::kMachineAndTrace,     \
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
