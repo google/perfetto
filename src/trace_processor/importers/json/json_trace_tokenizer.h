@@ -131,6 +131,17 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
                                       const char* end,
                                       const char** out);
 
+  // Returns the absolute byte offset (within the whole trace) of the current
+  // parse position of |it_|. Used to attach context to import logs.
+  int64_t CurrentByteOffset() const;
+
+  // Records a tokenization error against the trace event currently being
+  // parsed, attaching the raw text of the event (|event_start_| .. |it_.cur()|)
+  // and, if set, the |status| message as args to make the import log queryable
+  // and actionable.
+  void RecordEventError(size_t stat_key,
+                        const base::Status& status = base::OkStatus());
+
   TraceProcessorContext* const context_;
 
   JsonTraceParser parser_;
@@ -148,6 +159,9 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
 
   ClockTracker::ClockId trace_file_clock_;
   uint64_t offset_ = 0;
+  // Points at the start of the trace event object currently being parsed (i.e.
+  // the opening '{'). Valid only while inside ParseTraceEventContents.
+  const char* event_start_ = nullptr;
   // Used to glue together JSON objects that span across two (or more)
   // Parse boundaries.
   std::vector<char> buffer_;
