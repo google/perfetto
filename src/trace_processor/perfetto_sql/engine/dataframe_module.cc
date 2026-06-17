@@ -298,7 +298,18 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           }
           cols_used_it >>= 1;
         }
+        // SQLite's DISTINCT handling for virtual tables changed between 3.50.3
+        // (previously bundled) and 3.53.2 (current). Newer SQLite trusts
+        // orderByConsumed and, for a plain DISTINCT, performs only an
+        // adjacent-row dedup (WHERE_DISTINCT_ORDERED) assuming we grouped equal
+        // rows; deduping over colUsed alone does not do that, so we must sort by
+        // aOrderBy ourselves. Older SQLite re-dedups regardless, so we only sort
+        // when there is also an ORDER BY to satisfy (vtab_distinct == 3).
+#if SQLITE_VERSION_NUMBER > 3050300
+        should_sort_using_order_by = true;
+#else
         should_sort_using_order_by = (vtab_distinct == 3);
+#endif
         break;
       }
       default:
@@ -316,16 +327,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
                                  : dataframe::SortDirection::kAscending});
     }
   }
-
-  // SQLite > 3.50.3 trusts orderByConsumed and does only an adjacent-row dedup
-  // for DISTINCT (WHERE_DISTINCT_ORDERED), so claiming it without sorting leaks
-  // duplicates. Older SQLite re-dedups regardless, so always claiming it was
-  // safe; preserve that to avoid a perf change there.
-#if SQLITE_VERSION_NUMBER > 3050300
-  info->orderByConsumed = should_sort_using_order_by;
-#else
   info->orderByConsumed = true;
-#endif
 
   SQLITE_ASSIGN_OR_RETURN(
       tab, auto plan,
