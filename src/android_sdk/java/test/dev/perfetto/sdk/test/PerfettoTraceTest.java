@@ -1127,7 +1127,7 @@ public class PerfettoTraceTest {
 
     byte[] traceBytes = session.close();
 
-    Trace trace = Trace.parseFrom(traceBytes, com.google.protobuf.ExtensionRegistryLite.getEmptyRegistry());
+    Trace trace = Trace.parseFrom(traceBytes);
 
     boolean hasTrackEvent = false;
     boolean hasCallstack = false;
@@ -1183,7 +1183,7 @@ public class PerfettoTraceTest {
 
     byte[] traceBytes = session.close();
 
-    Trace trace = Trace.parseFrom(traceBytes, com.google.protobuf.ExtensionRegistryLite.getEmptyRegistry());
+    Trace trace = Trace.parseFrom(traceBytes);
 
     int eventCount = 0;
     for (TracePacket packet : trace.getPacketList()) {
@@ -1374,7 +1374,7 @@ public class PerfettoTraceTest {
     }
 
     byte[] traceBytes = session.close();
-    Trace trace = Trace.parseFrom(traceBytes, com.google.protobuf.ExtensionRegistryLite.getEmptyRegistry());
+    Trace trace = Trace.parseFrom(traceBytes);
 
     int callstackCount = 0;
     for (TracePacket packet : trace.getPacketList()) {
