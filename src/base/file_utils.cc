@@ -265,11 +265,12 @@ bool FlushFile(int fd) {
 #endif
 }
 
-bool Mkdir(const std::string& path) {
+bool Mkdir(const std::string& path, uint32_t mode) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  base::ignore_result(mode);
   return _mkdir(path.c_str()) == 0;
 #else
-  return mkdir(path.c_str(), 0755) == 0;
+  return mkdir(path.c_str(), mode) == 0;
 #endif
 }
 

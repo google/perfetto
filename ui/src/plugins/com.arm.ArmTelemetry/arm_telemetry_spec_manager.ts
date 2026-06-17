@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "./timeline_page.scss";
-@import "./timeline_toolbar.scss";
-@import "./minimap.scss";
+import type {ArmTelemetryCpuSpec} from './arm_telemetry_spec';
+
+export interface ArmTelemetrySpecManager {
+  add(desc: ArmTelemetryCpuSpec): void;
+  update(desc: ArmTelemetryCpuSpec): void;
+  clear(): void;
+  hasSpecs(): boolean;
+  registeredCpuids(): string[];
+  getCpuDesc(cpuid: string): ArmTelemetryCpuSpec;
+}
