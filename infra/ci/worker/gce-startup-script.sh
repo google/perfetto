@@ -21,18 +21,17 @@ ATTRS='http://metadata.google.internal/computeMetadata/v1/instance/attributes'
 URL="$ATTRS/worker-img"
 WORKER_IMG=$(curl --silent --fail -H'Metadata-Flavor:Google' $URL)
 
-# We use for checkout + build + cache. The only things that are persisted
-# (artifacts) are uploaded to GCS. We use swapfs so we can exceed physical ram
-# when using tmpfs. It's still faster than operating on a real filesystem as in
-# most cases we have enough ram to not need swap.
+# Create a scratch /tmp for checkout + build + cache. We don't care about data
+# persistency as the only things that are persisted (artifacts) are uploaded to
+# GCS.
 shopt -s nullglob
-for SSD in /dev/nvme0n*; do
-mkswap $SSD
-swapon -p -1 $SSD
-done
-
-# Enlarge the /tmp size to use swap and also allow exec, as some tests need it.
-mount -o remount,mode=777,size=95%,exec /tmp
+SSDS=(/dev/nvme0n*)
+mdadm --create /dev/md0 --level=0 --force --run \
+      --raid-devices=${#SSDS[@]} "${SSDS[@]}"
+# ext4 with no journal is the fastest config; -E nodiscard avoids TRIM overhead.
+mkfs.ext4 -F -O ^has_journal -E nodiscard /dev/md0
+mount -o noatime,lazytime,nodiscard /dev/md0 /tmp
+chmod 1777 /tmp
 
 # Disable Addressa space ranomization. This is needed for Tsan tests to work in
 # the sandbox. Newer kernel versions seem to block the
