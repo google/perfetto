@@ -488,6 +488,48 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr(
   return toJLong(track->get());
 }
 
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_init(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(new sdk_for_jni::CorrelationId());
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_delete(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(&sdk_for_jni::CorrelationId::delete_correlation_id);
+}
+
+static jlong
+dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_get_extra_ptr(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  sdk_for_jni::CorrelationId* correlation_id =
+      toPointer<sdk_for_jni::CorrelationId>(ptr);
+  return toJLong(correlation_id->get());
+}
+
+static void
+dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_int64(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong val) {
+  sdk_for_jni::CorrelationId* correlation_id =
+      toPointer<sdk_for_jni::CorrelationId>(ptr);
+  auto& id = correlation_id->get()->correlation_id;
+  id.header.type = PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID;
+  id.id = static_cast<uint64_t>(val);
+}
+
+static void
+dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_string(
+    JNIEnv* env,
+    jclass,
+    jlong ptr,
+    jstring val) {
+  sdk_for_jni::CorrelationId* correlation_id =
+      toPointer<sdk_for_jni::CorrelationId>(ptr);
+  auto& id_str = correlation_id->get()->correlation_id_str;
+  id_str.header.type = PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR;
+  id_str.str = StringBuffer::utf16_to_ascii(env, val).data();
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init(
     PERFETTO_JNI_HOST_PARAMS) {
   return toJLong(new sdk_for_jni::Counter());
@@ -699,6 +741,21 @@ static const JNINativeMethod gCounterTrackMethods[] = {
      (void*)
          dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr}};
 
+static const JNINativeMethod gCorrelationIdMethods[] = {
+    {"native_init", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_init},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_delete},
+    {"native_get_extra_ptr", "(J)J",
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_get_extra_ptr},
+    {"native_set_value_int64", "(JJ)V",
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_int64},
+    {"native_set_value_string", "(JLjava/lang/String;)V",
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_string}};
+
 static const JNINativeMethod gCounterMethods[] = {
     {"native_init", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init},
@@ -784,6 +841,14 @@ int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
           "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
       gCounterMethods, NELEM(gCounterMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register counter native methods.");
+
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$CorrelationId"),
+      gCorrelationIdMethods, NELEM(gCorrelationIdMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0,
+                      "Unable to register correlation id native methods.");
 
   return 0;
 }

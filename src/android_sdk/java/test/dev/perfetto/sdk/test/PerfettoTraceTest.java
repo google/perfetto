@@ -446,6 +446,36 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testCorrelationId() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.instant(FOO_CATEGORY, "int_correlated").setCorrelationId(1234).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "str_correlated").setCorrelationId("req-5678").emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean hasIntCorrelationId = false;
+    boolean hasStrCorrelationId = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (!packet.hasTrackEvent()) {
+        continue;
+      }
+      TrackEvent event = packet.getTrackEvent();
+      if (event.hasCorrelationId() && event.getCorrelationId() == 1234) {
+        hasIntCorrelationId = true;
+      }
+      if (event.hasCorrelationIdStr() && "req-5678".equals(event.getCorrelationIdStr())) {
+        hasStrCorrelationId = true;
+      }
+    }
+
+    assertThat(hasIntCorrelationId).isTrue();
+    assertThat(hasStrCorrelationId).isTrue();
+  }
+
+  @Test
   public void testProcessThreadNamedTrack() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 

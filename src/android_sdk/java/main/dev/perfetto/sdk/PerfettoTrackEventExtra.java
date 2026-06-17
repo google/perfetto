@@ -215,6 +215,50 @@ final class PerfettoTrackEventExtra {
     private static native long native_get_extra_ptr(long ptr);
   }
 
+  /**
+   * A correlation id linking this event with other events that are part of the
+   * same logical operation (TrackEvent's {@code correlation_id} /
+   * {@code correlation_id_str}).
+   */
+  static final class CorrelationId implements PerfettoPointer {
+    private final long mPtr;
+    private final long mExtraPtr;
+
+    CorrelationId(PerfettoNativeMemoryCleaner memoryCleaner) {
+      mPtr = native_init();
+      mExtraPtr = native_get_extra_ptr(mPtr);
+      memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
+    }
+
+    @Override
+    public long getPtr() {
+      return mExtraPtr;
+    }
+
+    public void setValueInt64(long value) {
+      native_set_value_int64(mPtr, value);
+    }
+
+    public void setValueString(String value) {
+      native_set_value_string(mPtr, value);
+    }
+
+    @CriticalNative
+    private static native long native_init();
+
+    @CriticalNative
+    private static native long native_delete();
+
+    @CriticalNative
+    private static native void native_set_value_int64(long ptr, long value);
+
+    @FastNative
+    private static native void native_set_value_string(long ptr, String value);
+
+    @CriticalNative
+    private static native long native_get_extra_ptr(long ptr);
+  }
+
   static final class CounterTrack implements PerfettoPointer {
     private final long mPtr;
     private final long mExtraPtr;

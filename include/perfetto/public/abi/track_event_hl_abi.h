@@ -152,6 +152,8 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS = 17,
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK = 18,
   PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS = 19,
+  PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID = 20,
+  PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR = 21,
 };
 
 // An extra event parameter. Each type of parameter should embed this as its
@@ -285,6 +287,29 @@ struct PerfettoTeHlExtraFlow {
   // Specifies that this event starts (or terminates) a flow (i.e. a link
   // between two events) identified by this id.
   uint64_t id;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID
+struct PerfettoTeHlExtraCorrelationId {
+  struct PerfettoTeHlExtra header;
+  // Opaque id correlating this event with other events that are part of the
+  // same logical operation. Emitted as TrackEvent's `correlation_id`.
+  uint64_t id;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR
+struct PerfettoTeHlExtraCorrelationIdStr {
+  struct PerfettoTeHlExtra header;
+  // Null terminated string correlating this event with other events that are
+  // part of the same logical operation. Emitted as TrackEvent's
+  // `correlation_id_str`.
+  const char* str;
+};
+
+// Union over all possible correlation id types.
+union PerfettoTeHlExtraCorrelationIdUnion {
+  struct PerfettoTeHlExtraCorrelationId correlation_id;
+  struct PerfettoTeHlExtraCorrelationIdStr correlation_id_str;
 };
 
 // PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS
