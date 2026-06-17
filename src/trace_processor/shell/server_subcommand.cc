@@ -96,8 +96,44 @@ std::vector<FlagSpec> ServerSubcommand::GetFlags() {
       StringFlag("path", '\0', "PATH",
                  "Explicit socket path for unix mode (overrides --name).",
                  &socket_path_),
+      StringFlag("idle-timeout", '\0', "auto|DUR",
+                 "Reap the server after this much inactivity (e.g. 30m, 90s). "
+                 "'auto' = 30m for unix, never for http; 0/never disables.",
+                 &idle_timeout_str_),
+      StringFlag("idle-start", '\0', "auto|orphaned|last-query",
+                 "When the idle clock applies (default auto: owner-aware).",
+                 &idle_start_str_),
+      BoolFlag("daemonize", '\0',
+               "Detach into the background (unix mode, POSIX only).",
+               &daemonize_),
   };
 }
+
+namespace {
+
+base::StatusOr<IdleStart> ParseIdleStart(const std::string& s) {
+  if (s == "auto")
+    return IdleStart::kAuto;
+  if (s == "orphaned")
+    return IdleStart::kOrphaned;
+  if (s == "last-query")
+    return IdleStart::kLastQuery;
+  return base::ErrStatus(
+      "Invalid --idle-start '%s' (expected auto, orphaned or last-query)",
+      s.c_str());
+}
+
+// Resolves --idle-timeout to milliseconds. "auto" means |auto_default_ms|.
+base::StatusOr<uint32_t> ResolveIdleTimeout(const std::string& s,
+                                            uint32_t auto_default_ms) {
+  if (s.empty() || s == "auto")
+    return auto_default_ms;
+  return session::ParseDurationMs(s);
+}
+
+constexpr uint32_t kUnixDefaultIdleMs = 30 * 60 * 1000;  // 30 minutes.
+
+}  // namespace
 
 base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
   // First positional arg is the mode.
@@ -145,6 +181,11 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
       additional_cors_origins =
           base::SplitString(additional_cors_origins_str_, ",");
     }
+    // http defaults to never reaping (the UI relies on an always-on server);
+    // an explicit --idle-timeout opts in.
+    ASSIGN_OR_RETURN(IdleStart idle_start, ParseIdleStart(idle_start_str_));
+    ASSIGN_OR_RETURN(uint32_t idle_timeout_ms,
+                     ResolveIdleTimeout(idle_timeout_str_, /*auto=*/0));
     Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
       ctx.platform->OnTraceProcessorCreated(new_tp);
     });
@@ -161,8 +202,10 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
       });
     }
 #endif
-    RunHttpRPCServer(rpc, listen_ip_, port_number_, additional_cors_origins);
-    PERFETTO_FATAL("Should never return");
+    RunHttpRPCServer(rpc, listen_ip_, port_number_, additional_cors_origins,
+                     idle_timeout_ms, idle_start);
+    // Returns only if the idle reaper fired (idle_timeout_ms > 0).
+    return base::OkStatus();
 #else
     return base::ErrStatus("HTTP RPC module not supported in this build");
 #endif
@@ -197,12 +240,19 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
         session_name = socket_path;
     }
 
+    ASSIGN_OR_RETURN(IdleStart idle_start, ParseIdleStart(idle_start_str_));
+    ASSIGN_OR_RETURN(uint32_t idle_timeout_ms,
+                     ResolveIdleTimeout(idle_timeout_str_, kUnixDefaultIdleMs));
+
     Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
       ctx.platform->OnTraceProcessorCreated(new_tp);
     });
     UnixServerArgs server_args;
     server_args.socket_path = socket_path;
     server_args.session_name = session_name;
+    server_args.idle_timeout_ms = idle_timeout_ms;
+    server_args.idle_start = idle_start;
+    server_args.daemonize = daemonize_;
     return RunUnixRpcServer(rpc, server_args);
   }
 

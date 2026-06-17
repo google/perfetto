@@ -33,6 +33,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/httpd.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "src/trace_processor/rpc/session_lifecycle.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -56,7 +57,9 @@ class Httpd : public base::HttpRequestHandler {
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
-           const std::vector<std::string>& additional_cors_origins);
+           const std::vector<std::string>& additional_cors_origins,
+           uint32_t idle_timeout_ms,
+           IdleStart idle_start);
 
  private:
   // HttpRequestHandler implementation.
@@ -68,6 +71,7 @@ class Httpd : public base::HttpRequestHandler {
   Rpc& global_trace_processor_rpc_;
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
+  std::unique_ptr<IdleReaper> reaper_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -101,7 +105,9 @@ Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
                 int port,
-                const std::vector<std::string>& additional_cors_origins) {
+                const std::vector<std::string>& additional_cors_origins,
+                uint32_t idle_timeout_ms,
+                IdleStart idle_start) {
   for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
     http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
   }
@@ -114,10 +120,16 @@ void Httpd::Run(const std::string& listen_ip,
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
+  reaper_ = std::make_unique<IdleReaper>(&task_runner_, idle_timeout_ms,
+                                         idle_start,
+                                         [this] { task_runner_.Quit(); });
+  reaper_->Start();
   task_runner_.Run();
 }
 
 void Httpd::OnHttpRequest(const base::HttpRequest& req) {
+  if (reaper_)
+    reaper_->OnActivity();
   base::HttpServerConnection& conn = *req.conn;
   if (req.uri == "/") {
     // If a user tries to open http://127.0.0.1:9001/ show a minimal help page.
@@ -259,6 +271,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
+  if (reaper_)
+    reaper_->OnActivity();
   global_trace_processor_rpc_.SetRpcResponseFunction(
       [&](const void* data, uint32_t len) {
         SendRpcChunk(msg.conn, data, len);
@@ -273,12 +287,14 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 void RunHttpRPCServer(Rpc& rpc,
                       const std::string& listen_ip,
                       const std::string& port_number,
-                      const std::vector<std::string>& additional_cors_origins) {
+                      const std::vector<std::string>& additional_cors_origins,
+                      uint32_t idle_timeout_ms,
+                      IdleStart idle_start) {
   Httpd srv(rpc);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port, additional_cors_origins);
+  srv.Run(ip, port, additional_cors_origins, idle_timeout_ms, idle_start);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
