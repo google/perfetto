@@ -349,6 +349,103 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testSortedNestedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // "render" orders its children explicitly; each child sets its rank.
+    PerfettoTrack render =
+        PerfettoTrack.process("render").setChildOrdering(PerfettoTrack.CHILD_ORDERING_EXPLICIT);
+    PerfettoTrack gpu = render.child("gpu").setSiblingOrderRank(1);
+    PerfettoTrack cpu = render.child("cpu").setSiblingOrderRank(2);
+    PerfettoTrace.instant(FOO_CATEGORY, "gpu_work").usingTrack(gpu).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "cpu_work").usingTrack(cpu).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    Map<String, TrackDescriptor> byName = indexDescriptorsByStaticName(trace);
+
+    // The parent declares explicit child ordering.
+    assertThat(byName.get("render").getChildOrdering())
+        .isEqualTo(TrackDescriptor.ChildTracksOrdering.EXPLICIT);
+    // Each child carries its sibling_order_rank.
+    assertThat(byName.get("gpu").getSiblingOrderRank()).isEqualTo(1);
+    assertThat(byName.get("cpu").getSiblingOrderRank()).isEqualTo(2);
+  }
+
+  @Test
+  public void testMergedNestedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrack parent = PerfettoTrack.process("merge_parent");
+    // Merged with same-keyed siblings via a string key.
+    PerfettoTrack strKeyed =
+        parent
+            .child("str_keyed")
+            .setSiblingMergeBehavior(PerfettoTrack.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY)
+            .setSiblingMergeKey("merge_group_a");
+    // Merged with same-keyed siblings via an integer key.
+    PerfettoTrack intKeyed =
+        parent
+            .child("int_keyed")
+            .setSiblingMergeBehavior(PerfettoTrack.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY)
+            .setSiblingMergeKey(42);
+    // Never merged with any sibling.
+    PerfettoTrack lone =
+        parent.child("lone").setSiblingMergeBehavior(PerfettoTrack.SIBLING_MERGE_BEHAVIOR_NONE);
+    PerfettoTrack keyWithoutBehavior =
+        parent.child("key_without_behavior").setSiblingMergeKey("x");
+    PerfettoTrace.instant(FOO_CATEGORY, "event_a").usingTrack(strKeyed).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event_b").usingTrack(intKeyed).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event_c").usingTrack(lone).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event_d").usingTrack(keyWithoutBehavior).emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    Map<String, TrackDescriptor> byName = indexDescriptorsByStaticName(trace);
+
+    TrackDescriptor strKeyedTd = byName.get("str_keyed");
+    assertThat(strKeyedTd.getSiblingMergeBehavior())
+        .isEqualTo(TrackDescriptor.SiblingMergeBehavior.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY);
+    assertThat(strKeyedTd.getSiblingMergeKey()).isEqualTo("merge_group_a");
+    assertThat(strKeyedTd.hasSiblingMergeKeyInt()).isFalse();
+
+    TrackDescriptor intKeyedTd = byName.get("int_keyed");
+    assertThat(intKeyedTd.getSiblingMergeBehavior())
+        .isEqualTo(TrackDescriptor.SiblingMergeBehavior.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY);
+    assertThat(intKeyedTd.getSiblingMergeKeyInt()).isEqualTo(42);
+    assertThat(intKeyedTd.hasSiblingMergeKey()).isFalse();
+
+    TrackDescriptor loneTd = byName.get("lone");
+    assertThat(loneTd.getSiblingMergeBehavior())
+        .isEqualTo(TrackDescriptor.SiblingMergeBehavior.SIBLING_MERGE_BEHAVIOR_NONE);
+    // No merge key without BY_SIBLING_MERGE_KEY.
+    assertThat(loneTd.hasSiblingMergeKey()).isFalse();
+    assertThat(loneTd.hasSiblingMergeKeyInt()).isFalse();
+
+    TrackDescriptor keyWithoutBehaviorTd = byName.get("key_without_behavior");
+    assertThat(keyWithoutBehaviorTd.hasSiblingMergeKey()).isFalse();
+    assertThat(keyWithoutBehaviorTd.hasSiblingMergeKeyInt()).isFalse();
+  }
+
+  /** Indexes every TrackDescriptor in {@code trace} with a static name by that name. */
+  private static Map<String, TrackDescriptor> indexDescriptorsByStaticName(Trace trace) {
+    Map<String, TrackDescriptor> byName = new HashMap<>();
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if (!td.getStaticName().isEmpty()) {
+          byName.put(td.getStaticName(), td);
+        }
+      }
+    }
+    return byName;
+  }
+
+  @Test
   public void testProcessThreadNamedTrack() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 

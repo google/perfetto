@@ -23,6 +23,7 @@
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
 #include <list>
+#include <utility>
 
 namespace perfetto {
 namespace jni {
@@ -385,29 +386,72 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
     jclass,
     jint root_type,
     jobjectArray names,
-    jlongArray ids) {
+    jlongArray ids,
+    jintArray sibling_order_ranks,
+    jintArray child_orderings,
+    jintArray sibling_merge_behaviors,
+    jobjectArray merge_keys_str,
+    jlongArray merge_keys_int) {
   const jsize num_names = env->GetArrayLength(names);
-  const jsize num_ids = env->GetArrayLength(ids);
-  // names and ids are built in lockstep by PerfettoTrack, so they should match.
-  // Tracing must never crash the caller, so on a mismatch just log and use the
-  // shorter length rather than over-reading.
-  const jsize n = num_names < num_ids ? num_names : num_ids;
-  if (num_names != num_ids) {
-    __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
-                        "nested track names (%d) and ids (%d) length mismatch",
-                        num_names, num_ids);
+  // All the arrays are built in lockstep by PerfettoTrack, so the lengths
+  // should match. Tracing must never crash the caller, so on a mismatch just
+  // log and use the shortest length rather than over-reading.
+  jsize n = num_names;
+  const jsize lengths[] = {env->GetArrayLength(ids),
+                           env->GetArrayLength(sibling_order_ranks),
+                           env->GetArrayLength(child_orderings),
+                           env->GetArrayLength(sibling_merge_behaviors),
+                           env->GetArrayLength(merge_keys_str),
+                           env->GetArrayLength(merge_keys_int)};
+  for (jsize length : lengths) {
+    if (length != num_names) {
+      __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
+                          "nested track parallel array length mismatch "
+                          "(names %d vs %d)",
+                          num_names, length);
+      n = n < length ? n : length;
+    }
   }
-  std::vector<std::string> names_vec;
-  names_vec.reserve(static_cast<size_t>(n));
-  for (jsize i = 0; i < n; i++) {
-    jstring s = static_cast<jstring>(env->GetObjectArrayElement(names, i));
-    names_vec.emplace_back(StringBuffer::utf16_to_ascii(env, s));
-    env->DeleteLocalRef(s);
-  }
+  // Bulk-copy the primitive arrays, then assemble one NestedLevel per level.
+  // The name and merge key (object arrays) have no region accessor, so they are
+  // read per element.
   std::vector<uint64_t> ids_vec(static_cast<size_t>(n));
   env->GetLongArrayRegion(ids, 0, n, reinterpret_cast<jlong*>(ids_vec.data()));
+  std::vector<int32_t> ranks_vec(static_cast<size_t>(n));
+  env->GetIntArrayRegion(sibling_order_ranks, 0, n,
+                         reinterpret_cast<jint*>(ranks_vec.data()));
+  std::vector<uint32_t> orderings_vec(static_cast<size_t>(n));
+  env->GetIntArrayRegion(child_orderings, 0, n,
+                         reinterpret_cast<jint*>(orderings_vec.data()));
+  std::vector<uint32_t> merge_behaviors_vec(static_cast<size_t>(n));
+  env->GetIntArrayRegion(sibling_merge_behaviors, 0, n,
+                         reinterpret_cast<jint*>(merge_behaviors_vec.data()));
+  std::vector<uint64_t> merge_keys_int_vec(static_cast<size_t>(n));
+  env->GetLongArrayRegion(merge_keys_int, 0, n,
+                          reinterpret_cast<jlong*>(merge_keys_int_vec.data()));
+
+  std::vector<sdk_for_jni::NestedLevel> levels(static_cast<size_t>(n));
+  for (jsize i = 0; i < n; i++) {
+    sdk_for_jni::NestedLevel& level = levels[static_cast<size_t>(i)];
+    jstring s = static_cast<jstring>(env->GetObjectArrayElement(names, i));
+    level.name = StringBuffer::utf16_to_ascii(env, s);
+    env->DeleteLocalRef(s);
+    level.id = ids_vec[static_cast<size_t>(i)];
+    level.sibling_order_rank = ranks_vec[static_cast<size_t>(i)];
+    level.child_ordering = orderings_vec[static_cast<size_t>(i)];
+    level.sibling_merge_behavior = merge_behaviors_vec[static_cast<size_t>(i)];
+    jstring key =
+        static_cast<jstring>(env->GetObjectArrayElement(merge_keys_str, i));
+    if (key == nullptr) {
+      level.sibling_merge_key_str = std::nullopt;
+    } else {
+      level.sibling_merge_key_str = StringBuffer::utf16_to_ascii(env, key);
+      env->DeleteLocalRef(key);
+    }
+    level.sibling_merge_key_int = merge_keys_int_vec[static_cast<size_t>(i)];
+  }
   return toJLong(new sdk_for_jni::NestedTracks(
-      static_cast<sdk_for_jni::RootType>(root_type), names_vec, ids_vec));
+      static_cast<sdk_for_jni::RootType>(root_type), std::move(levels)));
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete(
@@ -638,7 +682,7 @@ static const JNINativeMethod gNamedTrackMethods[] = {
 };
 
 static const JNINativeMethod gNestedTracksMethods[] = {
-    {"native_init", "(I[Ljava/lang/String;[J)J",
+    {"native_init", "(I[Ljava/lang/String;[J[I[I[I[Ljava/lang/String;[J)J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init},
     {"native_delete", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete},

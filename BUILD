@@ -821,7 +821,9 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
+        ":src_trace_processor_rpc_session_util",
         ":src_trace_processor_rpc_stdiod",
+        ":src_trace_processor_rpc_unixd",
         ":src_trace_processor_shell_shell",
         ":src_trace_processor_shell_subcommands",
         ":src_trace_processor_sorter_sorter",
@@ -958,6 +960,7 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_http_http",
                ":src_base_regex_regex",
+               ":src_base_unix_socket",
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
@@ -5241,12 +5244,30 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/rpc:session_util
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_session_util",
+    srcs = [
+        "src/trace_processor/rpc/session_paths.cc",
+        "src/trace_processor/rpc/session_paths.h",
+    ],
+)
+
 # GN target: //src/trace_processor/rpc:stdiod
 perfetto_filegroup(
     name = "src_trace_processor_rpc_stdiod",
     srcs = [
         "src/trace_processor/rpc/stdiod.cc",
         "src/trace_processor/rpc/stdiod.h",
+    ],
+)
+
+# GN target: //src/trace_processor/rpc:unixd
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_unixd",
+    srcs = [
+        "src/trace_processor/rpc/unixd.cc",
+        "src/trace_processor/rpc/unixd.h",
     ],
 )
 
@@ -9047,7 +9068,6 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_non_minimal_protos",
     srcs = [
-        "protos/perfetto/trace/evdev.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/remote_clock_sync.proto",
