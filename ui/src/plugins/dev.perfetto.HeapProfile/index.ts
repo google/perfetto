@@ -15,7 +15,7 @@
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {time} from '../../base/time';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -198,14 +198,14 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
         SELECT
           g.id,
-          MIN(g.ts, (SELECT end_ts - 50000000 FROM trace_bounds)) AS ts,
+          g.ts AS ts,
           IFNULL((
-            SELECT p.upid 
-            FROM process p 
-            JOIN process p2 ON p.pid = p2.pid 
+            SELECT p.upid
+            FROM process p
+            JOIN process p2 ON p.pid = p2.pid
             WHERE p2.upid = g.upid
-              AND p.start_ts IS NOT NULL 
-            ORDER BY p.end_ts DESC 
+              AND p.start_ts IS NOT NULL
+            ORDER BY p.end_ts DESC
             LIMIT 1
           ), g.upid) AS upid,
           0 AS dur,
@@ -262,8 +262,26 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       }
 
       for (const upid of upids) {
-        const group = trackGroupsPlugin.getGroupForProcess(upid);
-        if (!group) continue;
+        let group = trackGroupsPlugin.getGroupForProcess(upid);
+        if (!group) {
+          group = trace.defaultWorkspace.getTrackByUri(`/process_${upid}`);
+        }
+        if (!group) {
+          const processResult = await trace.engine.query(
+            `SELECT pid, name FROM process WHERE upid = ${upid}`,
+          );
+          if (processResult.numRows() === 0) continue;
+          const row = processResult.firstRow({pid: NUM, name: STR_NULL});
+          const pid = row.pid;
+          const name = row.name ?? `Uid ${upid}`;
+
+          group = new TrackNode({
+            uri: `/process_${upid}`,
+            name: `${name} ${pid}`,
+            isSummary: true,
+          });
+          trace.defaultWorkspace.addChildInOrder(group);
+        }
 
         const store = assertExists(this.store);
         const uri = trackUri(upid, heapType);
