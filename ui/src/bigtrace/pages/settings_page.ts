@@ -468,7 +468,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   // Compact "load a preset" control atop the settings — shown on both the
   // standalone /settings page and the per-tab embedded sub-tab. Applies a
   // preset's trace-selection + option settings to the current config; the
-  // SQL only rides along when a preset is launched from the home page.
+  // Applying loads the preset's query + title into the tab (embedded modal),
+  // or just its settings on standalone /settings (no editor there).
   private renderPresetPicker(): m.Children {
     const tpls = presetStore.presets;
     if (tpls.length === 0) return null;
@@ -494,8 +495,10 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       m('.pf-settings-card__title', 'Presets'),
       m(
         '.pf-settings-card__description',
-        'Click a preset to apply its trace selection and options to the ' +
-          'settings below.',
+        this.bindings
+          ? 'Click a preset to load its query and settings into this tab.'
+          : 'Click a preset to apply its trace selection and options to the ' +
+              'settings below.',
       ),
       renderCujSelector(
         groups.map(([cuj]) => cuj),
@@ -568,8 +571,11 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   }
 
   private applyPreset(t: TracePreset): void {
-    // No editor on this surface, so apply only the settings — not the SQL.
-    // Routes through the binding-aware writers, so it works global + embedded.
+    // The per-tab modal has an editor, so load the preset's query + title into
+    // the tab. Standalone /settings has no editor (and no bindings), so the
+    // optional setter is simply absent there. Everything else routes through
+    // the binding-aware writers — works global + embedded.
+    this.bindings?.setQueryAndTitle?.(t.perfettoSql, t.name);
     this.writeTraceFilters([...(t.traceFilters ?? [])]);
     const cols = t.traceMetadataColumns ?? [];
     this.writeTraceMetadataColumns(cols.length ? [...cols] : null);
