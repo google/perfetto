@@ -209,14 +209,10 @@ class PerfettoTable(TestSuite):
         1,1
         """))
 
-  # Regression test for a DISTINCT query where another column is referenced
-  # only in the WHERE clause. SQLite then puts both columns in `colUsed` but
-  # only the SELECTed column in `aOrderBy`. Deduping over `colUsed` (which we
-  # are allowed to do) does not group equal-`aOrderBy` rows, so we must not
-  # claim `orderByConsumed`: SQLite (>= 3.53) otherwise trusts it and runs only
-  # an adjacent-row dedup, leaking the non-adjacent duplicates. `a` repeats
-  # non-adjacently below to expose exactly that. DISTINCT must agree with the
-  # equivalent GROUP BY.
+  # Regression test: DISTINCT with another column referenced only in WHERE puts
+  # both columns in colUsed but only the SELECTed one in aOrderBy. `a` repeats
+  # non-adjacently, so a bad orderByConsumed would leak duplicates. DISTINCT
+  # must agree with the equivalent GROUP BY.
   def test_distinct_where_on_other_column(self):
     return DiffTestBlueprint(
         trace=TextProto(''),

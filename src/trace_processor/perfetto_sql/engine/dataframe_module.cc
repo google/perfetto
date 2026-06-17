@@ -279,9 +279,6 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     offset_constraint_idx = std::nullopt;
   }
 
-  // Whether we will satisfy SQLite's aOrderBy ordering requirement ourselves
-  // (by sorting below). This also governs whether we may legally claim
-  // orderByConsumed: we only consume the order by if we actually produce it.
   bool should_sort_using_order_by = true;
   std::vector<dataframe::DistinctSpec> distinct_specs;
   if (info->nOrderBy > 0) {
@@ -293,9 +290,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         break;
       case 2: /* distinct */
       case 3: /* distinct + order by */ {
-        // The sqlite3_vtab_distinct() contract permits us, for return values 2
-        // and 3, to omit rows that are duplicates over all `colUsed` columns,
-        // so dedup over exactly those columns.
+        // The contract lets us dedup over the colUsed columns.
         uint64_t cols_used_it = info->colUsed;
         for (uint32_t i = 0; i < 64; ++i) {
           if (cols_used_it & 1u) {
@@ -303,11 +298,6 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           }
           cols_used_it >>= 1;
         }
-        // For a plain DISTINCT (==2) we dedup but deliberately do not sort: the
-        // contract only requires equal-aOrderBy rows to be *adjacent*, which we
-        // do not provide, so we must not claim orderByConsumed (see the
-        // version-gated logic below). For DISTINCT + ORDER BY (==3) we also
-        // sort by aOrderBy, which does satisfy the ordering requirement.
         should_sort_using_order_by = (vtab_distinct == 3);
         break;
       }
@@ -327,21 +317,10 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     }
   }
 
-  // SQLite's handling of the DISTINCT optimization for virtual tables changed
-  // between 3.50.3 (the previously bundled version) and 3.53.2 (the current
-  // one). Newer SQLite trusts the orderByConsumed flag: for a DISTINCT query it
-  // upgrades the loop to WHERE_DISTINCT_ORDERED (see where.c) and performs only
-  // an *adjacent-row* dedup, on the assumption that we grouped equal-aOrderBy
-  // rows. For sqlite3_vtab_distinct()==2 we only dedup over colUsed and do not
-  // sort, so claiming orderByConsumed there makes newer SQLite emit duplicate
-  // rows. We therefore only claim it when we actually produced the required
-  // ordering (i.e. when we sorted). Older SQLite re-sorts/dedups regardless of
-  // the flag, so always claiming it was both correct and the historical
-  // behavior; we preserve that to avoid a performance change on those versions.
-  //
-  // The exact transition version is somewhere in (3.50.3, 3.53.2]; we
-  // conservatively adopt the contract-faithful behavior for anything newer than
-  // the last version we know the old behavior was safe on.
+  // SQLite > 3.50.3 trusts orderByConsumed and does only an adjacent-row dedup
+  // for DISTINCT (WHERE_DISTINCT_ORDERED), so claiming it without sorting leaks
+  // duplicates. Older SQLite re-dedups regardless, so always claiming it was
+  // safe; preserve that to avoid a perf change there.
 #if SQLITE_VERSION_NUMBER > 3050300
   info->orderByConsumed = should_sort_using_order_by;
 #else
