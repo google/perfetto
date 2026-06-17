@@ -190,21 +190,18 @@ function buildTabs(
         hasFieldValues: overview.hasFieldValues,
       }),
     },
-  ];
-
-  if (overview.hasOomCallstack) {
-    tabs.push({
+    {
       key: 'callstack',
       title: 'Callstack',
       content: m(OomCallstackView, {
         trace,
-        upid: overview.oomUpid!,
-        ts: Time.fromRaw(overview.oomTs!),
+        upid: overview.oomUpid,
+        ts: overview.oomTs !== null ? Time.fromRaw(overview.oomTs) : null,
         state: session.oomCallstackPanelState,
         onStateChange: session.setOomCallstackPanelState,
       }),
-    });
-  }
+    },
+  ];
 
   // Static tab keys are view names.
   for (const tab of tabs) {
