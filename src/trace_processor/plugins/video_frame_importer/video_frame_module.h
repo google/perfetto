@@ -46,6 +46,15 @@ class VideoFrameModule : public ProtoImporterModule {
                    std::vector<TraceBlobView>* au_data);
   ~VideoFrameModule() override;
 
+  // Re-stamps an access-unit packet with its presentation time during
+  // tokenization so the table timestamp goes through the sorter (see the .cc).
+  ModuleResult TokenizePacket(
+      const protos::pbzero::TracePacket::Decoder& decoder,
+      TraceBlobView* packet,
+      int64_t packet_timestamp,
+      RefPtr<PacketSequenceStateGeneration> state,
+      uint32_t field_id) override;
+
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
                             int64_t ts,
                             const TracePacketData& data,
