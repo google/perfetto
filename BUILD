@@ -960,6 +960,7 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_http_http",
                ":src_base_regex_regex",
+               ":src_base_unix_socket",
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
