@@ -105,18 +105,6 @@ const FORCE_FULL_SORT_FLAG = featureFlags.register({
     'Forces the trace processor into performing a full sort ignoring any windowing logic',
   defaultValue: false,
 });
-const PRESERVE_OVERLAPPING_JSON_EVENTS_FLAG = featureFlags.register({
-  id: 'preserveOverlappingJsonEvents',
-  name: 'Preserve overlapping events in JSON traces',
-  description:
-    'Keep overlapping complete (X) events in JSON traces instead of dropping ' +
-    'them, by laying them out on extra depths of the thread track. A ' +
-    'workaround, not a faithful representation. The proper fix (async events) ' +
-    'and discussion are at ' +
-    'https://perfetto.dev/docs/faq#why-are-overlapping-events-in-json-traces-not-displayed-correctly ' +
-    'and https://github.com/google/perfetto/issues/4280.',
-  defaultValue: false,
-});
 
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
 // ensure it's only run once.
@@ -181,7 +169,6 @@ async function createEngine(
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
       extraParsingDescriptors: descriptorBlobs,
       forceFullSort: FORCE_FULL_SORT_FLAG.get(),
-      preserveOverlappingJsonEvents: PRESERVE_OVERLAPPING_JSON_EVENTS_FLAG.get(),
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
@@ -691,25 +678,32 @@ async function getTraceErrors(engine: Engine): Promise<number> {
 }
 
 async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
-  const queryRes = await engine.query(`select
-       name,
-       int_value as intValue
-       from metadata
-       where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
-       or name = 'all_data_source_started_ns'`);
-  let startBound = Time.MIN;
-  let endBound = Time.MAX;
-  const it = queryRes.iter({name: STR, intValue: LONG_NULL});
-  for (; it.valid(); it.next()) {
-    const columnName = it.name;
-    const timestamp = it.intValue;
-    if (timestamp === null) continue;
-    if (columnName === 'tracing_disabled_ns') {
-      endBound = Time.min(endBound, Time.fromRaw(timestamp));
-    } else {
-      startBound = Time.max(startBound, Time.fromRaw(timestamp));
-    }
-  }
-
+  // The tracing window metadata is recorded per (machine, trace):
+  // tracing_started_ns / all_data_source_started_ns mark when that trace's
+  // tracing became fully active, tracing_disabled_ns when it stopped. Compute
+  // each trace's active window (start = the later of its start timestamps, end =
+  // its disabled timestamp) and take the union across all of them. This way a
+  // multi-machine session or several traces loaded together yields a window
+  // spanning all of them, instead of the intersection of the per-trace windows
+  // (which is empty when those windows are disjoint).
+  const queryRes = await engine.query(`
+    select
+      min(start_ns) as startBound,
+      max(end_ns) as endBound
+    from (
+      select
+        max(iif(
+          name in ('tracing_started_ns', 'all_data_source_started_ns'),
+          int_value, null)) as start_ns,
+        max(iif(name = 'tracing_disabled_ns', int_value, null)) as end_ns
+      from metadata
+      where name in (
+        'tracing_started_ns', 'all_data_source_started_ns', 'tracing_disabled_ns')
+      group by machine_id, trace_id
+    )`);
+  const it = queryRes.iter({startBound: LONG_NULL, endBound: LONG_NULL});
+  const startBound =
+    it.startBound === null ? Time.MIN : Time.fromRaw(it.startBound);
+  const endBound = it.endBound === null ? Time.MAX : Time.fromRaw(it.endBound);
   return new TimeSpan(startBound, endBound);
 }

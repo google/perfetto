@@ -819,7 +819,10 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
+        ":src_trace_processor_rpc_client",
+        ":src_trace_processor_rpc_deserializer",
         ":src_trace_processor_rpc_httpd",
+        ":src_trace_processor_rpc_lifecycle",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_session_util",
         ":src_trace_processor_rpc_stdiod",
@@ -5225,12 +5228,39 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/rpc:client
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_client",
+    srcs = [
+        "src/trace_processor/rpc/remote_trace_processor.cc",
+        "src/trace_processor/rpc/remote_trace_processor.h",
+    ],
+)
+
+# GN target: //src/trace_processor/rpc:deserializer
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_deserializer",
+    srcs = [
+        "src/trace_processor/rpc/query_result_deserializer.cc",
+        "src/trace_processor/rpc/query_result_deserializer.h",
+    ],
+)
+
 # GN target: //src/trace_processor/rpc:httpd
 perfetto_filegroup(
     name = "src_trace_processor_rpc_httpd",
     srcs = [
         "src/trace_processor/rpc/httpd.cc",
         "src/trace_processor/rpc/httpd.h",
+    ],
+)
+
+# GN target: //src/trace_processor/rpc:lifecycle
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_lifecycle",
+    srcs = [
+        "src/trace_processor/rpc/session_lifecycle.cc",
+        "src/trace_processor/rpc/session_lifecycle.h",
     ],
 )
 
@@ -9067,7 +9097,6 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_non_minimal_protos",
     srcs = [
-        "protos/perfetto/trace/evdev.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/remote_clock_sync.proto",

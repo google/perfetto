@@ -549,14 +549,6 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
             ? SoftDropFtraceDataBefore::kAllPerCpuBuffersValid
             : SoftDropFtraceDataBefore::kNoDrop;
   }
-  if (reset_trace_processor_args.has_json_overlapping_event_mode()) {
-    config.json_overlapping_event_mode =
-        reset_trace_processor_args.json_overlapping_event_mode() ==
-                protos::pbzero::ResetTraceProcessorArgs::
-                    JSON_OVERLAPPING_EVENT_SPILL_TO_OVERFLOW_TRACK
-            ? JsonOverlappingEventMode::kSpillToOverflowTrack
-            : JsonOverlappingEventMode::kDrop;
-  }
   using Args = protos::pbzero::ResetTraceProcessorArgs;
   switch (reset_trace_processor_args.parsing_mode()) {
     case Args::ParsingMode::DEFAULT:

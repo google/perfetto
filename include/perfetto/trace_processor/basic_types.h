@@ -137,18 +137,6 @@ enum class DropTrackEventDataBefore {
   kTrackEventRangeOfInterest = 1,
 };
 
-// Controls how the JSON parser handles overlapping (non-nesting) complete (X)
-// events. These are out-of-spec per the Chrome Trace Event Format, so the
-// non-default handling is experimental and subject to change.
-enum class JsonOverlappingEventMode {
-  // Drop the overlapping event (incrementing
-  // slice_drop_overlapping_complete_event).
-  kDrop = 0,
-
-  // Preserve it on a separate overflow track, still attributed to the thread.
-  kSpillToOverflowTrack = 1,
-};
-
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT_COMPONENT Config {
   // Indicates the parsing mode trace processor should use to extract
@@ -188,11 +176,6 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // dropped. See the enum documentation for more details.
   DropTrackEventDataBefore drop_track_event_data_before =
       DropTrackEventDataBefore::kNoDrop;
-
-  // Experimental: controls how out-of-spec overlapping duration events in JSON
-  // traces are handled. Defaults to dropping them. See the enum documentation.
-  JsonOverlappingEventMode json_overlapping_event_mode =
-      JsonOverlappingEventMode::kDrop;
 
   // Any built-in metric proto or sql files matching these paths are skipped
   // during trace processor metric initialization.

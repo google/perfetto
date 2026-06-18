@@ -305,6 +305,20 @@ struct PerfettoTeHlMacroNameAndType {
       PerfettoTeHlExtraFlow,                \
       {{PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW}, (VALUE).id})
 
+// Specifies that this event is part of a logical operation identified by the
+// opaque id `uint64_t VALUE` (emitted as TrackEvent's `correlation_id`).
+// Unlike flows, correlated events are not necessarily causally connected.
+#define PERFETTO_TE_CORRELATION_ID(VALUE)             \
+  PERFETTO_I_TE_EXTRA(PerfettoTeHlExtraCorrelationId, \
+                      {{PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID}, VALUE})
+
+// Specifies that this event is part of a logical operation identified by the
+// string `const char* VALUE` (emitted as TrackEvent's `correlation_id_str`).
+// Unlike flows, correlated events are not necessarily causally connected.
+#define PERFETTO_TE_CORRELATION_ID_STR(VALUE)            \
+  PERFETTO_I_TE_EXTRA(PerfettoTeHlExtraCorrelationIdStr, \
+                      {{PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR}, VALUE})
+
 // Flushes the shared memory buffer and makes sure that all the previous events
 // emitted by this thread are visibile in the central tracing buffer.
 #define PERFETTO_TE_FLUSH() \

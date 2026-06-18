@@ -46,7 +46,6 @@ export interface TraceProcessorConfig {
   ftraceDropUntilAllCpusValid: boolean;
   extraParsingDescriptors?: ReadonlyArray<Uint8Array>;
   forceFullSort: boolean;
-  preserveOverlappingJsonEvents: boolean;
 }
 
 const QUERY_LOG_BUFFER_SIZE = 1024;
@@ -436,7 +435,6 @@ export abstract class EngineBase implements Engine, Disposable {
     ftraceDropUntilAllCpusValid,
     extraParsingDescriptors,
     forceFullSort,
-    preserveOverlappingJsonEvents,
   }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
@@ -457,11 +455,6 @@ export abstract class EngineBase implements Engine, Disposable {
     args.parsingMode = tokenizeOnly
       ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
       : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
-    args.jsonOverlappingEventMode = preserveOverlappingJsonEvents
-      ? protos.ResetTraceProcessorArgs.JsonOverlappingEventMode
-          .JSON_OVERLAPPING_EVENT_SPILL_TO_OVERFLOW_TRACK
-      : protos.ResetTraceProcessorArgs.JsonOverlappingEventMode
-          .JSON_OVERLAPPING_EVENT_DROP;
     // If extraParsingDescriptors is defined, create a mutable copy for the
     // protobuf object; otherwise, pass an empty array.
     args.extraParsingDescriptors = extraParsingDescriptors

@@ -127,34 +127,29 @@ int64_t QueryLong(TraceProcessor* processor, const std::string& query) {
 }
 }  // namespace
 
-TEST(TraceProcessorCustomConfigTest, OverlappingJsonEventsDroppedByDefault) {
+TEST(TraceProcessorCustomConfigTest,
+     OverlappingJsonEventsSpilledToOverflowTrack) {
   auto processor = TraceProcessor::CreateInstance(Config());
   ASSERT_OK(ParseTraceString(processor.get(), kOverlappingCompleteEventsJson));
 
-  EXPECT_EQ(QueryLong(processor.get(), "select count(*) from slice"), 1);
-  EXPECT_EQ(QueryLong(processor.get(),
-                      "select value from stats where name = "
-                      "'slice_drop_overlapping_complete_event'"),
-            1);
-}
-
-TEST(TraceProcessorCustomConfigTest, OverlappingJsonEventsSpilledWhenEnabled) {
-  auto config = Config();
-  config.json_overlapping_event_mode =
-      JsonOverlappingEventMode::kSpillToOverflowTrack;
-  auto processor = TraceProcessor::CreateInstance(config);
-  ASSERT_OK(ParseTraceString(processor.get(), kOverlappingCompleteEventsJson));
-
+  // Both events are kept: 'B' spills onto a separate overflow track instead of
+  // being dropped.
   EXPECT_EQ(QueryLong(processor.get(), "select count(*) from slice"), 2);
-  EXPECT_EQ(QueryLong(processor.get(),
-                      "select value from stats where name = "
-                      "'slice_drop_overlapping_complete_event'"),
-            0);
   EXPECT_EQ(QueryLong(processor.get(),
                       "select count(*) from slice join track "
                       "on slice.track_id = track.id "
                       "where track.type = 'thread_overlapping_slice'"),
             1);
+
+  // The spill is flagged to the user, but nothing is dropped.
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select value from stats where name = "
+                      "'slice_spill_overlapping_complete_event'"),
+            1);
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select value from stats where name = "
+                      "'slice_drop_overlapping_complete_event'"),
+            0);
 }
 
 class TraceProcessorIntegrationTest : public ::testing::Test {

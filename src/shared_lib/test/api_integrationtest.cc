@@ -2675,6 +2675,40 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrackMerged) {
                       VarIntField(42))))))))));
 }
 
+TEST_F(SharedLibTrackEventTest, TrackEventHlCorrelationId) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event1"),
+              PERFETTO_TE_CORRELATION_ID(1234));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event2"),
+              PERFETTO_TE_CORRELATION_ID_STR("req-5678"));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllFieldsWithId(
+                  perfetto_protos_TrackEvent_correlation_id_field_number,
+                  ElementsAre(VarIntField(1234))))))));
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllFieldsWithId(
+                  perfetto_protos_TrackEvent_correlation_id_str_field_number,
+                  ElementsAre(StringField("req-5678"))))))));
+}
+
 TEST_F(SharedLibTrackEventTest, TrackEventIsCategoryEnabled) {
   ASSERT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
 

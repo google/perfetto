@@ -49,8 +49,6 @@ class JsonTraceParser {
   StringId thread_sort_index_hint_id_;
   StringId running_string_id_;
 
-  const bool spill_overlapping_events_;
-
   void MaybeAddFlow(int64_t timestamp,
                     StringPool* pool,
                     TrackId track_id,

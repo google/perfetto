@@ -110,10 +110,7 @@ JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
           context->storage->InternString("process_sort_index_hint")),
       thread_sort_index_hint_id_(
           context->storage->InternString("thread_sort_index_hint")),
-      running_string_id_(context->storage->InternString("Running")),
-      spill_overlapping_events_(
-          context->config.json_overlapping_event_mode ==
-          JsonOverlappingEventMode::kSpillToOverflowTrack) {}
+      running_string_id_(context->storage->InternString("Running")) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
@@ -235,12 +232,19 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       }
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       bool overlapped = false;
-      auto slice_id = slice_tracker->Scoped(
-          timestamp, track_id, event.cat, slice_name_id, event.dur,
-          args_inserter, spill_overlapping_events_ ? &overlapped : nullptr);
+      auto slice_id =
+          slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
+                                event.dur, args_inserter, &overlapped);
       if (overlapped) {
-        // Preserve the overlapping event by spilling it onto a nestable
-        // overflow track. See https://github.com/google/perfetto/issues/4280.
+        // The event partially overlaps another slice on this thread, so it
+        // cannot nest on the thread's main track. Rather than drop it, spill it
+        // onto a nestable overflow track which is merged back onto the thread
+        // at display time. This keeps the data visible but, because overlapping
+        // events are inherently ambiguous, the layout might not match what was
+        // intended; flag it so the user knows. See
+        // https://github.com/google/perfetto/issues/4280.
+        RecordEventError(timestamp, event,
+                         stats::slice_spill_overlapping_complete_event);
         track_id = context_->track_compressor->InternLegacyOverlappingScoped(
             kThreadOverlappingSliceBlueprint, tracks::Dimensions(utid),
             timestamp, event.dur);
