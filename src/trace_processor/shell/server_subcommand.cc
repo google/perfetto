@@ -16,7 +16,9 @@
 
 #include "src/trace_processor/shell/server_subcommand.h"
 
+#include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,7 +26,9 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
@@ -57,6 +61,13 @@
 #define PERFETTO_HAS_SIGNAL_H() 0
 #endif
 
+// `server kill` signals a process by pid.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <windows.h>
+#else
+#include <csignal>
+#endif
+
 namespace perfetto::trace_processor::shell {
 
 const char* ServerSubcommand::name() const {
@@ -68,11 +79,11 @@ const char* ServerSubcommand::description() const {
 }
 
 const char* ServerSubcommand::usage_args() const {
-  return "<mode> [trace_file]";
+  return "<mode> [trace_file|name]";
 }
 
 const char* ServerSubcommand::detailed_help() const {
-  return R"(Start an RPC server for remote trace processor access.
+  return R"(Start (or stop) an RPC server for remote trace processor access.
 
 Modes:
   http   Start an HTTP server (default port 9001). This is what the
@@ -84,9 +95,10 @@ Modes:
          warm for repeated 'query --remote <name>' calls. Use --name to pick
          a name (otherwise one is generated) or --path for an explicit socket
          path. Runs in the foreground; press Ctrl-C to stop.
+  kill   Stop a running `server unix` session by name or socket path.
 
-The trace file is optional in http mode (traces can be loaded remotely) but
-required in unix mode.)";
+The trace file is optional in http and unix modes; a client can load one
+later over the wire.)";
 }
 
 std::vector<FlagSpec> ServerSubcommand::GetFlags() {
@@ -139,15 +151,93 @@ base::StatusOr<uint32_t> ResolveIdleTimeout(const std::string& s,
 
 constexpr uint32_t kUnixDefaultIdleMs = 30 * 60 * 1000;  // 30 minutes.
 
+// Returns true if |pid| is alive (POSIX probe; Windows opens a handle).
+bool IsPidAlive(int pid) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(pid));
+  if (!h)
+    return false;
+  bool alive = WaitForSingleObject(h, 0) == WAIT_TIMEOUT;
+  CloseHandle(h);
+  return alive;
+#else
+  return kill(pid, 0) == 0;
+#endif
+}
+
+base::Status TerminatePid(int pid) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+  if (!h || !TerminateProcess(h, 0)) {
+    if (h)
+      CloseHandle(h);
+    return base::ErrStatus("Failed to terminate pid %d", pid);
+  }
+  CloseHandle(h);
+  return base::OkStatus();
+#else
+  if (kill(pid, SIGTERM) != 0)
+    return base::ErrStatus("Failed to signal pid %d", pid);
+  return base::OkStatus();
+#endif
+}
+
+// Stops a running `server unix` session by name or socket path.
+base::Status KillServer(const std::string& addr) {
+  std::string socket_path;
+  switch (session::ClassifyRemoteAddr(addr)) {
+    case session::RemoteAddrKind::kHttp:
+      return base::ErrStatus(
+          "server kill over HTTP (%s) is not supported; stop the server with "
+          "Ctrl-C or run it with --idle-timeout.",
+          addr.c_str());
+    case session::RemoteAddrKind::kUnixPath:
+      socket_path = addr;
+      break;
+    case session::RemoteAddrKind::kSessionName: {
+      ASSIGN_OR_RETURN(socket_path, session::SessionSocketPath(addr));
+      break;
+    }
+  }
+
+  // The server writes its pid beside the socket; stop it by pid.
+  std::string pid_path = socket_path + session::kPidFileSuffix;
+  std::string contents;
+  std::optional<int32_t> pid;
+  if (base::ReadFile(pid_path, &contents))
+    pid = base::StringToInt32(base::TrimWhitespace(contents));
+  if (!pid.has_value() || !IsPidAlive(*pid)) {
+    remove(pid_path.c_str());  // Stale pid/socket from a crashed server.
+    return base::ErrStatus("No live session at '%s'", addr.c_str());
+  }
+
+  RETURN_IF_ERROR(TerminatePid(*pid));
+  // POSIX unlinks these from the signal handler; Windows kill is abrupt, so
+  // clean up here too (remove() of a gone path is harmless).
+  remove(pid_path.c_str());
+  remove(socket_path.c_str());
+  printf("Stopped session '%s' (pid %d)\n", addr.c_str(), *pid);
+  return base::OkStatus();
+}
+
 }  // namespace
 
 base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
   // First positional arg is the mode.
   if (ctx.positional_args.empty()) {
     return base::ErrStatus(
-        "server: must specify mode (expected http, stdio or unix)");
+        "server: must specify mode (expected http, stdio, unix or kill)");
   }
   const std::string& mode = ctx.positional_args[0];
+
+  // `kill` needs no trace processor, so handle it before the setup below.
+  if (mode == "kill") {
+    if (ctx.positional_args.size() < 2) {
+      return base::ErrStatus(
+          "server kill: a session name or socket path is required");
+    }
+    return KillServer(ctx.positional_args[1]);
+  }
 
   // Optional trace file is second positional arg.
   std::string trace_file;
@@ -221,16 +311,13 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_IPC)
     return base::ErrStatus("Unix RPC module not supported in this build");
 #else
-    if (!has_trace) {
-      return base::ErrStatus("server unix: a trace file is required");
-    }
     // --path and --name are mutually exclusive: --path is an explicit socket
     // path while --name selects one in the managed session dir.
     if (!socket_path_.empty() && !session_name_.empty()) {
       return base::ErrStatus(
           "server unix: --path and --name are mutually exclusive");
     }
-    // Resolve the socket path: --path wins, else --name, else a generated name.
+
     std::string socket_path = socket_path_;
     std::string session_name = session_name_;
     if (socket_path.empty()) {
@@ -267,7 +354,8 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
   }
 
   return base::ErrStatus(
-      "server: unknown mode '%s' (expected http, stdio or unix)", mode.c_str());
+      "server: unknown mode '%s' (expected http, stdio, unix or kill)",
+      mode.c_str());
 }
 
 }  // namespace perfetto::trace_processor::shell
