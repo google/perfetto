@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata_reader.h"
+#include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest_reader.h"
 
 #include <cinttypes>
 #include <cstdint>
@@ -35,12 +35,12 @@
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
-namespace perfetto::trace_processor::perfetto_metadata {
+namespace perfetto::trace_processor::perfetto_manifest {
 namespace {
 
 base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
   if (!value.IsString()) {
-    return base::ErrStatus("perfetto_metadata: clock name must be a string");
+    return base::ErrStatus("perfetto_manifest: clock name must be a string");
   }
   using protos::pbzero::BuiltinClock;
   std::string name = value.AsString();
@@ -56,50 +56,50 @@ base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
     return BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
   if (name == "BOOTTIME")
     return BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
-  return base::ErrStatus("perfetto_metadata: unknown clock name: %s",
+  return base::ErrStatus("perfetto_manifest: unknown clock name: %s",
                          name.c_str());
 }
 
 }  // namespace
 
-PerfettoMetadataReader::PerfettoMetadataReader(TraceProcessorContext* context,
+PerfettoManifestReader::PerfettoManifestReader(TraceProcessorContext* context,
                                                uint32_t file_id)
     : context_(context), file_id_(file_id) {}
 
-PerfettoMetadataReader::~PerfettoMetadataReader() = default;
+PerfettoManifestReader::~PerfettoManifestReader() = default;
 
-base::Status PerfettoMetadataReader::Parse(TraceBlobView blob) {
+base::Status PerfettoManifestReader::Parse(TraceBlobView blob) {
   buffer_.append(reinterpret_cast<const char*>(blob.data()), blob.size());
   return base::OkStatus();
 }
 
-base::Status PerfettoMetadataReader::OnPushDataToSorter() {
+base::Status PerfettoManifestReader::OnPushDataToSorter() {
   auto* state = context_->trace_metadata_state.get();
   if (state->config_seen) {
-    return base::ErrStatus("multiple perfetto_metadata files in archive");
+    return base::ErrStatus("multiple perfetto_manifest files in archive");
   }
   state->config_seen = true;
 
   ASSIGN_OR_RETURN(json::Dom root, json::Parse(buffer_));
   buffer_.clear();
-  if (!root.IsObject() || !root.HasMember("perfetto_metadata") ||
-      !root["perfetto_metadata"].IsObject()) {
+  if (!root.IsObject() || !root.HasMember("perfetto_manifest") ||
+      !root["perfetto_manifest"].IsObject()) {
     return base::ErrStatus(
-        "perfetto_metadata: expected a JSON object with a top-level "
-        "perfetto_metadata key");
+        "perfetto_manifest: expected a JSON object with a top-level "
+        "perfetto_manifest key");
   }
-  const json::Dom& meta = root["perfetto_metadata"];
+  const json::Dom& meta = root["perfetto_manifest"];
 
   if (!meta.HasMember("version")) {
     return base::ErrStatus(
-        "perfetto_metadata: missing required field: version");
+        "perfetto_manifest: missing required field: version");
   }
   const json::Dom& version = meta["version"];
   if (!version.IsInt() && !version.IsUint()) {
-    return base::ErrStatus("perfetto_metadata: version must be an integer");
+    return base::ErrStatus("perfetto_manifest: version must be an integer");
   }
   if (version.AsInt64() != 1) {
-    return base::ErrStatus("perfetto_metadata: unsupported version: %" PRId64,
+    return base::ErrStatus("perfetto_manifest: unsupported version: %" PRId64,
                            version.AsInt64());
   }
 
@@ -110,12 +110,12 @@ base::Status PerfettoMetadataReader::OnPushDataToSorter() {
 
   if (meta.HasMember("files")) {
     if (!meta["files"].IsArray()) {
-      return base::ErrStatus("perfetto_metadata: files must be an array");
+      return base::ErrStatus("perfetto_manifest: files must be an array");
     }
     for (const json::Dom& file : meta["files"]) {
       if (!file["path"].IsString()) {
         return base::ErrStatus(
-            "perfetto_metadata: files entries must be objects with a string "
+            "perfetto_manifest: files entries must be objects with a string "
             "path");
       }
       state->files.push_back({file["path"].AsString()});
@@ -137,4 +137,4 @@ base::Status PerfettoMetadataReader::OnPushDataToSorter() {
   return base::OkStatus();
 }
 
-}  // namespace perfetto::trace_processor::perfetto_metadata
+}  // namespace perfetto::trace_processor::perfetto_manifest

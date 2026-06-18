@@ -24,10 +24,10 @@
 
 namespace perfetto::trace_processor {
 
-// Parsed contents of a perfetto_metadata sidecar file: a JSON file which,
+// Parsed contents of a perfetto_manifest sidecar file: a JSON file which,
 // as the first file of the trace (typically inside an archive, where sorting
 // puts it first), overrides clock and machine handling for the files that
-// follow. Populated by the perfetto_metadata plugin's reader and consulted
+// follow. Populated by the perfetto_manifest plugin's reader and consulted
 // by ForwardingTraceParser for each trace file.
 struct TraceMetadataState {
   struct FileEntry {
@@ -35,7 +35,7 @@ struct TraceMetadataState {
     std::string path;
   };
 
-  // True once a perfetto_metadata file has been parsed; a second one is an
+  // True once a perfetto_manifest file has been parsed; a second one is an
   // error.
   bool config_seen = false;
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_READER_H_
-#define SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_READER_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_MANIFEST_PERFETTO_MANIFEST_READER_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_MANIFEST_PERFETTO_MANIFEST_READER_H_
 
 #include <cstdint>
 #include <string>
@@ -28,20 +28,20 @@ namespace perfetto::trace_processor {
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
 
-namespace perfetto::trace_processor::perfetto_metadata {
+namespace perfetto::trace_processor::perfetto_manifest {
 
-// Reads a perfetto_metadata sidecar file: a JSON file which, as the first
+// Reads a perfetto_manifest sidecar file: a JSON file which, as the first
 // file of the trace, overrides clock and machine handling for the files
 // that follow. The parsed configuration is stored on the global
 // TraceMetadataState and consulted by ForwardingTraceParser for each trace
 // file.
-class PerfettoMetadataReader : public ChunkedTraceReader {
+class PerfettoManifestReader : public ChunkedTraceReader {
  public:
   // `file_id` is this file's trace_file_table id, used as the owner when the
   // file claims the trace time clock; it is unique, so no later trace file
   // can override the choice.
-  PerfettoMetadataReader(TraceProcessorContext* context, uint32_t file_id);
-  ~PerfettoMetadataReader() override;
+  PerfettoManifestReader(TraceProcessorContext* context, uint32_t file_id);
+  ~PerfettoManifestReader() override;
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
@@ -54,6 +54,6 @@ class PerfettoMetadataReader : public ChunkedTraceReader {
   std::string buffer_;
 };
 
-}  // namespace perfetto::trace_processor::perfetto_metadata
+}  // namespace perfetto::trace_processor::perfetto_manifest
 
-#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_READER_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_MANIFEST_PERFETTO_MANIFEST_READER_H_

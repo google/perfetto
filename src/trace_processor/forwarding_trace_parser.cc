@@ -74,7 +74,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kNinjaLogTraceType:
     case kPerfDataTraceType:
     case kPerfTextTraceType:
-    case kPerfettoMetadataTraceType:
+    case kPerfettoManifestTraceType:
     case kPprofTraceType:
     case kPrimesTraceType:
     case kSimpleperfProtoTraceType:
@@ -127,14 +127,14 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
         "you.");
   }
 
-  // A perfetto_metadata file configures the parsing of the files which
+  // A perfetto_manifest file configures the parsing of the files which
   // follow it, so it is only valid before any non-container trace. Archive
   // sorting guarantees this for direct members; this rejects e.g. a
   // gzip-wrapped metadata file sorted after a proto trace.
-  if (trace_type_ == kPerfettoMetadataTraceType &&
+  if (trace_type_ == kPerfettoManifestTraceType &&
       input_context_->forked_context_state->trace_to_context.size() != 0) {
     return base::ErrStatus(
-        "perfetto_metadata file must be the first trace file in the input");
+        "perfetto_manifest file must be the first trace file in the input");
   }
 
   std::optional<TraceSorter::SortingMode> minimum_sorting_mode =
@@ -144,13 +144,13 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   input_context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
-  // The matching perfetto_metadata entry, if any, will carry per-file
+  // The matching perfetto_manifest entry, if any, will carry per-file
   // overrides in future versions of the schema; nothing consumes it yet.
   FindMetadataEntry();
 
   if (IsContainerTraceType(trace_type_) ||
-      trace_type_ == kPerfettoMetadataTraceType) {
-    // perfetto_metadata files produce no events: like containers they must
+      trace_type_ == kPerfettoManifestTraceType) {
+    // perfetto_manifest files produce no events: like containers they must
     // not fork a per-trace context, as that would make this file the
     // "primary" trace for its machine and demote the real traces.
     PERFETTO_DCHECK(!input_context_->trace_state);
@@ -188,7 +188,7 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // from primary_trace_clock, set later, so here we only register BOOTTIME as
   // the deferred fallback and do not claim the global clock now.
   //
-  // TODO: once a perfetto_metadata entry can carry clock overrides, the
+  // TODO: once a perfetto_manifest entry can carry clock overrides, the
   // per-format selection below should consult it.
   using ClockId = ClockTracker::ClockId;
   std::optional<ClockId> trace_clock;

@@ -76,13 +76,13 @@ def _json_trace(name, pid=10):
 
 
 def _meta(payload):
-  return json.dumps({'perfetto_metadata': payload})
+  return json.dumps({'perfetto_manifest': payload})
 
 
 class TraceMetadata(TestSuite):
-  """Tests for the perfetto_metadata sidecar JSON.
+  """Tests for the perfetto_manifest sidecar JSON.
 
-  A perfetto_metadata file, as the first file of the trace (typically inside
+  A perfetto_manifest file, as the first file of the trace (typically inside
   an archive, where sorting puts it first), overrides clock and machine
   handling for the files that follow.
   """
@@ -113,7 +113,7 @@ class TraceMetadata(TestSuite):
         out=Csv('''
         "name","trace_type","processing_order"
         "[NULL]","zip",0
-        "meta.json","perfetto_metadata",1
+        "meta.json","perfetto_manifest",1
         "app.json","json",2
         '''))
 
@@ -139,7 +139,7 @@ class TraceMetadata(TestSuite):
         out=Csv('''
         "name","trace_type","processing_order"
         "[NULL]","tar",0
-        "meta.json","perfetto_metadata",1
+        "meta.json","perfetto_manifest",1
         "app.json","json",2
         '''))
 
@@ -199,7 +199,7 @@ class TraceMetadata(TestSuite):
             'app.json': _json_trace('json_slice'),
         }),
         query='SELECT 1;',
-        out=ExpectedError('perfetto_metadata: missing required field: version'))
+        out=ExpectedError('perfetto_manifest: missing required field: version'))
 
   def test_error_unsupported_version(self):
     return DiffTestBlueprint(
@@ -208,7 +208,7 @@ class TraceMetadata(TestSuite):
             'app.json': _json_trace('json_slice'),
         }),
         query='SELECT 1;',
-        out=ExpectedError('perfetto_metadata: unsupported version: 99'))
+        out=ExpectedError('perfetto_manifest: unsupported version: 99'))
 
   def test_error_version_not_integer(self):
     return DiffTestBlueprint(
@@ -217,7 +217,7 @@ class TraceMetadata(TestSuite):
             'app.json': _json_trace('json_slice'),
         }),
         query='SELECT 1;',
-        out=ExpectedError('perfetto_metadata: version must be an integer'))
+        out=ExpectedError('perfetto_manifest: version must be an integer'))
 
   def test_error_unknown_clock_name(self):
     return DiffTestBlueprint(
@@ -229,9 +229,9 @@ class TraceMetadata(TestSuite):
             'app.json': _json_trace('json_slice'),
         }),
         query='SELECT 1;',
-        out=ExpectedError('perfetto_metadata: unknown clock name: BOOTIME'))
+        out=ExpectedError('perfetto_manifest: unknown clock name: BOOTIME'))
 
-  # A perfetto_metadata file fed to trace_processor on its own is trivially
+  # A perfetto_manifest file fed to trace_processor on its own is trivially
   # the first file of the trace, so it parses fine (and configures nothing).
   def test_standalone_config(self):
     return DiffTestBlueprint(
@@ -259,7 +259,7 @@ class TraceMetadata(TestSuite):
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'perfetto_metadata file must be the first trace file'))
+            'perfetto_manifest file must be the first trace file'))
 
   def test_error_multiple_configs(self):
     return DiffTestBlueprint(
@@ -269,4 +269,4 @@ class TraceMetadata(TestSuite):
             'app.json': _json_trace('json_slice'),
         }),
         query='SELECT 1;',
-        out=ExpectedError('multiple perfetto_metadata files in archive'))
+        out=ExpectedError('multiple perfetto_manifest files in archive'))
