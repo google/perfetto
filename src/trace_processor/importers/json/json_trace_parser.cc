@@ -82,6 +82,13 @@ inline std::string_view GetStringValue(const json::JsonValue& value) {
   return {};
 }
 
+// Overflow track for complete ('X') events which cannot nest on a thread's main
+// track. See the 'X' case below.
+constexpr auto kThreadOverlappingSliceBlueprint =
+    TrackCompressor::SliceBlueprint(
+        "thread_overlapping_slice",
+        tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
+
 TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
   switch (phase) {
     case 'b':
@@ -224,9 +231,27 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         return;
       }
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      bool overlapped = false;
       auto slice_id =
           slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
-                                event.dur, args_inserter);
+                                event.dur, args_inserter, &overlapped);
+      if (overlapped) {
+        // The event partially overlaps another slice on this thread, so it
+        // cannot nest on the thread's main track. Rather than drop it, spill it
+        // onto a nestable overflow track which is merged back onto the thread
+        // at display time. This keeps the data visible but, because overlapping
+        // events are inherently ambiguous, the layout might not match what was
+        // intended; flag it so the user knows. See
+        // https://github.com/google/perfetto/issues/4280.
+        RecordEventError(timestamp, event,
+                         stats::slice_spill_overlapping_complete_event);
+        track_id = context_->track_compressor->InternLegacyOverlappingScoped(
+            kThreadOverlappingSliceBlueprint, tracks::Dimensions(utid),
+            timestamp, event.dur);
+        slice_id =
+            slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
+                                  event.dur, args_inserter);
+      }
       if (slice_id) {
         auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
         if (event.tts != std::numeric_limits<int64_t>::max()) {

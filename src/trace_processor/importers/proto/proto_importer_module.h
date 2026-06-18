@@ -112,7 +112,7 @@ struct ProtoImporterModuleContext;
 struct TokenizePacketArgs {
   const SelectiveTracePacketDecoder& decoder;
   TraceBlobView* packet;
-  int64_t packet_timestamp;
+  int64_t ts;
   RefPtr<PacketSequenceStateGeneration> state;
   TracePacketField field;
 };

@@ -254,7 +254,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       return ModuleResult::Handled();
     }
 
-    reservation.min_timestamp = args.packet_timestamp;
+    reservation.min_timestamp = args.ts;
     reservation.pid = static_cast<int64_t>(thread.pid());
     reservation.tid = static_cast<int64_t>(thread.tid());
     reservation.use_separate_track =
@@ -293,7 +293,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     reservation.pid = static_cast<uint32_t>(process.pid());
-    reservation.min_timestamp = args.packet_timestamp;
+    reservation.min_timestamp = args.ts;
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
     return ModuleResult::Ignored();
@@ -390,11 +390,11 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     return ModuleResult::Handled();
   }
 
-  // TrackEvents will be ignored while incremental args.state is invalid. As a
+  // TrackEvents will be ignored while incremental state is invalid. As a
   // consequence, we should also ignore any ThreadDescriptors received in this
-  // args.state. Otherwise, any delta-encoded timestamps would be calculated
-  // incorrectly once we move out of the packet loss args.state. Instead, wait
-  // until the first subsequent descriptor after incremental args.state is
+  // state. Otherwise, any delta-encoded timestamps would be calculated
+  // incorrectly once we move out of the packet loss state. Instead, wait
+  // until the first subsequent descriptor after incremental state is
   // cleared.
   if (!args.state->IsIncrementalStateValid()) {
     RecordTokenizationErrorWithSeqId(
@@ -475,7 +475,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     if (trace_ts)
       timestamp = *trace_ts;
   } else if (args.decoder.has_timestamp()) {
-    timestamp = args.packet_timestamp;
+    timestamp = args.ts;
   } else {
     context_->import_logs_tracker->RecordTokenizationError(
         stats::track_event_missing_timestamp,

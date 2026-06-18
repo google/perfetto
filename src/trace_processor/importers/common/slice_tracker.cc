@@ -94,7 +94,8 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
                                             StringId category,
                                             StringId raw_name,
                                             int64_t duration,
-                                            SetArgsCallback args_callback) {
+                                            SetArgsCallback args_callback,
+                                            bool* overlap_out) {
   if (duration < 0) {
     context_->import_logs_tracker->RecordParserError(
         stats::slice_negative_duration, timestamp);
@@ -105,9 +106,11 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
       context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
   return StartSlice(
-      timestamp, row.dur, track_id, args_callback, [this, &row]() {
+      timestamp, row.dur, track_id, args_callback,
+      [this, &row]() {
         return context_->storage->mutable_slice_table()->Insert(row).id;
-      });
+      },
+      overlap_out);
 }
 
 std::optional<SliceId> SliceTracker::End(int64_t timestamp,
@@ -157,7 +160,8 @@ std::optional<SliceId> SliceTracker::StartSlice(
     int64_t duration,
     TrackId track_id,
     SetArgsCallback args_callback,
-    std::function<SliceId()> inserter) {
+    std::function<SliceId()> inserter,
+    bool* overlap_out) {
   auto& track_info = stacks_[track_id];
   auto& stack = track_info.slice_stack;
 
@@ -175,7 +179,7 @@ std::optional<SliceId> SliceTracker::StartSlice(
   }
 
   auto* slices = context_->storage->mutable_slice_table();
-  if (!MaybeCloseStack(timestamp, duration, stack, track_id)) {
+  if (!MaybeCloseStack(timestamp, duration, stack, track_id, overlap_out)) {
     return std::nullopt;
   }
 
@@ -225,7 +229,8 @@ std::optional<SliceId> SliceTracker::CompleteSlice(
 
   TrackInfo& track_info = *it;
   SlicesStack& stack = track_info.slice_stack;
-  if (!MaybeCloseStack(timestamp, kPendingDuration, stack, track_id)) {
+  if (!MaybeCloseStack(timestamp, kPendingDuration, stack, track_id,
+                       /*overlap_out=*/nullptr)) {
     return std::nullopt;
   }
   if (stack.empty()) {
@@ -362,7 +367,8 @@ std::optional<SliceId> SliceTracker::GetTopmostSliceOnTrack(
 bool SliceTracker::MaybeCloseStack(int64_t new_ts,
                                    int64_t new_dur,
                                    const SlicesStack& stack,
-                                   TrackId track_id) {
+                                   TrackId track_id,
+                                   bool* overlap_out) {
   auto* slices = context_->storage->mutable_slice_table();
   bool incomplete_descendent = false;
   for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
@@ -458,8 +464,12 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
     // This is invalid stacking by the producer and should be fixed. Duration
     // events should either be nested or disjoint, never partially intersecting.
     if (new_ts < end_ts && new_ts + new_dur > end_ts) {
-      context_->stats_tracker->IncrementStats(
-          stats::slice_drop_overlapping_complete_event);
+      if (overlap_out) {
+        *overlap_out = true;
+      } else {
+        context_->stats_tracker->IncrementStats(
+            stats::slice_drop_overlapping_complete_event);
+      }
       return false;
     }
   }

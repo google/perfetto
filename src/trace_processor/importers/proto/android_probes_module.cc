@@ -120,7 +120,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
 
     if (!evt.has_energy_data()) {
       context_->import_logs_tracker->RecordParserError(
-          stats::power_rail_empty_packet, args.packet_timestamp);
+          stats::power_rail_empty_packet, args.ts);
       return ModuleResult::Handled();
     }
 
@@ -142,7 +142,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
         }
         actual_ts = *trace_ts;
       } else {
-        actual_ts = args.packet_timestamp;
+        actual_ts = args.ts;
       }
 
       TraceBlobView tbv =
@@ -150,7 +150,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
             // Keep the original timestamp to later extract as an arg; the
             // sorter does not read this.
             data_packet->set_timestamp(
-                static_cast<uint64_t>(args.packet_timestamp));
+                static_cast<uint64_t>(args.ts));
 
             auto* power_rails_proto = data_packet->set_power_rails();
             power_rails_proto->set_session_uuid(evt.session_uuid());

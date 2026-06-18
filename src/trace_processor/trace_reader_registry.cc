@@ -61,7 +61,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kSimpleperfProtoTraceType:
     case kTarTraceType:
     case kPrimesTraceType:
-    case kPerfettoMetadataTraceType:
+    case kPerfettoManifestTraceType:
       return false;
   }
   PERFETTO_FATAL("For GCC");

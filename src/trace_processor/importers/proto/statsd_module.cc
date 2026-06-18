@@ -140,7 +140,7 @@ ModuleResult StatsdModule::TokenizePacket(const TokenizePacketArgs& args) {
       atom_timestamp = *it_timestamps++;
     } else {
       context_->stats_tracker->IncrementStats(stats::atom_timestamp_missing);
-      atom_timestamp = args.packet_timestamp;
+      atom_timestamp = args.ts;
     }
 
     TraceBlobView tbv =

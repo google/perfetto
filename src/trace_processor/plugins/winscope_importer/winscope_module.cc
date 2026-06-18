@@ -99,7 +99,7 @@ void WinscopeModule::ParseField(const ParseFieldArgs& args) {
       surfaceflinger_layers_parser_.Parse(
           args.ts,
           args.field.Cast<
-              FrameworksNativeWinscopeTracePacket::kProtologViewerConfig>(),
+              FrameworksNativeWinscopeTracePacket::kSurfaceflingerLayersSnapshot>(),
           sequence_id);
       return;
     case FrameworksNativeWinscopeTracePacket::
@@ -107,7 +107,7 @@ void WinscopeModule::ParseField(const ParseFieldArgs& args) {
       surfaceflinger_transactions_parser_.Parse(
           args.ts,
           args.field.Cast<
-              FrameworksNativeWinscopeTracePacket::kProtologViewerConfig>());
+              FrameworksNativeWinscopeTracePacket::kSurfaceflingerTransactions>());
       return;
     case FrameworksBaseWinscopeTracePacket::kShellTransitionFieldNumber:
       shell_transitions_parser_.ParseTransition(

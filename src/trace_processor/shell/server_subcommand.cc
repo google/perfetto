@@ -30,6 +30,7 @@
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "src/trace_processor/rpc/session_lifecycle.h"
 #include "src/trace_processor/rpc/session_paths.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/shell/common_flags.h"
