@@ -150,6 +150,7 @@ source_set("client") {
     "../../../protos/perfetto/trace_processor:zero",
     "../../../protos/perfetto/trace_summary:zero",
     "../../base",
+    "../../base:unix_socket",
     "../../protozero",
     "../../protozero:proto_ring_buffer",
   ]
