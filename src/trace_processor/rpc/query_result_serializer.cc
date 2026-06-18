@@ -18,9 +18,11 @@
 
 #include <vector>
 
+#include "perfetto/protozero/message.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/sqlite_iterator_impl.h"
 
@@ -42,6 +44,49 @@ uint8_t MakeLenDelimTag(uint32_t field_num) {
   uint32_t tag = pu::MakeTagLengthDelimited(field_num);
   PERFETTO_DCHECK(tag <= 127);  // Must fit in one byte.
   return static_cast<uint8_t>(tag);
+}
+
+// Appends a packed, length-delimited field (|field_id|, |size| bytes starting
+// at |data|) to |batch| such that the payload starts at an |alignment|-byte
+// aligned offset within the output stream. Alignment is achieved by inserting a
+// throwaway |kPaddingFieldId| varint of the right length before the field. This
+// lets the JS reader overlay a TypedArray on the payload without an extra copy.
+// |alignment| must be a power of two >= 2. No-op if |size| is 0.
+void AppendAlignedPackedField(protozero::Message* batch,
+                              const protozero::ScatteredStreamWriter& writer,
+                              uint32_t field_id,
+                              const uint8_t* data,
+                              uint32_t size,
+                              uint32_t alignment) {
+  if (size == 0)
+    return;
+
+  uint8_t preamble[16];
+  uint8_t* preamble_end = &preamble[0];
+  *(preamble_end++) = MakeLenDelimTag(field_id);
+  preamble_end = pu::WriteVarInt(size, preamble_end);
+  uint32_t preamble_size = static_cast<uint32_t>(preamble_end - &preamble[0]);
+
+  // The byte after the preamble must start at an |alignment|-aligned offset.
+  const uint32_t off = static_cast<uint32_t>(writer.written() + preamble_size);
+  const uint32_t aligned_off = (off + (alignment - 1)) & ~(alignment - 1);
+  uint32_t padding = aligned_off - off;
+  // The padding is encoded as a varint field, which takes a minimum of 2 bytes
+  // (1 tag byte + 1 varint byte). If a single byte of padding is needed it
+  // can't be encoded, so bump it by |alignment| (which keeps it aligned).
+  padding = padding == 1 ? padding + alignment : padding;
+  if (padding > 0) {
+    uint8_t pad_buf[16];
+    uint8_t* pad = pad_buf;
+    *(pad++) = pu::MakeTagVarInt(kPaddingFieldId);
+    for (uint32_t i = 0; i < padding - 2; i++)
+      *(pad++) = 0x80;
+    *(pad++) = 0;
+    batch->AppendRawProtoBytes(pad_buf, static_cast<size_t>(pad - pad_buf));
+  }
+  batch->AppendRawProtoBytes(preamble, preamble_size);
+  PERFETTO_CHECK(writer.written() % alignment == 0);
+  batch->AppendRawProtoBytes(data, size);
 }
 
 }  // namespace
@@ -120,6 +165,11 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
   protozero::PackedVarInt varints;
   protozero::PackedFixedSizeInt<double> doubles;
 
+  // Used instead of |varints| when use_fixed_width_int_cells_ is set. Each
+  // integer cell goes into |int32s| or |int64s| depending on its magnitude.
+  protozero::PackedFixedSizeInt<int32_t> int32s;
+  protozero::PackedFixedSizeInt<int64_t> int64s;
+
   // We write blobs on a temporary heap buffer and append it at the end. Blobs
   // are extremely rare, trying to avoid copies is not worth the complexity.
   std::vector<uint8_t> blobs;
@@ -158,9 +208,22 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
         break;
       }
       case SqlValue::Type::kLong: {
-        cell_type = BatchProto::CELL_VARINT;
-        varints.Append(value.long_value);
-        approx_batch_size += 4;  // Just a guess, doesn't need to be accurate.
+        const int64_t v = value.long_value;
+        if (!use_fixed_width_int_cells_) {
+          cell_type = BatchProto::CELL_VARINT;
+          varints.Append(v);
+          approx_batch_size += 4;  // Just a guess, doesn't need to be accurate.
+        } else if (v >= INT32_MIN && v <= INT32_MAX) {
+          // Small enough to fit in 4 bytes: use the int32 bucket to keep the
+          // wire (and the JS-side memcpy) smaller.
+          cell_type = BatchProto::CELL_INT32;
+          int32s.Append(static_cast<int32_t>(v));
+          approx_batch_size += 4;
+        } else {
+          cell_type = BatchProto::CELL_INT64;
+          int64s.Append(v);
+          approx_batch_size += 8;
+        }
         break;
       }
       case SqlValue::Type::kDouble: {
@@ -217,37 +280,22 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
   if (varints.size())
     batch->set_varint_cells(varints);
 
+  // Append the fixed-width integer buckets (only populated when
+  // use_fixed_width_int_cells_ is set). These are aligned (4/8 bytes) so JS can
+  // overlay an Int32Array / BigInt64Array without copies, just like float64.
+  AppendAlignedPackedField(batch, writer, BatchProto::kInt32CellsFieldNumber,
+                           int32s.data(), static_cast<uint32_t>(int32s.size()),
+                           4);
+  AppendAlignedPackedField(batch, writer, BatchProto::kInt64CellsFieldNumber,
+                           int64s.data(), static_cast<uint32_t>(int64s.size()),
+                           8);
+
   // Append the |float64_cells|, copying over the packed fixed64 buffer. This is
   // appended at a 64-bit aligned offset, so that JS can access these by overlay
   // a TypedArray, without extra copies.
-  const uint32_t doubles_size = static_cast<uint32_t>(doubles.size());
-  if (doubles_size > 0) {
-    uint8_t preamble[16];
-    uint8_t* preamble_end = &preamble[0];
-    *(preamble_end++) = MakeLenDelimTag(BatchProto::kFloat64CellsFieldNumber);
-    preamble_end = pu::WriteVarInt(doubles_size, preamble_end);
-    uint32_t preamble_size = static_cast<uint32_t>(preamble_end - &preamble[0]);
-
-    // The byte after the preamble must start at a 64bit-aligned offset.
-    // The padding needs to be > 1 Byte because of proto encoding.
-    const uint32_t off =
-        static_cast<uint32_t>(writer.written() + preamble_size);
-    const uint32_t aligned_off = (off + 7) & ~7u;
-    uint32_t padding = aligned_off - off;
-    padding = padding == 1 ? 9 : padding;
-    if (padding > 0) {
-      uint8_t pad_buf[10];
-      uint8_t* pad = pad_buf;
-      *(pad++) = pu::MakeTagVarInt(kPaddingFieldId);
-      for (uint32_t i = 0; i < padding - 2; i++)
-        *(pad++) = 0x80;
-      *(pad++) = 0;
-      batch->AppendRawProtoBytes(pad_buf, static_cast<size_t>(pad - pad_buf));
-    }
-    batch->AppendRawProtoBytes(preamble, preamble_size);
-    PERFETTO_CHECK(writer.written() % 8 == 0);
-    batch->AppendRawProtoBytes(doubles.data(), doubles_size);
-  }  // if (doubles_size > 0)
+  AppendAlignedPackedField(batch, writer, BatchProto::kFloat64CellsFieldNumber,
+                           doubles.data(),
+                           static_cast<uint32_t>(doubles.size()), 8);
 
   // Append the blobs.
   if (blobs.size() > 0) {

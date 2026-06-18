@@ -293,43 +293,60 @@ export class CpuFreqTrack implements TrackRenderer {
     const maxYs = new Float32Array(freqRows); // Min freq (lower value = higher Y after transform)
     const fills = new Float32Array(freqRows); // 1.0 when not idle, 0.0 when idle
 
-    const freqIt = freqResult.iter({
+    // Bulk-decode both results into columnar typed arrays in one pass each.
+    // This is faster than iter() for large tracks (no per-row valid()/next()
+    // round-trip) and, when the engine emits fixed-width int cells, lifts the
+    // integer columns straight off the wire buffer without a per-cell varint
+    // decode.
+    const freqCols = freqResult.decodeColumns({
       ts: LONG,
       minFreq: NUM,
       maxFreq: NUM,
       lastFreq: NUM,
     });
-    const idleIt = idleResult.iter({
+    const idleCols = idleResult.decodeColumns({
       lastIdle: NUM,
     });
-    for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
-      if (i % 50 === 0) {
+    const tsCol = freqCols.ts as BigInt64Array;
+    const minFreqCol = freqCols.minFreq as Float64Array;
+    const maxFreqCol = freqCols.maxFreq as Float64Array;
+    const lastFreqCol = freqCols.lastFreq as Float64Array;
+    const lastIdleCol = idleCols.lastIdle as Float64Array;
+
+    for (let i = 0; i < freqRows; ++i) {
+      if (i % 64 === 0) {
         if (signal.isCancelled) return QUERY_CANCELLED;
         if (task.shouldYield()) {
           await task.yield();
         }
       }
 
-      timestamps[i] = freqIt.ts;
-      minFreqKHz[i] = freqIt.minFreq;
-      maxFreqKHz[i] = freqIt.maxFreq;
-      lastFreqKHz[i] = freqIt.lastFreq;
-      lastIdleValues[i] = idleIt.lastIdle;
+      const ts = tsCol[i];
+      const minFreq = minFreqCol[i];
+      const maxFreq = maxFreqCol[i];
+      const lastFreq = lastFreqCol[i];
+      const lastIdle = lastIdleCol[i];
+
+      timestamps[i] = ts;
+      minFreqKHz[i] = minFreq;
+      maxFreqKHz[i] = maxFreq;
+      lastFreqKHz[i] = lastFreq;
+      lastIdleValues[i] = lastIdle;
 
       // Populate step area buffers with raw values
-      const x = Number(freqIt.ts - start);
+      const x = Number(ts - start);
       xs[i] = Math.max(0, x); // Clamp to the start of the frame
-      ys[i] = freqIt.lastFreq;
+      ys[i] = lastFreq;
 
-      fills[i] = idleIt.lastIdle < 0 ? 1.0 : 0.0;
+      fills[i] = lastIdle < 0 ? 1.0 : 0.0;
       if (i > 0) {
         xnext[i - 1] = x;
         const yprev = ys[i - 1];
-        minYs[i] = Math.min(freqIt.minFreq, yprev);
-        maxYs[i] = Math.max(freqIt.maxFreq, yprev);
+        minYs[i] = Math.min(minFreq, yprev);
+        maxYs[i] = Math.max(maxFreq, yprev);
       } else {
-        minYs[i] = freqIt.minFreq;
-        maxYs[i] = freqIt.maxFreq;
+        minYs[i] = minFreq;
+        maxYs[i] = maxFreq;
       }
     }
 

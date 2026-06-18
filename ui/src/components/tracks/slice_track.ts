@@ -901,37 +901,44 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const depths = new Uint16Array(count);
     const instants = new Array<Instant<T>>(count);
 
-    const it = queryResult.iter({
+    // Bulk-decode all columns in one pass (much faster than per-row iter() for
+    // large tracks). The fixed columns come back as typed arrays; the schema
+    // columns are read per-row to build the `row` object the callbacks need.
+    const cols = queryResult.decodeColumns({
       __id: NUM,
       __ts: NUM,
       __count: NUM,
       __depth: NUM,
       ...dataset.schema,
     });
+    const idCol = cols.__id as Float64Array;
+    const tsCol = cols.__ts as Float64Array;
+    const countCol = cols.__count as Float64Array;
+    const depthCol = cols.__depth as Float64Array;
+    const schemaKeys = Object.keys(dataset.schema);
+    const schemaCols = schemaKeys.map(
+      (k) => cols[k] as unknown as ArrayLike<SqlValue>,
+    );
 
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    for (let i = 0; i < count; i++) {
       if (i % 64 === 0) {
         if (signal.isCancelled) throw QUERY_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
-      const id = it.__id;
-      const ts = it.__ts;
-      const count = it.__count;
-      const depth = it.__depth;
-      const title = this.getTitle(it);
-      const subtitle = this.getSubtitle(it);
-      const colorScheme = this.getColor(it, title);
-      const row = this.extractKeys(it, dataset.schema);
+      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const title = this.getTitle(row);
+      const subtitle = this.getSubtitle(row);
+      const colorScheme = this.getColor(row, title);
 
-      xs[i] = ts;
-      depths[i] = depth;
+      xs[i] = tsCol[i];
+      depths[i] = depthCol[i];
       instants[i] = {
-        id,
+        id: idCol[i],
         title,
         subtitle,
         colorScheme,
-        count,
+        count: countCol[i],
         row,
       };
     }
@@ -1004,7 +1011,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const patterns = new Uint8Array(count);
     const slices = new Array<Slice<T>>(count);
 
-    const it = sliceQueryRes.iter({
+    // Bulk-decode all columns in one pass. Fixed columns become typed arrays;
+    // schema columns are read per-row to build the `row` object the callbacks
+    // need. __end is nullable (NUM_NULL) so comes back as a plain array.
+    const cols = sliceQueryRes.decodeColumns({
       __id: NUM,
       __start: NUM,
       __end: NUM_NULL,
@@ -1013,38 +1023,44 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       __incomplete: NUM,
       ...dataset.schema,
     });
+    const idCol = cols.__id as Float64Array;
+    const startCol = cols.__start as Float64Array;
+    const endCol = cols.__end as ReadonlyArray<number | null>;
+    const countCol = cols.__count as Float64Array;
+    const depthCol = cols.__depth as Float64Array;
+    const incompleteCol = cols.__incomplete as Float64Array;
+    const schemaKeys = Object.keys(dataset.schema);
+    const schemaCols = schemaKeys.map(
+      (k) => cols[k] as unknown as ArrayLike<SqlValue>,
+    );
 
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    for (let i = 0; i < count; i++) {
       if (i % 64 === 0) {
         if (signal.isCancelled) throw QUERY_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
-      const count = it.__count;
-      const id = it.__id;
-      const start = it.__start;
-      const end = it.__end;
-      const depth = it.__depth;
-      const title = this.getTitle(it);
-      const subtitle = this.getSubtitle(it);
-      const colorScheme = this.getColor(it, title);
-      const isIncomplete = it.__incomplete === 1;
-      const row = this.extractKeys(it, dataset.schema);
+      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const title = this.getTitle(row);
+      const subtitle = this.getSubtitle(row);
+      const colorScheme = this.getColor(row, title);
+      const end = endCol[i];
+      const isIncomplete = incompleteCol[i] === 1;
 
-      starts[i] = start;
+      starts[i] = startCol[i];
       // Incomplete slices are assigned a +Infinity end
       ends[i] = end === null ? Number.POSITIVE_INFINITY : end;
-      depths[i] = depth;
+      depths[i] = depthCol[i];
       patterns[i] = isIncomplete
         ? RECT_PATTERN_FADE_RIGHT
-        : this.attrs.slicePattern?.(it) ?? 0;
+        : this.attrs.slicePattern?.(row) ?? 0;
       slices[i] = {
-        id,
+        id: idCol[i],
         title,
         subtitle,
         colorScheme,
-        count,
-        fillRatio: this.attrs.fillRatio?.(it) ?? 1,
+        count: countCol[i],
+        fillRatio: this.attrs.fillRatio?.(row) ?? 1,
         row,
       };
     }
@@ -1059,16 +1075,23 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     };
   }
 
-  // Efficiently copy a sebset of keys from a raw value based on some template.
-  // Note: Only the template's keys are used, the values are ignored (hence the
-  // unknown value types).
-  private extractKeys(from: T, template: Record<keyof T, unknown>): T {
-    const result = {} as T;
-    // eslint-disable-next-line guard-for-in
-    for (const k in template) {
-      result[k] = from[k];
+  // Builds a per-row object holding just the dataset.schema columns, read out
+  // of the columnar arrays returned by QueryResult.decodeColumns(). |keys| and
+  // |cols| are parallel arrays (key[k] is stored in cols[k]) precomputed once
+  // per query. This is the columnar replacement for the old per-row
+  // extractKeys(it, schema) copy: the resulting object is both stored as the
+  // slice/instant `row` and handed to the user-provided title/colorizer/pattern
+  // callbacks (which only ever read schema fields).
+  private buildSchemaRow(
+    keys: ReadonlyArray<string>,
+    cols: ReadonlyArray<ArrayLike<SqlValue>>,
+    i: number,
+  ): T {
+    const row: Record<string, SqlValue> = {};
+    for (let k = 0; k < keys.length; k++) {
+      row[keys[k]] = cols[k][i];
     }
-    return result;
+    return row as T;
   }
 
   private async deferChunkedTask() {

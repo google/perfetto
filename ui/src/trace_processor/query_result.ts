@@ -72,6 +72,26 @@ export const BLOB_NULL: Uint8Array<ArrayBuffer> | null = new Uint8Array();
 export const LONG: bigint = 0n;
 export const LONG_NULL: bigint | null = 1n;
 
+// One decoded column produced by QueryResult.decodeColumns(). The runtime type
+// depends on the requested column type:
+//  - NUM       -> Float64Array
+//  - LONG      -> BigInt64Array
+//  - NUM_NULL  -> Array<number | null>
+//  - LONG_NULL -> Array<bigint | null>
+//  - STR/STR_NULL -> Array<string | null>
+//  - BLOB/*    -> Array<SqlValue>
+export type ColumnarColumn =
+  | Float64Array
+  | BigInt64Array
+  | Array<number | null>
+  | Array<bigint | null>
+  | Array<string | null>
+  | Array<SqlValue>;
+
+export interface ColumnarResult {
+  readonly [columnName: string]: ColumnarColumn;
+}
+
 const SHIFT_32BITS = 32n;
 
 // Describes the inheritance tree of the above types.
@@ -206,6 +226,130 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
   throw Error('invalid varint encoding');
 }
 
+// Allocation-free varint reader used by the iterator hot path.
+//
+// protobufjs's Reader.int64() allocates a LongBits object on every call (when
+// Long.js support is disabled, as it is here). In the iterator that's one
+// allocation per integer cell, which dominates the cost of loading large
+// tracks (millions of cells). readVarint() decodes a varint straight from the
+// byte buffer with zero allocations, writing its outputs into the module-level
+// scratch variables below. We use module-level vars (rather than returning an
+// object/tuple) precisely to avoid that per-cell allocation.
+//
+// After readVarint() returns:
+//  - varintLo / varintHi hold the low / high unsigned 32-bit halves.
+//  - varintPos holds the buffer position just past the decoded varint.
+// Use varintToNumber() / varintToBigInt() to materialise the value.
+//
+// The decode logic mirrors decodeInt64Varint() above (itself adapted from
+// protobufjs's Reader.readLongVarint()).
+let varintLo = 0;
+let varintHi = 0;
+let varintPos = 0;
+
+function readVarint(buf: Uint8Array, pos: number): void {
+  let hi = 0;
+  let lo = 0;
+  let i = 0;
+
+  if (buf.length - pos > 4) {
+    // fast route (lo)
+    for (; i < 4; ++i) {
+      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = 0;
+        varintPos = pos;
+        return;
+      }
+    }
+    // 5th
+    lo = (lo | ((buf[pos] & 127) << 28)) >>> 0;
+    hi = (hi | ((buf[pos] & 127) >> 4)) >>> 0;
+    if (buf[pos++] < 128) {
+      varintLo = lo;
+      varintHi = hi;
+      varintPos = pos;
+      return;
+    }
+    i = 0;
+  } else {
+    for (; i < 3; ++i) {
+      if (pos >= buf.length) {
+        throw Error('Index out of range');
+      }
+      // 1st..3rd
+      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = 0;
+        varintPos = pos;
+        return;
+      }
+    }
+    // 4th
+    lo = (lo | ((buf[pos++] & 127) << (i * 7))) >>> 0;
+    varintLo = lo;
+    varintHi = 0;
+    varintPos = pos;
+    return;
+  }
+  if (buf.length - pos > 4) {
+    // fast route (hi)
+    for (; i < 5; ++i) {
+      // 6th..10th
+      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = hi;
+        varintPos = pos;
+        return;
+      }
+    }
+  } else {
+    for (; i < 5; ++i) {
+      if (pos >= buf.length) {
+        throw Error('Index out of range');
+      }
+      // 6th..10th
+      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
+      if (buf[pos++] < 128) {
+        varintLo = lo;
+        varintHi = hi;
+        varintPos = pos;
+        return;
+      }
+    }
+  }
+  throw Error('invalid varint encoding');
+}
+
+// Materialises the varint last read by readVarint() as a JS number, matching
+// the semantics of protobufjs's int64().toNumber() (signed, with the 2**53
+// precision caveat that applies throughout the UI - see static_initializers).
+function varintToNumber(): number {
+  const lo = varintLo;
+  const hi = varintHi;
+  if (hi >>> 31) {
+    // Negative: two's-complement negate the 64-bit value, then negate the
+    // resulting magnitude.
+    const nlo = (~lo + 1) >>> 0;
+    const nhi = (nlo === 0 ? ~hi + 1 : ~hi) >>> 0;
+    return -(nlo + nhi * 4294967296);
+  }
+  return lo + hi * 4294967296;
+}
+
+// Materialises the varint last read by readVarint() as a (signed) bigint,
+// matching decodeInt64Varint().
+function varintToBigInt(): bigint {
+  if (varintHi === 0) {
+    return BigInt(varintLo);
+  }
+  const big = (BigInt(varintHi) << SHIFT_32BITS) | BigInt(varintLo);
+  return BigInt.asIntN(64, big);
+}
+
 // Info that could help debug a query error. For example the query
 // in question, the stack where the query was issued, the active
 // plugin etc.
@@ -293,6 +437,8 @@ function isCompatible(actual: CellType, expected: SqlValue): boolean {
         expected === UNKNOWN
       );
     case CellType.CELL_VARINT:
+    case CellType.CELL_INT32:
+    case CellType.CELL_INT64:
       return (
         expected === NUM ||
         expected === NUM_NULL ||
@@ -320,6 +466,12 @@ enum CellType {
   CELL_FLOAT64 = 3,
   CELL_STRING = 4,
   CELL_BLOB = 5,
+  // Fixed-width integer cells, an alternative to CELL_VARINT used when the
+  // serializer is asked to emit fixed-width ints (see use_fixed_width_int_cells
+  // in trace_processor.proto). The values live in the int32_cells / int64_cells
+  // buffers and are decoded zero-copy by overlaying a TypedArray.
+  CELL_INT32 = 6,
+  CELL_INT64 = 7,
 }
 
 const CELL_TYPE_NAMES = [
@@ -329,6 +481,8 @@ const CELL_TYPE_NAMES = [
   'FLOAT64',
   'STRING',
   'BLOB',
+  'INT32',
+  'INT64',
 ];
 
 const TAG_LEN_DELIM = 2;
@@ -346,6 +500,16 @@ export interface QueryResult {
   // now we keep everything in memory in the QueryResultImpl object.
   // iter<T extends Row>(spec: T): RowIterator<T>;
   iter<T extends Row>(spec: T): RowIterator<T>;
+
+  // Bulk-decodes the requested columns across all currently-available rows in a
+  // single pass, returning one dense array per column (see ColumnarColumn for
+  // the per-type representation). This is substantially faster than iter() for
+  // large result sets where the caller wants whole columns: it loops over every
+  // row inside one function (avoiding a per-row valid()/next() round-trip
+  // through the iterator's bound-method wrappers) and writes into typed arrays
+  // instead of a generic per-row object keyed by column name. Prefer this over
+  // iter() on hot track-loading paths that pull millions of cells.
+  decodeColumns(spec: Row): ColumnarResult;
 
   // Like iter() for queries that expect only one row. It embeds the valid()
   // check (i.e. throws if no rows are available) and returns directly the
@@ -486,6 +650,179 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   iter<T extends Row>(spec: T): RowIterator<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
     return impl as {} as RowIterator<T>;
+  }
+
+  decodeColumns(spec: Row): ColumnarResult {
+    const colNames = this.columnNames;
+    const numColumns = colNames.length;
+    const total = this._numRows;
+
+    // Per-column plan, indexed by column position. `kind` selects how the cell
+    // is materialised and into which output array; ignored columns (kind 0)
+    // still advance the per-type cursors but store nothing.
+    const enum Kind {
+      Ignore = 0,
+      Num = 1, // -> Float64Array
+      Long = 2, // -> BigInt64Array
+      Str = 3, // -> Array<string | null>
+      Blob = 4, // -> Array<SqlValue>
+      NumNull = 5, // -> Array<number | null>
+      LongNull = 6, // -> Array<bigint | null>
+    }
+    const kinds = new Uint8Array(numColumns);
+    // dests is indexed by column position; entries are typed/plain arrays whose
+    // element type is governed by kinds[c]. The stores below cast per-kind.
+    const dests = new Array<ColumnarColumn | undefined>(numColumns);
+    const out: {[k: string]: ColumnarColumn} = {};
+
+    for (const name of Object.keys(spec)) {
+      const c = colNames.indexOf(name);
+      if (c < 0) {
+        throw new QueryError(
+          `Column ${name} not found in the SQL result ` +
+            `set {${colNames.join(' ')}}`,
+          this._errorInfo,
+        );
+      }
+      const t = spec[name];
+      let kind: Kind;
+      let dest: ColumnarColumn;
+      if (t === NUM) {
+        kind = Kind.Num;
+        dest = new Float64Array(total);
+      } else if (t === NUM_NULL) {
+        kind = Kind.NumNull;
+        dest = new Array<number | null>(total);
+      } else if (t === LONG) {
+        kind = Kind.Long;
+        dest = new BigInt64Array(total);
+      } else if (t === LONG_NULL) {
+        kind = Kind.LongNull;
+        dest = new Array<bigint | null>(total);
+      } else if (t === STR || t === STR_NULL) {
+        kind = Kind.Str;
+        dest = new Array<string | null>(total);
+      } else {
+        kind = Kind.Blob;
+        dest = new Array<SqlValue>(total);
+      }
+      kinds[c] = kind;
+      dests[c] = dest;
+      out[name] = dest;
+    }
+
+    let row = 0;
+    const batches = this.batches;
+    for (let b = 0; b < batches.length; b++) {
+      const batch = batches[b];
+      if (batch.numCells === 0) continue;
+      const bytes = batch.batchBytes;
+      const f64 = batch.float64Cells;
+      const i32 = batch.int32Cells;
+      const i64 = batch.int64Cells;
+      const strs = batch.stringCells;
+      const blobs = batch.blobCells;
+      const ctEnd = batch.cellTypesOff + batch.cellTypesLen;
+      let ctOff = batch.cellTypesOff;
+      let vOff = batch.varintOff;
+      let fIdx = 0;
+      let i32Idx = 0;
+      let i64Idx = 0;
+      let sIdx = 0;
+      let bIdx = 0;
+
+      while (ctOff < ctEnd) {
+        for (let c = 0; c < numColumns; c++) {
+          const cellType = bytes[ctOff++];
+          const kind = kinds[c];
+          switch (cellType) {
+            case CellType.CELL_VARINT:
+              readVarint(bytes, vOff);
+              vOff = varintPos;
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = varintToNumber();
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = varintToNumber();
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = varintToBigInt();
+              } else if (kind === Kind.LongNull) {
+                (dests[c] as Array<bigint | null>)[row] = varintToBigInt();
+              }
+              break;
+            case CellType.CELL_FLOAT64: {
+              const v = f64[fIdx++];
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = v;
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = v;
+              }
+              break;
+            }
+            case CellType.CELL_INT32: {
+              const v = i32[i32Idx++];
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = v;
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = v;
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = BigInt(v);
+              } else if (kind === Kind.LongNull) {
+                (dests[c] as Array<bigint | null>)[row] = BigInt(v);
+              }
+              break;
+            }
+            case CellType.CELL_INT64: {
+              const v = i64[i64Idx++];
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = Number(v);
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = Number(v);
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = v;
+              } else if (kind === Kind.LongNull) {
+                (dests[c] as Array<bigint | null>)[row] = v;
+              }
+              break;
+            }
+            case CellType.CELL_STRING: {
+              const v = strs[sIdx++];
+              if (kind === Kind.Str) {
+                (dests[c] as Array<string | null>)[row] = v;
+              }
+              break;
+            }
+            case CellType.CELL_NULL:
+              // Nullable columns (NumNull/LongNull/Str/Blob -> plain arrays)
+              // store null. For non-nullable typed-array columns a null is not
+              // representable, so we store a sentinel (NaN / 0n) rather than
+              // throwing on the hot path; callers that expect nulls must use the
+              // *_NULL spec types.
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = NaN;
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = 0n;
+              } else if (kind !== Kind.Ignore) {
+                (dests[c] as Array<SqlValue>)[row] = null;
+              }
+              break;
+            case CellType.CELL_BLOB: {
+              const v = blobs[bIdx++];
+              if (kind === Kind.Blob) {
+                (dests[c] as Array<SqlValue>)[row] = new Uint8Array(v);
+              }
+              break;
+            }
+            default:
+              throw new QueryError(
+                `Invalid cell type ${cellType}`,
+                this._errorInfo,
+              );
+          }
+        }
+        row++;
+      }
+    }
+    return out;
   }
 
   firstRow<T extends Row>(spec: T): T {
@@ -664,6 +1001,8 @@ class ResultBatch {
   readonly varintOff: number = 0;
   readonly varintLen: number = 0;
   readonly float64Cells = new Float64Array();
+  readonly int32Cells = new Int32Array();
+  readonly int64Cells = new BigInt64Array();
   readonly blobCells: Uint8Array<ArrayBuffer>[] = [];
   readonly stringCells: string[] = [];
 
@@ -757,6 +1096,54 @@ class ResultBatch {
           reader.skipType(tag & 7);
           break;
 
+        case 8: {
+          // int32_cells, a 4-byte aligned packed sfixed32 buffer.
+          assertTrue((tag & 7) === TAG_LEN_DELIM);
+          const i32Len = reader.uint32();
+          assertTrue(i32Len % 4 === 0);
+          // Int32Array's constructor takes the offset in bytes but the length
+          // in 4-byte words.
+          const i32Words = i32Len / 4;
+          const i32Off = batchBytes.byteOffset + reader.pos;
+          if (i32Off % 4 === 0) {
+            this.int32Cells = new Int32Array(
+              batchBytes.buffer,
+              i32Off,
+              i32Words,
+            );
+          } else {
+            // Production rpc.cc keeps this 4-byte aligned; the copying slow path
+            // is only hit by tests that don't align.
+            const slice = batchBytes.buffer.slice(i32Off, i32Off + i32Len);
+            this.int32Cells = new Int32Array(slice);
+          }
+          reader.pos += i32Len;
+          break;
+        }
+
+        case 9: {
+          // int64_cells, an 8-byte aligned packed sfixed64 buffer.
+          assertTrue((tag & 7) === TAG_LEN_DELIM);
+          const i64Len = reader.uint32();
+          assertTrue(i64Len % 8 === 0);
+          // BigInt64Array's constructor takes the offset in bytes but the
+          // length in 8-byte words.
+          const i64Words = i64Len / 8;
+          const i64Off = batchBytes.byteOffset + reader.pos;
+          if (i64Off % 8 === 0) {
+            this.int64Cells = new BigInt64Array(
+              batchBytes.buffer,
+              i64Off,
+              i64Words,
+            );
+          } else {
+            const slice = batchBytes.buffer.slice(i64Off, i64Off + i64Len);
+            this.int64Cells = new BigInt64Array(slice);
+          }
+          reader.pos += i64Len;
+          break;
+        }
+
         default:
           console.warn(`Unexpected QueryResult.CellsBatch field ${tag >>> 3}`);
           reader.skipType(tag & 7);
@@ -792,10 +1179,20 @@ class RowIteratorImpl implements RowIteratorBase {
   private batchIdx = -1; // The batch index within |result.batches[]|.
   private batchBytes = new Uint8Array();
   private columnNames: string[] = [];
+  // The expected type for each column, in column order. This is the per-column
+  // value of |rowSpec|, precomputed once per batch so the next() hot loop can
+  // index it by position instead of doing a string-keyed lookup on rowSpec for
+  // every cell.
+  private expTypes: SqlValue[] = [];
   private numColumns = 0;
   private cellTypesEnd = -1; // -1 so the 1st next() hits tryMoveToNextBatch().
   private float64Cells = new Float64Array();
-  private varIntReader = protobuf.Reader.create(this.batchBytes);
+  private int32Cells = new Int32Array();
+  private int64Cells = new BigInt64Array();
+  // Offset into |batchBytes| of the next packed varint cell to be read. We read
+  // varints by hand (see readVarint) rather than via protobuf.Reader to avoid a
+  // per-cell LongBits allocation.
+  private varIntOff = 0;
   private blobCells: Uint8Array<ArrayBuffer>[] = [];
   private stringCells: string[] = [];
 
@@ -803,6 +1200,8 @@ class RowIteratorImpl implements RowIteratorBase {
   // are the mutable state of the iterator.
   private nextCellTypeOff = 0;
   private nextFloat64Cell = 0;
+  private nextInt32Cell = 0;
+  private nextInt64Cell = 0;
   private nextStringCell = 0;
   private nextBlobCell = 0;
   private isValid = false;
@@ -860,12 +1259,15 @@ class RowIteratorImpl implements RowIteratorBase {
 
     const rowData = this.rowData;
     const numColumns = this.numColumns;
+    const columnNames = this.columnNames;
+    const expTypes = this.expTypes;
+    const batchBytes = this.batchBytes;
 
     // Read the current row.
     for (let i = 0; i < numColumns; i++) {
-      const cellType = this.batchBytes[this.nextCellTypeOff++];
-      const colName = this.columnNames[i];
-      const expType = this.rowSpec[colName];
+      const cellType = batchBytes[this.nextCellTypeOff++];
+      const colName = columnNames[i];
+      const expType = expTypes[i];
 
       switch (cellType) {
         case CellType.CELL_NULL:
@@ -873,26 +1275,37 @@ class RowIteratorImpl implements RowIteratorBase {
           break;
 
         case CellType.CELL_VARINT:
+          // Decode the varint once, allocation-free, advancing varIntOff.
+          readVarint(batchBytes, this.varIntOff);
+          this.varIntOff = varintPos;
           if (expType === NUM || expType === NUM_NULL) {
-            // This is very subtle. The return type of int64 can be either a
-            // number or a Long.js {high:number, low:number} if Long.js is
-            // installed. The default state seems different in node and browser.
-            // We force-disable Long.js support in the top of this source file.
-            const val = this.varIntReader.int64();
-            rowData[colName] = val as {} as number;
+            rowData[colName] = varintToNumber();
           } else {
-            // LONG, LONG_NULL, or unspecified - return as bigint
-            const value = decodeInt64Varint(
-              this.batchBytes,
-              this.varIntReader.pos,
-            );
-            rowData[colName] = value;
-            this.varIntReader.skip(); // Skips a varint
+            // LONG, LONG_NULL, or unspecified - return as bigint.
+            rowData[colName] = varintToBigInt();
           }
           break;
 
         case CellType.CELL_FLOAT64:
           rowData[colName] = this.float64Cells[this.nextFloat64Cell++];
+          break;
+
+        case CellType.CELL_INT32:
+          // sfixed32 is already a signed 32-bit JS number.
+          if (expType === NUM || expType === NUM_NULL) {
+            rowData[colName] = this.int32Cells[this.nextInt32Cell++];
+          } else {
+            rowData[colName] = BigInt(this.int32Cells[this.nextInt32Cell++]);
+          }
+          break;
+
+        case CellType.CELL_INT64:
+          // sfixed64 is read as a bigint from the BigInt64Array overlay.
+          if (expType === NUM || expType === NUM_NULL) {
+            rowData[colName] = Number(this.int64Cells[this.nextInt64Cell++]);
+          } else {
+            rowData[colName] = this.int64Cells[this.nextInt64Cell++];
+          }
           break;
 
         case CellType.CELL_STRING:
@@ -919,6 +1332,9 @@ class RowIteratorImpl implements RowIteratorBase {
 
     this.columnNames = this.resultObj.columnNames;
     this.numColumns = this.columnNames.length;
+    // Precompute the expected type per column so next() doesn't have to look it
+    // up by name on rowSpec for every cell.
+    this.expTypes = this.columnNames.map((name) => this.rowSpec[name]);
 
     this.batchIdx = nextBatchIdx;
     const batch = assertExists(this.resultObj.batches[nextBatchIdx]);
@@ -926,12 +1342,14 @@ class RowIteratorImpl implements RowIteratorBase {
     this.nextCellTypeOff = batch.cellTypesOff;
     this.cellTypesEnd = batch.cellTypesOff + batch.cellTypesLen;
     this.float64Cells = batch.float64Cells;
+    this.int32Cells = batch.int32Cells;
+    this.int64Cells = batch.int64Cells;
     this.blobCells = batch.blobCells;
     this.stringCells = batch.stringCells;
-    this.varIntReader = protobuf.Reader.create(batch.batchBytes);
-    this.varIntReader.pos = batch.varintOff;
-    this.varIntReader.len = batch.varintOff + batch.varintLen;
+    this.varIntOff = batch.varintOff;
     this.nextFloat64Cell = 0;
+    this.nextInt32Cell = 0;
+    this.nextInt64Cell = 0;
     this.nextStringCell = 0;
     this.nextBlobCell = 0;
 
@@ -1033,6 +1451,9 @@ class WaitableQueryResultImpl
   // QueryResult implementation. Proxies all calls to the impl object.
   iter<T extends Row>(spec: T) {
     return this.impl.iter(spec);
+  }
+  decodeColumns(spec: Row) {
+    return this.impl.decodeColumns(spec);
   }
   firstRow<T extends Row>(spec: T) {
     return this.impl.firstRow(spec);

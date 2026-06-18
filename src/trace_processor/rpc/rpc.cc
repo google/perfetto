@@ -260,6 +260,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         auto it = trace_processor_->ExecuteQuery(sql);
 
         QueryResultSerializer serializer(std::move(it), t_start);
+        serializer.set_use_fixed_width_int_cells(use_fixed_width_int_cells_);
         for (bool has_more = true; has_more;) {
           const auto seq_id = tx_seq_id_++;
           Response resp(seq_id, req_type);

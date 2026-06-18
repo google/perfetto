@@ -1,0 +1,282 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Micro-benchmark for the QueryResult row iterator hot path. This mirrors the
+// kind of loop that DatasetSliceTrack.getInstantBuffers() runs when loading
+// large ftrace instant tracks (1000s..1Ms of rows): valid()/next() plus the
+// underlying protobuf cell parsing.
+//
+// This is NOT a correctness test. It's a perf harness kept under the
+// *_unittest.ts glob purely so it runs in the same Vite/Vitest environment
+// (protobufjs init, module resolution). Run it explicitly with:
+//
+//   ui/node ui/node_modules/.bin/vitest run --config ui/vitest.config.mjs \
+//       -t 'QueryResultBenchmark'
+//
+// It is gated behind RUN_BENCH=1 so it doesn't slow down the normal test
+// suite.
+
+import protos from '../protos';
+import {
+  createQueryResult,
+  NUM,
+  STR,
+  type ColumnarColumn,
+  type QueryResult,
+} from './query_result';
+
+const T = protos.QueryResult.CellsBatch.CellType;
+
+// Builds an encoded trace_processor.QueryResult with `numRows` rows split into
+// batches of ~`rowsPerBatch` rows, mimicking the columns of an ftrace instant
+// track: __id, __ts, __count, __depth (all NUM/varint) plus a STR name.
+function buildInstantTrackResult(
+  numRows: number,
+  rowsPerBatch: number,
+): Uint8Array[] {
+  const columnNames = ['__id', '__ts', '__count', '__depth', 'name'];
+  const names = [
+    'sched_wakeup',
+    'sched_switch',
+    'cpu_idle',
+    'irq_handler_entry',
+    'workqueue_execute_start',
+  ];
+
+  const out: Uint8Array[] = [];
+  let row = 0;
+  let firstBatch = true;
+  while (row < numRows) {
+    const n = Math.min(rowsPerBatch, numRows - row);
+    const cells: number[] = [];
+    // The int64 cell values, in scan order. protobufjs encodes these as packed
+    // varints (large ts values naturally produce realistic multi-byte varints).
+    const varintCells: number[] = [];
+    const stringCells: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const r = row + i;
+      cells.push(T.CELL_VARINT); // __id
+      cells.push(T.CELL_VARINT); // __ts
+      cells.push(T.CELL_VARINT); // __count
+      cells.push(T.CELL_VARINT); // __depth
+      cells.push(T.CELL_STRING); // name
+      varintCells.push(r); // id
+      varintCells.push(1_000_000_000 + r * 1234); // ts (big)
+      varintCells.push((r % 7) + 1); // count
+      varintCells.push(r % 4); // depth
+      stringCells.push(names[r % names.length]);
+    }
+    const isLast = row + n >= numRows;
+    const batch = protos.QueryResult.CellsBatch.create({
+      cells,
+      varintCells,
+      stringCells: stringCells.join('\0'),
+      isLastBatch: isLast,
+    });
+    const resProto = protos.QueryResult.create({
+      columnNames: firstBatch ? columnNames : [],
+      batch: [batch],
+    });
+    out.push(protos.QueryResult.encode(resProto).finish());
+    firstBatch = false;
+    row += n;
+  }
+  return out;
+}
+
+function makeResult(encodedBatches: Uint8Array[]): QueryResult {
+  const qr = createQueryResult({query: 'benchmark'});
+  for (const b of encodedBatches) {
+    qr.appendResultBatch(b as Uint8Array<ArrayBuffer>);
+  }
+  return qr;
+}
+
+// Mirrors the work in DatasetSliceTrack.getInstantBuffers(): read every column,
+// stash the numerics into typed arrays and the string into an array. Returns a
+// checksum so the JIT can't optimise the loop away.
+function iterateInstantTrack(qr: QueryResult): number {
+  const count = qr.numRows();
+  const xs = new Float32Array(count);
+  const depths = new Uint16Array(count);
+  const titles = new Array<string>(count);
+  let checksum = 0;
+  const it = qr.iter({
+    __id: NUM,
+    __ts: NUM,
+    __count: NUM,
+    __depth: NUM,
+    name: STR,
+  });
+  for (let i = 0; it.valid(); it.next(), ++i) {
+    const id = it.__id;
+    const ts = it.__ts;
+    const cnt = it.__count;
+    const depth = it.__depth;
+    const title = it.name;
+    xs[i] = ts;
+    depths[i] = depth;
+    titles[i] = title;
+    checksum += id + cnt + depth + title.length;
+  }
+  return checksum;
+}
+
+// Same end result as iterateInstantTrack(), but sourcing the columns via the
+// bulk decodeColumns() fast path instead of per-row iter()/next().
+function decodeInstantTrack(qr: QueryResult): number {
+  const count = qr.numRows();
+  const cols = qr.decodeColumns({
+    __id: NUM,
+    __ts: NUM,
+    __count: NUM,
+    __depth: NUM,
+    name: STR,
+  });
+  const ids = cols.__id as Float64Array;
+  const tss = cols.__ts as Float64Array;
+  const counts = cols.__count as Float64Array;
+  const depthsCol = cols.__depth as Float64Array;
+  const namesCol = cols.name as ReadonlyArray<string>;
+  const xs = new Float32Array(count);
+  const depths = new Uint16Array(count);
+  const titles = new Array<string>(count);
+  let checksum = 0;
+  for (let i = 0; i < count; i++) {
+    const ts = tss[i];
+    const depth = depthsCol[i];
+    const title = namesCol[i];
+    xs[i] = ts;
+    depths[i] = depth;
+    titles[i] = title;
+    checksum += ids[i] + counts[i] + depth + title.length;
+  }
+  return checksum;
+}
+
+// Cheap touch of a decoded column so the optimiser can't drop decodeColumns().
+function touchColumns(cols: {readonly [k: string]: ColumnarColumn}): number {
+  const ts = cols.__ts as Float64Array;
+  return ts.length > 0 ? ts[0] + ts[ts.length - 1] : 0;
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
+const shouldRun = process.env.RUN_BENCH === '1';
+const maybe = shouldRun ? test : test.skip;
+
+const NUM_ROWS = 500_000;
+const ROWS_PER_BATCH = 5_000; // ~ production 128KB batches.
+const WARMUP = 5;
+const ITERS = 25;
+
+interface BenchStats {
+  readonly label: string;
+  readonly min: number;
+  readonly median: number;
+  readonly mean: number;
+  readonly checksum: number;
+}
+
+// Times `fn` over a freshly-rebuilt QueryResult each iteration (rebuild is
+// cheap; it just re-wraps the already-decoded batches). Returns sorted stats.
+function bench(
+  label: string,
+  encoded: Uint8Array[],
+  fn: (qr: QueryResult) => number,
+): BenchStats {
+  let checksum = 0;
+  const samples: number[] = [];
+  for (let i = 0; i < WARMUP + ITERS; i++) {
+    const qr = makeResult(encoded);
+    const t0 = performance.now();
+    checksum = fn(qr);
+    const t1 = performance.now();
+    if (i >= WARMUP) samples.push(t1 - t0);
+  }
+  samples.sort((a, b) => a - b);
+  return {
+    label,
+    min: samples[0],
+    median: samples[Math.floor(samples.length / 2)],
+    mean: samples.reduce((a, b) => a + b, 0) / samples.length,
+    checksum,
+  };
+}
+
+function report(stats: BenchStats): string {
+  const rowsPerSec = NUM_ROWS / (stats.median / 1000);
+  return (
+    `  ${stats.label.padEnd(28)} ` +
+    `min=${stats.min.toFixed(1)}ms median=${stats.median.toFixed(1)}ms ` +
+    `mean=${stats.mean.toFixed(1)}ms  ` +
+    `${fmt(Math.round(rowsPerSec))} rows/s ` +
+    `(${((stats.median / NUM_ROWS) * 1e6).toFixed(1)} ns/row) ` +
+    `checksum=${stats.checksum}\n`
+  );
+}
+
+function emit(text: string) {
+  process.stderr.write(text);
+  const outFile = process.env.BENCH_OUT;
+  if (outFile !== undefined) {
+    const fs = require('node:fs');
+    fs.appendFileSync(outFile, text);
+  }
+}
+
+describe('QueryResultBenchmark', () => {
+  maybe(
+    'instant track iteration',
+    () => {
+      const encoded = buildInstantTrackResult(NUM_ROWS, ROWS_PER_BATCH);
+
+      const iterStats = bench('iter() per-row', encoded, iterateInstantTrack);
+      const colStats = bench(
+        'decodeColumns() + build',
+        encoded,
+        decodeInstantTrack,
+      );
+      const rawStats = bench('decodeColumns() raw', encoded, (qr) =>
+        touchColumns(
+          qr.decodeColumns({
+            __id: NUM,
+            __ts: NUM,
+            __count: NUM,
+            __depth: NUM,
+            name: STR,
+          }),
+        ),
+      );
+
+      const speedup = iterStats.median / colStats.median;
+      emit(
+        `\n[QueryResultBenchmark] instant track, ${fmt(NUM_ROWS)} rows ` +
+          `(5 cols), ${ITERS} iters\n` +
+          report(iterStats) +
+          report(colStats) +
+          report(rawStats) +
+          `  => decodeColumns()+build is ${speedup.toFixed(2)}x faster ` +
+          `than iter() (median)\n`,
+      );
+
+      // Both paths must produce identical results.
+      expect(colStats.checksum).toBe(iterStats.checksum);
+      expect(iterStats.median).toBeGreaterThan(0);
+    },
+    120_000,
+  );
+});

@@ -77,6 +77,14 @@ void trace_processor_on_rpc_request(uint32_t size) {
   g_trace_processor_rpc->OnRpcRequest(g_req_buf, size);
 }
 
+// Opts into fixed-width integer cells for streaming query results. The Wasm UI
+// calls this once after init: the result buffer is consumed in-process so the
+// zero-copy decode of fixed-width ints outweighs the larger wire size.
+void EMSCRIPTEN_KEEPALIVE trace_processor_enable_fixed_width_int_cells();
+void trace_processor_enable_fixed_width_int_cells() {
+  g_trace_processor_rpc->SetUseFixedWidthIntCells(true);
+}
+
 }  // extern "C"
 }  // namespace perfetto::trace_processor
 

@@ -135,6 +135,13 @@ class Rpc {
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
 
+  // If set, streaming query results encode integer cells as fixed-width
+  // CELL_INT32 / CELL_INT64 instead of varints. This is enabled by the Wasm
+  // bridge (where the result buffer is consumed in-process and zero-copy
+  // decoding wins) and left off for the HTTP+RPC path (where wire size wins).
+  // See QueryResultSerializer::set_use_fixed_width_int_cells().
+  void SetUseFixedWidthIntCells(bool v) { use_fixed_width_int_cells_ = v; }
+
   TraceProcessor* trace_processor() const { return trace_processor_.get(); }
 
  private:
@@ -163,6 +170,7 @@ class Rpc {
   int64_t tx_seq_id_ = 0;
   int64_t rx_seq_id_ = 0;
   bool eof_ = false;
+  bool use_fixed_width_int_cells_ = false;
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;

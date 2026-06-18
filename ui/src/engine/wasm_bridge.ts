@@ -78,6 +78,16 @@ export class WasmBridge {
     );
     this.connection = connection;
 
+    // Opt into fixed-width integer cells in streaming query results. The result
+    // buffer is consumed in-process here, so zero-copy decoding of fixed-width
+    // ints (overlaying a TypedArray) beats the smaller-wire varint encoding.
+    connection.ccall(
+      'trace_processor_enable_fixed_width_int_cells',
+      'void',
+      [],
+      [],
+    );
+
     // Setting .onmessage implicitly calls port.start() and flushes queued
     // messages. addEventListener('message') doesn't.
     port.onmessage = this.onMessage.bind(this);
