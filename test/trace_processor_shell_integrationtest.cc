@@ -410,8 +410,8 @@ TEST(TraceProcessorShellIntegrationTest, ServerUnixNoTraceFile) {
   base::TempDir dir = base::TempDir::Create();
   std::string sock = dir.path() + "/s.sock";
 
-  base::Subprocess server(
-      {ShellPath(), "server", "unix", "--path", sock, "--idle-timeout", "never"});
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-timeout", "never"});
   server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
   server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
   server.Start();
