@@ -84,8 +84,8 @@ Modes:
          a name (otherwise one is generated) or --path for an explicit socket
          path. Runs in the foreground; press Ctrl-C to stop.
 
-The trace file is optional in http mode (traces can be loaded remotely) but
-required in unix mode.)";
+The trace file is optional in http and unix modes; a client can load one
+later over the wire.)";
 }
 
 std::vector<FlagSpec> ServerSubcommand::GetFlags() {
@@ -220,16 +220,13 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_IPC)
     return base::ErrStatus("Unix RPC module not supported in this build");
 #else
-    if (!has_trace) {
-      return base::ErrStatus("server unix: a trace file is required");
-    }
     // --path and --name are mutually exclusive: --path is an explicit socket
     // path while --name selects one in the managed session dir.
     if (!socket_path_.empty() && !session_name_.empty()) {
       return base::ErrStatus(
           "server unix: --path and --name are mutually exclusive");
     }
-    // Resolve the socket path: --path wins, else --name, else a generated name.
+
     std::string socket_path = socket_path_;
     std::string session_name = session_name_;
     if (socket_path.empty()) {
