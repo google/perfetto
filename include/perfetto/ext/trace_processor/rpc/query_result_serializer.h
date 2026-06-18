@@ -83,9 +83,7 @@ class QueryResultSerializer {
   // as CELL_VARINT. This makes the wire larger but lets the reader decode
   // integers zero-copy by overlaying a TypedArray. It is meant for the Wasm UI;
   // the HTTP+RPC path leaves this off and keeps the more compact varints.
-  void set_use_fixed_width_int_cells(bool v) {
-    use_fixed_width_int_cells_ = v;
-  }
+  void set_use_fixed_width_int_cells(bool v) { use_fixed_width_int_cells_ = v; }
 
  private:
   void SerializeMetadata(protos::pbzero::QueryResult*);

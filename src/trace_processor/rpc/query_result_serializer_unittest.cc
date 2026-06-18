@@ -253,16 +253,14 @@ TEST(QueryResultSerializerTest, ShortBatchFixedWidthInts) {
   TestDeserializer deser;
   deser.SerializeAndDeserialize(&ser);
 
-  EXPECT_THAT(deser.columns,
-              ElementsAre("i8", "i16", "i32", "i64", "neg", "neg64", "f64",
-                          "str", "blb"));
-  EXPECT_THAT(
-      deser.cells,
-      ElementsAre(SqlValue::Long(1), SqlValue::Long(128),
-                  SqlValue::Long(100000), SqlValue::Long(42001001001),
-                  SqlValue::Long(-5), SqlValue::Long(-42001001001),
-                  SqlValue::Double(1e9), SqlValue::String("a_string"),
-                  SqlValue::Bytes("a_blob", 6)));
+  EXPECT_THAT(deser.columns, ElementsAre("i8", "i16", "i32", "i64", "neg",
+                                         "neg64", "f64", "str", "blb"));
+  EXPECT_THAT(deser.cells,
+              ElementsAre(SqlValue::Long(1), SqlValue::Long(128),
+                          SqlValue::Long(100000), SqlValue::Long(42001001001),
+                          SqlValue::Long(-5), SqlValue::Long(-42001001001),
+                          SqlValue::Double(1e9), SqlValue::String("a_string"),
+                          SqlValue::Bytes("a_blob", 6)));
 }
 
 TEST(QueryResultSerializerTest, LongBatch) {
