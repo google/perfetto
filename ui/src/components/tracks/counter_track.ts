@@ -915,12 +915,21 @@ export class CounterTrack implements TrackRenderer {
       : undefined;
     const task = await deferChunkedTask({priority});
 
-    const it = queryRes.iter({
+    // Bulk-decode the whole result into columnar typed arrays in one pass. This
+    // is much faster than iter() for large counter tracks: it avoids the
+    // per-row valid()/next()/get round-trip, and (when the engine emits
+    // fixed-width int cells) lifts the integer columns straight off the wire
+    // buffer without a per-cell varint decode.
+    const cols = queryRes.decodeColumns({
       tsRel: NUM,
       minDisplayValue: NUM,
       maxDisplayValue: NUM,
       lastDisplayValue: NUM,
     });
+    const tsRelCol = cols.tsRel as Float64Array;
+    const minCol = cols.minDisplayValue as Float64Array;
+    const maxCol = cols.maxDisplayValue as Float64Array;
+    const lastCol = cols.lastDisplayValue as Float64Array;
 
     const numRows = queryRes.numRows();
     const timestampsRel = new Float32Array(numRows);
@@ -931,22 +940,25 @@ export class CounterTrack implements TrackRenderer {
     let min = 0;
     let max = 0;
 
-    for (let row = 0; it.valid(); it.next(), row++) {
-      if (signal.isCancelled) throw QUERY_CANCELLED;
-      if (row % 50 === 0 && task.shouldYield()) {
-        await task.yield();
+    for (let row = 0; row < numRows; row++) {
+      if (row % 64 === 0) {
+        if (signal.isCancelled) throw QUERY_CANCELLED;
+        if (task.shouldYield()) await task.yield();
       }
 
-      timestampsRel[row] = it.tsRel;
-      minDisplayValues[row] = it.minDisplayValue;
-      maxDisplayValues[row] = it.maxDisplayValue;
-      lastDisplayValues[row] = it.lastDisplayValue;
-      min = Math.min(min, it.minDisplayValue);
-      max = Math.max(max, it.maxDisplayValue);
+      const tsRel = tsRelCol[row];
+      const minV = minCol[row];
+      const maxV = maxCol[row];
+      timestampsRel[row] = tsRel;
+      minDisplayValues[row] = minV;
+      maxDisplayValues[row] = maxV;
+      lastDisplayValues[row] = lastCol[row];
+      min = Math.min(min, minV);
+      max = Math.max(max, maxV);
 
       if (row > 0) {
         // Fill in the next
-        timestampsRelNext[row - 1] = it.tsRel;
+        timestampsRelNext[row - 1] = tsRel;
       }
     }
 
