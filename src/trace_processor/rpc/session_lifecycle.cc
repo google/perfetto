@@ -111,8 +111,8 @@ IdleReaper::IdleReaper(base::TaskRunner* task_runner,
       effective_start_ = IdleStart::kOrphaned;
       break;
     case IdleStart::kAuto:
-      // Owner-aware: a foreground server (live owner) is reaped by its owner, so
-      // only arm once orphaned. A detached server has no owner, so arm now.
+      // Owner-aware: a foreground server (live owner) is reaped by its owner,
+      // so only arm once orphaned. A detached server has no owner, so arm now.
       effective_start_ = owner_monitor_.had_owner_at_start()
                              ? IdleStart::kOrphaned
                              : IdleStart::kLastQuery;

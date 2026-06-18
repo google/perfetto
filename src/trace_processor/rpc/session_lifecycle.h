@@ -44,9 +44,9 @@ enum class IdleStart {
   kLastQuery,
 };
 
-// Tracks whether the process's owning parent (captured at construction) is still
-// alive. This is the one OS-specific primitive the lifecycle logic needs: "is
-// my owner alive?".
+// Tracks whether the process's owning parent (captured at construction) is
+// still alive. This is the one OS-specific primitive the lifecycle logic needs:
+// "is my owner alive?".
 class ProcessOwnerMonitor {
  public:
   ProcessOwnerMonitor();

@@ -84,10 +84,10 @@ void PrintStartupRecord(FILE* f,
                         const std::string& session,
                         const std::string& socket_path,
                         uint32_t idle_timeout_ms) {
-  std::string idle_timeout = idle_timeout_ms == 0
-                                 ? "never"
-                                 : std::to_string(idle_timeout_ms) + "ms";
-  fprintf(f, "perfetto-session pid=%d session=%s socket-path=%s idle-timeout=%s\n",
+  std::string idle_timeout =
+      idle_timeout_ms == 0 ? "never" : std::to_string(idle_timeout_ms) + "ms";
+  fprintf(f,
+          "perfetto-session pid=%d session=%s socket-path=%s idle-timeout=%s\n",
           pid, ShellQuoteIfNeeded(session).c_str(),
           ShellQuoteIfNeeded(socket_path).c_str(), idle_timeout.c_str());
   fflush(f);
@@ -220,8 +220,9 @@ base::Status UnixRpcServer::Run() {
                            args_.socket_path.c_str());
   }
 
-  reaper_ = std::make_unique<IdleReaper>(&task_runner_, args_.idle_timeout_ms,
-                                         args_.idle_start, [this] { Shutdown(); });
+  reaper_ =
+      std::make_unique<IdleReaper>(&task_runner_, args_.idle_timeout_ms,
+                                   args_.idle_start, [this] { Shutdown(); });
   reaper_->Start();
 
 #if PERFETTO_TP_UNIXD_POSIX()

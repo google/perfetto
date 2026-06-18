@@ -120,9 +120,9 @@ void Httpd::Run(const std::string& listen_ip,
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
-  reaper_ = std::make_unique<IdleReaper>(&task_runner_, idle_timeout_ms,
-                                         idle_start,
-                                         [this] { task_runner_.Quit(); });
+  reaper_ =
+      std::make_unique<IdleReaper>(&task_runner_, idle_timeout_ms, idle_start,
+                                   [this] { task_runner_.Quit(); });
   reaper_->Start();
   task_runner_.Run();
 }
