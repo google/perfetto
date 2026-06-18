@@ -24,7 +24,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/types/trace_metadata_state.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -49,7 +49,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
 
   // Returns the perfetto_manifest entry matching this file's path, or
   // nullptr if none.
-  TraceMetadataState::FileEntry* FindMetadataEntry() const;
+  TraceManifestState::FileEntry* FindManifestEntry() const;
 
   TraceProcessorContext* const input_context_;
 

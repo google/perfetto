@@ -33,7 +33,7 @@ namespace perfetto::trace_processor::perfetto_manifest {
 // Reads a perfetto_manifest sidecar file: a JSON file which, as the first
 // file of the trace, overrides clock and machine handling for the files
 // that follow. The parsed configuration is stored on the global
-// TraceMetadataState and consulted by ForwardingTraceParser for each trace
+// TraceManifestState and consulted by ForwardingTraceParser for each trace
 // file.
 class PerfettoManifestReader : public ChunkedTraceReader {
  public:
