@@ -102,6 +102,44 @@ if (enable_perfetto_ipc) {
   }
 }
 
+# Decodes the QueryResult wire format produced by query_result_serializer.cc.
+# The inverse of ":rpc"'s serializer, kept in its own target so the lean
+# ":client" and the serializer unittests can share one decoder.
+source_set("deserializer") {
+  sources = [
+    "query_result_deserializer.cc",
+    "query_result_deserializer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/trace_processor:zero",
+    "../../base",
+    "../../protozero",
+  ]
+}
+
+# The --remote client: a TraceProcessor implementation that marshals every
+# method over the RPC wire to a warm server.
+source_set("client") {
+  sources = [
+    "remote_trace_processor.cc",
+    "remote_trace_processor.h",
+  ]
+  deps = [
+    ":deserializer",
+    ":session_util",
+    "..:lib",
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/trace_processor:zero",
+    "../../../protos/perfetto/trace_summary:zero",
+    "../../base",
+    "../../protozero",
+    "../../protozero:proto_ring_buffer",
+  ]
+  public_deps = [ "../../../include/perfetto/trace_processor" ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
@@ -109,6 +147,7 @@ perfetto_unittest_source_set("unittests") {
     "session_paths_unittest.cc",
   ]
   deps = [
+    ":deserializer",
     ":rpc",
     ":session_util",
     "..:lib",
