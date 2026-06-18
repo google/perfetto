@@ -67,11 +67,89 @@ source_set("stdiod") {
   ]
 }
 
+# Conventions (session names, socket paths, address classification) shared by
+# the unix server and the --remote client. Base-only so both sides can depend
+# on it without pulling in trace processor.
+source_set("session_util") {
+  sources = [
+    "session_paths.cc",
+    "session_paths.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
+# Depends on the IPC layer (AF_UNIX sockets), which is not available on all
+# platforms (e.g. Chromium+Windows). Gated accordingly; the shell falls back to
+# an error when the unix server isn't compiled in.
+if (enable_perfetto_ipc) {
+  source_set("unixd") {
+    sources = [
+      "unixd.cc",
+      "unixd.h",
+    ]
+    deps = [
+      ":rpc",
+      ":session_util",
+      "../../../gn:default_deps",
+      "../../base",
+      "../../base:unix_socket",
+      "../../protozero",
+      "../../protozero:proto_ring_buffer",
+    ]
+  }
+}
+
+# Decodes the QueryResult wire format produced by query_result_serializer.cc.
+# The inverse of ":rpc"'s serializer, kept in its own target so the lean
+# ":client" and the serializer unittests can share one decoder.
+source_set("deserializer") {
+  sources = [
+    "query_result_deserializer.cc",
+    "query_result_deserializer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/trace_processor:zero",
+    "../../base",
+    "../../protozero",
+  ]
+}
+
+# The --remote client: a TraceProcessor implementation that marshals every
+# method over the RPC wire to a warm server.
+source_set("client") {
+  sources = [
+    "remote_trace_processor.cc",
+    "remote_trace_processor.h",
+  ]
+  deps = [
+    ":deserializer",
+    ":session_util",
+    "..:lib",
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/trace_processor:zero",
+    "../../../protos/perfetto/trace_summary:zero",
+    "../../base",
+    "../../protozero",
+    "../../protozero:proto_ring_buffer",
+  ]
+  public_deps = [ "../../../include/perfetto/trace_processor" ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "query_result_serializer_unittest.cc" ]
+  sources = [
+    "query_result_serializer_unittest.cc",
+    "session_paths_unittest.cc",
+  ]
   deps = [
+    ":deserializer",
     ":rpc",
+    ":session_util",
     "..:lib",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",

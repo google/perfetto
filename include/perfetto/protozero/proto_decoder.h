@@ -21,8 +21,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <initializer_list>
 #include <memory>
+#include <new>
 #include <string>
 #include <type_traits>
 #include <variant>
@@ -318,7 +318,7 @@ class UnifiedRepeatedFieldIterator {
   VariantType iter_;
 };
 
-// Whitelist for selective decoding, built at compile time from the field ids
+// Allowlist for selective decoding, built at compile time from the field ids
 // given as template arguments and sized automatically to the highest of them.
 // The mask does not need to match the decoder's MAX_FIELD_ID: the selective
 // constructor caps the decoder's dense window at |kMaxFieldId|, so ids above
@@ -335,7 +335,7 @@ class SelectiveDecodeMask {
   static_assert(sizeof...(kFieldIds) > 0, "Empty field id list");
   static constexpr uint32_t kMaxFieldId = std::max({kFieldIds...});
 
-  constexpr SelectiveDecodeMask() : words_{} {
+  constexpr SelectiveDecodeMask() {
     for (uint32_t id : {kFieldIds...})
       words_[id / 64] |= uint64_t(1) << (id % 64);
   }
@@ -347,7 +347,7 @@ class SelectiveDecodeMask {
   }
 
  private:
-  uint64_t words_[kMaxFieldId / 64 + 1];
+  uint64_t words_[kMaxFieldId / 64 + 1]{};
 };
 
 // A range of fields spilled by a SelectiveTypedProtoDecoder, in wire order.
@@ -672,7 +672,7 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
   Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
 };
 
-// TypedProtoDecoder with selective decoding. Ids whitelisted in the mask are
+// TypedProtoDecoder with selective decoding. Ids allowlisted in the mask are
 // decoded into the O(1) dense storage as usual; every other field --
 // including ids beyond MAX_FIELD_ID, which TypedProtoDecoder drops -- is
 // appended, in wire order, to a spill area and can be iterated via
@@ -698,7 +698,7 @@ class SelectiveTypedProtoDecoder : public TypedProtoDecoder<MAX_FIELD_ID> {
   // The dense window is capped at the mask's extent: |num_fields_| is the
   // only id bound the decode loop checks, so capping it both bounds the mask
   // read and makes every id above the mask spill, letting the mask be sized
-  // to the whitelisted ids only rather than to MAX_FIELD_ID.
+  // to the allowlisted ids only rather than to MAX_FIELD_ID.
   // |mask| is only read during this call.
   template <uint32_t... kFieldIds>
   SelectiveTypedProtoDecoder(const uint8_t* buffer,
@@ -742,11 +742,8 @@ class SelectiveTypedProtoDecoder : public TypedProtoDecoder<MAX_FIELD_ID> {
   SelectiveTypedProtoDecoder& operator=(
       SelectiveTypedProtoDecoder&& other) noexcept {
     if (this != &other) {
-      Base::operator=(std::move(other));
-      spill_ = other.spill_;
-      spill_size_ = other.spill_size_;
-      heap_spill_ = std::move(other.heap_spill_);
-      MaybeCopyOnStackSpill(other);
+      this->~SelectiveTypedProtoDecoder();
+      new (this) SelectiveTypedProtoDecoder(std::move(other));
     }
     return *this;
   }
@@ -767,7 +764,7 @@ class SelectiveTypedProtoDecoder : public TypedProtoDecoder<MAX_FIELD_ID> {
     }
   }
 
-  // Spill area: the non-whitelisted fields, in wire order. |spill_| points at
+  // Spill area: the non-allowlisted fields, in wire order. |spill_| points at
   // |spill_storage_| or at |heap_spill_| after an expansion.
   Field* spill_ = nullptr;
   uint32_t spill_size_ = 0;

@@ -51,7 +51,7 @@ jobs:
           private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
 
       - name: Checkout canary
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: canary
           fetch-depth: 0

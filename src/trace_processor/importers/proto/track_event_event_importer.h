@@ -50,6 +50,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -69,10 +70,12 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
@@ -207,6 +210,10 @@ class TrackEventEventImporter {
     // a track_id_ and should instead go through the switch below.
     if (event_.type() == TrackEvent::TYPE_COUNTER) {
       return ParseCounterEvent();
+    }
+
+    if (event_.type() == TrackEvent::TYPE_STATE) {
+      return ParseStateEvent();
     }
 
     // TODO(eseckler): Replace phase with type and remove handling of
@@ -520,6 +527,18 @@ class TrackEventEventImporter {
                         : std::nullopt));
   }
 
+  base::StatusOr<TrackId> ParseTrackAssociationState() {
+    if (!track_uuid_ && fallback_to_legacy_pid_tid_tracks_) {
+      return base::ErrStatus(
+          "State events are not supported with legacy pid/tid tracks");
+    }
+    return ParseTrackAssociationInternal(
+        track_event_tracker_->InternDescriptorTrackState(
+            track_uuid_, name_id_,
+            track_uuid_ ? std::make_optional(packet_sequence_id_)
+                        : std::nullopt));
+  }
+
   base::StatusOr<TrackId> ParseTrackAssociationForLegacy() {
     if (!track_uuid_ && fallback_to_legacy_pid_tid_tracks_) {
       return ParseTrackAssociationInternal(std::nullopt);
@@ -655,6 +674,33 @@ class TrackEventEventImporter {
     context_->event_tracker->PushCounter(
         ts_, static_cast<double>(event_data_->counter_value), track_id,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    return base::OkStatus();
+  }
+
+  base::Status ParseStateEvent() {
+    ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationState());
+
+    StringId state_id = kNullStringId;
+
+    if (event_.has_name_iid()) {
+      auto* decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kEventNamesFieldNumber,
+          protos::pbzero::EventName>(event_.name_iid());
+      if (decoder) {
+        state_id = storage_->InternString(decoder->name());
+      }
+    } else if (event_.has_name()) {
+      state_id = storage_->InternString(event_.name());
+    }
+
+    if (state_id == kNullStringId) {
+      context_->state_tracker->UpdateState(ts_, track_id, kNullStringId);
+    } else {
+      context_->state_tracker->UpdateState(
+          ts_, track_id, state_id, category_id_,
+          [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    }
+
     return base::OkStatus();
   }
 

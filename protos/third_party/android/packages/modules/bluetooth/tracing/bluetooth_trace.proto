@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
+// Out-of-tree bluetooth tracing schema. Source of truth lives at
+// packages/modules/Bluetooth/system/gd/proto/tracing/ in the Android tree.
+
 syntax = "proto2";
 
-package perfetto.protos;
+package bluetooth.tracing;
+
+import public "protos/perfetto/trace/trace_packet.proto";
 
 // Describes the packet type and direction. CMD and EVT are unidirectional, so
 // no need to differentiate the direction.
@@ -53,10 +58,16 @@ message BluetoothTraceEvent {
   // In the case of EVT type, further breakdown of the type of event
   optional uint32 event_code = 6;
 
-  // When applicable for EVT type, further breakdown of event type into specific
-  // subevent
+  // When applicable for EVT type, further breakdown of event type into
+  // specific subevent
   optional uint32 subevent_code = 7;
 
   // Associated handle for the bluetooth packet
   optional uint32 connection_handle = 8;
+}
+
+message BluetoothTracePacket {
+  extend perfetto.protos.TracePacket {
+    optional BluetoothTraceEvent bluetooth_trace_event = 114;
+  }
 }

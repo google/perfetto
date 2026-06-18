@@ -672,11 +672,11 @@ TEST(ProtoDecoderTest, SpillMaskSplitsDenseAndSpilled) {
   static constexpr SelectiveDecodeMask<1, 3> mask{};
   SelectiveTypedProtoDecoder<10> tpd(data.data(), data.size(), mask);
 
-  // Whitelisted ids are dense, with the usual O(1) access.
+  // Allowlisted ids are dense, with the usual O(1) access.
   EXPECT_EQ(tpd.Get(1).as_int32(), 10);
   EXPECT_EQ(tpd.Get(3).as_int32(), 30);
 
-  // Non-whitelisted ids are not visible to Get(), even though in range.
+  // Non-allowlisted ids are not visible to Get(), even though in range.
   EXPECT_FALSE(tpd.Get(2).valid());
   EXPECT_FALSE(tpd.Get(4).valid());
 

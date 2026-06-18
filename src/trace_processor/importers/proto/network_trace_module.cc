@@ -25,9 +25,9 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/connectivity/network_trace.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -66,10 +66,13 @@ base::StackString<12> GetTcpFlagMask(uint32_t tcp_flags) {
 
 }  // namespace
 
-using ::perfetto::protos::pbzero::NetworkPacketBundle;
-using ::perfetto::protos::pbzero::NetworkPacketEvent;
+using ::android::net::connectivity::tracing::pbzero::ConnectivityInternedData;
+using ::android::net::connectivity::tracing::pbzero::ConnectivityTracePacket;
+using ::android::net::connectivity::tracing::pbzero::NetworkPacketBundle;
+using ::android::net::connectivity::tracing::pbzero::NetworkPacketContext;
+using ::android::net::connectivity::tracing::pbzero::NetworkPacketEvent;
+using ::android::net::connectivity::tracing::pbzero::TrafficDirection;
 using ::perfetto::protos::pbzero::TracePacket;
-using ::perfetto::protos::pbzero::TrafficDirection;
 using ::protozero::ConstBytes;
 
 NetworkTraceModule::NetworkTraceModule(
@@ -91,24 +94,25 @@ NetworkTraceModule::NetworkTraceModule(
       net_ipproto_icmp_(context->storage->InternString("IPPROTO_ICMP")),
       net_ipproto_icmpv6_(context->storage->InternString("IPPROTO_ICMPV6")),
       packet_count_(context->storage->InternString("packet_count")) {
-  RegisterForField(TracePacket::kNetworkPacketFieldNumber);
-  RegisterForField(TracePacket::kNetworkPacketBundleFieldNumber);
+  RegisterForField(ConnectivityTracePacket::kNetworkPacketFieldNumber);
+  RegisterForField(ConnectivityTracePacket::kNetworkPacketBundleFieldNumber);
 }
 
 ModuleResult NetworkTraceModule::TokenizePacket(
     const TokenizePacketArgs& args) {
-  if (args.field.id() != TracePacket::kNetworkPacketBundleFieldNumber) {
+  if (args.field.id() !=
+      ConnectivityTracePacket::kNetworkPacketBundleFieldNumber) {
     return ModuleResult::Ignored();
   }
 
   NetworkPacketBundle::Decoder evt(
-      args.field.Cast<TracePacket::kNetworkPacketBundle>());
+      args.field.Cast<ConnectivityTracePacket::kNetworkPacketBundle>());
 
   ConstBytes context = evt.ctx();
   if (evt.has_iid()) {
     auto* interned = args.state->LookupInternedMessage<
-        protos::pbzero::InternedData::kPacketContextFieldNumber,
-        protos::pbzero::NetworkPacketContext>(evt.iid());
+        ConnectivityInternedData::kPacketContextFieldNumber,
+        NetworkPacketContext>(evt.iid());
     if (!interned) {
       context_->stats_tracker->IncrementStats(
           stats::network_trace_intern_errors);
@@ -122,7 +126,8 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     TraceBlobView tbv =
         context_->blob_packet_writer->WritePacket([&](auto* pkt) {
           pkt->set_timestamp(static_cast<uint64_t>(args.packet_timestamp));
-          auto* event = pkt->set_network_packet_bundle();
+          auto* event = static_cast<ConnectivityTracePacket*>(pkt)
+                            ->set_network_packet_bundle();
           event->set_ctx()->AppendRawProtoBytes(context.data, context.size);
           event->set_total_length(evt.total_length());
           event->set_total_packets(evt.total_packets());
@@ -145,7 +150,8 @@ ModuleResult NetworkTraceModule::TokenizePacket(
       TraceBlobView tbv =
           context_->blob_packet_writer->WritePacket([&](auto* pkt) {
             pkt->set_timestamp(static_cast<uint64_t>(real_ts));
-            auto* event = pkt->set_network_packet();
+            auto* event = static_cast<ConnectivityTracePacket*>(pkt)
+                              ->set_network_packet();
             event->AppendRawProtoBytes(context.data, context.size);
             event->set_length(*length_iter);
           });
@@ -158,25 +164,25 @@ ModuleResult NetworkTraceModule::TokenizePacket(
 
 void NetworkTraceModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
-    case TracePacket::kNetworkPacketFieldNumber:
-      ParseNetworkPacketEvent(args.ts,
-                              args.field.Cast<TracePacket::kNetworkPacket>());
+    case ConnectivityTracePacket::kNetworkPacketFieldNumber:
+      ParseNetworkPacketEvent(
+          args.ts, args.field.Cast<ConnectivityTracePacket::kNetworkPacket>());
       return;
-    case TracePacket::kNetworkPacketBundleFieldNumber:
+    case ConnectivityTracePacket::kNetworkPacketBundleFieldNumber:
       ParseNetworkPacketBundle(
-          args.ts, args.field.Cast<TracePacket::kNetworkPacketBundle>());
+          args.ts,
+          args.field.Cast<ConnectivityTracePacket::kNetworkPacketBundle>());
       return;
     default:
       break;
   }
 }
 
-void NetworkTraceModule::ParseGenericEvent(
-    int64_t ts,
-    int64_t dur,
-    int64_t length,
-    int64_t count,
-    protos::pbzero::NetworkPacketEvent::Decoder& evt) {
+void NetworkTraceModule::ParseGenericEvent(int64_t ts,
+                                           int64_t dur,
+                                           int64_t length,
+                                           int64_t count,
+                                           NetworkPacketEvent::Decoder& evt) {
   // Tracks are per interface and per direction.
   const char* direction;
   switch (evt.direction()) {

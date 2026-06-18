@@ -230,6 +230,52 @@ static void BM_TraceBuffer_RD(benchmark::State& state) {
   state.SetBytesProcessed(static_cast<int64_t>(total_bytes_read));
 }
 
+// Benchmark 3: Patching performance
+template <typename BufferType>
+static void BM_TraceBuffer_Patch(benchmark::State& state) {
+  const size_t kBufferSize = 16 * 1024 * 1024;
+  const int patch_distance = static_cast<int>(state.range(0));
+
+  auto chunk_templates = GenerateChunkTemplates(10);
+  ClientIdentity client_identity(1000, 100);
+
+  auto buffer = BufferType::Create(kBufferSize);
+  PERFETTO_CHECK(buffer);
+
+  ChunkID chunk_id = 0;
+  size_t bytes_written = 0;
+  size_t template_idx = 0;
+  std::vector<ChunkID> written_chunk_ids;
+  while (bytes_written < kBufferSize) {
+    const auto& tmpl = chunk_templates[template_idx % chunk_templates.size()];
+    buffer->CopyChunkUntrusted(ProducerID(1), client_identity, WriterID(1),
+                               chunk_id, tmpl.num_fragments, tmpl.flags,
+                               /*chunk_complete=*/true, tmpl.data.data(),
+                               tmpl.data.size());
+    written_chunk_ids.push_back(chunk_id);
+    chunk_id++;
+    bytes_written += kChunkSize;
+    template_idx++;
+  }
+
+  ChunkID target_id = 0;
+  if (patch_distance == -1) {
+    target_id = written_chunk_ids.back() + 1;  // non-existent
+  } else {
+    target_id = written_chunk_ids[written_chunk_ids.size() - 1 -
+                                  static_cast<size_t>(patch_distance)];
+  }
+
+  TraceBuffer::Patch patch{10, {1, 2, 3, 4}};  // dummy
+
+  for (auto _ : state) {
+    bool res = buffer->TryPatchChunkContents(ProducerID(1), WriterID(1),
+                                             target_id, &patch, 1,
+                                             /*other_patches_pending=*/false);
+    benchmark::DoNotOptimize(res);
+  }
+}
+
 // Instantiate benchmarks for both V1 and V2
 
 // Write benchmarks - Single writer
@@ -247,6 +293,18 @@ BENCHMARK_TEMPLATE(BM_TraceBuffer_WR_MultipleWriters, TraceBufferV2)
 // Read benchmarks
 BENCHMARK_TEMPLATE(BM_TraceBuffer_RD, TraceBufferV1)->Apply(BmArgs);
 BENCHMARK_TEMPLATE(BM_TraceBuffer_RD, TraceBufferV2)->Apply(BmArgs);
+
+// Patch benchmarks
+BENCHMARK_TEMPLATE(BM_TraceBuffer_Patch, TraceBufferV1)
+    ->Arg(0)   // patch last chunk
+    ->Arg(10)  // patch 10-th chunk (from the back)
+    ->Arg(-1)  // patch non-existent chunk
+    ->Apply(BmArgs);
+BENCHMARK_TEMPLATE(BM_TraceBuffer_Patch, TraceBufferV2)
+    ->Arg(0)   // patch last chunk
+    ->Arg(10)  // patch 10-th chunk (from the back)
+    ->Arg(-1)  // patch non-existent chunk
+    ->Apply(BmArgs);
 
 }  // namespace
 }  // namespace perfetto

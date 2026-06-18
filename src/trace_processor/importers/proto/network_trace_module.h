@@ -29,8 +29,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/connectivity/network_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -54,7 +54,8 @@ class NetworkTraceModule : public ProtoImporterModule {
                          int64_t dur,
                          int64_t length,
                          int64_t count,
-                         protos::pbzero::NetworkPacketEvent::Decoder& evt);
+                         ::android::net::connectivity::tracing::pbzero::
+                             NetworkPacketEvent::Decoder& evt);
 
   void ParseNetworkPacketEvent(int64_t ts, protozero::ConstBytes blob);
   void ParseNetworkPacketBundle(int64_t ts, protozero::ConstBytes blob);
@@ -64,7 +65,8 @@ class NetworkTraceModule : public ProtoImporterModule {
                                TraceBlobView tbv,
                                RefPtr<PacketSequenceStateGeneration> state);
 
-  StringId GetIpProto(protos::pbzero::NetworkPacketEvent::Decoder& evt);
+  StringId GetIpProto(::android::net::connectivity::tracing::pbzero::
+                          NetworkPacketEvent::Decoder& evt);
 
   TraceProcessorContext* context_;
 

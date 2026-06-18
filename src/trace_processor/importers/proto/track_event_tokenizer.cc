@@ -170,6 +170,28 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
   }
 
+  if (track.has_process_ordering()) {
+    switch (track.process_ordering()) {
+      case TrackDescriptorProto::PROCESS_ORDERING_UNSPECIFIED:
+        reservation.process_ordering = Reservation::ProcessOrdering::kUnknown;
+        break;
+      case TrackDescriptorProto::PROCESS_ORDERING_EXPLICIT:
+        reservation.process_ordering = Reservation::ProcessOrdering::kExplicit;
+        break;
+    }
+  }
+
+  if (track.has_thread_ordering()) {
+    switch (track.thread_ordering()) {
+      case TrackDescriptorProto::THREAD_ORDERING_UNSPECIFIED:
+        reservation.thread_ordering = Reservation::ThreadOrdering::kUnknown;
+        break;
+      case TrackDescriptorProto::THREAD_ORDERING_EXPLICIT:
+        reservation.thread_ordering = Reservation::ThreadOrdering::kExplicit;
+        break;
+    }
+  }
+
   if (track.has_sibling_order_rank()) {
     reservation.sibling_order_rank = track.sibling_order_rank();
   }
@@ -348,6 +370,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
     return ModuleResult::Ignored();
+  }
+
+  if (track.has_state()) {
+    reservation.is_state = true;
   }
 
   track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
@@ -539,6 +565,28 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     }
 
     data.counter_value = *value;
+  }
+
+  if (event.type() == protos::pbzero::TrackEvent::TYPE_STATE) {
+    // Consider track_uuid from the packet and TrackEventDefaults.
+    uint64_t track_uuid;
+    if (event.has_track_uuid()) {
+      track_uuid = event.track_uuid();
+    } else if (defaults && defaults->has_track_uuid()) {
+      track_uuid = defaults->track_uuid();
+    } else {
+      RecordTokenizationError(stats::track_event_state_missing_track_uuid,
+                              &data.trace_packet_data.packet);
+      return ModuleResult::Handled();
+    }
+
+    auto resolved = track_event_tracker_->ResolveDescriptorTrack(track_uuid);
+    if (!resolved || !resolved->is_state()) {
+      RecordTokenizationErrorWithTrackUuid(
+          stats::track_event_state_invalid_track_uuid, track_uuid,
+          &data.trace_packet_data.packet);
+      return ModuleResult::Handled();
+    }
   }
 
   size_t index = 0;
