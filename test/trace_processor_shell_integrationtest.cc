@@ -428,6 +428,27 @@ TEST(TraceProcessorShellIntegrationTest, ServerUnixStaleSocketCleanup) {
   EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
 }
 
+TEST(TraceProcessorShellIntegrationTest, ServerUnixIdleReap) {
+  // With --idle-start last-query the idle clock is always armed, so an idle
+  // server reaps itself (and unlinks its socket) after the timeout.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-start", "last-query", "--idle-timeout", "1s",
+                           trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  // No queries: it should self-reap well within this window.
+  EXPECT_TRUE(server.Wait(/*timeout_ms=*/15000));
+  EXPECT_EQ(server.status(), base::Subprocess::kTerminated);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
 TEST(TraceProcessorShellIntegrationTest, RemoteQueryRoundTrip) {
   // A `query --remote <sock>` runs against a warm `server unix` and returns the
   // same result the local path would, exercising the full RemoteTraceProcessor
