@@ -28,10 +28,6 @@
 // sides can't drift on how a session name maps to a socket path.
 namespace perfetto::trace_processor::session {
 
-// The server writes its pid to <socket-path> + this suffix so that
-// `ctl kill-server` can stop it by pid without an RPC round-trip.
-constexpr char kPidFileSuffix[] = ".pid";
-
 // Maximum length of a session name. Bounded so the assembled AF_UNIX path
 // stays within the ~104-108 byte sun_path limit on all platforms.
 constexpr size_t kMaxSessionNameLen = 64;
