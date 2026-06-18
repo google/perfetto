@@ -165,7 +165,7 @@ def run_in_docker(args):
       './pnpm', 'exec', 'playwright', 'test'
   ]
   if args.rebaseline:
-    playwright_cmd_parts += ['--update-snapshots=all']
+    playwright_cmd_parts += ['--update-snapshots']
   if args.workers:
     playwright_cmd_parts += ['--workers', args.workers]
   playwright_cmd_parts += args.filters
