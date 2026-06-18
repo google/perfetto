@@ -550,7 +550,7 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
                    LoadTraceFile(tp.get(), platform, trace_file));
   if (t_load_out)
     *t_load_out = t_load;
-  return tp;
+  return std::move(tp);
 }
 
 }  // namespace perfetto::trace_processor::shell
