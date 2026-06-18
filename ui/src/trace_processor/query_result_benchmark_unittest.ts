@@ -38,18 +38,6 @@ import {
 
 const T = protos.QueryResult.CellsBatch.CellType;
 
-// Encode a varint the same way protobuf does, so we can hand-build batches
-// with realistic (large, multi-byte) timestamp values.
-function encodeVarint(out: number[], value: number) {
-  // Only used for non-negative values here (ids, ts, count, depth).
-  let v = value;
-  while (v > 0x7f) {
-    out.push((v & 0x7f) | 0x80);
-    v = Math.floor(v / 128);
-  }
-  out.push(v & 0x7f);
-}
-
 // Builds an encoded trace_processor.QueryResult with `numRows` rows split into
 // batches of ~`rowsPerBatch` rows, mimicking the columns of an ftrace instant
 // track: __id, __ts, __count, __depth (all NUM/varint) plus a STR name.
@@ -72,7 +60,9 @@ function buildInstantTrackResult(
   while (row < numRows) {
     const n = Math.min(rowsPerBatch, numRows - row);
     const cells: number[] = [];
-    const varintBytes: number[] = [];
+    // The int64 cell values, in scan order. protobufjs encodes these as packed
+    // varints (large ts values naturally produce realistic multi-byte varints).
+    const varintCells: number[] = [];
     const stringCells: string[] = [];
     for (let i = 0; i < n; i++) {
       const r = row + i;
@@ -81,16 +71,16 @@ function buildInstantTrackResult(
       cells.push(T.CELL_VARINT); // __count
       cells.push(T.CELL_VARINT); // __depth
       cells.push(T.CELL_STRING); // name
-      encodeVarint(varintBytes, r); // id
-      encodeVarint(varintBytes, 1_000_000_000 + r * 1234); // ts (big)
-      encodeVarint(varintBytes, (r % 7) + 1); // count
-      encodeVarint(varintBytes, r % 4); // depth
+      varintCells.push(r); // id
+      varintCells.push(1_000_000_000 + r * 1234); // ts (big)
+      varintCells.push((r % 7) + 1); // count
+      varintCells.push(r % 4); // depth
       stringCells.push(names[r % names.length]);
     }
     const isLast = row + n >= numRows;
     const batch = protos.QueryResult.CellsBatch.create({
       cells,
-      varintCells: new Uint8Array(varintBytes),
+      varintCells,
       stringCells: stringCells.join('\0'),
       isLastBatch: isLast,
     });
