@@ -484,6 +484,38 @@ TEST(TraceProcessorShellIntegrationTest, RemoteQueryRoundTrip) {
   EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
 }
 
+TEST(TraceProcessorShellIntegrationTest, CtlKillServer) {
+  // `ctl kill-server` shuts down a running session and unlinks its socket.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-timeout", "never", trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  auto kill = RunShell({"ctl", "kill-server", sock});
+  EXPECT_EQ(kill.exit_code, 0) << kill.out;
+
+  EXPECT_TRUE(server.Wait(/*timeout_ms=*/5000));
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, CtlKillServerNoSession) {
+  auto result = RunShell({"ctl", "kill-server", "no-such-session"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("No live session"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, CtlKillServerHttpDeferred) {
+  auto result = RunShell({"ctl", "kill-server", "localhost:9001"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("not supported"));
+}
+
 TEST(TraceProcessorShellIntegrationTest, RemoteNoSession) {
   // Querying a session that isn't running fails with a clear, actionable error.
   auto result = RunShell({"query", "--remote", "no-such-session", "SELECT 1"});
