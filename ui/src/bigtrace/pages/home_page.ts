@@ -24,7 +24,6 @@ import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
 import {setRoute} from '../router';
 import {Routes} from '../routes';
 
-// Landing-page action button.
 function homeButton(
   label: string,
   icon: string,
@@ -38,16 +37,14 @@ function homeButton(
   );
 }
 
-// Material Symbols names are lowercase letters / digits / underscores. An
-// absent or malformed value (a backend could send either) falls back to a
-// generic glyph rather than rendering as raw ligature text.
+// A backend may send an absent or malformed icon name; fall back to a generic
+// glyph so it never renders as raw ligature text.
 function presetIcon(icon?: string): string {
   return icon && /^[a-z0-9_]+$/.test(icon) ? icon : 'bookmark';
 }
 
-// A preset as a clickable card: leading icon + title with the description
-// below. Clicking stashes the preset for QueryPage to seed a fresh tab (query
-// + trace-selection settings), then opens the editor.
+// Clicking stashes the preset so QueryPage seeds a fresh tab from it, then
+// routes to the editor.
 function presetCard(t: TracePreset): m.Children {
   return m(
     Card,
@@ -70,11 +67,10 @@ function presetCard(t: TracePreset): m.Children {
 }
 
 export class HomePage implements m.ClassComponent {
-  // Active CUJ tab; defaults to the first one the catalog returns.
+  // Active CUJ tab; defaults to the catalog's first.
   private activeCuj?: string;
 
   oninit() {
-    // Fetch the catalog on mount; cached after the first load.
     void presetStore.load();
   }
 
@@ -84,9 +80,8 @@ export class HomePage implements m.ClassComponent {
       '.pf-home-page',
       m(
         '.pf-home-page__center.pf-bt-home-center',
-        // Lead with purpose, make the presets the single focal point, and keep
-        // the manual path as a quiet secondary link below them. With no backend
-        // the empty state stands alone (no competing intro).
+        // Presets are the focal point; the intro and the manual-path link show
+        // only alongside them, so with no backend the empty state stands alone.
         hasPresets && this.renderIntro(),
         hasPresets
           ? this.renderPresets()
@@ -98,8 +93,6 @@ export class HomePage implements m.ClassComponent {
     );
   }
 
-  // Purpose at a glance. The sidebar already carries the product name, so this
-  // leads with value (what BigTrace lets you do), not branding.
   private renderIntro(): m.Children {
     return m(
       '.pf-bt-home-intro',
@@ -115,8 +108,7 @@ export class HomePage implements m.ClassComponent {
     );
   }
 
-  // No backend configured (or unreachable / empty catalog): a single-message
-  // onboarding state — headline, a one-line reason, and one clear action.
+  // Shown when no backend is configured (or it's unreachable / has no presets).
   private renderEmptyState(): m.Children {
     return m(
       EmptyState,
@@ -134,8 +126,6 @@ export class HomePage implements m.ClassComponent {
     );
   }
 
-  // The presets are the primary action and the page's focal point: a CUJ
-  // selector over the ready-to-run preset cards.
   private renderPresets(): m.Children {
     const tpls = presetStore.presets;
     if (tpls.length === 0) return null;
@@ -159,9 +149,8 @@ export class HomePage implements m.ClassComponent {
     );
   }
 
-  // Secondary path, deliberately lower-weight than the presets: the manual
-  // route — open the settings page to choose which traces to run over and set
-  // query options, the starting point for building your own analysis.
+  // The build-your-own path: a link to the settings page to choose traces and
+  // set query options by hand.
   private renderCustomLink(): m.Children {
     return m(
       'a.pf-bt-home-custom-link',

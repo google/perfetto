@@ -156,11 +156,9 @@
   height: 1em;
 }
 
-// Outrank the shared `.pf-home-page .pf-home-page__center` rule (which centers
-// its children with space-around) so the presets sit near the top.
-// `justify-self: stretch` overrides the grid's `justify-items: center`, which
-// would otherwise shrink this column to its content width and break the
-// percentage width of the presets area below.
+// Outrank the shared `.pf-home-page__center` centering so the column sits at
+// the top and stretches full-width — justify-self: stretch beats the grid's
+// justify-items: center, which would otherwise shrink it to content width.
 .pf-home-page .pf-home-page__center.pf-bt-home-center {
   justify-self: stretch;
   justify-content: flex-start;
@@ -168,9 +166,6 @@
   gap: 20px;
 }
 
-// Purpose line at the top of the home page: a focal title + one-line subtitle.
-// Leads with what you can do (the sidebar already carries the product name), so
-// a first-timer is oriented before the presets.
 .pf-bt-home-intro {
   width: min(960px, 92%);
   display: flex;
@@ -195,8 +190,6 @@
   }
 }
 
-// The presets block: CUJ selector over the preset tiles. The page's primary
-// focal point.
 .pf-bt-home-presets {
   width: min(960px, 92%);
   display: flex;
@@ -234,8 +227,6 @@
 }
 
 // ---------- Analysis preset cards (home page) ----------
-// Responsive grid of click-whole tiles: a tinted icon box on the left with a
-// bold title + description beside it.
 
 .pf-bt-preset-list {
   display: grid;
@@ -244,9 +235,8 @@
   width: 100%;
 }
 
-// Bold visual tile: a tinted icon box over a bold title + description, lifting
-// on hover. Intentionally richer than the minimal house style — this is the
-// landing surface, so it carries color and depth the rest of the app doesn't.
+// Intentionally richer than the minimal house style — this is the landing
+// surface, so the cards carry color (icon tint) and hover depth.
 .pf-bt-preset-card {
   display: flex;
   flex-direction: row;
@@ -301,9 +291,8 @@
   }
 }
 
-// Secondary "do it yourself" path below the presets: a plain accent-colored
-// link — clearly an action, but without a preset card's tile weight so the
-// cards stay the focal point.
+// The build-your-own path: an accent link rather than a tile, so it reads as an
+// action without competing with the preset cards.
 .pf-bt-home-custom-link {
   width: min(960px, 92%);
   display: inline-flex;
@@ -323,16 +312,14 @@
   }
 }
 
-// One-line reason under the empty-state headline (no-backend onboarding).
 .pf-bt-home-empty__detail {
   color: var(--pf-color-text-muted);
   margin-bottom: 12px;
 }
 
 // ---------- Analysis preset chips (settings page / modal) ----------
-// Compact apply-only tags. Clicking applies the preset's trace-selection +
-// option settings (no SQL); the last-applied chip carries `--active`. Small
-// radius, no pill styling.
+// Apply-only tags: clicking applies the preset's trace-selection + option
+// settings (no SQL). `--active` marks the last-applied chip.
 
 .pf-bt-preset-chips {
   display: flex;

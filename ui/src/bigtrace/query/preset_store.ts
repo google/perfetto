@@ -16,10 +16,9 @@ import m from 'mithril';
 import {BigtraceQueryClient, type TracePreset} from './bigtrace_query_client';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 
-// In-memory cache of the backend's analysis-presets catalog. Fetched lazily
-// on first home/settings mount; refetched on `load(true)`. A backend that
-// doesn't serve /trace_presets (404) or is unreachable yields an empty list,
-// and the UI hides the presets section.
+// In-memory cache of the analysis-presets catalog, fetched lazily on first
+// home/settings mount (refetched on `load(true)`). A backend that doesn't
+// serve /trace_presets, or is unreachable, yields an empty list.
 class PresetStore {
   presets: ReadonlyArray<TracePreset> = [];
   isLoading = false;

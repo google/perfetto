@@ -84,10 +84,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       this.tabsState.addTabFromPreset(initialPreset);
     }
 
-    // Read-and-clear the settings-page "Query" signal: open a fresh tab. A
-    // fresh tab (no stored snapshot) copies the current /settings globals, so
-    // it carries the trace selection + options the user just configured, with
-    // no SQL.
+    // Read-and-clear the settings-page "Query" signal: open a fresh tab. With
+    // no stored snapshot it inherits the current /settings globals — the trace
+    // selection + options just configured, no SQL.
     if (queryState.seedTabFromSettings) {
       queryState.seedTabFromSettings = false;
       this.tabsState.addNewTab(

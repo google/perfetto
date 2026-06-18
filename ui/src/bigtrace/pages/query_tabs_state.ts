@@ -306,10 +306,9 @@ export class QueryTabsState {
     return tab;
   }
 
-  // Seed and activate a new tab from a home-page preset. The preset defines the
-  // complete settings config: its own settings are applied and every other
-  // setting is turned off — togglable settings get disabled, booleans get
-  // value=false (they have no disable concept).
+  // Seed and activate a new tab from a home-page preset. The preset's own
+  // settings are applied; every other setting is turned off — togglable ones
+  // disabled, booleans set to false (they have no disable concept).
   addTabFromPreset(t: TracePreset): BigTraceEditorTab {
     const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
     const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({

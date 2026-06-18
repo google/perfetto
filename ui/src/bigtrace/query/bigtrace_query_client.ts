@@ -70,17 +70,15 @@ export interface ExecuteOptions {
 }
 
 // One analysis preset from `GET /trace_presets`: display metadata plus a
-// frozen execution snapshot (the same fields a Run submits). The home page
-// renders these as launchable cards; clicking one seeds a new query tab.
+// frozen execution snapshot (the same fields a Run submits).
 export interface TracePreset {
   readonly id: string;
   readonly category: string;
   readonly name: string;
   readonly description: string;
   readonly perfettoSql: string;
-  // Optional — the UI defaults these when a (possibly minimal) backend omits
-  // them: icon → a generic glyph, settings/traceFilters/traceMetadataColumns →
-  // [], traceOrderBy → "", limit → 1000, materialized → true.
+  // Optional; the UI fills defaults when a minimal backend omits them
+  // (generic icon; empty settings/filters/columns; limit 1000; materialized).
   readonly icon?: string;
   // Wire shape mirrors the execute body's `settings`: snake-cased `settingId`,
   // always-string `values`. Mapped to SettingFilter when applied to a tab.
@@ -230,9 +228,8 @@ export class BigtraceQueryClient {
     return result.queryExecutions ?? [];
   }
 
-  // The analysis-presets catalog (jank, memory, startup, …) the home page
-  // offers as launchable cards. Backends that don't implement it 404; callers
-  // treat that (and any failure) as "no presets".
+  // The analysis-presets catalog. Backends that don't implement it 404;
+  // callers treat that (and any failure) as "no presets".
   async listTracePresets(
     signal?: AbortSignal,
   ): Promise<ReadonlyArray<TracePreset>> {

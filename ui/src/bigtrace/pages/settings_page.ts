@@ -461,15 +461,9 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     m.redraw();
   }
 
-  // Renders the "Traces" card: a caption, a column-picker toggle row, and a
-  // DataGrid driven by the trace-list DataSource. The toggle row and the grid's
-  // "Add column" menu both write through `traceColumnsState`, so they stay in
-  // sync.
-  // Compact "load a preset" control atop the settings — shown on both the
-  // standalone /settings page and the per-tab embedded sub-tab. Applies a
-  // preset's trace-selection + option settings to the current config; the
-  // Applying loads the preset's query + title into the tab (embedded modal),
-  // or just its settings on standalone /settings (no editor there).
+  // "Load a preset" control atop the settings, on both the standalone
+  // /settings page and the per-tab modal. Applies a preset's trace-selection +
+  // option settings; the per-tab modal also loads its query + title.
   private renderPresetPicker(): m.Children {
     const tpls = presetStore.presets;
     if (tpls.length === 0) return null;
@@ -526,11 +520,9 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     );
   }
 
-  // The preset the current context matches 1:1 — same SQL, trace selection,
-  // and the option settings the preset specifies, or undefined. Derived each
-  // render, not click memory. Only the per-tab modal has a SQL to compare, so
-  // the standalone /settings page (no bindings) never matches — which is why
-  // nothing highlights there.
+  // The preset the current context matches 1:1 (SQL + trace selection + the
+  // option settings it specifies), or undefined. Derived each render. Only the
+  // per-tab modal has SQL to compare, so standalone /settings never matches.
   private matchedPresetId(): string | undefined {
     if (this.bindings === undefined) return undefined;
     return presetStore.presets.find((t) => this.presetMatches(t))?.id;
@@ -539,13 +531,11 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   private presetMatches(t: TracePreset): boolean {
     const b = this.bindings;
     if (b === undefined) return false;
-    // SQL (ignore only leading/trailing whitespace differences). materialized
-    // and limit are run-time toolbar params (Persistent toggle / row cap), not
-    // settings, so they're deliberately not part of the match.
+    // SQL, trimmed. materialized and limit are run-time toolbar params, not
+    // settings, so they're deliberately excluded from the match.
     if ((b.getSql?.() ?? '').trim() !== t.perfettoSql.trim()) return false;
-    // Trace selection (optional preset fields default to empty). Filters are
-    // compared by their canonical key-sorted encoding, so equal filters built
-    // in a different key order still match; columns/values are string arrays.
+    // Trace selection (optional fields default to empty). Filters compared by
+    // canonical key-sorted encoding, so a different key order still matches.
     if (this.readTraceOrderBy() !== (t.traceOrderBy ?? '')) return false;
     if (
       encodeFilters(this.readTraceFilters()) !==
@@ -571,10 +561,9 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   }
 
   private applyPreset(t: TracePreset): void {
-    // The per-tab modal has an editor, so load the preset's query + title into
-    // the tab. Standalone /settings has no editor (and no bindings), so the
-    // optional setter is simply absent there. Everything else routes through
-    // the binding-aware writers — works global + embedded.
+    // The per-tab modal has an editor, so load the preset's query + title;
+    // standalone /settings has none (the optional setter is absent there).
+    // Everything else routes through the binding-aware writers.
     this.bindings?.setQueryAndTitle?.(t.perfettoSql, t.name);
     this.writeTraceFilters([...(t.traceFilters ?? [])]);
     const cols = t.traceMetadataColumns ?? [];
@@ -582,9 +571,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     this.writeTraceOrderBy(t.traceOrderBy ?? '');
     // Keep the trace grid's controlled-mode filter in sync with the write.
     this.traceFilterss = this.readTraceFilters();
-    // The preset defines the complete settings config: its settings are enabled
-    // and set; every other setting is turned off — togglable → disabled,
-    // boolean → false (booleans have no disable concept).
+    // The preset's settings are enabled and set; every other setting is turned
+    // off — togglable → disabled, boolean → false (booleans can't disable).
     const byId = new Map(
       (t.settings ?? []).map((s) => [s.settingId, s] as const),
     );
@@ -627,6 +615,10 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     }
   }
 
+  // Renders the "Traces" card: a caption, a column-picker toggle row, and a
+  // DataGrid driven by the trace-list DataSource. The toggle row and the grid's
+  // "Add column" menu both write through `traceColumnsState`, so they stay in
+  // sync.
   private renderTraceListCard(endpoint: string): m.Children {
     const ds = this.getTraceListDataSource(endpoint);
     if (ds === undefined) {
@@ -663,9 +655,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
             void ds.refresh();
           },
         }),
-        // Standalone /settings only (the per-tab modal is already inside a tab
-        // with an editor). Opens a new query tab seeded with the current
-        // settings — trace selection + options, no SQL.
+        // Standalone /settings only (the per-tab modal is already in a tab).
+        // Opens a new query tab seeded with the current settings (no SQL).
         !this.bindings &&
           m(Button, {
             label: 'Query',
