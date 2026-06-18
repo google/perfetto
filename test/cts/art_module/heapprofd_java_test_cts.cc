@@ -181,8 +181,7 @@ HeapGraphCounts CountHeapGraph(const protos::gen::TracePacket& packet) {
   std::vector<uint8_t> serialized = packet.SerializeAsArray();
   protozero::ProtoDecoder packet_decoder(serialized.data(), serialized.size());
   HeapGraph::Decoder heap_graph(
-      packet_decoder
-          .FindField(ArtHeapGraphTracePacket::kHeapGraphFieldNumber)
+      packet_decoder.FindField(ArtHeapGraphTracePacket::kHeapGraphFieldNumber)
           .as_bytes());
   for (auto it = heap_graph.objects(); it; ++it)
     counts.objects++;
