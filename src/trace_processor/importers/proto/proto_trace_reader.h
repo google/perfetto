@@ -94,6 +94,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
     uint32_t data_loss_reassembly_broken_chain_count = 0;
     uint32_t data_loss_overwrite_count = 0;
     uint32_t data_loss_writer_abort_count = 0;
+    uint32_t data_loss_smb_full_count = 0;
   };
 
   // Result of attempting to resolve a packet's timestamp to trace time.

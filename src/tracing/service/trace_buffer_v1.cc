@@ -666,8 +666,7 @@ bool TraceBufferV1::ReadNextTracePacket(
         if (PERFETTO_LIKELY(result == ReadPacketResult::kSucceeded)) {
           *sequence_properties = {trusted_producer_id, client_identity,
                                   writer_id};
-          *previous_packet_on_sequence_dropped =
-              previous_packet_dropped ? 1 : 0;
+          *previous_packet_on_sequence_dropped = !!previous_packet_dropped;
           return true;
         } else if (result == ReadPacketResult::kFailedEmptyPacket) {
           // We can ignore and skip empty packets.
@@ -693,7 +692,7 @@ bool TraceBufferV1::ReadNextTracePacket(
         stats_.set_readaheads_succeeded(stats_.readaheads_succeeded() + 1);
         *sequence_properties = {trusted_producer_id, client_identity,
                                 writer_id};
-        *previous_packet_on_sequence_dropped = previous_packet_dropped ? 1 : 0;
+        *previous_packet_on_sequence_dropped = !!previous_packet_dropped;
         return true;
       }
 

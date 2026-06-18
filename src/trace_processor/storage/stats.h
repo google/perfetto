@@ -282,6 +282,9 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_data_loss_writer_abort,    kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "Sequence data losses TraceBufferV2 attributed to a trace writer "       \
       "aborting an in-progress fragmented packet, per buffer."),               \
+  F(traced_buf_data_loss_smb_full,        kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses the producer attributed to its shared memory "     \
+      "buffer being full, per buffer."),                                       \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
        "Shadow mode: total packets read."),                                    \

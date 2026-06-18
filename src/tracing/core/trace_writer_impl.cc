@@ -182,11 +182,13 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
 
     if (PERFETTO_UNLIKELY(was_dropping_packets)) {
       // We've succeeded to get a new chunk from the SMB after we entered
-      // drop_packets_ mode. Record a marker into the new packet to indicate the
-      // data loss. The producer can't attribute a cause, so it sets the bare
-      // DATA_LOSS_PRESENT bit.
+      // drop_packets_ mode. We only enter that mode when the SMB was full and
+      // we couldn't acquire a chunk, so attribute the loss to
+      // DATA_LOSS_SMB_FULL (OR-ed with DATA_LOSS_PRESENT, which every loss
+      // carries).
       cur_packet_->set_previous_packet_dropped(
-          protos::pbzero::TracePacket::DATA_LOSS_PRESENT);
+          protos::pbzero::TracePacket::DATA_LOSS_PRESENT |
+          protos::pbzero::TracePacket::DATA_LOSS_SMB_FULL);
     }
   }
 

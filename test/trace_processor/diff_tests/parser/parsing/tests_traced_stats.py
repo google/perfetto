@@ -218,15 +218,14 @@ class ParsingTracedStats(TestSuite):
         1,1
         """))
 
-  # Each TraceBufferV2 cause bit in previous_packet_dropped is broken down into
-  # its own traced_buf_data_loss_* stat per buffer. DATA_LOSS_PRESENT (bit 0) on
-  # its own is not attributed (it's already covered by
-  # traced_buf_sequence_packet_loss).
+  # Each cause bit in previous_packet_dropped is broken down into its own
+  # traced_buf_data_loss_* stat per buffer. DATA_LOSS_PRESENT (bit 0) on its own
+  # is not attributed (it's already covered by traced_buf_sequence_packet_loss).
   # Values used (PRESENT is bit 0, always set on a loss):
-  #   3   = PRESENT|READ_GAP        27 = PRESENT|READ_GAP|ORPHAN|REASSEMBLY_GAP
-  #   5   = PRESENT|CHUNK_CORRUPTED 33 = PRESENT|REASSEMBLY_BROKEN_CHAIN
+  #   3   = PRESENT|READ_GAP        27  = PRESENT|READ_GAP|ORPHAN|REASSEMBLY_GAP
+  #   5   = PRESENT|CHUNK_CORRUPTED 33  = PRESENT|REASSEMBLY_BROKEN_CHAIN
   #   65  = PRESENT|OVERWRITE       129 = PRESENT|WRITER_ABORT
-  #   1   = PRESENT only (not attributed)
+  #   257 = PRESENT|SMB_FULL        1   = PRESENT only (not attributed)
   def test_data_loss_cause_breakdown(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -237,6 +236,7 @@ class ParsingTracedStats(TestSuite):
         packet { trusted_packet_sequence_id: 2 previous_packet_dropped: 5 }
         packet { trusted_packet_sequence_id: 2 previous_packet_dropped: 33 }
         packet { trusted_packet_sequence_id: 2 previous_packet_dropped: 129 }
+        packet { trusted_packet_sequence_id: 2 previous_packet_dropped: 257 }
         packet { trusted_packet_sequence_id: 2 previous_packet_dropped: 1 }
         packet {
           trusted_uid: 9999
@@ -260,5 +260,6 @@ class ParsingTracedStats(TestSuite):
         "traced_buf_data_loss_read_gap",0,2
         "traced_buf_data_loss_reassembly_broken_chain",0,1
         "traced_buf_data_loss_reassembly_gap",0,1
+        "traced_buf_data_loss_smb_full",0,1
         "traced_buf_data_loss_writer_abort",0,1
         """))

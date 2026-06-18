@@ -621,6 +621,7 @@ void ProtoTraceReader::RecordDataLossCauses(SequenceScopedState* seq,
   record(TracePacket::DATA_LOSS_OVERWRITE, seq->data_loss_overwrite_count);
   record(TracePacket::DATA_LOSS_WRITER_ABORT,
          seq->data_loss_writer_abort_count);
+  record(TracePacket::DATA_LOSS_SMB_FULL, seq->data_loss_smb_full_count);
 }
 
 void ProtoTraceReader::ParseTracePacketDefaults(
@@ -1137,6 +1138,7 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     uint32_t data_loss_reassembly_broken_chain = 0;
     uint32_t data_loss_overwrite = 0;
     uint32_t data_loss_writer_abort = 0;
+    uint32_t data_loss_smb_full = 0;
   };
   base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
@@ -1158,6 +1160,7 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
           s->data_loss_reassembly_broken_chain_count;
       stats.data_loss_overwrite += s->data_loss_overwrite_count;
       stats.data_loss_writer_abort += s->data_loss_writer_abort_count;
+      stats.data_loss_smb_full += s->data_loss_smb_full_count;
     }
   }
 
@@ -1188,6 +1191,8 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_data_loss_writer_abort, buf,
         v.data_loss_writer_abort);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_smb_full, buf, v.data_loss_smb_full);
   }
 }
 
