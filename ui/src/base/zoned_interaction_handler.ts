@@ -136,8 +136,9 @@ export interface Zone {
   onClick?(e: ClickEvent): void;
 
   // Optional: If present, this function will be called when the wheel is
-  // scrolled while hovering over this zone.
-  onWheel?(e: InteractionWheelEvent): void;
+  // scrolled while hovering over this zone. If the return value is truthy
+  // then we call e.preventDefault() on the underlying event.
+  onWheel?(e: InteractionWheelEvent): boolean | void;
 }
 
 interface InProgressGesture {
@@ -296,12 +297,15 @@ export class ZonedInteractionHandler implements Disposable {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
     const zone = this.findZone((z) => z.onWheel && this.hitTestZone(z, mouse));
-    zone?.onWheel?.({
+    const handled = zone?.onWheel?.({
       position: mouse,
       deltaX: e.deltaX,
       deltaY: e.deltaY,
       ctrlKey: e.ctrlKey,
     });
+    if (handled) {
+      e.preventDefault();
+    }
   }
 
   private handleDrag(

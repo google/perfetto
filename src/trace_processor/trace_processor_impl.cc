@@ -77,7 +77,6 @@
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
-#include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
@@ -88,6 +87,7 @@
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/args/args.h"
 #include "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h"
+#include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h"
 #include "src/trace_processor/plugins/base64_functions/base64_functions.h"
 #include "src/trace_processor/plugins/connected_flow/connected_flow.h"
 #include "src/trace_processor/plugins/core_functions/core_functions.h"
@@ -116,6 +116,7 @@
 #include "src/trace_processor/plugins/metadata/metadata.h"
 #include "src/trace_processor/plugins/package_lookup/package_lookup.h"
 #include "src/trace_processor/plugins/perf_counter/perf_counter.h"
+#include "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata.h"
 #include "src/trace_processor/plugins/pprof_functions/pprof_functions.h"
 #include "src/trace_processor/plugins/slice_mipmap_operator/slice_mipmap_operator.h"
 #include "src/trace_processor/plugins/span_join_operator/span_join_operator.h"
@@ -133,12 +134,14 @@
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
+#include "src/trace_processor/plugins/video_frame_importer/video_frame_importer.h"
 #include "src/trace_processor/plugins/wattson/wattson.h"
 #include "src/trace_processor/plugins/window_operator/window_operator.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite_iterator_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
@@ -316,6 +319,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   ancestor::RegisterPlugin();
   args::RegisterPlugin();
   art_heap_graph_functions::RegisterPlugin();
+  art_process_metadata_importer::RegisterPlugin();
   base64_functions::RegisterPlugin();
   connected_flow::RegisterPlugin();
   core_functions::RegisterPlugin();
@@ -344,6 +348,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   metadata::RegisterPlugin();
   package_lookup::RegisterPlugin();
   perf_counter::RegisterPlugin();
+  perfetto_metadata::RegisterPlugin();
   pprof_functions::RegisterPlugin();
   slice_mipmap_operator::RegisterPlugin();
   span_join_operator::RegisterPlugin();
@@ -361,6 +366,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   tree_functions::RegisterPlugin();
   type_builder_functions::RegisterPlugin();
   utils_functions::RegisterPlugin();
+  video_frame_importer::RegisterPlugin();
   wattson::RegisterPlugin();
   window_operator::RegisterPlugin();
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
@@ -638,9 +644,8 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
-  std::unique_ptr<IteratorImpl> impl(
-      new IteratorImpl(this, std::move(result), sql_stats_row));
-  return Iterator(std::move(impl));
+  return Iterator(std::make_unique<SqliteIteratorImpl>(this, std::move(result),
+                                                       sql_stats_row));
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {

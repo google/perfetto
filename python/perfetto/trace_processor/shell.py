@@ -24,6 +24,8 @@ from urllib import request, error
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.platform import PlatformDelegate
+from perfetto.trace_processor.process_tree import (create_kill_on_close_job,
+                                                   terminate_process_tree)
 
 # Import TYPE_CHECKING to avoid circular imports
 from typing import TYPE_CHECKING
@@ -44,12 +46,14 @@ def load_shell(
     load_timeout: int = 2,
     extra_flags: Optional[List[str]] = None,
     add_sql_packages: Optional[List[Union[str, 'SqlPackage']]] = None,
+    fetch_latest_trace_processor: bool = False,
 ):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
   url = f'{addr}:{str(port)}'
 
-  shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
+  shell_path = platform_delegate.get_shell_path(
+      bin_path=bin_path, fetch_latest=fetch_latest_trace_processor)
 
   # get Python interpreter path
   if not getattr(sys, 'frozen', False):
@@ -90,12 +94,17 @@ def load_shell(
   if sys.platform == 'win32':
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
 
+  # Set the child up so its whole process tree can be torn down later (see
+  # process_tree). On POSIX, start_new_session puts it in its own session/
+  # process group; on Windows it is assigned to a Job Object right after.
   p = subprocess.Popen(
       tp_exec + args,
       stdin=subprocess.DEVNULL,
       stdout=temp_stdout,
       stderr=None if verbose else temp_stderr,
-      creationflags=creationflags)
+      creationflags=creationflags,
+      start_new_session=sys.platform != 'win32')
+  job_handle = create_kill_on_close_job(p)
 
   success = False
   for _ in range(load_timeout + 1):
@@ -108,7 +117,7 @@ def load_shell(
       time.sleep(1)
 
   if not success:
-    p.kill()
+    terminate_process_tree(p, job_handle)
     temp_stdout.seek(0)
     stdout = temp_stdout.read().decode("utf-8")
     temp_stderr.seek(0)
@@ -118,4 +127,4 @@ def load_shell(
     raise PerfettoException("Trace processor failed to start.\n"
                             f"stdout: {stdout}\nstderr: {stderr}\n")
 
-  return url, p, temp_stdout, temp_stderr
+  return url, p, temp_stdout, temp_stderr, job_handle

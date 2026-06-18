@@ -12,14 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Attaches LUCI-built binaries and SDK source zips to the matching draft
-# GitHub release. Leaves the release as a draft — a human publishes it
-# manually from the GitHub UI after reviewing the release notes.
+# One manual step that finalizes a release. It:
+#   1. Attaches the LUCI-built binaries + SDK source zips to the draft release.
+#   2. Rolls the prebuilt manifests to this version (tools/release/roll-prebuilts)
+#      and opens a PR to main. roll-prebuilts also stamps the agent-skills
+#      version, so the prebuilts and the bundle move together.
+#   3. Assembles the agent-skills bundle (RFC-0026) from the freshly rolled
+#      trace_processor + this tag's ai/skills, and opens a PR to the ai-agents
+#      branch (plus a refs/ai-agent-tag/<version> version pin).
 #
-# Manual trigger after LUCI completes. Idempotent — safe to re-run if a
-# previous invocation failed partway. See RFC-0022 "LUCI -> GitHub bridge".
+# Everything human-gated: the draft release and both PRs are reviewed and
+# published / merged by a maintainer. Idempotent — safe to re-run; the PR head
+# branches are reused and stale PRs are superseded.
+#
+# Mints a `perfetto-automation` GitHub App token (like promote-stable.yml) so
+# the PR open / push events fan out to other workflow runs.
 
-name: Finalize release (attach LUCI artifacts to draft)
+name: Finalize release (artifacts + prebuilt roll + agent skills)
 
 on:
   workflow_dispatch:
@@ -29,12 +38,15 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write  # Required to upload assets and publish the release
+permissions: {}
 
 jobs:
   finalize:
-    runs-on: ubuntu-latest
+    # Self-hosted runners have ambient gcloud credentials, needed by
+    # install-build-deps to restore the buildtools cache from GCS.
+    runs-on: self-hosted
+    environment: perfetto-automation
+    timeout-minutes: 60
     steps:
       - name: Validate input
         env:
@@ -45,16 +57,46 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout tag
-        uses: actions/checkout@v4
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
         with:
-          ref: ${{ inputs.version }}
+          app-id: ${{ secrets.PERFETTO_BOT_APP_ID }}
+          private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
+
+      # main is the base for the prebuilt-roll PR; tags are needed to pull this
+      # release's ai/skills into the bundle.
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
           fetch-depth: 0
           fetch-tags: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      # Self-hosted runners don't come with the GitHub CLI preinstalled.
+      - name: Install GitHub CLI
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            # When bumping, re-verify GH_SHA256 against the upstream checksums:
+            # https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt
+            GH_VERSION=2.90.0
+            GH_SHA256=b2aef7b23ec6899bf27f37a32c57a7935d0a178568ac33dc9bb03842f724195a
+            GH_TARBALL="gh_${GH_VERSION}_linux_amd64.tar.gz"
+            mkdir -p "$HOME/.local/bin"
+            curl -fsSLO "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${GH_TARBALL}"
+            echo "${GH_SHA256}  ${GH_TARBALL}" | sha256sum --check --status
+            tar -xzf "${GH_TARBALL}" --strip-components=2 -C "$HOME/.local/bin" \
+              "gh_${GH_VERSION}_linux_amd64/bin/gh"
+            rm "${GH_TARBALL}"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+          gh --version
 
       - name: Verify draft release exists
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           VERSION: ${{ inputs.version }}
         run: |
           if ! gh release view "$VERSION" --repo "${{ github.repository }}" \
@@ -74,10 +116,133 @@ jobs:
 
       - name: Upload assets to draft release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           VERSION: ${{ inputs.version }}
         run: |
           STAGING="/tmp/perfetto-${VERSION}-github-release"
           gh release upload "$VERSION" "$STAGING"/*.zip \
             --repo "${{ github.repository }}" --clobber
           echo "::notice::Artifacts attached. Review the draft release at https://github.com/${{ github.repository }}/releases and publish it manually when ready."
+
+      - name: Install build deps
+        uses: ./.github/actions/install-build-deps
+
+      - name: Roll prebuilts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # Updates the prebuilt manifests + regenerates tools/trace_processor to
+          # this version, and stamps the agent-skills version in lockstep.
+          tools/release/roll-prebuilts "$VERSION"
+
+      - name: Configure git
+        run: |
+          # Email must match the CLA-approved address for the automation app.
+          git config user.name "perfetto-automation[bot]"
+          git config user.email "perfetto-automation-github-app@google.com"
+
+      - name: Open prebuilt-roll PR to main
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          BRANCH="dev/github-bot/roll-prebuilts"
+          git checkout -q -B "$BRANCH"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::Prebuilts already current for $VERSION; no roll PR."
+          else
+            git commit -q -m "Roll prebuilts to $VERSION"
+            for N in $(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number'); do
+              gh pr close "$N" --comment "Superseded by a newer prebuilt roll."
+            done
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+            git push -q -u origin "$BRANCH"
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "Roll prebuilts to $VERSION" \
+              --body "Automated prebuilt roll for **$VERSION**: bumps the prebuilt binary manifests (trace_processor, traceconv, tracebox, SDK sources, heapprofd) and stamps the matching agent-skills version (RFC-0026)."
+            echo "::notice::Opened prebuilt-roll PR for $VERSION."
+          fi
+
+      # Build the bundle from the rolled tree (correct trace_processor + stamped
+      # version) plus THIS tag's skills, then open a PR to the ai-agents branch.
+      - name: Publish agent-skills bundle
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          # The bundle ships THIS tag's skills. Check the tag out into its
+          # own worktree and point the bundler at it, leaving the rolled main
+          # checkout untouched; everything else (rolled trace_processor,
+          # stamped manifests + installer) still comes from this checkout.
+          # Tags from before the single-skill layout (#6156) have no
+          # bundleable skill; skip the bundle (never substitute main's
+          # skills) rather than failing the whole finalize run.
+          git worktree add --detach /tmp/release-tag-tree "$VERSION"
+          SKILLS_SRC=/tmp/release-tag-tree/ai/skills
+          if [[ ! -f "$SKILLS_SRC/perfetto/SKILL-template.md" ]]; then
+            echo "::warning::$VERSION predates the single-skill layout (#6156); skipping the agent-skills bundle."
+            git worktree remove --force /tmp/release-tag-tree
+            exit 0
+          fi
+          tools/release/build_ai_agents.py --output /tmp/ai-agents-tree \
+            --skills-src "$SKILLS_SRC"
+          git worktree remove --force /tmp/release-tag-tree
+
+          BRANCH="dev/github-bot/ai-agents-bundle"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+
+          # Assemble the bundle commit in a scratch repo, off the ai-agents tip.
+          WORK=/tmp/ai-agents-branch
+          rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
+          git init -q
+          git config user.name "perfetto-automation[bot]"
+          git config user.email "perfetto-automation-github-app@google.com"
+          git remote add origin "$REMOTE"
+          if git fetch -q --depth 1 origin ai-agents; then
+            git checkout -q -B "$BRANCH" FETCH_HEAD
+          else
+            echo "::notice::ai-agents branch does not exist yet; seeding an empty base."
+            git checkout -q --orphan ai-agents
+            git commit -q --allow-empty -m "Initialize ai-agents branch"
+            git push -q origin HEAD:refs/heads/ai-agents
+            git checkout -q -B "$BRANCH"
+          fi
+
+          git rm -rqf . >/dev/null 2>&1 || true
+          cp -a /tmp/ai-agents-tree/. .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::ai-agents bundle already current for $VERSION; no PR needed."
+            exit 0
+          fi
+          git commit -q -m "Perfetto $VERSION agent skills bundle"
+          BUNDLE_SHA=$(git rev-parse HEAD)
+
+          # Map the version to this bundle commit (out of refs/tags). The ref
+          # also keeps the commit fetchable after the head branch is deleted.
+          git push -q --force origin "$BUNDLE_SHA:refs/ai-agent-tag/$VERSION"
+
+          for N in $(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number'); do
+            gh pr close "$N" --comment "Superseded by a newer ai-agents bundle."
+          done
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+
+          git push -q origin "HEAD:refs/heads/$BRANCH"
+          gh pr create \
+            --base ai-agents \
+            --head "$BRANCH" \
+            --title "Update ai-agents skills bundle ($VERSION)" \
+            --body "$(cat <<EOF
+          Automated agent-skills bundle for **$VERSION** (RFC-0026): this tag's
+          \`skills/\` plus the freshly rolled \`bin/trace_processor\`, the
+          per-agent manifests, and the \`agents-install\` fallback installer.
+          The version pin \`refs/ai-agent-tag/$VERSION\` already points at this
+          bundle commit (\`$BUNDLE_SHA\`). On merge, \`ai-agents\` advances and
+          installed agents pick up the update through their normal channels.
+          EOF
+          )"
+          echo "::notice::Opened ai-agents bundle PR and tagged $VERSION."

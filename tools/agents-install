@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Fallback installer for the Perfetto AI agents skills bundle.
+
+Downloads the `ai-agents` release branch and copies the root `skills/`
+directory and the bundled `bin/trace_processor` wrapper into a target
+directory. Used by fallback consumers (OpenCode, Antigravity, Pi) and any
+agent without a native plugin marketplace.
+
+Python, not a shell script, on purpose: the bundled `trace_processor`
+wrapper already requires Python 3, so this adds no new dependency and runs
+unmodified on Linux, macOS and Windows.
+
+  macOS/Linux:  curl -fsSL https://get.perfetto.dev/agents-install | \
+                    python3 - --target <path>
+  Windows:      curl.exe -fsSL https://get.perfetto.dev/agents-install | \
+                    python - --target <path>
+
+  (On Windows use curl.exe, not curl: in PowerShell `curl` aliases to
+  Invoke-WebRequest, which does not pipe bytes to a process.)
+"""
+
+import argparse
+import json
+import os
+import shutil
+import sys
+import tarfile
+import tempfile
+import urllib.request
+from typing import Optional
+
+REPO = 'google/perfetto'
+DEFAULT_BRANCH = 'ai-agents'
+
+# tools/release/roll-prebuilts stamps the rolled release version here so the
+# installer served from get.perfetto.dev defaults to that release (and a saved
+# copy keeps reinstalling it). Left at the sentinel in a dev checkout, installs
+# track the live `ai-agents` branch tip.
+DEFAULT_VERSION = 'v56.1'
+
+# Custom ref namespace mapping a release version to its ai-agents bundle commit,
+# e.g. refs/ai-agent-tag/v56.0 (created by the release pipeline). Kept out of
+# refs/tags so it does not show up as a normal tag or in the releases UI.
+VERSION_REF_NS = 'ai-agent-tag'
+
+# --agent name -> default --target (relative to the user's home dir). Best
+# effort; --target always overrides. Antigravity's location is a guess pending
+# confirmation against a real install.
+AGENT_TARGETS = {
+    'claude': '.claude',
+    'codex': '.codex',
+    'opencode': os.path.join('.config', 'opencode'),
+    'antigravity': '.antigravity',
+    'pi': '.agents',
+}
+
+
+def err(msg: str) -> None:
+  sys.stderr.write(f'error: {msg}\n')
+  sys.exit(1)
+
+
+def _http_get(url: str) -> bytes:
+  with urllib.request.urlopen(url) as resp:  # noqa: S310 (trusted hosts)
+    return resp.read()
+
+
+def resolve_version_to_sha(version: str) -> Optional[str]:
+  """Resolve a release version to its pinned ai-agents bundle commit SHA.
+
+  Reads refs/<VERSION_REF_NS>/<version> via the GitHub API. Custom ref
+  namespaces are not served by raw.githubusercontent or codeload-by-ref, but
+  the git/ref API resolves them in one call. Returns None (with a warning) on
+  any failure, so the caller can fall back to the branch tip.
+  """
+  ref = f'{VERSION_REF_NS}/{version}'
+  try:
+    data = json.loads(
+        _http_get(f'https://api.github.com/repos/{REPO}/git/ref/{ref}'))
+  except Exception as e:  # noqa: BLE001 (best-effort network path)
+    sys.stderr.write(f'warning: could not resolve version {version} ({e}); '
+                     f'falling back to {DEFAULT_BRANCH} tip\n')
+    return None
+  sha = data.get('object', {}).get('sha')
+  if sha:
+    print(f'Resolved {version} to ai-agents commit {sha}')
+  return sha
+
+
+def resolve_ref(ref_arg: str, version_arg: str) -> str:
+  if ref_arg:
+    return ref_arg
+  # An explicit --version wins; otherwise fall back to the stamped default. The
+  # unstamped sentinel means "track the branch tip" (dev checkout).
+  version = version_arg or (DEFAULT_VERSION
+                            if DEFAULT_VERSION != '__VERSION__' else '')
+  if version:
+    return resolve_version_to_sha(version) or DEFAULT_BRANCH
+  return DEFAULT_BRANCH
+
+
+def resolve_target(target_arg: str, agent_arg: str) -> str:
+  if target_arg:
+    return os.path.abspath(os.path.expanduser(target_arg))
+  if not agent_arg:
+    err('--target is required (or pass --agent for a default)')
+  if agent_arg not in AGENT_TARGETS:
+    err(f'unknown --agent: {agent_arg} '
+        f'(choose from {", ".join(sorted(AGENT_TARGETS))})')
+  return os.path.join(os.path.expanduser('~'), AGENT_TARGETS[agent_arg])
+
+
+def download_and_extract(ref: str, workdir: str) -> str:
+  """Download the branch tarball and return the extracted root dir."""
+  url = f'https://codeload.github.com/{REPO}/tar.gz/{ref}'
+  print(f'Downloading {url}')
+  tarball = os.path.join(workdir, 'bundle.tar.gz')
+  try:
+    urllib.request.urlretrieve(url, tarball)  # noqa: S310 (trusted host)
+  except Exception as e:  # noqa: BLE001
+    err(f'failed to download {url}: {e}')
+  with tarfile.open(tarball, 'r:gz') as tf:
+    tf.extractall(workdir)  # noqa: S202 (trusted archive from GitHub)
+  # The tarball expands into a single top-level "perfetto-<ref>" directory.
+  roots = [
+      d for d in os.listdir(workdir)
+      if d.startswith('perfetto-') and os.path.isdir(os.path.join(workdir, d))
+  ]
+  if not roots:
+    err('unexpected tarball layout (no perfetto-* directory)')
+  return os.path.join(workdir, roots[0])
+
+
+def install(extracted: str, target: str) -> None:
+  src_skills = os.path.join(extracted, 'skills')
+  if not os.path.isdir(src_skills):
+    err('branch is missing skills/ (wrong ref?)')
+
+  os.makedirs(os.path.join(target, 'bin'), exist_ok=True)
+
+  # Re-running the installer is the documented update path, so replace the
+  # skills tree rather than nesting a new copy inside the old one.
+  dst_skills = os.path.join(target, 'skills')
+  if os.path.exists(dst_skills):
+    shutil.rmtree(dst_skills)
+  shutil.copytree(src_skills, dst_skills)
+
+  src_tp = os.path.join(extracted, 'bin', 'trace_processor')
+  if os.path.isfile(src_tp):
+    dst_tp = os.path.join(target, 'bin', 'trace_processor')
+    shutil.copy(src_tp, dst_tp)
+    os.chmod(dst_tp, 0o755)
+
+
+def print_path_hint(target: str) -> None:
+  bin_dir = os.path.join(target, 'bin')
+  print()
+  print(f'Installed Perfetto AI agents skills into: {target}')
+  print(f'  skills:          {os.path.join(target, "skills")}')
+  print(f'  trace_processor: {os.path.join(bin_dir, "trace_processor")}')
+  print()
+  print('Add the bundled trace_processor to your PATH:')
+  if os.name == 'nt':
+    print(f'  $env:PATH = "{bin_dir};$env:PATH"')
+  else:
+    print(f'  export PATH="{bin_dir}:$PATH"')
+
+
+def main() -> int:
+  ap = argparse.ArgumentParser(
+      description='Install the Perfetto AI agents skills bundle.')
+  ap.add_argument(
+      '--target',
+      help='Destination directory. Required unless --agent supplies a default.')
+  ap.add_argument(
+      '--agent',
+      help='One of: claude, codex, opencode, antigravity, pi. Fills a default '
+      '--target when --target is not given.')
+  ap.add_argument(
+      '--version',
+      help='Release version to install (e.g. v56.0); resolves to that '
+      "release's pinned bundle. Defaults to the version the installer was "
+      'published with, else the latest ai-agents tip.')
+  ap.add_argument(
+      '--ref',
+      help='Raw git ref to download (branch, tag or SHA). Overrides --version.')
+  args = ap.parse_args()
+
+  target = resolve_target(args.target, args.agent)
+  ref = resolve_ref(args.ref, args.version)
+
+  with tempfile.TemporaryDirectory() as workdir:
+    extracted = download_and_extract(ref, workdir)
+    install(extracted, target)
+
+  print_path_hint(target)
+  return 0
+
+
+if __name__ == '__main__':
+  sys.exit(main())

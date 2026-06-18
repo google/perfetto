@@ -54,6 +54,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.pbzero.h"
 #include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -119,8 +120,13 @@ std::optional<base::Status> MaybeParseSourceLocation(
 std::optional<base::Status> MaybeParseAndroidJobName(
     const protozero::Field& field,
     util::ProtoToArgsParser::Delegate& delegate) {
-  auto* decoder = delegate.GetInternedMessage(
-      protos::pbzero::InternedData::kAndroidJobName, field.as_uint64());
+  auto* decoder =
+      delegate.seq_state()
+          ->LookupInternedMessage<
+              com::android::internal::pbzero::FrameworksBaseInternedData::
+                  kAndroidJobNameFieldNumber,
+              com::android::internal::pbzero::AndroidJobName>(
+              field.as_uint64());
   if (!decoder) {
     return std::nullopt;
   }

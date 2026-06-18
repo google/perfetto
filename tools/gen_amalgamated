@@ -64,14 +64,15 @@ c_sdk_header_filter = r'^include/perfetto/public/'
 # line).
 gn_args = ' '.join([
     'enable_perfetto_ipc=true',
-    'enable_perfetto_zlib=false',
-    # The amalgamated SDK uses std::regex as the fallback. RE2 and PCRE2
-    # are disabled to avoid pulling in large third-party dependencies.
-    'enable_perfetto_re2=false',
+    # Compile zlib and re2 into the amalgamation; the consumer opts in at
+    # use-site (see perfetto_amalgamated_sdk).
+    'enable_perfetto_zlib=true',
+    'enable_perfetto_re2=true',
     'enable_perfetto_pcre2=false',
     'is_debug=false',
     'is_perfetto_build_generator=true',
     'is_perfetto_embedder=true',
+    'perfetto_amalgamated_sdk=true',
     'perfetto_enable_git_rev_version_header=true',
     'use_custom_libcxx=false',
 ])
@@ -100,6 +101,12 @@ define_allowlist = r'^(PERFETTO.*|GOOGLE_PROTOBUF.*)$'
 
 # Includes which will be removed from the generated source.
 includes_to_remove = r'^(gtest).*$'
+
+# A quoted #include tagged with a trailing "// gen_amalgamated:keep" comment is
+# emitted verbatim instead of being inlined. Used for headers the SDK consumer
+# resolves from their own system install (e.g. re2/re2.h) and for the optional
+# perfetto_sdk_config.h opt-in header (guarded by __has_include).
+keep_verbatim_marker = 'gen_amalgamated:keep'
 
 # From //gn:default_config (since "gn desc" doesn't describe configs).
 default_includes = [
@@ -142,6 +149,12 @@ system_library_map = {
     },
     '//buildtools:protoc_lib': {
         'libs': ['protoc']
+    },
+    '//buildtools:zlib': {
+        'libs': ['z'],
+    },
+    '//buildtools:re2': {
+        'libs': ['re2'],
     },
 }
 
@@ -501,6 +514,8 @@ class AmalgamatedProject(object):
         continue
       elif re.match(includes_to_remove, m.group(1)):
         result.append('// %s removed: %s' % (tool_name, line))
+      elif keep_verbatim_marker in line:
+        result.append(line)
       else:
         result.append('// %s expanded: %s' % (tool_name, line))
         self._add_source_included_header(include_dirs, allowed_files,
@@ -517,6 +532,8 @@ class AmalgamatedProject(object):
         continue
       elif re.match(includes_to_remove, m.group(1)):
         result.append('// %s removed: %s' % (tool_name, line))
+      elif keep_verbatim_marker in line:
+        result.append(line)
       else:
         result.append('// %s expanded: %s' % (tool_name, line))
         self._add_header_included_header(include_dirs, m.group(1))

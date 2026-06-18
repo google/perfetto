@@ -53,10 +53,9 @@ perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
   descriptor_target = "../../../protos/perfetto/trace:descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_winscope_descriptor") {
-  descriptor_name = "winscope.descriptor"
-  descriptor_target =
-      "../../../protos/perfetto/trace/android:winscope_descriptor"
+perfetto_cc_proto_descriptor("gen_cc_android_extension_descriptor") {
+  descriptor_name = "android_extension.descriptor"
+  descriptor_target = "../../../protos/third_party/android:extension_descriptor"
 }
 
 perfetto_cc_proto_descriptor("gen_cc_compile_config_descriptor") {
@@ -74,9 +73,9 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":compiler",
+    ":gen_cc_android_extension_descriptor",
     ":gen_cc_trace_descriptor",
     ":gen_cc_vm_program_descriptor",
-    ":gen_cc_winscope_descriptor",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../protozero/text_to_proto",

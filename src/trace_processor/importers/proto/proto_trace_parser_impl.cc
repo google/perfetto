@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,14 +33,17 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -53,6 +57,7 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
+#include "protos/perfetto/trace/profiling/art_process_metadata.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -80,8 +85,13 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   // TODO(eseckler): Propagate statuses from modules.
   auto& modules = module_context_->modules_by_field;
+  // GetExtensionSlowly() (not Get()) so modules registered for out-of-tree
+  // extension field ids in the `extensions 1000 to 1999` range are dispatched:
+  // Get() can't see fields beyond the highest in-tree field id. It fast-paths
+  // in-tree ids, and the scan only runs for the (rare) registered high ids.
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
-    if (!modules[field_id].empty() && packet.Get(field_id).valid()) {
+    if (!modules[field_id].empty() &&
+        packet.GetExtensionSlowly(field_id).valid()) {
       for (ProtoImporterModule* module : modules[field_id])
         module->ParseTracePacketData(packet, ts, data, field_id);
       return;

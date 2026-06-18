@@ -31,8 +31,8 @@ import type {Command} from '../../public/commands';
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
 
-// Smart omnibox component for BigTrace. Mirrors ui/src/frontend/omnibox.ts but
-// uses BigTraceApp instead of AppImpl and omits trace-search step-through.
+// BigTrace omnibox. Like ui/src/frontend/omnibox.ts but uses BigTraceApp and
+// omits trace-search step-through.
 export class Omnibox implements m.ClassComponent {
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: ReadonlyArray<string> = [];
@@ -121,8 +121,7 @@ export class Omnibox implements m.ClassComponent {
       };
     });
 
-    // Sort by recentsIndex descending — used commands (>=0) above
-    // never-used (-1).
+    // Recently-used commands (recentsIndex >= 0) sort above never-used (-1).
     const sorted = commandsWithHeuristics.sort(
       (a, b) => b.recentsIndex - a.recentsIndex,
     );
@@ -224,7 +223,7 @@ export class Omnibox implements m.ClassComponent {
     }
     return m(OmniboxWidget, {
       value: omnibox.text,
-      // Don't say "Search" — search submit is a no-op in BigTrace.
+      // Avoid "Search": search submit is a no-op in BigTrace.
       placeholder: `Type ${hints.join(', ')}`,
       inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
@@ -245,8 +244,7 @@ export class Omnibox implements m.ClassComponent {
         }
       },
       onSubmit: (_value, _mod, _shift) => {
-        // BigTrace has no trace-level search; submitting from the search
-        // omnibox is a no-op other than blurring the input.
+        // No trace-level search in BigTrace; submit just blurs the input.
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
@@ -291,7 +289,7 @@ export class Omnibox implements m.ClassComponent {
 }
 
 // ---------------------------------------------------------------------------
-// Presentational widget layer (mirrors ui/src/frontend/omnibox.ts)
+// Presentational widget layer (like ui/src/frontend/omnibox.ts)
 // ---------------------------------------------------------------------------
 
 interface OmniboxOptionRowAttrs extends HTMLAttrs {
@@ -438,9 +436,8 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
                   e.preventDefault();
 
                   const option = options[selectedOptionIndex];
-                  // Return values from indexing arrays can be undefined.
-                  // We should enable noUncheckedIndexedAccess in
-                  // tsconfig.json.
+                  // Array indexing can return undefined; enable
+                  // noUncheckedIndexedAccess in tsconfig.json.
                   /* eslint-disable
                       @typescript-eslint/strict-boolean-expressions */
                   if (option) {
@@ -559,8 +556,7 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
     document.removeEventListener('mousedown', this.onMouseDown);
   }
 
-  // Defined as an arrow function to keep `this` bound when used as an event
-  // listener that is added/removed manually.
+  // Arrow function so `this` stays bound across manual add/removeEventListener.
   private onMouseDown = (e: Event) => {
     m.redraw();
 

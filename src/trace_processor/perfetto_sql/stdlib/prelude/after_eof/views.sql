@@ -31,6 +31,27 @@ CREATE PERFETTO VIEW counter(
 AS
 SELECT id, ts, track_id, value, arg_set_id FROM __intrinsic_counter;
 
+-- Contains state from userspace which reads like a symbolic counter with
+-- literals rather than numbers.
+CREATE PERFETTO VIEW state(
+  -- Unique id of a state slice
+  id ID,
+  -- The start timestamp of the state slice in nanoseconds.
+  ts TIMESTAMP,
+  -- The duration of the state slice in nanoseconds.
+  dur DURATION,
+  -- The track this state slice belongs to.
+  track_id JOINID(track.id),
+  -- The category of the state.
+  category STRING,
+  -- The string value/name of the state.
+  value STRING,
+  -- Additional information about the state.
+  arg_set_id ARGSETID
+)
+AS
+SELECT id, ts, dur, track_id, category, value, arg_set_id FROM __intrinsic_state;
+
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.
 CREATE PERFETTO VIEW slice(
@@ -261,25 +282,53 @@ CREATE PERFETTO VIEW perf_session(
 AS
 SELECT *, id AS perf_session_id FROM __intrinsic_perf_session;
 
--- Log entries from Android logcat.
+-- Log entries from all sources (Android logcat, systemd_journald, etc.).
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW logs(
+  -- Which row in the table the log corresponds to.
+  id ID,
+  -- Timestamp of the log entry.
+  ts TIMESTAMP,
+  -- Thread writing the log entry (nullable).
+  utid JOINID(thread.id),
+  -- Priority. Android: 3=DEBUG..6=ERROR. Journald/syslog: 0=EMERG..7=DEBUG.
+  prio LONG,
+  -- Source of the log entry: 'android_logcat' or 'systemd_journald'.
+  log_source STRING,
+  -- Tag / SYSLOG_IDENTIFIER of the log entry.
+  tag STRING,
+  -- Content of the log entry.
+  msg STRING,
+  -- Args for source-specific metadata.
+  arg_set_id ARGSETID
+)
+AS
+SELECT id, ts, utid, prio, log_source, tag, msg, arg_set_id
+FROM __intrinsic_logs;
+
+-- Android log entries from logcat or bugreport.
 --
 -- NOTE: this table is not sorted by timestamp.
 CREATE PERFETTO VIEW android_logs(
   -- Which row in the table the log corresponds to.
   id ID,
-  -- Timestamp of log entry.
+  -- Timestamp in nanoseconds.
   ts TIMESTAMP,
-  -- Thread writing the log entry.
+  -- Thread id in the trace (nullable).
   utid JOINID(thread.id),
-  -- Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.
+  -- Android log priority (3=DEBUG, 4=INFO, 5=WARN, 6=ERROR, 7=FATAL).
   prio LONG,
-  -- Tag of the log entry.
+  -- Log tag.
   tag STRING,
-  -- Content of the log entry
+  -- Log message text.
   msg STRING
 )
 AS
-SELECT id, ts, utid, prio, tag, msg FROM __intrinsic_android_logs;
+SELECT id, ts, utid, prio, tag, msg
+FROM __intrinsic_logs
+WHERE
+  log_source = 'android_logcat';
 
 -- Contains flow events linking slices.
 CREATE PERFETTO VIEW flow(

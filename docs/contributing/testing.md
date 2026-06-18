@@ -138,17 +138,29 @@ Methods cannot take arguments and have to return a `DiffTestBlueprint`:
 
 ```python
 class DiffTestBlueprint:
-  trace: Union[Path, Json, Systrace, TextProto]
+  trace: Union[Path, Json, Systrace, TextProto, Zip, Tar]
   query: Union[str, Path, Metric]
-  out: Union[Path, Json, Csv, TextProto]
+  out: Union[Path, Json, Csv, TextProto, ExpectedError]
 ```
 
 _Trace_ and _Out_: For every type apart from `Path`, contents of the object
 will be treated as file contents so it has to follow the same rules.
 
+_Zip_ and _Tar_: traces can also be archives assembled inline from a dict of
+members, keyed by the path within the archive. Each member is either a `str`
+(written verbatim, e.g. a JSON trace or systrace), a `TextProto` (serialized
+as a binary proto trace) or a `Path`/`DataPath` (raw bytes of an external
+file).
+
 _Query_: For metric tests it is enough to provide the metric name. For query
 tests there can be a raw SQL statement, for example `"SELECT * FROM SLICE"`,
 or a path to an `.sql` file.
+
+_ExpectedError_: Setting `out=ExpectedError('error substring')` inverts the
+test: it passes if and only if loading the trace fails and the error message
+printed by `trace_processor_shell` contains the given substring. Use this to
+test strict parsing/import errors where the whole trace load is expected to
+fail. The query is still required but is never executed.
 
 NOTE: `trace_processor_shell` and the associated proto descriptors need to
 be built before running `tools/diff_test_trace_processor.py`. The easiest

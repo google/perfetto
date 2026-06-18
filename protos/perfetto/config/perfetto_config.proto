@@ -959,6 +959,34 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/display_video_config.proto
+
+// Config for the "android.display.video" data source. Unset/0 fields use
+// the producer's default.
+message DisplayVideoConfig {
+  enum Format {
+    // Default (H.264).
+    FORMAT_UNSPECIFIED = 0;
+    FORMAT_H264 = 1;
+    FORMAT_HEVC = 2;
+  }
+
+  // Scale applied to each display's resolution before capture (0.25 =
+  // quarter size).
+  optional float scale = 1;
+
+  optional Format format = 2;
+
+  // Keyframe interval in seconds. Smaller = snappier seeking, larger trace.
+  optional uint32 key_frame_interval_secs = 3;
+
+  // Per-display cap on emitted bytes. On reaching it the stream is torn
+  // down with a VideoFrameError (SIZE_CAP_HIT).
+  optional uint64 max_stream_size_bytes = 4;
+}
+
+// End of protos/perfetto/config/android/display_video_config.proto
+
 // Begin of protos/perfetto/config/android/inputmethod_config.proto
 
 // Custom configuration for the "android.inputmethod" data source.
@@ -1077,7 +1105,7 @@ message PixelModemConfig {
 
 // End of protos/perfetto/config/android/pixel_modem_config.proto
 
-// Begin of protos/perfetto/common/protolog_common.proto
+// Begin of protos/perfetto/config/android/protolog_config.proto
 
 enum ProtoLogLevel {
   PROTOLOG_LEVEL_UNDEFINED = 0;
@@ -1088,9 +1116,6 @@ enum ProtoLogLevel {
   PROTOLOG_LEVEL_ERROR = 5;
   PROTOLOG_LEVEL_WTF = 6;
 }
-// End of protos/perfetto/common/protolog_common.proto
-
-// Begin of protos/perfetto/config/android/protolog_config.proto
 
 // Custom configuration for the "android.protolog" data source.
 // ProtoLog is a logging mechanism that is intented to be more efficient than
@@ -1384,7 +1409,7 @@ message EtwConfig {
   // The kernel_flags determines the flags that will be used by the etw tracing
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
-  repeated KernelFlag kernel_flags = 1;
+  repeated KernelFlag kernel_flags = 1 [deprecated = true];
 
   // See the list of keywords for for individual providers.
   // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
@@ -1394,11 +1419,14 @@ message EtwConfig {
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
   // Provides events relating to file I/O.
-  repeated string file_provider_events = 4;
+  repeated string file_provider_events = 4 [deprecated = true];
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
   // Provides events relating to disk I/O.
-  repeated string disk_provider_events = 6;
+  repeated string disk_provider_events = 6 [deprecated = true];
+  // Provides events relating to multiple kinds of IO including disk, cache, and
+  // network.
+  repeated string system_io_provider_events = 7;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -2179,13 +2207,26 @@ message HeapprofdConfig {
   // this value.
   optional uint64 adaptive_sampling_max_sampling_interval_bytes = 25;
 
-  // E.g. surfaceflinger, com.android.phone
+  // Names of process cmdlines to profile. The semantics before perfetto v57 are
+  // as the following section (A), and on newer versions are both (A) and (B):
+  //
+  // (A) E.g. surfaceflinger, com.android.phone
   // This input is normalized in the following way: if it contains slashes,
   // everything up to the last slash is discarded. If it contains "@",
   // everything after the first @ is discared.
   // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
   // This transformation is also applied to the processes' command lines when
   // matching.
+  //
+  // (B) Perfetto v57+: a pattern may also contain a wildcard ('*'), in which
+  // case it is matched against running processes' command lines using glob
+  // semantics. If the pattern starts with '/' it is matched against the full
+  // argv0 (e.g. "/system/bin/*"), otherwise it is matched against the binary
+  // name part of argv0 (e.g. "system_*"). Wildcard patterns are *not*
+  // normalized as described above.
+  // Wildcard patterns are supported only for profiling already-running
+  // processes. A config must set no_startup=true if using wildcards, or it will
+  // be rejected.
   repeated string process_cmdline = 2;
 
   // For watermark based triggering or local debugging.
@@ -2469,6 +2510,9 @@ message JavaHprofConfig {
 
   // Do not profile processes whose anon RSS + swap < given value.
   optional uint32 min_anonymous_memory_kb = 4;
+
+  // Do not profile processes whose Java heap size < given value.
+  optional uint32 min_java_heap_size_kb = 9;
 
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
@@ -4639,7 +4683,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 143
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4882,6 +4926,9 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.display.video
+  optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

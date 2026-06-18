@@ -26,6 +26,7 @@ import {
 } from '../trace_processor/sql_utils';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
+import {CopyToClipboardButton} from '../widgets/copy_to_clipboard_button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Icon} from '../widgets/icon';
 import {Section} from '../widgets/section';
@@ -381,13 +382,17 @@ export class DistributionPanel
 
   view({attrs}: m.CVnode<DistributionPanelAttrs>): m.Children {
     const tableEntity = this.materializeSourceTable(attrs);
+    const title = panelTitle(attrs);
     return m(
       DetailsShell,
       {
-        title: panelTitle(attrs),
+        className: 'pf-distribution-shell',
+        // Wrap in a span carrying the full text as a native tooltip, since the
+        // header clips long titles with an ellipsis (see the SCSS).
+        title: m('span', {title}, title),
         description: attrs.sqlTable,
         fillHeight: true,
-        buttons: this.renderAddDebugTrackButton(attrs),
+        buttons: this.renderButtons(attrs),
       },
       m(
         '.pf-distribution-panel',
@@ -397,28 +402,38 @@ export class DistributionPanel
     );
   }
 
-  private renderAddDebugTrackButton(attrs: DistributionPanelAttrs): m.Children {
-    return m(Button, {
-      label: 'Add debug track',
-      onclick: () => {
-        const baseQuery = buildSourceQuery(attrs, [
-          attrs.idColumn,
-          attrs.valueColumn,
-          ...attrs.displayColumns,
-        ]);
-        const brush = this.brush;
-        const sqlSource =
-          brush === undefined
-            ? baseQuery
-            : `SELECT * FROM (${baseQuery}) WHERE ${attrs.valueColumn} ` +
-              `BETWEEN ${brush.start} AND ${brush.end}`;
-        extensions.addDebugSliceTrack({
-          trace: attrs.trace,
-          data: {sqlSource},
-          title: panelTitle(attrs),
-        });
-      },
-    });
+  private renderButtons(attrs: DistributionPanelAttrs): m.Children {
+    return [
+      m(Button, {
+        label: 'Add debug track',
+        onclick: () =>
+          extensions.addDebugSliceTrack({
+            trace: attrs.trace,
+            data: {sqlSource: this.buildInstancesQuery(attrs)},
+            title: panelTitle(attrs),
+          }),
+      }),
+      m(CopyToClipboardButton, {
+        label: 'Copy SQL query',
+        title: 'Copy the SQL query backing this table to the clipboard',
+        textToCopy: () => this.buildInstancesQuery(attrs),
+      }),
+    ];
+  }
+
+  // The query that produces the instances grid, narrowed to the brushed range
+  // when the histogram has an active selection.
+  private buildInstancesQuery(attrs: DistributionPanelAttrs): string {
+    const baseQuery = buildSourceQuery(attrs, [
+      attrs.idColumn,
+      attrs.valueColumn,
+      ...attrs.displayColumns,
+    ]);
+    const brush = this.brush;
+    return brush === undefined
+      ? baseQuery
+      : `SELECT * FROM (${baseQuery}) WHERE ${attrs.valueColumn} ` +
+          `BETWEEN ${brush.start} AND ${brush.end}`;
   }
 
   onremove(): void {

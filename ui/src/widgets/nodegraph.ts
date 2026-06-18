@@ -1518,6 +1518,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         x: mouseX - canvasX * newZoom,
         y: mouseY - canvasY * newZoom,
       };
+    } else if (e.shiftKey) {
+      // Emulate horizontal scroll while shift held
+      panBy(-e.deltaY, 0);
     } else {
       // Pan the canvas based on wheel delta
       panBy(-e.deltaX, -e.deltaY);

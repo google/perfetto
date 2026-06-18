@@ -129,6 +129,7 @@ std::string Format(const char* fmt,
 enum ParseState {
   kWaitingForKey,
   kReadingKey,
+  kReadingExtensionKey,
   kWaitingForValue,
   kReadingStringValue,
   kReadingStringEscape,
@@ -141,13 +142,21 @@ struct Token {
   size_t column;
   size_t row;
   perfetto::base::StringView txt;
+  bool is_extension = false;
 
   size_t size() const { return txt.size(); }
   std::string ToStdString() const { return txt.ToStdString(); }
 };
 
+struct RegisteredExtension {
+  std::string extendee_full_name;
+  const FieldDescriptorProto* field;
+};
+
 struct ParserDelegateContext {
   const DescriptorProto* descriptor;
+  // Leading-dot qualified form (".pkg.Msg"), to match extendee names.
+  std::string descriptor_full_name;
   protozero::Message* message;
   std::set<std::string> seen_fields;
 };
@@ -207,15 +216,18 @@ class ErrorReporter {
 class ParserDelegate {
  public:
   ParserDelegate(
+      const std::string& root_type,
       const DescriptorProto* descriptor,
       protozero::Message* message,
       ErrorReporter* reporter,
       std::map<std::string, const DescriptorProto*> name_to_descriptor,
-      std::map<std::string, const EnumDescriptorProto*> name_to_enum)
+      std::map<std::string, const EnumDescriptorProto*> name_to_enum,
+      std::map<std::string, RegisteredExtension> name_to_extension)
       : reporter_(reporter),
         name_to_descriptor_(std::move(name_to_descriptor)),
-        name_to_enum_(std::move(name_to_enum)) {
-    ctx_.push(ParserDelegateContext{descriptor, message, {}});
+        name_to_enum_(std::move(name_to_enum)),
+        name_to_extension_(std::move(name_to_extension)) {
+    ctx_.push(ParserDelegateContext{descriptor, root_type, message, {}});
   }
 
   void NumericField(const Token& key, const Token& value) {
@@ -452,7 +464,8 @@ class ParserDelegate {
     const DescriptorProto* nested_descriptor = name_to_descriptor_[type_name];
     PERFETTO_CHECK(nested_descriptor);
     auto* nested_msg = msg()->BeginNestedMessage<protozero::Message>(field_id);
-    ctx_.push(ParserDelegateContext{nested_descriptor, nested_msg, {}});
+    ctx_.push(
+        ParserDelegateContext{nested_descriptor, type_name, nested_msg, {}});
     return true;
   }
 
@@ -522,20 +535,43 @@ class ParserDelegate {
       const std::set<FieldDescriptorProto::Type>& valid_field_types) {
     const std::string field_name = key.ToStdString();
     const FieldDescriptorProto* field_descriptor = nullptr;
-    for (const auto& f : descriptor()->field()) {
-      if (f.name() == field_name) {
-        field_descriptor = &f;
-        break;
+    if (key.is_extension) {
+      auto it = name_to_extension_.find(field_name);
+      if (it == name_to_extension_.end()) {
+        AddError(key, "No extension named \"$n\" registered",
+                 {
+                     {"$n", field_name},
+                 });
+        return nullptr;
       }
-    }
+      const RegisteredExtension& ext = it->second;
+      if (ext.extendee_full_name != descriptor_full_name()) {
+        AddError(key,
+                 "Extension \"$n\" extends \"$e\", not the current message $p",
+                 {
+                     {"$n", field_name},
+                     {"$e", ext.extendee_full_name},
+                     {"$p", descriptor_full_name()},
+                 });
+        return nullptr;
+      }
+      field_descriptor = ext.field;
+    } else {
+      for (const auto& f : descriptor()->field()) {
+        if (f.name() == field_name) {
+          field_descriptor = &f;
+          break;
+        }
+      }
 
-    if (!field_descriptor) {
-      AddError(key, "No field named \"$n\" in proto $p",
-               {
-                   {"$n", field_name},
-                   {"$p", descriptor_name()},
-               });
-      return nullptr;
+      if (!field_descriptor) {
+        AddError(key, "No field named \"$n\" in proto $p",
+                 {
+                     {"$n", field_name},
+                     {"$p", descriptor_name()},
+                 });
+        return nullptr;
+      }
     }
 
     bool is_repeated =
@@ -571,6 +607,11 @@ class ParserDelegate {
 
   const std::string& descriptor_name() { return descriptor()->name(); }
 
+  const std::string& descriptor_full_name() {
+    PERFETTO_CHECK(!ctx_.empty());
+    return ctx_.top().descriptor_full_name;
+  }
+
   protozero::Message* msg() {
     PERFETTO_CHECK(!ctx_.empty());
     return ctx_.top().message;
@@ -580,6 +621,7 @@ class ParserDelegate {
   ErrorReporter* reporter_;
   std::map<std::string, const DescriptorProto*> name_to_descriptor_;
   std::map<std::string, const EnumDescriptorProto*> name_to_enum_;
+  std::map<std::string, RegisteredExtension> name_to_extension_;
 };
 
 void Parse(std::string_view input, ParserDelegate* delegate) {
@@ -635,6 +677,16 @@ void Parse(std::string_view input, ParserDelegate* delegate) {
           key.offset = i;
           key.row = row;
           key.column = column;
+          key.is_extension = false;
+          continue;
+        }
+        if (c == '[') {
+          saw_colon_for_this_key = false;
+          state = kReadingExtensionKey;
+          key.offset = i + 1;  // exclude '['
+          key.row = row;
+          key.column = column;
+          key.is_extension = true;
           continue;
         }
         break;
@@ -648,6 +700,21 @@ void Parse(std::string_view input, ParserDelegate* delegate) {
         if (c == '#')
           comment_till_eol = true;
         continue;
+
+      case kReadingExtensionKey:
+        if (IsIdentifierBody(c) || c == '.')
+          continue;
+        if (c == ']') {
+          if (i == key.offset) {
+            delegate->AddError(row, column, "Empty extension name", {});
+            return;
+          }
+          key.txt = perfetto::base::StringView(input.data() + key.offset,
+                                               i - key.offset);
+          state = kWaitingForValue;
+          continue;
+        }
+        break;
 
       case kWaitingForValue:
         if (isspace(c))
@@ -769,6 +836,35 @@ void AddNestedDescriptors(
   }
 }
 
+// `extendee` may come fully qualified (`.pkg.Msg`) or relative (`Msg`).
+std::string NormalizeExtendee(const std::string& extendee,
+                              const std::string& package) {
+  if (!extendee.empty() && extendee[0] == '.')
+    return extendee;
+  if (package.empty())
+    return "." + extendee;
+  return "." + package + "." + extendee;
+}
+
+void AddExtensions(
+    const std::string& enclosing_full_name,
+    const std::string& package,
+    const DescriptorProto* descriptor,
+    std::map<std::string, RegisteredExtension>* name_to_extension) {
+  const std::string scope = enclosing_full_name.empty()
+                                ? std::string()
+                                : enclosing_full_name.substr(1);
+  for (const FieldDescriptorProto& ext : descriptor->extension()) {
+    const std::string key = scope + "." + ext.name();
+    (*name_to_extension)[key] =
+        RegisteredExtension{NormalizeExtendee(ext.extendee(), package), &ext};
+  }
+  for (const DescriptorProto& nested : descriptor->nested_type()) {
+    AddExtensions(enclosing_full_name + "." + nested.name(), package, &nested,
+                  name_to_extension);
+  }
+}
+
 }  // namespace
 
 perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
@@ -779,6 +875,7 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
     std::string_view input) {
   std::map<std::string, const DescriptorProto*> name_to_descriptor;
   std::map<std::string, const EnumDescriptorProto*> name_to_enum;
+  std::map<std::string, RegisteredExtension> name_to_extension;
   FileDescriptorSet file_descriptor_set;
 
   {
@@ -795,6 +892,15 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
         name_to_descriptor[name] = &descriptor;
         AddNestedDescriptors(name, &descriptor, &name_to_descriptor,
                              &name_to_enum);
+        AddExtensions(name, file_descriptor.package(), &descriptor,
+                      &name_to_extension);
+      }
+      const std::string& file_scope = file_descriptor.package();
+      for (const FieldDescriptorProto& ext : file_descriptor.extension()) {
+        const std::string key =
+            file_scope.empty() ? ext.name() : file_scope + "." + ext.name();
+        name_to_extension[key] = RegisteredExtension{
+            NormalizeExtendee(ext.extendee(), file_scope), &ext};
       }
     }
   }
@@ -804,9 +910,10 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
 
   protozero::HeapBuffered<protozero::Message> message;
   ErrorReporter reporter(file_name, input);
-  ParserDelegate delegate(descriptor, message.get(), &reporter,
+  ParserDelegate delegate(root_type, descriptor, message.get(), &reporter,
                           std::move(name_to_descriptor),
-                          std::move(name_to_enum));
+                          std::move(name_to_enum),
+                          std::move(name_to_extension));
   Parse(input, &delegate);
   if (!reporter.success())
     return perfetto::base::ErrStatus("%s", reporter.error().c_str());

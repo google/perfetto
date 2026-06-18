@@ -38,6 +38,8 @@ class ServerSubcommand : public Subcommand {
   std::string port_number_;
   std::string listen_ip_;
   std::string additional_cors_origins_str_;
+  std::string session_name_;
+  std::string socket_path_;
 };
 
 }  // namespace perfetto::trace_processor::shell

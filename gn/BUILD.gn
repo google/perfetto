@@ -114,6 +114,7 @@ action("gen_buildflags") {
     "PERFETTO_ENABLE_SOCK_INOTIFY=$enable_perfetto_sock_inotify",
     "PERFETTO_RE2=$enable_perfetto_re2",
     "PERFETTO_PCRE2=$enable_perfetto_pcre2",
+    "PERFETTO_AMALGAMATED_SDK=$perfetto_amalgamated_sdk",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")

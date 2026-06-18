@@ -165,6 +165,22 @@ class WrappingSqlView:
   view_name: str
 
 
+class Purpose(Enum):
+  """
+  Describes how a table is consumed, which can affect how it is generated.
+  """
+  # The table is used as a regular table: read from SQL via the normal
+  # query-plan cursor.
+  DEFAULT = auto()
+
+  # The table is the output of a StaticTableFunction. The SQLite module for
+  # such functions reads every output cell via random access
+  # (Dataframe::GetCell), so all nullable columns are forced to a
+  # random-access-capable null layout (DenseNull) regardless of cpp_access.
+  # The scan-only SparseNull default would abort at read time.
+  STATIC_TABLE_FUNCTION = auto()
+
+
 @dataclass(frozen=True)
 class Table:
   """
@@ -184,6 +200,7 @@ class Table:
     parent: The parent table for this table. All columns are inherited from the
     specified table.
     wrapping_sql_view: See |WrappingSqlView|.
+    purpose: How the table is consumed. See |Purpose|.
   """
   python_module: str
   class_name: str
@@ -193,6 +210,7 @@ class Table:
   add_implicit_column: bool = True
   tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
+  purpose: Purpose = Purpose.DEFAULT
   # TODO(lalitm): remove once migration sticks.
   use_legacy_table_backend: bool = False
 

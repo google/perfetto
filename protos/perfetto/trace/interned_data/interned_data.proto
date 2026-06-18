@@ -16,8 +16,6 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/android/app_wakelock_data.proto";
-import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/gpu/gpu_counter_event.proto";
 import "protos/perfetto/trace/gpu/gpu_render_stage_event.proto";
@@ -114,9 +112,6 @@ message InternedData {
   // Interned string values in the DebugAnnotation proto.
   repeated InternedString debug_annotation_string_values = 29;
 
-  // Interned packet context for android.network_packets.
-  repeated NetworkPacketContext packet_context = 30;
-
   // Interned name of a js function. We only intern js functions as there is a
   // lot of duplication for them, but less so for other strings in the V8 data
   // source.
@@ -145,15 +140,8 @@ message InternedData {
   repeated InternedString viewcapture_content_description = 45;
   repeated InternedString viewcapture_text = 46;
 
-  // Interned context for android.app_wakelocks.
-  repeated AppWakelockInfo app_wakelock_info = 42;
-
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
-
-  // Interned job names for Android Job Names. These are separate from
-  // other strings because they are under app control.
-  repeated AndroidJobName android_job_name = 44;
 
   // Description of GPU counters available in a data source.
   repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
@@ -161,12 +149,19 @@ message InternedData {
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
 
+  // Android out-of-tree extensions. These payloads are defined in the Android
+  // tree and mirrored under protos/third_party/android/; each hole keeps its
+  // original field number for wire compatibility. Per schema:
+  //
+  // protos/third_party/android/connectivity/network_trace.proto
+  //   30: NetworkPacketContext packet_context
+  //
+  // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
+  //   42: AppWakelockInfo app_wakelock_info
+  //   44: AndroidJobName android_job_name
+  extensions 30, 42, 44;
+
   // Extension range for domain-specific interned data. See
   // protos/perfetto/trace/extensions.json for the allocation registry.
   extensions 1000 to 9999;
-}
-
-message AndroidJobName {
-  optional uint64 iid = 1;
-  optional string name = 2;
 }

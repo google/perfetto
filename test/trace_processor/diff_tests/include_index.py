@@ -75,9 +75,11 @@ from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.etw.tests import Etw
 from diff_tests.parser.fs.tests import Fs
+from diff_tests.parser.ftrace.adreno_cmdbatch_tests import AdrenoCmdbatch
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
+from diff_tests.parser.ftrace.thermal_exynos_tests import ThermalExynos
 from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
 from diff_tests.parser.ftrace.kernel_trackevent_tests import KernelTrackevent
 from diff_tests.parser.fuchsia.tests import Fuchsia
@@ -89,6 +91,7 @@ from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
 from diff_tests.parser.gzip.tests import Gzip
 from diff_tests.parser.instruments.tests import Instruments
 from diff_tests.parser.json.tests import JsonParser
+from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
@@ -121,6 +124,7 @@ from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
 from diff_tests.parser.smoke.tests_sched_events import SmokeSchedEvents
+from diff_tests.parser.trace_metadata.tests import TraceMetadata
 from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
@@ -228,6 +232,7 @@ def fetch_all_diff_tests(
       GraphicsParser,
       JsonParser,
       KernelTrackevent,
+      Linux,
       MemoryParser,
       NetworkParser,
       BatteryStats,
@@ -269,10 +274,13 @@ def fetch_all_diff_tests(
       ParsingRssStats,
       ParsingSysStats,
       ParsingMemoryCounters,
+      AdrenoCmdbatch,
       BlockIo,
       FtraceCrop,
       Kprobes,
+      ThermalExynos,
       ParsingTracedStats,
+      TraceMetadata,
       Zip,
       AndroidInputEvent,
       Instruments,
