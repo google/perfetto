@@ -119,20 +119,17 @@ How to use it:
   columns** (e.g. `type = 'suspend_resume'`, not `name = "Suspend/Resume
   Latency"`). Display strings are fragile. *(#2149)*
 
-- **❌ Fire-and-forget async init in `onActivate`/constructor that the trace
-  lifecycle depends on → ✅ coordinate it.** Un-awaited loads race with trace
-  load. Don't build SQL tables that implicitly depend on another step having run
-  first to set the right time span. *(#2353, #1758)*
+- **❌ Forgetting to await for async functions calls in `onActivate()`,
+  `onTraceLoad()` or other lifecycle methods.** It's extremely rare to have a
+  legitimate reason for calling an async method without await or without a .then(),
+  as that creates fire-and-forget semantics that cause races.
+  If really needed, it must be documented with a comment. *(#2353, #1758)*
 
 - **❌ Ad-hoc `localStorage` keys for dismissible hints / persisted layout → ✅ use
   the settings system** (and parse unknown persisted objects with Zod, making
   newly-added fields optional for backward compatibility). Make banners
   permanently dismissable; pair a one-time hint with a permanent discoverable
   button rather than a recurring intrusive banner. *(#5761, #2772, #3660, #3185)*
-
-- **❌ Manual disposal "thrash" of intermediate objects → ✅ don't.** Work is
-  already cancelled on trace close and GC'd when references drop; bespoke
-  async-dispose dances signal lifecycle management belongs elsewhere. *(#5436, #5284)*
 
 ---
 
@@ -299,7 +296,7 @@ How to use it:
   tag (intersected with shared fields). Let the type system enforce which fields
   are required per variant. *(#4192, #3331)*
 
-- 🔁 **❌ Mutable array params → ✅ `ReadonlyArray<T>`** (including in getters/
+- 🔁 **❌ Mutable array params → ✅ `readonly T[]`** (including in getters/
   setters) for collections you don't mutate. Mark interface attrs `readonly`.
   *(#3188, #3058, #2039)*
 
