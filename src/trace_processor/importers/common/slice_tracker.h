@@ -75,13 +75,18 @@ class SliceTracker {
   }
 
   // virtual for testing
+  //
+  // If |overlap_out| is non-null, a partial overlap reports via |*overlap_out|
+  // (returning nullopt) instead of dropping the slice and incrementing the
+  // |slice_drop_overlapping_complete_event| stat, letting the caller recover.
   virtual std::optional<SliceId> Scoped(
       int64_t timestamp,
       TrackId track_id,
       StringId category,
       StringId raw_name,
       int64_t duration,
-      SetArgsCallback args_callback = SetArgsCallback());
+      SetArgsCallback args_callback = SetArgsCallback(),
+      bool* overlap_out = nullptr);
 
   template <typename Table>
   std::optional<SliceId> ScopedTyped(
@@ -150,7 +155,8 @@ class SliceTracker {
                                             int64_t duration,
                                             TrackId track_id,
                                             SetArgsCallback args_callback,
-                                            std::function<SliceId()> inserter);
+                                            std::function<SliceId()> inserter,
+                                            bool* overlap_out = nullptr);
 
   std::optional<SliceId> CompleteSlice(
       int64_t timestamp,
@@ -161,7 +167,8 @@ class SliceTracker {
   [[nodiscard]] bool MaybeCloseStack(int64_t ts,
                                      int64_t dur,
                                      const SlicesStack&,
-                                     TrackId track_id);
+                                     TrackId track_id,
+                                     bool* overlap_out);
 
   std::optional<uint32_t> MatchingIncompleteSliceIndex(const SlicesStack& stack,
                                                        StringId name,

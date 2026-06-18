@@ -37,20 +37,6 @@ instead, Perfetto's native trace format. See
 events can be represented using
 TrackEvent.
 
-## {#why-are-overlapping-events-in-json-traces-not-displayed-correctly} Why are overlapping events in JSON traces not displayed correctly?
-
-The Perfetto UI and trace processor do not support overlapping B/E/X events, in
-compliance with the
-[JSON spec](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.nso4gcezn7n1).
-As stated in the spec, events are only allowed to perfectly nest.
-
-Users are recommended to emit
-[TrackEvent](/docs/instrumentation/track-events.md)
-instead, Perfetto's native trace format. See
-[this guide](/docs/reference/synthetic-track-event.md) for how common JSON
-events can be represented using
-TrackEvent.
-
 ## How can I use Perfetto tooling without instrumenting my program?
 
 A common problem is that users want to use Perfetto analysis and visualization
