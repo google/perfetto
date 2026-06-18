@@ -231,20 +231,23 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         return;
       }
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      bool overlapped = false;
+      std::optional<SliceTracker::OverlapInfo> overlap;
       auto slice_id =
           slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
-                                event.dur, args_inserter, &overlapped);
-      if (overlapped) {
+                                event.dur, args_inserter, &overlap);
+      if (overlap) {
         // The event partially overlaps another slice on this thread, so it
         // cannot nest on the thread's main track. Rather than drop it, spill it
         // onto a nestable overflow track which is merged back onto the thread
         // at display time. This keeps the data visible but, because overlapping
         // events are inherently ambiguous, the layout might not match what was
-        // intended; flag it so the user knows. See
-        // https://github.com/google/perfetto/issues/4280.
+        // intended; flag it (with the offending overlap range) so the user
+        // knows. See https://github.com/google/perfetto/issues/4280.
         RecordEventError(timestamp, event,
-                         stats::slice_spill_overlapping_complete_event);
+                         stats::slice_spill_overlapping_complete_event,
+                         [&](ArgsTracker::BoundInserter& inserter) {
+                           slice_tracker->AddOverlapArgs(*overlap, inserter);
+                         });
         track_id = context_->track_compressor->InternLegacyOverlappingScoped(
             kThreadOverlappingSliceBlueprint, tracks::Dimensions(utid),
             timestamp, event.dur);
@@ -576,9 +579,11 @@ void JsonTraceParser::MaybeAddFlow(int64_t timestamp,
   }
 }
 
-void JsonTraceParser::RecordEventError(int64_t timestamp,
-                                       const JsonEvent& event,
-                                       size_t stat_key) {
+void JsonTraceParser::RecordEventError(
+    int64_t timestamp,
+    const JsonEvent& event,
+    size_t stat_key,
+    std::function<void(ArgsTracker::BoundInserter&)> extra_args) {
   StringId name_key = context_->storage->InternString("event_name");
   StringId phase_key = context_->storage->InternString("event_phase");
   StringId name_id = event.name;
@@ -586,10 +591,14 @@ void JsonTraceParser::RecordEventError(int64_t timestamp,
   StringId phase_id = context_->storage->InternString(phase_str);
   context_->import_logs_tracker->RecordParserError(
       stat_key, timestamp,
-      [name_key, name_id, phase_key,
-       phase_id](ArgsTracker::BoundInserter& inserter) {
+      [name_key, name_id, phase_key, phase_id,
+       extra_args =
+           std::move(extra_args)](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(name_key, Variadic::String(name_id));
         inserter.AddArg(phase_key, Variadic::String(phase_id));
+        if (extra_args) {
+          extra_args(inserter);
+        }
       });
 }
 
