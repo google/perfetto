@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
 #include "src/base/test/test_task_runner.h"
@@ -178,11 +179,10 @@ HeapGraphCounts CountHeapGraph(const protos::gen::TracePacket& packet) {
 
   HeapGraphCounts counts;
   std::vector<uint8_t> serialized = packet.SerializeAsArray();
-  protos::pbzero::TracePacket::Decoder packet_decoder(serialized.data(),
-                                                      serialized.size());
+  protozero::ProtoDecoder packet_decoder(serialized.data(), serialized.size());
   HeapGraph::Decoder heap_graph(
       packet_decoder
-          .GetExtensionSlowly<ArtHeapGraphTracePacket::kHeapGraphFieldNumber>()
+          .FindField(ArtHeapGraphTracePacket::kHeapGraphFieldNumber)
           .as_bytes());
   for (auto it = heap_graph.objects(); it; ++it)
     counts.objects++;

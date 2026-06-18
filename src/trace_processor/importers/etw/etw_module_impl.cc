@@ -42,8 +42,7 @@ ModuleResult EtwModuleImpl::TokenizePacket(const TokenizePacketArgs& args) {
     case TracePacket::kEtwEventsFieldNumber: {
       auto etw_field = args.field.Cast<TracePacket::kEtwEvents>();
       tokenizer_.TokenizeEtwBundle(
-          args.packet->slice(etw_field.data, etw_field.size),
-          args.state);
+          args.packet->slice(etw_field.data, etw_field.size), args.state);
       return ModuleResult::Handled();
     }
   }

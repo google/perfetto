@@ -822,6 +822,7 @@ perfetto_cc_library(
         ":src_trace_processor_rpc_client",
         ":src_trace_processor_rpc_deserializer",
         ":src_trace_processor_rpc_httpd",
+        ":src_trace_processor_rpc_lifecycle",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_session_util",
         ":src_trace_processor_rpc_stdiod",
@@ -3270,6 +3271,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/proto_importer_module.cc",
         "src/trace_processor/importers/proto/proto_importer_module.h",
+        "src/trace_processor/importers/proto/selective_trace_packet_decoder.h",
+        "src/trace_processor/importers/proto/typed_proto_field.h",
     ],
 )
 
@@ -5251,6 +5254,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/rpc/httpd.cc",
         "src/trace_processor/rpc/httpd.h",
+    ],
+)
+
+# GN target: //src/trace_processor/rpc:lifecycle
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_lifecycle",
+    srcs = [
+        "src/trace_processor/rpc/session_lifecycle.cc",
+        "src/trace_processor/rpc/session_lifecycle.h",
     ],
 )
 

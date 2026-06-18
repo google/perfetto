@@ -48,8 +48,8 @@ ModuleResult FtraceModuleImpl::TokenizePacket(const TokenizePacketArgs& args) {
     case TracePacket::kFtraceEventsFieldNumber: {
       auto ftrace_field = args.field.Cast<TracePacket::kFtraceEvents>();
       return tokenizer_.TokenizeFtraceBundle(
-          args.packet->slice(ftrace_field.data, ftrace_field.size),
-          args.state, args.decoder.trusted_packet_sequence_id());
+          args.packet->slice(ftrace_field.data, ftrace_field.size), args.state,
+          args.decoder.trusted_packet_sequence_id());
     }
     case TracePacket::kFtraceStatsFieldNumber: {
       return parser_.ParseFtraceStats(

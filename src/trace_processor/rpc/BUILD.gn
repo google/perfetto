@@ -81,6 +81,19 @@ source_set("session_util") {
   ]
 }
 
+# Self-managing lifecycle (idle-timeout reaping + orphan detection) shared by the
+# unix and http servers. Base-only.
+source_set("lifecycle") {
+  sources = [
+    "session_lifecycle.cc",
+    "session_lifecycle.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 # Depends on the IPC layer (AF_UNIX sockets), which is not available on all
 # platforms (e.g. Chromium+Windows). Gated accordingly; the shell falls back to
 # an error when the unix server isn't compiled in.
@@ -99,6 +112,9 @@ if (enable_perfetto_ipc) {
       "../../protozero",
       "../../protozero:proto_ring_buffer",
     ]
+
+    # unixd.h exposes IdleStart from session_lifecycle.h.
+    public_deps = [ ":lifecycle" ]
   }
 }
 
@@ -174,6 +190,9 @@ if (enable_perfetto_trace_processor_httpd) {
       "../../base/http",
       "../../protozero",
     ]
+
+    # httpd.h exposes IdleStart from session_lifecycle.h.
+    public_deps = [ ":lifecycle" ]
   }
 }
 

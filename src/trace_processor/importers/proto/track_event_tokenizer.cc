@@ -393,8 +393,9 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
   // TrackEvents will be ignored while incremental args.state is invalid. As a
   // consequence, we should also ignore any ThreadDescriptors received in this
   // args.state. Otherwise, any delta-encoded timestamps would be calculated
-  // incorrectly once we move out of the packet loss args.state. Instead, wait until
-  // the first subsequent descriptor after incremental args.state is cleared.
+  // incorrectly once we move out of the packet loss args.state. Instead, wait
+  // until the first subsequent descriptor after incremental args.state is
+  // cleared.
   if (!args.state->IsIncrementalStateValid()) {
     RecordTokenizationErrorWithSeqId(
         stats::thread_descriptor_skipped_incremental_state_invalid,
@@ -450,7 +451,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     if (!track_event->timestamps_valid()) {
       RecordTokenizationErrorWithSeqId(
           stats::track_event_skipped_timestamp_delta_without_valid_state,
-          args.decoder.trusted_packet_sequence_id(), &data.trace_packet_data.packet);
+          args.decoder.trusted_packet_sequence_id(),
+          &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
     timestamp = track_event->IncrementAndGetTrackEventTimeNs(
@@ -500,7 +502,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     if (!track_event->timestamps_valid()) {
       RecordTokenizationErrorWithSeqId(
           stats::track_event_skipped_thread_time_delta_without_valid_state,
-          args.decoder.trusted_packet_sequence_id(), &data.trace_packet_data.packet);
+          args.decoder.trusted_packet_sequence_id(),
+          &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
     data.thread_timestamp = track_event->IncrementAndGetTrackEventThreadTimeNs(
@@ -517,7 +520,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       RecordTokenizationErrorWithSeqId(
           stats::
               track_event_skipped_thread_instruction_delta_without_valid_state,
-          args.decoder.trusted_packet_sequence_id(), &data.trace_packet_data.packet);
+          args.decoder.trusted_packet_sequence_id(),
+          &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
     data.thread_instruction_count =
@@ -551,7 +555,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     std::optional<double> value;
     if (event.has_counter_value()) {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
-          args.state.get(), track_uuid, static_cast<double>(event.counter_value()));
+          args.state.get(), track_uuid,
+          static_cast<double>(event.counter_value()));
     } else {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
           args.state.get(), track_uuid, event.double_counter_value());
