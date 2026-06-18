@@ -127,7 +127,7 @@ def run_native(args):
       return 1
     cmd += ['--ui']
   elif args.rebaseline:
-    cmd += ['--update-snapshots=all']
+    cmd += ['--update-snapshots']
 
   if args.workers:
     cmd += ['--workers', args.workers]
