@@ -17,7 +17,11 @@ Unreleased:
   UI:
    *
   SDK:
-   *
+    * Added nested track support with sibling ordering and merging to the C SDK
+      high-level ABI and the Android Java SDK (`PerfettoTrack`).
+    * Added track event correlation ids to the C SDK high-level ABI
+      (`PERFETTO_TE_CORRELATION_ID()` / `PERFETTO_TE_CORRELATION_ID_STR()`) and
+      the Android Java SDK (`PerfettoTrackEventBuilder.setCorrelationId()`).
 
 v56.1 - 2026-06-04:
   SDK:

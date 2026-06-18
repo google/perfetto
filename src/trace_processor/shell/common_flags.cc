@@ -523,9 +523,8 @@ static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
     if (f.is_set) {
       return base::ErrStatus(
           "%s cannot be combined with --remote: the trace is already loaded "
-          "and "
-          "configured by the session. Pass this flag to `tp server unix` when "
-          "starting the session instead.",
+          "and configured by the session. Pass this flag to `tp server unix` "
+          "when starting the session instead.",
           f.flag);
     }
   }
