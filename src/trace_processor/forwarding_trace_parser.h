@@ -47,7 +47,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
  private:
   base::Status Init(const TraceBlobView&);
 
-  // Returns the perfetto_metadata entry matching this file's path, or
+  // Returns the perfetto_manifest entry matching this file's path, or
   // nullptr if none.
   TraceMetadataState::FileEntry* FindMetadataEntry() const;
 

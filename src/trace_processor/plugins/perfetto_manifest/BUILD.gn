@@ -16,12 +16,12 @@ import("../../../../gn/perfetto.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("perfetto_metadata") {
+source_set("perfetto_manifest") {
   sources = [
-    "perfetto_metadata.cc",
-    "perfetto_metadata.h",
-    "perfetto_metadata_reader.cc",
-    "perfetto_metadata_reader.h",
+    "perfetto_manifest.cc",
+    "perfetto_manifest.h",
+    "perfetto_manifest_reader.cc",
+    "perfetto_manifest_reader.h",
   ]
   deps = [
     "../..:storage_minimal",
