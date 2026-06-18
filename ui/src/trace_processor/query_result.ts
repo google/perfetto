@@ -1096,7 +1096,8 @@ class ResultBatch {
           reader.skipType(tag & 7);
           break;
 
-        case 8: { // int32_cells, a 4-byte aligned packed sfixed32 buffer.
+        case 8: {
+          // int32_cells, a 4-byte aligned packed sfixed32 buffer.
           assertTrue((tag & 7) === TAG_LEN_DELIM);
           const i32Len = reader.uint32();
           assertTrue(i32Len % 4 === 0);
@@ -1120,7 +1121,8 @@ class ResultBatch {
           break;
         }
 
-        case 9: { // int64_cells, an 8-byte aligned packed sfixed64 buffer.
+        case 9: {
+          // int64_cells, an 8-byte aligned packed sfixed64 buffer.
           assertTrue((tag & 7) === TAG_LEN_DELIM);
           const i64Len = reader.uint32();
           assertTrue(i64Len % 8 === 0);
