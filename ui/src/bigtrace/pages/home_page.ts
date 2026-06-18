@@ -81,15 +81,20 @@ export class HomePage implements m.ClassComponent {
       '.pf-home-page',
       m(
         '.pf-home-page__center.pf-bt-home-center',
-        // Presets are the focal point; the intro and the manual-path link show
-        // only alongside them, so with no backend the empty state stands alone.
-        hasPresets && this.renderIntro(),
+        // The content block shrinks to its widest row and the parent centers
+        // it: a full 3-up grid reads as a left-aligned column, a 1–2 card grid
+        // centers as a tight cluster. With no backend the empty state stands
+        // alone.
         hasPresets
-          ? this.renderPresets()
+          ? m(
+              '.pf-bt-home-content',
+              this.renderIntro(),
+              this.renderPresets(),
+              this.renderCustomLink(),
+            )
           : presetStore.isLoading
             ? null
             : this.renderEmptyState(),
-        hasPresets && this.renderCustomLink(),
       ),
     );
   }
@@ -132,6 +137,7 @@ export class HomePage implements m.ClassComponent {
       this.activeCuj !== undefined && byCuj.has(this.activeCuj)
         ? this.activeCuj
         : groups[0][0];
+    const cards = byCuj.get(active) ?? [];
 
     return m(
       '.pf-bt-home-presets',
@@ -142,7 +148,12 @@ export class HomePage implements m.ClassComponent {
           this.activeCuj = cuj;
         },
       ),
-      m('.pf-bt-preset-list', (byCuj.get(active) ?? []).map(presetCard)),
+      // One column per card, capped at 3, so a sparse category leaves no empty
+      // tracks; the content block then centers the whole cluster.
+      m(
+        `.pf-bt-preset-list.pf-bt-preset-list--cols-${Math.min(cards.length, 3)}`,
+        cards.map(presetCard),
+      ),
     );
   }
 

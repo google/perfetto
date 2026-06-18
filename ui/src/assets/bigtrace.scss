@@ -166,8 +166,18 @@
   gap: 20px;
 }
 
+// One block holding the intro, presets, and link. It shrinks to its widest
+// row (the grid) and the parent centers it, so a full 3-up grid reads as a
+// left-aligned column while a 1–2 card grid centers as a tight cluster.
+.pf-bt-home-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: fit-content;
+  max-width: min(960px, 92%);
+}
+
 .pf-bt-home-intro {
-  width: min(960px, 92%);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -187,7 +197,6 @@
 }
 
 .pf-bt-home-presets {
-  width: min(960px, 92%);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -224,11 +233,21 @@
 
 // ---------- Analysis preset cards (home page) ----------
 
+// One column per card (capped at 3) via the --cols-N modifier, so a sparse
+// category leaves no empty tracks and the content block can center it.
 .pf-bt-preset-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
-  width: 100%;
+
+  &--cols-1 {
+    grid-template-columns: minmax(240px, 309px);
+  }
+  &--cols-2 {
+    grid-template-columns: repeat(2, minmax(240px, 309px));
+  }
+  &--cols-3 {
+    grid-template-columns: repeat(3, minmax(240px, 309px));
+  }
 }
 
 // Intentionally richer than the minimal house style — this is the landing
@@ -285,12 +304,6 @@
     color: var(--pf-color-text-muted);
     line-height: 1.4;
   }
-}
-
-// Layout wrapper so the Anchor left-aligns with the cards; all link styling
-// (color, underline, hover, icon) comes from the shared Anchor widget.
-.pf-bt-home-custom-link {
-  width: min(960px, 92%);
 }
 
 .pf-bt-home-empty__detail {
