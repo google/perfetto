@@ -14,6 +14,7 @@
 
 import '../../frontend/home_page.scss';
 import m from 'mithril';
+import {Anchor} from '../../widgets/anchor';
 import {Card} from '../../widgets/card';
 import {EmptyState} from '../../widgets/empty_state';
 import {Icon} from '../../widgets/icon';
@@ -96,14 +97,10 @@ export class HomePage implements m.ClassComponent {
   private renderIntro(): m.Children {
     return m(
       '.pf-bt-home-intro',
-      m(
-        '.pf-bt-home-intro__title',
-        m('span.pf-bt-home-intro__brand', 'BigTrace:'),
-        ' query traces at scale',
-      ),
+      m('.pf-bt-home-intro__title', 'Query traces at scale'),
       m(
         '.pf-bt-home-intro__subtitle',
-        'Ready-to-run presets for common issues — pick one to start, or build your own.',
+        'Ready-to-run presets for common issues.',
       ),
     );
   }
@@ -153,10 +150,12 @@ export class HomePage implements m.ClassComponent {
   // set query options by hand.
   private renderCustomLink(): m.Children {
     return m(
-      'a.pf-bt-home-custom-link',
-      {onclick: () => setRoute(Routes.SETTINGS)},
-      m(Icon, {icon: 'tune', className: 'pf-left-icon'}),
-      'Configure trace selection and options',
+      '.pf-bt-home-custom-link',
+      m(
+        Anchor,
+        {startIcon: 'tune', onclick: () => setRoute(Routes.SETTINGS)},
+        'Configure trace selection',
+      ),
     );
   }
 }

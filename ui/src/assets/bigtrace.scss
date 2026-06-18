@@ -175,13 +175,9 @@
 
   &__title {
     font-size: 36px;
-    font-weight: 700;
+    font-weight: 400;
     letter-spacing: -0.02em;
     color: var(--pf-color-text);
-  }
-
-  &__brand {
-    color: var(--pf-color-primary);
   }
 
   &__subtitle {
@@ -291,25 +287,10 @@
   }
 }
 
-// The build-your-own path: an accent link rather than a tile, so it reads as an
-// action without competing with the preset cards.
+// Layout wrapper so the Anchor left-aligns with the cards; all link styling
+// (color, underline, hover, icon) comes from the shared Anchor widget.
 .pf-bt-home-custom-link {
   width: min(960px, 92%);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--pf-font-size-l);
-  font-weight: 500;
-  color: var(--pf-color-primary);
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
-
-  .pf-icon {
-    font-size: var(--pf-font-size-l);
-  }
 }
 
 .pf-bt-home-empty__detail {
