@@ -35,7 +35,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidUserList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ArtProcessMetadata);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
-PERFETTO_PB_MSG_DECL(perfetto_protos_BluetoothTraceEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeBenchmarkMetadata);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeMetadataPacket);
@@ -46,7 +45,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
-PERFETTO_PB_MSG_DECL(perfetto_protos_EvdevEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
@@ -62,7 +60,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_GpuLog);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuMemTotalEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuRenderStageEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GraphicsFrameEvent);
-PERFETTO_PB_MSG_DECL(perfetto_protos_HeapGraph);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InitialDisplayState);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileMap);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedData);
@@ -70,8 +67,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InterruptInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelockData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_MemoryTrackerSnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ModuleSymbols);
-PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketBundle);
-PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfSample);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfettoMetatrace);
@@ -311,11 +306,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   131);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_HeapGraph,
-                  heap_graph,
-                  56);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_GraphicsFrameEvent,
                   graphics_frame_event,
                   57);
@@ -491,16 +481,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   72);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_NetworkPacketEvent,
-                  network_packet,
-                  88);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_NetworkPacketBundle,
-                  network_packet_bundle,
-                  92);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_EtwTraceEventBundle,
                   etw_events,
                   95);
@@ -551,11 +531,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   113);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_BluetoothTraceEvent,
-                  bluetooth_trace_event,
-                  114);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_KernelWakelockData,
                   kernel_wakelock_data,
                   115);
@@ -564,11 +539,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_CpuPerUidData,
                   cpu_per_uid_data,
                   119);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_EvdevEvent,
-                  evdev_event,
-                  121);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_AndroidUserList,

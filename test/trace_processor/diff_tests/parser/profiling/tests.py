@@ -740,7 +740,7 @@ class Profiling(TestSuite):
         packet {
           timestamp: 10
           trusted_packet_sequence_id: 2
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             heap_bytes_allocated: 100000
             types {
@@ -791,7 +791,7 @@ class Profiling(TestSuite):
         packet {
           timestamp: 10
           trusted_packet_sequence_id: 2
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             heap_bytes_allocated: 100000
             types {

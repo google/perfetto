@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "./timeline_page.scss";
-@import "./timeline_toolbar.scss";
-@import "./minimap.scss";
+// The .ts implementation of this module is synthesised at build time by
+// pluginPerfettoSynthModules in ui/vite.config.mjs, which shells out to
+// tools/write_version_header.py. Don't add a real version.ts next to this
+// file — the synth plugin would still win, but it'd be confusing.
+
+export const VERSION: string;
+export const SCM_REVISION: string;

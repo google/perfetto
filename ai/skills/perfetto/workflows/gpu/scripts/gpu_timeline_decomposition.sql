@@ -9,10 +9,16 @@
 -- multiple hardware queues is merged, not summed, so concurrency is never
 -- double-counted). Covers all GPU render-stage activity, not just one category.
 --
--- No parameters; operates on the whole trace. One row per GPU.
---   busy_pct_of_active : busy / (first .. last activity) span -> packing.
---   busy_pct_of_trace  : busy / whole-trace wall clock        -> idle outside
---                        the active span (setup, I/O, teardown) shows up here.
+-- No parameters; operates on the whole trace. One row per GPU. Columns:
+--   gpu                : unique GPU id (ugpu).
+--   gpu_name           : GPU name, or "GPU <id>" if unnamed.
+--   activities         : count of GPU activity slices on this GPU.
+--   trace_wall_ns      : whole-trace wall-clock duration.
+--   active_span_ns     : first .. last GPU activity span.
+--   gpu_busy_ns        : busy time (union of activity intervals).
+--   busy_pct_of_active : busy / active span -> packing.
+--   busy_pct_of_trace  : busy / whole-trace wall clock -> idle outside the
+--                        active span (setup, I/O, teardown) shows up here.
 
 INCLUDE PERFETTO MODULE intervals.overlap;
 

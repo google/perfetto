@@ -50,6 +50,14 @@ class TrackEventTracker {
       kChronological = 2,
       kExplicit = 3,
     };
+    enum class ProcessOrdering {
+      kUnknown = 0,
+      kExplicit = 1,
+    };
+    enum class ThreadOrdering {
+      kUnknown = 0,
+      kExplicit = 1,
+    };
     struct CounterDetails {
       StringId category = kNullStringId;
       int64_t unit_multiplier = 1;
@@ -80,12 +88,15 @@ class TrackEventTracker {
     bool use_separate_track = false;
     bool is_counter = false;
     bool use_synthetic_tid = false;
+    bool is_state = false;
 
     // For counter tracks.
     std::optional<CounterDetails> counter_details;
 
     // For UI visualisation
     ChildTracksOrdering ordering = ChildTracksOrdering::kUnknown;
+    ProcessOrdering process_ordering = ProcessOrdering::kUnknown;
+    ThreadOrdering thread_ordering = ThreadOrdering::kUnknown;
     std::optional<int32_t> sibling_order_rank;
 
     // For merging tracks.
@@ -102,10 +113,11 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
-      return std::tie(parent_uuid, pid, tid, is_counter, sibling_merge_behavior,
-                      sibling_merge_key) ==
+      return std::tie(parent_uuid, pid, tid, is_counter, is_state,
+                      sibling_merge_behavior, sibling_merge_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
-                      other.sibling_merge_behavior, other.sibling_merge_key);
+                      other.is_state, other.sibling_merge_behavior,
+                      other.sibling_merge_key);
     }
   };
 
@@ -126,20 +138,25 @@ class TrackEventTracker {
     // Creates a process-scoped resolved descriptor track.
     static ResolvedDescriptorTrack Process(UniquePid upid,
                                            bool is_counter,
+                                           bool is_state,
                                            bool is_root);
     // Creates a thread-scoped resolved descriptor track.
     static ResolvedDescriptorTrack Thread(UniqueTid utid,
                                           bool is_counter,
+                                          bool is_state,
                                           bool is_root);
 
     // Creates a global-scoped resolved descriptor track.
-    static ResolvedDescriptorTrack Global(bool is_counter);
+    static ResolvedDescriptorTrack Global(bool is_counter, bool is_state);
 
     // The scope of the resolved track.
     Scope scope() const { return scope_; }
 
     // Whether the resolved track is a counter track.
     bool is_counter() const { return is_counter_; }
+
+    // Whether the resolved track is a state track.
+    bool is_state() const { return is_state_; }
 
     // The UTID of the thread this track is associated with. Only valid when
     // |scope| == |Scope::kThread|.
@@ -167,6 +184,7 @@ class TrackEventTracker {
 
     Scope scope_;
     bool is_counter_;
+    bool is_state_;
     bool is_root_;
 
     // Only set when |scope| == |Scope::kThread|.
@@ -275,6 +293,24 @@ class TrackEventTracker {
     auto* track_id = std::get_if<TrackId>(&*s->track_id_or_factory);
     PERFETTO_CHECK(track_id);
     return *track_id;
+  }
+
+  std::optional<TrackId> InternDescriptorTrackState(
+      uint64_t uuid,
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (!s) {
+      return std::nullopt;
+    }
+    if (std::holds_alternative<TrackId>(*s->track_id_or_factory)) {
+      return base::unchecked_get<TrackId>(*s->track_id_or_factory);
+    }
+    const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
+        *s->track_id_or_factory);
+    return context_->track_compressor->Begin(factory,
+                                             static_cast<int64_t>(uuid));
   }
 
   // Interns a descriptor track for unspecified events.

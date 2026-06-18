@@ -31,9 +31,9 @@
 #include "test/test_helper.h"
 
 #include "protos/perfetto/config/profiling/java_hprof_config.gen.h"
-#include "protos/perfetto/trace/profiling/heap_graph.gen.h"
-#include "protos/perfetto/trace/profiling/profile_common.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/art/heap_graph.pbzero.h"
 
 namespace perfetto {
 namespace {
@@ -162,14 +162,48 @@ std::vector<protos::gen::TracePacket> TriggerOomHeapDump(
   return helper.trace();
 }
 
+// HeapGraph is a TracePacket extension (field 56, ART-owned). The gen classes
+// don't support extensions, so re-serialize the packet and read it with the
+// protozero decoder.
+struct HeapGraphCounts {
+  size_t objects = 0;
+  size_t roots = 0;
+  size_t types = 0;
+  size_t field_names = 0;
+};
+
+HeapGraphCounts CountHeapGraph(const protos::gen::TracePacket& packet) {
+  using ::com::android::art::tracing::pbzero::ArtHeapGraphTracePacket;
+  using ::com::android::art::tracing::pbzero::HeapGraph;
+
+  HeapGraphCounts counts;
+  std::vector<uint8_t> serialized = packet.SerializeAsArray();
+  protos::pbzero::TracePacket::Decoder packet_decoder(serialized.data(),
+                                                      serialized.size());
+  HeapGraph::Decoder heap_graph(
+      packet_decoder
+          .GetExtensionSlowly<ArtHeapGraphTracePacket::kHeapGraphFieldNumber>()
+          .as_bytes());
+  for (auto it = heap_graph.objects(); it; ++it)
+    counts.objects++;
+  for (auto it = heap_graph.roots(); it; ++it)
+    counts.roots++;
+  for (auto it = heap_graph.types(); it; ++it)
+    counts.types++;
+  for (auto it = heap_graph.field_names(); it; ++it)
+    counts.field_names++;
+  return counts;
+}
+
 void AssertGraphPresent(std::vector<protos::gen::TracePacket> packets) {
   ASSERT_GT(packets.size(), 0u);
 
   size_t objects = 0;
   size_t roots = 0;
   for (const auto& packet : packets) {
-    objects += static_cast<size_t>(packet.heap_graph().objects_size());
-    roots += static_cast<size_t>(packet.heap_graph().roots_size());
+    HeapGraphCounts counts = CountHeapGraph(packet);
+    objects += counts.objects;
+    roots += counts.roots;
   }
   ASSERT_GT(objects, 0u);
   ASSERT_GT(roots, 0u);
@@ -178,10 +212,11 @@ void AssertGraphPresent(std::vector<protos::gen::TracePacket> packets) {
 void AssertNoProfileContents(std::vector<protos::gen::TracePacket> packets) {
   // If profile packets are present, they must be empty.
   for (const auto& packet : packets) {
-    ASSERT_EQ(packet.heap_graph().roots_size(), 0);
-    ASSERT_EQ(packet.heap_graph().objects_size(), 0);
-    ASSERT_EQ(packet.heap_graph().types_size(), 0);
-    ASSERT_EQ(packet.heap_graph().field_names_size(), 0);
+    HeapGraphCounts counts = CountHeapGraph(packet);
+    ASSERT_EQ(counts.roots, 0u);
+    ASSERT_EQ(counts.objects, 0u);
+    ASSERT_EQ(counts.types, 0u);
+    ASSERT_EQ(counts.field_names, 0u);
   }
 }
 

@@ -21,6 +21,8 @@
 -- such track, or no sample landed inside a short interval. High temp + capped
 -- clock => thermal; high power + capped clock => power-limited.
 --
+-- No parameters (thresholds are inline); operates on the whole trace. One row
+-- per sustained-throttle interval (the top 20 by duration), per GPU.
 -- Columns (longest throttle intervals first):
 --   start_rel_ns : interval start, relative to trace start.
 --   dur_ns       : how long the clock was held below target.

@@ -150,6 +150,9 @@ techniques for asynchronous slices described in the
 "[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/converting.md)"
 guide).
 
+For details on how to explicitly control the display order of process tracks, see
+[Controlling Track Sorting Order](#controlling-track-sorting-order).
+
 ### Associating Tracks with Threads
 
 You can create tracks that are explicitly associated with specific threads
@@ -276,6 +279,9 @@ FROM thread_slice
 WHERE tid = 5678;
 ```
 
+For details on how to explicitly control the display order of threads within a process, see
+[Controlling Track Sorting Order](#controlling-track-sorting-order).
+
 ## Advanced Track Customization
 
 Beyond associating tracks with OS concepts, Perfetto offers ways to fine-tune
@@ -285,26 +291,57 @@ how your tracks are presented and how data is encoded.
 
 By default, the Perfetto UI applies its own heuristics to sort tracks (e.g.,
 alphabetically by name, or by track UUID). However, for complex custom traces,
-you might want to explicitly define the order in which sibling tracks appear
-under a parent. This is achieved using the `child_ordering` field on the parent
-`TrackDescriptor` and, for `EXPLICIT` ordering, the `sibling_order_rank` on the
-child `TrackDescriptor`s.
+you might want to explicitly define the order in which tracks appear. This
+sorting behavior differs depending on whether you are ordering standard custom
+child tracks, processes, or threads within a process.
 
-This `child_ordering` setting on a parent track only affects its direct
-children.
+#### Non-OS Scoped (Child Tracks) Sorting
 
-Available `child_ordering` modes (defined in
-`TrackDescriptor.ChildTracksOrdering`):
+For standard custom tracks that are parented to another custom track using `parent_uuid`,
+you can configure child ordering on the parent track.
 
-- `ORDERING_UNSPECIFIED`: The default. The UI will use its own heuristics.
-- `LEXICOGRAPHIC`: Child tracks are sorted alphabetically by their `name`.
-- `CHRONOLOGICAL`: Child tracks are sorted based on the timestamp of the
-  earliest `TrackEvent` that occurs on each of them. Tracks with earlier events
-  appear first.
-- `EXPLICIT`: Child tracks are sorted based on the `sibling_order_rank` field
-  set in their respective `TrackDescriptor`s. Lower ranks appear first. If ranks
-  are equal, or if `sibling_order_rank` is not set, the tie-breaking order is
-  undefined.
+This setting only affects the direct children of that parent track.
+
+Available `child_ordering` modes (defined in `TrackDescriptor.ChildTracksOrdering`):
+- `UNKNOWN`: The default. The UI will use its own heuristics.
+- `LEXICOGRAPHIC`: Child tracks are sorted alphabetically by their `name` or `static_name`.
+- `CHRONOLOGICAL`: Child tracks are sorted based on the timestamp of the earliest `TrackEvent`
+  that occurs on each of them. Tracks with earlier events appear first.
+- `EXPLICIT`: Child tracks are sorted based on the `sibling_order_rank` field set in their
+  respective `TrackDescriptor`s. Lower ranks appear first. If ranks are equal, or if
+  `sibling_order_rank` is not set, the tie-breaking order is undefined.
+
+#### Process Sorting
+
+To explicitly control how the UI displays top-level process tracks relative to
+each other, you must configure the root track descriptor (`uuid = 0`).
+
+1. Set `process_ordering` on the root track descriptor (`uuid = 0`) to
+   `PROCESS_ORDERING_EXPLICIT`.
+2. Define a `sibling_order_rank` on individual process `TrackDescriptor`s.
+   Processes with lower ranks will appear first. An unspecified rank defaults to 0.
+
+Available `process_ordering` modes (defined in `TrackDescriptor.ProcessOrdering`):
+- `PROCESS_ORDERING_UNSPECIFIED`: The default. The UI will use its own heuristics.
+- `PROCESS_ORDERING_EXPLICIT`: Sort processes by `sibling_order_rank` of their process track descriptors.
+
+![Process Sorting](/docs/images/synthetic-track-event-process-order.png)
+
+#### Thread Sorting
+
+To explicitly control how the UI displays thread tracks within a process group
+relative to each other, you must configure the root track descriptor (`uuid = 0`).
+
+1. Set `thread_ordering` on the root track descriptor (`uuid = 0`) to
+   `THREAD_ORDERING_EXPLICIT`.
+2. Define a `sibling_order_rank` on individual thread `TrackDescriptor`s.
+   Threads with lower ranks will appear first. An unspecified rank defaults to 0.
+
+Available `thread_ordering` modes (defined in `TrackDescriptor.ThreadOrdering`):
+- `THREAD_ORDERING_UNSPECIFIED`: The default. The UI will use its own heuristics.
+- `THREAD_ORDERING_EXPLICIT`: Sort threads by `sibling_order_rank` of their thread track descriptors.
+
+![Thread Sorting](/docs/images/synthetic-track-event-thread-order.png)
 
 **Note:** The UI treats these as strong hints. While it generally respects these
 orderings, there are contexts in which the UI reserves the right _not_ to show
@@ -313,8 +350,8 @@ this or if the UI has some special handling for these tracks.
 
 **Python Example: Demonstrating All Sorting Types**
 
-This example defines three parent tracks, each demonstrating a different
-`child_ordering` mode.
+This example defines three parent tracks demonstrating different `child_ordering` modes,
+as well as configuring explicit process and thread ordering on the root track.
 
 Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
@@ -403,6 +440,52 @@ your `trace_converter_template.py` script.
     add_instant_event(ts=3000, track_uuid=child_rank_neg5_uuid, event_name="Event Rank -5")
     add_instant_event(ts=3000, track_uuid=child_rank0_uuid, event_name="Event Rank 0")
     # Expected UI order under "Explicit Parent": Rank -5, Rank 0, Rank 10
+
+    # --- 4. Process and Thread Explicit Sorting Example ---
+    # Configure the root track (uuid = 0) to enable explicit process and thread ordering
+    packet = builder.add_packet()
+    root_desc = packet.track_descriptor
+    root_desc.uuid = 0
+    root_desc.process_ordering = TrackDescriptor.PROCESS_ORDERING_EXPLICIT
+    root_desc.thread_ordering = TrackDescriptor.THREAD_ORDERING_EXPLICIT
+
+    # Define Process A with rank 5
+    process_a_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = process_a_uuid
+    desc.process.pid = 100
+    desc.process.process_name = "Process A (Rank 5)"
+    desc.sibling_order_rank = 5
+
+    # Define Process B with rank 2 (should appear before Process A)
+    process_b_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = process_b_uuid
+    desc.process.pid = 200
+    desc.process.process_name = "Process B (Rank 2)"
+    desc.sibling_order_rank = 2
+
+    # Define Thread A1 under Process A with rank 42
+    thread_a1_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = thread_a1_uuid
+    desc.thread.pid = 100
+    desc.thread.tid = 101
+    desc.thread.thread_name = "Thread A1 (Rank 42)"
+    desc.sibling_order_rank = 42
+
+    # Define Thread A2 under Process A with rank 10 (should appear before Thread A1)
+    thread_a2_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    packet = builder.add_packet()
+    desc = packet.track_descriptor
+    desc.uuid = thread_a2_uuid
+    desc.thread.pid = 100
+    desc.thread.tid = 102
+    desc.thread.thread_name = "Thread A2 (Rank 10)"
+    desc.sibling_order_rank = 10
 ```
 
 </details>

@@ -9,8 +9,7 @@
 -- intervals (concurrency on multiple hardware queues is merged, not summed), and
 -- each slice of busy time is attributed to the GPU frequency in effect during
 -- it. The frequency source is the canonical per-GPU "gpufreq" counter track
--- (type gpu_frequency, kHz) -- the same track the Perfetto UI renders as the
--- per-GPU "Frequency" track -- expanded into gapless intervals.
+-- (type gpu_frequency, kHz), expanded into gapless intervals.
 --
 -- No parameters; operates over each GPU's active span (first..last activity).
 -- One row per GPU that has a gpufreq track. Columns:

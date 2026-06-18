@@ -14,7 +14,8 @@
 -- target = 90% of the per-GPU max OBSERVED frequency. To change it, edit the
 -- 0.9 factor below.
 --
--- Columns (worst ramps first):
+-- No parameters; operates on the whole trace. One row per idle->busy ramp event
+-- (the top 20 by ramp_ns), per GPU. Columns (worst ramps first):
 --   edge_rel_ns       : edge timestamp, relative to trace start.
 --   idle_gap_ns       : idle gap immediately before the edge; NULL for the
 --                       first burst (cold start / trace boundary). A larger gap

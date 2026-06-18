@@ -39,6 +39,7 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/sched_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/slice_tables_py.h"     // IWYU pragma: keep
+#include "src/trace_processor/tables/state_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
@@ -204,6 +205,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_metadata_table());
     AddDataframe(out, s->mutable_stats_table());
     AddDataframe(out, s->mutable_slice_table(), {{"parent_id"}, {"track_id"}});
+    AddDataframe(out, s->mutable_state_table());
     AddDataframe(out, s->mutable_track_event_callstacks_table());
     AddDataframe(out, s->mutable_flow_table(), {{"slice_in"}, {"slice_out"}});
     AddDataframe(out, s->mutable_stack_profile_frame_table());
@@ -223,6 +225,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.heap_graph_object_table().mutations() +
            s.perf_sample_table().mutations() +
            s.instruments_sample_table().mutations() +
+           s.state_table().mutations() +
            s.cpu_profile_stack_sample_table().mutations();
   }
 
@@ -277,6 +280,10 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     for (auto it = s.cpu_profile_stack_sample_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
+    }
+    for (auto it = s.state_table().IterateRows(); it; ++it) {
+      start_ns = std::min(it.ts(), start_ns);
+      end_ns = std::max(it.ts() + it.dur(), end_ns);
     }
     return {start_ns, end_ns};
   }

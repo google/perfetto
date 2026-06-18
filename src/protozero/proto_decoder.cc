@@ -155,6 +155,9 @@ PERFETTO_NO_INLINE void ExpandSpill(Field** spill,
                                     uint32_t* spill_capacity,
                                     uint32_t spill_size,
                                     std::unique_ptr<Field[]>* heap_spill) {
+  // Double the capacity, with a floor so that an exhausted spill that somehow
+  // starts from zero capacity (e.g. a moved-from state) doesn't keep doubling
+  // zero. The floor matches SelectiveTypedProtoDecoder::kSpillStackCapacity.
   const uint32_t new_capacity = std::max(*spill_capacity * 2, 16u);
   PERFETTO_CHECK(new_capacity > spill_size);
   std::unique_ptr<Field[]> new_storage(new Field[new_capacity]);
@@ -231,7 +234,7 @@ PERFETTO_ALWAYS_INLINE void TypedProtoDecoderBase::ParseAllFieldsImpl(
     PERFETTO_DCHECK(res.field.valid());
     auto field_id = res.field.id();
     if constexpr (kSelective) {
-      // Selective decoding: only whitelisted in-range ids go to the dense
+      // Selective decoding: only allowlisted in-range ids go to the dense
       // storage; everything else (including ids beyond the in-tree range) is
       // appended, in wire order, to the spill area. |num_fields_| is capped
       // at the mask's extent by SelectiveTypedProtoDecoder, so this also

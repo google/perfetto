@@ -16,7 +16,10 @@
 
 syntax = "proto2";
 
-package perfetto.protos;
+package android.net.connectivity.tracing;
+
+import public "protos/perfetto/trace/trace_packet.proto";
+import public "protos/perfetto/trace/interned_data/interned_data.proto";
 
 enum TrafficDirection {
   DIR_UNSPECIFIED = 0;
@@ -94,4 +97,17 @@ message NetworkPacketBundle {
 message NetworkPacketContext {
   optional uint64 iid = 1;
   optional NetworkPacketEvent ctx = 2;
+}
+
+message ConnectivityTracePacket {
+  extend perfetto.protos.TracePacket {
+    optional NetworkPacketEvent  network_packet        = 88;
+    optional NetworkPacketBundle network_packet_bundle = 92;
+  }
+}
+
+message ConnectivityInternedData {
+  extend perfetto.protos.InternedData {
+    repeated NetworkPacketContext packet_context = 30;
+  }
 }
