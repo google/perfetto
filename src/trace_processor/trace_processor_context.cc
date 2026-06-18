@@ -56,7 +56,7 @@
 #include "src/trace_processor/importers/proto/user_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
-#include "src/trace_processor/types/trace_metadata_state.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
@@ -177,7 +177,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
   context->trace_time_state =
       Ptr<TraceTimeState>::MakeRoot(ClockId::TraceFile(0));
-  context->trace_metadata_state = Ptr<TraceMetadataState>::MakeRoot();
+  context->trace_manifest_state = Ptr<TraceManifestState>::MakeRoot();
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
@@ -207,7 +207,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->forked_context_state = source->forked_context_state.Fork();
   dest->clock_converter = source->clock_converter.Fork();
   dest->trace_time_state = source->trace_time_state.Fork();
-  dest->trace_metadata_state = source->trace_metadata_state.Fork();
+  dest->trace_manifest_state = source->trace_manifest_state.Fork();
   dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;

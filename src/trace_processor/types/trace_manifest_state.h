@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TYPES_TRACE_METADATA_STATE_H_
-#define SRC_TRACE_PROCESSOR_TYPES_TRACE_METADATA_STATE_H_
+#ifndef SRC_TRACE_PROCESSOR_TYPES_TRACE_MANIFEST_STATE_H_
+#define SRC_TRACE_PROCESSOR_TYPES_TRACE_MANIFEST_STATE_H_
 
 #include <cstdint>
 #include <optional>
@@ -29,7 +29,7 @@ namespace perfetto::trace_processor {
 // puts it first), overrides clock and machine handling for the files that
 // follow. Populated by the perfetto_manifest plugin's reader and consulted
 // by ForwardingTraceParser for each trace file.
-struct TraceMetadataState {
+struct TraceManifestState {
   struct FileEntry {
     // Exact path of the member within the archive.
     std::string path;
@@ -54,4 +54,4 @@ struct TraceMetadataState {
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_TYPES_TRACE_METADATA_STATE_H_
+#endif  // SRC_TRACE_PROCESSOR_TYPES_TRACE_MANIFEST_STATE_H_
