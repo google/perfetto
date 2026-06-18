@@ -437,6 +437,8 @@ function isCompatible(actual: CellType, expected: SqlValue): boolean {
         expected === UNKNOWN
       );
     case CellType.CELL_VARINT:
+    case CellType.CELL_INT32:
+    case CellType.CELL_INT64:
       return (
         expected === NUM ||
         expected === NUM_NULL ||
@@ -464,6 +466,12 @@ enum CellType {
   CELL_FLOAT64 = 3,
   CELL_STRING = 4,
   CELL_BLOB = 5,
+  // Fixed-width integer cells, an alternative to CELL_VARINT used when the
+  // serializer is asked to emit fixed-width ints (see use_fixed_width_int_cells
+  // in trace_processor.proto). The values live in the int32_cells / int64_cells
+  // buffers and are decoded zero-copy by overlaying a TypedArray.
+  CELL_INT32 = 6,
+  CELL_INT64 = 7,
 }
 
 const CELL_TYPE_NAMES = [
@@ -473,6 +481,8 @@ const CELL_TYPE_NAMES = [
   'FLOAT64',
   'STRING',
   'BLOB',
+  'INT32',
+  'INT64',
 ];
 
 const TAG_LEN_DELIM = 2;
@@ -708,12 +718,16 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
       if (batch.numCells === 0) continue;
       const bytes = batch.batchBytes;
       const f64 = batch.float64Cells;
+      const i32 = batch.int32Cells;
+      const i64 = batch.int64Cells;
       const strs = batch.stringCells;
       const blobs = batch.blobCells;
       const ctEnd = batch.cellTypesOff + batch.cellTypesLen;
       let ctOff = batch.cellTypesOff;
       let vOff = batch.varintOff;
       let fIdx = 0;
+      let i32Idx = 0;
+      let i64Idx = 0;
       let sIdx = 0;
       let bIdx = 0;
 
@@ -741,6 +755,32 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
                 (dests[c] as Float64Array)[row] = v;
               } else if (kind === Kind.NumNull) {
                 (dests[c] as Array<number | null>)[row] = v;
+              }
+              break;
+            }
+            case CellType.CELL_INT32: {
+              const v = i32[i32Idx++];
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = v;
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = v;
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = BigInt(v);
+              } else if (kind === Kind.LongNull) {
+                (dests[c] as Array<bigint | null>)[row] = BigInt(v);
+              }
+              break;
+            }
+            case CellType.CELL_INT64: {
+              const v = i64[i64Idx++];
+              if (kind === Kind.Num) {
+                (dests[c] as Float64Array)[row] = Number(v);
+              } else if (kind === Kind.NumNull) {
+                (dests[c] as Array<number | null>)[row] = Number(v);
+              } else if (kind === Kind.Long) {
+                (dests[c] as BigInt64Array)[row] = v;
+              } else if (kind === Kind.LongNull) {
+                (dests[c] as Array<bigint | null>)[row] = v;
               }
               break;
             }
@@ -961,6 +1001,8 @@ class ResultBatch {
   readonly varintOff: number = 0;
   readonly varintLen: number = 0;
   readonly float64Cells = new Float64Array();
+  readonly int32Cells = new Int32Array();
+  readonly int64Cells = new BigInt64Array();
   readonly blobCells: Uint8Array<ArrayBuffer>[] = [];
   readonly stringCells: string[] = [];
 
@@ -1054,6 +1096,52 @@ class ResultBatch {
           reader.skipType(tag & 7);
           break;
 
+        case 8: { // int32_cells, a 4-byte aligned packed sfixed32 buffer.
+          assertTrue((tag & 7) === TAG_LEN_DELIM);
+          const i32Len = reader.uint32();
+          assertTrue(i32Len % 4 === 0);
+          // Int32Array's constructor takes the offset in bytes but the length
+          // in 4-byte words.
+          const i32Words = i32Len / 4;
+          const i32Off = batchBytes.byteOffset + reader.pos;
+          if (i32Off % 4 === 0) {
+            this.int32Cells = new Int32Array(
+              batchBytes.buffer,
+              i32Off,
+              i32Words,
+            );
+          } else {
+            // Production rpc.cc keeps this 4-byte aligned; the copying slow path
+            // is only hit by tests that don't align.
+            const slice = batchBytes.buffer.slice(i32Off, i32Off + i32Len);
+            this.int32Cells = new Int32Array(slice);
+          }
+          reader.pos += i32Len;
+          break;
+        }
+
+        case 9: { // int64_cells, an 8-byte aligned packed sfixed64 buffer.
+          assertTrue((tag & 7) === TAG_LEN_DELIM);
+          const i64Len = reader.uint32();
+          assertTrue(i64Len % 8 === 0);
+          // BigInt64Array's constructor takes the offset in bytes but the
+          // length in 8-byte words.
+          const i64Words = i64Len / 8;
+          const i64Off = batchBytes.byteOffset + reader.pos;
+          if (i64Off % 8 === 0) {
+            this.int64Cells = new BigInt64Array(
+              batchBytes.buffer,
+              i64Off,
+              i64Words,
+            );
+          } else {
+            const slice = batchBytes.buffer.slice(i64Off, i64Off + i64Len);
+            this.int64Cells = new BigInt64Array(slice);
+          }
+          reader.pos += i64Len;
+          break;
+        }
+
         default:
           console.warn(`Unexpected QueryResult.CellsBatch field ${tag >>> 3}`);
           reader.skipType(tag & 7);
@@ -1097,6 +1185,8 @@ class RowIteratorImpl implements RowIteratorBase {
   private numColumns = 0;
   private cellTypesEnd = -1; // -1 so the 1st next() hits tryMoveToNextBatch().
   private float64Cells = new Float64Array();
+  private int32Cells = new Int32Array();
+  private int64Cells = new BigInt64Array();
   // Offset into |batchBytes| of the next packed varint cell to be read. We read
   // varints by hand (see readVarint) rather than via protobuf.Reader to avoid a
   // per-cell LongBits allocation.
@@ -1108,6 +1198,8 @@ class RowIteratorImpl implements RowIteratorBase {
   // are the mutable state of the iterator.
   private nextCellTypeOff = 0;
   private nextFloat64Cell = 0;
+  private nextInt32Cell = 0;
+  private nextInt64Cell = 0;
   private nextStringCell = 0;
   private nextBlobCell = 0;
   private isValid = false;
@@ -1196,6 +1288,24 @@ class RowIteratorImpl implements RowIteratorBase {
           rowData[colName] = this.float64Cells[this.nextFloat64Cell++];
           break;
 
+        case CellType.CELL_INT32:
+          // sfixed32 is already a signed 32-bit JS number.
+          if (expType === NUM || expType === NUM_NULL) {
+            rowData[colName] = this.int32Cells[this.nextInt32Cell++];
+          } else {
+            rowData[colName] = BigInt(this.int32Cells[this.nextInt32Cell++]);
+          }
+          break;
+
+        case CellType.CELL_INT64:
+          // sfixed64 is read as a bigint from the BigInt64Array overlay.
+          if (expType === NUM || expType === NUM_NULL) {
+            rowData[colName] = Number(this.int64Cells[this.nextInt64Cell++]);
+          } else {
+            rowData[colName] = this.int64Cells[this.nextInt64Cell++];
+          }
+          break;
+
         case CellType.CELL_STRING:
           rowData[colName] = this.stringCells[this.nextStringCell++];
           break;
@@ -1230,10 +1340,14 @@ class RowIteratorImpl implements RowIteratorBase {
     this.nextCellTypeOff = batch.cellTypesOff;
     this.cellTypesEnd = batch.cellTypesOff + batch.cellTypesLen;
     this.float64Cells = batch.float64Cells;
+    this.int32Cells = batch.int32Cells;
+    this.int64Cells = batch.int64Cells;
     this.blobCells = batch.blobCells;
     this.stringCells = batch.stringCells;
     this.varIntOff = batch.varintOff;
     this.nextFloat64Cell = 0;
+    this.nextInt32Cell = 0;
+    this.nextInt64Cell = 0;
     this.nextStringCell = 0;
     this.nextBlobCell = 0;
 

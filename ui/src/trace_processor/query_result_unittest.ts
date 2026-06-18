@@ -345,6 +345,96 @@ test('QueryResult.decodeColumns', () => {
   expect(() => qr.decodeColumns({nope: NUM})).toThrowError(/nope.*not found/);
 });
 
+test('QueryResult.FixedWidthInts', () => {
+  // Integers encoded as fixed-width CELL_INT32 / CELL_INT64 (the encoding the
+  // Wasm engine opts into) instead of CELL_VARINT.
+  const batch = protos.QueryResult.CellsBatch.create({
+    cells: [T.CELL_INT32, T.CELL_INT64, T.CELL_INT32, T.CELL_INT64],
+    int32Cells: [42, -5],
+    int64Cells: [1000000000000, -1000000000000],
+    isLastBatch: true,
+  });
+  const resProto = protos.QueryResult.create({
+    columnNames: ['small', 'big', 'neg', 'negbig'],
+    batch: [batch],
+  });
+
+  const qr = createQueryResult({query: 'Some query'});
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
+  expect(qr.numRows()).toBe(1);
+
+  // Read as numbers.
+  {
+    const iter = qr.iter({small: NUM, big: NUM, neg: NUM, negbig: NUM});
+    expect(iter.small).toBe(42);
+    expect(iter.big).toBe(1000000000000);
+    expect(iter.neg).toBe(-5);
+    expect(iter.negbig).toBe(-1000000000000);
+    iter.next();
+    expect(iter.valid()).toBe(false);
+  }
+
+  // Read as bigints (LONG).
+  {
+    const iter = qr.iter({small: LONG, big: LONG, neg: LONG, negbig: LONG});
+    expect(iter.small).toBe(42n);
+    expect(iter.big).toBe(1000000000000n);
+    expect(iter.neg).toBe(-5n);
+    expect(iter.negbig).toBe(-1000000000000n);
+  }
+});
+
+test('QueryResult.decodeColumnsFixedWidthInts', () => {
+  // Same shape as QueryResult.decodeColumns but with integers carried in the
+  // fixed-width int32/int64 buckets across two batches.
+  const resProto = protos.QueryResult.create({
+    columnNames: ['n', 'l', 's', 'f'],
+    batch: [
+      {
+        cells: [
+          T.CELL_INT32,
+          T.CELL_INT64,
+          T.CELL_STRING,
+          T.CELL_FLOAT64,
+          T.CELL_INT32,
+          T.CELL_INT32,
+          T.CELL_STRING,
+          T.CELL_FLOAT64,
+        ],
+        int32Cells: [1, -5, 42],
+        int64Cells: [1000000000000],
+        stringCells: ['foo', 'bar'].join('\0'),
+        float64Cells: [1.5, 2.5],
+        isLastBatch: false,
+      },
+      {
+        cells: [T.CELL_INT32, T.CELL_INT64, T.CELL_NULL, T.CELL_FLOAT64],
+        int32Cells: [7],
+        int64Cells: [99],
+        stringCells: '',
+        float64Cells: [3.5],
+        isLastBatch: true,
+      },
+    ],
+  });
+
+  const qr = createQueryResult({query: 'Some query'});
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
+  expect(qr.numRows()).toBe(3);
+
+  const cols = qr.decodeColumns({n: NUM, l: LONG, s: STR_NULL, f: NUM});
+  expect(cols.n).toBeInstanceOf(Float64Array);
+  expect(Array.from(cols.n as Float64Array)).toEqual([1, -5, 7]);
+  expect(cols.l).toBeInstanceOf(BigInt64Array);
+  expect(Array.from(cols.l as BigInt64Array)).toEqual([
+    1000000000000n,
+    42n,
+    99n,
+  ]);
+  expect(cols.s).toEqual(['foo', 'bar', null]);
+  expect(Array.from(cols.f as Float64Array)).toEqual([1.5, 2.5, 3.5]);
+});
+
 // Regression test for b/194891824 .
 test('QueryResult.DuplicateColumnNames', () => {
   const batch = protos.QueryResult.CellsBatch.create({
