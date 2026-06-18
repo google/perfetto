@@ -274,9 +274,9 @@ base::Status RemoteTraceProcessor::ReadResponse(std::vector<uint8_t>* out) {
   uint8_t buf[4096];
   for (;;) {
     auto msg = rxbuf_.ReadMessage();
+    if (msg.fatal_framing_error)
+      return base::ErrStatus("RPC framing error from session");
     if (msg.valid()) {
-      if (msg.fatal_framing_error)
-        return base::ErrStatus("RPC framing error from session");
       out->assign(msg.start, msg.start + msg.len);
       return base::OkStatus();
     }
