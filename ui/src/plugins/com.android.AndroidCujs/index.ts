@@ -42,8 +42,11 @@ export async function addJankCUJDebugTrack(
 }
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
-  SELECT RUN_METRIC('android/jank/android_jank_cuj_init.sql');
-  INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+  SELECT
+    CASE WHEN (SELECT count(*) FROM sqlite_master WHERE type='table' AND name='android_jank_cuj') = 0
+    THEN RUN_METRIC('android/jank/android_jank_cuj_init.sql')
+    ELSE 0
+    END;
 `;
 
 /**
@@ -61,38 +64,16 @@ function generateJankCujTrackConfig(cujNames: string | string[] = []) {
 const JANK_CUJ_QUERY = `
     SELECT
       CASE
-        WHEN
-          EXISTS(
-              SELECT 1
-              FROM slice AS cuj_state_marker
-                     JOIN track marker_track
-                          ON marker_track.id = cuj_state_marker.track_id
-              WHERE
-                cuj_state_marker.ts >= cuj.ts
-                AND cuj_state_marker.ts + cuj_state_marker.dur <= cuj.ts + cuj.dur
-                AND
-                ( /* e.g. J<CUJ_NAME>#FT#cancel#0 this for backward compatibility */
-                      cuj_state_marker.name GLOB(cuj.name || '#FT#cancel*')
-                    OR (marker_track.name = cuj.name AND cuj_state_marker.name GLOB 'FT#cancel*')
-                  )
-            )
-          THEN ' ❌ '
-        WHEN
-          EXISTS(
-              SELECT 1
-              FROM slice AS cuj_state_marker
-                     JOIN track marker_track
-                          ON marker_track.id = cuj_state_marker.track_id
-              WHERE
-                cuj_state_marker.ts >= cuj.ts
-                AND cuj_state_marker.ts + cuj_state_marker.dur <= cuj.ts + cuj.dur
-                AND
-                ( /* e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility */
-                      cuj_state_marker.name GLOB(cuj.name || '#FT#end*')
-                    OR (marker_track.name = cuj.name AND cuj_state_marker.name GLOB 'FT#end*')
-                  )
-            )
-          THEN ' ✅ '
+        WHEN EXISTS (
+          SELECT 1 FROM _cuj_state_markers csm
+          JOIN _jank_cujs_slices jcs USING (cuj_id)
+          WHERE jcs.slice_id = cuj.slice_id AND csm.marker_type = 'cancel'
+        ) THEN ' ❌ '
+        WHEN EXISTS (
+          SELECT 1 FROM _cuj_state_markers csm
+          JOIN _jank_cujs_slices jcs USING (cuj_id)
+          WHERE jcs.slice_id = cuj.slice_id AND csm.marker_type = 'end'
+        ) THEN ' ✅ '
         ELSE ' ❓ '
         END || cuj.name AS name,
       total_frames,
@@ -316,17 +297,24 @@ export default class implements PerfettoPlugin {
       id: 'com.android.PinBlockingCalls',
       name: 'Add track: Android Blocking calls during CUJs',
       callback: () => {
-        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
-          addDebugSliceTrack({
-            trace: ctx,
-            data: {
-              sqlSource: BLOCKING_CALLS_DURING_CUJS_QUERY,
-              columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
-            },
-            title: 'Blocking calls during CUJs',
-            rawColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
-          }),
-        );
+        ctx.engine
+          .query(
+            `
+          ${JANK_CUJ_QUERY_PRECONDITIONS}
+          INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+        `,
+          )
+          .then(() =>
+            addDebugSliceTrack({
+              trace: ctx,
+              data: {
+                sqlSource: BLOCKING_CALLS_DURING_CUJS_QUERY,
+                columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+              },
+              title: 'Blocking calls during CUJs',
+              rawColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+            }),
+          );
       },
     });
   }
