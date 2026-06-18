@@ -67,7 +67,7 @@ jobs:
       # main is the base for the prebuilt-roll PR; tags are needed to pull this
       # release's ai/skills into the bundle.
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0

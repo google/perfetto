@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace.Category;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Arg;
+import dev.perfetto.sdk.PerfettoTrackEventExtra.CorrelationId;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Counter;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.CounterTrack;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Field;
@@ -92,6 +93,7 @@ public final class PerfettoTrackEventBuilder {
 
   private static final class LazyInitObjects {
     private Counter mCounter = null;
+    private CorrelationId mCorrelationId = null;
 
     private final PerfettoNativeMemoryCleaner mNativeMemoryCleaner;
 
@@ -104,6 +106,13 @@ public final class PerfettoTrackEventBuilder {
         mCounter = new Counter(mNativeMemoryCleaner);
       }
       return mCounter;
+    }
+
+    public CorrelationId getCorrelationId() {
+      if (mCorrelationId == null) {
+        mCorrelationId = new CorrelationId(mNativeMemoryCleaner);
+      }
+      return mCorrelationId;
     }
   }
 
@@ -568,6 +577,43 @@ public final class PerfettoTrackEventBuilder {
     Counter counter = mLazyInitObjects.getCounter();
     counter.setValueDouble(val);
     addPerfettoPointerToExtra(counter);
+    return this;
+  }
+
+  /**
+   * Sets an integer correlation id on the event (TrackEvent's {@code correlation_id}), an opaque
+   * id linking this event with other events that are part of the same logical operation, even if
+   * they are not causally connected. For causally connected events, prefer {@link #addFlow}.
+   */
+  public PerfettoTrackEventBuilder setCorrelationId(long id) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkNotBuildingProto();
+    }
+    CorrelationId correlationId = mLazyInitObjects.getCorrelationId();
+    correlationId.setValueInt64(id);
+    addPerfettoPointerToExtra(correlationId);
+    return this;
+  }
+
+  /**
+   * Sets a string correlation id on the event (TrackEvent's {@code correlation_id_str}), an
+   * opaque id linking this event with other events that are part of the same logical operation,
+   * even if they are not causally connected. For causally connected events, prefer {@link
+   * #addFlow}.
+   */
+  public PerfettoTrackEventBuilder setCorrelationId(String id) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkNotBuildingProto();
+    }
+    CorrelationId correlationId = mLazyInitObjects.getCorrelationId();
+    correlationId.setValueString(id);
+    addPerfettoPointerToExtra(correlationId);
     return this;
   }
 

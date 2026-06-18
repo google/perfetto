@@ -32,13 +32,18 @@
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/session_paths.h"
 #include "src/trace_processor/rpc/stdiod.h"
-#include "src/trace_processor/rpc/unixd.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/subcommand.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
+#endif
+
+// The unix server depends on the IPC layer (AF_UNIX sockets), which is not
+// available on all platforms (e.g. Chromium+Windows).
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
+#include "src/trace_processor/rpc/unixd.h"
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -212,6 +217,9 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
   }
 
   if (mode == "unix") {
+#if !PERFETTO_BUILDFLAG(PERFETTO_IPC)
+    return base::ErrStatus("Unix RPC module not supported in this build");
+#else
     if (!has_trace) {
       return base::ErrStatus("server unix: a trace file is required");
     }
@@ -254,6 +262,7 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     server_args.idle_start = idle_start;
     server_args.daemonize = daemonize_;
     return RunUnixRpcServer(rpc, server_args);
+#endif
   }
 
   return base::ErrStatus(

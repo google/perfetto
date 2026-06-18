@@ -34,7 +34,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 int64_t NowMs() {
-  return base::GetWallTimeNs().count() / 1000000;
+  return base::GetWallTimeMs().count();
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
