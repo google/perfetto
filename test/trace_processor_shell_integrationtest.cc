@@ -404,6 +404,25 @@ TEST(TraceProcessorShellIntegrationTest, ServerUnixBindAndCleanup) {
   EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
 }
 
+TEST(TraceProcessorShellIntegrationTest, ServerUnixNoTraceFile) {
+  // Like http mode, `server unix` may start without a trace file (a client can
+  // load one later over the wire).
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-timeout", "never"});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+
+  EXPECT_TRUE(WaitForSocketBound(sock));
+  EXPECT_EQ(server.status(), base::Subprocess::kRunning);
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
 TEST(TraceProcessorShellIntegrationTest, ServerUnixStaleSocketCleanup) {
   // A leftover socket file from a dead server is cleaned up and rebound.
   auto trace = WriteSimpleSystrace();
