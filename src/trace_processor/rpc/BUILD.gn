@@ -81,19 +81,25 @@ source_set("session_util") {
   ]
 }
 
-source_set("unixd") {
-  sources = [
-    "unixd.cc",
-    "unixd.h",
-  ]
-  deps = [
-    ":rpc",
-    ":session_util",
-    "../../../gn:default_deps",
-    "../../base",
-    "../../protozero",
-    "../../protozero:proto_ring_buffer",
-  ]
+# Depends on the IPC layer (AF_UNIX sockets), which is not available on all
+# platforms (e.g. Chromium+Windows). Gated accordingly; the shell falls back to
+# an error when the unix server isn't compiled in.
+if (enable_perfetto_ipc) {
+  source_set("unixd") {
+    sources = [
+      "unixd.cc",
+      "unixd.h",
+    ]
+    deps = [
+      ":rpc",
+      ":session_util",
+      "../../../gn:default_deps",
+      "../../base",
+      "../../base:unix_socket",
+      "../../protozero",
+      "../../protozero:proto_ring_buffer",
+    ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {

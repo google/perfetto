@@ -209,6 +209,37 @@ class PerfettoTable(TestSuite):
         1,1
         """))
 
+  # Regression test: DISTINCT with another column referenced only in WHERE puts
+  # both columns in colUsed but only the SELECTed one in aOrderBy. `a` repeats
+  # non-adjacently, so a bad orderByConsumed would leak duplicates. DISTINCT
+  # must agree with the equivalent GROUP BY.
+  def test_distinct_where_on_other_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        WITH data(a, b) AS (
+          VALUES
+            (0, 1),
+            (1, 2),
+            (0, 3)
+        )
+        SELECT * FROM data;
+
+        WITH distinct_a AS (
+          SELECT DISTINCT a FROM foo WHERE b > 0
+        ), group_by_a AS (
+          SELECT a FROM foo WHERE b > 0 GROUP BY a
+        )
+        SELECT
+          (SELECT COUNT(*) FROM distinct_a) AS cnt_distinct,
+          (SELECT COUNT(*) FROM group_by_a) AS cnt_group_by;
+        """,
+        out=Csv("""
+        "cnt_distinct","cnt_group_by"
+        2,2
+        """))
+
   def test_limit(self):
     return DiffTestBlueprint(
         trace=TextProto(''),
