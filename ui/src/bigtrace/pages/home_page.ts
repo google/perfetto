@@ -45,19 +45,9 @@ function presetIcon(icon?: string): string {
   return icon && /^[a-z0-9_]+$/.test(icon) ? icon : 'bookmark';
 }
 
-// A section heading: a small title + one-line description. Shared by the
-// presets and custom sections so they read as parallel choices.
-function sectionHeader(title: string, subtitle: string): m.Children {
-  return m(
-    '.pf-bt-home-section__header',
-    m('.pf-bt-home-section__title', title),
-    m('.pf-bt-home-section__subtitle', subtitle),
-  );
-}
-
-// A full-width, settings-style card: a leading icon + title with the
-// description below. Clicking stashes the preset for QueryPage to seed a
-// fresh tab (query + trace-selection settings), then opens the editor.
+// A preset as a clickable card: leading icon + title with the description
+// below. Clicking stashes the preset for QueryPage to seed a fresh tab (query
+// + trace-selection settings), then opens the editor.
 function presetCard(t: TracePreset): m.Children {
   return m(
     Card,
@@ -70,12 +60,12 @@ function presetCard(t: TracePreset): m.Children {
         setRoute(Routes.QUERY);
       },
     },
+    m('.pf-bt-preset-card__icon', m(Icon, {icon: presetIcon(t.icon)})),
     m(
-      '.pf-bt-preset-card__head',
-      m(Icon, {icon: presetIcon(t.icon)}),
+      '.pf-bt-preset-card__body',
       m('.pf-bt-preset-card__title', t.name),
+      t.description && m('.pf-bt-preset-card__desc', t.description),
     ),
-    t.description && m('.pf-bt-preset-card__desc', t.description),
   );
 }
 
@@ -94,40 +84,58 @@ export class HomePage implements m.ClassComponent {
       '.pf-home-page',
       m(
         '.pf-home-page__center.pf-bt-home-center',
-        // Three states: presets loaded → the picker; still loading → nothing
-        // (avoids flashing the empty state); loaded but empty (no backend
-        // configured / unreachable / no catalog) → an onboarding empty state.
+        // Lead with purpose, make the presets the single focal point, and keep
+        // the manual path as a quiet secondary link below them. With no backend
+        // the empty state stands alone (no competing intro).
+        hasPresets && this.renderIntro(),
         hasPresets
           ? this.renderPresets()
           : presetStore.isLoading
             ? null
             : this.renderEmptyState(),
-        // The "Custom" section (Advanced settings) sits alongside the picker.
-        // The empty state carries its own backend-setup CTA, so it's omitted
-        // there to avoid two competing settings links.
-        hasPresets && this.renderCustomSection(),
+        hasPresets && this.renderCustomLink(),
       ),
     );
   }
 
-  // Shown when the catalog is empty — typically a first visit with no backend
-  // configured. Points the user at the settings page where the endpoint lives.
+  // Purpose at a glance. The sidebar already carries the product name, so this
+  // leads with value (what BigTrace lets you do), not branding.
+  private renderIntro(): m.Children {
+    return m(
+      '.pf-bt-home-intro',
+      m(
+        '.pf-bt-home-intro__title',
+        m('span.pf-bt-home-intro__brand', 'BigTrace:'),
+        ' query traces at scale',
+      ),
+      m(
+        '.pf-bt-home-intro__subtitle',
+        'Ready-to-run presets for common issues — pick one to start, or build your own.',
+      ),
+    );
+  }
+
+  // No backend configured (or unreachable / empty catalog): a single-message
+  // onboarding state — headline, a one-line reason, and one clear action.
   private renderEmptyState(): m.Children {
     return m(
       EmptyState,
       {
         icon: 'cloud_off',
-        title: 'Connect a BigTrace backend to see analysis presets',
+        title: 'Connect a backend to get started',
       },
+      m(
+        '.pf-bt-home-empty__detail',
+        'BigTrace runs your queries against a backend that holds the traces.',
+      ),
       homeButton('Configure backend', 'settings', () =>
         setRoute(Routes.SETTINGS),
       ),
     );
   }
 
-  // Presets grouped by CUJ (Memory, CPU, Latency, …). A flat segmented row
-  // selects the active CUJ; its presets render below as a card grid. Renders
-  // nothing until the catalog loads (or if the backend has none).
+  // The presets are the primary action and the page's focal point: a CUJ
+  // selector over the ready-to-run preset cards.
   private renderPresets(): m.Children {
     const tpls = presetStore.presets;
     if (tpls.length === 0) return null;
@@ -139,14 +147,7 @@ export class HomePage implements m.ClassComponent {
         : groups[0][0];
 
     return m(
-      '.pf-bt-home-section',
-      // Frame the cards so a first-timer knows what they are and what a click
-      // does — otherwise the noun titles read like categories, not analyses.
-      sectionHeader(
-        'Analysis presets',
-        'Ready-made queries for common issues. Pick one to open it across ' +
-          'your traces, then run or edit.',
-      ),
+      '.pf-bt-home-presets',
       renderCujSelector(
         groups.map(([cuj]) => cuj),
         active,
@@ -158,32 +159,15 @@ export class HomePage implements m.ClassComponent {
     );
   }
 
-  // The "do it yourself" counterpart to the presets: a titled section whose
-  // action drops into the settings page to configure trace selection + options
-  // (and write a query) by hand.
-  private renderCustomSection(): m.Children {
+  // Secondary path, deliberately lower-weight than the presets: the manual
+  // route — open the settings page to choose which traces to run over and set
+  // query options, the starting point for building your own analysis.
+  private renderCustomLink(): m.Children {
     return m(
-      '.pf-bt-home-section',
-      sectionHeader(
-        'Custom',
-        'Configure trace selection and options yourself, then query.',
-      ),
-      m(
-        '.pf-bt-preset-list',
-        m(
-          Card,
-          {
-            className: 'pf-bt-preset-card',
-            interactive: true,
-            onclick: () => setRoute(Routes.SETTINGS),
-          },
-          m(
-            '.pf-bt-preset-card__head',
-            m(Icon, {icon: 'settings'}),
-            m('.pf-bt-preset-card__title', 'Advanced settings'),
-          ),
-        ),
-      ),
+      'a.pf-bt-home-custom-link',
+      {onclick: () => setRoute(Routes.SETTINGS)},
+      m(Icon, {icon: 'tune', className: 'pf-left-icon'}),
+      'Configure trace selection and options',
     );
   }
 }

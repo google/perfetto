@@ -165,37 +165,43 @@
   justify-self: stretch;
   justify-content: flex-start;
   padding-top: 48px;
-  gap: 32px;
+  gap: 20px;
 }
 
-// A home section: a wide, left-aligned column. Mirrors the settings page's
-// categories — a big titled header bar over roomy stacked cards. Used for both
-// "Analysis presets" (selector + cards) and "Custom" (Advanced settings).
-.pf-bt-home-section {
-  width: min(880px, 90%);
+// Purpose line at the top of the home page: a focal title + one-line subtitle.
+// Leads with what you can do (the sidebar already carries the product name), so
+// a first-timer is oriented before the presets.
+.pf-bt-home-intro {
+  width: min(960px, 92%);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  margin-bottom: 4px;
 
-  &__header {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  &__title {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--pf-color-text);
   }
 
-  // Matches .pf-bt-settings-page__plugin-title (the settings category heading).
-  &__title {
-    font-size: var(--pf-font-size-xl);
-    font-weight: 600;
-    padding: 8px 12px;
-    background: var(--pf-minimal-background);
-    border-radius: 4px;
+  &__brand {
+    color: var(--pf-color-primary);
   }
 
   &__subtitle {
-    font-size: var(--pf-font-size-s);
+    font-size: 16px;
     color: var(--pf-color-text-muted);
   }
+}
+
+// The presets block: CUJ selector over the preset tiles. The page's primary
+// focal point.
+.pf-bt-home-presets {
+  width: min(960px, 92%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 // Flat segmented control selecting the active CUJ. Deliberately not the
@@ -228,36 +234,62 @@
 }
 
 // ---------- Analysis preset cards (home page) ----------
-// Styled after the record page's preset cards (.pf-preset-card): a centered
-// column of icon + title + subtitle, click-whole.
+// Responsive grid of click-whole tiles: a tinted icon box on the left with a
+// bold title + description beside it.
 
 .pf-bt-preset-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
   width: 100%;
 }
 
-// Full-width, settings-style card: a leading icon + bold title with the
-// description below — roomy and left-aligned for easy scanning. Card chrome
-// (border, radius, padding, hover shadow) comes from the shared Card widget.
+// Bold visual tile: a tinted icon box over a bold title + description, lifting
+// on hover. Intentionally richer than the minimal house style — this is the
+// landing surface, so it carries color and depth the rest of the app doesn't.
 .pf-bt-preset-card {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 4px;
   cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
 
-  &__head {
-    display: flex;
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--pf-color-primary);
+  }
+
+  &__icon {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 4px;
+    background: rgba(var(--pf-color-primary-rgb), 0.12);
+    color: var(--pf-color-primary);
 
     .pf-icon {
-      color: var(--pf-color-text-muted);
+      font-size: 24px;
     }
   }
 
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
   &__title {
+    font-size: 16px;
     font-weight: 600;
     color: var(--pf-color-text);
   }
@@ -267,6 +299,34 @@
     color: var(--pf-color-text-muted);
     line-height: 1.4;
   }
+}
+
+// Secondary "do it yourself" path below the presets: a plain accent-colored
+// link — clearly an action, but without a preset card's tile weight so the
+// cards stay the focal point.
+.pf-bt-home-custom-link {
+  width: min(960px, 92%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--pf-font-size-l);
+  font-weight: 500;
+  color: var(--pf-color-primary);
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  .pf-icon {
+    font-size: var(--pf-font-size-l);
+  }
+}
+
+// One-line reason under the empty-state headline (no-backend onboarding).
+.pf-bt-home-empty__detail {
+  color: var(--pf-color-text-muted);
+  margin-bottom: 12px;
 }
 
 // ---------- Analysis preset chips (settings page / modal) ----------
