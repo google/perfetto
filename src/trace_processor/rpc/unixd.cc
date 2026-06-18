@@ -127,8 +127,8 @@ class UnixRpcServer : public base::UnixSocket::EventListener {
   std::unique_ptr<IdleReaper> reaper_;
 };
 
-// Writes the current pid to |pid_path| so `ctl kill-server` can find and stop
-// the server by pid. Best-effort.
+// Writes the current pid to |pid_path| so `server kill` can stop the server by
+// pid. Best-effort.
 void WritePidFile(const std::string& pid_path, int pid) {
   if (FILE* f = fopen(pid_path.c_str(), "w")) {
     fprintf(f, "%d", pid);
@@ -224,12 +224,12 @@ base::Status UnixRpcServer::Run() {
             "[unix] Serving warm session '%s'. Query it with:\n"
             "  trace_processor_shell query --remote %s \"SELECT ...\"\n"
             "Stop it with Ctrl-C, or: "
-            "trace_processor_shell ctl kill-server %s\n",
+            "trace_processor_shell server kill %s\n",
             args_.session_name.c_str(), args_.session_name.c_str(),
             args_.session_name.c_str());
   }
 
-  // Record our pid next to the socket so `ctl kill-server` can stop us. This
+  // Record our pid next to the socket so `server kill` can stop us. This
   // runs in the serving process (the child, when daemonized), so the pid
   // matches the one printed in the startup record.
   pid_path_ = args_.socket_path + session::kPidFileSuffix;
