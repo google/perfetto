@@ -22,6 +22,8 @@ assert(enable_perfetto_duckdb)
 
 source_set("duckdb") {
   sources = [
+    "duckdb_iterator_impl.cc",
+    "duckdb_iterator_impl.h",
     "sched_appender.cc",
     "sched_appender.h",
     "sched_table_function.cc",
@@ -33,7 +35,9 @@ source_set("duckdb") {
     "../../../gn:default_deps",
     "../../../gn:duckdb",
     "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/trace_processor",
     "../../base",
+    "..:lib",
     "../containers",
     "../core/dataframe",
   ]
@@ -42,6 +46,7 @@ source_set("duckdb") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "duckdb_iterator_impl_live_unittest.cc",
     "sched_appender_unittest.cc",
     "sched_table_function_live_unittest.cc",
     "sched_table_function_unittest.cc",
