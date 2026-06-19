@@ -17,9 +17,12 @@ import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import {debounce} from '../../base/rate_limiters';
 import {shortUuid} from '../../base/uuid';
-import type {BigtraceQueryClient} from '../query/bigtrace_query_client';
+import type {
+  BigtraceQueryClient,
+  TracePreset,
+} from '../query/bigtrace_query_client';
 import {queryStore, type QueryExecution} from '../query/query_store';
-import type {SettingFilter} from '../settings/settings_types';
+import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {
   traceFilterState,
@@ -30,6 +33,9 @@ import {
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
 const DEFAULT_LIMIT = 100;
+// Presets default to a higher row cap than a bare tab — they're meant to
+// surface a meaningful result set, not a 100-row teaser.
+const PRESET_DEFAULT_LIMIT = 1000;
 const TAB_TITLE_MAX_CHARS = 32;
 
 // First non-empty `--`-stripped line, clipped. `/* */` blocks not handled.
@@ -298,6 +304,53 @@ export class QueryTabsState {
     this.activeTabId = tab.id;
     this.markDirty();
     return tab;
+  }
+
+  // Seed and activate a new tab from a home-page preset. The preset's own
+  // settings are applied; every other setting is turned off — togglable ones
+  // disabled, booleans set to false (they have no disable concept).
+  addTabFromPreset(t: TracePreset): BigTraceEditorTab {
+    const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
+    const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
+      settingId: s.settingId,
+      values: [...s.values],
+      category: s.category as SettingCategory,
+    }));
+    const disabledSettings: string[] = [];
+    for (const raw of bigTraceSettingsStorage.getAllSettings()) {
+      if (raw.category === undefined) continue;
+      if (presetIds.has(raw.id)) continue;
+      if (raw.type === 'boolean') {
+        querySettings.push({
+          settingId: raw.id,
+          values: ['false'],
+          category: raw.category as SettingCategory,
+        });
+      } else {
+        disabledSettings.push(raw.id);
+      }
+    }
+    const metadataColumns = t.traceMetadataColumns ?? [];
+    return this.addNewTab(
+      t.name || undefined,
+      t.perfettoSql,
+      // Optional in the contract; a preset with no explicit limit defaults to
+      // 1000 rows (not the bare-tab default).
+      t.limit != null && t.limit > 0 ? t.limit : PRESET_DEFAULT_LIMIT,
+      undefined, // queryUuid — a preset is a fresh run, not a reopened one
+      t.materialized ?? true,
+      true, // forceNew
+      {
+        querySettings,
+        disabledSettings,
+        traceFilters: [...(t.traceFilters ?? [])],
+        // [] from the wire means "unspecified" → use the default-visible set.
+        traceMetadataColumns: metadataColumns.length
+          ? [...metadataColumns]
+          : null,
+        traceOrderBy: t.traceOrderBy ?? '',
+      },
+    );
   }
 
   closeTab(tabId: string): void {

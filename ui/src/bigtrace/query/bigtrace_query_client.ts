@@ -67,8 +67,31 @@ export interface ExecuteOptions {
   readonly traceMetadataColumns?: ReadonlyArray<string>;
   // AIP-132 ordering for the trace processing order.
   readonly traceOrderBy?: string;
-  // Non-negative cap on traces fanned out; 0 / undefined means no cap.
-  readonly traceLimit?: number;
+}
+
+// One analysis preset from `GET /trace_presets`: display metadata plus a
+// frozen execution snapshot (the same fields a Run submits).
+export interface TracePreset {
+  readonly id: string;
+  readonly category: string;
+  readonly name: string;
+  readonly description: string;
+  readonly perfettoSql: string;
+  // Optional; the UI fills defaults when a minimal backend omits them
+  // (generic icon; empty settings/filters/columns; limit 1000; materialized).
+  readonly icon?: string;
+  // Wire shape mirrors the execute body's `settings`: snake-cased `settingId`,
+  // always-string `values`. Mapped to SettingFilter when applied to a tab.
+  readonly settings?: ReadonlyArray<{
+    readonly settingId: string;
+    readonly values: string[];
+    readonly category: string;
+  }>;
+  readonly traceFilters?: ReadonlyArray<Filter>;
+  readonly traceMetadataColumns?: ReadonlyArray<string>;
+  readonly traceOrderBy?: string;
+  readonly limit?: number;
+  readonly materialized?: boolean;
 }
 
 // Request aborted via AbortSignal — treat as cancellation, not an error.
@@ -220,6 +243,22 @@ export class BigtraceQueryClient {
     return result.queryExecutions ?? [];
   }
 
+  // The analysis-presets catalog. Backends that don't implement it 404;
+  // callers treat that (and any failure) as "no presets".
+  async listTracePresets(
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<TracePreset>> {
+    // GET: the catalog is not request-dependent.
+    const result = await this.requestJson<{tracePresets?: TracePreset[]}>(
+      '/trace_presets',
+      {
+        method: 'GET',
+        signal,
+      },
+    );
+    return result.tracePresets ?? [];
+  }
+
   async deleteQueryExecution(
     uuid: string,
     signal?: AbortSignal,
@@ -313,9 +352,6 @@ export class BigtraceQueryClient {
     }
     if (options?.traceOrderBy && options.traceOrderBy.length > 0) {
       body.trace_order_by = options.traceOrderBy;
-    }
-    if (options?.traceLimit !== undefined && options.traceLimit > 0) {
-      body.trace_limit = options.traceLimit;
     }
     const result = await this.requestJson<QueryResponsePayload>(path, {
       method: 'POST',

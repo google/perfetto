@@ -85,6 +85,29 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       this.tabsState.markDirty();
     }
 
+    // Read-and-clear initialPreset (set by a home-page preset card);
+    // seeds a fresh tab with the recipe's query + trace-selection settings.
+    const initialPreset = queryState.initialPreset;
+    if (initialPreset !== undefined) {
+      queryState.initialPreset = undefined;
+      this.tabsState.addTabFromPreset(initialPreset);
+    }
+
+    // Read-and-clear the settings-page "Query" signal: open a fresh tab. With
+    // no stored snapshot it inherits the current /settings globals — the trace
+    // selection + options just configured, no SQL.
+    if (queryState.seedTabFromSettings) {
+      queryState.seedTabFromSettings = false;
+      this.tabsState.addNewTab(
+        undefined,
+        '',
+        undefined,
+        undefined,
+        undefined,
+        true, // forceNew
+      );
+    }
+
     const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({
       key: tab.id,
       title: tab.title,
