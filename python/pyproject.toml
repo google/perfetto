@@ -1,0 +1,7 @@
+# Minimal build-system declaration so `python -m build` is reproducible on
+# modern Python (distutils was removed in 3.12). All package metadata still
+# comes from setup.py; intentionally no [project] table to avoid conflicts
+# with the dynamic, CHANGELOG-derived version.
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

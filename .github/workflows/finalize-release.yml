@@ -246,3 +246,75 @@ jobs:
           EOF
           )"
           echo "::notice::Opened ai-agents bundle PR and tagged $VERSION."
+
+  # Builds the pure-Python `perfetto` package from the release tag and uploads
+  # it to PyPI via Trusted Publishing (OIDC, no stored token). Runs on a
+  # GitHub-hosted runner since the sdist needs no buildtools, and only after
+  # `finalize` succeeds so we never publish to PyPI if the rest of the release
+  # broke. PyPI upload is irreversible; this is gated by the manual dispatch of
+  # this workflow.
+  #
+  # One-time setup (see https://docs.pypi.org/trusted-publishers/):
+  #   * Create a `pypi` Environment in this repo's settings.
+  #   * On PyPI, add a trusted publisher for project `perfetto`:
+  #       owner `google`, repo `perfetto`, workflow `finalize-release.yml`,
+  #       environment `pypi`.
+  publish-pypi:
+    name: Publish Python package to PyPI
+    needs: finalize
+    runs-on: ubuntu-latest
+    environment: pypi
+    timeout-minutes: 15
+    permissions:
+      id-token: write  # OIDC token for PyPI Trusted Publishing.
+    steps:
+      - name: Validate input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must match vX.Y (got: $VERSION)"
+            exit 1
+          fi
+
+      - name: Checkout release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.version }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Build sdist + wheel
+        env:
+          VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          # The package version is derived by setup.py from the CHANGELOG's
+          # first vX.Y entry (vX.Y -> 0.X.Y). Verify that entry matches the tag
+          # we are publishing before doing anything else. Done with grep (not by
+          # importing setup.py) so this check needs no setuptools on the runner.
+          TOP_VER="$(grep -m1 -oE '^v[0-9]+\.[0-9]+' CHANGELOG)"
+          if [[ "$TOP_VER" != "$VERSION" ]]; then
+            echo "::error::CHANGELOG top release entry ($TOP_VER) != tag $VERSION. The CHANGELOG's first vX.Y entry must be $VERSION."
+            exit 1
+          fi
+          # Point download_url at this tag's source archive. This is PyPI
+          # metadata only and is NOT committed back; the checked-in value in
+          # setup.py is a placeholder overwritten here at build time.
+          ARCHIVE="https://github.com/${REPO}/archive/refs/tags/${VERSION}.zip"
+          sed -i -E "s#download_url\s*=\s*'[^']*'#download_url='${ARCHIVE}'#" \
+            python/setup.py
+          python -m pip install --upgrade build
+          python -m build python
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist
+          # Make re-runs safe: PyPI rejects duplicate versions, so a version
+          # already uploaded is skipped instead of failing the job.
+          skip-existing: true
