@@ -138,7 +138,7 @@ void Bind(duckdb_bind_info info) {
   duckdb_free(name_c);
   duckdb_destroy_value(&name_val);
 
-  const DuckDbTableProvider::Entry* entry = provider->Find(name);
+  const DuckDbTableProvider::Entry* entry = provider->Resolve(name);
   if (!entry) {
     std::string err = "__perfetto_df: unknown table '" + name + "'";
     duckdb_bind_set_error(info, err.c_str());
@@ -229,12 +229,50 @@ void Main(duckdb_function_info info, duckdb_data_chunk output) {
   duckdb_data_chunk_set_size(output, chunk_rows);
 }
 
+// Replacement scan: fired by DuckDB for a catalog name it can't resolve. On a
+// provider hit, rewrite the reference to `__perfetto_df('<table_name>')`; on a
+// miss leave the function name unset so DuckDB raises its normal catalog error.
+void ReplacementScan(duckdb_replacement_scan_info info,
+                     const char* table_name,
+                     void* data) {
+  auto* provider = static_cast<DuckDbTableProvider*>(data);
+  if (!provider || !table_name) {
+    return;
+  }
+  // Miss: leave unset. DuckDB then raises its normal "table does not exist"
+  // error; the future routing/fallback layer keys on that.
+  if (!provider->Resolve(table_name)) {
+    return;
+  }
+  duckdb_replacement_scan_set_function_name(info, kFunctionName);
+  duckdb_value name_val = duckdb_create_varchar(table_name);
+  duckdb_replacement_scan_add_parameter(info, name_val);
+  duckdb_destroy_value(&name_val);
+}
+
 }  // namespace
 
-DuckDbTableProvider::DuckDbTableProvider(StringPool* string_pool)
-    : string_pool_(string_pool) {}
+DuckDbTableProvider::DuckDbTableProvider(StringPool* string_pool,
+                                         Resolver resolver)
+    : string_pool_(string_pool), resolver_(std::move(resolver)) {}
 
 DuckDbTableProvider::~DuckDbTableProvider() = default;
+
+const DuckDbTableProvider::Entry* DuckDbTableProvider::InsertSnapshot(
+    const std::string& name,
+    const dataframe::Dataframe& df) {
+  if (entries_.count(name)) {
+    return nullptr;
+  }
+  std::optional<uint32_t> id_col = FindIdColumnIndex(df.column_names());
+  if (!id_col) {
+    return nullptr;
+  }
+  auto entry = std::make_unique<Entry>(df.CopyFinalized());
+  entry->id_col_idx = *id_col;
+  auto it = entries_.emplace(name, std::move(entry)).first;
+  return it->second.get();
+}
 
 base::Status DuckDbTableProvider::Register(const std::string& name,
                                            const dataframe::Dataframe& df) {
@@ -242,15 +280,12 @@ base::Status DuckDbTableProvider::Register(const std::string& name,
     return base::ErrStatus("DuckDbTableProvider: table '%s' already registered",
                            name.c_str());
   }
-  std::optional<uint32_t> id_col = FindIdColumnIndex(df.column_names());
-  if (!id_col) {
+  if (!FindIdColumnIndex(df.column_names())) {
     return base::ErrStatus(
         "DuckDbTableProvider: table '%s' has no id/_auto_id column",
         name.c_str());
   }
-  auto entry = std::make_unique<Entry>(df.CopyFinalized());
-  entry->id_col_idx = *id_col;
-  entries_.emplace(name, std::move(entry));
+  InsertSnapshot(name, df);
   return base::OkStatus();
 }
 
@@ -258,6 +293,24 @@ const DuckDbTableProvider::Entry* DuckDbTableProvider::Find(
     const std::string& name) const {
   auto it = entries_.find(name);
   return it == entries_.end() ? nullptr : it->second.get();
+}
+
+const DuckDbTableProvider::Entry* DuckDbTableProvider::Resolve(
+    const std::string& name) {
+  if (const Entry* e = Find(name)) {
+    return e;
+  }
+  // Local-cache miss: consult the read-through resolver (if any) and lazily
+  // snapshot a live dataframe by name. This is what makes static AND runtime
+  // tables resolve with no per-table DuckDB registration.
+  if (!resolver_) {
+    return nullptr;
+  }
+  const dataframe::Dataframe* df = resolver_(name);
+  if (!df) {
+    return nullptr;
+  }
+  return InsertSnapshot(name, *df);
 }
 
 base::Status DuckDbTableProvider::RegisterTableFunction(
@@ -285,6 +338,13 @@ base::Status DuckDbTableProvider::RegisterTableFunction(
         "DuckDbTableProvider: duckdb_register_table_function failed (name "
         "'__perfetto_df' may already be registered)");
   }
+  return base::OkStatus();
+}
+
+base::Status DuckDbTableProvider::RegisterReplacementScan(duckdb_database db) {
+  // The provider is the extra-data, NOT owned by DuckDB (null delete callback):
+  // its lifetime is caller-managed and must outlive `db`.
+  duckdb_add_replacement_scan(db, ReplacementScan, this, nullptr);
   return base::OkStatus();
 }
 

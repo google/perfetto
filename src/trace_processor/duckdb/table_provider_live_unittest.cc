@@ -88,6 +88,26 @@ class DuckDbTableProviderLiveTest : public ::testing::Test {
   duckdb_connection con_ = nullptr;
 };
 
+// Builds a small synthetic two-column table ("id" Id column + "v" Int64) so the
+// Live fixture has a SECOND registered table alongside `sched`.
+dataframe::Dataframe BuildSecondTable(StringPool* pool) {
+  using dataframe::AdhocColumnType;
+  using dataframe::AdhocDataframeBuilder;
+  AdhocDataframeBuilder::Options opts;
+  opts.types = {AdhocColumnType::kInt64};
+  opts.nullability_type = dataframe::NullabilityType::kSparseNull;
+  opts.emit_auto_id = true;
+  AdhocDataframeBuilder builder({"v"}, pool, opts);
+  for (int64_t i = 0; i < 10; ++i) {
+    builder.PushNonNull(0, i * 100);
+  }
+  base::StatusOr<dataframe::Dataframe> df = std::move(builder).Build();
+  PERFETTO_CHECK(df.ok());
+  dataframe::Dataframe out = std::move(df.value());
+  out.Finalize();
+  return out;
+}
+
 TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
   const dataframe::Dataframe& sched = SchedDataframe();
   ASSERT_GT(sched.row_count(), 0u) << "trace produced no sched rows";
@@ -95,9 +115,12 @@ TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
   // The provider needs the StringPool that backs the dataframe so it can resolve
   // String cells (end_state). It is the TraceProcessor's storage StringPool.
   StringPool* pool = tp_->context()->storage->mutable_string_pool();
+  dataframe::Dataframe second = BuildSecondTable(pool);
   DuckDbTableProvider provider(pool);
   ASSERT_TRUE(provider.Register("sched", sched).ok());
+  ASSERT_TRUE(provider.Register("second_tbl", second).ok());
   ASSERT_TRUE(provider.RegisterTableFunction(con_).ok());
+  ASSERT_TRUE(provider.RegisterReplacementScan(db_).ok());
 
   // Pull the same projection from both engines, ordered by id, and compare cell
   // for cell. id is an `Id` storage column (== row index), so storage order ==
@@ -168,6 +191,110 @@ TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
     }
   }
   duckdb_destroy_result(&res);
+
+  // BARE `FROM sched` via the replacement scan must return rows identical to
+  // both `__perfetto_df('sched')` and the legacy engine.
+  duckdb_result bare;
+  ASSERT_EQ(duckdb_query(
+                con_,
+                (std::string("SELECT ") + kCols + " FROM sched ORDER BY id")
+                    .c_str(),
+                &bare),
+            DuckDBSuccess)
+      << duckdb_result_error(&bare);
+  ASSERT_EQ(duckdb_row_count(&bare), legacy_rows.size());
+  ASSERT_EQ(duckdb_column_count(&bare), 7u);
+  for (idx_t r = 0; r < legacy_rows.size(); ++r) {
+    const std::vector<Cell>& lrow = legacy_rows[r];
+    for (idx_t c = 0; c < 7; ++c) {
+      EXPECT_EQ(duckdb_value_is_null(&bare, c, r), lrow[c].is_null)
+          << "bare null mismatch at row " << r << " col " << c;
+      if (lrow[c].is_null) {
+        continue;
+      }
+      if (lrow[c].is_string) {
+        char* s = duckdb_value_varchar(&bare, c, r);
+        EXPECT_STREQ(s, lrow[c].s.c_str())
+            << "bare string mismatch at row " << r << " col " << c;
+        duckdb_free(s);
+      } else {
+        EXPECT_EQ(duckdb_value_int64(&bare, c, r), lrow[c].i)
+            << "bare int mismatch at row " << r << " col " << c;
+      }
+    }
+  }
+  duckdb_destroy_result(&bare);
+
+  // The SECOND registered table also resolves bare, proving the replacement
+  // scan is generic (not sched-specific).
+  duckdb_result second_res;
+  ASSERT_EQ(
+      duckdb_query(con_, "SELECT count(*), sum(v) FROM second_tbl", &second_res),
+      DuckDBSuccess)
+      << duckdb_result_error(&second_res);
+  EXPECT_EQ(duckdb_value_int64(&second_res, 0, 0), 10);
+  EXPECT_EQ(duckdb_value_int64(&second_res, 1, 0), 4500);  // sum 0,100..900
+  duckdb_destroy_result(&second_res);
+
+  // MISS path: a bare reference to an unknown name must produce a clean DuckDB
+  // error (DuckDBError), NOT a crash. The replacement scan leaves the function
+  // name unset so DuckDB raises its normal catalog error.
+  duckdb_result miss;
+  EXPECT_EQ(
+      duckdb_query(con_, "SELECT * FROM definitely_not_a_table", &miss),
+      DuckDBError);
+  duckdb_destroy_result(&miss);
+}
+
+// ----------------------------------------------------------------------------
+// Read-through resolver: a name NOT pre-registered is supplied lazily by the
+// resolver on first reference (snapshot-on-miss).
+// ----------------------------------------------------------------------------
+
+TEST(DuckDbTableProviderResolverTest, LazySnapshotOnMiss) {
+  StringPool pool;
+  dataframe::Dataframe lazy = BuildSecondTable(&pool);
+
+  duckdb_database db = nullptr;
+  duckdb_connection con = nullptr;
+  ASSERT_EQ(duckdb_open(nullptr, &db), DuckDBSuccess);
+  ASSERT_EQ(duckdb_connect(db, &con), DuckDBSuccess);
+
+  // The provider starts with NOTHING registered; the resolver supplies "lazy"
+  // (and only "lazy") on demand. This mirrors the engine's GetDataframeOrNull
+  // read-through that a later subtask will wire into PerfettoSqlConnection.
+  int resolver_calls = 0;
+  DuckDbTableProvider provider(
+      &pool, [&](const std::string& name) -> const dataframe::Dataframe* {
+        ++resolver_calls;
+        return name == "lazy" ? &lazy : nullptr;
+      });
+  ASSERT_TRUE(provider.RegisterTableFunction(con).ok());
+  ASSERT_TRUE(provider.RegisterReplacementScan(db).ok());
+
+  // Pre-condition: not in the local cache yet.
+  ASSERT_EQ(provider.Find("lazy"), nullptr);
+
+  // Bare `FROM lazy` resolves through the resolver, snapshots, and scans.
+  duckdb_result res;
+  ASSERT_EQ(duckdb_query(con, "SELECT count(*), sum(v) FROM lazy", &res),
+            DuckDBSuccess)
+      << duckdb_result_error(&res);
+  EXPECT_EQ(duckdb_value_int64(&res, 0, 0), 10);
+  EXPECT_EQ(duckdb_value_int64(&res, 1, 0), 4500);
+  duckdb_destroy_result(&res);
+
+  // Post-condition: the snapshot is now cached (lazy snapshot-on-miss worked).
+  EXPECT_NE(provider.Find("lazy"), nullptr);
+  EXPECT_GT(resolver_calls, 0);
+
+  // A name the resolver does NOT know still errors cleanly.
+  duckdb_result miss;
+  EXPECT_EQ(duckdb_query(con, "SELECT * FROM unknown_name", &miss), DuckDBError);
+  duckdb_destroy_result(&miss);
+
+  duckdb_disconnect(&con);
+  duckdb_close(&db);
 }
 
 // ----------------------------------------------------------------------------
