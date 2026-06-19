@@ -22,6 +22,7 @@ import type {Row, SqlValue} from '../../trace_processor/query_result';
 import type {QueryResult} from '../../base/query_slot';
 import {
   type BigtraceQueryClient,
+  BigtraceHttpError,
   QueryCancelledError,
 } from './bigtrace_query_client';
 import {encodeFilters} from './filter_encoding';
@@ -37,6 +38,10 @@ export class BigtraceAsyncDataSource implements DataSource {
   private isFetching = false;
   private columns: string[] = [];
   private error: string | null = null;
+  // HTTP status of the last error, when it was an HTTP error (undefined
+  // otherwise). Lets the results view tell a not-ready-yet 400 from a real
+  // failure without parsing the message string.
+  private errorStatus: number | undefined;
   private hasInitialFetchCompleted = false;
   // Window in `loadedRows`, for range-change detection.
   private loadedOffset = 0;
@@ -173,6 +178,7 @@ export class BigtraceAsyncDataSource implements DataSource {
   private async fetchMoreRows(offset: number, limit: number) {
     if (this.signal?.aborted) return;
     this.error = null;
+    this.errorStatus = undefined;
     this.isFetching = true;
     m.redraw();
     try {
@@ -199,7 +205,14 @@ export class BigtraceAsyncDataSource implements DataSource {
       // Abort is expected when the owning tab closes; don't surface it.
       if (e instanceof QueryCancelledError) return;
       console.error('[bigtrace] fetch_results failed:', e);
-      this.error = e instanceof Error ? e.message : String(e);
+      if (e instanceof BigtraceHttpError) {
+        // Surface the backend's detail (not the wrapped message) and keep the
+        // status for the results view's not-ready-yet check.
+        this.error = e.detail;
+        this.errorStatus = e.status;
+      } else {
+        this.error = e instanceof Error ? e.message : String(e);
+      }
     } finally {
       this.isFetching = false;
       m.redraw();
@@ -214,6 +227,12 @@ export class BigtraceAsyncDataSource implements DataSource {
 
   getError(): string | null {
     return this.error;
+  }
+
+  // HTTP status of the last fetch error, if it was an HTTP error (undefined
+  // otherwise).
+  getErrorStatus(): number | undefined {
+    return this.errorStatus;
   }
 
   getColumns(): string[] {
