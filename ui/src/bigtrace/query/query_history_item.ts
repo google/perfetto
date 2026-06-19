@@ -131,6 +131,12 @@ export function renderHistoryItem(
       ? formatDate(new Date(startTime), {printTimezone: false})
       : 'N/A';
 
+  const openThis = () => {
+    if (openQuery && uuid) {
+      openQuery(queryText, uuid, isMaterialized, false, entry.limit, startTime);
+    }
+  };
+
   const buttonsRow = m(
     Stack,
     {
@@ -139,18 +145,7 @@ export function renderHistoryItem(
     },
     [
       m(Button, {
-        onclick: () => {
-          if (openQuery && uuid) {
-            openQuery(
-              queryText,
-              uuid,
-              isMaterialized,
-              false,
-              entry.limit,
-              startTime,
-            );
-          }
-        },
+        onclick: openThis,
         icon: Icons.ChangeTab,
         title: 'Open',
       }),
@@ -201,23 +196,35 @@ export function renderHistoryItem(
   return m(
     '.pf-query-history__item',
     {key: `${uuid}-${index}`},
-    m('.pf-bt-history-item-meta', [
-      buttonsRow,
-      m('div.pf-bt-history-item-header', [
-        m(
-          'span.pf-bt-history-item-status',
-          {
-            class: `pf-bt-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
-          },
-          statusDisplayLabel(entry.status),
-        ),
-        m(
-          'span.pf-bt-history-item-date',
-          {title: `UTC: ${utcString}`},
-          localString,
-        ),
-      ]),
-    ]),
+    m(
+      '.pf-bt-history-item-meta',
+      {
+        // The whole status/date band opens the query, like the Open button.
+        // Skip clicks that originated on the overlaid buttons so Delete
+        // doesn't also open.
+        onclick: (e: MouseEvent) => {
+          if ((e.target as HTMLElement).closest('button')) return;
+          openThis();
+        },
+      },
+      [
+        buttonsRow,
+        m('div.pf-bt-history-item-header', [
+          m(
+            'span.pf-bt-history-item-status',
+            {
+              class: `pf-bt-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
+            },
+            statusDisplayLabel(entry.status),
+          ),
+          m(
+            'span.pf-bt-history-item-date',
+            {title: `UTC: ${utcString}`},
+            localString,
+          ),
+        ]),
+      ],
+    ),
     // Materialized only: a banded strip between the header and the SQL pre.
     isMaterialized &&
       m(

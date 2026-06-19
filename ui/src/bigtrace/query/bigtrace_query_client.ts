@@ -88,6 +88,21 @@ export class QueryNotFoundError extends Error {
   }
 }
 
+// Backend returned a non-OK HTTP status (other than 404, which maps to
+// QueryNotFoundError). `detail` is the human-readable `detail` from the error
+// body (or the raw body when it isn't JSON); `status` is the HTTP status, so
+// callers can render the detail and branch on the status instead of scraping
+// the message string.
+export class BigtraceHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(`HTTP ${status}: ${detail}`);
+    this.name = 'BigtraceHttpError';
+  }
+}
+
 // Single funnel for the BigTrace HTTP API.
 export class BigtraceQueryClient {
   constructor(private readonly endpoint: string) {}
@@ -357,15 +372,15 @@ export class BigtraceQueryClient {
         throw new QueryNotFoundError(m ? m[1] : path);
       }
       if (response.status === 403) {
-        throw new Error(
-          `HTTP error! status: ${response.status}, message: ${detail}. ` +
-            `This might be an authentication issue. Please ensure you ` +
-            `are logged in with the correct credentials.`,
+        // Most 403s here are an unauthenticated session; fold the hint into
+        // the detail so it reaches the user with the rest of the message.
+        throw new BigtraceHttpError(
+          403,
+          `${detail} (this may be an authentication issue — make sure you ` +
+            `are logged in with the correct credentials)`,
         );
       }
-      throw new Error(
-        `HTTP error! status: ${response.status}, message: ${detail}`,
-      );
+      throw new BigtraceHttpError(response.status, detail);
     }
     return response;
   }
