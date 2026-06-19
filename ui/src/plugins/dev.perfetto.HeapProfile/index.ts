@@ -177,8 +177,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           upid,
           0 AS dur,
           0 AS depth,
-          'java_heap_graph' AS type,
-          graph_sample_ts AS reference_ts
+          'java_heap_graph' AS type
         FROM heap_graph_object
         GROUP BY graph_sample_ts, upid
 
@@ -190,8 +189,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           upid,
           ts_end - ts AS dur,
           0 AS depth,
-          'heap_profile:' || heap_name AS type,
-          ts AS reference_ts
+          'heap_profile:' || heap_name AS type
         FROM heap_profile_slices
 
         UNION ALL
@@ -202,8 +200,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           upid,
           0 AS dur,
           0 AS depth,
-          'oom_callstack' AS type,
-          ts AS reference_ts
+          'oom_callstack' AS type
         FROM heap_graph
         WHERE dump_reason = 'OOME'
       `,
