@@ -8339,7 +8339,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_system_info_protos",
         ":protos_perfetto_config_track_event_protos",
         ":protos_perfetto_protovm_protos",
-    ],
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
 )
 
 # GN target: //protos/perfetto/ipc:wire_protocol_cpp
@@ -8477,7 +8477,7 @@ perfetto_proto_library(
         ":protos_perfetto_metrics_common_protos",
         ":protos_perfetto_metrics_custom_options_protos",
         ":protos_perfetto_metrics_protos",
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+    ],
 )
 
 # GN target: //protos/perfetto/metrics/common:source_set
@@ -8500,8 +8500,6 @@ perfetto_proto_library(
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
     ],
-    deps = [
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
 )
 
 # GN target: //protos/perfetto/metrics:descriptor
@@ -8555,7 +8553,7 @@ perfetto_proto_library(
         ":protos_perfetto_metrics_android_protos",
         ":protos_perfetto_metrics_common_protos",
         ":protos_perfetto_metrics_protos",
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+    ],
 )
 
 # GN target: //protos/perfetto/perfetto_sql:source_set
@@ -8596,7 +8594,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_common_semantic_type_protos",
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+    ],
 )
 
 # GN target: //protos/perfetto/protovm:cpp
@@ -9674,7 +9672,7 @@ perfetto_proto_library(
         ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_protos",
         ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_regular_protos",
         ":protos_third_party_android_packages_modules_bluetooth_tracing_bluetooth_tracing_protos",
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+    ],
     exports = [
         ":protos_third_party_android_art_art_heap_graph_protos",
         ":protos_third_party_android_connectivity_connectivity_network_trace_protos",
@@ -10210,7 +10208,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_track_event_protos",
         ":protos_perfetto_trace_translation_protos",
         ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_regular_protos",
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+    ],
     exports = [
         ":protos_perfetto_trace_non_minimal_protos",
         ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_regular_protos",
@@ -10582,8 +10580,6 @@ perfetto_proto_library(
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
     ],
-    deps = [
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
 )
 
 # GN target: //protos/third_party/primes:zero
