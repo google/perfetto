@@ -79,8 +79,6 @@ class ProtoTraceReader : public ChunkedTraceReader {
     return CalculateClockOffsets(sync_clock_snapshots);
   }
 
-  std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id);
-
  private:
   struct SequenceScopedState {
     std::optional<PacketSequenceStateBuilder> sequence_state_builder;
