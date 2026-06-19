@@ -3269,6 +3269,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/proto_importer_module.cc",
         "src/trace_processor/importers/proto/proto_importer_module.h",
+        "src/trace_processor/importers/proto/selective_trace_packet_decoder.h",
+        "src/trace_processor/importers/proto/typed_proto_field.h",
     ],
 )
 

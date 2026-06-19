@@ -34,16 +34,9 @@ class PixelModemModule : public ProtoImporterModule {
   explicit PixelModemModule(ProtoImporterModuleContext* module_context,
                             TraceProcessorContext* context);
 
-  ModuleResult TokenizePacket(const protos::pbzero::TracePacket_Decoder&,
-                              TraceBlobView* packet,
-                              int64_t packet_timestamp,
-                              RefPtr<PacketSequenceStateGeneration>,
-                              uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   TraceProcessorContext* context_ = nullptr;
