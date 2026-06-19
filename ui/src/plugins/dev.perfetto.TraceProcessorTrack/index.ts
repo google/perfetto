@@ -302,9 +302,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
             extract_arg(t.source_arg_set_id, 'description') as description,
             t.type,
-            iif(t.track_group_id is null,
-                'track_' || t.id,
-                'group_' || t.track_group_id) as group_key,
+            'track_' || t.id as group_key,
             'state' as rootTable,
             parent_t.name as parentName,
             t.parent_id as parentId

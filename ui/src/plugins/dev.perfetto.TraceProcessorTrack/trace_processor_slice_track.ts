@@ -110,32 +110,6 @@ export async function createTraceProcessorSliceTrack({
   });
 }
 
-function getSelectColumns(rootTableName: string, depthTableName?: string) {
-  const isState = rootTableName === 'state';
-  return {
-    id: 'id',
-    ts: 'ts',
-    dur: 'dur',
-    depth: depthTableName
-      ? {
-          join: 'depth',
-          expr: 'depth.depth',
-        }
-      : isState
-        ? '0'
-        : 'depth',
-    name: isState ? 'value' : 'name',
-    thread_dur: isState ? 'NULL' : 'thread_dur',
-    track_id: 'track_id',
-    category: 'category',
-    correlation_id: isState
-      ? 'NULL'
-      : "extract_arg(arg_set_id, 'correlation_id')",
-    arg_set_id: 'arg_set_id',
-    parent_id: isState ? 'NULL' : 'parent_id',
-  };
-}
-
 async function getDataset(
   engine: Engine,
   trackIds: ReadonlyArray<number>,
@@ -148,7 +122,19 @@ async function getDataset(
     assertTrue(trackIds.length === 1);
     return new SourceDataset({
       schema,
-      select: getSelectColumns(rootTableName, depthTableName),
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: '0',
+        name: 'value',
+        thread_dur: 'NULL',
+        track_id: 'track_id',
+        category: 'category',
+        correlation_id: 'NULL',
+        arg_set_id: 'arg_set_id',
+        parent_id: 'NULL',
+      },
       src: "(SELECT * FROM state WHERE value != '')",
       filter: {
         col: 'track_id',
@@ -161,7 +147,19 @@ async function getDataset(
     // Single track case - use depth directly from slice table
     return new SourceDataset({
       schema,
-      select: getSelectColumns(rootTableName, depthTableName),
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: 'depth',
+        name: 'name',
+        thread_dur: 'thread_dur',
+        track_id: 'track_id',
+        category: 'category',
+        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
+        arg_set_id: 'arg_set_id',
+        parent_id: 'parent_id',
+      },
       src: rootTableName,
       filter: {
         col: 'track_id',
@@ -191,7 +189,22 @@ async function getDataset(
     // Join slice with the depth table (caller-provided or self-created).
     return new SourceDataset({
       schema,
-      select: getSelectColumns(rootTableName, tableName),
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: {
+          join: 'depth',
+          expr: 'depth.depth',
+        },
+        name: 'name',
+        thread_dur: 'thread_dur',
+        track_id: 'track_id',
+        category: 'category',
+        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
+        arg_set_id: 'arg_set_id',
+        parent_id: 'parent_id',
+      },
       src: rootTableName,
       joins: {
         depth: {
