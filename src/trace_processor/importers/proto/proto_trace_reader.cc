@@ -258,6 +258,14 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // using a different ProtoTraceReader instance. The packet will be parsed
   // in the context of the remote machine.
   if (PERFETTO_UNLIKELY(decoder.machine_id())) {
+    // A packet with a machine_id proves this trace contains data from more
+    // than one machine, which is incompatible with a perfetto_manifest
+    // clock pin: the pin is ambiguous across machines.
+    if (context_->has_clock_override()) {
+      return base::ErrStatus(
+          "perfetto_manifest: clock overrides require the trace to come "
+          "from a single machine");
+    }
     if (context_->machine_id() == MachineId(kDefaultMachineId)) {
       auto [it, inserted] =
           machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
@@ -269,7 +277,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         if (parent_default) {
           machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
         }
-        machine_context->clock_tracker->AddDeferredIdentitySync(
+        machine_context->clock_tracker->AddDeferredClockSync(
             ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
         // TODO(lalitm): this doesn't seem the right place for this but I cannot
         // think of a much better place either.
@@ -449,8 +457,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     if (PERFETTO_UNLIKELY(!timestamp_clock_id && defaults)) {
       timestamp_clock_id = defaults->timestamp_clock_id();
     }
+    std::optional<ClockTracker::ClockId> default_clock;
     if (PERFETTO_UNLIKELY(!timestamp_clock_id)) {
-      auto default_clock = context_->clock_tracker->trace_default_clock();
+      default_clock = context_->clock_tracker->trace_default_clock();
       if (default_clock) {
         timestamp_clock_id = default_clock->clock_id;
       }
@@ -473,7 +482,12 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
       ClockTracker::ClockId converted_clock_id;
-      if (ClockId::IsSequenceClock(timestamp_clock_id)) {
+      if (default_clock) {
+        // The clock came from the trace default: use it as-is, as it may be
+        // scoped beyond the raw clock id (e.g. a perfetto_manifest override
+        // moved this file onto its private TraceFile clock).
+        converted_clock_id = *default_clock;
+      } else if (ClockId::IsSequenceClock(timestamp_clock_id)) {
         if (!seq_id) {
           return base::ErrStatus(
               "TracePacket specified a sequence-local clock id (%" PRIu32
@@ -651,6 +665,16 @@ void ProtoTraceReader::ParseInternedData(
 
 base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
                                                   uint32_t seq_id) {
+  // A ClockSnapshot correlates two or more clock domains, which proves this
+  // trace is not single-clock; perfetto_manifest clock pins are only valid
+  // for single-clock traces. ClockTracker::AddSnapshot also rejects this,
+  // but its error is logged and swallowed below; check here to fail the
+  // load on what is a configuration error.
+  if (context_->has_clock_override()) {
+    return base::ErrStatus(
+        "perfetto_manifest: clock overrides require the trace to use a "
+        "single clock");
+  }
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   for (auto it = evt.clocks(); it; ++it) {
