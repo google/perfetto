@@ -194,6 +194,9 @@ export interface TrackEventDetails {
   // samples.
   readonly dur?: duration;
 
+  // The SQL table name that contains the backing data for this event.
+  // Used by details panels to query the correct table (e.g., 'slice' or 'state').
+  // If omitted, the backing SQL query defaults to the 'slice' table.
   readonly tableName?: string;
 }
 

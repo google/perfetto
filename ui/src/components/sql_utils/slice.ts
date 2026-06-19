@@ -78,6 +78,24 @@ export async function getSliceFromConstraints(
   constraints: SQLConstraints,
   tableName = 'slice',
 ): Promise<SliceDetails[]> {
+  let sqlTable = tableName;
+  if (tableName === 'state') {
+    sqlTable = `(
+      SELECT
+        id,
+        value as name,
+        ts,
+        dur,
+        track_id,
+        0 as depth,
+        NULL as parent_id,
+        NULL as thread_dur,
+        NULL as thread_ts,
+        category,
+        arg_set_id
+      FROM state
+    )`;
+  }
   const query = await engine.query(`
     SELECT
       id,
@@ -92,7 +110,7 @@ export async function getSliceFromConstraints(
       category,
       arg_set_id as argSetId,
       ABS_TIME_STR(ts) as absTime
-    FROM ${tableName}
+    FROM ${sqlTable}
     ${constraintsToQuerySuffix(constraints)}`);
   const it = query.iter({
     id: NUM,

@@ -19,12 +19,7 @@ import {SliceTrack, renderTooltip} from '../../components/tracks/slice_track';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {
-  LONG,
-  NUM,
-  NUM_NULL,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 import m from 'mithril';
 
 export interface TraceProcessorStateTrackAttrs {
@@ -38,14 +33,9 @@ const schema = {
   id: NUM,
   ts: LONG,
   dur: LONG,
-  name: STR_NULL, // maps to 'value' in SQL
+  value: STR_NULL,
   depth: NUM, // always 0 in SQL
-  thread_dur: NUM_NULL, // always NULL
   category: STR_NULL,
-  correlation_id: STR_NULL, // always NULL
-  arg_set_id: NUM_NULL,
-  parent_id: NUM_NULL, // always NULL
-  track_id: NUM,
 };
 
 export async function createTraceProcessorStateTrack({
@@ -64,13 +54,8 @@ export async function createTraceProcessorStateTrack({
         ts: 'ts',
         dur: 'dur',
         depth: '0',
-        name: 'value',
-        thread_dur: 'NULL',
-        track_id: 'track_id',
+        value: 'value',
         category: 'category',
-        correlation_id: 'NULL',
-        arg_set_id: 'arg_set_id',
-        parent_id: 'NULL',
       },
       src: "(SELECT * FROM state WHERE value != '')",
       filter: {
@@ -78,7 +63,7 @@ export async function createTraceProcessorStateTrack({
         eq: trackId,
       },
     }),
-    sliceName: (row) => (row.name === null ? '[null]' : row.name),
+    sliceName: (row) => (row.value === null ? '[null]' : row.value),
     initialMaxDepth: 0,
     rootTableName: 'state',
     fillRatio: () => 1,
@@ -93,8 +78,8 @@ export async function createTraceProcessorStateTrack({
       ? (row) => detailsPanel(row)
       : () => new ThreadSliceDetailsPanel(trace),
     colorizer: (row) => {
-      if (row.name) {
-        return getColorForSlice(row.name);
+      if (row.value) {
+        return getColorForSlice(row.value);
       }
       return getColorForSlice(`${row.id}`);
     },
