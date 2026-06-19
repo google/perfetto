@@ -8634,6 +8634,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/android_system_property.proto",
+        "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/cpu_per_uid_data.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
