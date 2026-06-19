@@ -105,12 +105,15 @@ base::Status WebSocketTransport::Handshake(const std::string& host_port) {
   std::string key = base::Base64Encode("perfetto-tp-wsclient", 16);
   std::string req =
       "GET /websocket HTTP/1.1\r\n"
-      "Host: " + host_port + "\r\n"
+      "Host: " +
+      host_port +
+      "\r\n"
       "Upgrade: websocket\r\n"
       "Connection: Upgrade\r\n"
       "Sec-WebSocket-Version: 13\r\n"
       "Origin: http://localhost:10000\r\n"
-      "Sec-WebSocket-Key: " + key + "\r\n\r\n";
+      "Sec-WebSocket-Key: " +
+      key + "\r\n\r\n";
   if (sock_.Send(req.data(), req.size()) < 0)
     return base::ErrStatus("WebSocket handshake send failed");
 
