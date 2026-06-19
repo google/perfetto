@@ -104,19 +104,13 @@ export function isNumeric(value: unknown): value is number | bigint {
   return typeof value === 'number' || typeof value === 'bigint';
 }
 
-// Normalizes an ArrayBuffer or any ArrayBufferView (e.g. a Uint8Array, possibly
-// with a non-zero byteOffset) into a *pure* ArrayBuffer whose bytes are exactly
-// the region the view spans. Various parts of the codebase assume a pure
-// ArrayBuffer with byteOffset 0 and break subtly on a view (see b/390473162).
-// It's also needed because untyped external input (e.g. a trace posted via
-// postMessage) can supply a view at runtime despite the static type saying
-// ArrayBuffer.
+// Normalizes an ArrayBuffer or ArrayBufferView into a pure ArrayBuffer spanning
+// exactly the view's bytes. Parts of the codebase assume byteOffset 0 and break
+// subtly on a view (see b/390473162).
 export function toArrayBuffer(buf: ArrayBuffer | ArrayBufferView): ArrayBuffer {
   if (!ArrayBuffer.isView(buf)) {
     return buf;
   }
-  // A view over the whole, exactly-sized backing buffer can be unwrapped
-  // without copying; otherwise slice out just the view's region.
   if (buf.byteOffset === 0 && buf.byteLength === buf.buffer.byteLength) {
     return buf.buffer as ArrayBuffer;
   }

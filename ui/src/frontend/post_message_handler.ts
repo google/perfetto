@@ -311,11 +311,8 @@ export function postMessageHandler(messageEvent: MessageEvent) {
 function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
   const result: PostedTrace = {
     title: sanitizeString(postedTrace.title),
-    // `buffer` is typed ArrayBuffer, but this is untyped data coming off
-    // postMessage(): senders routinely pass a Uint8Array (or other view).
-    // Normalize it to a pure ArrayBuffer here, at the boundary, so the rest of
-    // the codebase (TraceBufferStream, cache_manager) can rely on the type.
-    // See b/390473162.
+    // Senders routinely pass a view (e.g. Uint8Array) despite the static type;
+    // normalize to a pure ArrayBuffer at the boundary. See b/390473162.
     buffer: toArrayBuffer(postedTrace.buffer),
     keepApiOpen: postedTrace.keepApiOpen,
     // For external traces, we need to disable other features such as
