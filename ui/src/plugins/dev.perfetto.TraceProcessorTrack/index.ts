@@ -52,7 +52,7 @@ import {CounterSelectionAggregator} from './counter_selection_aggregator';
 import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
 import {PivotTableTab} from './pivot_table_tab';
 import {SliceSelectionAggregator} from './slice_selection_aggregator';
-import {SLICE_TRACK_SCHEMAS, type SliceTrackGroupSchema} from './slice_tracks';
+import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import type {TopLevelTrackGroup, TrackGroupSchema} from './types';
@@ -236,7 +236,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         upid,
         utid,
-        null,
         new TrackNode({
           uri,
           name: trackName,
@@ -253,8 +252,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     await ctx.engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.track_event_callstacks;
-      include perfetto module viz.summary.slices;
-      include perfetto module viz.summary.states;
     `);
 
     // Step 1: Materialize track metadata
@@ -283,33 +280,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
               'thread_' || extract_arg(t.dimension_arg_set_id, 'utid'),
               iif(t.track_group_id is null,
                   'track_' || t.id,
-                  'group_' || t.track_group_id)) as group_key,
-            'slice' as rootTable,
-            parent_t.name as parentName,
-            t.parent_id as parentId
+                  'group_' || t.track_group_id)) as group_key
           from _slice_track_summary s
           join track t using (id)
-          left join track parent_t on parent_t.id = t.parent_id
-          where t.id not in (select distinct parent_id from track where parent_id is not null)
-
-          union all
-
-          select
-            t.id,
-            t.name,
-            extract_arg(t.dimension_arg_set_id, 'utid') as utid,
-            extract_arg(t.dimension_arg_set_id, 'upid') as upid,
-            extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
-            extract_arg(t.source_arg_set_id, 'description') as description,
-            t.type,
-            'track_' || t.id as group_key,
-            'state' as rootTable,
-            parent_t.name as parentName,
-            t.parent_id as parentId
-          from _state_track_summary s
-          join track t using (id)
-          left join track parent_t on parent_t.id = t.parent_id
-          where t.id not in (select distinct parent_id from track where parent_id is not null)
         ),
         grouped as materialized (
           select
@@ -328,10 +301,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
               when 'thread_execution' then 0
               when 'art_method_tracing' then 1
               else 99
-            end as track_rank,
-            min(t.rootTable) as rootTable,
-            min(t.parentName) as parentName,
-            min(t.parentId) as parentId
+            end as track_rank
           from tracks t
           left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
           group by t.type, t.upid, t.utid, t.gpu_id, t.group_key
@@ -345,7 +315,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           s.minTrackId as minTrackId,
           s.trackIds as trackIds,
           s.trackCount,
-          ifnull(__max_layout_depth(s.trackCount, s.trackIds), 0) as maxDepth,
+          __max_layout_depth(s.trackCount, s.trackIds) as maxDepth,
           thread.tid,
           thread.name as threadName,
           ifnull(p.pid, tp.pid) as pid,
@@ -355,10 +325,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           s.description AS description,
           s.hasCallstacks,
           s.track_rank,
-          s.lower_name,
-          s.rootTable,
-          s.parentName,
-          s.parentId
+          s.lower_name
         from grouped s
         left join process p on s.upid = p.upid
         left join thread using (utid)
@@ -404,9 +371,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       description: STR_NULL,
       track_rank: NUM,
       lower_name: STR_NULL,
-      rootTable: STR,
-      parentName: STR_NULL,
-      parentId: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const {
@@ -424,19 +388,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         isKernelThread,
         hasCallstacks,
         description,
-        rootTable,
-        parentName,
-        parentId,
       } = it;
       const schema = schemas.get(type);
       if (schema === undefined) {
         continue;
       }
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const {topLevelGroup} = schema;
-      const group: SliceTrackGroupSchema | string | undefined = parentName
-        ? {name: parentName, expanded: true}
-        : schema.group;
+      const {group, topLevelGroup} = schema;
       const trackName = getTrackName({
         name,
         tid,
@@ -448,10 +406,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         kind: SLICE_TRACK_KIND,
         threadTrack: utid !== undefined,
       });
-      const uri =
-        rootTable === 'state'
-          ? `/state_${trackIds[0]}`
-          : `/slice_${trackIds[0]}`;
+      const uri = `/slice_${trackIds[0]}`;
 
       // Apply displayName function from schema if available
       const displayName = schema.displayName
@@ -482,10 +437,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           trackIds,
           detailsPanel: createDetailsPanel(ctx, utid),
           depthTableName:
-            trackIds.length > 1 && rootTable !== 'state'
-              ? '__tp_track_layout_depth'
-              : undefined,
-          rootTableName: rootTable,
+            trackIds.length > 1 ? '__tp_track_layout_depth' : undefined,
         }),
       });
       this.addTrack(
@@ -494,7 +446,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         upid,
         utid,
-        parentId ?? null,
 
         new TrackNode({
           uri,
@@ -514,7 +465,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     group: string | TrackGroupSchema | undefined,
     upid: number | null,
     utid: number | null,
-    parentId: number | null,
     track: TrackNode,
   ) {
     switch (topLevelGroup) {
@@ -524,9 +474,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             .getPlugin(ProcessThreadGroupsPlugin)
             .getGroupForProcess(assertExists(upid)),
         );
-        this.getGroupByName(process, group, upid, parentId).addChildInOrder(
-          track,
-        );
+        this.getGroupByName(process, group, upid).addChildInOrder(track);
         break;
       }
       case 'THREAD': {
@@ -535,9 +483,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             .getPlugin(ProcessThreadGroupsPlugin)
             .getGroupForThread(assertExists(utid)),
         );
-        this.getGroupByName(thread, group, utid, parentId).addChildInOrder(
-          track,
-        );
+        this.getGroupByName(thread, group, utid).addChildInOrder(track);
         break;
       }
       case undefined: {
@@ -545,7 +491,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ctx.defaultWorkspace.tracks,
           group,
           upid,
-          parentId,
         ).addChildInOrder(track);
         break;
       }
@@ -557,12 +502,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           topLevelGroup,
         );
 
-        this.getGroupByName(
-          standardGroup,
-          group,
-          null,
-          parentId,
-        ).addChildInOrder(track);
+        this.getGroupByName(standardGroup, group, null).addChildInOrder(track);
         break;
       }
     }
@@ -572,7 +512,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     node: TrackNode,
     group: string | TrackGroupSchema | undefined,
     scopeId: number | null,
-    parentId: number | null,
   ) {
     if (group === undefined) {
       return node;
@@ -583,20 +522,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     const name = typeof group === 'string' ? group : group.name;
     const expanded =
       typeof group === 'string' ? false : group.expanded ?? false;
-
-    // Try to find the parent track's existing visual folder first.
-    if (parentId !== null) {
-      // Check if this parent is already registered inside the workspace node
-      const existingParent = node.children.find(
-        (x) =>
-          x.uri === `/track_event_${parentId}` ||
-          x.uri === `/slice_${parentId}`,
-      );
-      if (existingParent) {
-        return existingParent;
-      }
-    }
-
     const groupId = `tp_group_${scopeId}_${name.toLowerCase().replace(' ', '_')}`;
     const groupNode = this.groups.get(groupId);
     if (groupNode) {
