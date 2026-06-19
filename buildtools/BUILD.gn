@@ -1749,8 +1749,28 @@ if (enable_perfetto_duckdb) {
         "-frtti",
       ]
     }
+
+    # DuckDB is a vendored single-TU amalgamation; we do not want our
+    # -Werror / extra warnings applied to third-party code. -w silences all
+    # warnings (and overrides the -Werror coming from the default config).
+    # This is needed in particular for the wasm32 (32-bit) target, where
+    # DuckDB emits warnings (cpp-httplib 32-bit #warning, FSST hash size_t
+    # truncation) that would otherwise be fatal under -Werror.
+    cflags = [ "-w" ]
+
     public_configs = [ ":duckdb_config" ]
     deps = [ "//gn:default_deps" ]
+
+    # M2 EXPERIMENTAL: emscripten/wasm support. The wasm build is
+    # single-threaded (no -pthread), so build DuckDB without its thread pool
+    # and without dynamic extension loading (no dlopen under wasm).
+    if (is_wasm) {
+      defines = [
+        "DUCKDB_NO_THREADS",
+        "DUCKDB_BUILD_LIBRARY",
+        "DUCKDB_DISABLE_EXTENSION_LOAD",
+      ]
+    }
 
     # DuckDB needs threads, dynamic loading and (on Linux) realtime libs.
     if (is_linux) {

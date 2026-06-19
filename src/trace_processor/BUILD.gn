@@ -39,6 +39,13 @@ if (enable_perfetto_ui) {
     "rpc:wasm_bridge",
   ]
 
+  # EXPERIMENTAL (M2 size gate). Force the DuckDB amalgamation into the Wasm
+  # bundle so we can measure its binary-size delta. This is NOT a real
+  # integration and must be removed before any production use.
+  if (enable_perfetto_duckdb) {
+    trace_processor_wasm_deps += [ ":duckdb_wasm_force" ]
+  }
+
   wasm_lib("trace_processor_wasm") {
     name = "trace_processor"
     deps = trace_processor_wasm_deps
@@ -48,6 +55,22 @@ if (enable_perfetto_ui) {
     name = "trace_processor_memory64"
     is_memory64 = true
     deps = trace_processor_wasm_deps
+  }
+
+  # EXPERIMENTAL (M2 size gate only). Tiny shim that references DuckDB so it is
+  # linked into (and not dead-stripped from) the Wasm bundle for size
+  # measurement. Remove before any production use.
+  if (enable_perfetto_duckdb) {
+    source_set("duckdb_wasm_force") {
+      sources = [
+        "duckdb_wasm_force.cc",
+        "duckdb_wasm_force.h",
+      ]
+      deps = [
+        "../../gn:default_deps",
+        "../../gn:duckdb",
+      ]
+    }
   }
 }
 
